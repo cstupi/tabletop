@@ -32,8 +32,10 @@ edges and the free-for-all roll-off.
 | `pick-rule` | `rule-roll`, `rule-target`, `rule-effects` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
 | `choose-effect` | `choose` | `GfChoice` | a rule's `set_condition` rows offered at their point by `GfHooks.ReactionsAt` (*"pick one effect"*) |
 | `activation-end` | `activation-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds a row at `activation-end` (Dash) |
+| `after-deploy` | `after-deploy` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences` after a deployment turn, when the unit holds a row at `after-deploy` (Fanatic, Vanguard) |
+| `ambush-redeploy` | `remove` | `GfAmbush` | the `activation-end` window, for a unit all of whose models hold Ambush Re-Deployment |
 | `coordinate` | `coordinate-pick`, `coordinate-act`, `coordinate-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds Coordinate |
-| `rule-hits` | `hit`, `score-hits`, `resolve` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct` |
+| `rule-hits` | `hit`, `score-hits`, `resolve` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct`, `pick-rule`'s `rule-effects` (Surprise Attack) |
 | `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage`, an action's `crossing` (Crossing Attack) |
 | `rally` | `rally` | `GfMarkers` | `IGameRules.RoundBoundaryStep`, for a Shaken unit holding Steadfast, Battleborn or Honor Code |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |

@@ -72,6 +72,11 @@ public sealed partial class GrimdarkFutureRules
 
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch
     {
+        // Re-Deployment's pick of a unit on the table in the Scouts phase: its models leave the table, to be deployed again.
+        SelectedPieces { PieceIds: [var unit] } when state.Projection.Units.TryGetValue(unit, out var picked) && state.Projection.Scheduler.Phase == Scouts
+            && TeamUnits.ModelsOf(state, picked).Any(m => m.Location is OnTable) && GfAmbush.ReDeployable(state, teamId).Contains(unit)
+            => new Activation(unit, Deploy, false, [new ModelsMoved(TeamUnits.ModelsOf(state, picked).Where(m => m.Location is OnTable).Select(m => new ModelRelocation(m.Id, m.Location, new OnShelf())).ToList()),
+                new ConditionSet(new Subject(SubjectKind.Unit, unit), GfAmbush.ReDeployed, true)]),
         SelectedPieces { PieceIds: [var unit] } when state.Projection.Units.ContainsKey(unit) => new Activation(unit, Deploy, false, []),
         // Delayed Action: the turn passes with the unit unrecorded, so it may still be activated later.
         Chosen c when ActivationOption.TryParse(c.OptionId, out var unit, out var action) && state.Projection.Units.ContainsKey(unit) && action == Delay

@@ -36,6 +36,16 @@ public static class GfPick
     /// <summary>The entry's dice row: "roll one die", "roll 3 dice"; its add_hit children are what each success deals.</summary>
     static Effect? DiceRow(CatalogEntry e) => e.Effects.FirstOrDefault(f => f.Kind == EffectKind.Roll);
 
+    /// <summary>Surprise Attack: "The first time this unit is activated, pick one enemy unit within 6" in line of sight, and roll X dice. For each 2+ it
+    /// takes one hit with AP(1)." One target takes every success's hit (rule-hits under its Action, AP(1) in roll-to-block), and only in the unit's
+    /// first activation.</summary>
+    static bool OneTarget(CatalogEntry e) => e.Name == GfAmbush.SurpriseAttack;
+
+    /// <summary>The unit's root action sequences in the game: one while its first activation runs.</summary>
+    static int Activations(GameState state, Guid unit) =>
+        EventApplier.EffectiveLog(state.Applier.Log).Count(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s
+            && s.Context.ActorUnitId == unit);
+
     /// <summary>
     /// The pick entries a model carries: its slot's, and its unit's own properties, which an army imported before the army-book rules were
     /// generated holds a rule every model carried as (ArmyForgeImport puts a rule on every model of an entry on the unit when the catalog
@@ -49,12 +59,17 @@ public static class GfPick
     /// Each living model of the unit with each pick entry it carries that it has not used this activation (nor this game, for a once-per-game
     /// entry) and that has a target now. A model inside a container has no position to measure from, so it offers none.
     /// </summary>
-    public static IReadOnlyList<(CatalogEntry Entry, Guid Model)> Offers(GameState state, PropertySet props, Guid unit) =>
-        Lookup.LivingModels(state, unit)
+    public static IReadOnlyList<(CatalogEntry Entry, Guid Model)> Offers(GameState state, PropertySet props, Guid unit)
+    {
+        var offers = Lookup.LivingModels(state, unit)
             .SelectMany(m => Carried(state, props, m).Select(e => (Entry: e, Model: m)))
             .Where(x => Uses(state, unit, Key(x.Entry.Name, x.Model)) == 0 && (!OncePerGame(x.Entry) || GameUses(state, Key(x.Entry.Name, x.Model)) == 0)
+                && (!OneTarget(x.Entry) || (Activations(state, unit) <= 1 && UnitUses(state, unit, x.Entry.Name) == 0))
                 && GfCasting.Targets(state, x.Model, x.Entry.Targeting!).Count > 0)
             .ToList();
+        // A one-target rule is the unit's: one use, by its first carrying model.
+        return offers.Where((x, i) => !OneTarget(x.Entry) || offers.FindIndex(y => y.Entry.Name == x.Entry.Name) == i).ToList();
+    }
 
     /// <summary>The uses this key made since the unit's activation began (its last root action sequence, which only the scheduler starts):
     /// pick-rule frames of it that rolled their dice or picked a target.</summary>
@@ -63,20 +78,24 @@ public static class GfPick
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
         var since = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s
             && s.Context.ActorUnitId == unit);
-        return Used(log.Skip(Math.Max(0, since)), key, unit);
+        return Used(log.Skip(Math.Max(0, since)), a => a == key, unit);
     }
 
     /// <summary>The uses this key (one carrying model's entry) made in the whole game.</summary>
-    public static int GameUses(GameState state, string key) => Used(EventApplier.EffectiveLog(state.Applier.Log), key, null);
+    public static int GameUses(GameState state, string key) => Used(EventApplier.EffectiveLog(state.Applier.Log), a => a == key, null);
 
-    static int Used(IEnumerable<GameEvent> log, string key, Guid? unit)
+    /// <summary>The uses any model of the unit made of the entry in the whole game.</summary>
+    static int UnitUses(GameState state, Guid unit, string entry) =>
+        Used(EventApplier.EffectiveLog(state.Applier.Log), a => Parse(a) is var (name, _) && name == entry, unit);
+
+    static int Used(IEnumerable<GameEvent> log, Func<string?, bool> key, Guid? unit)
     {
         var frames = new HashSet<Guid>();
         var used = new HashSet<Guid>();
         foreach (var e in log)
             switch (e.Payload)
             {
-                case SequenceStarted { Sequence: GfNames.PickRuleSeq } s when (unit is null || s.Context.ActorUnitId == unit) && s.Context.Action == key: frames.Add(s.FrameId); break;
+                case SequenceStarted { Sequence: GfNames.PickRuleSeq } s when (unit is null || s.Context.ActorUnitId == unit) && key(s.Context.Action): frames.Add(s.FrameId); break;
                 case StepCompleted c when frames.Contains(c.FrameId) && c.Values?.GetValueOrDefault("picked") == 1: used.Add(c.FrameId); break;
             }
         return used.Count;
@@ -100,9 +119,11 @@ public static class GfPick
         public string Name => GfNames.RuleRollStep;
         public StepOutcome Run(StepContext ctx)
         {
-            if (Use(ctx) is not var (entry, _)) return new Finish([]);
+            if (Use(ctx) is not var (entry, model)) return new Finish([]);
             if (DiceRow(entry) is not { } row) return new Complete([]);
-            ctx.Roll(new Dice.RollPlan(entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
+            // "Roll X dice": the carrier's X, bounded as every imported count is.
+            var n = Math.Clamp(row.EffectiveAmount(Lookup.ModelParameter(ctx.State, model, entry.Name)), 0, GfRuleHits.MaxDealt);
+            ctx.Roll(new Dice.RollPlan(entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
             ctx.Applied.Add(entry.Name);
             return new Complete([], new Dictionary<string, int> { ["picked"] = 1 });
         }
@@ -119,7 +140,7 @@ public static class GfPick
             if (Use(ctx) is not var (entry, model)) return new Finish([]);
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             var dice = Successes(ctx.Frame, entry);
-            var count = dice ?? 1;
+            var count = OneTarget(entry) ? Math.Min(dice ?? 1, 1) : dice ?? 1;
             var index = ctx.Frame.Value("pick_index");
             if (count == 0) return new Finish([]);
             if (ctx.History.LastClosed() is { } closed)
@@ -162,6 +183,8 @@ public static class GfPick
             var more = index + 1 < targets.Count;
             if (ctx.History.Children.Count == 0)
             {
+                if (OneTarget(entry)) return Successes(ctx.Frame, entry) is > 0 and var hits
+                    ? new Push(GfNames.RuleHitsSeq, new SequenceContext(actor, [targetUnit], [], GfRuleHits.Key(entry.Name, hits))) : new Complete([], values);
                 if (GfCasting.HitRows(entry).Count > 0) return new Push(GfNames.SpellHitsSeq, new SequenceContext(actor, [targetUnit], [], null));
                 if (entry.Effects.Any(e => e.Kind == EffectKind.TakeTest)) return new Push(GfNames.SpellTestSeq, new SequenceContext(actor, [targetUnit], [], null));
             }

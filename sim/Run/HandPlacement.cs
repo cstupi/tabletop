@@ -14,7 +14,9 @@ namespace Tabletop.Sim.Run;
 /// "physically impossible locations"), before round one for its zone (deploy_zone: p.6 fully within it, p.14 a Scout within 12" of it),
 /// and once rounds have begun, for a set-aside unit (an Ambusher), for its distance from enemy units (ambush_distance: p.13 "anywhere over
 /// 9” away from enemy units"). So an anchor is skipped where any base would touch a model on the table or leave the zone, and an
-/// Ambusher's anchor is drawn from the whole table and skipped where any base is within 9" of an enemy model.
+/// Ambusher's anchor is drawn from the whole table and skipped where any base is within 9" of an enemy model (the distances the
+/// army-book deployment rules change, GfAmbush: Infiltrate's 3", Repel Ambushers' 12"); next to a friendly Ambush Beacon it is drawn
+/// within 6" of the beacon first, where no enemy distance holds.
 /// A unit the scenario anchors (ScenarioArmy.Anchors) goes there.
 /// </summary>
 public static class HandPlacement
@@ -52,7 +54,8 @@ public static class HandPlacement
         var army = scenario.Scenario.Armies[ordinal - 1];
         var anchor = army.Anchors.TryGetValue(unit.Definition.Ordinal, out var fixedAt) ? fixedAt
             : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
-                ? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
+                ? BeaconAnchor(shelved, offsets, table, occupied, Beacons(projection, scenario, teamId), chooser)
+                    ?? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId, GfAmbush.Reach(unit.Definition)), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
                 : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
@@ -83,7 +86,7 @@ public static class HandPlacement
 
     /// <summary>An anchor anywhere on the table at which every base is on the table, touches no model, and stands over 9" from every enemy model; null when none was drawn.</summary>
     private static Point2? AmbushAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, TableSize table,
-        IReadOnlyList<PlacedModel> occupied, IReadOnlyList<PlacedModel> enemies, Chooser chooser)
+        IReadOnlyList<PlacedModel> occupied, IReadOnlyList<(PlacedModel Body, double Kept)> enemies, Chooser chooser)
     {
         for (var attempt = 0; attempt < AmbushAttempts; attempt++)
         {
@@ -91,15 +94,42 @@ public static class HandPlacement
             var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
             if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
             if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
-            if (placed.All(pm => enemies.All(e => Distance.EdgeToEdge(pm, e) > GfNames.AmbushDistance + AmbushMargin))) return candidate;
+            if (placed.All(pm => enemies.All(e => Distance.EdgeToEdge(pm, e.Body) > e.Kept + AmbushMargin))) return candidate;
         }
         return null;
     }
 
-    private static IReadOnlyList<PlacedModel> Enemies(Projection projection, CompiledScenario scenario, Guid teamId) =>
+    /// <summary>An anchor at which every base is on the table, touches no model and is within 6" of one friendly Ambush Beacon; null without a beacon or when none was drawn.</summary>
+    private static Point2? BeaconAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, TableSize table,
+        IReadOnlyList<PlacedModel> occupied, IReadOnlyList<PlacedModel> beacons, Chooser chooser)
+    {
+        foreach (var beacon in beacons)
+            for (var attempt = 0; attempt < AmbushAttempts; attempt++)
+            {
+                var at = beacon.Placement.Position.Horizontal;
+                var candidate = new Point2(at.X + (chooser.Double() * 2 - 1) * BeaconReach, at.Y + (chooser.Double() * 2 - 1) * BeaconReach);
+                var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
+                if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
+                if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
+                if (placed.All(pm => Distance.EdgeToEdge(pm, beacon) <= BeaconReach - AmbushMargin)) return candidate;
+            }
+        return null;
+    }
+
+    /// <summary>Ambush Beacon: "if they are deployed within 6" of this model".</summary>
+    private const double BeaconReach = 6;
+
+    private static IReadOnlyList<PlacedModel> Beacons(Projection projection, CompiledScenario scenario, Guid teamId) =>
+        projection.Models.Values
+            .Where(m => m.Location is OnTable && m.Slot.Properties.Any(p => p.Name == GfAmbush.AmbushBeacon)
+                && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) == teamId)
+            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+
+    /// <summary>Each enemy model on the table with the distance an Ambusher of that reach keeps from it.</summary>
+    private static IReadOnlyList<(PlacedModel Body, double Kept)> Enemies(Projection projection, CompiledScenario scenario, Guid teamId, double reach) =>
         projection.Models.Values
             .Where(m => m.Location is OnTable && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) != teamId)
-            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+            .Select(m => (new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement), GfAmbush.Kept(projection.Units[m.UnitId].Definition, reach))).ToList();
 
     private static PlacedModel Placed(ModelSlot slot, Point2 at) =>
         new(new ModelBody(slot.Base, slot.Height), new Placement(new Point3(at.X, at.Y, 0), new Yaw(0)));

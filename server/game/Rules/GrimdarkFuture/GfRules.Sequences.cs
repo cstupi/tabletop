@@ -34,6 +34,8 @@ public sealed partial class GrimdarkFutureRules
         GfChoice.ChooseEffect(),
         GfActivationEnd.Window(),
         GfActivationEnd.Coordinate(),
+        GfActivationEnd.AfterDeploy(),
+        GfAmbush.AmbushRedeploy(),
         GfRuleHits.RuleHits(),
         GfRuleHits.RuleWounds(),
         GfMarkers.Rally(),

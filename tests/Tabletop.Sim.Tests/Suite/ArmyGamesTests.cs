@@ -21,7 +21,7 @@ public class ArmyGamesTests
     public static readonly Dictionary<string, string> Defects = new();
 
     /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"; p.14 Slow, which Swift ignores; p.13 Caster(X), a target "with Caster"; p.15 Tough(X), a target "with Tough"; p.13 Artillery, a model "with Artillery"; p.13 Flying, a model that may move through units; p.14 Regeneration, a wound ignored; p.13 Hero; p.14 Indirect, a weapon Quick Readjustment reads); they are not the army group's.</summary>
-    static readonly string[] Staging = ["Immobile", "Slow", "Caster", "Tough", "Artillery", "Flying", "Regeneration", "Hero", "Indirect"];
+    static readonly string[] Staging = ["Immobile", "Slow", "Caster", "Tough", "Artillery", "Flying", "Regeneration", "Hero", "Indirect", "Ambush"];
 
     static string RepoRoot()
     {

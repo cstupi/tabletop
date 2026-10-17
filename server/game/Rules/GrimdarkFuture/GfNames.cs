@@ -16,6 +16,8 @@ public static class GfNames
     public const string ActivationStart = "activation-start", AfterShooting = "after-shooting", AfterMelee = "after-melee", AttackStart = "attack-start", RepositionSeq = "reposition";
     /// <summary>Army-book rules spec, batch 4: the end of an activation (Dash, Coordinate), the sequences it opens, and a rule's choice of effect at a point.</summary>
     public const string ActivationEnd = "activation-end", ActivationEndSeq = "activation-end", CoordinateSeq = "coordinate", ChooseEffectSeq = "choose-effect", Delay = "Delay";
+    /// <summary>Army-book rules spec, batch 3: the point after a unit is deployed (Fanatic, Vanguard) and its window.</summary>
+    public const string AfterDeploy = "after-deploy", AfterDeploySeq = "after-deploy";
     public const string Coordinate = "Coordinate", DelayedAction = "Delayed Action", Instinctive = "Instinctive", InstinctiveCondition = "instinctive";
     public const string InquisitorialAgent = "Inquisitorial Agent", MartialProwess = "Martial Prowess";
     /// <summary>Army-book rules spec, batch 5: hits and wounds a rule deals outside an attack, and the rules that deal them.</summary>

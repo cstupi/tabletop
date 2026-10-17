@@ -15,8 +15,9 @@ public static class GfHooks
         foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Fatigued)))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Fatigued, false));
         // p.13 gives tokens "even if they are not on the table" and says nothing of casualties; a dead model's tokens are never spent because ReactionsAt only counts AliveModels.
-        foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.MovedThisRound)))
-            changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.MovedThisRound, false));
+        foreach (var u in state.Projection.Units.Values)
+            foreach (var c in new[] { GfNames.MovedThisRound, GfAmbush.AmbushedThisRound, GfAmbush.ReDeployed }.Where(u.Conditions.Contains))
+                changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), c, false));
         // Caster Group's caster and Spell Accumulator's tokens with them (GfSpellSupport).
         changes.AddRange(GfSpellSupport.RoundStartTokens(state));
         // The Growths: "place one marker on it at the beginning of each round if it's on the table and isn't Shaken".
@@ -111,6 +112,9 @@ public static class GfHooks
                     reactions.Add(new Reaction(team, GfPick.Key(entry.Name, model), $"{entry.Name} ({state.Projection.Models[model].Slot.Name}): pick a target",
                         GfNames.PickRuleSeq, new SequenceContext(unit, [], [], GfPick.Key(entry.Name, model))));
             var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
+            if (point == GfNames.ActivationEnd && GfAmbush.MayReDeploy(state, unit))
+                reactions.Add(new Reaction(team, $"{GfAmbush.AmbushReDeployment}|{unit:N}", $"{GfAmbush.AmbushReDeployment}: remove, and deploy as an Ambusher next round",
+                    GfAmbush.AmbushRedeploySeq, new SequenceContext(unit, [], [], GfAmbush.AmbushReDeployment)));
             // A set_condition row at a point is one effect of a rule's choice ("pick one effect"): the rule offers one choose-effect use, which asks which.
             foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place or EffectKind.SetCondition).DistinctBy(x => x.Source.Entry.Name))
                 reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row),

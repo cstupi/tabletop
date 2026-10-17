@@ -80,11 +80,17 @@ public static class Lookup
         var alive = AliveModels(state, unitId);
         var carriers = alive.Count > 0 ? alive.Select(id => state.Projection.Models[id].Slot) : state.Projection.Units[unitId].Definition.Models;
         var own = carriers.Any() ? state.Projection.Units[unitId].Definition.Properties : [];
-        return carriers.SelectMany(m => m.Properties).Concat(own)
-            .Select(p => props.Entry(p.Name)).OfType<CatalogEntry>()
-            .Where(e => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any, Played: true, Targeting: null })
-            .SelectMany(e => e.Effects.Where(f => f is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null } && f.Conditions.Count == 0))
-            .Select(f => f.TargetEntry!);
+        // "Counts as having X" chains: an Aura of a rule that counts as having another (Infiltrate Aura → Infiltrate → Ambush) gives both.
+        var given = new HashSet<string>();
+        var next = carriers.SelectMany(m => m.Properties).Concat(own).Select(p => p.Name).ToList();
+        while (next.Count > 0)
+        {
+            next = next.Select(props.Entry).OfType<CatalogEntry>()
+                .Where(e => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any, Played: true, Targeting: null })
+                .SelectMany(e => e.Effects.Where(f => f is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null } && f.Conditions.Count == 0))
+                .Select(f => f.TargetEntry!).Where(given.Add).ToList();
+        }
+        return given;
     }
 
     public static int? UnitParameter(GameState state, PropertySet props, Guid unitId, string entry)

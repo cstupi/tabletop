@@ -78,7 +78,7 @@ because a single predicate still has to test a state's absence. `Impact` is *unl
 | `UsageCount` | the effective log | **no** | how many `sequence_started` payloads name this weapon id, the usage record `Limited` reads; with a first value `round`, `activation` or `game`, how many sequences the holder's unit started under this entry's name in that scope |
 | `HoldsProperty` | `Lookup.UnitHas` on the named side | yes | the side holds the one named entry under its own aggregation, granted instances included; a suppression does not unhold, so a Boost still sees its base |
 | `MostModels` | the named side's living models | yes | more than half meet `Compare` on the one named value: a declared stat's target number (`Defense lte 3`), or a rule's parameter, which a model without the rule fails (`Tough gte 3`) |
-| `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`, `activation-end`); always true on a granted row, since the grant is that use |
+| `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`, `activation-end`, `after-deploy`); always true on a granted row, since the grant is that use |
 
 `Validate` refuses a subject on the four relational predicates, `Range`, `RoundNumber`, `UsageCount` and
 `AtPoint`, and requires one, with exactly one value, on `HoldsProperty` and `MostModels`. A range test is about

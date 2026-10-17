@@ -126,6 +126,23 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   that raises the move of the unit using it, picked mid-move, applies to the rest of that move: the grant applies the
   next time the move is read. Primeborn's text is Guardian's and so are its rows. Bane in Melee Buff is the Buff
   template with X in running-text case (*"Bane in melee"*); the generator reads X ignoring case.
+- **Batch 3.** *"Counts as having Ambush"* (Infiltrate, Rapid Ambush, Ambushing Piercing Shot) is a `grant_property` of
+  Ambush, and Lookup's Aura grants follow a chain (Infiltrate Aura gives Infiltrate, which gives Ambush). Where an
+  Ambusher is placed, the rules are read by name off the unit definitions (`GfAmbush`), since deployment is judged
+  before a unit has a position: Infiltrate and Surprise Attack (*"counts as having Infiltrate"*) deploy over 3" from
+  enemy units, an enemy unit with Repel Ambushers holds every Ambusher over 12" from it, and a base within 6" of a
+  friendly model with Ambush Beacon ignores the distance. Rapid Ambush adds round one's boundary to the Ambushers'.
+  Ambushing Piercing Shot's *"on the round in which it deploys via this rule"* is the unit condition `ambushed this
+  round`, set on arrival and cleared as a round starts. Re-Deployment's units are picked at the Scouts phase's deploy
+  Ask beside the Scouts, up to two per side, each removed to the shelf and placed again within the zone (p.6, not a
+  Scout's 12"). Ambush Re-Deployment is offered in the activation-end window of a unit all of whose models hold it,
+  once a game; the unit goes to the shelf set aside and is one of the next round's Ambushers. Fanatic and Vanguard are
+  `place 9` rows at a point, `after-deploy`, whose window opens when a deployment turn's unit is fully placed (a Scout's
+  too; an Ambusher's arrival is a round boundary, not a deployment turn, and opens none). Surprise Attack is a pick
+  entry offered only in the unit's first activation and once a game for the unit: it rolls X dice and its one target
+  takes one hit per 2+ (`rule-hits`, blocked under AP(1)). Takedown Shot and Takedown Strike are not built: each is
+  an attack with a profile no weapon carries (Quality 2+, AP(2), Deadly(3), Takedown); the build path is the import
+  adding that profile as a weapon of the carrying model, used once a game.
 - **Batch 4.** Bounding and Dash are `place` rows of *"D3+1"* (`amountDice d3+1`); Dash's *"at the end of this unit's
   activation"* is a point, `activation-end`, whose window opens after the activation's own work. Hit & Run is Harassing's
   text and rows. A *"pick one effect"* rule (Versatile Attack, Watchborn, Versatile Defense, Versatile Reach) and Speed
@@ -155,7 +172,7 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   Strafing's weapon is in no shooting group (*"may only be used in this way"*) and makes its attack as a shot.
   Protection Feat is a roll to ignore wounds at 5+, *"once per game"* read as every wound of the first attack it is
   rolled against (it is used automatically, the first time). Regenerative Strength moves to batch 6 (a marker on a
-  model); Takedown Shot and Takedown Strike are taken with batch 3, after the Takedown changes another branch makes.
+  model); Takedown Shot and Takedown Strike are under batch 3.
 - **Batch 6.** A marker is a grant of the rule's marker row (duration `marker`, kept for the game, or `spent_marker`, spent
   with its fellows the first time one applies), so *"for each marker"* is the sum of its grants; a carried rule's marker
   rows act only through those grants. *"For every two markers"* is two marker rows the markers cycle through, the first
@@ -188,7 +205,7 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   stays. Heavy Impact grants Impact with its own X (a `grant_property` from the parameter) and its Impact hits are
   blocked under AP(1). No Retreat turns the failed test into a pass, rolls one die per wound left to the unit and deals
   a wound on each 1-3 through deal-wounds with no roll to ignore it.
-- **Order.** Batch 3 is taken after batches 4–8: its Ambush rules sit in the Ambush placement code another branch changes.
+- **Order.** Batch 3 is taken after batches 4–8, on the Ambush placement code another branch wrote.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the
 same rule ids as the books' upgrade gains): Banner *"This model and its unit get +1 to morale test rolls."*, Musician

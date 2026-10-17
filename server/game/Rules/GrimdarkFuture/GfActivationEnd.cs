@@ -14,6 +14,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfActivationEnd
 {
     public static Sequence Window() => new(GfNames.ActivationEndSeq, [new GfMoves.PointWindowStep(GfNames.ActivationEnd, "activation-end")]);
+    public static Sequence AfterDeploy() => new(GfNames.AfterDeploySeq, [new GfMoves.PointWindowStep(GfNames.AfterDeploy, "after-deploy")]);
     public static Sequence Coordinate() => new(GfNames.CoordinateSeq, [new PickStep(), new ActStep(), new EndStep()]);
 
     /// <summary>
@@ -24,11 +25,15 @@ public static class GfActivationEnd
     public static IReadOnlyList<SequenceStart> Sequences(GameState state, PropertySet props, Scheduler.Activation? activation)
     {
         var actor = activation?.UnitId;
-        if (activation is { Action: GfNames.Deploy or GfNames.Delay }) return [];
+        // Fanatic, Vanguard: "After this model is deployed, it may be placed anywhere fully within 9” of its position": the after-deploy window.
+        if (activation is { Action: GfNames.Deploy } deployed)
+            return HasRows(state, props, deployed.UnitId, GfNames.AfterDeploy, null) ? [new SequenceStart(GfNames.AfterDeploySeq, new SequenceContext(deployed.UnitId, [], [], null))] : [];
+        if (activation is { Action: GfNames.Delay }) return [];
         var list = new List<SequenceStart>();
         if (activation is { } a && Coordinated(state, props, a.UnitId).Count > 0) list.Add(new SequenceStart(GfNames.CoordinateSeq, new SequenceContext(a.UnitId, [], [], GfNames.Coordinate)));
         list.AddRange(GfHooks.EndOfTurnSequences(state, props, actor));
-        if (activation is { } b && HasRows(state, props, b.UnitId, GfNames.ActivationEnd, b.Action)) list.Add(new SequenceStart(GfNames.ActivationEndSeq, new SequenceContext(b.UnitId, [], [], b.Action)));
+        if (activation is { } b && (HasRows(state, props, b.UnitId, GfNames.ActivationEnd, b.Action) || GfAmbush.MayReDeploy(state, b.UnitId)))
+            list.Add(new SequenceStart(GfNames.ActivationEndSeq, new SequenceContext(b.UnitId, [], [], b.Action)));
         return list;
     }
 

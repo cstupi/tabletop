@@ -619,6 +619,8 @@ public static partial class GfAttack
                 live = live.WithGranted(Side.Attacker, "AP", 1);
                 ctx.Applied.Add(GfNames.HeavyImpact);
             }
+            // Surprise Attack: "For each 2+ it takes one hit with AP(1)".
+            if (parent.Frame.Sequence == GfNames.RuleHitsSeq && GfRuleHits.Parse(parent.Frame.Context.Action) is (GfAmbush.SurpriseAttack, _)) live = live.WithGranted(Side.Attacker, "AP", 1);
             // p.11's majority is frozen with the attack counts (p.8: all weapons fire simultaneously), so a group firing after casualties reads the
             // fact determine-attacks carried down. A parent that recorded none is a spell's hits or Impact's, where live is the answer.
             var defender = ix.Defender!.UnitId;
