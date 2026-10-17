@@ -263,8 +263,9 @@ is preserved.
 Nothing from the plans' question lists. The residues stay residues, each sitting inside a question
 already closed and each recorded where it belongs:
 
-- `Takedown`'s *"resolved as if it was a unit of [1]"* is still not modelled — cover, `Blast`'s cap
-  and the defence roll read the whole target unit, and only the wound is redirected.
+- `Takedown`'s *"resolved as if it was a unit of [1]"* is modelled for sight and cover (the pick offers models the
+  weapon reaches and sees past the target's own models; cover is the picked model's own); `Blast`'s cap and the
+  defence roll still read the whole target unit.
 - `Impact` and melee still read live model counts mid-action, deliberately, because p.9 sequences
   melee by hand.
 - The end-of-turn morale test's die is unreachable from the menu: a single-step frame with an actor

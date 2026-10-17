@@ -496,7 +496,9 @@ every property editable at any time through the same path automation writes. The
 whenever they like, and the next deploy Ask's legal set excludes it. A set-aside unit that is
 neither a Scout nor an Ambusher is never offered at all. It stays on the shelf until somebody
 clears the condition and hand-moves it. An Ambusher's arrival logs its `set-aside` condition
-cleared, so a destroyed Ambusher is never offered again (W-I3).
+cleared, so a destroyed Ambusher is never offered again (W-I3). A Scout's deploy turn logs it cleared on its
+`turn_ended` (`GfHooks.OnTurnEnded`, any `Deploy` activation of a set-aside unit). Both clear the condition on the units
+inside the arriving unit's Transport too (`GfHooks.ArrivedFromSetAside`; p.15).
 
 **The turn ends when the last model of the unit has a placement.** `ActivationComplete` is the
 whole rule:

@@ -85,6 +85,15 @@ public class ZoneStyleTests
         Assert.True(ZoneStyles.BaseFullyWithin("frontline/1", Opr, Fx.Model(36, 37)));
         Assert.True(ZoneStyles.BaseFullyWithin("disordered/1", Opr, Fx.Model(66, 46)));
     }
+    [Fact] public void Fully_within_a_distance_of_the_zone_measures_the_far_edge_of_the_base()
+    {
+        // frontline/1 starts at y = 36: a 1" base centred at y = 24.5 has its far rim 12" from the zone.
+        Assert.True(ZoneStyles.BaseFullyWithin("frontline/1", Opr, Fx.Model(36, 24.5, diameter: 1), 12));
+        Assert.False(ZoneStyles.BaseFullyWithin("frontline/1", Opr, Fx.Model(36, 24.4, diameter: 1), 12));
+        Assert.True(ZoneStyles.BaseFullyWithin("frontline/1", Opr, Fx.Model(36, 40, diameter: 1), 12));         // inside the zone itself
+        Assert.True(ZoneStyles.BaseFullyWithin("frontline/1", Opr, Fx.Model(Base.Rect(2, 2), 36, 25), 12));    // a polygon base: its far corner at y = 24
+        Assert.False(ZoneStyles.BaseFullyWithin("frontline/1", Opr, Fx.Model(Base.Rect(2, 2), 36, 24.9), 12));
+    }
     [Fact] public void Malformed_ids_are_rejected()
     {
         Assert.Throws<ArgumentException>(() => ZoneStyles.Resolve("frontline", Opr));

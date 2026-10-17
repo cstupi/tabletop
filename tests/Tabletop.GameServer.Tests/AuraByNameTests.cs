@@ -43,4 +43,21 @@ public class AuraByNameTests
             Assert.False(Lookup.UnitHas(s, Props, a.Id, "Scout"), rule);
         }
     }
+
+    [Fact]
+    public void A_dead_carrier_grants_nothing_while_the_unit_is_in_play_and_a_shelved_unit_reads_its_definition()
+    {
+        var a = OneCarrier("Test Scout Aura");
+        var s = State([a], [Unit("B", "4+", "4+", [], 1, [])]);
+        var carrier = a.Models[0].Id;
+        s.Applier.Apply(new Tabletop.Protocol.GameEvent(s.Projection.LastSeq + 1, null,
+            new Tabletop.Protocol.ModelsMoved([new Tabletop.Protocol.ModelRelocation(carrier, s.Projection.Models[carrier].Location, new Tabletop.Protocol.OnShelf())]), null));
+        Assert.False(Lookup.UnitHas(s, Props, a.Id, "Scout"));                                            // the carrier was removed as a casualty
+
+        var b = OneCarrier("Test Scout Aura");
+        var before = State([b], [], x1: -12);
+        before.Applier.Apply(new Tabletop.Protocol.GameEvent(before.Projection.LastSeq + 1, null,
+            new Tabletop.Protocol.ModelsMoved(b.Models.Select(m => new Tabletop.Protocol.ModelRelocation(m.Id, before.Projection.Models[m.Id].Location, new Tabletop.Protocol.OnShelf())).ToList()), null));
+        Assert.True(Lookup.UnitHas(before, Props, b.Id, "Scout"));                                        // not yet deployed: Scout is read before any model has a position
+    }
 }

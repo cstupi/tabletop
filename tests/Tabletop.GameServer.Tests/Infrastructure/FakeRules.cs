@@ -47,7 +47,7 @@ public sealed class FakeRules : IGameRules
     public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => RoundEndedHook?.Invoke(state, properties, round) ?? [];
     public int MaxWounds(GameState state, Guid modelId) => MaxWoundsHook?.Invoke(state, modelId) ?? _inner.MaxWounds(state, modelId);
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => _inner.Shooters(state, properties, unitId, targetUnitId);
-    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId) => _inner.MayDeployInside(state, unitId, containerModelId);
+    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => _inner.MayDeployInside(state, unitId, containerModelId, deploying);
 
     // The interpreter plan's members.
     public Func<string, Sequence>? SequenceHook { get; set; }

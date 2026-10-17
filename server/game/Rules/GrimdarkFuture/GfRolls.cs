@@ -84,13 +84,18 @@ public static class GfRolls
 
     /// <summary>InCover's count: the living models that pass either test (only the terrain test once it is a majority, or under
     /// Indirect), of the unit's living models. The log's cover verdict carries both numbers.</summary>
-    public static CoverCount Cover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions)
+    /// <param name="takedown">p.14 Takedown's picked model, "resolved as if it was a unit of [1]": the count is over that model alone, judged as a
+    /// single-model unit, and its squad-mates "don't block line of sight or provide cover to the target model" (the sight test never counts them).</param>
+    public static CoverCount Cover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions, Guid? takedown = null)
     {
-        var models = Lookup.LivingModels(state, targetUnit).Count;
+        var living = Lookup.LivingModels(state, targetUnit);
+        if (takedown is { } picked) living = living.Contains(picked) ? [picked] : [];
+        var models = living.Count;
         if (models == 0) return new CoverCount(0, 0);
-        var covered = Battlefield.ModelsInCoverTerrain(state, targetUnit, wholeBase: GfHooks.StartingSize(state, targetUnit) > 1).ToHashSet();
+        var wholeBase = takedown is null && GfHooks.StartingSize(state, targetUnit) > 1;
+        var covered = Battlefield.ModelsInCoverTerrain(state, targetUnit, wholeBase).Where(living.Contains).ToHashSet();
         if (covered.Count * 2 > models || ignoresSightObstructions) return new CoverCount(covered.Count, models);
-        covered.UnionWith(Battlefield.ModelsBehindSightBlockers(state, targetUnit, attackerModels));
+        covered.UnionWith(Battlefield.ModelsBehindSightBlockers(state, targetUnit, attackerModels).Where(living.Contains));
         return new CoverCount(covered.Count, models);
     }
 

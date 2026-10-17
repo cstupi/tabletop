@@ -404,7 +404,9 @@ exemption and a token economy, most of which would be used by one property each.
 effects-as-data stops paying.
 
 `Lookup.UnitHas` also reads a carried Aura (an `any` model entry whose unconditional subject-self `grant_property` row
-names the rule) off the unit's definition, so *"This model and its unit get Scout"* is a Scout unit at deployment.
+names the rule) off its living carriers: the models still in play once any is, the unit's definition while every model
+is on the shelf. *"This model and its unit get Scout"* is a Scout unit at deployment, and a carrier removed as a casualty
+grants nothing.
 
 **A property may be in both places.** `Indirect` carries one effect row, its −1 to hit after
 moving, *and* is checked by name for *"may target enemies that are not in line of sight"* and

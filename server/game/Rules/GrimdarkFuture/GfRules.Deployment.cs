@@ -1,3 +1,5 @@
+using Tabletop.Geometry;
+using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Scheduler;
@@ -22,6 +24,31 @@ public sealed partial class GrimdarkFutureRules
             : new TurnAsk(AskQuestions.DeployScouts, "Deploy a Scout", new PieceSelection(ids, 1, 1), AllowPass: false);
     }
 
+    /// <summary>
+    /// A hand placement from the shelf onto the table in the phases before round one, judged against the placing team's deployment zone when the
+    /// game has one. Page 6: "places one unit fully within 12” of their table edge" (the zone, p.22's styles); page 14 Scout: "may be deployed
+    /// anywhere fully within 12” of their deployment zone". Ambush (page 13) deploys from round two and is not read here.
+    /// </summary>
+    public static AnswerBreachFound? ZoneBreach(GameState state, IReadOnlyList<ModelRelocation> moves)
+    {
+        var p = state.Projection;
+        if (p.Scheduler.Round != 0 || p.Scheduler.Phase is not (Deployment or Scouts)) return null;
+        var table = state.Board.Table;
+        if (table.Zones.Count == 0) return null;
+        foreach (var move in moves)
+        {
+            if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model) || model.Location is not OnShelf) continue;
+            var ordinal = Teams.Of(state, model.UnitId) is { } team ? state.Info.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal : null;
+            if (table.Zones.FirstOrDefault(z => z.TeamOrdinal == ordinal) is not { } zone) continue;
+            var placed = new PlacedModel(new ModelBody(model.Slot.Base, model.Slot.Height), at);
+            if (p.Scheduler.Phase == Deployment && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed))
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it (p.6)");
+            if (p.Scheduler.Phase == Scouts && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, ScoutReach))
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond 12\" of its deployment zone: Scouts deploy fully within 12\" of it (p.14)");
+        }
+        return null;
+    }
+
     public static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>
         TeamUnits.Of(state, teamId).Where(u => u.Conditions.Contains(SetAside) && Lookup.UnitHas(state, props, u.Id, Ambush) && TeamUnits.AllShelved(state, u)).Select(u => u.Id).ToList();
 
@@ -43,8 +70,8 @@ public sealed partial class GrimdarkFutureRules
             if (answer is SelectedPieces { PieceIds: [var unit] } && state.Projection.Units.TryGetValue(unit, out var u))
             {
                 if (TeamUnits.ModelsOf(state, u).Any(m => m.Location is OnShelf)) return new HookWaiting();      // models still coming off the shelf
-                if (u.Conditions.Contains(SetAside))                                                             // arrived: no longer set aside, so casualties on the shelf are never offered again
-                    return new HookEmit([new ConditionSet(new Subject(SubjectKind.Unit, u.Id), SetAside, false)]);
+                if (GfHooks.ArrivedFromSetAside(state, u.Id) is { Count: > 0 } arrived)                          // arrived, with any unit inside: no longer set aside, so casualties on the shelf are never offered again
+                    return new HookEmit(arrived.Cast<EventPayload>().ToList());
             }
             if (answer is not SelectedPieces) passed.Add(a.Ask.Teams[0]);
         }
