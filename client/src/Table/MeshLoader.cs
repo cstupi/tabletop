@@ -15,7 +15,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     readonly Dictionary<string, Task<Node3D?>> _templates = new();
     bool _disposed;
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
-    readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, TaskCompletionSource<string?> Done), float> _queue = new();
+    readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, long Cap, TaskCompletionSource<string?> Done), float> _queue = new();
     readonly SemaphoreSlim _inFlight = new(2, 2);
     Task? _manifestLoad;
     DateTimeOffset _expires = DateTimeOffset.MaxValue;
@@ -51,15 +51,15 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             await RefreshManifest();
             lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
         }
-        Uri url; string hash; double scale; Orientation orientation;
-        if (entry is not null) (url, hash, scale, orientation) = (entry.Url, entry.Hash, entry.Scale, entry.Orientation);
+        Uri url; string hash; double scale; Orientation orientation; AssetKind kind;
+        if (entry is not null) (url, hash, scale, orientation, kind) = (entry.Url, entry.Hash, entry.Scale, entry.Orientation, entry.Kind);
         else
         {
-            try { var mine = await management.GetDownload(assetId); var asset = (await management.ListAssets(AssetKind.Miniature, null)).Items.Concat((await management.ListAssets(AssetKind.Terrain, null)).Items).FirstOrDefault(a => a.Id == assetId); if (asset is null) return null; (url, hash, scale, orientation) = (mine.Url, asset.Hash, asset.Scale, asset.Orientation); }
+            try { var mine = await management.GetDownload(assetId); var asset = (await management.ListAssets(AssetKind.Miniature, null)).Items.Concat((await management.ListAssets(AssetKind.Terrain, null)).Items).FirstOrDefault(a => a.Id == assetId); if (asset is null) return null; (url, hash, scale, orientation, kind) = (mine.Url, asset.Hash, asset.Scale, asset.Orientation, asset.Kind); }
             catch (Exception) { return null; }   // not in the manifest and not mine: the proxy stays
         }
         var done = new TaskCompletionSource<string?>();
-        _queue.Enqueue((assetId, hash, url, done), cameraPosition.DistanceTo(piecePosition));
+        _queue.Enqueue((assetId, hash, url, AssetCache.CapFor(kind), done), cameraPosition.DistanceTo(piecePosition));
         _ = Pump();
         var path = await done.Task;
         return path is null ? null : await Build(path, scale, orientation);
@@ -71,7 +71,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         try
         {
             if (!_queue.TryDequeue(out var item, out _)) return;
-            try { item.Done.SetResult(await cache.FetchAsync(item.Hash, item.Url, CancellationToken.None)); }
+            try { item.Done.SetResult(await cache.FetchAsync(item.Hash, item.Url, item.Cap, CancellationToken.None)); }
             catch (Exception e) { GD.PushWarning($"asset {item.AssetId}: {e.Message}"); item.Done.SetResult(null); }
         }
         finally { _inFlight.Release(); }
