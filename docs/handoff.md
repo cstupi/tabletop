@@ -96,10 +96,10 @@ inside the Transport when that is placed. In play, a right-click on a model of m
 Embarking in play still does not check p.15's spaces.
 
 **2026-10-17:** Ambush placement over 9" from enemy units (p.13, breach `ambush_distance`); under Takedown, Blast's cap and
-the defence roll read the picked model (p.14); AP reads `AP(1)`, a granted one `Rending AP(+4)`; a rerolled die carries its
-new face's triggers (`RollRecord.FaceTriggers`); a player's `AddModifier` applies to the frame's next roll of that kind and
-is consumed by it (D13, `docs/design/interpreter/resolution.md`). The combat log's "+1" still sends `AddModifier` after the
-roll it sits on, so it reaches the next roll of that kind instead.
+the defence roll read the picked model (p.14); AP reads `AP(1)`, a granted one `Rending AP(+4)`; a die a rule rerolls carries its
+new face's triggers (`RollRecord.FaceTriggers`); rolls, rerolls and modifiers are the rules' alone: `RerollDice`,
+`AddModifier` and the log's Reroll / Set die / +1 buttons are gone (protocol 3); `SetDice` is accepted only with `GameServerOptions.AcceptsSetDice` (Development, and the sim's
+in-process driver), for the rules suite's fixed dice.
 Model against model is 3D (`libs/Tabletop.Geometry`: `Collision.Crosses`, `Slide`, `Separate`, `Distance.BodyToBody`,
 `Movement.Region`): a model's volume is its base times 1.5 × the larger base dimension, so a model crossing above a lower
 one passes it, and the 1" separation is measured in 3D. An Aircraft's placement ignores units and terrain (p.13): no 1"
@@ -279,7 +279,7 @@ granted by no `Lookup.AuraGrants`, which read model slots; nothing tags it "not 
 A new game starts with Frontline zones; the owner's games created before that have none, so their deployment is not
 checked against a zone. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
 are built. A
-Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
+Limited weapon with no eligible target is not marked used; the book is silent. `SetDice` (suite only) carries no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets
 and a second ruleset are not built.
 
