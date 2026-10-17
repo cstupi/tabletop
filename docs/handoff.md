@@ -65,6 +65,14 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ### 2026-10-17
 
+**Live:** v0.1.1 runs on the owner's home server `docker1` (`/opt/docker/tabletop`, compose project `tabletop-home`,
+`deploy/docker-compose.home.yml`, `scripts/release --deploy home`), behind the owner's Caddy on `gateway_default`:
+`https://tabletop.cstupi.com` (web, `/v1`, `/ws`) and `https://files.tabletop.cstupi.com` (MinIO, data on the NAS share
+`/mnt/tabletop/minio`; nightly Postgres dumps to `/mnt/tabletop/pg-backups`). Stytch live project with custom domain
+`login.tabletop.cstupi.com`. DNS in Route 53 (CNAMEs to `dub.cstupi.com`, updated by the owner's dynamic DNS). Client
+releases still need the GitHub secrets `RELEASE_S3_*` and variable `TABLETOP_WEB_URL`. Not yet exercised live: `/ws`
+end to end, a real sign-up. A management crash exits 139 rather than a clean code (seen when the DB login failed).
+
 **Production path** (`deploy/README.md`): Release images (`server/*/Dockerfile`, non-root, Production) or systemd units,
 `deploy/docker-compose.prod.yml`, `prod.env.example`. Caddy and the WAF are the owner's; `deploy/README.md` lists the
 upstreams they front. Migrations run as the owner role through `Tabletop.Management --migrate`;
