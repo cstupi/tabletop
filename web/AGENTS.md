@@ -5,12 +5,13 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 ## Layout
 
 - `src/routes/` pages: `login`, `reset-password`, `account`, `library` (+ `[id]`), `armies` (+ `[id]`); `+layout.ts` sets `ssr`/`prerender`.
-- `src/lib/api/` typed client: `client.ts` (`api`, one function per endpoint), `http.ts` (`http`, `ApiError`, `API_BASE`, `setTokenProvider`), `types.ts` (DTOs).
-- `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry and refresh delay), `messages.ts`.
+- `src/lib/api/` typed client: `client.ts` (`api`, one function per endpoint), `http.ts` (`http`, `ApiError` with `retryAfter`, `API_BASE`, `setTokenProvider`), `types.ts` (DTOs), `errors.ts` (`errorMessage(e, context)`: every failure as one sentence).
+- `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry and refresh delay), `messages.ts` (`loginErrorMessage`), `redirect.ts` (`safeNext`, `loginHref`).
+- `src/lib/validation.ts` `nameProblem`, `sizeProblem`, `MAX_NAME`, `MAX_BYTES`, `ASSET_QUOTA`, `libraryUsage`, `formatBytes`: management's limits, checked before sending.
 - `src/lib/mesh/` STL to GLB: `stl.ts` (parse, `mergeSoups`), `weld.ts`, `decimate.ts` (`BUDGETS`), `normals.ts` (creased), `glb.ts`, `supports.ts`, `bounds.ts` (`terrainVolume`), `guess.ts`, `three-frame.ts` (`eulerFor`), `convert.ts` (`convert`, `convertInWorker`, `describeGlb`), `convert.worker.ts`.
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (six declarations, `defaultVolume`).
-- `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence).
-- `src/lib/library/` `folders.ts`, `volume-edit.ts` (`toDraft`, `fromDraft`).
+- `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
+- `src/lib/library/` `folders.ts` (`moveTargets`), `volume-edit.ts` (`toDraft`, `fromDraft`).
 - `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport` with a `BaseSet`), `patches.ts` (`PatchArmyRequest` builders).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`.
 - `tests/` Vitest; `tests/fixtures/` STL files and `make-fixtures.ts`.
@@ -20,10 +21,15 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - Upload: `classifyFiles` sorts the drop into STLs, one GLB or one image. `UploadDialog` runs `convertInWorker` (a module Web Worker over `convert`).
 - `convert` order: parse, merge, weld, recentre on the footprint, decimate to a triangle budget, creased normals, export GLB, then analysis (bounds, supports, `Proposal`, terrain `Volume`).
 - `guess.ts` proposes millimetres (`scale = mmToInches(1)`) and an up axis: `y` when the model is tallest along Y, else `z`. Y-up gets `pitch: 90`.
-- `upload.ts` stages: `hash`, `create`, `put` (presigned), `confirm`, `volumes`. An existing hash returns `deduplicated`.
+- `upload.ts` stages: `hash`, `create`, `put` (presigned), `confirm`, `volumes`. An existing hash returns `deduplicated`. The `PUT` uses
+  `XMLHttpRequest` for upload progress where it exists, `fetch` otherwise (Node tests).
+- Errors: pages show `errorMessage(e, context)`, never `e.message` of an `ApiError`; the context (`auth`, `import`, `upload`) decides
+  what a `401` and a `502` say. Names go through `nameProblem` and files through `sizeProblem` before a request.
 - Orientation is `{ pitch, yaw, roll }` in degrees, stored on the asset with the scale; `eulerFor` maps it to a three.js `ZYX` Euler.
 - `http.ts` sends requests to `API_BASE + path`; `API_BASE` is `PUBLIC_API_BASE` or empty, so dev is same-origin through the Vite proxy.
-- `session.svelte.ts` refreshes the JWT before expiry through `/v1/auth/session/refresh`.
+- `session.svelte.ts` refreshes the JWT before expiry through `/v1/auth/session/refresh`. A bearer `401`, or a refresh refused with any
+  4xx but 429, clears the session with `expired` set; the layout sends the reader to `/login?next=<path>&expired=1`, and sign-in returns
+  to `safeNext(next)`.
 
 ## Commands
 
@@ -47,6 +53,11 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `vite.config.ts` excludes `meshoptimizer` from `optimizeDeps` and sets `worker.format: 'es'`.
 - Vite exposes only `VITE_*` and `PUBLIC_*` on `import.meta.env` (`envPrefix`); `PUBLIC_API_BASE` is read there, not through `$env`.
 - `session.svelte.ts` wraps `localStorage` in try/catch; a blocked store leaves the session in memory.
+- Accessibility: forms submit on Enter (`<form onsubmit>`), every control has a label or `aria-label`, progress and confirmations are
+  `role="status"`, failures `role="alert"`, each page sets `<title>`. `UploadDialog` is a modal `<dialog>` (`showModal`); its `close`
+  event is the one exit path. Layout helpers in `app.css`: `.stack`, `.actions`, `.scroll-x`, `.visually-hidden`, `.skip`.
+- Svelte trims whitespace at the start of an `{#if}` block: write `{' · '}` rather than a leading space inside it.
+- MinIO's CORS (`docker-compose.yml`) admits only the `5173` origins; a preview on another port cannot `PUT` presigned uploads.
 - Table frame: Z up, origin at the corner; mesh space is converted by `Proposal.orientation`, not by the page.
 - `svelte.config.js` sets `kit.csp` (hash mode): `script-src 'self' 'wasm-unsafe-eval'` (meshoptimizer's WASM), `worker-src 'self' blob:`,
   `connect-src` and `img-src` add the blob origin (`TABLETOP_BLOB_ORIGIN`, default `http://127.0.0.1:9000`) and `PUBLIC_API_BASE`'s origin. A new

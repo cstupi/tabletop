@@ -38,7 +38,7 @@ public class SessionReconnectTests : IDisposable
         sock.Deliver(new Welcome(Samples.P1, Game));
         _http.Answer(HttpStatusCode.OK, new SessionResponse("a.jwt-3.z", Clay));
         Assert.True(await _s.RefreshAsync());
-        Assert.Equal(new Reauth("a.jwt-3.z"), sock.Sent.OfType<Reauth>().Single());
+        Assert.Equal("a.jwt-3.z", sock.Sent.OfType<Reauth>().Single().SessionJwt);
     }
 
     [Fact]

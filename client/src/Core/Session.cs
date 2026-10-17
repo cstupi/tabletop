@@ -164,7 +164,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     void SendReauth(string jwt) => dispatcher.Post(() =>
     {
         if (Welcomed() is not { } socket) return;
-        _ = socket.SendAsync(new Reauth(jwt)).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        _ = socket.SendAsync(new Reauth(Guid.CreateVersion7(), jwt)).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
     });
 
     public async Task LogoutAsync()

@@ -46,6 +46,11 @@ public class WireJsonTests
     }
 
     [Fact]
+    public void Reauth_travels_under_its_kind() =>
+        Assert.Equal("{\"kind\":\"reauth\",\"reauthId\":\"00000000-0000-0000-0000-000000000000\",\"sessionJwt\":\"jwt\"}",
+            WireJson.Serialize(new Reauth(Guid.Empty, "jwt")));
+
+    [Fact]
     public void Sight_and_facts_travel_under_their_kinds()
     {
         Assert.StartsWith("{\"kind\":\"sight_query\",", WireJson.Serialize(new SightQuery(Guid.Empty, Guid.Empty, Guid.Empty)));

@@ -132,6 +132,8 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
 - `--driver socket` needs Postgres, the game server and management running, both servers in dev mode (Development and `TABLETOP_DEV_MODE=1`; the game
   server for `SetDice`, management for the session mint).
 - Sessions come from `POST /v1/dev/sessions`, which exists only in dev mode, for the pool accounts above.
+  `SocketCredentials.Refresh` mints a pool account's session again; `SocketDriver` sends it as a `Reauth` a minute (`renewBefore`) ahead of
+  each socket's token `exp`, so a run longer than a session's lifetime keeps its sockets.
 - Socket environment, from the process or the working directory's `.env`: `TABLETOP_DB_CONNECTION` (required), `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`), `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`).
 
 ## Conventions and pitfalls

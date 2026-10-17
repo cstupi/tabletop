@@ -15,24 +15,32 @@ function write(s: SessionResponse | null) {
   catch { /* storage blocked or full: the session lives in memory for this tab only */ }
 }
 
+/** Management refused this token for good (401: a dead session; or any other 4xx); a 429, a 5xx
+ *  or no answer at all is worth retrying, so it keeps the session. */
+const refused = (e: unknown) => e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 429;
+
 class Session {
   token = $state<string | null>(null);
   account = $state<AccountRow | null>(null);
   ready = $state(false);
+  /** True once a session ended under the reader (a 401, or a refused refresh) rather than by logging out; the sign-in page says so. */
+  expired = $state(false);
   private inFlight: Promise<boolean> | null = null;
 
   constructor() {
     setTokenProvider(() => this.token);
-    http.onUnauthorized = () => this.clear();
+    http.onUnauthorized = () => this.clear(true);
   }
 
   accept(s: SessionResponse) {
     this.token = s.sessionJwt;
     this.account = s.account;
+    this.expired = false;
     write(s);
   }
 
-  clear() {
+  clear(expired = false) {
+    if (this.token && expired) this.expired = true;
     this.token = null;
     this.account = null;
     write(null);
@@ -44,7 +52,7 @@ class Session {
     this.ready = true;
   }
 
-  /** A fresh five-minute JWT from the long-lived Stytch session. False and signed out when management refuses;
+  /** A fresh five-minute JWT from the long-lived Stytch session. False and signed out when management refuses (any 4xx but 429);
    *  false but still signed in on any other failure (network, 429, 5xx), so those are not a logout.
    *  Overlapping callers share one request: restore() and the loop's first tick both fire on an expired token. */
   async refresh(): Promise<boolean> {
@@ -58,7 +66,7 @@ class Session {
 
   private async run(token: string): Promise<boolean> {
     try { this.accept(await api.auth.refresh(token)); return true; }
-    catch (e) { if (e instanceof ApiError && e.status === 401) this.clear(); return false; }
+    catch (e) { if (refused(e)) this.clear(true); return false; }
   }
 
   async logout() {

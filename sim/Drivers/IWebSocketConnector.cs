@@ -24,7 +24,23 @@ public sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector
 }
 
 /// <summary>A real Stytch session JWT and the account it names.</summary>
-public sealed record MintedSession(string Jwt, Guid AccountId);
+public sealed record MintedSession(string Jwt, Guid AccountId)
+{
+    /// <summary>The token's `exp`, read without verifying it; null when it has none or is not a JWT.</summary>
+    public static DateTimeOffset? ExpiryOf(string jwt)
+    {
+        var parts = jwt.Split('.');
+        if (parts.Length != 3) return null;
+        try
+        {
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+            using var doc = JsonDocument.Parse(Convert.FromBase64String(payload));
+            return doc.RootElement.TryGetProperty("exp", out var exp) && exp.TryGetInt64(out var seconds) ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException) { return null; }
+    }
+}
 
 /// <summary>
 /// One session per participant, in team-ordinal order with the recorder last. Nothing here verifies a
@@ -47,6 +63,9 @@ public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
     public const int PoolSize = 4;
     public static IReadOnlyList<string> Pool { get; } = Enumerable.Range(0, PoolSize).Select(i => $"sim-player-{i}").ToList();
 
+    /// <summary>A fresh session for participant i's account, which the socket driver sends as a Reauth before the one it holds expires. None: no renewal.</summary>
+    public Func<int, CancellationToken, Task<MintedSession>>? Refresh { get; init; }
+
     public static string NameFor(int index) => index >= 0 && index < PoolSize
         ? Pool[index]
         : throw new ArgumentOutOfRangeException(nameof(index), index, $"the account pool has {PoolSize} accounts");
@@ -56,7 +75,15 @@ public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
         var sessions = new List<MintedSession>();
         for (var i = 0; i < scenario.Info.Participants.Count; i++)
             sessions.Add(await MintOneAsync(http, NameFor(i), ct));
-        return new SocketCredentials(sessions);
+        var management = http.BaseAddress;
+        return new SocketCredentials(sessions)
+        {
+            Refresh = async (i, token) =>
+            {
+                using var fresh = new HttpClient { BaseAddress = management };
+                return await MintOneAsync(fresh, NameFor(i), token);
+            },
+        };
     }
 
     /// <summary>

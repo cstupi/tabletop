@@ -169,7 +169,7 @@ graph TD
 *Seven routes under one layout. `/login` and `/reset-password` are the only public paths.*
 
 The layout does four things: `session.restore()` on mount, `session.startRefreshLoop()` with
-its teardown returned from `onMount`, an `$effect` that redirects to `/login` when
+its teardown returned from `onMount`, an `$effect` that redirects to `/login?next=<path>` (plus `expired=1` when `session.expired`) when
 `session.ready` and no token is held on a private route, and the nav. Pages are thin over
 tested modules. Every branch worth asserting lives in `src/lib/**` and is covered by Vitest
 under Node. `.svelte` files are verified by running the application.
@@ -178,8 +178,9 @@ under Node. `.svelte` files are verified by running the application.
 graph TD
     Routes["src/routes/* — pages"]
     Comps["src/lib/components/* — MeshPreview, UploadDialog, BasePicker, FolderTree, VolumeEditor, AssetPicker"]
-    Sess["session/ — jwt.ts, session.svelte.ts, messages.ts"]
-    Api["api/ — types.ts, http.ts, client.ts"]
+    Sess["session/ — jwt.ts, session.svelte.ts, messages.ts, redirect.ts"]
+    Api["api/ — types.ts, http.ts, client.ts, errors.ts"]
+    Valid["validation.ts — name and size checks, quota usage"]
     Units["units/ — units.ts, bases.ts, volumes.ts"]
     Mesh["mesh/ — stl, weld, decimate, normals, glb, guess, supports, bounds, convert, three-frame"]
     Upload["upload/ — sha256.ts, upload.ts, intake.ts"]
@@ -191,6 +192,8 @@ graph TD
     Routes --> Api
     Routes --> LibMod
     Routes --> Armies
+    Routes --> Valid
+    Comps --> Valid
     Comps --> Mesh
     Comps --> Upload
     Comps --> Units
@@ -251,16 +254,17 @@ stateDiagram-v2
     Restoring --> SignedOut: no stored token
     Restoring --> Refreshing: stored token found
     Refreshing --> SignedIn: SessionResponse accepted
-    Refreshing --> SignedOut: refresh refused, clear()
+    Refreshing --> SignedOut: refresh refused (any 4xx but 429), clear(true)
     SignedIn --> Refreshing: timer fires (60 s, or 30 s before exp)
-    SignedIn --> SignedOut: 401 on any bearer call, via onUnauthorized
+    SignedIn --> SignedOut: 401 on any bearer call, via onUnauthorized, clear(true)
     SignedIn --> SignedOut: logout — DELETE /v1/auth/session, then clear()
     SignedOut --> SignedIn: password, OTP verify, signup or reset complete
     SignedOut --> [*]
 ```
 
 *Every arrow into `SignedOut` runs `clear()`, dropping the token, the account and the
-`localStorage` entry. `ready` only gates the first paint.*
+`localStorage` entry. `ready` only gates the first paint. `clear(true)` also sets `expired`, which
+the sign-in page reports; `accept` resets it.*
 
 `session/session.svelte.ts` is a runes class instance exported as a singleton. `token`,
 `account` and `ready` are `$state`, so every page re-renders from one source. Its constructor
@@ -779,6 +783,45 @@ The asset's modelled base and the slot's base are **two different facts with two
 jobs**. One base on the asset, winning for geometry with any mismatch surfaced as a warning, is
 rejected: a mismatch is not an error to warn about but a way to search.
 
+### 12. Messages, checks and accessibility
+
+**One error wording.** `api/errors.ts` `errorMessage(e, context)` turns any failure into one
+sentence. `context` (`auth`, `import`, `upload`, `general`) decides what a `401` and a `502`
+mean. A `TypeError` from `fetch` reads as a connection problem. `422` details pass through
+except where they name a wire field or an id: `name … is at most 64 characters.` becomes "Name is
+too long", `Asset <id> is not an uploaded asset of yours.` becomes "That mesh is no longer in
+your library … Pick another", and the count and quota limits (200 armies, folders; 500 assets,
+1 GiB) gain "Delete some to make room". `409` "abandoned" reads as "upload again"; `413`, `426`
+and `5xx` have fixed sentences; `429` uses `ApiError.retryAfter` (from a `Retry-After` header)
+when present, else "Wait a minute". `loginErrorMessage` and `importErrorMessage` are this with
+their context.
+
+**Checks before sending.** `validation.ts` mirrors management's `Limits.Text` and
+`UploadLimits`: `nameProblem` (trimmed, 1–64 characters, no `Cc` or bidirectional formatting
+character) runs on account, army, asset, folder and upload names; `sizeProblem` holds a mesh GLB
+to 64 MiB (checked on a dropped GLB and on the converted output) and a texture to 16 MiB (on
+drop). `libraryUsage` sums asset rows and each distinct hash's bytes, which is how management
+counts its quota; `/library` shows it against `ASSET_QUOTA` and warns at 90 %.
+
+**Return path.** `session/redirect.ts` `safeNext` admits only a same-site path outside the
+sign-in pages; `loginHref(path, expired)` builds the redirect. A signed-in visit to `/login`
+goes straight to `next`.
+
+**Progress.** Conversion shows "step N of 6" from `convert.ts` `STEPS`. Upload shows
+`STAGE_LABELS[stage]`; the presigned `PUT` goes through `XMLHttpRequest` where one exists so
+`upload.progress` drives a byte progress bar (`fetch` in Node, for the tests). A non-2xx `PUT` is
+`StoreRefused` and reads as a possibly expired link.
+
+**Accessibility and layout.** Forms are `<form>` with `onsubmit`, so Enter submits. Every input,
+select and icon button has a label or `aria-label`; status lines are `role="status"`, failures
+`role="alert"`. The upload dialog is a modal `<dialog>` (`showModal`): focus moves to its heading,
+Escape closes it except mid-upload, and focus returns to the Add button. Folders have a "Move
+into" select (`moveTargets`: every folder outside the moving one's subtree) as the keyboard path
+beside drag-and-drop. Unit toggles carry `aria-expanded`. The layout has a skip link and a
+`:focus-visible` outline. Tables sit in `.scroll-x`; `/library`, `/library/[id]` and the upload
+preview stack to one column below 40–48 rem. Every page sets a `<title>`, which SvelteKit's
+route announcer reads.
+
 ## Key decisions
 
 ### Decided by a spec
@@ -920,10 +963,9 @@ app needs real URL paths rather than a hash router.*
 The reset token is single-use and short-lived, so a second submit answers `4xx` and the page
 tells the user to request another link. A reset link opened with no `?token=`, from a mail
 client stripping the query, renders a dedicated message rather than a broken form.
-`loginErrorMessage` maps status to wording: `401` to "Wrong email, password or code", `409` to
-"an account with that email already exists", `422` to management's detail. Stytch's
-weak-password text surfaces through that `422`, so vendor phrasing reaches the user in one
-place.
+`loginErrorMessage` is `errorMessage(e, 'auth')` (§12): `401` reads "Wrong email, password or
+code", `422` carries management's fixed detail (weak password, details not accepted), `429` and
+`502` read as retry guidance. Sign-in returns to `safeNext(?next=)`, the path the reader was on.
 
 ### Session refresh and the 401 path
 
@@ -1164,8 +1206,11 @@ across page visits: every write is followed by a refetch, so a stale list cannot
 | Failure | What happens |
 | --- | --- |
 | Wrong password or code | `401` → "Wrong email, password or code." No sign-out, because `/v1/auth/*` is excluded from `onUnauthorized` |
-| Expired or revoked session | Any bearer `401` clears the session and redirects; the refresh timer would also fail and clear |
-| Refresh refused | `session.refresh()` returns false and signs out; `restore()` treats a stored-but-dead token as absent |
+| Expired or revoked session | Any bearer `401` clears the session and redirects to `/login?next=<path>&expired=1`; the refresh timer would also fail and clear |
+| Refresh refused | Any 4xx but 429: `session.refresh()` returns false and signs out; `restore()` treats a stored-but-dead token as absent. A 429, a 5xx or no answer keeps the session |
+| Name over 64 characters or with a control character | Refused in the form by `nameProblem` before sending |
+| File over the size cap | `sizeProblem` refuses a GLB over 64 MiB or an image over 16 MiB at drop, and a converted mesh over 64 MiB before upload, naming the way out |
+| Rate limit, quota, network | `errorMessage` gives the retry or the way out (§12) |
 | Not an STL | `StlError`, meaning neither a valid binary facet table nor a leading `solid`, returns the dialog to *drop* with the message |
 | A mixed or unsupported drop | `classifyFiles` rejects locally with the reason, before any parse; `.gltf` gets management's own explanation |
 | Mesh over budget | Decimation ladder widens the error until it fits; before/after counts are shown |
@@ -1193,7 +1238,6 @@ across page visits: every write is followed by a refetch, so a stale list cannot
   human can notice. Nothing asserts it.
 - **A presigned URL expiring mid-view.** `/library/[id]` fetches the GLB once. If the URL has
   expired the fetch fails and the page shows a generic error rather than re-presigning.
-- **Deep links lose their destination** on a cold load while signed out.
 - **`modelledBase` cannot be cleared** through `PATCH`, because nulls are omitted. Switching an
   asset's kind away from `miniature` in the UI stops sending the field, so the stale value stays
   in the row.
@@ -1216,15 +1260,16 @@ across page visits: every write is followed by a refetch, so a stale list cannot
 
 Vitest in a **Node** environment over `web/tests/**/*.test.ts`, plus `svelte-check` for types.
 Every module in `src/lib/**` with logic is unit-tested headlessly. `.svelte` pages are verified
-by running the application against a live management API and MinIO. The plan ends with 45
-passing tests and one skipped.
+by running the application against a live management API and MinIO. The suite has 83 passing
+tests and one skipped.
 
 | Area | Tested | How |
 | --- | --- | --- |
 | `api/http.ts`, `client.ts` | Bearer header, `problem+json` → `ApiError`, `204` → `undefined`, `onUnauthorized` firing on a bearer `401` and *not* on `/v1/auth/*`, keyset query strings, exact paths and verbs | `vi.stubGlobal('fetch')` |
 | `session/jwt.ts` | `exp` decoding, the four branches of `refreshDelayMs` | Pure |
-| `session/session.svelte.ts` | `accept`/`logout`/`restore`/failed-refresh sign-out | Stubbed `localStorage`, spied `api.auth` |
-| `session/messages.ts` | Status-to-wording map | Pure |
+| `session/session.svelte.ts` | `accept`/`logout`/`restore`/failed-refresh sign-out, `expired` set by a refusal and not by logout, 429 keeping the session | Stubbed `localStorage`, spied `api.auth` |
+| `api/errors.ts`, `session/messages.ts` | Status-to-wording map per context, the 422 rewrites, `Retry-After` | Pure (`messages.test.ts`, `login-flow.test.ts`) |
+| `validation.ts`, `session/redirect.ts` | Name rules, size caps, quota usage, `safeNext` refusing other origins and the sign-in pages | Pure (`messages.test.ts`) |
 | `units/*` | mm↔inch, preset naming and the 0.005″ match, custom labels, the flags codec including flag order, the bounding-box default | Pure |
 | `mesh/stl.ts`, `weld.ts` | ASCII, binary, binary-with-a-lying-`solid`-header, garbage rejection, merge extents, corner welding, degenerate dropping | Six generated fixtures |
 | `mesh/decimate.ts` | 48,000 → within the miniature budget while keeping extent, vertex compaction, identity short-circuit under budget | The dense fixture, real WASM |

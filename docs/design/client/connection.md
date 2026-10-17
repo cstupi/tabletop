@@ -47,7 +47,7 @@ exchange, first join, reconnect, crash recovery and a game migrating between ser
 code path on both sides.
 
 The socket outlives its Connect JWT: after each successful refresh (every 60 s) a welcomed socket
-gets `Reauth(SessionJwt)`, so the server's close at the token's `exp` does not come. While
+gets `Reauth(ReauthId, SessionJwt)`, so the server's close at the token's `exp` does not come. While
 `Reconnecting`, `SendCommandAsync` and `SendEditAsync` queue (`Session.Queueing`, at most 16) and go
 out in order after the next `Welcome`; their tasks complete then, or fail with "Disconnected from the
 game" when the session goes home instead. Outside a game they throw "Not connected". The decision box

@@ -70,6 +70,26 @@ describe('upload', () => {
     expect(err.cause).toBeInstanceOf(TypeError);
   });
 
+  it('reports bytes sent and says a refused PUT may be an expired link', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset(), uploadUrl: 'http://x/put' });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 200 })));
+    vi.spyOn(api.assets, 'confirm').mockResolvedValue({ asset: asset({ uploaded: true }) });
+    vi.spyOn(api.assets, 'putVolumes').mockResolvedValue([]);
+    const sent: [number, number][] = [];
+    await upload(plan, () => {}, (a, b) => sent.push([a, b]));
+    expect(sent.at(-1)).toEqual([3, 3]);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('expired', { status: 403 })));
+    const err = await upload(plan).catch((e) => e);
+    expect(err.message).toMatch(/refused the file \(403\).*expired/);
+  });
+
+  it('words a quota refusal at create plainly', async () => {
+    vi.spyOn(api.assets, 'create').mockRejectedValue(new ApiError(422, 'Unprocessable', 'An account holds at most 500 assets.'));
+    const err = await upload(plan).catch((e) => e);
+    expect(err).toMatchObject({ stage: 'create' });
+    expect(err.message).toBe('An account holds at most 500 assets. Delete some to make room.');
+  });
+
   it('returns the server warning from confirm', async () => {
     vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset({ uploaded: true }) });
     vi.spyOn(api.assets, 'confirm').mockResolvedValue({ asset: asset({ uploaded: true }), triangles: 120000, warning: 'over 100000 triangles' });

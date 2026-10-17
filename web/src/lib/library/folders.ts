@@ -16,6 +16,11 @@ export function descendantIds(folders: FolderDto[], id: Guid): Set<Guid> {
   while (grew) { grew = false; for (const f of folders) if (f.parentId && out.has(f.parentId) && !out.has(f.id)) { out.add(f.id); grew = true; } }
   return out;
 }
+/** Where a folder can move: any folder outside its own subtree, sorted by name. Management refuses a cycle (422). */
+export function moveTargets(folders: FolderDto[], id: Guid): FolderDto[] {
+  const subtree = descendantIds(folders, id);
+  return folders.filter((f) => !subtree.has(f.id)).sort((a, b) => a.name.localeCompare(b.name));
+}
 /** A folder shows its own assets and its sub-folders'; an asset in no folder shows only under *All*. */
 export function filterAssets(assets: AssetDto[], folders: FolderDto[], f: { folderId: Guid | null; kind?: AssetKind; base?: Base }): AssetDto[] {
   const subtree = f.folderId ? descendantIds(folders, f.folderId) : null;

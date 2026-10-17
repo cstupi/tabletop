@@ -3,6 +3,8 @@ import type { Problem } from './types';
 export const API_BASE: string = (import.meta.env?.PUBLIC_API_BASE as string | undefined) ?? '';
 
 export class ApiError extends Error {
+  /** Seconds from a Retry-After header, when a 429 or 503 carried one. */
+  retryAfter?: number;
   constructor(public status: number, public title: string, public detail?: string) { super(detail ?? title); }
 }
 
@@ -20,7 +22,10 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<T>
   let problem: Problem = {};
   try { problem = (await response.json()) as Problem; } catch { /* no body */ }
   if (response.status === 401 && !isAuthRoute) http.onUnauthorized();
-  throw new ApiError(response.status, problem.title ?? response.statusText, problem.detail);
+  const error = new ApiError(response.status, problem.title ?? response.statusText, problem.detail);
+  const retryAfter = Number(response.headers.get('retry-after') ?? NaN);
+  if (Number.isFinite(retryAfter)) error.retryAfter = retryAfter;
+  throw error;
 }
 
 export const http = {

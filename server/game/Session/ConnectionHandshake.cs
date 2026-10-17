@@ -58,8 +58,8 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         var connection = new SocketConnection(socket, participantId ?? Guid.Empty, session.AccountId, log, options.Outbound);
         var sending = connection.RunSendLoopAsync(CancellationToken.None);
         await accounts.AddAsync(connection);
-        // The session's JWT is the authority for this socket only while it is valid: at its expiry the socket closes 1008 and the client
-        // reconnects with the token it has refreshed since.
+        // The session's JWT is the authority for this socket only while it is valid: at its expiry the socket closes 1008, unless a Reauth
+        // with a refreshed token of the same account has moved the expiry on.
         await using var expiry = time.CreateTimer(_ => _ = connection.CloseAsync(WebSocketCloseStatus.PolicyViolation, "session expired").AsTask(),
             null, Clamp(session.ExpiresAt - time.GetUtcNow()), Timeout.InfiniteTimeSpan);
         using var reading = CancellationTokenSource.CreateLinkedTokenSource(aborted, connection.Closing);
@@ -85,6 +85,13 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
                     var frame = inbound.Message;
                     if (!await limiter.AdmitAsync(frame, reading.Token)) continue;
                     if (!inbound.CleanText) { await RefuseTextAsync(connection, frame); continue; }
+                    if (frame is Reauth reauth)
+                    {
+                        if (await RenewAsync(reauth.SessionJwt, session, watcher, reading.Token) is { } renewed)
+                        { session = renewed; expiry.Change(Clamp(renewed.ExpiresAt - time.GetUtcNow()), Timeout.InfiniteTimeSpan); }
+                        else await connection.SendAsync(new Refused(reauth.ReauthId, RefusalReason.NotPermitted, "the session does not renew this socket"));
+                        continue;
+                    }
                     await game.ReceiveAsync(connection, frame);
                 }
             }
@@ -106,11 +113,20 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         finally { await registry.ReleaseIfEmptyAsync(game); }
     }
 
-    /// <summary>A command or edit holding a control or bidi-override character is refused by its id; any other such frame is dropped.</summary>
+    /// <summary>The refreshed session when it verifies, names the socket's account and, for an admin watcher, is still an admin's; else null.</summary>
+    private async Task<VerifiedSession?> RenewAsync(string jwt, VerifiedSession current, bool watcher, CancellationToken ct)
+    {
+        VerifiedSession? renewed;
+        try { renewed = await verifier.VerifyAsync(jwt, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "cannot verify a reauth for account {AccountId}", current.AccountId); return null; }
+        return renewed is not null && renewed.AccountId == current.AccountId && (!watcher || renewed.IsAdmin) ? renewed : null;
+    }
+
+    /// <summary>A command, edit or reauth holding a control or bidi-override character is refused by its id; any other such frame is dropped.</summary>
     private static async Task RefuseTextAsync(SocketConnection connection, SocketMessage frame)
     {
         const string Detail = "text holds a control or bidi-override character";
-        var id = frame switch { CommandMessage c => c.CommandId, EditMessage e => e.EditId, _ => (Guid?)null };
+        var id = frame switch { CommandMessage c => c.CommandId, EditMessage e => e.EditId, Reauth r => r.ReauthId, _ => (Guid?)null };
         if (id is { } refused) await connection.SendAsync(new Refused(refused, RefusalReason.Unknown, Detail));
     }
 

@@ -251,6 +251,31 @@ public class DriverAgreementTests
         finally { await Clean(seeder, c, credentials); }
     }
 
+    [Fact]
+    public async Task Each_socket_reauths_before_its_session_expires_and_plays_on_past_it()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(6));
+        using var factory = new GameServerFactory(db);
+        var (seeder, _) = Prepare(c);
+        var refreshed = new List<int>();
+        var shortLived = new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId, lifetime: TimeSpan.FromSeconds(3)), p.AccountId)).ToList())
+        {
+            Refresh = (i, _) => { lock (refreshed) refreshed.Add(i); var a = c.Info.Participants[i].AccountId; return Task.FromResult(new MintedSession(TestKeys.Mint(a), a)); },
+        };
+        try
+        {
+            await Seed(seeder, c, shortLived);
+            IGameDriver driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), shortLived, Ct, renewBefore: TimeSpan.FromSeconds(2));
+            await using var _ = driver;
+            await Task.Delay(TimeSpan.FromSeconds(4));                          // past the first tokens' expiry
+            var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
+            Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), Ct));
+            Assert.NotEmpty((await driver.StepAsync(Ct)).Events);
+            lock (refreshed) Assert.Equal(Enumerable.Range(0, c.Info.Participants.Count), refreshed.Order());
+        }
+        finally { await Clean(seeder, c, shortLived); }
+    }
+
     sealed class TrackingConnector(GameServerFactory factory, Func<WebSocket, WebSocket>? wrap = null) : IWebSocketConnector
     {
         public List<WebSocket> Sockets { get; } = [];

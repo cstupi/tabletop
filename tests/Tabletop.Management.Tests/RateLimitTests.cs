@@ -112,4 +112,27 @@ public class RateLimitTests
             Assert.Equal(HttpStatusCode.OK, (await c.SendAsync(Get(other, "203.0.113.50"))).StatusCode);
         }
     }
+
+    [Fact]
+    public async Task Every_429_carries_Retry_After_in_whole_seconds()
+    {
+        var (f, host) = Host(("RATE_LIMIT_PER_IP", "1"));
+        using (f) using (var c = host.CreateClient())
+        {
+            await c.GetAsync("/healthz");
+            var r = await c.GetAsync("/healthz");
+            Assert.Equal(HttpStatusCode.TooManyRequests, r.StatusCode);
+            var seconds = int.Parse(r.Headers.GetValues("Retry-After").Single());
+            Assert.InRange(seconds, 1, 60);
+        }
+
+        var (g, host2) = Host(("RATE_LIMIT_AUTH_PER_EMAIL", "1"));
+        using (g) using (var c = host2.CreateClient())
+        {
+            await c.SendAsync(Otp("slow@example.com"));
+            var r = await c.SendAsync(Otp("slow@example.com"));
+            Assert.Equal(HttpStatusCode.TooManyRequests, r.StatusCode);
+            Assert.InRange(int.Parse(r.Headers.GetValues("Retry-After").Single()), 1, 60);
+        }
+    }
 }

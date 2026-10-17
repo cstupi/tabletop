@@ -45,7 +45,7 @@ public sealed class TestPool(IRowSeeder seeder, ISocketRows rows)
     {
         var sessions = new List<MintedSession>();
         for (var i = 0; i < c.Info.Participants.Count; i++) sessions.Add(await SessionAsync(SocketCredentials.NameFor(i)));
-        return new SocketCredentials(sessions);
+        return new SocketCredentials(sessions) { Refresh = (i, _) => SessionAsync(SocketCredentials.NameFor(i)) };
     }
 
     public SuiteSocket Socket(Func<IWebSocketConnector> connector) =>
