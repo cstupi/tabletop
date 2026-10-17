@@ -88,6 +88,23 @@ Upstream MinIO images are gone; both compose files use `pgsty/minio` pinned by d
 - Client: `AssetCache` caps downloads; `GlbPreflight` checks a GLB before Godot parses it.
 - Free-text "Mark as having taken…" is refused for an action the rules don't define.
 
+**Releases** (spec `2026-10-17-client-releases-design.md`, `deploy/README.md` → Releases): `client/export_presets.cfg`
+(Windows, Linux, macOS; unsigned); `scripts/release-client` exports and uploads to `releases/<version>/` plus
+`releases/latest.json`; `scripts/release` builds, tests, publishes the client, installs the web build and deploys
+(`--deploy docker|systemd|none`, `--dry-run`); `.github/workflows/release.yml` on `v*.*.*` tags and `ci.yml` on main.
+`GET /v1/client/latest` serves 15-minute links to signed-in users; the web app's `/download` page lists them; the
+client's update-required screen links to it. Operator: GitHub secrets `RELEASE_S3_*`, variable `TABLETOP_WEB_URL`.
+
+**Client and web:** feedback text for refusals, closes and HTTP errors (`Feedback`); watcher mode; rename; lobby Players
+list with the creator's team pickers; End/Delete/Leave; setup caps shown before sending; Reauth on the open socket;
+Spawn/Split ring placement; 1" separation in the move gate; reserve chips; Add a grant. The web app has the client's
+Sci-fi and Fantasy themes (`web/src/themes.css`), plain errors, upload progress and a download page. Built-in terrain is
+procedural and coloured (`scripts/TerrainMeshes`, 13 meshes incl. `lake` and `crater`), with new table lighting.
+Claude checks the client on screen itself (WSLg + Godot movie frames + xdotool); right-click popups are not captured.
+
+**Rules:** under strict a team may not pass its activation while a unit can activate (p.7); warn records
+`activation_required`.
+
 **Army-book rules:** all play, including Spawn, Split, Reinforcement (reserve units the import adds,
 `ArmyBookReserves`) and Takedown Shot / Strike (`ArmyBookAdditions`).
 
