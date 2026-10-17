@@ -14,24 +14,25 @@ builder.WebHost.UseUrls(builder.Configuration["MANAGEMENT_URL"] ?? "http://0.0.0
 // file runs.
 builder.Services.AddSingleton(sp => ManagementOptions.From(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(sp => new Tabletop.Management.Persistence.Database(sp.GetRequiredService<ManagementOptions>().DbConnection));
+builder.Services.AddSingleton<Tabletop.Management.Persistence.IMigrator, Tabletop.Management.Persistence.PostgresMigrator>();
 builder.Services.ConfigureHttpJsonOptions(o => Tabletop.Content.ContentJson.Configure(o.SerializerOptions));
 builder.Services.AddProblemDetails();
 builder.Services.AddCors();
 builder.Services.AddStytchJwt();
-builder.Services.AddSingleton<AccountRepository>();
+builder.Services.AddSingleton<IAccountRepository, AccountRepository>();
 builder.Services.AddSingleton<AccountDeleter>();
 builder.Services.AddHttpClient(StytchClient.HttpClientName);
 builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(StytchClient.HttpClientName), sp.GetRequiredService<ManagementOptions>()));
 builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp => new Tabletop.Management.Content.Assets.S3BlobStore(sp.GetRequiredService<ManagementOptions>()));
-builder.Services.AddSingleton<AssetRepository>();
-builder.Services.AddSingleton<FolderRepository>();
+builder.Services.AddSingleton<IAssetRepository, AssetRepository>();
+builder.Services.AddSingleton<IFolderRepository, FolderRepository>();
 builder.Services.AddSingleton<StarterAssets>();
 builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName);
 builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName)));
-builder.Services.AddSingleton<CatalogKinds>();
-builder.Services.AddSingleton<ArmyRepository>();
-builder.Services.AddSingleton<LayoutRepository>();
-builder.Services.AddSingleton<GameRepository>();
+builder.Services.AddSingleton<ICatalogKinds, CatalogKinds>();
+builder.Services.AddSingleton<IArmyRepository, ArmyRepository>();
+builder.Services.AddSingleton<ILayoutRepository, LayoutRepository>();
+builder.Services.AddSingleton<IGameRepository, GameRepository>();
 builder.Services.AddSingleton<Sessions>();
 if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
@@ -39,7 +40,7 @@ var app = builder.Build();
 // Resolved eagerly, right after Build() (once ConfigureAppConfiguration overrides have landed), so
 // missing required configuration fails startup instead of being silently deferred to first use.
 var options = app.Services.GetRequiredService<ManagementOptions>();
-Tabletop.Management.Persistence.Migrator.Run(options.DbConnection);
+app.Services.GetRequiredService<Tabletop.Management.Persistence.IMigrator>().Run();
 app.UseExceptionHandler(h => h.Run(ctx => Results.Problem(
     statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error switch
     {

@@ -9,9 +9,9 @@ public static class AccountEndpoints
     public static void MapAccount(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/v1/account").RequireAuthorization();
-        group.MapGet("", async (System.Security.Claims.ClaimsPrincipal user, AccountRepository accounts) =>
+        group.MapGet("", async (System.Security.Claims.ClaimsPrincipal user, IAccountRepository accounts) =>
             await accounts.Get(CurrentAccount.Id(user)) is { } row ? Results.Ok(row) : Problems.Unauthorized());
-        group.MapPatch("", async (System.Security.Claims.ClaimsPrincipal user, RenameRequest r, AccountRepository accounts) =>
+        group.MapPatch("", async (System.Security.Claims.ClaimsPrincipal user, RenameRequest r, IAccountRepository accounts) =>
         {
             if (string.IsNullOrWhiteSpace(r.Name)) return Problems.Unprocessable("name is required");
             var id = CurrentAccount.Id(user);

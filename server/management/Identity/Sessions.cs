@@ -7,7 +7,7 @@ public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 
 /// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, has its starter miniatures, and rides in the session's account_id claim beside the user's roles.</summary>
-public sealed class Sessions(StytchClient stytch, AccountRepository accounts, StarterAssets starter, ILogger<Sessions> log)
+public sealed class Sessions(StytchClient stytch, IAccountRepository accounts, StarterAssets starter, ILogger<Sessions> log)
 {
     /// <param name="roles">The roles to stamp; null stamps the Stytch user's. Only the Development dev-session mint passes them, so a
     /// dev session's refresh carries the Stytch user's roles again.</param>

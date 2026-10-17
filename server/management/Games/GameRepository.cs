@@ -9,7 +9,7 @@ namespace Tabletop.Management.Games;
 /// (army-book rules spec → Played flag). Dapper maps by constructor parameter name.</summary>
 public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText, bool Played);
 
-public sealed class GameRepository(Database db)
+public sealed class GameRepository(Database db) : IGameRepository
 {
     private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy);
     private sealed record ParticipantRow(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId);

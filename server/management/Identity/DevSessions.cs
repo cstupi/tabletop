@@ -8,7 +8,7 @@ namespace Tabletop.Management.Identity;
 public sealed record DevSessionRequest(string Name, IReadOnlyList<string>? Roles = null);
 
 /// <summary>Development only. A real Stytch session JWT for a named account, so the simulator's socket driver runs the real verification path.</summary>
-public sealed class DevSessions(StytchClient stytch, AccountRepository accounts, Sessions sessions)
+public sealed class DevSessions(StytchClient stytch, IAccountRepository accounts, Sessions sessions)
 {
     private static readonly Guid Namespace = new("6f2b1c5e-0d3a-4f18-9b7c-2a5d8e4f1b60");
 

@@ -9,7 +9,7 @@ public static class ArmyEndpoints
     {
         var g = app.MapGroup("/v1/armies").RequireAuthorization();
 
-        g.MapPost("/import", async (ClaimsPrincipal u, ImportRequest r, ArmyForgeClient forge, CatalogKinds kinds, ArmyRepository armies) =>
+        g.MapPost("/import", async (ClaimsPrincipal u, ImportRequest r, ArmyForgeClient forge, ICatalogKinds kinds, IArmyRepository armies) =>
         {
             var listId = ArmyForgeClient.ListId(r.Source);
             if (listId is null) return Problems.Unprocessable("source must be an Army Forge share link or list id");
@@ -23,13 +23,13 @@ public static class ArmyEndpoints
             return Results.Created($"/v1/armies/{army.Id}", army);
         });
 
-        g.MapGet("", async (ClaimsPrincipal u, ArmyRepository armies, int? limit, Guid? after) =>
+        g.MapGet("", async (ClaimsPrincipal u, IArmyRepository armies, int? limit, Guid? after) =>
         {
             var page = Keyset.Parse(limit, after);
             return Results.Ok(Page<ArmySummary>.Of(await armies.List(CurrentAccount.Id(u), page), page.Limit, a => a.Id));
         });
-        g.MapGet("/{id:guid}", async (ClaimsPrincipal u, Guid id, ArmyRepository armies) => await armies.Get(CurrentAccount.Id(u), id) is { } a ? Results.Ok(a) : Problems.NotFound());
-        g.MapPatch("/{id:guid}", async (ClaimsPrincipal u, Guid id, PatchArmyRequest p, ArmyRepository armies) => await armies.Patch(CurrentAccount.Id(u), id, p) is { } a ? Results.Ok(a) : Problems.NotFound());
-        g.MapDelete("/{id:guid}", async (ClaimsPrincipal u, Guid id, ArmyRepository armies) => await armies.Delete(CurrentAccount.Id(u), id) ? Results.NoContent() : Problems.NotFound());
+        g.MapGet("/{id:guid}", async (ClaimsPrincipal u, Guid id, IArmyRepository armies) => await armies.Get(CurrentAccount.Id(u), id) is { } a ? Results.Ok(a) : Problems.NotFound());
+        g.MapPatch("/{id:guid}", async (ClaimsPrincipal u, Guid id, PatchArmyRequest p, IArmyRepository armies) => await armies.Patch(CurrentAccount.Id(u), id, p) is { } a ? Results.Ok(a) : Problems.NotFound());
+        g.MapDelete("/{id:guid}", async (ClaimsPrincipal u, Guid id, IArmyRepository armies) => await armies.Delete(CurrentAccount.Id(u), id) ? Results.NoContent() : Problems.NotFound());
     }
 }

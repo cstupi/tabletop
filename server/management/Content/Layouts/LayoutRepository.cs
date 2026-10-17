@@ -9,7 +9,7 @@ namespace Tabletop.Management.Content.Layouts;
 public sealed record LayoutSummary(Guid Id, string Name, TableSize Size, int Terrain, int Markers);
 public sealed record PatchLayoutRequest(string? Name, TableState? State);
 
-public sealed class LayoutRepository(Database db)
+public sealed class LayoutRepository(Database db) : ILayoutRepository
 {
     private sealed record Head(Guid Id, string? Name, double Width, double Length, string? TextureBuiltin, Guid? TextureAssetId);
     private sealed record PlacementRow(Guid Id, string? Builtin, Guid? AssetId, double PosX, double PosY, double PosZ, double Yaw, double Scale);

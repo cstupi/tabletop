@@ -32,7 +32,7 @@ public class ManagementFactory : WebApplicationFactory<Program>
 
     public async Task<HttpClient> AuthenticatedClient(Guid accountId, string name = "Test")
     {
-        await Services.GetRequiredService<Identity.AccountRepository>().Insert(accountId, name);
+        await Services.GetRequiredService<Identity.IAccountRepository>().Insert(accountId, name);
         var client = CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", TestKeys.Mint(accountId));
         return client;

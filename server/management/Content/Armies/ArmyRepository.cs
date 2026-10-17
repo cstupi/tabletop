@@ -13,7 +13,7 @@ public sealed record SlotPatch(Guid SlotId, Guid? AssetId, bool ClearAsset, Base
 public sealed record PatchArmyRequest(string? Name, IReadOnlyList<UnitPatch>? Units, IReadOnlyList<SlotPatch>? Slots);
 
 /// <summary>The army tree: army → unit → model_slot → weapon, each level with its stat and property rows.</summary>
-public sealed class ArmyRepository(Database db)
+public sealed class ArmyRepository(Database db) : IArmyRepository
 {
     private sealed record UnitRow(Guid Id, int Ordinal, string Name);
     private sealed record SlotRow(Guid Id, Guid UnitId, int Ordinal, string Name, string BaseShape, double BaseA, double BaseB, double Height, Guid? AssetId, string? ArmyBook);

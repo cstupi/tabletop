@@ -6,7 +6,7 @@ namespace Tabletop.Management.Content.Assets;
 public sealed record FolderDto(Guid Id, Guid? ParentId, string Name, IReadOnlyList<Guid> AssetIds);
 public sealed record FolderRequest(string Name, Guid? ParentId);
 
-public sealed class FolderRepository(Database db)
+public sealed class FolderRepository(Database db) : IFolderRepository
 {
     private sealed record Row(Guid Id, Guid? ParentId, string Name);
 

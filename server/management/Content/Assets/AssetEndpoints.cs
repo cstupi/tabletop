@@ -14,7 +14,7 @@ public static class AssetEndpoints
         var g = app.MapGroup("/v1/assets").RequireAuthorization();
 
         // kind binds as a string: the minimal-API enum binder is case-sensitive, and the wire spelling is lowercase ("miniature").
-        g.MapGet("", async (ClaimsPrincipal user, AssetRepository assets, int? limit, Guid? after, string? kind) =>
+        g.MapGet("", async (ClaimsPrincipal user, IAssetRepository assets, int? limit, Guid? after, string? kind) =>
         {
             AssetKind? k = null;
             if (kind is not null)
@@ -26,7 +26,7 @@ public static class AssetEndpoints
             return Results.Ok(Page<AssetDto>.Of(await assets.List(CurrentAccount.Id(user), page, k), page.Limit, a => a.Id));
         });
 
-        g.MapPost("", async (ClaimsPrincipal user, CreateAssetRequest r, AssetRepository assets, IBlobStore blobs) =>
+        g.MapPost("", async (ClaimsPrincipal user, CreateAssetRequest r, IAssetRepository assets, IBlobStore blobs) =>
         {
             if (string.IsNullOrWhiteSpace(r.Name) || r.ByteSize <= 0 || !AssetRules.IsSha256(r.Hash)) return Problems.Unprocessable("name, byteSize and a 64-hex sha256 hash are required.");
             if (!AssetRules.ContentTypes[r.Kind].Contains(r.ContentType)) return Results.Problem(title: "Unsupported media type", detail: $"{r.Kind} accepts {string.Join(", ", AssetRules.ContentTypes[r.Kind])}. STL is not accepted; convert it first.", statusCode: StatusCodes.Status415UnsupportedMediaType);
@@ -37,10 +37,10 @@ public static class AssetEndpoints
             return Results.Created($"/v1/assets/{asset.Id}", new CreateAssetResponse(asset, url));
         });
 
-        g.MapGet("/{id:guid}", async (ClaimsPrincipal user, Guid id, AssetRepository assets) =>
+        g.MapGet("/{id:guid}", async (ClaimsPrincipal user, Guid id, IAssetRepository assets) =>
             await assets.Get(CurrentAccount.Id(user), id) is { } a ? Results.Ok(a) : Problems.NotFound());
 
-        g.MapPatch("/{id:guid}", async (ClaimsPrincipal user, Guid id, PatchAssetRequest p, AssetRepository assets) =>
+        g.MapPatch("/{id:guid}", async (ClaimsPrincipal user, Guid id, PatchAssetRequest p, IAssetRepository assets) =>
         {
             var owner = CurrentAccount.Id(user);
             var existing = await assets.Get(owner, id);
@@ -49,7 +49,7 @@ public static class AssetEndpoints
             return await assets.Patch(owner, id, p) is { } a ? Results.Ok(a) : Problems.NotFound();
         });
 
-        g.MapDelete("/{id:guid}", async (ClaimsPrincipal user, Guid id, AssetRepository assets, IBlobStore blobs) =>
+        g.MapDelete("/{id:guid}", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
         {
             var (found, orphaned) = await assets.Delete(CurrentAccount.Id(user), id);
             if (!found) return Problems.NotFound();
@@ -57,7 +57,7 @@ public static class AssetEndpoints
             return Results.NoContent();
         });
 
-        g.MapPost("/{id:guid}/confirm", async (ClaimsPrincipal user, Guid id, AssetRepository assets, IBlobStore blobs) =>
+        g.MapPost("/{id:guid}/confirm", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
         {
             var owner = CurrentAccount.Id(user);
             var asset = await assets.Get(owner, id);
@@ -90,7 +90,7 @@ public static class AssetEndpoints
             return Results.Ok(new ConfirmResponse((await assets.Get(owner, id))!, triangles, warning));
         });
 
-        g.MapGet("/{id:guid}/download", async (ClaimsPrincipal user, Guid id, AssetRepository assets, IBlobStore blobs) =>
+        g.MapGet("/{id:guid}/download", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
         {
             var owner = CurrentAccount.Id(user);
             var asset = await assets.Get(owner, id);
@@ -99,10 +99,10 @@ public static class AssetEndpoints
             return Results.Ok(new DownloadResponse(await blobs.PresignDownload(IBlobStore.Key(owner, asset.Hash), DownloadTtl), DateTimeOffset.UtcNow.Add(DownloadTtl)));
         });
 
-        g.MapGet("/{id:guid}/volumes", async (ClaimsPrincipal user, Guid id, AssetRepository assets) =>
+        g.MapGet("/{id:guid}/volumes", async (ClaimsPrincipal user, Guid id, IAssetRepository assets) =>
             await assets.Get(CurrentAccount.Id(user), id) is null ? Problems.NotFound() : Results.Ok(await assets.GetVolumes(CurrentAccount.Id(user), id)));
 
-        g.MapPut("/{id:guid}/volumes", async (ClaimsPrincipal user, Guid id, IReadOnlyList<Volume> volumes, AssetRepository assets) =>
+        g.MapPut("/{id:guid}/volumes", async (ClaimsPrincipal user, Guid id, IReadOnlyList<Volume> volumes, IAssetRepository assets) =>
         {
             var asset = await assets.Get(CurrentAccount.Id(user), id);
             if (asset is null) return Problems.NotFound();

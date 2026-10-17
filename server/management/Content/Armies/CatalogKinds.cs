@@ -4,7 +4,7 @@ using Tabletop.Management.Persistence;
 namespace Tabletop.Management.Content.Armies;
 
 /// <summary>Which catalog names are model-level, from whatever Properties sets exist for the game rules. Empty until content is loaded.</summary>
-public sealed class CatalogKinds(Database db)
+public sealed class CatalogKinds(Database db) : ICatalogKinds
 {
     public async Task<IReadOnlyDictionary<string, PropertyLevel>> For(string gameRules)
     {

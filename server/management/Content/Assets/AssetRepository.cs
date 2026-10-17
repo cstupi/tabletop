@@ -5,7 +5,7 @@ using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Content.Assets;
 
-public sealed class AssetRepository(Database db)
+public sealed class AssetRepository(Database db) : IAssetRepository
 {
     private sealed record Row(Guid Id, Guid OwnerId, string Name, string Kind, string BlobHash, long ByteSize, string ContentType, bool Uploaded, double Scale,
         double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB)
@@ -96,5 +96,35 @@ public sealed class AssetRepository(Database db)
             await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})", new { AssetId = assetId, r.Id, r.Kind, r.Footprint, r.DimA, r.DimB, r.OffsetX, r.OffsetY, r.Yaw, r.Bottom, r.Top, r.Impassable, r.BlocksLos, r.SeeInOut, r.Cover, r.Difficult, r.Dangerous, r.Notes }, tx);
         await tx.CommitAsync();
         return rows.Select(r => new TerrainVolume(r.Id, r.ToVolume())).ToList();
+    }
+    public async Task<bool> StarterSeeded(Guid ownerId)
+    {
+        await using var c = await db.Open();
+        return await c.ExecuteScalarAsync<bool>("select starter_seeded_at is not null from account where id = @ownerId", new { ownerId });
+    }
+
+    public async Task AddStarter(Guid ownerId, string folderName, IReadOnlyList<StarterMesh> meshes)
+    {
+        const string contentType = "model/gltf-binary";
+        await using var c = await db.Open();
+        await using var tx = await c.BeginTransactionAsync();
+        var folderId = await c.ExecuteScalarAsync<Guid?>("select id from folder where owner_id = @ownerId and parent_id is null and name = @name order by id limit 1", new { ownerId, name = folderName }, tx);
+        if (folderId is null)
+        {
+            folderId = Guid.CreateVersion7();
+            await c.ExecuteAsync("insert into folder (id, owner_id, parent_id, name) values (@id, @ownerId, null, @name)", new { id = folderId, ownerId, name = folderName }, tx);
+        }
+        foreach (var m in meshes)
+        {
+            await c.ExecuteAsync(@"insert into blob (owner_id, hash, s3_key, byte_size, content_type, uploaded) values (@ownerId, @hash, @key, @size, @ct, true)
+                on conflict (owner_id, hash) do update set uploaded = true", new { ownerId, hash = m.Hash, key = IBlobStore.Key(ownerId, m.Hash), size = (long)m.Glb.Length, ct = contentType }, tx);
+            var id = Guid.CreateVersion7();
+            await c.ExecuteAsync(@"insert into asset (id, owner_id, blob_hash, name, kind, scale, orientation_pitch, orientation_yaw, orientation_roll, modelled_base_shape, modelled_base_a, modelled_base_b)
+                values (@id, @ownerId, @hash, @name, @kind, 1, 0, 0, 0, @shape, @a, @b)",
+                new { id, ownerId, hash = m.Hash, name = m.Name, kind = AssetRules.Kind(AssetKind.Miniature), shape = AssetRules.Shape(m.ModelledBase.Shape), a = m.ModelledBase.A, b = m.ModelledBase.B }, tx);
+            await c.ExecuteAsync("insert into asset_folder (asset_id, folder_id) values (@id, @folderId)", new { id, folderId }, tx);
+        }
+        await c.ExecuteAsync("update account set starter_seeded_at = now() where id = @ownerId", new { ownerId }, tx);
+        await tx.CommitAsync();
     }
 }

@@ -9,7 +9,7 @@ public static class ManifestEndpoint
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(60);
 
     public static void MapManifest(this IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/games/{id:guid}/assets", async (ClaimsPrincipal u, Guid id, GameRepository games, IBlobStore blobs) =>
+        app.MapGet("/v1/games/{id:guid}/assets", async (ClaimsPrincipal u, Guid id, IGameRepository games, IBlobStore blobs) =>
         {
             if (!await games.IsParticipant(id, CurrentAccount.Id(u))) return Problems.NotFound();
             var entries = new List<ManifestEntry>();

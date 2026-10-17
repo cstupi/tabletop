@@ -3,15 +3,16 @@ using Npgsql;
 
 namespace Tabletop.Management.Tests;
 
-/// <summary>A database of its own per factory, on the Docker Postgres from .env. Dropped on dispose.</summary>
+/// <summary>E2E only: a migrated database of its own, on the Docker Postgres from .env. Dropped on dispose.</summary>
 public sealed class TestDatabase : IDisposable
 {
     private readonly string _admin;
     // The full 32 hex chars, not a prefix: a UUIDv7's leading 48 bits are a millisecond timestamp, so
-    // two factories built within the same millisecond (xunit constructs fixtures for different test
-    // classes back to back) would otherwise get the same truncated name and collide on `create database`.
+    // two fixtures built within the same millisecond would otherwise get the same truncated name and collide on `create database`.
     public string Name { get; } = "tabletop_test_" + Guid.CreateVersion7().ToString("N");
     public string ConnectionString { get; }
+    /// <summary>The repositories' data source on this database.</summary>
+    public Persistence.Database Data { get; }
 
     public TestDatabase()
     {
@@ -22,10 +23,12 @@ public sealed class TestDatabase : IDisposable
         using var c = new NpgsqlConnection(_admin);
         c.Execute($"create database \"{Name}\"");
         Persistence.Migrator.Run(ConnectionString);
+        Data = new Persistence.Database(ConnectionString);
     }
 
     public void Dispose()
     {
+        Data.DisposeAsync().AsTask().GetAwaiter().GetResult();
         NpgsqlConnection.ClearAllPools();
         using var c = new NpgsqlConnection(_admin);
         c.Execute($"drop database if exists \"{Name}\" with (force)");
