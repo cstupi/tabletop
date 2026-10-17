@@ -278,11 +278,11 @@ public static partial class GfAttack
 
     /// <summary>p.11's majority with p.14 Indirect's "ignores cover from sight obstructions": Indirect acted when dropping the sight half took the cover away,
     /// and the verdict then is the full test's, ignored by Indirect. The +1 applies when the verdict is in cover and nothing ignored it (Applies).</summary>
-    static CoverVerdict CoverOf(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible)
+    static CoverVerdict CoverOf(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible, Guid? takedown = null)
     {
         var indirect = live.Has(Side.Attacker, GfNames.Indirect);
-        var count = GfRolls.Cover(state, target, eligible, indirect);
-        if (indirect && !count.Majority && GfRolls.Cover(state, target, eligible, ignoresSightObstructions: false) is { Majority: true } full)
+        var count = GfRolls.Cover(state, target, eligible, indirect, takedown);
+        if (indirect && !count.Majority && GfRolls.Cover(state, target, eligible, ignoresSightObstructions: false, takedown) is { Majority: true } full)
         {
             live.Record(Side.Attacker, GfNames.Indirect);
             return new CoverVerdict(true, full.Models, full.Of, GfNames.Indirect);
@@ -456,7 +456,26 @@ public static partial class GfAttack
             if (!IsTakedownGroup(ctx.State, weapons)) return new Complete([]);
             var models = Lookup.AliveModels(ctx.State, target);
             if (models.Count < 2) return new Complete([]);   // one model to choose from: the ordinary allocation reaches it anyway
-            return new OpenAsks([ctx.Ask("takedown_target", "Pick the model this takedown weapon targets", ctx.ActorTeam!.Value, new PieceSelection(models, 1, 1))]);
+            var reachable = Pickable(ctx, weapons, target, models);
+            return new OpenAsks([ctx.Ask("takedown_target", "Pick the model this takedown weapon targets", ctx.ActorTeam!.Value,
+                new PieceSelection(reachable.Count > 0 ? reachable : models, 1, 1))]);
+        }
+
+        /// <summary>
+        /// "resolved as if it was a unit of [1]": a model the group's weapon is in range of and, shooting without Indirect, sees (p.8), with the
+        /// target's own models out of the way, since "other models in the target's unit don't block line of sight ... to the target model".
+        /// Melee and a container's occupants (no sight line inside a box) are not narrowed.
+        /// </summary>
+        static IReadOnlyList<Guid> Pickable(StepContext ctx, IReadOnlyList<Guid> weapons, Guid target, IReadOnlyList<Guid> models)
+        {
+            var (_, live, kind) = Settle(ctx);
+            var attacker = ctx.Frame.Context.ActorUnitId!.Value;
+            if (kind != AttackKind.Shooting || Battlefield.InsideReach(ctx.State, attacker, target) is not null) return models;
+            var sight = live.Has(Side.Attacker, GfNames.Indirect) ? null : Sight.From(ctx.State, attacker, alsoIgnoring: target);
+            var shooters = Lookup.LivingModels(ctx.State, attacker).Select(m => (Id: m, Range: ctx.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id))
+                .Select(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0).DefaultIfEmpty(-1).Max())).Where(s => s.Range >= 0).ToList();
+            return models.Where(t => ctx.Projection.Models[t].Location is OnTable
+                && shooters.Any(s => Battlefield.Distance(ctx.State, s.Id, t) <= s.Range && (sight is null || sight.CanSee(s.Id, t)))).ToList();
         }
     }
 
@@ -562,9 +581,12 @@ public static partial class GfAttack
             var defender = ix.Defender!.UnitId;
             // The verdict is the unit's, one for every block group (RollRecord.Cover); a frame written before it holds in_cover alone and logs none.
             CoverVerdict? cover = null; var inCover = false;
+            // p.14 Takedown: the picked model is "resolved as if it was a unit of [1]", so its own cover is the verdict, read now that it is named.
+            var picked = TakedownModel(ctx.Frame) is { } named && Lookup.LivingModels(ctx.State, defender).Contains(named) ? named : (Guid?)null;
             if (kind == AttackKind.Shooting)
             {
-                if (parent.Values.TryGetValue("in_cover", out var settled)) { inCover = settled == 1; cover = ReadCover(parent.Values); }
+                if (picked is { } m) { cover = CoverOf(ctx.State, live, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind), m); inCover = Applies(cover); }
+                else if (parent.Values.TryGetValue("in_cover", out var settled)) { inCover = settled == 1; cover = ReadCover(parent.Values); }
                 else { cover = CoverOf(ctx.State, live, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind)); inCover = Applies(cover); }
             }
             var multiplier = Math.Max(1, parent.Value("hit_multiplier", 1));
