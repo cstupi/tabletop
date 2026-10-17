@@ -131,7 +131,8 @@ public class CommandDispatcherTests
     [Fact]
     public void A_pass_is_never_probed_and_a_non_turn_ask_is_not_probed()
     {
-        Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Unreadable)), new AnswerAsk(Unreadable.Id, new Passed()), Clay));
+        var passed = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Warn, new AskOpened(Unreadable)), new AnswerAsk(Unreadable.Id, new Passed()), Clay));
+        Assert.False(Assert.IsType<AskAnswered>(passed.Events[0]).OutsideLegalSet);
         var framed = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(UnreadableFramed)), new AnswerAsk(UnreadableFramed.Id, new Chosen("not-an-option")), Clay));
         Assert.False(Assert.IsType<AskAnswered>(framed.Events[0]).OutsideLegalSet);
     }
@@ -142,7 +143,27 @@ public class CommandDispatcherTests
         var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Chosen(ActivateId)), Clay));
         Assert.Equal([typeof(AskAnswered), typeof(AskClosed)], ok.Events.Select(e => e.GetType()));
         Assert.Equal(Samples.Team1, ((AskClosed)ok.Events[1]).Answers.Single().TeamId);
-        Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Passed()), Clay));
+    }
+
+    /// <summary>p.7: "Players must activate one unit that has not been activated yet": an activate Ask is open only while one is legal, so a pass breaches.</summary>
+    [Theory]
+    [InlineData(Enforcement.Strict, false, false)]
+    [InlineData(Enforcement.Warn, true, true)]
+    [InlineData(Enforcement.Silent, true, false)]
+    public void A_pass_to_the_activate_ask_follows_the_enforcement_dial(Enforcement e, bool accepted, bool warned)
+    {
+        var outcome = Dispatcher().Dispatch(State(e, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Passed()), Clay);
+        if (!accepted) { Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(outcome).Reason); return; }
+        var ok = Assert.IsType<Applied>(outcome);
+        Assert.Equal(warned, ok.Warning is not null);
+        Assert.Equal(GfNames.ActivationRequiredRule, Assert.IsType<AskAnswered>(ok.Events[0]).Breach);
+    }
+
+    [Fact]
+    public void An_activation_answer_carries_no_breach()
+    {
+        var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Warn, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Chosen(ActivateId)), Clay));
+        Assert.Null(Assert.IsType<AskAnswered>(ok.Events[0]).Breach);
     }
 
     [Fact]

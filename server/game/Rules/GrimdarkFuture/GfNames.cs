@@ -56,6 +56,8 @@ public static class GfNames
     public const string AmbushDistanceRule = "ambush_distance";
     /// <summary>IGameRules.AnswerBreach rule name for a deploy answer naming a unit already inside a Transport (p.15: it deploys with the Transport).</summary>
     public const string DeployInsideRule = "deploy_inside";
+    /// <summary>IGameRules.AnswerBreach rule name for a pass to the activate Ask (p.7: "Players must activate one unit that has not been activated yet").</summary>
+    public const string ActivationRequiredRule = "activation_required";
     public const double ScoutReach = 12;
     public const int TokenCap = 6;
 

@@ -41,6 +41,11 @@ internal static partial class CoreGames
                     var last = log.Activations.Where(a => a.Round == r.Round - 1).GroupBy(a => a.Team).Select(g => (Team: g.Key, Last: g.Max(a => a.Seq))).OrderBy(x => x.Last).ToList();
                     return last.Count < 2 || r.Order[0] == last[0].Team ? null : $"round {r.Round} opened with {r.Order[0]}, but {last[0].Team} finished first in round {r.Round - 1}";
                 })),
+            Check("p.7: \"Players must activate one unit that has not been activated yet\" (strict offers no pass)", log =>
+            {
+                var asks = log.Events.Select(e => e.Payload).OfType<AskOpened>().Select(o => o.Ask).Where(a => a.Question == AskQuestions.Activate).ToList();
+                return asks.Count == 0 ? "no activate ask was opened" : asks.FirstOrDefault(a => a.AllowPass) is { } pass ? $"activate ask {pass.Id} allowed a pass" : null;
+            }),
             FinalRound(Enforcement.Strict),
         ]);
     }

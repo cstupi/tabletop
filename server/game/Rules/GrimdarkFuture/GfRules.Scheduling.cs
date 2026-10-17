@@ -33,8 +33,17 @@ public sealed partial class GrimdarkFutureRules
         if (phase is Deployment or Scouts) return DeployAsk(state, props, teamId, phase);
         var actionRows = props.Actions.Select(a => a.Name).ToList();
         var options = ActivationOptions(state, props, teamId, actionRows).ToList();
-        return options.Count == 0 ? null : new TurnAsk(AskQuestions.Activate, "Activate a unit", new Options(options), AllowPass: true);
+        // p.7: "Players must activate one unit that has not been activated yet". An Ask exists only while the team holds a legal activation,
+        // so strict offers no pass; warn and silent keep it in the set, and warn's AnswerBreach (PassBreach) records it.
+        return options.Count == 0 ? null
+            : new TurnAsk(AskQuestions.Activate, "Activate a unit", new Options(options), AllowPass: state.Info.Enforcement != Enforcement.Strict);
     }
+
+    /// <summary>p.7: "Players must activate one unit that has not been activated yet". A pass to an activate Ask, which is open only while the team holds a legal activation.</summary>
+    static AnswerBreachFound? PassBreach(Ask ask, AskAnswer answer) =>
+        answer is Passed && ask.FrameId is null && ask.Question == AskQuestions.Activate
+            ? new(GfNames.ActivationRequiredRule, "a team with an unactivated unit must activate one (p.7)")
+            : null;
 
     /// <summary>
     /// Page 13: Aircraft "may only use Advance actions ... (even if Shaken)", and "their mandatory move doesn't break the staying idle
