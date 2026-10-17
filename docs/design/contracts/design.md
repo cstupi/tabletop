@@ -650,7 +650,7 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 
 | Direction | Kinds |
 | --- | --- |
-| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`), `reauth` (`Reauth(ReauthId, SessionJwt)`: a refreshed token of the same account moves the socket's expiry; anything else is `Refused(ReauthId, NotPermitted)`) |
+| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`), `reauth` (`Reauth(ReauthId, SessionJwt)`: a refreshed token of the same account, still authorized for the game, moves the socket's expiry; anything else is `Refused(ReauthId, NotPermitted)`, and closes the socket `1008` when the account no longer holds it) |
 | Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds, DeployInside)`) |
 | Both | `presence`, `ping` |
 
