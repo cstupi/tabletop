@@ -52,17 +52,21 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
     }
 
     /// <summary>A forced reroll acted when the roller redrew a die showing its face: its source is recorded then, and only then.</summary>
-    /// <summary>`triggers`, when given, names what each die set off (Die.Triggered), on the record's dice and on a forced reroll's.</summary>
+    /// <summary>`triggers`, when given, names what a die set off (Die.Triggered). It is asked once per face of the convention, each face
+    /// judged under the plan, into the record's FaceTriggers; the record's dice and a forced reroll's carry their face's, and so does a die a
+    /// player rerolls or sets by hand later.</summary>
     public RollRecord Roll(RollPlan plan, int count, Func<Die, IReadOnlyList<string>?>? triggers = null)
     {
         var result = roller.Roll(Frame.Id, plan, count);
         if (triggers is not null)
         {
-            Die Stamp(Die d) => triggers(d) is { } t ? d with { Triggered = t } : d;
+            var faces = Enumerable.Range(1, plan.Convention.Sides).Select(raw => triggers(roller.Judge(plan, raw)) is { Count: > 0 } t ? new FaceTriggers(raw, t) : null)
+                .OfType<FaceTriggers>().ToList();
+            var record = result.Record with { FaceTriggers = faces.Count == 0 ? null : faces };
             result = result with
             {
-                Record = result.Record with { Dice = result.Record.Dice.Select(Stamp).ToList() },
-                ForcedRerolls = result.ForcedRerolls is { } forced ? forced with { Replaced = forced.Replaced.Select(r => r with { Old = Stamp(r.Old), New = Stamp(r.New) }).ToList() } : null,
+                Record = record with { Dice = record.Dice.Select(record.Stamp).ToList() },
+                ForcedRerolls = result.ForcedRerolls is { } forced ? forced with { Replaced = forced.Replaced.Select(r => r with { Old = record.Stamp(r.Old), New = record.Stamp(r.New) }).ToList() } : null,
             };
         }
         _rolls.Add(result.Record);

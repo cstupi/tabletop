@@ -41,10 +41,10 @@ R2 · Team 1 · [unit] · Hold → shoots [target]
 
 ```
 Hit · Quality 3+ · 8 dice: ⚁ ⚅ ⚀ ⚅ ⚅ ⚀ ⚄ ⚀ · 4 hits (3 sixes: Rending)
-Block · Defense 5+ (cover +1, AP -1) → needs 5 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds
-Block · Defense 5+ (no cover: 2/6 models, AP -1, Rending AP -4) → needs 6 · ⚀ · 0 blocked, 1 wound
+Block · Defense 5+ (cover +1, AP(1)) → needs 5 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds
+Block · Defense 5+ (no cover: 2/6 models, AP(1), Rending AP(+4)) → needs 6 · ⚀ · 0 blocked, 1 wound
 Block · Defense 4+ (cover ignored (Blast)) · ⚁ ⚅ · 1 blocked, 1 wound
-Block · 5+ (AP -1) → needs 6 · ⚀ · 0 blocked, 1 wound
+Block · 5+ (AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound
 Regeneration · 5+ · 3 wounds: ⚀ ⚅ ⚀ · 1 ignored, 2 wounds stand
 Morale · Quality 4+ · ⚀ · failed → Shaken
 Casting · 4+ (+1 token) · ⚅ · cast
@@ -53,9 +53,9 @@ Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
 ```
 
 - **Faces only.** A die shows its raw face. The modifiers fold into the target instead: the printed value (`Defense 5+`), each
-  change with the rule behind it and its signed amount as the record carries it (`cover +1`, `AP -1`, `Rending AP -4`, a
-  spell's `-1`), then `needs N`. Past 6 it reads `needs 6` and below 2 `needs 2`, by p.5. With no modifier the `needs` part is
-  left off. A record without a basis (a log written before it) starts from its threshold: `Block · 5+ (AP -1) → needs 6`.
+  change with the rule behind it and its signed amount as the record carries it (`cover +1`, a spell's `-1`), AP as p.13 and
+  p.14 write it (`AP(1)` for the weapon's own, `Rending AP(+4)` for a granted one), then `needs N`. Past 6 it reads `needs 6` and below 2 `needs 2`, by p.5. With no modifier the `needs` part is
+  left off. A record without a basis (a log written before it) starts from its threshold: `Block · 5+ (AP(1)) → needs 6`.
 - **Cover on every shooting block.** The clause is the target unit's one verdict (p.11's majority), the same on every block group
   of the attack, and always on the collapsed line: `cover +1` in cover, `no cover: M/N models` when the majority failed (M models
   fully inside cover terrain or behind a sight blocker, of N living), `cover ignored (Rule)` when the unit was in cover and a
@@ -103,9 +103,12 @@ on dice and no cover verdict.
 - **`Die.Triggered`** (list of string, optional): what this die set off, as `Rule` or `Rule +N hit(s)` (attacks, wounds), written
   when the roll is recorded, from `RollEffects.Triggers` on that die (pure; `PerDie` still records in `score-hits`). It names
   the rule (Rending, Furious, Relentless, Surge) that acted on the die, so the client counts sixes by rule without knowing any
-  rule. A die a reroll or an edit replaced carries none. A spell's hit roll carries them too (Crack on Electric Tempest), and so
+  rule. A die rerolled or set by hand carries what its new face sets off, from its record's `FaceTriggers`. A spell's hit roll carries them too (Crack on Electric Tempest), and so
   does a defense roll, from the defender's side (Shred's `+1 wound` on a 1, added to the line's wounds). The dice an
   extra-attacks row adds carry no `+N attacks`: those rows do not apply to newly generated attacks.
+- **`RollRecord.FaceTriggers`** (list of `{ Raw, Triggered }`, optional): what each raw face sets off on this roll, every face of
+  the convention judged under the record's plan and passed to `RollEffects.Triggers` when the roll is recorded; faces that set off
+  nothing are left out. A player's `RerollDice` and `SetDice` stamp the new die's `Triggered` from it.
 - **`RollRecord.Cover`** (`CoverVerdict { InCover, Models, Of, IgnoredBy? }`, optional): on every defense roll of a shooting attack,
   the target unit's p.11 verdict: `InCover` the majority test passed, `Models` of `Of` living models fully inside cover terrain or
   behind a sight blocker, `IgnoredBy` the rule that took the +1 away from a unit in cover (a `suppress_modifiers` cover row such
@@ -119,7 +122,7 @@ The rules stay on the server: the client reads names and numbers from the record
 
 ## Where it lands
 
-- `libs/Tabletop.Protocol`: `RollModifier.Via`, `Die.Triggered`, `CoverVerdict` and `RollRecord.Cover`; the viewer's generated
+- `libs/Tabletop.Protocol`: `RollModifier.Via`, `Die.Triggered`, `RollRecord.FaceTriggers`, `CoverVerdict` and `RollRecord.Cover`; the viewer's generated
   types regenerated (`TABLETOP_WRITE_GENERATED=1`).
 - `server/game`: `RollEffects`, `LiveSet`, `GfRolls` (`Cover`, `DefensePlan`), `GfAttack` (`roll-to-block` groups, the cover
   values), `GfShooting` (`fire-groups`), `RollPlan` / `Roller` / `StepContext.Roll` for the die triggers and the verdict. Tests in

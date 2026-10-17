@@ -190,6 +190,11 @@ export interface EventsMessage {
   readonly events: readonly GameEvent[];
 }
 
+export interface FaceTriggers {
+  readonly raw: number;
+  readonly triggered: readonly string[];
+}
+
 export interface Footprint {
   readonly kind: FootprintKind;
   readonly a: number;
@@ -445,6 +450,7 @@ export interface RollRecord {
   readonly requiredRaw?: number;
   readonly basis?: ThresholdBasis;
   readonly cover?: CoverVerdict;
+  readonly faceTriggers?: readonly FaceTriggers[];
 }
 
 export interface RoundEnded {
