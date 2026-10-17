@@ -13,6 +13,8 @@ public partial class LogDrawer : Control
     readonly CombatLogPanel _log = new();
     public CombatLogPanel CombatLog => _log;
     readonly Button _toggle = new() { Text = "Log (G)" };
+    /// <summary>The Log button, whose height the Hud's button row takes.</summary>
+    public Control Toggle => _toggle;
 
     /// <summary>A failed undo from the log, for the screen's toast.</summary>
     public event Action<string>? Reported;
@@ -28,14 +30,14 @@ public partial class LogDrawer : Control
         var inner = new VBoxContainer(); _drawer.AddChild(inner);
         inner.AddChild(_log); _log.Bind(session, view, message => Reported?.Invoke(message));
         AddChild(_drawer); AddChild(_toggle);
-        _toggle.Pressed += Toggle;
+        _toggle.Pressed += Flip;
         SetOpen(session.Settings.LogOpen);
     }
 
-    public void Toggle() { SetOpen(!_drawer.Visible); _s.UpdateSettings(x => x with { LogOpen = _drawer.Visible }); }
+    public void Flip() { SetOpen(!_drawer.Visible); _s.UpdateSettings(x => x with { LogOpen = _drawer.Visible }); }
 
     /// <summary>The dice tray's click: open the log at that roll.</summary>
-    public void OpenAt(Guid rollId) { if (!_drawer.Visible) Toggle(); _log.Reveal(rollId); }
+    public void OpenAt(Guid rollId) { if (!_drawer.Visible) Flip(); _log.Reveal(rollId); }
 
     /// <summary>The button into its slot, and the panel into its slot when it shows.</summary>
     public void Place(HudRect button, HudRect? panel)
@@ -49,6 +51,6 @@ public partial class LogDrawer : Control
     public override void _Input(InputEvent e)
     {
         if (KeyOverlay.IntentOf(e, GetViewport()) != Intent.ToggleLog) return;
-        Toggle(); GetViewport().SetInputAsHandled();
+        Flip(); GetViewport().SetInputAsHandled();
     }
 }

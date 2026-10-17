@@ -6,7 +6,7 @@ namespace Tabletop.Client.Theming;
 /// <summary>Theme type variations; each constant equals its name.</summary>
 public static class Variation
 {
-    public const string Badge = nameof(Badge), Chip = nameof(Chip), DieFace = nameof(DieFace), FlatButton = nameof(FlatButton);
+    public const string Badge = nameof(Badge), Chip = nameof(Chip), DieFace = nameof(DieFace), DieMiss = nameof(DieMiss), FlatButton = nameof(FlatButton);
     public const string Banner = nameof(Banner), Dim = nameof(Dim), Accent = nameof(Accent), Success = nameof(Success),
         Failure = nameof(Failure), Warning = nameof(Warning), Display = nameof(Display), Numerals = nameof(Numerals);
 }

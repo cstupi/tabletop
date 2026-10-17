@@ -18,12 +18,27 @@ public static class ThemeBuilder
         t.SetStylebox("normal", "LineEdit", Flat(s, C(u.Panel), C(u.PanelBorder), 1)); t.SetStylebox("focus", "LineEdit", Flat(s, C(u.Panel), C(u.Accent), 1)); t.SetStylebox("panel", "ItemList", Flat(s, C(u.Panel), C(u.PanelBorder), 1));
         foreach (var type in new[] { "Label", "LineEdit", "ItemList", "TooltipLabel", "PopupMenu", "TabContainer" }) t.SetColor("font_color", type, C(u.Text));
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, "Button", C(u.ButtonText));
-        t.SetColor("font_pressed_color", "Button", C(u.Accent)); t.SetColor("font_disabled_color", "Button", C(u.DimText));
+        // Disabled text on the button face: the face's own text colour, faded, which reads on a dark face (fantasy) and a light one alike.
+        t.SetColor("font_pressed_color", "Button", C(u.Accent)); t.SetColor("font_disabled_color", "Button", C(u.ButtonText) with { A = 0.5f });
+        foreach (var type in new[] { "LineEdit", "SpinBox" }) t.SetColor("font_placeholder_color", type, C(u.DimText));
+        // A check box drawn in the theme's colours: the default icons are dark grey, which a dark panel hides.
+        foreach (var (name, on, colour) in new[] { ("checked", true, C(u.Accent)), ("unchecked", false, C(u.Text)), ("checked_disabled", true, C(u.DimText)), ("unchecked_disabled", false, C(u.DimText)) })
+        {
+            t.SetIcon(name, "CheckBox", CheckIcon(on, colour, u.Body.Size));
+            t.SetIcon(name.Replace("checked", "radio_checked").Replace("unradio_checked", "radio_unchecked"), "CheckBox", CheckIcon(on, colour, u.Body.Size));
+        }
+        // Dialog title bars: the panel's colours, not Godot's grey.
+        var frame = Flat(s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), Math.Max(1, s.BorderWidth)); frame.ExpandMarginTop = 32; frame.SetContentMarginAll(0);
+        t.SetStylebox("embedded_border", "Window", frame); t.SetStylebox("embedded_unfocused_border", "Window", frame);
+        t.SetColor("title_color", "Window", C(u.Text)); t.SetFont("title_font", "Window", FontOf(u.Display)); t.SetFontSize("title_font_size", "Window", u.Body.Size);
+        t.SetConstant("title_height", "Window", 32);
         // CheckBox and a flat button draw on the panel, not on a button face: Text, and no button stylebox.
         foreach (var state in new[] { "normal", "hover", "pressed", "disabled", "hover_pressed", "focus" }) t.SetStylebox(state, "CheckBox", new StyleBoxEmpty());
         foreach (var name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color" }) t.SetColor(name, "CheckBox", C(u.Text));
         t.SetColor("font_disabled_color", "CheckBox", C(u.DimText));
         t.SetTypeVariation(Variation.FlatButton, "Button");
+        foreach (var state in new[] { "normal", "hover", "pressed", "disabled", "hover_pressed", "focus" })
+        { var empty = new StyleBoxEmpty(); empty.SetContentMarginAll(2); empty.ContentMarginLeft = empty.ContentMarginRight = 4; t.SetStylebox(state, Variation.FlatButton, empty); }
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, Variation.FlatButton, C(u.Text));
         foreach (var name in new[] { "font_pressed_color", "font_hover_pressed_color" }) t.SetColor(name, Variation.FlatButton, C(u.Accent));
         t.SetColor("font_disabled_color", Variation.FlatButton, C(u.DimText));
@@ -31,10 +46,25 @@ public static class ThemeBuilder
         Variant(t, Variation.Badge, "PanelContainer", "panel", Flat(s, C(u.Panel), C(u.Accent), 2));
         Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, 4));
         Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, 2));
+        Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, 2));
         foreach (var (v, c) in new[] { (Variation.Dim, u.DimText), (Variation.Accent, u.Accent), (Variation.Success, u.Success), (Variation.Failure, u.Failure), (Variation.Warning, u.Warning) }) LabelVariant(t, v, c: C(c));
         LabelVariant(t, Variation.Display, u.Display); LabelVariant(t, Variation.Numerals, u.Numerals, C(u.Dice.Mark)); LabelVariant(t, Variation.Banner, u.Display with { Size = 48 }, C(u.Accent));
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
         return t;
+    }
+
+    /// <summary>A square box outline in the colour, filled inside when on: the check box's icon at the body text's size.</summary>
+    static ImageTexture CheckIcon(bool on, Color colour, int fontSize)
+    {
+        var n = Math.Max(14, fontSize - 2); var image = Image.CreateEmpty(n, n, false, Image.Format.Rgba8);
+        for (var x = 0; x < n; x++)
+            for (var y = 0; y < n; y++)
+            {
+                var edge = x < 2 || y < 2 || x >= n - 2 || y >= n - 2;
+                var inner = x >= 4 && y >= 4 && x < n - 4 && y < n - 4;
+                if (edge || on && inner) image.SetPixel(x, y, colour);
+            }
+        return ImageTexture.CreateFromImage(image);
     }
 
     // A nine-patch button modulated from grey, so lightening for hover and pressed shows.

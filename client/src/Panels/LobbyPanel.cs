@@ -41,8 +41,8 @@ public partial class LobbyPanel : VBoxContainer
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         AddChild(Seats(s, game));
-        var armies = new OptionButton(); armies.AddItem("No army"); AddChild(armies);
-        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        var armies = new OptionButton(); armies.AddItem("No army"); AddChild(Named("Army", armies));
+        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
@@ -51,18 +51,18 @@ public partial class LobbyPanel : VBoxContainer
             var mine = game.Participants.FirstOrDefault(p => p.Id == s.ParticipantId)?.ArmyId;
             if (mine is not null) { var at = list.ToList().FindIndex(a => a.Id == mine); if (at >= 0) armies.Select(at + 1); }
             armies.ItemSelected += i => Guarded.Send(s, new PickArmy(i == 0 ? null : list[(int)i - 1].Id));
-        }, e => { if (IsInstanceValid(this)) _error.Text = e; });
+        }, Problem);
         var config = new VBoxContainer(); AddChild(config);
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
-        var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(name);
-        var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(shape);
-        var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(enforcement);
+        var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(Named("Game name", name));
+        var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(Named("Activation", shape));
+        var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(Named("Enforcement", enforcement));
         var chosen = s.Options.Options.ToDictionary(o => o.Key, o => RulesOptions.ValueOf(o, game.OptionalRules));
         OptionalRules(s.Options, chosen, enforcement, config);
         var apply = Btn("Apply configuration", () =>
         {
-            if (TextLimits.NameProblem(name.Text, "A game name") is { } problem) { _error.Text = problem; return; }
-            _error.Text = "";
+            if (TextLimits.NameProblem(name.Text, "A game name") is { } problem) { Problem(problem); return; }
+            Problem(null);
             Guarded.Send(s, new SetConfiguration(name.Text.Trim(), game.PropertiesHash,
                 shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, WaitsBetweenSteps: false,
                 RulesOptions.MapOf(s.Options, chosen)));
@@ -93,8 +93,9 @@ public partial class LobbyPanel : VBoxContainer
         list.AddChild(new Label { Text = "Players" });
         foreach (var seat in LobbyView.Players(game))
         {
-            var row = new HFlowContainer(); list.AddChild(row);
-            row.AddChild(new Label { Text = seat.Name + (seat.HasArmy ? " ⚔" : ""), AutowrapMode = TextServer.AutowrapMode.WordSmart });
+            // One line: the name takes what the picker leaves and clips (a wrapping label in a flow row measures one letter a line).
+            var row = new HBoxContainer(); list.AddChild(row);
+            row.AddChild(new Label { Text = seat.Name + (seat.HasArmy ? " ⚔" : ""), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = seat.Name, MouseFilter = MouseFilterEnum.Pass });
             if (!s.IsCreator) { row.AddChild(new Label { Text = seat.Seat }); continue; }
             var picker = new OptionButton(); foreach (var c in LobbyView.SeatChoices(game)) picker.AddItem(c.Label);
             picker.Select(seat.Selected);
@@ -105,6 +106,15 @@ public partial class LobbyPanel : VBoxContainer
     }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
+
+    /// <summary>The warning line, shown only while it has something to say: an empty label still takes a row.</summary>
+    void Problem(string? text) { if (!IsInstanceValid(_error)) return; _error.Text = text ?? ""; _error.Visible = text is { Length: > 0 }; }
+
+    /// <summary>A field under its name.</summary>
+    static Control Named(string label, Control field)
+    {
+        var box = new VBoxContainer(); box.AddChild(new Label { Text = label, ThemeTypeVariation = Variation.Dim }); box.AddChild(field); return box;
+    }
     static Label Wrapping(string text, string? variation = null) => new() { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, ThemeTypeVariation = variation ?? "" };
 
     /// <summary>
@@ -116,7 +126,7 @@ public partial class LobbyPanel : VBoxContainer
     {
         if (catalog.Options.Count == 0) return;
         var preset = new OptionButton(); foreach (var p in catalog.Presets) preset.AddItem(p.Name); preset.AddItem(RulesOptions.Custom);
-        into.AddChild(new Label { Text = "Optional rules" }); into.AddChild(preset);
+        into.AddChild(new Label { Text = "Optional rules" }); into.AddChild(Named("Preset", preset));
         var buttons = new List<OptionButton>();
         void ShowPreset()
         {

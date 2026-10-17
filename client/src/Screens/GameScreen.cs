@@ -13,7 +13,7 @@ public partial class GameScreen : Control
     Session _session = null!;
     public TableView Table { get; private set; } = null!;
     public TableInput Input { get; private set; } = null!;
-    Label _status = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
+    Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; readonly List<TeamPanel> _teams = new();
     Control _hud = null!; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
@@ -26,10 +26,12 @@ public partial class GameScreen : Control
         var viewport = new SubViewport { HandleInputLocally = true }; viewportContainer.AddChild(viewport); root.AddChild(viewportContainer);
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
+        viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
         var overlay = new PresenceOverlay(); Table.AddChild(overlay);
         // The side panel scrolls: a selected terrain piece lists every volume's fields, more than a window's height.
         _sidePanel = new ScrollContainer { CustomMinimumSize = new Vector2(360, 0), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; root.AddChild(_sidePanel);
-        _sidePanel.AddChild(_side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", DecisionBox.ScrollGap); _sidePanel.AddChild(inset);   // clear of the bar
+        inset.AddChild(_side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
         _side.AddChild(_selection = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart });
         // Over the table in every status, after the root so it draws on top and hears keys first: Home and the status in the
         // corner, the toasts top right. GameScreen.Play adds the play Hud to it; Layout places all of it.
@@ -37,7 +39,9 @@ public partial class GameScreen : Control
         _hud.AddChild(_corner = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore });
         var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; _corner.AddChild(top);
         var home = new Button { Text = "Home", FocusMode = FocusModeEnum.None }; home.Pressed += () => Guarded.Run(_session.DisconnectAsync, Toast); top.AddChild(home);
-        top.AddChild(_status = new Label());
+        // The game's name clips with an ellipsis inside the corner's slot; the status and "watching" after it always show.
+        top.AddChild(_status = new Label { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Pass });
+        top.AddChild(_statusTail = new Label());
         _hud.AddChild(_toasts = new Toasts());
         _onLayout = QueueLayout;
         _hud.Resized += _onLayout; _sidePanel.Resized += _onLayout; _sidePanel.VisibilityChanged += _onLayout;
@@ -51,7 +55,7 @@ public partial class GameScreen : Control
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) RefreshAll(); };
         _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
         // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
-        _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) _status.Text = StatusLine(_session); }).CallDeferred(); };
+        _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred(); };
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.Frame.Render += _onFrame;
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
         _onTheme = OnTheme; Ui.Changed += _onTheme;
@@ -77,7 +81,7 @@ public partial class GameScreen : Control
     void Rebuild()
     {
         var game = _session.Game;
-        _status.Text = StatusLine(_session);
+        ShowStatus();
         foreach (var t in _teams) t.QueueFree(); _teams.Clear();
         _lobby?.QueueFree(); _setup?.QueueFree(); _lobby = _setup = null;
         if (game is null) return;
@@ -90,15 +94,12 @@ public partial class GameScreen : Control
         ShowPlayPanels(playing);
     }
 
-    /// <summary>The corner's line: connecting, reconnecting with the attempt (Home stops it), or the game, its status and whether I watch.</summary>
-    static string StatusLine(Session s)
+    /// <summary>The corner's line (CornerLine): the name, clipped to the corner's slot with its whole text as the tooltip, then the tail.</summary>
+    void ShowStatus()
     {
-        var reconnecting = s.Phase == SessionPhase.Reconnecting
-            ? s.ReconnectAttempt > 1 ? $"reconnecting, attempt {s.ReconnectAttempt}; Home stops it…" : "reconnecting…"
-            : null;
-        if (s.Game is not { } game) return reconnecting is null ? "Connecting…" : char.ToUpperInvariant(reconnecting[0]) + reconnecting[1..];
-        var line = $"{game.Name} — {game.Status.ToString().ToLowerInvariant()}" + (s.IsWatching ? " — watching" : "");
-        return reconnecting is null ? line : $"{line} ({reconnecting})";
+        var (name, tail) = CornerLine.Of(_session.Phase, _session.ReconnectAttempt, _session.Game, _session.IsWatching);
+        _status.Text = name; _status.TooltipText = name; _statusTail.Text = tail;
+        QueueLayout();   // a clipped label's minimum does not follow its text
     }
 
     /// <summary>A theme switch: the team panels' and the table's team colours, and the undo button's theme, which its CanvasLayer does not

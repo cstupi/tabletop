@@ -54,7 +54,7 @@ public partial class HeaderBar : PanelContainer
         Clear(_top, _gameOver, _settings); Clear(_teams); Clear(_activation);
         var waiting = HeaderView.NotActivated(p!, game!);
 
-        _top.AddChild(new Label { Text = $"Round {m.Round} · {m.Turn}" });
+        _top.AddChild(new Label { Text = m.TopLine });
         foreach (var team in game!.Teams.OrderBy(t => t.Ordinal))
         {
             var name = names.Team(team.Id);

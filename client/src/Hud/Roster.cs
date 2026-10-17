@@ -37,6 +37,7 @@ public partial class Roster : PanelContainer
     void Render()
     {
         foreach (var c in _list.GetChildren()) { _list.RemoveChild(c); c.QueueFree(); }
+        Visible = _s.Projection is not null && _s.Game is not null;
         if (_s.Projection is not { } p || _s.Game is not { } game) return;
         foreach (var team in RosterView.Of(p, game, new Names(game, p), _s.MyTeamId, _s.MaxWounds))
         {
@@ -48,16 +49,26 @@ public partial class Roster : PanelContainer
                 line.AddChild(new Label { Text = row.Name, ThemeTypeVariation = v, ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill });
                 line.AddChild(row.Activated ? Icon("activated") : new Control { CustomMinimumSize = new Vector2(16, 16), MouseFilter = MouseFilterEnum.Ignore });   // an empty spacer keeps the columns lined up
                 line.AddChild(new Label { Text = row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}", ThemeTypeVariation = v });
-                if (row.Inside is { } transport) line.AddChild(Chip($"in {transport}"));
-                if (row.Reserve is { } reserve) line.AddChild(Chip(reserve));                // held off the table until its property places it     // passengers spec: the unit is inside that Transport
                 foreach (var c in row.Conditions) line.AddChild(Icon(c));
+                // Where an off-table unit is, on its own line under the name so a long chip never squeezes the name: inside a
+                // Transport (passengers spec), or held off the table until its property places it.
+                var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore };
+                if (row.Inside is { } transport) chips.AddChild(Chip($"in {transport}"));
+                if (row.Reserve is { } reserve) chips.AddChild(Chip(reserve));
                 var id = row.UnitId;
-                line.GuiInput += e =>
+                void Clicked(InputEvent e)
                 {
                     if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) UnitPicked?.Invoke(id);
                     else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) UnitMenuRequested?.Invoke(id, b.GlobalPosition);
-                };
+                }
+                line.GuiInput += Clicked;
                 _list.AddChild(line);
+                if (chips.GetChildCount() > 0)
+                {
+                    var indent = new MarginContainer { MouseFilter = MouseFilterEnum.Stop }; indent.AddThemeConstantOverride("margin_left", 16);   // the chip line is the row's too
+                    indent.GuiInput += Clicked; indent.AddChild(chips); _list.AddChild(indent);
+                }
+                else chips.QueueFree();
             }
         }
     }

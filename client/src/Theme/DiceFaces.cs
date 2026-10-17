@@ -8,7 +8,7 @@ public static class DiceFaces
 {
     public static Control Of(Die d)
     {
-        var face = new PanelContainer { ThemeTypeVariation = Variation.DieFace, CustomMinimumSize = new(28, 28), Modulate = d.Success ? Colors.White : Ui.Faded };
+        var face = new PanelContainer { ThemeTypeVariation = d.Success ? Variation.DieFace : Variation.DieMiss, CustomMinimumSize = new(28, 28), Modulate = d.Success ? Colors.White : Missed };
         var row = new HBoxContainer();
         face.AddChild(row);
         if (Ui.Current.Dice.FaceTexture(d.Raw) is { } path)
@@ -28,6 +28,9 @@ public static class DiceFaces
             case Label l: l.Text = raw.ToString(); break;
         }
     }
+
+    /// <summary>A failed face stays legible: slightly faded, framed in the failure colour.</summary>
+    static readonly Color Missed = new(1, 1, 1, 0.75f);
 
     static Label Numeral(string text) => new() { Text = text, ThemeTypeVariation = Variation.Numerals, HorizontalAlignment = HorizontalAlignment.Center };
 }

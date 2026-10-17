@@ -10,7 +10,7 @@ namespace Tabletop.Client.Table;
 public partial class HoverLabels : Node3D
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
-    readonly Label3D _name = new() { Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 56, PixelSize = 0.01f, OutlineSize = 12, NoDepthTest = true, Visible = false };
+    readonly Label3D _name = new() { Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = Palette.ScreenPixel, FixedSize = true, OutlineSize = 10, NoDepthTest = true, Visible = false };
     readonly MeshInstance3D _line = new() { MaterialOverride = LineMesh.Material() };
     readonly Node3D _wounds = new();
     readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
