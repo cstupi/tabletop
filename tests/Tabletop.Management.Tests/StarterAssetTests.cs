@@ -1,4 +1,7 @@
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Tabletop.Geometry;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Http;
@@ -71,5 +74,28 @@ public class StarterAssetTests : IClassFixture<ManagementFactory>
 
         var c = await Login("older@example.com", signup: false);
         Assert.Equal(StarterMeshes.All.Count, (await Assets(c)).Count);
+    }
+
+    [Fact]
+    public async Task A_blob_store_outage_does_not_hold_the_login_and_the_next_login_seeds()
+    {
+        var f = _f.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.Replace(ServiceDescriptor.Singleton(sp =>
+            new StarterAssets(sp.GetRequiredService<IAssetRepository>(), sp.GetRequiredService<IBlobStore>()) { Budget = TimeSpan.FromMilliseconds(200) }))));
+        _f.Blobs.Down = true;
+        try
+        {
+            var c = f.CreateClient();
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            var session = await c.PostJson<SessionResponse>("/v1/auth/password/signup", new { email = "outage@example.com", password = "long enough password" });
+            Assert.True(timer.Elapsed < TimeSpan.FromSeconds(5), $"login took {timer.Elapsed}");
+            c.DefaultRequestHeaders.Authorization = new("Bearer", session.SessionJwt);
+            Assert.Empty(await Assets(c));
+        }
+        finally { _f.Blobs.Down = false; }
+
+        var again = f.CreateClient();
+        var next = await again.PostJson<SessionResponse>("/v1/auth/password", new { email = "outage@example.com", password = "long enough password" });
+        again.DefaultRequestHeaders.Authorization = new("Bearer", next.SessionJwt);
+        Assert.Equal(StarterMeshes.All.Count, (await Assets(again)).Count);
     }
 }

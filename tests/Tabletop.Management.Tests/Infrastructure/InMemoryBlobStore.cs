@@ -8,17 +8,20 @@ namespace Tabletop.Management.Tests;
 /// <summary>
 /// Objects by key. A presigned URL names a host that does not resolve, the verb and, for a PUT, the signed content type;
 /// Client() is an HttpClient that serves those URLs from this store, as MinIO serves S3BlobStore's. A PUT with another
-/// content type is refused, as SigV4 refuses it.
+/// content type is refused, as SigV4 refuses it. While Down, a server Put hangs until its token is cancelled, as a put to an
+/// unreachable MinIO hangs until the SDK times out.
 /// </summary>
 public sealed class InMemoryBlobStore : IBlobStore
 {
     public const string Host = "blobs.invalid";
     private readonly ConcurrentDictionary<string, byte[]> _objects = new();
 
-    public Task Put(string key, byte[] bytes, string contentType)
+    public bool Down { get; set; }
+
+    public async Task Put(string key, byte[] bytes, string contentType, CancellationToken ct = default)
     {
+        if (Down) await Task.Delay(Timeout.Infinite, ct);
         _objects[key] = bytes.ToArray();
-        return Task.CompletedTask;
     }
 
     public Task<Uri> PresignUpload(string key, string contentType, TimeSpan ttl) =>
