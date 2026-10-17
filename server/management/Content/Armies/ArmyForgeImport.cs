@@ -35,7 +35,7 @@ public static class ArmyForgeImport
 
     public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set = BaseSet.Round)
     {
-        if (!GameRules.TryGetValue(list.GameSystem, out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem);
+        if (!GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem ?? "");
         Validate(list, source, set);
         var merged = Merge(list.Units);
         if (merged.Count > ArmyLimits.MaxUnits) throw new InvalidArmyException($"The list has {merged.Count} units; at most {ArmyLimits.MaxUnits} import.");

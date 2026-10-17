@@ -36,7 +36,12 @@ public class ManifestTests : IClassFixture<ManagementFactory>
 
         var aArmy = await a.PostJson<Army>("/v1/armies/import", new ImportRequest("c2-6YsWRH3py"));
         var aUnit = aArmy.Units[0];
-        await a.PatchJson<Army>($"/v1/armies/{aArmy.Id}", new PatchArmyRequest(null, [new UnitPatch(aUnit.Id, aMesh.Id)], [new SlotPatch(aUnit.Models[1].Id, unconfirmed.Asset.Id, false, null, null)]));
+        await a.PatchJson<Army>($"/v1/armies/{aArmy.Id}", new PatchArmyRequest(null, [new UnitPatch(aUnit.Id, aMesh.Id)], null));
+        lock (_f.Rows.Gate)                 // the API refuses an unconfirmed asset; the row is written directly, as a slot whose asset lost its bytes
+        {
+            var row = _f.Rows.Armies[aArmy.Id];
+            row.Army = row.Army with { Units = row.Army.Units.Select(un => un with { Models = un.Models.Select(m => m.Id == aUnit.Models[1].Id ? m with { AssetId = unconfirmed.Asset.Id } : m).ToList() }).ToList() };
+        }
         var bArmy = await b.PostJson<Army>("/v1/armies/import", new ImportRequest("c2-6YsWRH3py"));
         var bSnapshot = ArmySnapshot.Of(bArmy with { Units = [bArmy.Units[0] with { Models = [bArmy.Units[0].Models[0] with { AssetId = bMesh.Id }] }] }, Guid.CreateVersion7());
 
