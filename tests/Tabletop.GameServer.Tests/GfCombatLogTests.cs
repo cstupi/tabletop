@@ -36,6 +36,32 @@ public class GfCombatLogTests
     }
 
     [Fact]
+    public void A_rerolled_or_hand_set_die_carries_what_its_new_face_sets_off()
+    {
+        var render = Unit("Render", "4+", "4+", [], 2, [], Gun("Saw", "12\"", 1, P("Rending")));
+        var target = Unit("T", "4+", "2+", [], 3, []);
+        var sim = Sim.Gf(State([render], [target], x1: -4, x2: 4, waits: true), 6, 4, 6, 3);
+        sim.Start(GfNames.AttackSequence, Attack(render, target, GfNames.Hold));
+        for (var i = 0; i < 20 && sim.Steps("roll-to-hit").Count == 0; i++)
+            sim.Answer(sim.State.Projection.OpenAsks.Values.Single(a => a.Ask.Question == AskQuestions.Confirm).Ask.Teams[0], new Confirmed());
+        var hit = sim.Steps("roll-to-hit").Single().Rolls.Single();
+        var frame = sim.State.Projection.Stack.Single(f => f.Steps.Any(s => s.Rolls.Any(r => r.Id == hit.Id))).Id;
+
+        var four = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new RerollDice(frame, hit.Id, [1]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
+        var toSix = Assert.IsType<DiceRerolled>(four.Events.Single()).Replaced.Single();
+        Assert.Equal((4, 6), (toSix.Old.Raw, toSix.New.Raw));
+        Assert.Equal(["Rending"], toSix.New.Triggered!);
+
+        var six = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new RerollDice(frame, hit.Id, [0]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
+        var toThree = Assert.IsType<DiceRerolled>(six.Events.Single()).Replaced.Single();
+        Assert.Equal((6, 3), (toThree.Old.Raw, toThree.New.Raw));
+        Assert.Null(toThree.New.Triggered);
+
+        var set = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new SetDice(frame, hit.Id, [new DieValue(0, 6)]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
+        Assert.Equal(["Rending"], Assert.IsType<DiceEdited>(set.Events.Single()).Replaced.Single().New.Triggered!);
+    }
+
+    [Fact]
     public void A_furious_chargers_six_is_marked_with_its_extra_hit_and_a_failed_six_with_nothing()
     {
         var berserkers = Unit("Berserkers", "4+", "4+", [], 2, [P("Furious")], Melee("Axe", 1));

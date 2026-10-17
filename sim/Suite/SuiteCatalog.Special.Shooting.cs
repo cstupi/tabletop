@@ -20,14 +20,14 @@ static partial class SpecialGames
                 Exact("p.13 AP(X): \"Targets get -X to Defense rolls\" (AP(2): -2; at 4+ a raw 5 fails)", ["AP"], run =>
                 {
                     var rolls = Attacks(run).Where(a => a.Weapon == "AP Rifle" && a.Block is not null).SelectMany(a => a.Block!.Rolls.Where(r => r.Roll == "defense")).ToList();
-                    return rolls.FirstOrDefault(r => r.Modifiers.Count(m => m.Source == "AP" && m.Amount == -2) != 1) is { } wrong ? $"defense roll {Show(wrong)} lacks AP -2"
+                    return rolls.FirstOrDefault(r => r.Modifiers.Count(m => m.Source == "AP" && m.Amount == -2) != 1) is { } wrong ? $"defense roll {Show(wrong)} lacks AP(2)"
                         : Judged(rolls, "an AP Rifle defense roll", -1);
                 }),
                 Exact("p.14 Rending: \"on unmodified results of 6 to hit, those hits get AP(+4)\"", ["Rending"], run =>
                     Each(Attacks(run).Where(a => a.Weapon == "Rending Rifle" && Sixes(a.Hit) > 0 && a.Block is not null), "a Rending Rifle 6 to hit", a =>
                     {
                         var ap4 = a.Block!.Rolls.Where(r => r.Roll == "defense" && r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -4)).Sum(r => r.Dice.Count);
-                        return ap4 == Sixes(a.Hit) ? null : $"{Sixes(a.Hit)} sixes to hit but {ap4} defense dice at AP -4";
+                        return ap4 == Sixes(a.Hit) ? null : $"{Sixes(a.Hit)} sixes to hit but {ap4} defense dice at AP(4)";
                     })),
                 Exact("p.13 Bane: \"the target must re-roll unmodified Defense results of 6\"", ["Bane"], run =>
                     Each(Attacks(run).Where(a => a.Weapon == "Bane Rifle" && a.Block is not null)

@@ -37,12 +37,12 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
             case RerollDice r when DiceLegal(state, r) && Find(state, r.FrameId, r.RollId) is { } record:
             {
                 var roller = new Roller(dice, state.RngSeed, DiceCursor.DrawnSoFar(state));
-                return new Emit([new DiceRerolled(r.FrameId, r.RollId, RollOutcome.Reroll(PlanOf(record), record, r.DiceIndices, roller))]);
+                return new Emit([new DiceRerolled(r.FrameId, r.RollId, RollOutcome.Reroll(PlanOf(record), record, r.DiceIndices, roller).Select(d => d with { New = record.Stamp(d.New) }).ToList())]);
             }
             case SetDice s when DiceLegal(state, s) && Find(state, s.FrameId, s.RollId) is { } record:
             {
                 var plan = PlanOf(record); var roller = new Roller(dice, state.RngSeed, 0);
-                return new Emit([new DiceEdited(s.FrameId, s.RollId, s.Dice.Select(d => new DieReplacement(d.Index, record.Dice[d.Index], roller.Judge(plan, d.Raw))).ToList())]);
+                return new Emit([new DiceEdited(s.FrameId, s.RollId, s.Dice.Select(d => new DieReplacement(d.Index, record.Dice[d.Index], record.Stamp(roller.Judge(plan, d.Raw)))).ToList())]);
             }
             case AddModifier m when DiceLegal(state, m):
                 return new Emit([new ModifierAdded(m.FrameId, m.Roll, new RollModifier("player", m.Amount))]);

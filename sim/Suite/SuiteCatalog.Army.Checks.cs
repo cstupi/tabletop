@@ -225,7 +225,7 @@ public static partial class SuiteCatalog
 
         /// <summary>A granted or changed AP: every block of the occasion's attacks that rolls defense rolls it under AP of the stated size (p.13 AP: "-X to Defense rolls"), and under no other.</summary>
         static GameCheck ApGrant(string entry, Occasion occasion, int ap, string quote) =>
-            Exact(entry, $"{quote}: AP {-ap:+0;-0}", (run, log) =>
+            Exact(entry, $"{quote}: AP({ap})", (run, log) =>
                 from a in Of(run, log, occasion)
                 from s in a.Blocks
                 where s.Rolls("defense").Any()
@@ -240,7 +240,7 @@ public static partial class SuiteCatalog
                 let sixes = Count(a.HitDice, [6])
                 let under = a.Blocks.FirstOrDefault()?.Rolls("defense").Where(r => r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -ap)).Sum(r => r.Dice.Count) ?? 0
                 select a.Scored($"granted_AP_{ap}") != sixes ? $"AP({ap}) granted {a.Scored($"granted_AP_{ap}")} times for {Faces(a.HitDice)}"
-                    : under != sixes ? $"{under} defense dice under AP -{ap} for {sixes} sixes" : null);
+                    : under != sixes ? $"{under} defense dice under AP({ap}) for {sixes} sixes" : null);
 
         /// <summary>A forced re-roll of the defender's dice: exactly the dice showing the faces (successful ones only when the rule says so) are re-rolled.</summary>
         static GameCheck Rerolls(string entry, Occasion occasion, IReadOnlyCollection<int> faces, bool successOnly, string quote) =>
@@ -334,7 +334,7 @@ public static partial class SuiteCatalog
                 select face >= 4
                     ? hits.All(r => r.Modifiers.Any(m => m.Source == entry && m.Amount == 1)) ? null : $"face {face}: a hit roll without +1"
                     : hits.Any(r => r.Modifiers.Any(m => m.Source == entry)) ? $"face {face}: a hit roll with +1"
-                    : blocks.All(r => r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -1)) ? null : $"face {face}: a block without AP -1");
+                    : blocks.All(r => r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -1)) ? null : $"face {face}: a block without AP(1)");
 
         /// <summary>
         /// The extra hits of an attack whose hit dice an edit (SetDice) replaced follow the dice as they now stand: one per successful

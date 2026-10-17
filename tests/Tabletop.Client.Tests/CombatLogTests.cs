@@ -37,7 +37,7 @@ public class CombatLogTests
     public void A_block_in_cover_folds_cover_and_ap_into_what_it_needs_and_shows_the_raw_faces()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("cover", 1), new RollModifier("AP", -1)], [D(6, 6, true), D(2, 2, false), D(1, 1, false)], Defense5, new CoverVerdict(true, 4, 6)));
-        Assert.Equal("Block · Defense 5+ (cover +1, AP -1) → needs 5 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Block · Defense 5+ (cover +1, AP(1)) → needs 5 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds", r.Collapsed(CombatLog.Pip));
         Assert.Contains("In cover: 4 of 6 models", r.Details);
     }
 
@@ -45,7 +45,7 @@ public class CombatLogTests
     public void A_block_out_of_cover_says_how_many_models_were_in_cover()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("AP", -1)], [D(1, 0, false)], Defense5, new CoverVerdict(false, 2, 6)));
-        Assert.Equal("Block · Defense 5+ (no cover: 2/6 models, AP -1) → needs 6 · ⚀ · 0 blocked, 1 wound", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Block · Defense 5+ (no cover: 2/6 models, AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound", r.Collapsed(CombatLog.Pip));
     }
 
     [Fact]
@@ -59,14 +59,15 @@ public class CombatLogTests
     public void A_granted_modifier_carries_the_rule_that_granted_it_and_past_six_needs_six()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("AP", -1), new RollModifier("AP", -4, "Rending")], [D(6, 1, true)], Defense5, new CoverVerdict(false, 0, 3)));
-        Assert.Equal("Block · Defense 5+ (no cover: 0/3 models, AP -1, Rending AP -4) → needs 6 · ⚅ · 1 blocked, 0 wounds", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Block · Defense 5+ (no cover: 0/3 models, AP(1), Rending AP(+4)) → needs 6 · ⚅ · 1 blocked, 0 wounds", r.Collapsed(CombatLog.Pip));
+        Assert.Equal(["Heavy Rifle", "Defense 5+", "AP(1)", "Rending AP(+4)", "Not in cover: 0 of 3 models", "Target 5+"], r.Details);
     }
 
     [Fact]
     public void An_old_record_without_basis_or_verdict_folds_its_modifiers_into_its_threshold()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("AP", -1)], [D(1, 0, false)]));
-        Assert.Equal("Block · 5+ (AP -1) → needs 6 · ⚀ · 0 blocked, 1 wound", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Block · 5+ (AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound", r.Collapsed(CombatLog.Pip));
     }
 
     [Fact]
@@ -110,10 +111,22 @@ public class CombatLogTests
             new DiceRerolled(Samples.Frame, Samples.Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]),
             new ModifierAdded(Samples.Frame, "hit", new RollModifier("Clay", 1)));
         var rolls = entries.OfType<RollEntry>().ToList();
-        Assert.Equal("Hit · 4+ (AP -1) → needs 5 · 2 dice: ⚀ ⚄ · 1 hit · set by hand ⚅ → ⚀ · rerolled ⚁ → ⚄", rolls[0].Collapsed(CombatLog.Pip));
+        Assert.Equal("Hit · 4+ (AP(1)) → needs 5 · 2 dice: ⚀ ⚄ · 1 hit · set by hand ⚅ → ⚀ · rerolled ⚁ → ⚄", rolls[0].Collapsed(CombatLog.Pip));
         Assert.Empty(rolls[1].Amendments);                                  // the other pool of the same step
         Assert.Equal([6, 2], rolls[1].Dice.Select(d => d.Raw));
         Assert.Equal(["Clay added +1 to the hit roll"], entries.OfType<LineEntry>().Select(l => l.Text));
+    }
+
+    [Fact]
+    public void A_rerolled_die_counts_the_triggers_its_new_face_set_off()
+    {
+        var hit = new RollRecord(Samples.Roll, "hit", 4, [], [new Die(2, 2, false), new Die(6, 6, true, ["Rending"])]);
+        var (entries, _, _) = Build(new SequenceStarted(Samples.Frame, "x", new SequenceContext(Samples.Unit, [], [], null)),
+            new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []),
+            new DiceRerolled(Samples.Frame, Samples.Roll, [new DieReplacement(0, new Die(2, 2, false), new Die(6, 6, true, ["Rending"]))]));
+        var roll = entries.OfType<RollEntry>().Single();
+        Assert.Equal("Hit · 4+ · 2 dice: ⚅ ⚅ · 2 hits (2 sixes: Rending) · rerolled ⚁ → ⚅", roll.Collapsed(CombatLog.Pip));
+        Assert.Equal(["Rending"], roll.Dice[0].Triggered!);
     }
 
     [Fact]

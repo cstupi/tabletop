@@ -171,7 +171,7 @@ public static partial class SuiteCatalog
             var sixes = roll.Raw(6);
             if (h.Score.Value("extra_hits") != sixes) return $"{LogQueries.Show(roll)} gave {h.Score.Value("extra_hits")} extra hits";
             if (h.Blocks.Sum(r => r.Dice.Count) != 2 + sixes) return $"{h.Blocks.Sum(r => r.Dice.Count)} blocks rolled for {2 + sixes} hits";
-            return h.Blocks.FirstOrDefault(r => !r.Roll.Modifiers.Contains(new RollModifier("AP", -1))) is { } bare ? $"a block without AP -1: {LogQueries.Show(bare)}" : null;
+            return h.Blocks.FirstOrDefault(r => !r.Roll.Modifiers.Contains(new RollModifier("AP", -1))) is { } bare ? $"a block without AP(1): {LogQueries.Show(bare)}" : null;
         });
         return failure ?? (hits.Any(h => h.Score.Value("extra_hits") > 0) ? null : "no Sky Blaze die rolled a 6; the seed must show Surge");
     }
@@ -244,7 +244,7 @@ public static partial class SuiteCatalog
         if (weapons.Count == 0 || weapons.Any(w => !w.Properties.Contains(new Tabletop.Content.PropertyInstance("AP", 1))))
             return $"the corroded blocks came from {string.Join(", ", weapons.Select(w => w.Name))}, not only AP(1) weapons";
         var ap = corroded.Rolls("defense").SelectMany(r => r.Roll.Modifiers).Where(m => m.Source == "AP" && m.Amount != 0).ToList();
-        if (ap.Count > 0) return $"the corroded blocks carry AP {string.Join(", ", ap.Select(m => m.Amount))}";
+        if (ap.Count > 0) return $"the corroded blocks carry {string.Join(", ", ap.Select(m => $"AP({-m.Amount})"))}";
         return corroded.Lists("Corrode Weapons") ? null : "the corroded block's step does not name Corrode Weapons";
     }
 
