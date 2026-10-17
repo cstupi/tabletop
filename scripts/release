@@ -3,12 +3,14 @@
 # build and install the web app, deploy the servers. The client steps are scripts/release-client, which the GitHub release
 # workflow runs too. Spec: docs/superpowers/specs/2026-10-17-client-releases-design.md; operator guide: deploy/README.md.
 #
-#   scripts/release [--version vX.Y.Z] [--deploy docker|systemd|none] [--env-file PATH] [--skip-client] [--skip-tests] [--dry-run]
+#   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-tests] [--dry-run]
 #
 # --version     the tag to release; default the v*.*.* tag on HEAD. The tag must name HEAD and the tree must be clean.
 # --deploy      docker (default): deploy/docker-compose.prod.yml up --build; systemd: publish to TABLETOP_INSTALL_DIR
-#               (default /opt/tabletop) and restart the units; none: build and publish only.
-# --env-file    the settings (default /etc/tabletop/prod.env), KEY=VALUE lines; the environment wins over the file.
+#               (default /opt/tabletop) and restart the units; home: deploy/docker-compose.home.yml, every build and test
+#               in containers (no host .NET or Node), the web app as an image; none: build and publish only.
+# --env-file    the settings, KEY=VALUE lines; the environment wins over the file. Default /etc/tabletop/prod.env; for home,
+#               home.env in the clone if present, else /etc/tabletop/home.env.
 # --skip-client no Godot export or upload.  --skip-tests  no build, tests or checks.  --dry-run  print what would change.
 #
 # Settings read: TABLETOP_WEB_URL (the client's web origin), TABLETOP_S3_PUBLIC_ENDPOINT (the web build's blob origin),
@@ -19,7 +21,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-version="" deploy=docker env_file=/etc/tabletop/prod.env skip_client=0 skip_tests=0 dry=0
+version="" deploy=docker env_file="" skip_client=0 skip_tests=0 dry=0
 die() { echo "release: $*" >&2; exit 1; }
 step() { printf '\n== %s\n' "$*"; }
 run() { if [[ $dry == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
@@ -28,16 +30,21 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found${2:+: $2}"; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version) version=${2:?--version needs a value}; shift 2 ;;
-    --deploy) deploy=${2:?--deploy needs docker, systemd or none}; shift 2 ;;
+    --deploy) deploy=${2:?--deploy needs docker, home, systemd or none}; shift 2 ;;
     --env-file) env_file=${2:?--env-file needs a path}; shift 2 ;;
     --skip-client) skip_client=1; shift ;;
     --skip-tests) skip_tests=1; shift ;;
     --dry-run) dry=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
-[[ $deploy =~ ^(docker|systemd|none)$ ]] || die "--deploy is docker, systemd or none, not '$deploy'"
+[[ $deploy =~ ^(docker|home|systemd|none)$ ]] || die "--deploy is docker, home, systemd or none, not '$deploy'"
+if [[ -z "$env_file" ]]; then
+  if [[ $deploy == home ]]; then
+    env_file=/etc/tabletop/home.env; [[ -f "$root/home.env" ]] && env_file=$root/home.env
+  else env_file=/etc/tabletop/prod.env; fi
+fi
 
 # Settings: KEY=VALUE lines, read rather than sourced; a variable already in the environment wins.
 if [[ -f "$env_file" ]]; then
@@ -47,22 +54,25 @@ if [[ -f "$env_file" ]]; then
     key=${BASH_REMATCH[1]} value=${BASH_REMATCH[2]}
     [[ -n "${!key+x}" ]] || export "$key=$value"
   done < "$env_file"
-elif [[ $deploy == docker ]]; then die "$env_file not found (--env-file); the docker deploy reads it"
+elif [[ $deploy == docker || $deploy == home ]]; then die "$env_file not found (--env-file); the $deploy deploy reads it"
 else echo "release: no $env_file; using the environment"; fi
 
 step "Preflight"
 need git
-[[ $skip_tests == 1 ]] || need dotnet "install the .NET 10 SDK (global.json)"
-need node "install Node 24"; need npm
+if [[ $deploy == home ]]; then need docker
+else
+  [[ $skip_tests == 1 ]] || need dotnet "install the .NET 10 SDK (global.json)"
+  need node "install Node 24"; need npm
+fi
 if [[ $skip_client == 0 ]]; then
-  need "${GODOT:-godot}" "install Godot 4.7.2 .NET with its export templates, or set GODOT"
+  need "${GODOT:-godot}" "install Godot 4.7.2 .NET with its export templates, or set GODOT (or pass --skip-client)"
   need dotnet "install the .NET 10 SDK (global.json)"; need aws "install the AWS CLI v2"; need zip; need jq; need sha256sum; need unzip
 fi
 case $deploy in
   docker) need docker; need curl ;;
   systemd) need dotnet; need systemctl; need rsync; need curl ;;
 esac
-[[ $deploy == none || -n "${TABLETOP_WEB_ROOT:-}" ]] || die "TABLETOP_WEB_ROOT is not set (the directory the reverse proxy serves the web app from)"
+[[ $deploy == none || $deploy == home || -n "${TABLETOP_WEB_ROOT:-}" ]] || die "TABLETOP_WEB_ROOT is not set (the directory the reverse proxy serves the web app from)"
 [[ -z "${TABLETOP_WEB_ROOT:-}" ]] || need rsync
 
 [[ -z "$(git status --porcelain)" ]] || die "the working tree is not clean; commit or stash first"
@@ -79,14 +89,32 @@ tagged=$(git rev-parse -q --verify "refs/tags/v$version^{commit}" || true)
 out=${TABLETOP_RELEASE_OUT:-$root/build/release/$version}
 echo "release v$version at ${head:0:12}, deploy $deploy, output $out"
 
+# home: the SDK and Node images run the same steps over the clone, as the clone's owner; the NuGet cache stays in build/.
+owner=$(stat -c %u:%g "$root")
+in_sdk() { run docker run --rm -u "$owner" -v "$root:/src" -w /src -e HOME=/tmp -e DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+  -e NUGET_PACKAGES=/src/build/nuget mcr.microsoft.com/dotnet/sdk:10.0 "$@"; }
+in_node() { run docker run --rm -u "$owner" -v "$root/web:/web" -w /web -e HOME=/tmp -e npm_config_cache=/tmp/npm node:24-alpine "$@"; }
+
 if [[ $skip_tests == 0 ]]; then
   step "Build and test"
-  run dotnet build
-  run dotnet test
-  run dotnet run --project sim -- suite
+  if [[ $deploy == home ]]; then
+    in_sdk dotnet build
+    in_sdk dotnet test --no-build
+    in_sdk dotnet run --no-build --project sim -- suite
+  else
+    run dotnet build
+    run dotnet test
+    run dotnet run --project sim -- suite
+  fi
   run ./scripts/check-client
 fi
 
+if [[ $deploy == home ]]; then
+  if [[ $skip_tests == 0 ]]; then
+    step "Web app checks (the build is in web/Dockerfile)"
+    in_node npm ci --no-audit --no-fund; in_node npm run check; in_node npm test
+  fi
+else
 step "Web app"
 run npm --prefix web ci --no-audit --no-fund
 if [[ $skip_tests == 0 ]]; then run npm --prefix web run check; run npm --prefix web test; fi
@@ -98,6 +126,7 @@ if [[ -n "${TABLETOP_WEB_ROOT:-}" ]]; then
   run mkdir -p "$TABLETOP_WEB_ROOT"
   run rsync -a --delete "$root/web/build/" "$TABLETOP_WEB_ROOT/"
 else echo "TABLETOP_WEB_ROOT unset: web/build is built, not installed"; fi
+fi
 
 if [[ $skip_client == 0 ]]; then
   step "Client builds"
@@ -111,7 +140,52 @@ healthy() {   # <name> <url>: up to 120 s
   die "$1 did not answer $2 within 120 s"
 }
 
+container_state() {   # <container>: status, health (- when it has no healthcheck), exit code
+  docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}} {{.State.ExitCode}}' "$1" 2>/dev/null \
+    || echo "missing - -"
+}
+await() {   # <container> healthy|done: up to 180 s; done is a one-shot that exited 0
+  [[ $dry == 1 ]] && { echo "+ wait for $1 $2"; return; }
+  local status health code
+  for _ in $(seq 90); do
+    read -r status health code <<< "$(container_state "$1")"
+    case $2 in
+      healthy) [[ $health == healthy ]] && { echo "$1 healthy"; return; }
+               [[ $status == exited || $status == dead ]] && break ;;
+      done) if [[ $status == exited ]]; then [[ $code == 0 ]] && { echo "$1 done"; return; }; break; fi ;;
+    esac
+    sleep 2
+  done
+  docker logs --tail 40 "$1" >&2 || true
+  die "$1 is not $2 ($(container_state "$1"))"
+}
+
 case $deploy in
+  home)
+    step "Deploy (home)"
+    compose=(docker compose --env-file "$env_file" -f deploy/docker-compose.home.yml)
+    gateway=${TABLETOP_GATEWAY_NETWORK:-gateway_default}
+    docker network inspect "$gateway" >/dev/null 2>&1 || die "docker network $gateway not found (the reverse proxy's network)"
+    if [[ -z "${TABLETOP_TRUSTED_PROXIES:-}" ]]; then
+      TABLETOP_TRUSTED_PROXIES=$(docker network inspect "$gateway" -f '{{range .IPAM.Config}}{{.Subnet}},{{end}}')
+      export TABLETOP_TRUSTED_PROXIES=${TABLETOP_TRUSTED_PROXIES%,}
+      [[ -n "$TABLETOP_TRUSTED_PROXIES" ]] || die "network $gateway has no subnet; set TABLETOP_TRUSTED_PROXIES"
+    fi
+    echo "trusted proxies: $TABLETOP_TRUSTED_PROXIES ($gateway)"
+    # Docker would create a missing bind source on the local disk: the NAS must be mounted first.
+    for d in "${TABLETOP_MINIO_DATA:-/mnt/tabletop/minio}" "${TABLETOP_PG_BACKUP_DIR:-/mnt/tabletop/pg-backups}"; do
+      [[ -d "$d" ]] || die "$d does not exist (is the NAS mounted?)"
+    done
+    export TABLETOP_VERSION="$version"
+    run "${compose[@]}" build
+    # depends_on orders the start: postgres healthy, migrate (the owner role) exits 0, minio healthy, minio-init exits 0,
+    # management healthy, then game. up fails when migrate or minio-init fails.
+    run "${compose[@]}" up -d --no-build --remove-orphans
+    prefix=${TABLETOP_CONTAINER_PREFIX:-tabletop}
+    await "$prefix-migrate" done
+    await "$prefix-minio-init" done
+    for c in postgres minio management game web; do await "$prefix-$c" healthy; done
+    run "${compose[@]}" ps ;;
   docker)
     step "Deploy (docker)"
     # migrate runs first on every up; management starts after it exits 0, game after management is healthy.
@@ -138,7 +212,8 @@ step "Done"
 echo "v$version (${head:0:12})"
 [[ $skip_tests == 1 ]] && echo "  tests:   skipped" || echo "  tests:   build, unit suite, rules suite, check-client, web check and tests"
 [[ $skip_client == 1 ]] && echo "  client:  skipped" || echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"
-echo "  web:     ${TABLETOP_WEB_ROOT:-web/build (not installed)}"
+if [[ $deploy == home ]]; then echo "  web:     image tabletop-web:$version"
+else echo "  web:     ${TABLETOP_WEB_ROOT:-web/build (not installed)}"; fi
 echo "  servers: $deploy"
 [[ $dry == 1 ]] && echo "  (dry run: nothing changed)"
 exit 0
