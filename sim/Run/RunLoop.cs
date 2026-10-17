@@ -111,6 +111,7 @@ public sealed partial class RunLoop(
         {
             _setAsideSent = true;
             if (await SetAsideAsync(ct) is { } refused) return refused;
+            if (await PassengersAsync(ct) is { } refusedInside) return refusedInside;
         }
         for (var step = 0; step < _settings.MaxSteps; step++)
         {
@@ -192,6 +193,29 @@ public sealed partial class RunLoop(
                 Absorb(await driver.DrainEventsAsync(ct));
                 if (result is SubmitResult.Rejected rejected)
                     return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting aside {unit.Name}: {rejected.Reason} {rejected.Detail}");
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The scenario's passengers go in their Transports before the first answer (passengers spec): one MoveModels per unit, every model from the
+    /// shelf into the Transport's first model, sent by the owning participant as the roster's Put in transport does. No Ask is answered.
+    /// </summary>
+    private async Task<RunOutcome?> PassengersAsync(CancellationToken ct)
+    {
+        for (var i = 0; i < scenario.Scenario.Armies.Count; i++)
+        {
+            var army = driver.Board.Armies[i];
+            foreach (var (ordinal, transport) in scenario.Scenario.Armies[i].Passengers)
+            {
+                var unit = army.Snapshot.Units.Single(u => u.Ordinal == ordinal);
+                var hull = army.Snapshot.Units.Single(u => u.Ordinal == transport).Models[0].Id;
+                var result = await driver.SubmitAsync(army.ParticipantId,
+                    new MoveModels(unit.Models.Select(m => new ModelRelocation(m.Id, new OnShelf(), new Inside(hull))).ToList()), ct);
+                Absorb(await driver.DrainEventsAsync(ct));
+                if (result is SubmitResult.Rejected rejected)
+                    return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"putting {unit.Name} in its transport: {rejected.Reason} {rejected.Detail}");
             }
         }
         return null;

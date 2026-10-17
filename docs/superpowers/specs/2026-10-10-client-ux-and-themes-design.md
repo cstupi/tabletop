@@ -130,7 +130,8 @@ headers with **R**.
 Right-clicking a row of my team while playing opens the piece menu with `MenuModel.ForRosterUnit`: **Set aside**
 (`SetCondition(unit, "set-aside", true)`), or **Return to deployment** (false) when the unit has it. Offered only for a
 unit whose unit or model properties include `Ambush` or `Scout` and whose every model is on the shelf unwounded, so
-never deployed. The condition chip shows on the row.
+never deployed. The condition chip shows on the row. The same menu puts a unit in a Transport before deployment and
+takes it out again, and the row shows `in {Transport}` (spec `2026-10-16-passengers-design.md`).
 
 `RosterView` (Core) reads only the projection: `UnitInPlay.Actions`, `Conditions`, model locations and wounds.
 

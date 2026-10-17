@@ -44,6 +44,11 @@ public static class DeployView
 
     static double Fit(double centre, double half, double extent) => extent <= 2 * half ? extent / 2 : Math.Clamp(centre, half, extent - half);
 
+    /// <summary>A pick's eligible ids, less, at a deploy question, a unit with no model on the shelf: one put inside a Transport since the Ask
+    /// opened deploys with the Transport (passengers spec), and naming it is the server's deploy_inside breach.</summary>
+    public static IReadOnlyList<Guid> Pickable(Projection p, Ask ask) => ask.Legal is not PieceSelection sel ? [] : !Questions.Contains(ask.Question) ? sel.Eligible
+        : sel.Eligible.Where(id => !p.Units.ContainsKey(id) || p.Models.Values.Any(m => m.UnitId == id && m.Location is OnShelf)).ToList();
+
     /// <summary>The eligible ids the table draws no node for: a unit none of whose models is on the table, or a model that is not. A shelved unit can only be picked from the panel.</summary>
     public static IReadOnlyList<Guid> OffTable(Projection p, IEnumerable<Guid> eligible) =>
         eligible.Where(id => p.Units.ContainsKey(id) ? !p.Models.Values.Any(m => m.UnitId == id && m.Location is OnTable)

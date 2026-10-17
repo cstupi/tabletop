@@ -58,8 +58,9 @@ public sealed record Rejected(RejectReason Reason) : SocketMessage;
 public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot) : SocketMessage;
 /// <summary>Clear: line of sight exists. Screened: clear but through cover. BlockedBy: the terrain pieces or models that obstruct it.</summary>
 public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy);
-/// <summary>The ruleset's per-model facts: wounds a model takes before it is killed. On connect once playing, then whenever a value changes.</summary>
-public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds) : SocketMessage;
+/// <summary>The ruleset's facts, sent on connect once playing, then whenever a value changes. MaxWounds: wounds a model takes before it is killed. DeployInside: for each unit that may be put
+/// inside a Transport now, before either deploys, the Transport models it may go in (passengers spec); null from a server that does not send it.</summary>
+public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null) : SocketMessage;
 
 // Both directions
 public sealed record PresenceMessage(Presence Presence) : SocketMessage;

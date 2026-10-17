@@ -66,6 +66,17 @@ public class SessionFactsTests : IDisposable
     }
 
     [Fact]
+    public async Task Model_facts_carry_where_each_unit_may_deploy_inside()
+    {
+        var sock = await Connected(Game);
+        Assert.Empty(_s.DeployInside);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>(), new Dictionary<Guid, IReadOnlyList<Guid>> { [Samples.Unit] = [Target] }));
+        Assert.Equal([Target], _s.DeployInside[Samples.Unit]);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>()));                                   // a server that sends none: none
+        Assert.Empty(_s.DeployInside);
+    }
+
+    [Fact]
     public async Task A_sight_query_goes_out_and_only_its_answer_comes_back()
     {
         await LoggedIn();

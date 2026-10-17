@@ -43,6 +43,9 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - Exit code: 0 when no run failed, 1 otherwise, 2 for usage errors.
 - `ScenarioArmy.SetAside` (builder `setAside:`) lists unit ordinals the run sets aside before the first answer: one `SetCondition`
   of the ruleset's set-aside condition per unit, as the unit menu does. A Scout or Ambush unit plays only when set aside.
+- `ScenarioArmy.Passengers` (builder `passengers:`) maps a unit ordinal to the Transport unit ordinal it deploys inside: after the
+  set-aside conditions, one `MoveModels` per unit from the shelf into the Transport's first model, as the roster's Put in transport
+  does (passengers spec). `core-transport-deploy` plays it under strict.
 - `ScenarioArmy.Models` (builder `models:`) gives one model its own rules, stats or weapons (`ScenarioModel(unit, model, ...)`, 1-based):
   a Hero in a unit, a lone caster.
 - `ScriptBuilder.Match(question, pick)` answers every Ask of that question the pick answers; a keyed answer for the same ordinal wins,

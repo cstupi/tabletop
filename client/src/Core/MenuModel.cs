@@ -75,15 +75,42 @@ public static class MenuModel
     public const string SetAside = "set-aside";
     static readonly string[] SetsAside = ["Ambush", "Scout"];
 
-    /// <summary>The roster's right-click on a unit of my team while playing, every model on the shelf unwounded (never deployed), carrying one of SetsAside: set it aside, or return it.</summary>
-    public static IReadOnlyList<MenuItem> ForRosterUnit(GameInfo game, Projection p, Guid unitId, Guid? myTeam)
+    /// <summary>
+    /// The roster's right-click on a unit of my team while playing. Every model on the shelf unwounded (never deployed): Set aside / Return to
+    /// deployment when it carries one of SetsAside, then Put in transport per Transport model the server names for it (ModelFacts.DeployInside;
+    /// passengers spec). Inside a container still on the shelf: Take out of transport. The server judges each hand move.
+    /// </summary>
+    public static IReadOnlyList<MenuItem> ForRosterUnit(GameInfo game, Projection p, Guid unitId, Guid? myTeam, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null)
     {
         if (game.Status != GameStatus.Playing || myTeam is null || p.Units.GetValueOrDefault(unitId) is not { } u) return [];
         if (game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId != myTeam) return [];
-        if (p.Models.Values.Any(m => m.UnitId == unitId && (m.Location is not OnShelf || m.Wounds > 0))) return [];   // wounded on the shelf: removed, not waiting
-        if (!u.Definition.Properties.Concat(u.Definition.Models.SelectMany(s => s.Properties)).Any(x => SetsAside.Contains(x.Name))) return [];
-        var aside = u.Conditions.Contains(SetAside);
-        return [new(aside ? "Return to deployment" : "Set aside", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), SetAside, !aside))];
+        var models = p.Models.Values.Where(m => m.UnitId == unitId).ToList();
+        if (models.Count > 0 && models.All(m => m.Location is Inside i && p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnShelf))
+            return [new("Take out of transport", MenuInput.None, _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new OnShelf())).ToList()))];
+        if (models.Any(m => m.Location is not OnShelf || m.Wounds > 0)) return [];   // wounded on the shelf: removed, not waiting
+        var items = new List<MenuItem>();
+        if (u.Definition.Properties.Concat(u.Definition.Models.SelectMany(s => s.Properties)).Any(x => SetsAside.Contains(x.Name)))
+        {
+            var aside = u.Conditions.Contains(SetAside);
+            items.Add(new(aside ? "Return to deployment" : "Set aside", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), SetAside, !aside)));
+        }
+        foreach (var c in deployInside?.GetValueOrDefault(unitId) ?? [])
+            if (p.Models.GetValueOrDefault(c) is { } hull && p.Units.GetValueOrDefault(hull.UnitId) is { } transport)
+                items.Add(new($"Put in transport: {transport.Definition.Name}", MenuInput.None,
+                    _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new Inside(c))).ToList())));
+        return items;
+    }
+
+    /// <summary>
+    /// The table's right-click on a model my open move Ask moves, while it offers containers to enter (MoveContainment.Enterable: the rules
+    /// decide reach; p.15 "only one model needs to reach the Transport for everyone to embark"): Board transport per container, answering
+    /// the Ask with every model inside it, as a click on the container does.
+    /// </summary>
+    public static IReadOnlyList<MenuItem> ForBoarding(Projection p, Ask? ask, Guid modelId)
+    {
+        if (ask?.Legal is not MoveRegion { Containment.Enterable: { Count: > 0 } enterable } region || !region.ModelIds.Contains(modelId)) return [];
+        return enterable.Where(p.Models.ContainsKey).Select(c => new MenuItem($"Board transport: {p.Units[p.Models[c].UnitId].Definition.Name}", MenuInput.None,
+            _ => new AnswerAsk(ask.Id, new Destinations(region.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(c))).ToList())))).ToList();
     }
 
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>
