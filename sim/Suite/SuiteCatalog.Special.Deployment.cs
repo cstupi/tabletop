@@ -45,13 +45,7 @@ static partial class SpecialGames
                     }
                     if (rounds.Count == 0) return "no Ambusher was offered";
                     if (rounds.Any(r => r < 2)) return $"Ambushers offered in rounds {string.Join(",", rounds)}";
-                    return Each(Arrivals(run, "Red unit 2").Concat(Arrivals(run, "Blue unit 2")), "an Ambusher placement", a =>
-                    {
-                        var army = UnitOf(run, a.Model).Split(' ')[0];
-                        var gaps = Placed(run, a.Seq).Where(kv => !UnitOf(run, kv.Key).StartsWith(army))
-                            .Select(kv => a.At.DistanceTo(kv.Value.At) - kv.Value.Radius - Radius(run, a.Model)).ToList();
-                        return gaps.Count == 0 || gaps.Min() > 9 ? null : $"{ModelName(run, a.Model)} placed {gaps.Min():0.00}\" from an enemy";
-                    });
+                    return Each(Arrivals(run, "Red unit 2").Concat(Arrivals(run, "Blue unit 2")), "an Ambusher placement", a => OverNine(run, a));
                 }),
                 Exact("p.15 Tough: \"heroes must be assigned wounds last\"", ["Hero"], run =>
                 {
@@ -75,6 +69,40 @@ static partial class SpecialGames
                 ["Scout"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployScouts }),
                 ["Ambush"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployAmbusher }),
             });
+    }
+
+    /// <summary>
+    /// Ambush, Scout, Fast under strict on a 48x24 table: the zones meet at y 12, Blue unit 2 scouts up to 12" out of Blue's zone and Blue
+    /// unit 1 (Fast) closes on Red, so by round two much of Red's own zone is within 9" of Blue and Red unit 2's arrival has to be found
+    /// elsewhere on the table. A placement within 9" is refused (ambush_distance), and the refused placement stalls the run, so the game
+    /// ending is part of the evidence.
+    /// </summary>
+    static TestGame AmbushCloseQuarters()
+    {
+        const string name = "special-ambush-over-nine";
+        return Game(name, new ScenarioBuilder(name, 3).RoundCap(3).Table(48, 24).Scripted(ShootAndStrike).Seeking(NearestEnemy)
+                .Army("Red", 2, 3, unitRules: [new(2, "Ambush")], unitStats: Stats(4, 4), setAside: [2])
+                .Army("Blue", 2, 3, unitRules: [new(2, "Scout")], modelRules: [new(1, "Fast")], unitStats: Stats(4, 4), setAside: [2])
+                .Build(),
+            ["Ambush", "Scout", "Fast"],
+            [
+                Exact("p.13 Ambush: \"may be deployed anywhere over 9\" away from enemy units\" (under strict, with the enemy in the Ambusher's zone)", ["Ambush"], run =>
+                    Each(Arrivals(run, "Red unit 2"), "an Ambusher placement", a => OverNine(run, a))),
+            ],
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>>
+            {
+                ["Scout"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployScouts }),
+                ["Ambush"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployAmbusher }),
+            });
+    }
+
+    /// <summary>An arriving model's closest base-to-base gap to the other army's models on the table just before it; p.13's "over 9”".</summary>
+    static string? OverNine(SuiteGameRun run, (Guid Model, Point2 At, long Seq) a)
+    {
+        var army = UnitOf(run, a.Model).Split(' ')[0];
+        var gaps = Placed(run, a.Seq).Where(kv => !UnitOf(run, kv.Key).StartsWith(army))
+            .Select(kv => a.At.DistanceTo(kv.Value.At) - kv.Value.Radius - Radius(run, a.Model)).ToList();
+        return gaps.Count == 0 || gaps.Min() > 9 ? null : $"{ModelName(run, a.Model)} placed {gaps.Min():0.00}\" from an enemy";
     }
 
     /// <summary>

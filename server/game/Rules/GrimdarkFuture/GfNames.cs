@@ -37,6 +37,8 @@ public static class GfNames
     public const string MoveOverlapRule = "move_overlap", MoveThroughModelsRule = "move_through_models", MoveSeparationRule = "move_separation";
     /// <summary>IGameRules.PlacementBreach rule name for a deployment placement outside the team's zone (p.6), or beyond a Scout's 12" of it (p.14).</summary>
     public const string DeployZoneRule = "deploy_zone";
+    /// <summary>IGameRules.PlacementBreach rule name for an Ambusher placed within 9" of an enemy unit (p.13: "over 9” away from enemy units").</summary>
+    public const string AmbushDistanceRule = "ambush_distance";
     /// <summary>IGameRules.AnswerBreach rule name for a deploy answer naming a unit already inside a Transport (p.15: it deploys with the Transport).</summary>
     public const string DeployInsideRule = "deploy_inside";
     public const double ScoutReach = 12;

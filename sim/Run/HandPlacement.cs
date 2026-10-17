@@ -1,4 +1,5 @@
 using Tabletop.Content;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
@@ -10,13 +11,18 @@ namespace Tabletop.Sim.Run;
 /// Ask (scheduler → The turn is an Ask: "moving models by hand never ends one"). This is where the simulator
 /// does that. It computes no rules outcome: the zone comes from the deployment_zone rows and
 /// Tabletop.Geometry resolves the shape. A hand placement is judged for overlap (IGameRules.PlacementBreach, move_overlap, p.7
-/// "physically impossible locations") and, before round one, for its zone (deploy_zone: p.6 fully within it, p.14 a Scout within 12" of it),
-/// so an anchor is skipped where any base would touch a model on the table or leave the zone.
+/// "physically impossible locations"), before round one for its zone (deploy_zone: p.6 fully within it, p.14 a Scout within 12" of it),
+/// and once rounds have begun, for a set-aside unit (an Ambusher), for its distance from enemy units (ambush_distance: p.13 "anywhere over
+/// 9” away from enemy units"). So an anchor is skipped where any base would touch a model on the table or leave the zone, and an
+/// Ambusher's anchor is drawn from the whole table and skipped where any base is within 9" of an enemy model.
 /// </summary>
 public static class HandPlacement
 {
     private const int Attempts = 40;
+    private const int AmbushAttempts = 400;
     private const int MaxColumns = 5;
+    /// <summary>Kept beyond p.13's 9", so a placement the server rests on terrain is still over it.</summary>
+    private const double AmbushMargin = 0.25;
 
     /// <summary>The chooser a run places its units with, derived from the scenario's seed: Program and every test that
     /// reproduces a console run use this, so one seed names one game through every entry point.</summary>
@@ -42,7 +48,9 @@ public static class HandPlacement
         var offsets = shelved.Select((_, i) => new Point2(i % cols * spacing, i / cols * spacing)).ToList();
         var occupied = projection.Models.Values.Where(m => m.Location is OnTable)
             .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
-        var anchor = ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
+        var anchor = projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
+            ? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
+            : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
             new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();
@@ -69,6 +77,26 @@ public static class HandPlacement
         }
         return new Point2((minX + maxX) / 2, (minY + maxY) / 2);
     }
+
+    /// <summary>An anchor anywhere on the table at which every base is on the table, touches no model, and stands over 9" from every enemy model; null when none was drawn.</summary>
+    private static Point2? AmbushAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, TableSize table,
+        IReadOnlyList<PlacedModel> occupied, IReadOnlyList<PlacedModel> enemies, Chooser chooser)
+    {
+        for (var attempt = 0; attempt < AmbushAttempts; attempt++)
+        {
+            var candidate = new Point2(chooser.Double() * table.Width, chooser.Double() * table.Length);
+            var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
+            if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
+            if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
+            if (placed.All(pm => enemies.All(e => Distance.EdgeToEdge(pm, e) > GfNames.AmbushDistance + AmbushMargin))) return candidate;
+        }
+        return null;
+    }
+
+    private static IReadOnlyList<PlacedModel> Enemies(Projection projection, CompiledScenario scenario, Guid teamId) =>
+        projection.Models.Values
+            .Where(m => m.Location is OnTable && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) != teamId)
+            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
 
     private static PlacedModel Placed(ModelSlot slot, Point2 at) =>
         new(new ModelBody(slot.Base, slot.Height), new Placement(new Point3(at.X, at.Y, 0), new Yaw(0)));
