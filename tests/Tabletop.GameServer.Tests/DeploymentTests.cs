@@ -35,6 +35,23 @@ public class DeploymentTests
     }
 
     [Fact]
+    public void A_scout_is_no_longer_set_aside_once_it_has_deployed()
+    {
+        var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]), TestArmies.Build("B", 1, 1)]);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();                               // A wins
+        var a = h.Units(0); var b = h.Units(1);
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true));
+        h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
+        h.Answer(1, new SelectedPieces([b[0]])); h.Deploy(b[0]);
+        Assert.Equal(AskQuestions.DeployScouts, h.Open.Question);
+        h.Answer(0, new SelectedPieces([a[1]])); var seq = h.P.LastSeq; h.Deploy(a[1]);
+        Assert.DoesNotContain(SetAside, h.P.Units[a[1]].Conditions);                                      // p.14: the Scout has been deployed
+        var ended = h.Log.Where(e => e.Seq > seq).Select(e => e.Payload).OfType<TurnEnded>().Single();
+        Assert.Contains(new ConditionSet(TestGames.UnitSubject(a[1]), SetAside, false), ended.Changes);
+        h.Rehydrate(); Assert.Empty(h.Run());
+    }
+
+    [Fact]
     public void The_roll_off_waits_at_a_confirm_gate_to_every_team_and_a_die_edited_there_decides_the_order()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1)]);

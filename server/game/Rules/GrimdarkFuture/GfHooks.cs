@@ -34,6 +34,9 @@ public static class GfHooks
         if (turn.Activation is { } act && state.Projection.Units[act.UnitId].Conditions.Contains(GfNames.Shaken)
             && (act.Action == Scheduler.ActivationOption.Idle || (act.Action == GfNames.Advance && Lookup.UnitHas(state, props, act.UnitId, GfNames.Aircraft))))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, act.UnitId), GfNames.Shaken, false));
+        // p.14 Scout: "May be set aside before deployment. After all other units are deployed, may be deployed ..." — once deployed it is no longer set aside.
+        if (turn.Activation is { Action: GfNames.Deploy } deployed && state.Projection.Units[deployed.UnitId].Conditions.Contains(GfNames.SetAside))
+            changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, deployed.UnitId), GfNames.SetAside, false));
         return changes;
     }
 
