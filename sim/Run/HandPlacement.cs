@@ -9,8 +9,9 @@ namespace Tabletop.Sim.Run;
 /// Deployment's Ask names a unit; putting its models on the table is an ordinary MoveModels command, not an
 /// Ask (scheduler → The turn is an Ask: "moving models by hand never ends one"). This is where the simulator
 /// does that. It computes no rules outcome: the zone comes from the deployment_zone rows and
-/// Tabletop.Geometry resolves the shape. A hand placement is judged for overlap only (IGameRules.PlacementBreach,
-/// move_overlap, p.7 "physically impossible locations"), so an anchor is skipped where any base would touch a model on the table.
+/// Tabletop.Geometry resolves the shape. A hand placement is judged for overlap (IGameRules.PlacementBreach, move_overlap, p.7
+/// "physically impossible locations") and, before round one, for its zone (deploy_zone: p.6 fully within it, p.14 a Scout within 12" of it),
+/// so an anchor is skipped where any base would touch a model on the table or leave the zone.
 /// </summary>
 public static class HandPlacement
 {

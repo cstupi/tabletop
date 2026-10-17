@@ -471,7 +471,7 @@ or still on the shelf, of the actor's team, the boarding unit never deployed (no
 Transport is, after which it counts as deployed and its set-aside clears with the Transport's; a Transport deployed at an
 earlier pick takes no one). Anything else is the breach `hand_move`, `StrictRefuses(Illegal)`, detail "{unit} deployed inside a
 container the rules do not allow" for a disallowed container and "{unit} moved by hand outside a move step" otherwise:
-`silent` accepts, `warn` accepts with the warning on the event, `strict` refuses. `HandMoves.Judge` also asks `IGameRules.PlacementBreach` (default none; `WithSequences` forwards it; Grimdark Future: `GfMoves.OverlapBreach`): a legal placement that overlaps another base is `move_overlap`, and the overlap detail is appended to a `hand_move` breach. The other override commands never reach the policy, by a `switch` arm rather
+`silent` accepts, `warn` accepts with the warning on the event, `strict` refuses. `HandMoves.Judge` also asks `IGameRules.PlacementBreach` (default none; `WithSequences` forwards it; Grimdark Future: `GfMoves.OverlapBreach`): a legal placement that overlaps another base is `move_overlap`; before round one, with zones on the table, a placement not fully within the placing team's zone (p.6), or for a Scout not fully within 12" of it (p.14), is `deploy_zone` (`GrimdarkFutureRules.ZoneBreach`; an Ambusher, from round two, is not zone-bound); either detail is appended to a `hand_move` breach. The other override commands never reach the policy, by a `switch` arm rather
 than by a value flowing through it; `Legality.AlwaysAccepted` exists in the enum and is exercised by
 `EnforcementPolicyTests`, but the dispatch path never constructs it.
 

@@ -1,3 +1,5 @@
+using Tabletop.Geometry;
+using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Scheduler;
@@ -20,6 +22,31 @@ public sealed partial class GrimdarkFutureRules
         return phase == Deployment
             ? new TurnAsk(AskQuestions.Deploy, "Deploy one unit", new PieceSelection(ids, 1, 1), AllowPass: false)
             : new TurnAsk(AskQuestions.DeployScouts, "Deploy a Scout", new PieceSelection(ids, 1, 1), AllowPass: false);
+    }
+
+    /// <summary>
+    /// A hand placement from the shelf onto the table in the phases before round one, judged against the placing team's deployment zone when the
+    /// game has one. Page 6: "places one unit fully within 12” of their table edge" (the zone, p.22's styles); page 14 Scout: "may be deployed
+    /// anywhere fully within 12” of their deployment zone". Ambush (page 13) deploys from round two and is not read here.
+    /// </summary>
+    public static AnswerBreachFound? ZoneBreach(GameState state, IReadOnlyList<ModelRelocation> moves)
+    {
+        var p = state.Projection;
+        if (p.Scheduler.Round != 0 || p.Scheduler.Phase is not (Deployment or Scouts)) return null;
+        var table = state.Board.Table;
+        if (table.Zones.Count == 0) return null;
+        foreach (var move in moves)
+        {
+            if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model) || model.Location is not OnShelf) continue;
+            var ordinal = Teams.Of(state, model.UnitId) is { } team ? state.Info.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal : null;
+            if (table.Zones.FirstOrDefault(z => z.TeamOrdinal == ordinal) is not { } zone) continue;
+            var placed = new PlacedModel(new ModelBody(model.Slot.Base, model.Slot.Height), at);
+            if (p.Scheduler.Phase == Deployment && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed))
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it (p.6)");
+            if (p.Scheduler.Phase == Scouts && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, ScoutReach))
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond 12\" of its deployment zone: Scouts deploy fully within 12\" of it (p.14)");
+        }
+        return null;
     }
 
     public static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>

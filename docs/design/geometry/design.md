@@ -112,8 +112,8 @@ record. `GameRules` supplies every OPR constant at the call site: coherency `(1,
 separation, the 6" cap, melee reach `EdgeToEdge <= 2 && Vertical <= 4`, objectives
 `EdgeToMarker <= 3`, Ambush `> 9`, and for Scouts the deployment zone grown by 12", which is
 p.14's *"fully within 12" of their deployment zone"* and not a distance from a placed position:
-3.4.1 had a Scout deploy and then reposition *"anywhere within 12" of their position"*. No
-placement check reads it yet, in this library or either server plan.
+3.4.1 had a Scout deploy and then reposition *"anywhere within 12" of their position"*. The game
+server's deployment check (`GrimdarkFutureRules.ZoneBreach`) reads it as `ZoneStyles.BaseFullyWithin(shapeId, table, model, 12)`.
 
 Coherency is two distances per pair, so p.11's *"If not all models in a unit can fit on elevation,
 then a coherency of 3" is allowed to models at different elevation"* is served for the allowance and
@@ -783,7 +783,9 @@ The seven styles as implemented:
 | `free-for-all` | 1 | p.50's *"2'x1' area"* in each of four corners, read as 24" along the long edge by 12" along the short |
 
 `Contains(shapeId, table, point)` is the flat test. `BaseFullyWithin(shapeId, table, model)` is
-p.6's *"fully within"*, the whole base inside **one** of the zone's polygons. Unknown styles and
+p.6's *"fully within"*, the whole base inside **one** of the zone's polygons;
+`BaseFullyWithin(shapeId, table, model, inches)` is every point of the base within `inches` of one of them (exact for convex
+outlines: the far vertex, or the centre plus the radius). Unknown styles and
 malformed ids throw `ArgumentException` rather than returning empty, so a typo in a stored
 `deployment_zone.shape` fails loudly. The p.23–24 styles are not shipped here.
 
@@ -873,7 +875,7 @@ plan.
 | `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Boundary)` *added* | |
 | `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable)` *added* | |
 | `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)` |
-| `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)` |
+| `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches)` |
 
 Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 `CircleOutline`, `PolygonOutline`, `Polygon.OnSegment`, `Bodies.BaseOutline`, `Bodies.Place`,

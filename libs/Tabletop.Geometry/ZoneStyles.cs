@@ -74,6 +74,24 @@ public static class ZoneStyles
         return Resolve(shapeId, table).Any(z => new PolygonOutline(z.Vertices).ContainsOutline(outline));
     }
 
+    /// <summary>
+    /// Rulebook p.14 Scout, "fully within 12” of their deployment zone": every point of the base within <paramref name="inches"/> of one of the
+    /// zone's polygons. Both convex, so the farthest point of the base is exact as Containment.BaseFullyWithin takes it: a vertex of a polygon
+    /// base, the centre pushed out by the radius for a circular one. A zone of two polygons is measured to each in turn, which can only refuse a
+    /// base straddling the point where they meet.
+    /// </summary>
+    public static bool BaseFullyWithin(string shapeId, TableSize table, PlacedModel model, double inches)
+    {
+        var limit = inches + Tolerance.Distance;
+        var outline = model.BaseOutline();
+        return Resolve(shapeId, table).Select(z => new PolygonOutline(z.Vertices)).Any(z => outline switch
+        {
+            CircleOutline c => z.DistanceTo(c.Centre) + c.Radius <= limit,
+            PolygonOutline p => p.Vertices.All(v => z.DistanceTo(v) <= limit),
+            var other => throw new ArgumentOutOfRangeException(nameof(model), other.GetType().Name),
+        });
+    }
+
     /// <summary>Side Battle scales with the table: 3/4 of the long edge and 5/8 of the short are the p.22 diagram's 54" and 30" on 72×48.</summary>
     const double SideBattleLong = 0.75, SideBattleShort = 0.625;
 

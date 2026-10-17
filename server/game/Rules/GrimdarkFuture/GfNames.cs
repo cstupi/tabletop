@@ -35,6 +35,9 @@ public static class GfNames
         MoveExitRule = "move_exit", MoveNotOfferedRule = "move_not_offered";
     /// <summary>p.7's contact clauses (GfMoves.ContactBreach): a landing on another model's base, a path through a model, a landing within 1" of another unit.</summary>
     public const string MoveOverlapRule = "move_overlap", MoveThroughModelsRule = "move_through_models", MoveSeparationRule = "move_separation";
+    /// <summary>IGameRules.PlacementBreach rule name for a deployment placement outside the team's zone (p.6), or beyond a Scout's 12" of it (p.14).</summary>
+    public const string DeployZoneRule = "deploy_zone";
+    public const double ScoutReach = 12;
     public const int TokenCap = 6;
 
     // The scheduler plan's names (its Task 2 reads them from here; one names class).
