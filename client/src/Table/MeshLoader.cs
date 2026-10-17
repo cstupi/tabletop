@@ -17,38 +17,35 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
     readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, long Cap, TaskCompletionSource<string?> Done), float> _queue = new();
     readonly SemaphoreSlim _inFlight = new(2, 2);
-    Task? _manifestLoad;
     DateTimeOffset _expires = DateTimeOffset.MaxValue;
+    CoalescedRefresh? _refresh;
+
+    /// <summary>Manifest fetches, one at a time. Loads (an unknown id, lapsed URLs) ask through <see cref="CoalescedRefresh.RunIfDue"/>:
+    /// at most one start per 5 s, so a batch of unknown ids shares one refresh instead of one each.</summary>
+    CoalescedRefresh Refresh => LazyInitializer.EnsureInitialized(ref _refresh, () => new CoalescedRefresh(() => Task.Run(async () =>
+    {
+        try
+        {
+            var m = await management.GetManifest(gameId);
+            lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; _expires = m.ExpiresAt; }
+        }
+        catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
+    }), TimeSpan.FromSeconds(5)));
 
     /// <summary>Starts a manifest fetch, or joins the one in flight. Returns the task so a caller can wait for it.</summary>
-    public Task RefreshManifest()
-    {
-        lock (_manifest)
-        {
-            if (_manifestLoad is { IsCompleted: false } running) return running;
-            return _manifestLoad = Task.Run(async () =>
-            {
-                try
-                {
-                    var m = await management.GetManifest(gameId);
-                    lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; _expires = m.ExpiresAt; }
-                }
-                catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
-            });
-        }
-    }
+    public Task RefreshManifest() => Refresh.Run();
 
     /// <summary>Fetches the bytes (queued by distance), then builds the scene on the main thread. Null when the asset cannot be had.</summary>
     public async Task<Node3D?> LoadAssetAsync(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)
     {
-        Task? load; lock (_manifest) load = _manifestLoad;
-        if (load is not null) await load;
-        if (DateTimeOffset.UtcNow >= _expires) await RefreshManifest();      // the entries' download URLs have lapsed
+        await Refresh.Current;
+        bool lapsed; lock (_manifest) lapsed = DateTimeOffset.UtcNow >= _expires;
+        if (lapsed) await Refresh.RunIfDue();      // the entries' download URLs have lapsed
         ManifestEntry? entry; lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
         if (entry is null)
         {
             // Another player's army or terrain that arrived after the last fetch: one shared refresh before the owner-only fallback.
-            await RefreshManifest();
+            await Refresh.RunIfDue();
             lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
         }
         Uri url; string hash; double scale; Orientation orientation; AssetKind kind;
