@@ -21,7 +21,9 @@
 
 <svelte:head><title>New password · Tabletop</title></svelte:head>
 
-<h1>Choose a new password</h1>
+<div class="auth">
+<section class="panel" aria-labelledby="reset-heading">
+<h1 id="reset-heading">Choose a new password</h1>
 {#if !token}
   <p role="alert">This link is missing its token. Ask for a new reset email from the <a href="/login">sign-in page</a>.</p>
 {:else}
@@ -29,8 +31,10 @@
     <label>New password <input type="password" bind:value={password} autocomplete="new-password" required /></label>
     <label>Type it again <input type="password" bind:value={again} autocomplete="new-password" required aria-invalid={mismatch} aria-describedby={mismatch ? 'mismatch' : undefined} /></label>
     {#if mismatch}<p id="mismatch"><small>The two passwords do not match.</small></p>{/if}
-    <div class="actions"><button type="submit" disabled={busy || !password || password !== again}>{busy ? 'Saving…' : 'Set password and sign in'}</button></div>
+    <div class="actions"><button type="submit" class="primary" disabled={busy || !password || password !== again}>{busy ? 'Saving…' : 'Set password and sign in'}</button></div>
     <p><small>Reset links expire. If this one has, ask for a new one from the <a href="/login">sign-in page</a>.</small></p>
   </form>
   {#if error}<p role="alert">{error}</p>{/if}
 {/if}
+</section>
+</div>

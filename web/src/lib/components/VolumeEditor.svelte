@@ -33,7 +33,7 @@
   function move(e: PointerEvent) { if (!dragging || !drafts[selected]) return; const p = tableAt(e); drafts[selected]!.offsetX = +p.x.toFixed(2); drafts[selected]!.offsetY = +p.y.toFixed(2); }
 </script>
 
-<section class="editor">
+<section class="panel editor">
   <h2>Collision volumes</h2>
   <p>Gameplay runs on these prisms, not on the mesh. Orange is solid (stood on), green is area (stood inside). Drag the selected outline to move it.</p>
   <div class="top" role="application" aria-label="Top view: drag to move the selected volume" onpointerdown={() => (dragging = true)} onpointerup={() => (dragging = false)} onpointerleave={() => (dragging = false)} onpointermove={move}>
@@ -57,7 +57,13 @@
   </div>
   {#if drafts.length === 0}<p>No volumes yet. Add one, or reset to the bounding box.</p>{/if}
   {#each errors as e}<p role="alert">{e}</p>{/each}
-  <div class="bar"><button onclick={save} disabled={busy || errors.length > 0 || drafts.length === 0}>{busy ? 'Saving…' : 'Save volumes'}</button><span role="status">{#if saved}Saved.{/if}</span></div>
+  <div class="bar"><button class="primary" onclick={save} disabled={busy || errors.length > 0 || drafts.length === 0}>{busy ? 'Saving…' : 'Save volumes'}</button><span class="saved" role="status">{#if saved}Saved.{/if}</span></div>
   {#if error}<p role="alert">{error}</p>{/if}
 </section>
-<style>.top { height: 24rem; touch-action: none } .selected { outline: 2px solid #3399ff } .bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center } .volumes > div { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem; border-bottom: 1px solid #8884 }</style>
+<style>
+  .top { height: 24rem; touch-action: none; background: var(--view-bg); margin: var(--s3) 0 }
+  .selected { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--rule) }
+  .bar { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: var(--s3) 0 }
+  .volumes > div { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); align-items: center; padding: var(--s3); border-bottom: 1px solid var(--rule) }
+  .volumes label { display: inline-flex; align-items: center; gap: var(--s1) }
+</style>
