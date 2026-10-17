@@ -43,13 +43,13 @@ each game's rows, never the accounts.
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 193 of 193 games pass on both drivers with no pin, 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 194 of 194 games pass in process with no pin (193 last run over the socket), 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 20 s. Geometry 193, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 53, Viewer 9, Client 351,
-  GameServer 1098, Management 129, Sim 276. Five consecutive full runs clean.
+  defect). About 20 s. Geometry 193, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 53, Viewer 9, Client 357,
+  GameServer 1113, Management 130, Sim 276. Five consecutive full runs clean.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 33,
   GameServer 34, Sim 212; about 15 min.
@@ -89,10 +89,12 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 joined (`IGameRepository.Leave`; accounts are normally locked, not deleted — locking is not built); base height is 1.5 ×
 the larger dimension of the chosen base set.
 
-**In progress:** passengers (spec `2026-10-16-passengers-design.md`, agent branch). During deployment a roster right-click
-marks a shelved unit **Put in transport ▸ [Transport]** (no deploy turn spent; deployed inside it when the Transport
-is); in play a right-click offers **Board transport** in reach. Until it merges, the client's old "Put inside a
-container" during deployment breaches p.15.
+**Passengers** (spec `2026-10-16-passengers-design.md`). During deployment a roster right-click on my shelved unit
+offers **Put in transport: [Transport]** / **Take out of transport**: a hand move placing it `Inside` the still-shelved
+Transport (`GfRules.MayDeployInside`: never deployed, matching set-aside, p.15 spaces), no deploy turn spent; it deploys
+inside the Transport when that is placed. In play, a right-click on a model of my moving unit offers **Board transport:
+[Transport]** when one is in reach. `ModelFacts.DeployInside` carries the choices. Suite game `core-transport-deploy`.
+Embarking in play still does not check p.15's spaces.
 
 **Still not built:** Ambush's "over 9" away from enemy units"; under Takedown, `Blast`'s cap and the defence roll read the
 whole unit; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
