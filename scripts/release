@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Cut a release from a clone on the server host (or any machine with the tools): check, test, publish the client builds,
+# build and install the web app, deploy the servers. The client steps are scripts/release-client, which the GitHub release
+# workflow runs too. Spec: docs/superpowers/specs/2026-10-17-client-releases-design.md; operator guide: deploy/README.md.
+#
+#   scripts/release [--version vX.Y.Z] [--deploy docker|systemd|none] [--env-file PATH] [--skip-client] [--skip-tests] [--dry-run]
+#
+# --version     the tag to release; default the v*.*.* tag on HEAD. The tag must name HEAD and the tree must be clean.
+# --deploy      docker (default): deploy/docker-compose.prod.yml up --build; systemd: publish to TABLETOP_INSTALL_DIR
+#               (default /opt/tabletop) and restart the units; none: build and publish only.
+# --env-file    the settings (default /etc/tabletop/prod.env), KEY=VALUE lines; the environment wins over the file.
+# --skip-client no Godot export or upload.  --skip-tests  no build, tests or checks.  --dry-run  print what would change.
+#
+# Settings read: TABLETOP_WEB_URL (the client's web origin), TABLETOP_S3_PUBLIC_ENDPOINT (the web build's blob origin),
+# TABLETOP_WEB_ROOT (where the static site goes; required to deploy), RELEASE_S3_* (scripts/release-client upload),
+# GODOT, TABLETOP_INSTALL_DIR, TABLETOP_RELEASE_OUT (the build output, default build/release/<version>).
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+version="" deploy=docker env_file=/etc/tabletop/prod.env skip_client=0 skip_tests=0 dry=0
+die() { echo "release: $*" >&2; exit 1; }
+step() { printf '\n== %s\n' "$*"; }
+run() { if [[ $dry == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found${2:+: $2}"; }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version) version=${2:?--version needs a value}; shift 2 ;;
+    --deploy) deploy=${2:?--deploy needs docker, systemd or none}; shift 2 ;;
+    --env-file) env_file=${2:?--env-file needs a path}; shift 2 ;;
+    --skip-client) skip_client=1; shift ;;
+    --skip-tests) skip_tests=1; shift ;;
+    --dry-run) dry=1; shift ;;
+    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option $1 (see --help)" ;;
+  esac
+done
+[[ $deploy =~ ^(docker|systemd|none)$ ]] || die "--deploy is docker, systemd or none, not '$deploy'"
+
+# Settings: KEY=VALUE lines, read rather than sourced; a variable already in the environment wins.
+if [[ -f "$env_file" ]]; then
+  [[ -r "$env_file" ]] || die "$env_file is not readable (run as its owner, or with sudo -E)"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    key=${BASH_REMATCH[1]} value=${BASH_REMATCH[2]}
+    [[ -n "${!key+x}" ]] || export "$key=$value"
+  done < "$env_file"
+elif [[ $deploy == docker ]]; then die "$env_file not found (--env-file); the docker deploy reads it"
+else echo "release: no $env_file; using the environment"; fi
+
+step "Preflight"
+need git
+[[ $skip_tests == 1 ]] || need dotnet "install the .NET 10 SDK (global.json)"
+need node "install Node 24"; need npm
+if [[ $skip_client == 0 ]]; then
+  need "${GODOT:-godot}" "install Godot 4.7.2 .NET with its export templates, or set GODOT"
+  need dotnet "install the .NET 10 SDK (global.json)"; need aws "install the AWS CLI v2"; need zip; need jq; need sha256sum; need unzip
+fi
+case $deploy in
+  docker) need docker; need curl ;;
+  systemd) need dotnet; need systemctl; need rsync; need curl ;;
+esac
+[[ $deploy == none || -n "${TABLETOP_WEB_ROOT:-}" ]] || die "TABLETOP_WEB_ROOT is not set (the directory the reverse proxy serves the web app from)"
+[[ -z "${TABLETOP_WEB_ROOT:-}" ]] || need rsync
+
+[[ -z "$(git status --porcelain)" ]] || die "the working tree is not clean; commit or stash first"
+head=$(git rev-parse HEAD)
+if [[ -z "$version" ]]; then
+  version=$(git tag --points-at HEAD --list 'v*.*.*' | sort -V | tail -1)
+  [[ -n "$version" ]] || die "HEAD carries no v*.*.* tag; tag it (git tag -a vX.Y.Z -m notes) or pass --version"
+fi
+version=${version#v}
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version '$version' is not X.Y.Z"
+tagged=$(git rev-parse -q --verify "refs/tags/v$version^{commit}" || true)
+[[ -n "$tagged" ]] || die "no tag v$version"
+[[ "$tagged" == "$head" ]] || die "v$version names $tagged, not HEAD ($head); check out the tag"
+out=${TABLETOP_RELEASE_OUT:-$root/build/release/$version}
+echo "release v$version at ${head:0:12}, deploy $deploy, output $out"
+
+if [[ $skip_tests == 0 ]]; then
+  step "Build and test"
+  run dotnet build
+  run dotnet test
+  run dotnet run --project sim -- suite
+  run ./scripts/check-client
+fi
+
+step "Web app"
+run npm --prefix web ci --no-audit --no-fund
+if [[ $skip_tests == 0 ]]; then run npm --prefix web run check; run npm --prefix web test; fi
+blob_origin=""
+if [[ -n "${TABLETOP_S3_PUBLIC_ENDPOINT:-}" ]]; then blob_origin=$(sed -E 's#^([a-z]+://[^/]+).*#\1#' <<< "$TABLETOP_S3_PUBLIC_ENDPOINT"); fi
+[[ $deploy == none || -n "$blob_origin" ]] || die "TABLETOP_S3_PUBLIC_ENDPOINT is not set (the web build's CSP names the blob origin)"
+run env ${blob_origin:+TABLETOP_BLOB_ORIGIN="$blob_origin"} npm --prefix web run build
+if [[ -n "${TABLETOP_WEB_ROOT:-}" ]]; then
+  run mkdir -p "$TABLETOP_WEB_ROOT"
+  run rsync -a --delete "$root/web/build/" "$TABLETOP_WEB_ROOT/"
+else echo "TABLETOP_WEB_ROOT unset: web/build is built, not installed"; fi
+
+if [[ $skip_client == 0 ]]; then
+  step "Client builds"
+  run mkdir -p "$out"
+  DRY_RUN=$dry "$root/scripts/release-client" all "$version" "$out"
+fi
+
+healthy() {   # <name> <url>: up to 120 s
+  [[ $dry == 1 ]] && { echo "+ wait for $2"; return; }
+  for _ in $(seq 120); do curl -fsS -m 2 "$2" >/dev/null 2>&1 && { echo "$1 healthy"; return; }; sleep 1; done
+  die "$1 did not answer $2 within 120 s"
+}
+
+case $deploy in
+  docker)
+    step "Deploy (docker)"
+    # migrate runs first on every up; management starts after it exits 0, game after management is healthy.
+    run env TABLETOP_VERSION="$version" docker compose --env-file "$env_file" -f deploy/docker-compose.prod.yml up -d --build
+    healthy management http://127.0.0.1:5100/healthz
+    healthy game http://127.0.0.1:5200/healthz ;;
+  systemd)
+    step "Deploy (systemd)"
+    install_dir=${TABLETOP_INSTALL_DIR:-/opt/tabletop}
+    stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
+    run dotnet publish server/management -c Release -o "$stage/management"
+    run dotnet publish server/game -c Release -o "$stage/game"
+    run systemctl stop tabletop-game tabletop-management
+    run rsync -a --delete "$stage/management/" "$install_dir/management/"
+    run rsync -a --delete "$stage/game/" "$install_dir/game/"
+    run systemctl restart tabletop-migrate        # Tabletop.Management --migrate as the owner role (/etc/tabletop/migrate.env)
+    run systemctl start tabletop-management tabletop-game
+    healthy management http://127.0.0.1:5100/healthz
+    healthy game http://127.0.0.1:5200/healthz ;;
+  none) ;;
+esac
+
+step "Done"
+echo "v$version (${head:0:12})"
+[[ $skip_tests == 1 ]] && echo "  tests:   skipped" || echo "  tests:   build, unit suite, rules suite, check-client, web check and tests"
+[[ $skip_client == 1 ]] && echo "  client:  skipped" || echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"
+echo "  web:     ${TABLETOP_WEB_ROOT:-web/build (not installed)}"
+echo "  servers: $deploy"
+[[ $dry == 1 ]] && echo "  (dry run: nothing changed)"
+exit 0
