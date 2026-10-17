@@ -50,11 +50,11 @@ Modified, not created: `Rules/IGameRules.cs` (the interpreter's nine members), `
 - **The army-book generator.** `scripts/ArmyBooks` (`./scripts/army-books`) translates Army Forge's
   books into the `*.book.json` and generated `*.part.json` files this module embeds; it is repo-level
   support, not part of the module ([the spell library](../../superpowers/specs/2026-10-02-spell-library-design.md) → The generator).
-- **Buildings as targets, a `Takedown` weapon's *resolved as if it was a unit of 1*, advanced casting's three
-  optional modules, and the two extra effect durations the optional extra actions need.** Recorded,
-  not built. A `Takedown` group names the model its wounds land on (the plan's ruling 7), offers only models
-  its weapon reaches and sees with the target's own models ignored, and reads cover off that model alone; `Blast`'s
-  cap and the defence roll still read the whole target unit. A model-target spell is resolved as a unit of one: `GfAttack.TakedownModel`
+- **Buildings as targets, advanced casting's three optional modules, and the two extra effect durations the
+  optional extra actions need.** Recorded, not built. A `Takedown` group (p.14, *"resolved as if it was a unit of
+  [1]"*) names the model its wounds land on (the plan's ruling 7), offers only models its weapon reaches and sees
+  with the target's own models ignored, and reads cover, `Blast`'s cap (one model) and the defence roll's `Defense`
+  off that model alone. A model-target spell is resolved as a unit of one: `GfAttack.TakedownModel`
   reads the model off the casting frame's `targets` answer, its wounds go to that model with no allocation, and
   `Blast` is capped at one model.
 

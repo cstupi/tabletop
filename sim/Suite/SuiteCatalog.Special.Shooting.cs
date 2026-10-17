@@ -1,4 +1,5 @@
 using Tabletop.Protocol;
+using Tabletop.Sim.Answers;
 using Tabletop.Sim.Scenarios;
 
 namespace Tabletop.Sim.Suite;
@@ -119,6 +120,52 @@ static partial class SpecialGames
                         return order.SequenceEqual(order.Order()) ? null : $"resolved in the order {string.Join(", ", v.Select(a => a.Weapon))}";
                     })),
             ]);
+    }
+
+    /// <summary>
+    /// Takedown, Blast, Tough, Hero: beside a plain Frag Launcher (Blast(3)), Red's two Seeker Launchers (Blast(3), Takedown) pick Blue's Hero (Tough(3), its own Quality 3+ and Defense 2+ in a unit on 4+/5+)
+    /// while it lives, any model after. The pick is "resolved as if it was a unit of [1]", so Blast's cap is one model and the Hero blocks
+    /// at its own Defense.
+    /// </summary>
+    static TestGame TakedownPicksOne()
+    {
+        const string name = "special-takedown-picks-one";
+        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(24, 30).Scripted(PickTheHero)
+                .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Seeker Launcher", 24, 2, Rule("Blast", 3), Rule("Takedown")), Gun("Frag Launcher", 24, 1, Rule("Blast", 3))], unitStats: Stats(4, 4))
+                .Army("Blue", 1, 5, weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5),
+                    models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(3, 2))])
+                .Build(),
+            ["Takedown", "Blast", "Tough", "Hero"],
+            [
+                Exact("p.14 Takedown: \"resolved as if it was a unit of [1]\"; p.13 Blast(X): \"X is up to as many hits as models in the target unit\" (one)", ["Takedown", "Blast"], run =>
+                    Each(Attacks(run).Where(a => a.Weapon == "Seeker Launcher" && a.Pick?.Answer is SelectedPieces && Hits(a.Hit) > 0 && a.Block is not null), "a picked Seeker Launcher hit", a =>
+                    {
+                        var dice = a.Block!.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count);
+                        return Value(a.Hit!, "hit_multiplier") == 1 && dice == Hits(a.Hit) ? null
+                            : $"{Hits(a.Hit)} hits on the picked model: multiplier {Value(a.Hit!, "hit_multiplier")}, {dice} defense dice";
+                    })),
+                Exact("p.14 Takedown: \"resolved as if it was a unit of [1]\"; p.14 Hero: \"must use the unit's Defense until all other models have been killed\" (the picked Hero alone: its own 2+)", ["Takedown", "Hero"], run =>
+                {
+                    var hero = run.Final.Models.Values.Single(m => UnitName(run, m.UnitId) == "Blue unit 1" && m.Slot.Properties.Any(p => p.Name == "Hero")).Id;
+                    return Each(Attacks(run).Where(a => a.Weapon == "Seeker Launcher" && a.Block is not null && (a.Pick?.Answer as SelectedPieces)?.PieceIds.SingleOrDefault() == hero)
+                        .SelectMany(a => a.Block!.Rolls.Where(r => r.Roll == "defense")), "a defense roll by the picked Hero", r =>
+                        r.Threshold == 2 ? null : $"defense {Show(r)} is not at the Hero's own 2+");
+                }),
+            ]);
+    }
+
+    /// <summary>ShootAndStrike, and a takedown pick names Blue's Hero whenever it is offered.</summary>
+    static AnswerScript PickTheHero
+    {
+        get
+        {
+            var script = AnswerScript.Build();
+            for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
+            return script
+                .Match("takedown_target", (ask, p) => ask.Legal is PieceSelection s && s.Eligible.FirstOrDefault(id => p.Models[id].Slot.Properties.Any(r => r.Name == "Hero")) is var h && h != Guid.Empty
+                    ? new SelectedPieces([h]) : null)
+                .Build();
+        }
     }
 
     /// <summary>Relentless, Surge, Reliable, Stealth: a long-range gunline across a 48" table at a squad that is hard to see.</summary>
