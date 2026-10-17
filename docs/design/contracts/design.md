@@ -651,7 +651,7 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 | Direction | Kinds |
 | --- | --- |
 | Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`) |
-| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds)`) |
+| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds, DeployInside)`) |
 | Both | `presence`, `ping` |
 
 Sixteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,

@@ -73,10 +73,10 @@ public static partial class GfMoves
         return (moves.Any(r => r.To is Inside), moves.Any(r => r.From is Inside));
     }
 
-    /// <summary>p.15: a model that can hold others — `Transport` is on it. The (X) is carried and never read; game flow rules capacity unenforced. The name lives here because `Effects/` may not name an OPR rule (constraint 1, Task 18).</summary>
+    /// <summary>p.15: a model that can hold others — `Transport` is on it. The (X) is read only for deploying inside (GrimdarkFutureRules.MayDeployInside); game flow leaves capacity unenforced in play. The name lives here because `Effects/` may not name an OPR rule (constraint 1, Task 18).</summary>
     public static bool IsContainer(GameState state, Guid modelId) => Lookup.ModelParameter(state, modelId, GfNames.Transport) is not null;
 
-    /// <summary>p.15: a container this unit may be inside — a Transport on the table belonging to another unit of the unit's team. Capacity is not checked (game flow).</summary>
+    /// <summary>p.15: a container this unit may be inside — a Transport on the table belonging to another unit of the unit's team. Capacity is not checked in play (game flow); deploying inside is (GrimdarkFutureRules.MayDeployInside).</summary>
     public static bool IsFriendlyContainer(GameState state, Guid unit, Guid containerModelId) =>
         state.Projection.Models.TryGetValue(containerModelId, out var c) && c.Location is OnTable && c.UnitId != unit && IsContainer(state, c.Id)
         && Teams.Of(state, c.UnitId) is { } team && team == Teams.Of(state, unit);

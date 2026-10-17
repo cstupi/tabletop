@@ -779,7 +779,7 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   dice runs with the step gate on. A fix that never meets its roll fails the game.
 - **Scripting.** Ids are minted at compile time, so a game's script picks by name: `ScriptBuilder.Match` with `AskPicks`
   (activate a named unit's action, cast a named spell, target a named unit). Set-aside units and per-model entries are
-  scenario fields (`ScenarioArmy.SetAside`, `ScenarioArmy.Models`).
+  scenario fields (`ScenarioArmy.SetAside`, `ScenarioArmy.Passengers`, `ScenarioArmy.Models`).
 - **Known defects.** A game an engine defect blocks keeps its failing check and is pinned (`TestGame.Known`): a check and
   the reason text the defect produces, matched against each failure line. The report files matching failures under the defect id, counts the game apart from
   unexpected failures, and lists every pin that no longer fails.
@@ -850,7 +850,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | Type | Members |
 | --- | --- |
 | `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)`, `MoveGoal? Goal { init; }`, `AnswerPolicy? Policy()` (null when script-only) |
-| `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats, string? ArmyBook = null)` | `IRL<int> SetAside { init; }` (unit ordinals set aside before deployment), `IRL<ScenarioModel> Models { init; }` |
+| `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats, string? ArmyBook = null)` | `IRL<int> SetAside { init; }` (unit ordinals set aside before deployment), `IRD<int,int> Passengers { init; }` (unit ordinal to the Transport unit ordinal it deploys inside), `IRL<ScenarioModel> Models { init; }` |
 | `sealed record ScenarioModel(int Unit, int Model, IRL<ScenarioRule>? Rules, IRD<string,string>? Stats, IRL<ScenarioWeapon>? Weapons)` | one model's own rules, stats and weapons (1-based ordinals) |
 | `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)` | |
 | `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |

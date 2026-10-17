@@ -507,9 +507,9 @@ cast reached by any other route would not bound correctly.
 
 ## Containment
 
-Three rules, one location concept, and no capacity check anywhere. Game flow rules that
-explicitly: *"Capacity is not enforced."* `Transport(X)`'s parameter is carried by the catalog
-entry and read by nothing. `GfMoves.IsContainer` asks only whether the name is there.
+Three rules, one location concept. Embarking in play checks no capacity (game flow). `Transport(X)`'s
+parameter is read only when a unit is put in a Transport before deployment (`GrimdarkFutureRules.MayDeployInside`,
+p.15's spaces; passengers spec). `GfMoves.IsContainer` asks only whether the name is there.
 
 ### Embarking and disembarking inside a move
 

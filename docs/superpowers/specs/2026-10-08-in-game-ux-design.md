@@ -38,7 +38,9 @@ The table fills the window. Every part floats over it:
 
 The play-time side panel (`TeamPanel`s, `AskPanel`, `LogPanel`, the Animate checkbox) is removed from the play
 screen. Right-click menus (`PieceMenu`, `MenuModel`) stay as they are; the team menu moves from the team panel's
-right-click to the header's team names.
+right-click to the header's team names. A roster row's right-click offers Set aside / Return to deployment, Put in
+transport and Take out of transport; a moving model's offers Board transport while my move Ask offers a container
+(spec `2026-10-16-passengers-design.md`).
 
 ## Header
 
@@ -248,12 +250,14 @@ policy, as it does for answers:
 - Legal: every relocation moves a model of the unit the actor's team last picked in a deploy answer (`deploy`,
   `deploy_scouts`, `deploy_ambusher`) from the shelf to the table while that unit still has models on the shelf; this
   is the state in which `GfRules.Deployment` waits (`HookWaiting`). It covers the client's *Deployment placement* and
-  the sim's `HandPlacement`. Also legal while that pick is live: a model of any unit from the shelf inside a container
+  the sim's `HandPlacement`. Also legal, at any time: a model of the actor's team from the shelf inside a container
   the rules allow (`IGameRules.MayDeployInside(state, unit, container, deploying)`; Grimdark Future, p.15: *"units
-  inside Transports are deployed at the same time as the Transport"*, so the container is a Transport of the picked
-  unit, on the table or still on the shelf, of the actor's team, the boarding unit never deployed (no model ever placed on the table or removed to the shelf) and set aside exactly
-  when the Transport is; it then counts as deployed, and its set-aside clears with the Transport's).
-  A Transport deployed at an earlier pick takes no one.
+  inside Transports are deployed at the same time as the Transport"*, so the container is a Transport of the same
+  team whose unit is being placed now or has never deployed, the boarding unit never deployed and set aside exactly
+  when the Transport is, with room for it by p.15's spaces; it then counts as deployed with the Transport, and its
+  set-aside clears with the Transport's), and back out to the shelf from such a Transport still on the shelf. A
+  Transport deployed at an earlier pick takes no one; placing a Transport whose occupants the rules no longer allow is
+  a breach (spec `2026-10-16-passengers-design.md`).
 - Otherwise a breach, rule `hand_move`, `StrictRefuses(Illegal)`: detail `"{unit} deployed inside a container the
   rules do not allow"` for a disallowed container, `"{unit} moved by hand outside a move step"` for anything else.
   `silent` accepts, `warn` accepts with the warning, `strict` refuses.
@@ -298,12 +302,15 @@ client is told rather than reading a rule name:
 
 ```csharp
 // Server → client
-public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds) : SocketMessage;
+public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds,
+    IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null) : SocketMessage;
 ```
 
-`IGameRules.MaxWounds(GameState, Guid modelId)` answers per model. The session sends `ModelFacts` for every model in
-play to a client on connect once the game is playing, and broadcasts it after a batch whenever any value differs
-from the last one sent. Hover wounds, the models strip and casualty pips read it.
+`IGameRules.MaxWounds(GameState, Guid modelId)` answers per model. `DeployInside` is `IGameRules.DeployInside(state)`:
+for each unit that may be put in a Transport now, the Transport models it may go in (passengers spec). The session
+sends `ModelFacts` for every model in play to a client on connect once the game is playing, and broadcasts it after a
+batch whenever any value differs from the last one sent. Hover wounds, the models strip and casualty pips read
+`MaxWounds`; the roster's Put in transport reads `DeployInside`.
 
 ### Rule text
 
