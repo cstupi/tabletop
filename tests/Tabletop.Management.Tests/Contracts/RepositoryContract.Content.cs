@@ -20,6 +20,20 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Army_count_is_the_owners_armies()
+    {
+        var owner = await NewAccount();
+        Assert.Equal(0, await Armies.Count(owner));
+        var army = SmallArmy();
+        await Armies.Insert(owner, army);
+        await Armies.Insert(owner, SmallArmy("Second"));
+        await Armies.Insert(await NewAccount(), SmallArmy());
+        Assert.Equal(2, await Armies.Count(owner));
+        await Armies.Delete(owner, army.Id);
+        Assert.Equal(1, await Armies.Count(owner));
+    }
+
+    [Fact]
     public async Task Army_list_pages_ascending_by_id_after_the_cursor()
     {
         var owner = await NewAccount();

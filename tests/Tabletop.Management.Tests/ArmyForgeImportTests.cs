@@ -146,7 +146,8 @@ public class ArmyForgeImportTests
     {
         var list = Fixture();
         var host = list.Units.First(u => !u.Combined && u.JoinToUnit is null);
-        var hero = host with { SelectionId = "hero", Name = "Visiting Hero", Size = 1, JoinToUnit = host.SelectionId, ArmyId = "another-book" };
+        var hero = host with { SelectionId = "hero", Name = "Visiting Hero", Size = 1, JoinToUnit = host.SelectionId, ArmyId = "another-book",
+            Loadout = host.Loadout?.Select(l => l with { Count = 1 }).ToList() };
         var army = ArmyForgeImport.ToArmy(list with { Units = [.. list.Units, hero] }, "c2-6YsWRH3py", Catalog);
         var unit = army.Units.Single(u => u.Models.Any(m => m.Name == "Visiting Hero 1"));
         Assert.Equal("another-book", unit.Models.Single(m => m.Name == "Visiting Hero 1").ArmyBook);
@@ -200,5 +201,98 @@ public class ArmyForgeImportTests
         Assert.Equal(Base.Rect(100 / 25.4, 60 / 25.4), ArmyForgeImport.ParseBase("100X60", BaseSet.Square));
         Assert.Null(ArmyForgeImport.ParseBase("", BaseSet.Square));
         Assert.Null(ArmyForgeImport.ParseBase("big", BaseSet.Round));
+    }
+
+    static string Entry(string id = "a", string name = "Squad", int size = 5, string quality = "4", string defense = "\"4+\"", string rules = "[]", string loadout = "[]", string bases = """{"round":"25","square":"20"}""") =>
+        $$"""{"selectionId":"{{id}}","name":{{JsonSerializer.Serialize(name)}},"size":{{size}},"quality":{{quality}},"defense":{{defense}},"rules":{{rules}},"combined":false,"joinToUnit":null,"bases":{{bases}},"loadout":{{loadout}}}""";
+    static AfList ListOf(params string[] entries) => ListNamed("T", entries);
+    static AfList ListNamed(string name, params string[] entries) => ArmyForgeClient.Parse($$"""{"id":"t","name":{{JsonSerializer.Serialize(name)}},"gameSystem":"gf","units":[{{string.Join(",", entries)}}]}""");
+    static string Weapon(string name = "Rifle", int count = 5, string range = "24", string attacks = "1", string rules = "[]") =>
+        $$"""{"name":{{JsonSerializer.Serialize(name)}},"type":"ArmyBookWeapon","count":{{count}},"range":{{range}},"attacks":{{attacks}},"specialRules":{{rules}}}""";
+    static string Refused(AfList list, string source = "x") => Assert.Throws<InvalidArmyException>(() => ArmyForgeImport.ToArmy(list, source, Catalog)).Message;
+
+    [Fact]
+    public void Quality_and_defense_are_2_to_6_as_numbers_or_plus_strings()
+    {
+        var unit = ArmyForgeImport.ToArmy(ListOf(Entry(quality: "2", defense: "\"6+\"")), "x", Catalog).Units[0];
+        Assert.Equal(("2+", "6+"), (unit.Stats["Quality"], unit.Stats["Defense"]));
+        Assert.Equal("Unit 'Squad': quality 7 is outside 2–6.", Refused(ListOf(Entry(quality: "7"))));
+        Assert.Equal("Unit 'Squad': defense 1 is outside 2–6.", Refused(ListOf(Entry(defense: "\"1+\""))));
+        Assert.Equal("Unit 'Squad': quality must be a number from 2 to 6.", Refused(ListOf(Entry(quality: "\"best\""))));
+        Assert.Equal("Unit 'Squad': quality must be a number from 2 to 6.", Refused(ListOf(Entry(quality: "4.5"))));
+        Assert.Equal("Unit 'Squad': defense must be a number from 2 to 6.", Refused(ListOf(Entry(defense: "null"))));
+    }
+
+    [Fact]
+    public void Sizes_unit_counts_and_model_totals_are_bounded()
+    {
+        Assert.Equal("Unit 'Squad': size 51 is outside 1–50.", Refused(ListOf(Entry(size: 51))));
+        Assert.Equal("Unit 'Squad': size 0 is outside 1–50.", Refused(ListOf(Entry(size: 0))));
+        Assert.Equal(50, ArmyForgeImport.ToArmy(ListOf(Entry(size: 50)), "x", Catalog).Units[0].Models.Count);
+        Assert.Equal(100, ArmyForgeImport.ToArmy(ListOf(Enumerable.Range(0, 100).Select(i => Entry(id: $"u{i}", size: 1)).ToArray()), "x", Catalog).Units.Count);
+        Assert.Equal("The list has 101 units; at most 100 import.", Refused(ListOf(Enumerable.Range(0, 101).Select(i => Entry(id: $"u{i}", size: 1)).ToArray())));
+        Assert.Equal("The list has 510 models; at most 500 import.", Refused(ListOf(Enumerable.Range(0, 51).Select(i => Entry(id: $"u{i}", size: 10)).ToArray())));
+    }
+
+    [Fact]
+    public void Weapon_attacks_counts_and_ranges_are_bounded()
+    {
+        var w = ArmyForgeImport.ToArmy(ListOf(Entry(loadout: $"[{Weapon(range: "120", attacks: "100", count: 20)}]")), "x", Catalog).Units[0].Models[0].Weapons;
+        Assert.Equal(("120\"", "100"), (Assert.Single(w).Stats["Range"], w[0].Stats["Attacks"]));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' has 101 attacks; the range is 1–100.", Refused(ListOf(Entry(loadout: $"[{Weapon(attacks: "101")}]"))));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' has 0 attacks; the range is 1–100.", Refused(ListOf(Entry(loadout: $"[{Weapon(attacks: "0")}]"))));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' count 21 is outside 0–20.", Refused(ListOf(Entry(loadout: $"[{Weapon(count: 21)}]"))));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' count -1 is outside 0–20.", Refused(ListOf(Entry(loadout: $"[{Weapon(count: -1)}]"))));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' range 121 is outside 0–120.", Refused(ListOf(Entry(loadout: $"[{Weapon(range: "121")}]"))));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' range must be a whole number of inches.", Refused(ListOf(Entry(loadout: $"[{Weapon(range: "12.5")}]"))));
+        Assert.Equal("Unit 'Squad': weapon 'Rifle' range must be a whole number of inches.", Refused(ListOf(Entry(loadout: $"[{Weapon(range: "\"12\"")}]"))));
+        var melee = ArmyForgeImport.ToArmy(ListOf(Entry(loadout: $"[{Weapon(name: "A", range: "null")},{Weapon(name: "B", range: "0")}]")), "x", Catalog).Units[0].Models[0].Weapons;
+        Assert.All(melee, x => Assert.False(x.Stats.ContainsKey("Range")));
+    }
+
+    [Fact]
+    public void Rule_ratings_are_0_to_50_wherever_a_rule_appears()
+    {
+        Assert.Equal(50, ArmyForgeImport.ToArmy(ListOf(Entry(rules: """[{"name":"Tough","rating":50}]""")), "x", Catalog).Units[0].Models[0].Properties[0].Parameter);
+        Assert.Equal("Unit 'Squad': rule 'Tough' rating 51 is outside 0–50.", Refused(ListOf(Entry(rules: """[{"name":"Tough","rating":51}]"""))));
+        Assert.Equal("Unit 'Squad': rule 'Tough' rating -1 is outside 0–50.", Refused(ListOf(Entry(rules: """[{"name":"Tough","rating":"-1"}]"""))));
+        Assert.Equal("Unit 'Squad': rule 'AP' rating 99 is outside 0–50.", Refused(ListOf(Entry(loadout: $$"""[{{Weapon(rules: """[{"name":"AP","rating":99}]""")}}]"""))));
+        Assert.Equal("Unit 'Squad': rule 'Shielded' rating 51 is outside 0–50.",
+            Refused(ListOf(Entry(loadout: """[{"name":"Shield","type":"ArmyBookItem","count":2,"content":[{"name":"Shielded","rating":51}]}]"""))));
+    }
+
+    [Fact]
+    public void Bases_and_heights_are_bounded_in_inches_after_conversion()
+    {
+        Assert.Equal("Unit 'Squad': base 10x10 mm is outside 0.4–12 inches.", Refused(ListOf(Entry(bases: """{"round":"10x10"}"""))));
+        Assert.Equal("Unit 'Squad': base 400 mm is outside 0.4–12 inches.", Refused(ListOf(Entry(bases: """{"round":"400"}"""))));
+        Assert.Equal("Unit 'Squad': base NaN mm is outside 0.4–12 inches.", Refused(ListOf(Entry(bases: """{"round":"NaN"}"""))));
+        var big = ArmyForgeImport.ToArmy(ListOf(Entry(bases: """{"round":"300"}""")), "x", Catalog).Units[0].Models[0];
+        Assert.Equal(Base.Circle(300 / 25.4), big.Base);
+    }
+
+    [Fact]
+    public void Names_and_the_source_are_checked_text()
+    {
+        var name65 = new string('n', 65);
+        Assert.Equal("Army name is at most 64 characters.", Refused(ListNamed(name65, Entry())));
+        Assert.Equal("Army name contains a control or bidirectional formatting character.", Refused(ListNamed("A\u202eB", Entry())));
+        Assert.Equal("Unit name is at most 64 characters.", Refused(ListOf(Entry(name: name65))));
+        Assert.Equal("Unit name is required.", Refused(ListOf(Entry(name: " "))));
+        Assert.Equal("Unit 'Squad': weapon name contains a control or bidirectional formatting character.", Refused(ListOf(Entry(loadout: $"[{Weapon(name: "Ri\u0007fle")}]"))));
+        Assert.Equal("Unit 'Squad': rule name is at most 64 characters.", Refused(ListOf(Entry(rules: $$"""[{"name":"{{name65}}"}]"""))));
+        Assert.Equal("Unit 'Squad': item name is at most 64 characters.",
+            Refused(ListOf(Entry(loadout: $$"""[{"name":"{{name65}}","type":"ArmyBookItem","count":1,"content":[]}]"""))));
+        Assert.Equal("Unit 'Squad': rule name is required.",
+            Refused(ListOf(Entry(loadout: """[{"name":"Shield","type":"ArmyBookItem","count":1,"content":[{"name":null}]}]"""))));
+        Assert.Equal("source is at most 512 characters.", Refused(ListOf(Entry()), new string('s', 513)));
+    }
+
+    [Fact]
+    public void A_list_with_a_repeated_or_missing_selection_id_is_refused()
+    {
+        Assert.Equal("The list names entry 'a' twice.", Refused(ListOf(Entry(id: "a"), Entry(id: "a"))));
+        Assert.Equal("Every entry needs a selectionId.", Refused(ArmyForgeClient.Parse("""{"id":"t","name":"T","gameSystem":"gf","units":[{"name":"S","size":1,"quality":4,"defense":4}]}""")));
+        Assert.Equal("The list has no units.", Refused(ArmyForgeClient.Parse("""{"id":"t","name":"T","gameSystem":"gf"}""")));
     }
 }

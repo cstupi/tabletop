@@ -86,6 +86,12 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
             from army a where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) order by a.id limit @limit", new { ownerId, after = page.After, limit = page.Limit })).ToList();
     }
 
+    public async Task<int> Count(Guid ownerId)
+    {
+        await using var c = await db.Open();
+        return await c.ExecuteScalarAsync<int>("select count(*)::int from army where owner_id = @ownerId", new { ownerId });
+    }
+
     public async Task<Army?> Patch(Guid ownerId, Guid id, PatchArmyRequest p)
     {
         await using var c = await db.Open();
