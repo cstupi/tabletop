@@ -45,3 +45,6 @@ Thumbs.db
 # Per-plan git worktrees (superpowers:using-git-worktrees)
 .worktrees/
 /recordings/
+
+# The export presets are checked in; export credentials never are.
+!client/export_presets.cfg

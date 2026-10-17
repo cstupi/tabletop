@@ -6,6 +6,7 @@ using Tabletop.Management.Games;
 using Tabletop.Management.Http;
 using Tabletop.Management.Identity;
 using Tabletop.Management.Persistence;
+using Tabletop.Management.Releases;
 
 DotEnv.LoadForDevelopment(Directory.GetCurrentDirectory(), DotEnv.ProcessEnvironment());
 var builder = WebApplication.CreateBuilder(args.Where(a => a != MigrateCommand.Flag).ToArray());
@@ -49,6 +50,8 @@ builder.Services.AddSingleton<IArmyRepository, ArmyRepository>();
 builder.Services.AddSingleton<ILayoutRepository, LayoutRepository>();
 builder.Services.AddSingleton<IGameRepository, GameRepository>();
 builder.Services.AddSingleton<Sessions>();
+builder.Services.AddSingleton(sp => new Tabletop.Management.Releases.ClientReleases(sp.GetRequiredService<IBlobStore>(), TimeProvider.System,
+    sp.GetRequiredService<ILogger<Tabletop.Management.Releases.ClientReleases>>()));
 if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
 var app = builder.Build();
@@ -90,6 +93,7 @@ app.MapLayouts();
 app.MapProperties();
 app.MapGames();
 app.MapManifest();
+app.MapClientReleases();
 if (devMode) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();

@@ -20,6 +20,7 @@ public partial class Main : Node
     public override void _Ready()
     {
         Instance = this;
+        GetWindow().Title = $"Tabletop {BuildInfo.Current.Version}";
         var userDir = OS.GetUserDataDir();
         _settingsPath = Path.Combine(userDir, "settings.json");
         var settings = ClientSettings.Load(_settingsPath);

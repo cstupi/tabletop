@@ -1072,6 +1072,15 @@ source at most 512. An account holds at most 200 armies, 200 layouts and 200 fol
 armies carry their own caps (§6, §8, §9). Migration `016_text_limits.sql` repeats the length limits as
 `not valid` check constraints.
 
+### 15. Client releases
+
+Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. `Releases/ClientReleases` reads
+`releases/latest.json` from `IBlobStore`, at most once a minute (an absent or unreadable object is cached as well).
+`GET /v1/client/latest` answers `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`, one
+`ClientDownload(Platform, FileName, Size, Sha256, Url)` per known platform (`windows`, `macos`, `linux`) whose key lies
+under `releases/`, each URL a presigned GET for 15 minutes. No manifest is `404`, an unreadable one `502`. Management
+never writes, lists or prunes `releases/`; `scripts/release-client` publishes there.
+
 ## Key decisions
 
 ### Contested decisions
@@ -1169,6 +1178,7 @@ armies carry their own caps (§6, §8, §9). Migration `016_text_limits.sql` rep
 | `POST /v1/games/{id}/leave` | → `204` | participant |
 | `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}` | → `204` | creator |
 | `GET /v1/games/{id}/assets` | → `Manifest(Assets, ExpiresAt)` | participant |
+| `GET /v1/client/latest` | → `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`; `404` before the first release (§15) | bearer |
 | **`POST /v1/dev/sessions`, development only, not a product endpoint** | `DevSessionRequest(Name, Roles?)` → `SessionResponse` | none, and the route exists only under `IHostEnvironment.IsDevelopment()` |
 
 The last route is the simulator's token source. Nothing else calls it, no client and no web app may,

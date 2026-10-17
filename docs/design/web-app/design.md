@@ -856,6 +856,18 @@ The web app wears the Godot client's two themes, Sci-fi (default) and Fantasy
   the hash-mode CSP admits it, sets `data-theme` before first paint; a test runs it against
   `loadTheme`. `prefers-reduced-motion` turns off transitions and the loading pulse.
 
+### 14. Download
+
+Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. `/download`, signed in, a header link (icon
+only under 40rem, where the account name gives way with an ellipsis so the links keep one row). It reads
+`api.client.latest()`: the version, date and notes, a notice that the builds are unsigned, then one panel per
+platform: name, architecture, a download link with the size, the file name and SHA-256 (a plain monospace: both are
+case-sensitive), and the first-run steps (`lib/download/platforms.ts` → `FIRST_RUN`: SmartScreen's More info → Run
+anyway; macOS right-click → Open, then Privacy & Security → Open Anyway; Linux `chmod +x`). `detectPlatform` (the
+`userAgentData` platform hint, else the user agent; phones, tablets and Chromebooks get none) puts this computer's
+build first and marks it. The links are presigned for 15 minutes; a click within a minute of expiry fetches fresh ones
+first. A `404` is the empty state: no build published yet.
+
 ## Key decisions
 
 ### Decided by a spec
@@ -927,6 +939,7 @@ surface*. `client.ts` has one function per row and no others.
 | `api.assets` | `GET /v1/assets?limit&after&kind`, `POST /v1/assets`, `GET/PATCH/DELETE /{id}`, `POST /{id}/confirm`, `GET /{id}/download`, `GET/PUT /{id}/volumes` | `CreateAssetRequest`, `PatchAssetRequest`, `Volume[]` → `Page<AssetDto>`, `CreateAssetResponse(Asset, UploadUrl?)`, `ConfirmResponse(Asset, Triangles?, Warning?)`, `DownloadResponse(Url, ExpiresAt)`, `TerrainVolume[]` |
 | `api.folders` | `GET`, `POST /v1/folders`, `PATCH/DELETE /{id}`, `PUT/DELETE /{id}/assets/{assetId}` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)`; four of them `204` with no body |
 | `api.armies` | `POST /v1/armies/import`, `GET /v1/armies?limit&after`, `GET/PATCH/DELETE /{id}` | `ImportRequest(Source, Bases)`, `PatchArmyRequest(Name?, Units?, Slots?)` → `Army`, `Page<ArmySummary>`, `204` |
+| `api.client` | `GET /v1/client/latest` | → `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`; `404` before the first release |
 | **Not consumed** | `/v1/games*`, `/v1/layouts*`, `/v1/properties`, `/v1/games/{id}/assets`, `/healthz` | The preparation-versus-play line |
 
 ### Consumed as value shapes

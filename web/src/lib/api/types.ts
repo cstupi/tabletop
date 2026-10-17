@@ -52,6 +52,11 @@ export interface ConfirmResponse { asset: AssetDto; triangles?: number; warning?
 export interface PatchAssetRequest { name?: string; scale?: number; orientation?: Orientation; modelledBase?: Base }
 export interface DownloadResponse { url: string; expiresAt: string }
 
+// Client releases (GET /v1/client/latest)
+export type ClientPlatform = 'windows' | 'macos' | 'linux';
+export interface ClientDownload { platform: ClientPlatform; fileName: string; size: number; sha256: string; url: string }
+export interface ClientRelease { version: string; date: string; notes: string; protocolVersion?: number; downloads: ClientDownload[]; expiresAt: string }
+
 // Folders
 export interface FolderDto { id: Guid; parentId?: Guid; name: string; assetIds: Guid[] }
 export interface FolderRequest { name: string; parentId: Guid | null }

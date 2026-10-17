@@ -9,6 +9,17 @@
     <RootNamespace>Tabletop</RootNamespace>
   </PropertyGroup>
 
+  <!-- A release build sets TabletopVersion (the tag without its v) and TabletopWebUrl (the web app's public origin), as
+       environment variables or -p: properties. BuildInfo reads them back; an unset one leaves a development build. -->
+  <PropertyGroup Condition="'$(TabletopVersion)' != ''">
+    <Version>$(TabletopVersion)</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="TabletopVersion" Value="$(TabletopVersion)" Condition="'$(TabletopVersion)' != ''" />
+    <AssemblyMetadata Include="TabletopWebUrl" Value="$(TabletopWebUrl)" Condition="'$(TabletopWebUrl)' != ''" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\libs\Tabletop.Geometry\Tabletop.Geometry.csproj" />
     <ProjectReference Include="..\libs\Tabletop.Content\Tabletop.Content.csproj" />

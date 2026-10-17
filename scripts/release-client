@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# The client half of a release (spec docs/superpowers/specs/2026-10-17-client-releases-design.md), shared by
+# scripts/release and .github/workflows/release.yml.
+#
+#   scripts/release-client export  <version> <out>   Godot export of the Windows, Linux and macOS presets into <out>/<platform>
+#   scripts/release-client notes   <version> <out>   <out>/notes.txt: tag v<version>'s annotation, else its CHANGELOG.md section
+#   scripts/release-client package <version> <out>   zips, sizes, SHA-256 and <out>/manifest.json (notes: RELEASE_NOTES_FILE,
+#                                                    default <out>/notes.txt)
+#   scripts/release-client upload  <version> <out>   the zips, releases/<version>/manifest.json, then releases/latest.json
+#   scripts/release-client all     <version> <out>   the four in order
+#
+# export needs GODOT (default: godot on PATH, Godot 4.7.2 .NET with its export templates), dotnet, and TABLETOP_WEB_URL (the web
+# app's public origin, which the build reaches management and the game socket through). upload needs aws and RELEASE_S3_ENDPOINT,
+# RELEASE_S3_BUCKET, RELEASE_S3_ACCESS_KEY, RELEASE_S3_SECRET_KEY; RELEASE_S3_REGION (default us-east-1; R2 takes auto) and
+# RELEASE_S3_PREFIX (default releases, which management reads; a test run names another) are optional.
+# DRY_RUN=1 prints the commands that change anything instead of running them.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+platforms=(windows linux macos)
+
+die() { echo "release-client: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found${2:+: $2}"; }
+run() { if [[ "${DRY_RUN:-}" == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
+
+preset_of() { case "$1" in windows) echo Windows ;; linux) echo Linux ;; macos) echo macOS ;; esac; }
+target_of() { case "$1" in windows) echo Tabletop.exe ;; linux) echo Tabletop.x86_64 ;; macos) echo Tabletop.zip ;; esac; }
+zip_of() {   # <version> <platform>
+  case "$2" in windows) echo "tabletop-$1-windows-x86_64.zip" ;; linux) echo "tabletop-$1-linux-x86_64.zip" ;; macos) echo "tabletop-$1-macos-universal.zip" ;; esac
+}
+
+check_version() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version '$1' is not X.Y.Z (the tag without its v)"; }
+
+export_builds() {   # <version> <out>
+  local version=$1 out=$2 godot=${GODOT:-godot}
+  need "$godot" "install Godot 4.7.2 .NET and its export templates, or set GODOT"
+  need dotnet
+  [[ -n "${TABLETOP_WEB_URL:-}" ]] || die "TABLETOP_WEB_URL is not set (the web app's public origin, e.g. https://tabletop.example.org)"
+  [[ "$TABLETOP_WEB_URL" =~ ^https?://[^/]+/?$ ]] || die "TABLETOP_WEB_URL '$TABLETOP_WEB_URL' is not an origin (scheme and host, no path)"
+  # Import first: a fresh clone has no client/.godot, and the export reads the imported resources.
+  run "$godot" --headless --path "$root/client" --import
+  for p in "${platforms[@]}"; do
+    run rm -rf "$out/$p"; run mkdir -p "$out/$p"
+    run env TabletopVersion="$version" TabletopWebUrl="${TABLETOP_WEB_URL%/}" \
+      "$godot" --headless --path "$root/client" --export-release "$(preset_of "$p")" "$out/$p/$(target_of "$p")"
+    [[ "${DRY_RUN:-}" == 1 ]] && continue
+    # Godot exits 0 when the .NET step fails and ships a build with no assemblies, so check for them.
+    case "$p" in
+      macos) unzip -l "$out/$p/Tabletop.zip" | grep -q 'Contents/Resources/data_Tabletop_macos_arm64/Tabletop.dll' \
+               || die "the macOS export has no .NET assemblies; see the Godot output above" ;;
+      *) compgen -G "$out/$p/data_Tabletop_*/Tabletop.dll" >/dev/null || die "the $p export has no .NET assemblies; see the Godot output above" ;;
+    esac
+  done
+}
+
+release_notes() {   # <version> <out>: <out>/notes.txt from the tag's annotation, else CHANGELOG.md's section, else empty
+  local version=$1 out=$2 tag="v$1" notes=""
+  if [[ "$(git -C "$root" cat-file -t "refs/tags/$tag" 2>/dev/null)" == tag ]]; then
+    notes=$(git -C "$root" for-each-ref "refs/tags/$tag" --format='%(contents)' | sed '/^-----BEGIN PGP SIGNATURE-----/,$d')
+  fi
+  if [[ -z "${notes//[[:space:]]/}" && -f "$root/CHANGELOG.md" ]]; then
+    notes=$(awk -v v="$version" '
+      /^## / { if (found) exit; h = $0; sub(/^## +\[?v?/, "", h); sub(/[] ].*$/, "", h); if (h == v) { found = 1; next } }
+      found { print }' "$root/CHANGELOG.md")
+  fi
+  [[ "${DRY_RUN:-}" == 1 ]] && { echo "+ write $out/notes.txt"; return; }
+  printf '%s\n' "$notes" | sed '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$out/notes.txt"
+}
+
+package_builds() {   # <version> <out>
+  local version=$1 out=$2 entries=() p zip size sha notes
+  need zip; need sha256sum; need jq
+  for p in "${platforms[@]}"; do
+    zip=$(zip_of "$version" "$p")
+    [[ "${DRY_RUN:-}" == 1 ]] || [[ -d "$out/$p" ]] || die "$out/$p is missing; run export first"
+    run rm -f "$out/$zip"
+    if [[ "$p" == macos ]]; then run cp "$out/$p/Tabletop.zip" "$out/$zip"    # Godot's zip already holds Tabletop.app, signature intact
+    else run bash -c 'cd "$1" && zip -qr -X "$2" .' _ "$out/$p" "$out/$zip"; fi
+    [[ "${DRY_RUN:-}" == 1 ]] && continue
+    size=$(stat -c %s "$out/$zip"); sha=$(sha256sum "$out/$zip" | cut -d' ' -f1)
+    entries+=("$(jq -n --arg p "$p" --arg key "${RELEASE_S3_PREFIX:-releases}/$version/$zip" --argjson size "$size" --arg sha "$sha" \
+      '{($p): {key: $key, size: $size, sha256: $sha}}')")
+  done
+  [[ "${DRY_RUN:-}" == 1 ]] && { echo "+ write $out/manifest.json"; return; }
+  local notes_file=${RELEASE_NOTES_FILE:-$out/notes.txt}
+  notes=""; if [[ -f "$notes_file" ]]; then notes=$(cat "$notes_file"); fi
+  local protocol; protocol=$(sed -nE 's/.*const int Current = ([0-9]+);.*/\1/p' "$root/libs/Tabletop.Protocol/ProtocolVersion.cs")
+  [[ -n "$protocol" ]] || die "cannot read ProtocolVersion.Current"
+  printf '%s\n' "${entries[@]}" | jq -s --arg v "$version" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg notes "$notes" --argjson protocol "$protocol" \
+    '{version: $v, date: $date, notes: $notes, protocolVersion: $protocol, platforms: add}' > "$out/manifest.json"
+  echo "release-client: $out/manifest.json"; jq -r '.platforms | to_entries[] | "  \(.key)  \(.value.size) bytes  \(.value.sha256)"' "$out/manifest.json"
+}
+
+upload_builds() {   # <version> <out>
+  local version=$1 out=$2 prefix=${RELEASE_S3_PREFIX:-releases} v
+  need aws "install the AWS CLI v2"
+  for v in RELEASE_S3_ENDPOINT RELEASE_S3_BUCKET RELEASE_S3_ACCESS_KEY RELEASE_S3_SECRET_KEY; do [[ -n "${!v:-}" ]] || die "$v is not set"; done
+  [[ "${DRY_RUN:-}" == 1 ]] || [[ -f "$out/manifest.json" ]] || die "$out/manifest.json is missing; run package first"
+  export AWS_ACCESS_KEY_ID="$RELEASE_S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$RELEASE_S3_SECRET_KEY" AWS_DEFAULT_REGION="${RELEASE_S3_REGION:-us-east-1}"
+  # R2 and MinIO reject the CLI's default CRC checksums on some versions; send them only when the store asks.
+  export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+  local s3=(aws --endpoint-url "$RELEASE_S3_ENDPOINT" s3 cp --only-show-errors)
+  local dest="s3://$RELEASE_S3_BUCKET/$prefix"
+  # The zips, then this version's manifest, then latest.json: latest.json never names a missing object.
+  for p in "${platforms[@]}"; do run "${s3[@]}" --content-type application/zip "$out/$(zip_of "$version" "$p")" "$dest/$version/$(zip_of "$version" "$p")"; done
+  run "${s3[@]}" --content-type application/json "$out/manifest.json" "$dest/$version/manifest.json"
+  run "${s3[@]}" --content-type application/json --cache-control no-cache "$out/manifest.json" "$dest/latest.json"
+  echo "release-client: published $version to $dest/"
+}
+
+[[ $# -eq 3 ]] || die "usage: scripts/release-client export|package|upload|all <version> <out>"
+check_version "$2"
+mkdir -p "$3"; out="$(cd "$3" && pwd)"
+case "$1" in
+  export) export_builds "$2" "$out" ;;
+  notes) release_notes "$2" "$out" ;;
+  package) package_builds "$2" "$out" ;;
+  upload) upload_builds "$2" "$out" ;;
+  all) export_builds "$2" "$out"; release_notes "$2" "$out"; package_builds "$2" "$out"; upload_builds "$2" "$out" ;;
+  *) die "unknown step '$1'" ;;
+esac

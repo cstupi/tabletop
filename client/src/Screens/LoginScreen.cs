@@ -38,6 +38,7 @@ public partial class LoginScreen : Control
         _password.TextSubmitted += _ => SignIn();
         _code.TextSubmitted += _ => Run("Checking the code…", s => s.VerifyOtpAsync(_methodId!, _code.Text.Trim()));
         box.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        box.AddChild(new Label { Text = $"Version {BuildInfo.Current.Version}", ThemeTypeVariation = Variation.Dim, HorizontalAlignment = HorizontalAlignment.Center });
         _email.CallDeferred(Control.MethodName.GrabFocus);
     }
 

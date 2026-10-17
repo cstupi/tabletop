@@ -1,0 +1,112 @@
+# A pushed vX.Y.Z tag: build, test, then export the client for Windows, Linux and macOS and publish it to the blob store
+# under releases/ (spec docs/superpowers/specs/2026-10-17-client-releases-design.md). The client steps are
+# scripts/release-client, the same script scripts/release runs on the server host.
+#
+# Repository secrets: RELEASE_S3_ENDPOINT, RELEASE_S3_BUCKET, RELEASE_S3_ACCESS_KEY, RELEASE_S3_SECRET_KEY.
+# Repository variables: TABLETOP_WEB_URL (the web app's public origin, which the client build reaches the servers through);
+# RELEASE_S3_REGION (optional; R2 takes auto).
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: 4.7.2
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build
+      - run: dotnet test --no-build
+      - name: Rules suite (in process)
+        run: dotnet run --project sim -- suite
+      - run: ./scripts/check-client
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  client:
+    needs: [test, web]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the tag object (checkout leaves an annotated tag lightweight; its annotation is the release notes)
+        run: git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache Godot and its export templates
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable.mono
+          key: godot-${{ env.GODOT_VERSION }}-mono-linux-x86_64
+      - name: Install Godot ${{ env.GODOT_VERSION }} .NET and its export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot "$RUNNER_TEMP/tpl"
+          curl -fsSL -o "$RUNNER_TEMP/godot.zip" "$base/Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d ~/godot
+          curl -fsSL -o "$RUNNER_TEMP/templates.tpz" "$base/Godot_v${GODOT_VERSION}-stable_mono_export_templates.tpz"
+          unzip -q "$RUNNER_TEMP/templates.tpz" -d "$RUNNER_TEMP/tpl"
+          dest=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable.mono
+          mkdir -p "$dest"
+          mv "$RUNNER_TEMP"/tpl/templates/* "$dest/"
+      - name: Locate Godot
+        run: |
+          godot=$(find ~/godot -maxdepth 2 -type f -name "Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" | head -1)
+          test -n "$godot" || { echo "Godot binary not found under ~/godot" >&2; exit 1; }
+          chmod +x "$godot"
+          "$godot" --headless --version
+          echo "GODOT=$godot" >> "$GITHUB_ENV"
+
+      - name: Export, package and publish
+        env:
+          TABLETOP_WEB_URL: ${{ vars.TABLETOP_WEB_URL }}
+          RELEASE_S3_ENDPOINT: ${{ secrets.RELEASE_S3_ENDPOINT }}
+          RELEASE_S3_BUCKET: ${{ secrets.RELEASE_S3_BUCKET }}
+          RELEASE_S3_ACCESS_KEY: ${{ secrets.RELEASE_S3_ACCESS_KEY }}
+          RELEASE_S3_SECRET_KEY: ${{ secrets.RELEASE_S3_SECRET_KEY }}
+          RELEASE_S3_REGION: ${{ vars.RELEASE_S3_REGION }}
+        run: scripts/release-client all "${GITHUB_REF_NAME#v}" "$RUNNER_TEMP/release"
+
+      - name: Keep the manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ github.ref_name }}
+          path: ${{ runner.temp }}/release/manifest.json

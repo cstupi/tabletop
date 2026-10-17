@@ -25,3 +25,25 @@ case "$(mc admin user info local "$S3_APP_ACCESS_KEY" --json)" in
   *) mc admin policy attach local "$policy" --user "$S3_APP_ACCESS_KEY" ;;
 esac
 echo "bucket $S3_BUCKET ready; service user $S3_APP_ACCESS_KEY holds $policy"
+
+# The client-release publisher (scripts/release-client upload), when S3_RELEASE_ACCESS_KEY is set: Put under releases/ only.
+# The service user above already reads releases/* (GetObject on the bucket's objects), which GET /v1/client/latest needs.
+if [ -n "${S3_RELEASE_ACCESS_KEY:-}" ]; then
+  : "${S3_RELEASE_SECRET_KEY:?}"
+  release_policy="${S3_BUCKET}-releases"
+  cat > "$MC_CONFIG_DIR/release-policy.json" <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:PutObject"], "Resource": ["arn:aws:s3:::${S3_BUCKET}/releases/*"] }
+  ]
+}
+EOF
+  mc admin policy create local "$release_policy" "$MC_CONFIG_DIR/release-policy.json"
+  mc admin user add local "$S3_RELEASE_ACCESS_KEY" "$S3_RELEASE_SECRET_KEY" >/dev/null
+  case "$(mc admin user info local "$S3_RELEASE_ACCESS_KEY" --json)" in
+    *"\"$release_policy\""*) ;;
+    *) mc admin policy attach local "$release_policy" --user "$S3_RELEASE_ACCESS_KEY" ;;
+  esac
+  echo "release user $S3_RELEASE_ACCESS_KEY holds $release_policy"
+fi

@@ -4,7 +4,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 
 ## Layout
 
-- `src/routes/` pages: `login`, `reset-password`, `account`, `library` (+ `[id]`), `armies` (+ `[id]`); `+layout.ts` sets `ssr`/`prerender`.
+- `src/routes/` pages: `login`, `reset-password`, `account`, `library` (+ `[id]`), `armies` (+ `[id]`), `download`; `+layout.ts` sets `ssr`/`prerender`.
 - `src/lib/api/` typed client: `client.ts` (`api`, one function per endpoint), `http.ts` (`http`, `ApiError` with `retryAfter`, `API_BASE`, `setTokenProvider`), `types.ts` (DTOs), `errors.ts` (`errorMessage(e, context)`: every failure as one sentence).
 - `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry and refresh delay), `messages.ts` (`loginErrorMessage`), `redirect.ts` (`safeNext`, `loginHref`).
 - `src/lib/validation.ts` `nameProblem`, `sizeProblem`, `MAX_NAME`, `MAX_BYTES`, `ASSET_QUOTA`, `libraryUsage`, `formatBytes`: management's limits, checked before sending.
@@ -12,6 +12,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (six declarations, `defaultVolume`).
 - `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
 - `src/lib/library/` `folders.ts` (`moveTargets`), `volume-edit.ts` (`toDraft`, `fromDraft`).
+- `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
 - `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport` with a `BaseSet`), `patches.ts` (`PatchArmyRequest` builders).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `Icon`
   (paths in `icons.ts`), `ThemeSwitch`.
@@ -52,7 +53,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 ## Conventions and pitfalls
 
 - The API speaks inches. Millimetres exist only in the UI; convert at the edge with `src/lib/units/`.
-- The client calls `/v1/auth`, `/v1/account`, `/v1/assets`, `/v1/folders`, `/v1/armies`. It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
+- The client calls `/v1/auth`, `/v1/account`, `/v1/assets`, `/v1/folders`, `/v1/armies`, `/v1/client/latest`. It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
 - `npm` with exact versions: `.npmrc` sets `save-exact=true` and `engine-strict=true`; `package.json` pins every dependency.
 - The mesh pipeline is headless: no DOM in `src/lib/mesh/` outside `convertInWorker` and the worker, so Vitest runs it against `tests/fixtures`.
 - `vite.config.ts` excludes `meshoptimizer` from `optimizeDeps` and sets `worker.format: 'es'`.
