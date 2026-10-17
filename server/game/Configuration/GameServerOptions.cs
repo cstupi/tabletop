@@ -34,6 +34,8 @@ public sealed class GameServerOptions
     public SocketLimits Outbound { get; init; } = new(20_000, 64L * 1024 * 1024);
     /// <summary>Commands, edits and sight queries share one bucket; the read loop waits for a token. Pings and presence over theirs are dropped.</summary>
     public FrameRate ActionRate { get; init; } = new(20, 40);
+    /// <summary>Dev mode's action rate unless TABLETOP_FRAME_RATE is set: the rules suite answers each Ask as the last command rests, so 20/s would pace a game by its command count.</summary>
+    public static readonly FrameRate MachineSpeed = new(1_000_000, 1_000_000);
     public FrameRate PingRate { get; init; } = new(3, 6);
     public FrameRate PresenceRate { get; init; } = new(30, 60);
     /// <summary>What one setup draft may hold (counts, text, sizes).</summary>
@@ -55,6 +57,7 @@ public sealed class GameServerOptions
         double Double(string key, double fallback) => double.TryParse(configuration[key], System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0 ? v : fallback;
         var projectId = Require("TABLETOP_STYTCH_PROJECT_ID");
         var defaults = new GameServerOptions { DbConnection = "", StytchProjectId = "", StytchJwksUrl = "" };
+        var actions = development ? MachineSpeed : defaults.ActionRate;
         return new GameServerOptions
         {
             DbConnection = Require("TABLETOP_DB_CONNECTION"),
@@ -65,7 +68,7 @@ public sealed class GameServerOptions
             MaxConnections = Long("TABLETOP_MAX_CONNECTIONS", defaults.MaxConnections),
             MaxUpgradedConnections = Long("TABLETOP_MAX_UPGRADED_CONNECTIONS", defaults.MaxUpgradedConnections),
             SocketsPerAccount = (int)Long("TABLETOP_SOCKETS_PER_ACCOUNT", defaults.SocketsPerAccount),
-            ActionRate = new FrameRate(Double("TABLETOP_FRAME_RATE", defaults.ActionRate.PerSecond), (int)Long("TABLETOP_FRAME_BURST", defaults.ActionRate.Burst)),
+            ActionRate = new FrameRate(Double("TABLETOP_FRAME_RATE", actions.PerSecond), (int)Long("TABLETOP_FRAME_BURST", actions.Burst)),
             MaxEventsPerGame = Long("TABLETOP_MAX_EVENTS_PER_GAME", defaults.MaxEventsPerGame),
         };
     }

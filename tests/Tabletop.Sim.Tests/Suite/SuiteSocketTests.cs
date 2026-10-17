@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
@@ -60,6 +61,14 @@ public class SuiteSocketTests : IDisposable
     bool Exists(Guid gameId) => db.GameRows.Game(gameId) is not null;
 
     static string Why(SuiteReport report) => string.Join("\n", report.Games.SelectMany(g => g.Failures));
+
+    // The runner sends each command as soon as the last one rests; a person's 20/s action rate would pace a game by its command count.
+    [Fact]
+    public void The_suite_server_admits_commands_at_machine_speed()
+    {
+        var rate = _factory.Services.GetRequiredService<Tabletop.GameServer.Configuration.GameServerOptions>().ActionRate;
+        Assert.True(rate is { PerSecond: >= 10_000, Burst: >= 10_000 }, $"{rate}");
+    }
 
     [Theory]
     [InlineData(6, 1)]

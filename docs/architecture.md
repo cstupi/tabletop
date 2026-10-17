@@ -496,9 +496,8 @@ client's geometry is a cosmetic prediction, overwritten by the event, per Geomet
 
 **One Linux host behind Caddy.** `deploy/` is the production path (`deploy/README.md` has the steps):
 both servers run from their Release images (`server/*/Dockerfile`) under `deploy/docker-compose.prod.yml`, or
-as published dlls under the `deploy/systemd/` units, listening on `127.0.0.1` only. Caddy is the only public
-listener: TLS, security headers, the static web build, `/v1` to management (never `/v1/dev/*`), `/ws` to the
-game server, and a blob host that passes presigned object traffic to MinIO. S3 or R2 is the preferred blob
+as published dlls under the `deploy/systemd/` units, listening on `127.0.0.1` only. Caddy with a WAF, configured by the owner outside this repo, is the only
+public listener; `deploy/README.md` lists what it fronts (the static web build, `/v1`, `/ws`, the blob endpoint). S3 or R2 is the preferred blob
 store; MinIO with a bucket-scoped service user is the self-hosted one. The repo-root `docker-compose.yml` is
 development only.
 

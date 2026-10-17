@@ -50,6 +50,16 @@ public class StartupGuardTests
     }
 
     [Fact]
+    public void Dev_mode_admits_commands_at_machine_speed_unless_the_rate_is_set()
+    {
+        Assert.Equal(new Session.FrameRate(20, 40), GameServerOptions.FromEnvironment(C(Production), development: false).ActionRate);
+        var dev = GameServerOptions.FromEnvironment(C(Production), development: true).ActionRate;
+        Assert.True(dev is { PerSecond: >= 10_000, Burst: >= 10_000 }, $"{dev}");
+        var set = With(With(Production, "TABLETOP_FRAME_RATE", "5"), "TABLETOP_FRAME_BURST", "7");
+        Assert.Equal(new Session.FrameRate(5, 7), GameServerOptions.FromEnvironment(C(set), development: true).ActionRate);
+    }
+
+    [Fact]
     public void Enforce_names_every_problem()
     {
         var bad = With(With(Production, "TABLETOP_STYTCH_BASE_URL", null), "TABLETOP_DB_CONNECTION", "Host=x;Password=tabletop");

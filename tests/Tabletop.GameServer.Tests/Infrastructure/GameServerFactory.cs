@@ -49,6 +49,7 @@ public class GameServerFactory : WebApplicationFactory<Program>
                 PresenceRelayHz = 50,
                 HandshakeTimeout = TimeSpan.FromSeconds(2),
                 AcceptsSetDice = true,                                  // the suite's socket games fix dice, as on the Development server
+                ActionRate = GameServerOptions.MachineSpeed,             // as dev mode: the suite sends each command as the last rests
             });
             services.RemoveAll<NpgsqlDataSource>();
             services.RemoveAll<IGameRows>();

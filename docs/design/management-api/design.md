@@ -412,7 +412,7 @@ The gate is dev mode: `IHostEnvironment.IsDevelopment()` around the service regi
 Development without the opt-in refuses to start, and `TABLETOP_DEV_MODE` in any other environment
 refuses to start, so neither half alone turns the route on. `EnvironmentName` defaults to
 `Production` when neither `ASPNETCORE_ENVIRONMENT` nor `DOTNET_ENVIRONMENT` is set, so a published
-build has no such route and answers `404`; Caddy answers `404` for `/v1/dev/*` regardless. The test
+build has no such route and answers `404`. The test
 host runs as `Testing`, which is also not development.
 
 An account that does not exist is created rather than refused, which is what lets the simulator's
