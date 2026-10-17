@@ -208,9 +208,10 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
 .site-nav button, .site-nav .seg > button { min-height: 2.1rem; padding: 0 var(--s3); font-size: .95rem; }
 @media (max-width: 40rem) {
   .site-nav { gap: var(--s2) var(--s3); }
-  .site-nav .links { order: 3; width: 100%; justify-content: space-between; }
+  .site-nav .links { order: 3; width: 100%; justify-content: space-between; flex-wrap: nowrap; gap: var(--s1) var(--s3); }
+  .site-nav .links a { min-width: 0; }   /* one row: the account name gives way, with an ellipsis */
   .site-nav .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .site-nav .account-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .site-nav .account-name { min-width: 0; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* Sci-fi focus: the clip hides an outline, so the control's own frame turns light and doubles. */

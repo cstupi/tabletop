@@ -44,4 +44,8 @@ export const api = {
     patch: (id: T.Guid, r: T.PatchArmyRequest) => http.patch<T.Army>(`/v1/armies/${id}`, r),
     delete: (id: T.Guid) => http.del(`/v1/armies/${id}`),
   },
+  client: {
+    /** The newest published client build; a 404 before the first release. */
+    latest: () => http.get<T.ClientRelease>('/v1/client/latest'),
+  },
 };

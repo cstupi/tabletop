@@ -33,6 +33,7 @@
       <span class="links">
         <a href="/armies" aria-current={current('/armies')}><Icon name="armies" />Armies</a>
         <a href="/library" aria-current={current('/library')}><Icon name="library" />Library</a>
+        <a href="/download" aria-current={current('/download')}><Icon name="download" /><span class="label">Download</span></a>
         <a href="/account" aria-current={current('/account')}><Icon name="account" /><span class="visually-hidden">Account: </span><span class="account-name">{session.account?.name ?? '…'}</span></a>
       </span>
     {/if}
