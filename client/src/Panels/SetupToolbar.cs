@@ -32,46 +32,62 @@ public partial class SetupToolbar : VBoxContainer
         AddChild(new Label { Text = "Selected placement" });
         _selected = new VBoxContainer(); AddChild(_selected);
 
-        var table = Section("Table");
+        var table = Section(_ => "Table");
+        table.AddChild(new Label { Text = SetupLimits.SizeHint, ThemeTypeVariation = Variation.Dim });
         var size = new HFlowContainer(); table.AddChild(size);
-        var width = _width = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Length, Suffix = "\"" };
+        var width = _width = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Length, Suffix = "\"" };
         size.AddChild(width); size.AddChild(length);
         size.AddChild(Btn("Set size", () => Guarded.Send(s, new SetTableSize(new TableSize(width.Value, length.Value)))));
         var texture = new OptionButton(); foreach (var t in BuiltinContent.Textures) texture.AddItem(t); table.AddChild(texture);
         texture.ItemSelected += i => Guarded.Send(s, new SetTexture(VisualRef.OfBuiltin(BuiltinContent.Textures[(int)i])));
 
-        var terrainSection = Section("Terrain");
+        var terrainSection = Section(SetupLimits.TerrainHeading);
         var terrain = new OptionButton(); foreach (var t in BuiltinContent.Terrain.Values.OrderBy(t => t.Label)) terrain.AddItem(t.Label, 0); terrainSection.AddChild(terrain);
         var terrainNames = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).Select(t => t.Name).ToList();
-        terrainSection.AddChild(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))));
-        terrainSection.AddChild(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)));
+        terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))), d => SetupLimits.CannotAddTerrain(d)));
+        terrainSection.AddChild(Gated(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
         var generators = new HFlowContainer(); terrainSection.AddChild(generators);
         foreach (var planet in Enum.GetValues<Planet>())
-            generators.AddChild(Btn($"{planet} planet", () => Guarded.Run(async () => { foreach (var add in TerrainGenerators.Generate(planet, SizeNow(s), Random.Shared)) await s.SendEditAsync(add); }, _screen.Toast)));
+            generators.AddChild(Gated(Btn($"{planet} planet", () => Guarded.Run(async () =>
+            {
+                // The whole set or none: a set that would pass the cap is not sent piece by piece into refusals.
+                var adds = TerrainGenerators.Generate(planet, SizeNow(s), Random.Shared);
+                if (SetupLimits.CannotAddTerrain(s.Draft, adds.Count) is { } full) { _screen.Toast(full); return; }
+                foreach (var add in adds) await s.SendEditAsync(add);
+            }, _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
 
-        var markers = new HFlowContainer(); Section("Markers").AddChild(markers);
-        markers.AddChild(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Centre(SizeNow(s)), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))));
-        markers.AddChild(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Centre(SizeNow(s)), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))));
+        var markers = new HFlowContainer(); Section(SetupLimits.MarkersHeading).AddChild(markers);
+        markers.AddChild(Gated(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Centre(SizeNow(s)), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))), SetupLimits.CannotAddMarker));
+        markers.AddChild(Gated(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Centre(SizeNow(s)), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))), SetupLimits.CannotAddMarker));
 
-        var zones = new HFlowContainer(); Section("Zones").AddChild(zones);
+        var zones = new HFlowContainer(); Section(_ => "Zones").AddChild(zones);
         var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(z); zones.AddChild(style);
         zones.AddChild(Btn("Set zones", () => Guarded.Send(s, new SetZoneStyle(ZoneStyles.All[style.Selected], ZoneStyles.ShapesOf(ZoneStyles.All[style.Selected])))));
         var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1 }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2 }; zones.AddChild(a); zones.AddChild(b);
         zones.AddChild(Btn("Swap", () => Guarded.Send(s, new SwapZones((int)a.Value, (int)b.Value))));
 
-        var layouts = new HFlowContainer(); Section("Layouts").AddChild(layouts);
+        var layouts = new HFlowContainer(); Section(_ => "Layouts").AddChild(layouts);
         layouts.AddChild(Btn("Load layout…", () => Guarded.Run(() => LoadLayout(s), _screen.Toast)));
-        var layoutName = new LineEdit { PlaceholderText = "layout name" }; layouts.AddChild(layoutName);
-        layouts.AddChild(Btn("Save as", () => Guarded.Run(async () => { await s.Management.SaveLayout((s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.")) with { Name = layoutName.Text }); _screen.Toast("Layout saved."); }, _screen.Toast)));
+        var layoutName = new LineEdit { PlaceholderText = "layout name", MaxLength = TextLimits.Name }; layouts.AddChild(layoutName);
+        void SaveLayout() => Guarded.Run(async () =>
+        {
+            if (TextLimits.NameProblem(layoutName.Text, "A layout name") is { } problem) { _screen.Toast(problem); layoutName.GrabFocus(); return; }
+            await s.Management.SaveLayout((s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.")) with { Name = layoutName.Text.Trim() });
+            _screen.Toast($"Layout {layoutName.Text.Trim()} saved.");
+        }, _screen.Toast);
+        layoutName.TextSubmitted += _ => SaveLayout();
+        layouts.AddChild(Btn("Save as", SaveLayout));
 
         _onSelection = () => RenderSelected(s, _selected);
         _onBoard = () =>
         {
             if (s.Draft is { } d && !_width.HasFocus() && !_length.HasFocus()) { _width.SetValueNoSignal(d.Size.Width); _length.SetValueNoSignal(d.Size.Length); }
             RenderSelected(s, _selected);
+            RefreshLimits();
         };
         _screen.Input.SelectionChanged += _onSelection; s.BoardChanged += _onBoard;   // a draft edit changes what the selected piece shows
         RenderSelected(s, _selected);
+        RefreshLimits();
 
         // Right-click a terrain piece or setup marker: its menu. Delete or Backspace removes the selected one, unless a text field has the key.
         AddChild(_menu = new PieceMenu(s, _screen.Toast));
@@ -84,12 +100,31 @@ public partial class SetupToolbar : VBoxContainer
         _screen.Input.PieceRightClicked += _onRight; _screen.Input.IntentPressed += _onIntent;
     }
 
-    /// <summary>A heading that shows and hides the section under it; every section starts open.</summary>
-    VBoxContainer Section(string title)
+    /// <summary>Headings that count against a cap, and add buttons disabled with the reason once the draft is at it.</summary>
+    readonly List<(Button Head, Func<TableState?, string> Title)> _heads = new();
+    readonly List<(Button Button, Func<TableState?, string?> Why)> _gates = new();
+
+    void RefreshLimits()
+    {
+        var d = _session.Draft;
+        foreach (var (head, title) in _heads) if (IsInstanceValid(head)) head.Text = $"{(head.ButtonPressed ? "▾" : "▸")} {title(d)}";
+        foreach (var (button, why) in _gates)
+        {
+            if (!IsInstanceValid(button)) continue;
+            var reason = why(d);
+            button.Disabled = reason is not null; button.TooltipText = reason ?? "";
+        }
+    }
+
+    Button Gated(Button button, Func<TableState?, string?> why) { _gates.Add((button, why)); return button; }
+
+    /// <summary>A heading that shows and hides the section under it; every section starts open. The title is read from the draft.</summary>
+    VBoxContainer Section(Func<TableState?, string> title)
     {
         var body = new VBoxContainer();
-        var head = new Button { Text = $"▾ {title}", Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = true, Alignment = HorizontalAlignment.Left, FocusMode = FocusModeEnum.None };
-        head.Toggled += open => { body.Visible = open; head.Text = $"{(open ? "▾" : "▸")} {title}"; };
+        var head = new Button { Text = $"▾ {title(_session.Draft)}", Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = true, Alignment = HorizontalAlignment.Left, FocusMode = FocusModeEnum.None };
+        head.Toggled += open => { body.Visible = open; head.Text = $"{(open ? "▾" : "▸")} {title(_session.Draft)}"; };
+        _heads.Add((head, title));
         AddChild(head); AddChild(body); return body;
     }
 
@@ -188,7 +223,7 @@ public partial class SetupToolbar : VBoxContainer
                 cb.Toggled += on => EditVolume(s, t, tv.Id, v => v with { Declarations = on ? v.Declarations | flag : v.Declarations & ~flag });
                 flags.AddChild(cb);
             }
-            var notes = new LineEdit { Text = tv.Volume.Notes ?? "", PlaceholderText = "notes" }; row.AddChild(notes);
+            var notes = new LineEdit { Text = tv.Volume.Notes ?? "", PlaceholderText = $"notes, Enter to save (at most {TextLimits.Notes} characters)", MaxLength = TextLimits.Notes }; row.AddChild(notes);
             notes.TextSubmitted += text => EditVolume(s, t, tv.Id, v => v with { Notes = text.Length == 0 ? null : text });
         }
     }

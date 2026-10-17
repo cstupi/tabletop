@@ -29,7 +29,6 @@ public static class MenuModel
     {
         var items = new List<MenuItem>();
         foreach (var a in actionNames) items.Add(new($"Mark as having taken {a}", MenuInput.None, _ => new RecordAction(unitId, a)));
-        items.Add(new("Mark as having taken…", MenuInput.Text, s => string.IsNullOrWhiteSpace(s) ? null : new RecordAction(unitId, s.Trim())));
         items.Add(new("Clear the action record", MenuInput.None, _ => new ClearActionRecord(unitId)));
         items.Add(new("Add a condition", MenuInput.Text, s => string.IsNullOrWhiteSpace(s) ? null : new SetCondition(new Subject(SubjectKind.Unit, unitId), s.Trim(), true)));
         foreach (var c in p.Units.GetValueOrDefault(unitId)?.Conditions ?? new HashSet<string>())

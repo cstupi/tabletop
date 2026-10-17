@@ -24,8 +24,8 @@ public partial class UndoButton : Button
         _s = session; _input = input;
         Text = "Undo (Ctrl+Z)"; FocusMode = FocusModeEnum.None;
         Pressed += Press;
-        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
-        _onIntent = intent => { if (intent == Intent.Undo && !Disabled) Press(); };
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Game)) != 0) Render(); };
+        _onIntent = intent => { if (intent == Intent.Undo && Visible && !Disabled) Press(); };
         session.Frame.Render += _onFrame; input.IntentPressed += _onIntent;
         Render();
     }
@@ -40,6 +40,7 @@ public partial class UndoButton : Button
     /// <summary>While an undo travels the log still holds what it undoes: the shared combat log plans as if its marker had landed, so each press steps back one more.</summary>
     void Render()
     {
+        Visible = !_s.IsWatching;                       // a watcher's undo is refused: the button is not offered
         _plan = _s.CombatLog?.Undo;
         Disabled = _plan is null;
         TooltipText = _plan?.Tooltip ?? "Nothing to undo";

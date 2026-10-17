@@ -46,8 +46,14 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public IReadOnlyList<GameEvent> Log => Applier?.Log ?? [];
     public PresenceTable Others { get; } = new();
     public long? PendingUndoTo { get; private set; }
+    /// <summary>Why the last game closed without the player asking, in the player's words (Feedback); Home prints it.</summary>
     public string? LastCloseReason { get; private set; }
     public Guid? MyTeamId => Game?.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.TeamId;
+    /// <summary>The server answers this client as a watcher: an admin watcher (participant id empty), or from playing on a participant
+    /// with no team. False without a game, so a client mid-reconnect is never taken for one.</summary>
+    public bool IsWatching => Game is { } g && (ParticipantId == Guid.Empty || g.Status is GameStatus.Playing or GameStatus.Ended && MyTeamId is null);
+    /// <summary>Reconnects tried since the last Welcome; 0 while connected or on a first connect.</summary>
+    public int ReconnectAttempt => _attempt;
     public bool IsCreator => Game is not null && Game.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.AccountId == Game.CreatedBy;
     /// <summary>The pinned catalog of the game's property set; Empty until fetched (in-game UX spec → Rule text).</summary>
     public RuleTexts Rules => Game?.PropertiesHash is { } hash && _ruleTexts.TryGetValue(hash, out var rules) ? rules : RuleTexts.Empty;
@@ -169,6 +175,15 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
 
     public event Action? SettingsChanged;
 
+    /// <summary>PATCH /v1/account: the name everyone sees. The server's row replaces Account; a refusal throws and keeps the old one.</summary>
+    public async Task RenameAsync(string name)
+    {
+        Account = await Guard(() => management.RenameAccount(name.Trim()));
+        AccountChanged?.Invoke();
+    }
+
+    public event Action? AccountChanged;
+
     /// <summary>A login path: its response supersedes any refresh still in flight.</summary>
     async Task Complete(Func<Task<SessionResponse>> call)
     {
@@ -268,8 +283,9 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         RaiseEvents([]);
     }
 
-    public Task SendPresenceAsync(Presence value) => Welcomed()?.SendAsync(new PresenceMessage(value)) ?? Task.CompletedTask;
-    public Task SendPingAsync(Ping ping) => Welcomed()?.SendAsync(new PingMessage(ping)) ?? Task.CompletedTask;
+    /// <summary>Presence and pings: dropped before Welcome and while watching, where the server would refuse every one.</summary>
+    public Task SendPresenceAsync(Presence value) => IsWatching ? Task.CompletedTask : Welcomed()?.SendAsync(new PresenceMessage(value)) ?? Task.CompletedTask;
+    public Task SendPingAsync(Ping ping) => IsWatching ? Task.CompletedTask : Welcomed()?.SendAsync(new PingMessage(ping)) ?? Task.CompletedTask;
 
     /// <summary>Asks the server what the observer's models see of the target's (in-game UX spec → Sight check). Returns the query id.</summary>
     /// <summary>The caller names the query, so it knows which answer is its newest before the send returns.</summary>
@@ -341,7 +357,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 break;
             case Rejected r:
                 _userClosed = true;             // the server closes after this; do not reconnect
-                LastCloseReason = r.Reason.ToString();
+                LastCloseReason = Feedback.Rejected(r.Reason);
                 if (r.Reason == RejectReason.UpgradeRequired) SetPhase(SessionPhase.UpdateRequired);
                 else { GameId = null; SetPhase(SessionPhase.LoggedIn); }
                 break;
@@ -387,9 +403,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     {
         var reached = Applier?.Projection.LastSeq ?? 0;
         var closed = new SocketClosed(null, desync.Message, desync);
-        LastCloseReason = desync.Message;
+        LastCloseReason = Feedback.Closed(closed, willReconnect: true);
         if (_desyncFloor is { } floor && reached <= floor)
         {
+            LastCloseReason = Feedback.Closed(closed, willReconnect: false);
             _ = TearDownSocket();
             GameId = null; Reset();
             SetPhase(SessionPhase.LoggedIn);
@@ -403,17 +420,26 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
 
     void OnClosed(SocketClosed closed)
     {
-        LastCloseReason = closed.Reason;
         _socket = null;
         Reset();
-        if (_userClosed || Phase == SessionPhase.UpdateRequired) { ConnectionLost?.Invoke(closed, false); return; }
+        if (_userClosed || Phase == SessionPhase.UpdateRequired) { LastCloseReason ??= Feedback.Closed(closed, false); ConnectionLost?.Invoke(closed, false); return; }
         var replaced = _welcomed && closed.Code == 1000;
-        if (replaced || GameId is null) { GameId = null; SetPhase(SessionPhase.LoggedIn); ConnectionLost?.Invoke(closed, false); return; }
+        if (replaced || GameId is null) { LastCloseReason = Feedback.Closed(closed, false); GameId = null; SetPhase(SessionPhase.LoggedIn); ConnectionLost?.Invoke(closed, false); return; }
+        LastCloseReason = Feedback.Closed(closed, true);
         ConnectionLost?.Invoke(closed, true);
         SetPhase(SessionPhase.Reconnecting);
         var attempt = _attempt++;
         var gameId = GameId.Value;
-        _ = Task.Run(async () => { await Task.Delay(_backoff(attempt)); dispatcher.Post(() => { if (GameId == gameId && _socket is null && !_userClosed) _ = ConnectAsync(gameId); }); });
+        var refresh = closed.Code == 1008;
+        _ = Task.Run(async () => { await Task.Delay(_backoff(attempt)); dispatcher.Post(() => _ = Retry(gameId, refresh)); });
+    }
+
+    /// <summary>A 1008 is the server's copy of the JWT expiring: the refresh runs first, so the reconnect carries a token the server
+    /// accepts (a 401 there signs out, which ends the retry).</summary>
+    async Task Retry(Guid gameId, bool refresh)
+    {
+        if (refresh) await RefreshAsync();
+        if (GameId == gameId && _socket is null && !_userClosed) await ConnectAsync(gameId);
     }
 
     async Task TearDownSocket()

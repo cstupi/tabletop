@@ -64,6 +64,17 @@ flowchart TD
   table -- reads --> session
 ```
 
+`LoginScreen` focuses the email field; Enter moves to the password and signs in from it or from the
+code field; its buttons are disabled while a request is out, and its line says what is happening or
+`Feedback.Error`. `HomeScreen` shows `Signed in as {name}` with **Rename…** (`Session.RenameAsync`,
+`PATCH /v1/account`; the dialog's OK waits until `TextLimits.NameProblem` is null) and, while the name is
+management's default `Player-xxxx` (`TextLimits.IsDefaultName`), a line asking for a real one. The game
+list shows a disabled row for loading, no games, or no match; Join is disabled without a selection
+and while a join is out, More once every page is listed, each with the reason as tooltip; double-click
+or Enter joins. Create game loads the rule sets and armies first, and its OK waits for a valid name.
+The game screen's corner reads `Connecting…`, the game and its status (`— watching` for a watcher), or
+`reconnecting, attempt N; Home stops it…`.
+
 A status change happens inside the game screen. It is never a scene swap. `GameScreen` creates
 one `TableView` and binds it once for the whole game, and a second `Bind` throws. It draws the
 draft in `lobby` and `setup` and the projection's board from `playing` on.

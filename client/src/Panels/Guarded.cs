@@ -10,9 +10,7 @@ public static class Guarded
     public static async void Run(Func<Task> work, Action<string> report)
     {
         try { await work(); }
-        catch (ManagementException e) { report(e.Message); }
-        catch (HttpRequestException e) { report($"Cannot reach the management API: {e.Message}"); }
-        catch (Exception e) { report(e.Message); }
+        catch (Exception e) { report(Feedback.Error(e, Main.Instance.Session.Settings.ManagementUrl)); }
     }
 
     /// <summary>A socket send that fails is logged, never thrown into the engine.</summary>

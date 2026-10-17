@@ -116,6 +116,7 @@ public class ViewModelTests
         Assert.Equal(["Advance", "Hold"], actions);                          // the activate Ask's labels ("{unit}: Advance") contribute nothing
         var unit = MenuModel.ForUnit(p, Samples.Unit, actions);
         Assert.IsType<RecordAction>(unit.Single(i => i.Label == "Mark as having taken Advance").Build(null));
+        Assert.DoesNotContain(unit, i => i.Label.StartsWith("Mark") && i.Input == MenuInput.Text);   // only actions the property set names: the server refuses any other
         Assert.IsType<ClearActionRecord>(unit.Single(i => i.Label == "Clear the action record").Build(null));
         var shaken = unit.Single(i => i.Label == "Add a condition");
         Assert.Equal(("shaken", true), (((SetCondition)shaken.Build("shaken")!).Condition, ((SetCondition)shaken.Build("shaken")!).Present));
