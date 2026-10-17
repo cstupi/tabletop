@@ -159,7 +159,7 @@ public class SessionTests : IDisposable
         var sock = await ConnectedAtPlaying();
         var lost = new List<bool>(); _s.ConnectionLost += (_, will) => lost.Add(will);
         sock.Drop(1001, "server shutting down");
-        await Task.Delay(50);
+        await _sockets.ConnectedAsync(2);
         Assert.Equal([true], lost);
         Assert.Equal(2, _sockets.Created.Count);
         Assert.IsType<Connect>(_sockets.Last.Sent.Single());
@@ -183,7 +183,7 @@ public class SessionTests : IDisposable
         var sock = await ConnectedAtPlaying();
         Assert.Equal(Samples.Team1, _s.MyTeamId);
         sock.Drop(1001, "server shutting down");
-        await Task.Delay(50);
+        await _sockets.ConnectedAsync(2);
         Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
         Assert.Null(_s.Game); Assert.Null(_s.MyTeamId);                 // nothing to read a team from yet, which is not watching
         _sockets.Last.Deliver(new Welcome(Samples.P1, Game));           // the server names the same team, out of the participant row
