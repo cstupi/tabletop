@@ -381,8 +381,16 @@ that a menu edit superseded. That is the only `ask_closed` the engine ever write
 | --- | --- | --- |
 | `RerollDice(FrameId, RollId, DiceIndices)` | `Legal` when the frame is on the stack and the roll is in one of its completed steps | `DiceRerolled` with the named dice (all when empty) redrawn under the record's own threshold and modifiers |
 | `SetDice(FrameId, RollId, Dice)` | the same | `DiceEdited` with each die re-judged from its new raw |
-| `AddModifier(FrameId, Roll, Amount)` | `Legal` when the frame is on the stack and `properties.HasRoll(roll)` | `ModifierAdded(frame, roll, new RollModifier("player", amount))` |
+| `AddModifier(FrameId, Roll, Amount)` | `Legal` when the frame is on the stack and `properties.HasRoll(roll)` | `ModifierAdded(frame, roll, new RollModifier("player", amount, Via: the participant's name))` |
 | anything else | `Illegal` | `RefuseCommand(Unknown, ...)` |
+
+**A player's modifier applies to the frame's next rolling step for that roll.** `ModifierAdded` puts it in the frame's
+`PendingModifiers` under the roll's name. `StepContext.Roll` appends the pending modifiers for the plan's roll to the plan,
+after the two passes, so no suppression (cover, to-hit penalties) removes them and the ruleset's cap still clamps the sum.
+Every record of that roll the step makes carries them, one per pool when the step splits the roll, and that step's
+`StepCompleted` consumes them (the applier's one bookkeeping branch). A roll in another frame, a child frame included,
+never reads them. A step that rolls nothing of that name leaves them pending, and they lapse unread when the frame
+leaves the stack. Only `roll` rows are nameable, so the roll-off and a property's own roll never carry one.
 
 These are the same operations abilities use, with a different actor. Resolution's rule is that
 automation and the menu write the same fields. Undo never made dice unchangeable. It makes

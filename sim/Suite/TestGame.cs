@@ -12,6 +12,13 @@ namespace Tabletop.Sim.Suite;
 public sealed record DiceFix(string Roll, int Ordinal, IReadOnlyList<int> Faces);
 
 /// <summary>
+/// The Ordinal-th frame of Sequence in the game (counted from zero in log order) gets AddModifier(Roll, Amount) from the first team's
+/// participant as soon as the frame starts, so its next roll of that kind carries the modifier. The runner turns the game's step gate on,
+/// and a modifier that never meets its frame fails the game.
+/// </summary>
+public sealed record PlayerModifier(string Sequence, int Ordinal, string Roll, int Amount);
+
+/// <summary>
 /// One check a game makes of its run: Failure returns null for a pass, else the reason. Entries: the catalog entries an exact check is
 /// about, reported against each entry's coverage; null for a check about no entry. A check built by <see cref="Each"/> can fail for several
 /// reasons at once; the runner reports each as its own failure line, so a pin matching one reason never covers another.
@@ -47,6 +54,9 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
         Evidence?.TryGetValue(entry, out var evidence) == true
             ? evidence(EventApplier.EffectiveLog(effectiveLog))
             : Suite.Fired.In(effectiveLog, entry);
+
+    /// <summary>The players' modifiers the game adds (AddModifier); empty for none.</summary>
+    public IReadOnlyList<PlayerModifier> Modifiers { get; init; } = [];
 
     /// <summary>The engine defects this game is pinned to; empty for a game expected to pass.</summary>
     public IReadOnlyList<KnownDefect> Known { get; init; } = [];

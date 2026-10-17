@@ -30,8 +30,8 @@ public sealed record Die(int Raw, int Modified, bool Success, IReadOnlyList<stri
         && (Triggered ?? []).SequenceEqual(other.Triggered ?? []);
     public override int GetHashCode() => HashCode.Combine(Raw, Modified, Success, Triggered?.Count ?? 0);
 }
-/// <summary>A change to a roll's dice. Via: the rule that granted the property whose effect this is (Rending for its AP), null for a
-/// property held outright and in logs written before it.</summary>
+/// <summary>A change to a roll's dice. Via: the rule that granted the property whose effect this is (Rending for its AP), or for a
+/// player's modifier (Source "player", AddModifier) the participant's name; null for a property held outright and in logs written before it.</summary>
 public sealed record RollModifier(string Source, int Amount, string? Via = null);
 /// <summary>
 /// p.11's cover verdict for the whole target unit of a shooting attack, on each of its defense rolls. InCover: the majority test passed;

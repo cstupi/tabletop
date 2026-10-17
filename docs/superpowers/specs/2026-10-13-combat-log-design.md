@@ -100,6 +100,7 @@ on dice and no cover verdict.
   granted. Rending's hits carry `AP` with `Via` `Rending`; a weapon's own AP has none. `RollEffects.Attributed` reads it with
   `LiveSet.GrantorOf`: pass one's `GrantedBy`, or for a per-die grant applied with `LiveSet.WithGranted` for a block group, the
   live rule whose per-die `grant_property` row names that entry and amount. The `granted_` key of `score-hits` is unchanged.
+  A player's modifier (`AddModifier`, `Source` `player`) carries the participant's name as `Via`.
 - **`Die.Triggered`** (list of string, optional): what this die set off, as `Rule` or `Rule +N hit(s)` (attacks, wounds), written
   when the roll is recorded, from `RollEffects.Triggers` on that die (pure; `PerDie` still records in `score-hits`). It names
   the rule (Rending, Furious, Relentless, Surge) that acted on the die, so the client counts sixes by rule without knowing any

@@ -45,7 +45,7 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
                 return new Emit([new DiceEdited(s.FrameId, s.RollId, s.Dice.Select(d => new DieReplacement(d.Index, record.Dice[d.Index], record.Stamp(roller.Judge(plan, d.Raw)))).ToList())]);
             }
             case AddModifier m when DiceLegal(state, m):
-                return new Emit([new ModifierAdded(m.FrameId, m.Roll, new RollModifier("player", m.Amount))]);
+                return new Emit([new ModifierAdded(m.FrameId, m.Roll, new RollModifier("player", m.Amount, state.Info.Participants.FirstOrDefault(p => p.Id == actor.ParticipantId)?.Name))]);
             default:
                 return new RefuseCommand(RefusalReason.Unknown, $"{command.GetType().Name}: no such frame, roll or die");
         }
