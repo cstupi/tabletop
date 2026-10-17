@@ -100,6 +100,8 @@ public static partial class CombatLog
                 case ModelsMoved m when e.Actor is not null && open.Count == 0 && m.Moves.All(x => x is { From: OnShelf, To: OnTable }):
                     into.AddRange(Deployed(m, n).Select(Line)); break;
                 case var p when Dropped(p): break;
+                case ActionRecorded when e.Actor is null: break;   // the engine's record as the action starts: the block's header says it
+
                 case StateChange when e.Actor is not null: into.Add(Line($"{LogText.Describe(e, n)} · by hand")); break;
                 default: into.Add(Line(LogText.Describe(e, n))); break;
             }

@@ -76,7 +76,9 @@ public static class AskViewModel
     /// </summary>
     public static string ConfirmLabel(Ask ask) => ask.Question == AskQuestions.EndRound ? "End the round" : "Continue";
 
-    /// <summary>Who on the team answered: the ask_answered event's actor.</summary>
-    public static string? AnsweredBy(IReadOnlyList<GameEvent> log, Guid askId, Names names) =>
-        log.LastOrDefault(e => e.Payload is AskAnswered a && a.AskId == askId) is { } e ? names.Participant(e.Actor) : null;
+    /// <summary>The teammate who answered this Ask for my team: the live ask_answered event's actor. Null for an answer an undo took
+    /// back, another team's answer, my own, or a watcher (no team).</summary>
+    public static string? AnsweredBy(IReadOnlyList<GameEvent> log, Guid askId, Guid? myTeam, Guid? me, Names names) =>
+        myTeam is { } team && EventApplier.EffectiveLog(log).LastOrDefault(e => e.Payload is AskAnswered a && a.AskId == askId && a.TeamId == team) is { } e && e.Actor != me
+            ? names.Participant(e.Actor) : null;
 }

@@ -108,4 +108,11 @@ public class HeaderViewTests
         Assert.Equal("Game over · Draw", Of(After(new GameEnded("4 rounds have been played", [Samples.Team1, Samples.Team2]))).Result);
         Assert.Equal("Game over · No result", Of(After(new GameEnded("abandoned", []))).Result);
     }
+
+    [Fact]
+    public void The_first_line_drops_the_separator_when_there_is_no_turn()
+    {
+        Assert.Equal("Round 2 · Team 1's turn", Of(After(new RoundStarted(2, [Samples.Team1, Samples.Team2], []), new TurnStarted(Samples.Team1))).TopLine);
+        Assert.Equal("Round 4", Of(After(new RoundStarted(4, [Samples.Team1, Samples.Team2], []))).TopLine);
+    }
 }

@@ -22,7 +22,7 @@ public class HudLayoutTests
                     Assert.True(a.Key == b.Key || !a.Value.Overlaps(b.Value), $"{w}x{h} {v}: {a.Key} overlaps {b.Key}");
             Assert.Equal(v.LogOpen, r.ContainsKey(HudPart.LogPanel));
             if (r.TryGetValue(HudPart.LogPanel, out var log)) Assert.True(log.W == 640 && log.H >= 240, $"{v}: log {log}");
-            if (v.Decision && v.Dice)
+            if (v.Decision && v.Dice && !v.LogOpen)
                 Assert.True(r[HudPart.Dice].Bottom + 8 == r[HudPart.Decision].Y && r[HudPart.Dice].X == r[HudPart.Decision].X);
             if (v.Roster && v.UnitCard)
                 Assert.True(r[HudPart.Roster].Bottom + 8 == r[HudPart.UnitCard].Y && r[HudPart.Roster].H == r[HudPart.UnitCard].H);
@@ -43,8 +43,26 @@ public class HudLayoutTests
     {
         var r = HudLayout.Of(1280, 720, new HudVisible(Roster: true, UnitCard: true, Decision: true, Dice: true, LogOpen: true));
         Assert.Equal(
-            (new HudRect(792, 510, 480, 158), new HudRect(792, 406, 480, 96), new HudRect(632, 136, 640, 262), new HudRect(8, 56, 420, 324)),
-            (r[HudPart.Decision], r[HudPart.Dice], r[HudPart.LogPanel], r[HudPart.Roster]));
+            (new HudRect(792, 406, 480, 262), new HudRect(632, 136, 640, 262), new HudRect(8, 56, 420, 324)),
+            (r[HudPart.Decision], r[HudPart.LogPanel], r[HudPart.Roster]));
+    }
+
+    /// <summary>The open log holds the latest roll too: the dice tray gives its slot to the decision box.</summary>
+    [Theory, MemberData(nameof(Sizes))]
+    public void The_open_log_takes_the_dice_tray_s_place(int w, int h)
+    {
+        foreach (var v in All().Where(v => v.LogOpen && v.Dice)) Assert.False(HudLayout.Of(w, h, v).ContainsKey(HudPart.Dice), $"{v}");
+    }
+
+    /// <summary>A theme whose buttons are taller than 36 px: the button row is as tall as they are and the right column ends above it.</summary>
+    [Fact]
+    public void The_button_row_takes_the_buttons_actual_height()
+    {
+        var r = HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonH: 46);
+        Assert.Equal(new HudRect(1132, 666, 140, 46), r[HudPart.LogButton]);
+        Assert.Equal(r[HudPart.LogButton].Y, r[HudPart.UndoButton].Y);
+        Assert.Equal(r[HudPart.LogButton].Y - 8, r[HudPart.Decision].Bottom);
+        Assert.Equal(new HudRect(1132, 676, 140, 36), HudLayout.Of(1280, 720, new HudVisible(true, true, true, true, false), buttonH: 20)[HudPart.LogButton]);   // never below 36
     }
 
     /// <summary>The decision box leaves the table's centre clear: the right column, from below the toasts down to the undo and log buttons.</summary>

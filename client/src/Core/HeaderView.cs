@@ -11,7 +11,11 @@ public sealed record OutlineItem(string Label, OutlineState State);
 /// waiting line. Result is set once the log has ended the game.
 /// </summary>
 public sealed record HeaderModel(int Round, string Turn, IReadOnlyList<(string Team, int Score)> Scores, string? ActiveUnit, string? Action,
-    IReadOnlyList<OutlineItem> Outline, string? Waiting, string? Result);
+    IReadOnlyList<OutlineItem> Outline, string? Waiting, string? Result)
+{
+    /// <summary>The first line: "Round 4 · Team 1's turn", or "Round 4" when no team has the turn.</summary>
+    public string TopLine => Turn.Length == 0 ? $"Round {Round}" : $"Round {Round} · {Turn}";
+}
 
 public static class HeaderView
 {

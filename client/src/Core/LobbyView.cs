@@ -53,6 +53,13 @@ public static class LobbyView
         }).ToList();
     }
 
+    public const string NoPlayers = "No players yet";
+
+    /// <summary>A team card's players, ⚔ marking one with an army; a new team says it has none.</summary>
+    public static string Members(GameInfo game, Guid teamId) =>
+        game.Participants.Where(p => p.TeamId == teamId).Select(p => p.Name + (p.ArmyId is null ? "" : " ⚔")).ToList() is { Count: > 0 } names
+            ? string.Join(", ", names) : NoPlayers;
+
     /// <summary>The creator placing a participant: the server's path onto a team another participant holds.</summary>
     public static PickTeam Place(GameInfo game, Guid participantId, int choice) => new(SeatChoices(game)[choice].TeamId, participantId);
 
