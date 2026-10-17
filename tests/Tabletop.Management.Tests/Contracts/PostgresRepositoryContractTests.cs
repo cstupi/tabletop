@@ -51,6 +51,10 @@ public sealed class PostgresRepositoryContractTests : RepositoryContract, IClass
         Execute("insert into management.catalog_entry (properties_hash, name, kind, takes_parameter, aggregation, rule_text, played) values (@hash, @name, @kind, @takesParameter, @aggregation, @ruleText, @played)",
             new { hash, name, kind, takesParameter, aggregation = kind == "model" ? "all" : null, ruleText, played });
 
+    protected override Task SeedEffect(string hash, string entryName, Guid id, int ordinal, string duration, Guid? parentId = null) =>
+        Execute("insert into management.effect (id, properties_hash, entry_name, parent_effect_id, subject, ordinal, kind, duration) values (@id, @hash, @entryName, @parentId, 'self', @ordinal, 'add_hit', @duration)",
+            new { id, hash, entryName, parentId, ordinal, duration });
+
     protected override Task SeedGameEvent(Guid gameId, long seq) =>
         Execute("insert into game.game_event (game_id, seq, kind, payload) values (@gameId, @seq, 'turn_started', '{}')", new { gameId, seq });
 

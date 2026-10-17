@@ -9,6 +9,10 @@ namespace Tabletop.Management.Games;
 /// (army-book rules spec → Played flag). Dapper maps by constructor parameter name.</summary>
 public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText, bool Played);
 
+/// <summary>An effect row a grant can carry (`duration` once, marker or spent_marker; top-level rows only): what the client's menu offers
+/// as Add grant, the entry's name and the effect's id an AddGrant names.</summary>
+public sealed record GrantableEffect(string EntryName, Guid EffectId, string Duration);
+
 public sealed class GameRepository(Database db) : IGameRepository
 {
     private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy, string OptionalRules);
@@ -37,6 +41,17 @@ public sealed class GameRepository(Database db) : IGameRepository
         return (await c.QueryAsync<CatalogRuleText>("""
             select name as Name, kind as Kind, takes_parameter as TakesParameter, rule_text as RuleText, played as Played
             from catalog_entry where properties_hash = @hash order by name
+            """, new { hash })).ToList();
+    }
+
+    /// <summary>A pinned set's grantable effects by entry name, then ordinal; null when no set has this hash.</summary>
+    public async Task<IReadOnlyList<GrantableEffect>?> GrantableEffects(string hash)
+    {
+        await using var c = await db.Open();
+        if (await c.ExecuteScalarAsync<int>("select count(*) from properties where content_hash = @hash", new { hash }) == 0) return null;
+        return (await c.QueryAsync<GrantableEffect>("""
+            select entry_name as EntryName, id as EffectId, duration as Duration
+            from effect where properties_hash = @hash and parent_effect_id is null and duration <> 'interaction' order by entry_name, ordinal
             """, new { hash })).ToList();
     }
 

@@ -47,7 +47,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | --- | --- |
 | `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl, LogFilter LogFilter, bool LogOpen)` with init properties `Theme`, `CameraFollow`, `TurnBanner`, `RangeRings` | `static Default`, `static Load(path)`, `Save(path)`, `Mute(kind)`, `Unmute(kind)` |
 | `sealed class SessionStore(string path)` | `string? Read()`, `Write(jwt)`, `Clear()` |
-| `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `EndGame`, `DeleteGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload`, `GetRuleTexts(propertiesHash)` |
+| `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `EndGame`, `DeleteGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload`, `GetRuleTexts(propertiesHash)`, `GetGrantableEffects(propertiesHash)` |
 | `interface IGameSocket : IAsyncDisposable` | `event Action<SocketMessage> FrameReceived`, `event Action<SocketClosed> Closed`, `ConnectAsync(Uri, ct)`, `SendAsync(SocketMessage)`, `CloseAsync()` |
 | `interface IGameSocketFactory` | `IGameSocket Create()` |
 | `sealed record SocketClosed(int? Code, string? Reason, Exception? Error)` | |
@@ -63,7 +63,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `sealed class Names(GameInfo, Projection?)` | `Participant`, `Team`, `Unit`, `Model`, `UnitOfModel`, `Piece`, `static Short` |
 | `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer, Names)`, `Touched(GameEvent)` |
 | `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `SpendableBy(Projection, GameInfo, Guid team, TokenSpend)`, `ConfirmLabel(Ask)` |
-| `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`, `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`, `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
+| `enum MenuInput { None, Integer, Text, PieceId, TablePoint, Choice }`, `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)` (`Choices` for a `Choice` item), `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
 | `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `ExitYawAt`, `IsDisembark`, `IsShelfPlacement`, `TooClose`, `Gate` |
 | `sealed class AnimationQueue` | `Enqueue`, `Take(bool animate)`, `Count` |
 | `[Flags] enum RenderCause { None, Events, Game, Board, Facts }`, `sealed class RenderScheduler(IDispatcher)` | `Mark(RenderCause)`, `event Action<RenderCause> Render` (once per dispatcher turn) |
@@ -120,7 +120,7 @@ semantics.
 
 Management HTTP: `GET /healthz`; `POST /v1/auth/otp`, `/otp/verify`, `/password`,
 `/password/signup`, `/session/refresh`, `DELETE /v1/auth/session`; `GET /v1/account`;
-`GET /v1/properties`; `GET /v1/games`, `POST /v1/games`, `GET /v1/games/{id}`,
+`GET /v1/properties`, `GET /v1/properties/{hash}/rules`, `GET /v1/properties/{hash}/grants`; `GET /v1/games`, `POST /v1/games`, `GET /v1/games/{id}`,
 `POST /v1/games/{id}/join`, `POST /v1/games/{id}/leave`, `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}`, `GET /v1/games/{id}/assets`;
 `GET /v1/armies`, `GET /v1/armies/{id}`; `GET /v1/layouts`, `GET /v1/layouts/{id}`,
 `POST /v1/layouts`; `GET /v1/assets?kind=terrain|texture`, `GET /v1/assets/{id}/volumes`,

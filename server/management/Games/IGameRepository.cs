@@ -9,6 +9,8 @@ public interface IGameRepository
     Task<IReadOnlyList<PropertiesSummary>> ListProperties();
     /// <summary>Every catalog entry of a pinned set, by name; null when no set has this hash.</summary>
     Task<IReadOnlyList<CatalogRuleText>?> RuleTexts(string hash);
+    /// <summary>The effect rows a grant can carry, by entry name then ordinal; null when no set has this hash.</summary>
+    Task<IReadOnlyList<GrantableEffect>?> GrantableEffects(string hash);
     /// <summary>A lobby game with the creator as its only participant and a fresh dice seed; null for an unknown properties hash.</summary>
     Task<GameInfo?> Create(Guid creator, CreateGameRequest r);
     /// <summary>Every game, descending by id, before the cursor.</summary>

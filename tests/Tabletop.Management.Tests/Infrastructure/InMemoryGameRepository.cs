@@ -36,6 +36,16 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
         }
     }
 
+    public Task<IReadOnlyList<GrantableEffect>?> GrantableEffects(string hash)
+    {
+        lock (rows.Gate)
+        {
+            if (!rows.Properties.ContainsKey(hash)) return Task.FromResult<IReadOnlyList<GrantableEffect>?>(null);
+            return Task.FromResult<IReadOnlyList<GrantableEffect>?>(rows.Effects.Where(e => e.Hash == hash && e.ParentId is null && e.Duration != "interaction")
+                .OrderBy(e => e.EntryName, StringComparer.Ordinal).ThenBy(e => e.Ordinal).Select(e => new GrantableEffect(e.EntryName, e.Id, e.Duration)).ToList());
+        }
+    }
+
     public Task<GameInfo?> Create(Guid creator, CreateGameRequest r)
     {
         lock (rows.Gate)

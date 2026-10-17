@@ -5,13 +5,15 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-public enum MenuInput { None, Integer, Text, PieceId, TablePoint }
+public enum MenuInput { None, Integer, Text, PieceId, TablePoint, Choice }
 
 /// <summary>One menu entry: a label, what it asks the player for, and the command it becomes. Null from Build means the input did not parse.
 /// A setup item builds a setup edit instead (<see cref="Edit"/>), and its Build is null.</summary>
 public sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)
 {
     public Func<string?, Edit?>? Edit { get; init; }
+    /// <summary>A Choice item's labels; the chosen one is its input.</summary>
+    public IReadOnlyList<string> Choices { get; init; } = [];
     public static MenuItem OfEdit(string label, MenuInput input, Func<string?, Edit?> edit) => new(label, input, _ => null) { Edit = edit };
 }
 
@@ -25,7 +27,7 @@ public static class MenuModel
         && double.TryParse(x, CultureInfo.InvariantCulture, out var px) && double.TryParse(y, CultureInfo.InvariantCulture, out var py)
         && double.TryParse(z, CultureInfo.InvariantCulture, out var pz) ? new Point3(px, py, pz) : null;
 
-    public static IReadOnlyList<MenuItem> ForUnit(Projection p, Guid unitId, IReadOnlyList<string> actionNames)
+    public static IReadOnlyList<MenuItem> ForUnit(Projection p, Guid unitId, IReadOnlyList<string> actionNames, IReadOnlyList<GrantChoice>? grantable = null)
     {
         var items = new List<MenuItem>();
         foreach (var a in actionNames) items.Add(new($"Mark as having taken {a}", MenuInput.None, _ => new RecordAction(unitId, a)));
@@ -34,6 +36,9 @@ public static class MenuModel
         foreach (var c in p.Units.GetValueOrDefault(unitId)?.Conditions ?? new HashSet<string>())
             items.Add(new($"Remove {c}", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), c, false)));
         items.Add(new("Set wounds this activation", MenuInput.Integer, s => Int(s) is { } n ? new SetWoundsThisActivation(unitId, n) : null));
+        if (grantable is { Count: > 0 } choices)                        // one use, the unit as its own grantor: a hand edit like any other
+            items.Add(new("Add a grant", MenuInput.Choice, s => choices.FirstOrDefault(c => c.Label == s) is { } c
+                ? new AddGrant(unitId, new Grant(Guid.CreateVersion7(), c.EffectId, c.EntryName, unitId, 1)) : null) { Choices = choices.Select(c => c.Label).ToList() });
         foreach (var g in p.Units.GetValueOrDefault(unitId)?.Grants ?? [])
             items.Add(new($"Remove grant {g.EntryName}", MenuInput.None, _ => new RemoveGrant(unitId, g.Id)));
         var models = p.Models.Values.Where(m => m.UnitId == unitId).ToList();

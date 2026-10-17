@@ -14,6 +14,8 @@ public sealed record PropertiesSummary(string ContentHash, string Name, string G
 
 /// <summary>One catalog entry of a pinned property set (GET /v1/properties/{hash}/rules). Played is false on a generated text-only entry; a row without it is played.</summary>
 public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, string RuleText, bool Played = true);
+/// <summary>An effect row a grant can carry (GET /v1/properties/{hash}/grants): an AddGrant names its entry and this id.</summary>
+public sealed record GrantableEffectDto(string EntryName, Guid EffectId, string Duration);
 public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models);
 public sealed record LayoutSummary(Guid Id, string Name, TableSize Size, int Terrain, int Markers);
 public enum AssetKind { Miniature, Terrain, Texture }

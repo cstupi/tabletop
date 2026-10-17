@@ -228,7 +228,7 @@ public partial class GameScreen
         {
             var known = MenuModel.KnownActionNames(p, _session.Log);
             var boarding = _session.Game is { } g ? MenuModel.ForBoarding(p, AskViewModel.Mine(p, g, _session.MyTeamId, _session.Settings.MutedWindowKinds)?.Ask, id) : [];
-            return [.. boarding, .. shift ? MenuModel.ForUnit(p, model.UnitId, known) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p))];
+            return [.. boarding, .. shift ? MenuModel.ForUnit(p, model.UnitId, known, _session.Grantable) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p))];
         }
         return _session.Game is { } game ? MenuModel.ForMarker(game, p, id, Input.Locks) : [];
     }

@@ -57,6 +57,9 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public bool IsCreator => Game is not null && Game.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.AccountId == Game.CreatedBy;
     /// <summary>The pinned catalog of the game's property set; Empty until fetched (in-game UX spec → Rule text).</summary>
     public RuleTexts Rules => Game?.PropertiesHash is { } hash && _ruleTexts.TryGetValue(hash, out var rules) ? rules : RuleTexts.Empty;
+    /// <summary>The pinned set's grantable effects, for the menu's Add a grant; empty until fetched with the rule texts.</summary>
+    public IReadOnlyList<GrantChoice> Grantable => Game?.PropertiesHash is { } hash && _grantable.TryGetValue(hash, out var g) ? g : [];
+    readonly Dictionary<string, IReadOnlyList<GrantChoice>> _grantable = new(StringComparer.Ordinal);
     /// <summary>Wounds each model takes before it is killed, from the latest ModelFacts; an absent id is 1 (in-game UX spec → Model facts).</summary>
     public IReadOnlyDictionary<Guid, int> MaxWounds => _maxWounds;
     /// <summary>For each unit that may be put inside a Transport now, the Transport models it may go in, from the latest ModelFacts (passengers spec).</summary>
@@ -423,14 +426,17 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>A failure caches nothing, so the next Welcome or game message tries again; the sheet shows no texts meanwhile.</summary>
     async Task FetchRuleTexts(string hash)
     {
-        RuleTexts? loaded = null;
+        RuleTexts? loaded = null; IReadOnlyList<GrantChoice> grants = [];
         try { loaded = RuleTexts.From(await management.GetRuleTexts(hash)); }
         catch (Exception) { }
+        if (loaded is not null)                                     // the menu's Add a grant; a failure leaves it out until a reconnect refetches
+            try { grants = GrantChoices.Of(await management.GetGrantableEffects(hash)); }
+            catch (Exception) { }
         dispatcher.Post(() =>
         {
             _fetchingRules.Remove(hash);
             if (loaded is null) return;
-            _ruleTexts[hash] = loaded;
+            _ruleTexts[hash] = loaded; _grantable[hash] = grants;
             if (Game?.PropertiesHash == hash) RaiseFacts();
         });
     }

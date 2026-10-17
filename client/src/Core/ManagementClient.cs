@@ -31,6 +31,7 @@ public sealed class ManagementClient(HttpClient http, Uri baseUrl)
     public Task DeleteGame(Guid id) => Send(HttpMethod.Delete, $"/v1/games/{id}", null, false);
     public Task<IReadOnlyList<PropertiesSummary>> ListProperties() => Get<IReadOnlyList<PropertiesSummary>>("/v1/properties");
     public Task<IReadOnlyList<RuleTextDto>> GetRuleTexts(string propertiesHash) => Get<IReadOnlyList<RuleTextDto>>($"/v1/properties/{propertiesHash}/rules");
+    public Task<IReadOnlyList<GrantableEffectDto>> GetGrantableEffects(string propertiesHash) => Get<IReadOnlyList<GrantableEffectDto>>($"/v1/properties/{propertiesHash}/grants");
     public Task<Page<ArmySummary>> ListArmies(Guid? after) => Get<Page<ArmySummary>>("/v1/armies?limit=200" + (after is null ? "" : $"&after={after}"));
     public Task<Army> GetArmy(Guid id) => Get<Army>($"/v1/armies/{id}");
     public Task<IReadOnlyList<LayoutSummary>> ListLayouts() => Get<IReadOnlyList<LayoutSummary>>("/v1/layouts");

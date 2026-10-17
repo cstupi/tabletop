@@ -288,13 +288,13 @@ The rules roll every die and apply every modifier; a roll entry offers no way to
 The menu is where every property is editable. It has no admin mode and no confirmation dialog.
 `MenuModel` is Godot-free and returns `MenuItem(Label, MenuInput, Func<string?, Command?> Build)`
 lists. `PieceMenu` is the `PopupMenu` that shows them. It pops a one-field dialog for an `Integer`
-or `Text` item, borrows the next click for a `PieceId` or `TablePoint` item, and sends whatever
+or `Text` item, a filtered list for a `Choice` item (`MenuItem.Choices`), borrows the next click for a `PieceId` or `TablePoint` item, and sends whatever
 `Build` returns through `SendCommandAsync`.
 
 | Wiring | Items |
 | --- | --- |
 | right-click a model | `ForBoarding` while my move Ask moves it and offers containers (Board transport per `MoveContainment.Enterable`, answering the Ask), then `ForModel` + `ForFrame`: wounds, conditions, spell tokens, shelf, container, place here |
-| Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, grants, wounds-this-activation |
+| Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, Add a grant (a `Choice` of `Session.Grantable`: the pinned set's grantable effects from `GET /v1/properties/{hash}/grants`, `GrantChoices`; one use, the unit as its own grantor) and Remove grant, wounds-this-activation |
 | right-click a marker | `ForMarker`: remove a play marker, give an objective to a team or make it neutral; in play, Unlock or Lock an objective (local, `MarkerLocks`) |
 | right-click a roster row of my team | `ForRosterUnit`: Set aside / Return to deployment (a shelved Ambush or Scout unit), Put in transport per Transport `ModelFacts.DeployInside` names, Take out of transport while that Transport is on the shelf (passengers spec) |
 | right-click a team name in the header | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |

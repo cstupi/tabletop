@@ -1160,6 +1160,8 @@ armies carry their own caps (§6, §8, §9). Migration `016_text_limits.sql` rep
 | `POST /v1/layouts` | `TableState` with `Name` → `201 TableState` | owner |
 | `GET`/`PATCH`/`DELETE /v1/layouts/{id}` | `PatchLayoutRequest(Name?, State?)` → `TableState` / `204` | owner |
 | `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules)[]`, one per `(GameRules, Name)`, the latest seeded | bearer |
+| `GET /v1/properties/{hash}/rules` | → `CatalogRuleText(Name, Kind, TakesParameter, RuleText, Played)[]` by name; `404` for an unknown hash | bearer |
+| `GET /v1/properties/{hash}/grants` | → `GrantableEffect(EntryName, EffectId, Duration)[]`: the set's top-level `once`, `marker` and `spent_marker` effect rows by entry then ordinal, what the client's Add a grant names in an `AddGrant`; `404` for an unknown hash | bearer |
 | `GET /v1/games?limit&after` | → `Page<GameSummary>` | bearer, public |
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer, public |

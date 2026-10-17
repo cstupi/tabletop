@@ -35,7 +35,26 @@ public partial class PieceMenu : PopupMenu
             case MenuInput.Text: AskText(this, item.Label, t => Send(item, t)); break;
             case MenuInput.PieceId: PickPieceRequested?.Invoke(picked => Send(item, picked.ToString())); break;
             case MenuInput.TablePoint: PickPointRequested?.Invoke(at => Send(item, FormattableString.Invariant($"{at.X},{at.Y},{at.Z}"))); break;
+            case MenuInput.Choice: AskChoice(this, item.Label, item.Choices, c => Send(item, c)); break;
         }
+    }
+
+    /// <summary>One of a list, which may be long (a property set's grantable effects): a filter field with the focus over the list; a double-click,
+    /// or Enter on a selected row, confirms; Esc cancels.</summary>
+    public static void AskChoice(Node host, string title, IReadOnlyList<string> choices, Action<string> then)
+    {
+        var d = new ConfirmationDialog { Title = title };
+        var box = new VBoxContainer(); d.AddChild(box);
+        var filter = new LineEdit { PlaceholderText = "filter" }; box.AddChild(filter);
+        var list = new ItemList { CustomMinimumSize = new Vector2(320, 280) }; box.AddChild(list);
+        void Show(string text) { list.Clear(); foreach (var c in choices) if (text.Length == 0 || c.Contains(text, StringComparison.OrdinalIgnoreCase)) list.AddItem(c); if (list.ItemCount > 0) list.Select(0); }
+        filter.TextChanged += Show; Show("");
+        string? Picked() => list.GetSelectedItems() is { Length: > 0 } sel ? list.GetItemText(sel[0]) : null;
+        d.RegisterTextEnter(filter);
+        d.Confirmed += () => { if (Picked() is { } c) then(c); };
+        list.ItemActivated += _ => { if (Picked() is { } c) { d.Hide(); then(c); } };
+        d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        host.AddChild(d); d.PopupCentered(); filter.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     /// <summary>A setup item sends its edit; any other its command.</summary>
