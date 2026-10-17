@@ -13,7 +13,7 @@ public static class GlbHeader
     public const uint BinChunkType = 0x004E4942;  // "BIN\0"
     public const int HeaderBytes = 20;
     public const string NotGlb = "Not a GLB. STL and .gltf with external files are not accepted.";
-    public const string Malformed = "The GLB is malformed. Re-export it and upload again.";
+    public const string Malformed = "The GLB is malformed.";
 
     public static bool IsGlb(ReadOnlySpan<byte> first12) =>
         first12.Length >= 12 && BinaryPrimitives.ReadUInt32LittleEndian(first12) == Magic && BinaryPrimitives.ReadUInt32LittleEndian(first12[4..]) == 2;
