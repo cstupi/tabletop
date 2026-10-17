@@ -56,7 +56,7 @@ Each game runs these, all of which must pass:
 1. **The game ends** (`Outcome` ended or the scenario's declared round cap) and the sim's eight invariants hold.
 2. **It fired**, for every covered entry: the log holds evidence attributable to that entry (*Attribution*).
 3. **Exact results**, in `core` and `special` games and in one spell per effect kind: at chosen points the script
-   fixes the dice of a roll with `SetDice` (no player command: the game server takes it only in the Development environment and in the sim's in-process driver), and the
+   fixes the dice of a roll with `SetDice` (no player command: the game server takes it only in dev mode (Development and `TABLETOP_DEV_MODE=1`) and in the sim's in-process driver), and the
    check asserts the outcome the rule text states for those dice — hits, wounds, casualties, a modifier's size, a
    test's pass or fail. The expected value is written in the check from the rule text and quoted with its page; the
    sim never computes it with a second implementation of the rules.
