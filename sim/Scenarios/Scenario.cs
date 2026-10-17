@@ -32,6 +32,9 @@ public sealed record ScenarioArmy(
     /// <summary>Unit ordinals the run sets aside before deployment (the menu's set-aside condition): a Scout or Ambush unit's way in.</summary>
     public IReadOnlyList<int> SetAside { get; init; } = [];
 
+    /// <summary>Unit ordinals and a condition the run sets on each before the first answer, as the unit menu does (a unit Shaken from the start).</summary>
+    public IReadOnlyList<(int Unit, string Condition)> Conditions { get; init; } = [];
+
     /// <summary>Unit ordinal to the Transport unit ordinal it deploys inside (p.15: "Transports may deploy with units inside"; passengers spec): the run
     /// puts each in its Transport's first model before the first answer, after the set-aside conditions, as the roster menu does.</summary>
     public IReadOnlyDictionary<int, int> Passengers { get; init; } = new Dictionary<int, int>();

@@ -167,11 +167,11 @@ Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` hone
 with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
 self-referencing and nullable; one level covers the whole rulebook and nothing forbids deeper.
 
-**`duration` is `interaction | once`**, default `interaction`. Per
+**`duration` is `interaction | once | marker | spent_marker`**, default `interaction`. Per
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): a `once` effect, when it
 applies, writes a grant onto its target — a fourth in-play store on the unit, rebuilt from the
 log and never a row — consumed the first time that grant's effect applies. Every core rule is
-`interaction`.
+`interaction`. A `marker` or `spent_marker` row is one marker a rule places on a unit: one grant per marker, stacking; a `marker` grant stays for the game, a `spent_marker` grant is consumed with its fellows the first time one applies (army-book rules spec, batch 6).
 
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
 first"*, `Blast` applies *"after resolving other special rules"* — and four of the eighteen kinds

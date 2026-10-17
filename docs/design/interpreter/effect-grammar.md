@@ -375,6 +375,12 @@ too, or a granted hook-name rule would never fire.
   carries one reference. A grant carries three, so it is not a condition either. The rule is not
   written into the unit's property list, because that list is the frozen army snapshot's copy.
 
+**A marker is a grant.** A row with duration `marker` or `spent_marker` is one marker a rule places on a unit: the ruleset
+writes one `GrantAdded` of the row per marker (a pick entry's use, a unit destroyed, a round's start), and grants of one
+rule stack, so *"for each marker"* is the sum of the instances. A carried entry exposes none of its marker rows. A `marker`
+grant is never spent (`LiveSet.Spend` skips it); a `spent_marker` grant is consumed with every grant of its rule on the
+unit, as a once grant is. A subject-opponent marker row the holder's own side placed reaches every opponent.
+
 **A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`, an
 optional `requires`: the rule the picked unit or model must hold, *"with Caster"*) whose rows all carry `at_point
 before-attacking` is an army-book Buff, Mark, Debuff or before-attacking active. Carried, it exposes no rows. The

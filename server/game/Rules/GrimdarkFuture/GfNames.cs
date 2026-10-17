@@ -18,6 +18,8 @@ public static class GfNames
     public const string InquisitorialAgent = "Inquisitorial Agent", MartialProwess = "Martial Prowess";
     /// <summary>Army-book rules spec, batch 5: hits and wounds a rule deals outside an attack, and the rules that deal them.</summary>
     public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds";
+    /// <summary>Army-book rules spec, batch 6: the round-start roll that may end Shaken, and the rule read off a model's ignored wounds.</summary>
+    public const string RallySeq = "rally", RegenerativeStrength = "Regenerative Strength";
     public const string Deathstrike = "Deathstrike", Retaliate = "Retaliate", SelfDestruct = "Self-Destruct", Ravage = "Ravage", CrossingAttack = "Crossing Attack", Strafing = "Strafing";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";

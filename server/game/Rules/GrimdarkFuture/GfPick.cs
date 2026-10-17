@@ -128,7 +128,10 @@ public static class GfPick
                 var targetUnit = ctx.Projection.Units.ContainsKey(target) ? target : ctx.Projection.Models[target].UnitId;
                 // p.13: "Effects from multiple instances of the same special rule or spell don't stack".
                 var already = ctx.Projection.Units[targetUnit].Grants.Any(g => g.EntryName == entry.Name);
-                IReadOnlyList<StateChange> grants = already ? []
+                // Markers stack: "place a marker on it" places one, "place X markers on it" the carrier's X.
+                IReadOnlyList<StateChange> grants = GfMarkers.Rows(entry).Count > 0
+                    ? GfMarkers.Place(entry, ctx.Projection.Units[targetUnit], unit, entry.TakesParameter ? Lookup.ModelParameter(ctx.State, model, entry.Name) ?? 1 : 1)
+                    : already ? []
                     : entry.Effects.Where(e => e.Duration == EffectDuration.Once).Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, entry.Name, unit, 1))).ToList();
                 ctx.Applied.Add(entry.Name);
                 return new Complete(grants, new Dictionary<string, int> { ["picked"] = 1, ["pick_index"] = index + 1 }, Repeat: index + 1 < count);

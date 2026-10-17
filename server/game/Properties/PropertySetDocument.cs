@@ -88,7 +88,7 @@ public static class PropertiesJson
             {
                 if (e.Kind != CatalogKind.Model) problems.Add($"{e.Name}: targeting is set on a spell or a pick entry (kind model)");
                 if (pick.Count != 1) problems.Add($"{e.Name}: a pick entry picks one");
-                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration != EffectDuration.Once && !IsUseRow(f)))
+                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration == EffectDuration.Interaction && !IsUseRow(f)))
                     problems.Add($"{e.Name}: a pick entry's rows have duration once or are take_test, roll, add_hit hits or remove_wounds");
                 if (e.Effects.Any(f => !f.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values is [PickPoint])))
                     problems.Add($"{e.Name}: a pick entry's row has an at_point naming {PickPoint}");
@@ -120,7 +120,9 @@ public static class PropertiesJson
     static bool IsUseRow(EffectDocument f) => f.Kind switch
     {
         EffectKind.TakeTest or EffectKind.RemoveWounds or EffectKind.Move => true,
-        EffectKind.Roll => f.Children.Count > 0 && f.Children.All(c => c.Kind == EffectKind.AddHit && c.TargetQuantity is null or TargetQuantity.Hits),
+        // "Roll one die, on a 4+ place a marker on it": the dice row's children may be the markers a success places.
+        EffectKind.Roll => f.Children.Count > 0 && (f.Children.All(c => c.Kind == EffectKind.AddHit && c.TargetQuantity is null or TargetQuantity.Hits)
+            || f.Children.All(c => c.Duration is EffectDuration.Marker or EffectDuration.SpentMarker)),
         EffectKind.AddHit => f.TargetQuantity is null or TargetQuantity.Hits && f.Conditions.All(c => c.Kind != ConditionKind.RollResult),
         _ => false,
     };

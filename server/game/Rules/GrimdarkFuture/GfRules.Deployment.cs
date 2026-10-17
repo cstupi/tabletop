@@ -80,7 +80,7 @@ public sealed partial class GrimdarkFutureRules
     /// Page 13: from round two, Ambushers deploy "starting with the player that activates next", alternating, until every team has passed
     /// or has none left. Read from the deploy_ambusher Asks since round_started; a pass stands for this boundary; nothing is written to the record.
     /// </summary>
-    public HookResult RoundBoundaryStep(GameState state, PropertySet props, int round, IReadOnlyList<Guid> order)
+    HookResult AmbushBoundary(GameState state, PropertySet props, int round, IReadOnlyList<Guid> order)
     {
         if (round < 2) return new HookDone();
         var log = SchedulerLog.Of(state);

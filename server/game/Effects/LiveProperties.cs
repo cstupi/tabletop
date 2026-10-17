@@ -9,7 +9,11 @@ namespace Tabletop.GameServer.Effects;
 public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null,
     string? Via = null)
 {
-    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Entry.Effects);
+    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Carried(Entry));
+    /// <summary>A carried entry's rows, less its marker rows, which act only through the grants a marker is.</summary>
+    static IReadOnlyList<Effect> Carried(CatalogEntry entry) => CarriedRows.GetValue(entry, e => e.Effects.Any(f => f.Duration is EffectDuration.Marker or EffectDuration.SpentMarker)
+        ? e.Effects.Where(f => f.Duration is not (EffectDuration.Marker or EffectDuration.SpentMarker)).ToList() : e.Effects);
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CatalogEntry, IReadOnlyList<Effect>> CarriedRows = new();
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
 
@@ -34,7 +38,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     /// Spending a property also spends the granted pass-one effects that changed its parameter.</summary>
     public void Spend(LiveProperty source)
     {
-        if (source.GrantId is { } g)
+        if (source.GrantId is { } g && source.GrantRow?.Duration != EffectDuration.Marker)   // a Marker grant stays for the game
             foreach (var unit in new[] { Interaction.Attacker.UnitId, Interaction.Defender?.UnitId })
                 if (unit is { } u && Interaction.State.Projection.Units[u].Grants.Any(x => x.Id == g)) _read.Add((u, g));
         if (_acts.Modified.TryGetValue(PassOneActs.Key(source), out var by)) foreach (var m in by) Spend(m);
@@ -204,12 +208,16 @@ public static class LiveProperties
         CatalogEntry? Playing(string name) => ix.Properties.Entry(name) is { Played: true } e ? e : null;
         foreach (var p in unit.Definition.Properties) if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
         // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
-        // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant.
+        // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant. A grant its holder's own side
+        // placed (a marker a unit's own rule puts on it: "enemies attacking this unit get AP(-1)") reaches every opponent.
+        var holderTeam = Interpreter.Teams.Of(state, unit.Id);
         foreach (var g in unit.Grants)
         {
-            if (ix.Properties.Entry(g.EntryName) is not { } spell || ix.Properties.AllEffects().FirstOrDefault(x => x.Id == g.EffectId) is not { } row) continue;
-            if (row.Subject == EffectSubject.Opponent && ix.Defender is not null
-                && Interpreter.Teams.Of(state, ix.Of(Interaction.Other(side)).UnitId) != Interpreter.Teams.Of(state, g.CasterUnitId)) continue;
+            if (ix.Properties.Entry(g.EntryName) is not { } spell || ix.Properties.EffectById(g.EffectId) is not { } row) continue;
+            var casterTeam = Interpreter.Teams.Of(state, g.CasterUnitId);
+            var ownMarker = casterTeam == holderTeam && row.Duration is EffectDuration.Marker or EffectDuration.SpentMarker;
+            if (row.Subject == EffectSubject.Opponent && ix.Defender is not null && !ownMarker
+                && Interpreter.Teams.Of(state, ix.Of(Interaction.Other(side)).UnitId) != casterTeam) continue;
             result.Add(new LiveProperty(side, spell, null, null, null, g.Id, row));
         }
         // A unit-kind entry on a model slot is the unit's rule, not a per-model one, and aggregation is not declared for the kind. Import produces the

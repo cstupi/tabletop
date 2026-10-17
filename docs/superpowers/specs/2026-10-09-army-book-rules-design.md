@@ -156,6 +156,17 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   Protection Feat is a roll to ignore wounds at 5+, *"once per game"* read as every wound of the first attack it is
   rolled against (it is used automatically, the first time). Regenerative Strength moves to batch 6 (a marker on a
   model); Takedown Shot and Takedown Strike are taken with batch 3, after the Takedown changes another branch makes.
+- **Batch 6.** A marker is a grant of the rule's marker row (duration `marker`, kept for the game, or `spent_marker`, spent
+  with its fellows the first time one applies), so *"for each marker"* is the sum of its grants; a carried rule's marker
+  rows act only through those grants. *"For every two markers"* is two marker rows the markers cycle through, the first
+  of each pair never acting. Steadfast, Battleborn and Honor Code roll at the round boundary, before the Ambushers. The
+  Frenzies and Vengeance read *"fully destroys an enemy unit"* as an attack's wounds leaving the unit with no model in
+  play (a unit Routed by a morale test is not counted); Vengeance places one marker per model that carried it at the start
+  of the game, for its own side. The Growths place their marker as the round starts. Spotters and Tags are pick entries
+  (used before attacking); *"friendly units may remove markers … before rolling"* removes them all at the attack that
+  reads them. A marker its holder's own side placed (Fortified Growth's *"enemies attacking this unit get AP(-1)"*)
+  reaches every opponent. Regenerative Strength's markers are the wounds its model ignored, and its *"+X attacks"* go to
+  the model's first melee weapon.
 - **Order.** Batch 3 is taken after batches 4–8: its Ambush rules sit in the Ambush placement code another branch changes.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the

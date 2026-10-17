@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static partial class GfAttack
 {
-    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep(), new GfRuleHits.RetaliationStep()]);
+    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
         AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
@@ -176,6 +176,8 @@ public static partial class GfAttack
                 {
                     var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming - kept);
                     incoming = kept + Dice.RollOutcome.Failures(record);   // each success overrides one wound
+                    // The wounds this model ignored in this step (Regenerative Strength: "Place one marker on this model when it ignores a wound").
+                    if (Dice.RollOutcome.Successes(record) is > 0 and var ignored) perModel[$"ignored_{modelId:N}"] = ignored;
                 }
                 var applied = Math.Min(capacity - model.Wounds, incoming);
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
@@ -363,10 +365,20 @@ public static partial class GfAttack
     /// </summary>
     static IReadOnlyList<(int Quality, int Attacks)> Attacks(StepContext ctx, LiveSet live, IEnumerable<Guid> models, IReadOnlyList<Guid> weapons, AttackKind kind) =>
         models.Select(m => (Quality: GfRolls.HitQuality(ctx, live, kind, m),
-                            Attacks: ctx.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).Sum(w => StatReader.Attacks(ctx.State, w.Id))))
+                            Attacks: ctx.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).Sum(w => StatReader.Attacks(ctx.State, w.Id))
+                                + RegenerativeStrength(ctx, m, kind, weapons)))
               .Where(x => x.Attacks > 0)
               .GroupBy(x => x.Quality).Select(g => (Quality: g.Key, Attacks: g.Sum(x => x.Attacks)))
               .OrderBy(x => x.Quality).ToList();
+
+    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it.</summary>
+    static int RegenerativeStrength(StepContext ctx, Guid model, AttackKind kind, IReadOnlyList<Guid> weapons)
+    {
+        if (kind != AttackKind.Melee || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => !w.Stats.ContainsKey(GfNames.Range)) is not { } first || !weapons.Contains(first.Id)) return 0;
+        var x = GfMarkers.RegenerativeStrength(ctx.State, model);
+        if (x > 0) ctx.Applied.Add(GfNames.RegenerativeStrength);
+        return x;
+    }
 
     /// <summary>
     /// Attack counts keyed by the Quality value they are rolled at, read back off a frame's `Values`: `&lt;prefix&gt;&lt;n&gt;` holds the

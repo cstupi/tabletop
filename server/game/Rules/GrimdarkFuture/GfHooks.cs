@@ -17,6 +17,8 @@ public static class GfHooks
         // p.13 gives tokens "even if they are not on the table" and says nothing of casualties; a dead model's tokens are never spent because ReactionsAt only counts AliveModels.
         foreach (var m in state.Projection.Models.Values)
             if (Lookup.ModelParameter(state, m.Id, GfNames.Caster) is { } x && x > 0) changes.Add(new SpellTokensSet(m.Id, Math.Min(GfNames.TokenCap, m.SpellTokens + x)));
+        // The Growths: "place one marker on it at the beginning of each round if it's on the table and isn't Shaken".
+        changes.AddRange(GfMarkers.AtRoundStart(state, props));
         return changes;
     }
 

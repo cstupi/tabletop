@@ -46,6 +46,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `ScenarioArmy.Passengers` (builder `passengers:`) maps a unit ordinal to the Transport unit ordinal it deploys inside: after the
   set-aside conditions, one `MoveModels` per unit from the shelf into the Transport's first model, as the roster's Put in transport
   does (passengers spec). `core-transport-deploy` plays it under strict.
+- `ScenarioArmy.Conditions` (builder `conditions:`) lists (unit ordinal, condition) pairs the run sets before the first answer, after the set-aside ones,
+  as the unit menu does: a unit Shaken from the start (the rally games).
 - `ScenarioArmy.Models` (builder `models:`) gives one model its own rules, stats or weapons (`ScenarioModel(unit, model, ...)`, 1-based):
   a Hero in a unit, a lone caster.
 - `Scenario.OptionalRules` (builder `Options`) is the game's optional-rules map, in `GameInfo` and the socket seeder's row.

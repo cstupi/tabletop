@@ -34,7 +34,10 @@ public enum TargetQuantity { Hits, Wounds, Attacks }
 public enum TargetResult { Wound, MoraleTest }
 public enum TargetModifier { Cover, ToHitPenalties, RangePenalties }
 public enum CapKind { ModelsInTargetUnit }
-public enum EffectDuration { Interaction, Once }
+/// <summary>Interaction: the row acts whenever it holds. Once: a grant spent the next time it applies (spell library). Marker and SpentMarker: one grant per
+/// marker a rule places on a unit (army-book rules spec, batch 6), stacking; a Marker stays for the game, a SpentMarker goes with its fellows the first time
+/// one applies ("may remove markers … to get"). A carried entry's marker rows act only through those grants.</summary>
+public enum EffectDuration { Interaction, Once, Marker, SpentMarker }
 
 /// <summary>One effect row with its conditions and nested children (a roll's per-success effect, a hit's granted rule).</summary>
 public sealed record Effect(
@@ -92,5 +95,8 @@ public sealed class PropertySet(string contentHash, string name, string gameRule
     public ActionDefinition Action(string name) => Actions.FirstOrDefault(a => a.Name == name) ?? throw new KeyNotFoundException($"No action '{name}' in {ContentHash}.");
     public bool HasRoll(string name) => Rolls.Any(r => r.Name == name);
     public IEnumerable<Effect> AllEffects() => Entries.SelectMany(e => e.Effects).SelectMany(Flatten);
+    /// <summary>An effect row by id, children included: what a grant names.</summary>
+    public Effect? EffectById(Guid id) => _byId.Value.GetValueOrDefault(id);
+    private readonly Lazy<IReadOnlyDictionary<Guid, Effect>> _byId = new(() => entries.SelectMany(e => e.Effects).SelectMany(Flatten).GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First()));
     static IEnumerable<Effect> Flatten(Effect e) => new[] { e }.Concat(e.Children.SelectMany(Flatten));
 }

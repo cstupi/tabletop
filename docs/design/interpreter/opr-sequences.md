@@ -21,7 +21,7 @@ edges and the free-for-all roll-off.
 | `melee` | `melee-start`, `counter`, `impact`, `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage`, `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
 | `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
 | `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
-| `deal-wounds` | `assign`, `disgorge`, `retaliation` | `GfAttack`, `GfContainers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
+| `deal-wounds` | `assign`, `disgorge`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
 | `morale-test` | `test`, `override`, `consequence` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
@@ -35,6 +35,7 @@ edges and the free-for-all roll-off.
 | `coordinate` | `coordinate-pick`, `coordinate-act`, `coordinate-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds Coordinate |
 | `rule-hits` | `hit`, `score-hits`, `resolve` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct` |
 | `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage`, an action's `crossing` (Crossing Attack) |
+| `rally` | `rally` | `GfMarkers` | `IGameRules.RoundBoundaryStep`, for a Shaken unit holding Steadfast, Battleborn or Honor Code |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
 ```mermaid

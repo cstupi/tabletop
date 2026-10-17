@@ -29,7 +29,7 @@ public static class Lookup
     public static IEnumerable<PropertyInstance> UnitProperties(GameState state, PropertySet props, Guid unitId)
     {
         var unit = state.Projection.Units[unitId];
-        var granted = unit.Grants.Select(g => props.AllEffects().FirstOrDefault(e => e.Id == g.EffectId))
+        var granted = unit.Grants.Select(g => props.EffectById(g.EffectId))
             .Where(r => r is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null })
             .Select(r => new PropertyInstance(r!.TargetEntry!, r.Amount));
         return unit.Definition.Properties.Concat(granted);

@@ -194,6 +194,14 @@ public sealed partial class RunLoop(
                 if (result is SubmitResult.Rejected rejected)
                     return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting aside {unit.Name}: {rejected.Reason} {rejected.Detail}");
             }
+            foreach (var (ordinal, condition) in scenario.Scenario.Armies[i].Conditions)
+            {
+                var unit = army.Snapshot.Units.Single(u => u.Ordinal == ordinal);
+                var result = await driver.SubmitAsync(army.ParticipantId, new SetCondition(new Subject(SubjectKind.Unit, unit.Id), condition, true), ct);
+                Absorb(await driver.DrainEventsAsync(ct));
+                if (result is SubmitResult.Rejected rejected)
+                    return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting {condition} on {unit.Name}: {rejected.Reason} {rejected.Detail}");
+            }
         }
         return null;
     }
