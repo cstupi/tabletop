@@ -95,8 +95,11 @@ inside the Transport when that is placed. In play, a right-click on a model of m
 [Transport]** when one is in reach. `ModelFacts.DeployInside` carries the choices. Suite game `core-transport-deploy`.
 Embarking in play still does not check p.15's spaces.
 
-**Still not built:** Ambush's "over 9" away from enemy units"; under Takedown, `Blast`'s cap and the defence roll read the
-whole unit; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
+**2026-10-17:** Ambush placement over 9" from enemy units (p.13, breach `ambush_distance`); under Takedown, Blast's cap and
+the defence roll read the picked model (p.14); AP reads `AP(1)`, a granted one `Rending AP(+4)`; a rerolled die carries its
+new face's triggers (`RollRecord.FaceTriggers`); a player's `AddModifier` applies to the frame's next roll of that kind and
+is consumed by it (D13, `docs/design/interpreter/resolution.md`). The combat log's "+1" still sends `AddModifier` after the
+roll it sits on, so it reaches the next roll of that kind instead.
 
 ### 2026-10-15
 
@@ -118,8 +121,7 @@ boundaries are dropped; a failed morale reads `<unit> Fled!`. Wire: `RollModifie
 The `combat-log` branch's extras are ported onto `main` (2026-10-16): the nested `Cast [spell]` block,
 `Hold → shoots [target]`, a single-die test's `failed → Shaken`, the roll-off's tie names and winner, grant and
 cross-unit condition lines, repeated-undo headers, Hud row wrapping with a width floor and tray clipping; spell hit dice and
-defense dice carry their triggers; an added attack die names no extra attacks. Not built: AP reads `AP -1`, not `AP(1)`;
-a rerolled or edited die loses its `Triggered`.
+defense dice carry their triggers; an added attack die names no extra attacks.
 
 **D. Markers, casting, set-aside, terrain labels.** Per-model red wound pips and blue spell-token dots
 (`ModelMarks`, `ModelMarkNodes`); a yellow 12-spike ring round every base of a Shaken unit. The move step's stop button
@@ -178,7 +180,6 @@ GLB parsing off the main thread, template copies of rigged or animated models.
   parked frame can resolve hits twice. Nothing guards it; a guard needs a sequence version.
 - **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
   Impact, attack-start faces, dice-distance moves.
-- **D13:** a player's `AddModifier` lands in `Projection.PendingModifiers` (`Projection.cs:94`) but nothing reads it into a roll plan.
 - **Owner rulings on movement:** a spell's forced move moves the unit however that unit moves (*"Spells move as however that
   unit moves"*): its region and its apply read the target's own Flying, Strider and Aircraft (`GfMoves.TerrainFor`). A granted
   Flying lasts the whole activation (*"Granted flying applies to the whole move - its per activation"*): once it applies it stays
