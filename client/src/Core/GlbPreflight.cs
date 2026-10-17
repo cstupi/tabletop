@@ -91,8 +91,7 @@ public static class GlbPreflight
         foreach (var v in views)
         {
             if (Int(v, "buffer") != 0) throw new Refused("buffer view names a buffer that does not exist");
-            var end = Int(v, "byteOffset", 0) + Int(v, "byteLength");
-            if (end > bufferLength) throw new Refused("buffer view runs past its buffer");
+            if (!Within(Int(v, "byteOffset", 0), Int(v, "byteLength"), bufferLength)) throw new Refused("buffer view runs past its buffer");
             if (Has(v, "byteStride", out _) && Int(v, "byteStride") is < 4 or > 252) throw new Refused("buffer view stride out of range");
         }
 
@@ -155,18 +154,21 @@ public static class GlbPreflight
         {
             var view = views[Index(a, "bufferView", views.Count)];
             var stride = Has(view, "byteStride", out _) ? Int(view, "byteStride") : element;
-            if (Int(a, "byteOffset", 0) + (count - 1) * stride + element > Int(view, "byteLength")) throw new Refused("accessor runs past its buffer view");
+            if (!Within(Int(a, "byteOffset", 0), checked((count - 1) * stride + element), Int(view, "byteLength"))) throw new Refused("accessor runs past its buffer view");
         }
         if (Has(a, "sparse", out var sparse))
         {
             var n = Int(sparse, "count");
             if (n < 1 || n > count) throw new Refused("sparse count out of range");
             if (!Has(sparse, "indices", out var indices) || !Has(sparse, "values", out var values)) throw new Refused("sparse accessor without indices or values");
-            if (Int(indices, "byteOffset", 0) + n * ComponentSize(Int(indices, "componentType")) > Int(views[Index(indices, "bufferView", views.Count)], "byteLength")) throw new Refused("sparse indices run past their buffer view");
-            if (Int(values, "byteOffset", 0) + n * element > Int(views[Index(values, "bufferView", views.Count)], "byteLength")) throw new Refused("sparse values run past their buffer view");
+            if (!Within(Int(indices, "byteOffset", 0), checked(n * ComponentSize(Int(indices, "componentType"))), Int(views[Index(indices, "bufferView", views.Count)], "byteLength"))) throw new Refused("sparse indices run past their buffer view");
+            if (!Within(Int(values, "byteOffset", 0), checked(n * element), Int(views[Index(values, "bufferView", views.Count)], "byteLength"))) throw new Refused("sparse values run past their buffer view");
         }
         return count * element;
     }
+
+    /// <summary>[offset, offset + length) lies inside [0, limit), compared without forming offset + length.</summary>
+    static bool Within(long offset, long length, long limit) => offset >= 0 && length >= 0 && offset <= limit && length <= limit - offset;
 
     static long ComponentSize(long type) => type switch
     {
