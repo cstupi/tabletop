@@ -30,6 +30,13 @@ public static class AuthEndpoints
         }).RequireAuthorization();
     }
 
-    private static Delegate Guard<T1, T2>(Func<T1, T2, Task<IResult>> h) => async (T1 a, T2 b) => { try { return await h(a, b); } catch (StytchException e) { return Sessions.Problem(e); } };
-    private static Delegate Guard<T1, T2, T3>(Func<T1, T2, T3, Task<IResult>> h) => async (T1 a, T2 b, T3 c) => { try { return await h(a, b, c); } catch (StytchException e) { return Sessions.Problem(e); } };
+    private static Delegate Guard<T1, T2>(Func<T1, T2, Task<IResult>> h) => async (T1 a, T2 b, HttpContext ctx) => { try { return await h(a, b); } catch (StytchException e) { return Refused(ctx, e); } };
+    private static Delegate Guard<T1, T2, T3>(Func<T1, T2, T3, Task<IResult>> h) => async (T1 a, T2 b, T3 c, HttpContext ctx) => { try { return await h(a, b, c); } catch (StytchException e) { return Refused(ctx, e); } };
+
+    /// <summary>The caller gets Sessions.Problem's fixed text; Stytch's own error is logged.</summary>
+    private static IResult Refused(HttpContext ctx, StytchException e)
+    {
+        ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(AuthEndpoints)).LogInformation("{Path}: Stytch {Status} {ErrorType}", ctx.Request.Path, e.Status, e.ErrorType);
+        return Sessions.Problem(e);
+    }
 }

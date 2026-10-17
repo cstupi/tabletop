@@ -19,7 +19,7 @@ public class AuthTests : IClassFixture<ManagementFactory>
         var r = await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = sent!.MethodId, code = FakeStytch.Code });
         var session = await r.Content.ReadFromJsonAsync<SessionResponse>();
         Assert.Equal(1, _f.Stytch.Authenticates - before);        // exactly one: the call that adds account_id to the session
-        Assert.Equal("clay", session!.Account.Name);
+        Assert.Matches("^Player-[0-9a-f]{4}$", session!.Account.Name);                  // never the email's local part: names are public in the game browser
         Assert.Equal(session.Account.Id.ToString(), _f.Stytch.Users["clay@example.com"].ExternalId);
         var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(session.SessionJwt);
         Assert.Equal(session.Account.Id.ToString(), jwt.Claims.Single(x => x.Type == StytchAuthentication.AccountClaim).Value);
@@ -77,15 +77,26 @@ public class AuthTests : IClassFixture<ManagementFactory>
         new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(jwt).Claims.Single(x => x.Type == StytchAuthentication.AccountClaim).Value;
 
     [Fact]
-    public async Task Failures_map_to_401_409_422()
+    public async Task Failures_map_to_generic_401_and_422_without_disclosing_an_existing_account()
     {
         var c = _f.CreateClient();
         await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "dup@example.com", password = "long enough password" });
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "dup@example.com", password = "long enough password" })).StatusCode);
+        var dup = await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "dup@example.com", password = "long enough password" });
+        _f.Stytch.Break = ("/v1/passwords", 400, "{\"error_type\":\"invalid_email\",\"error_message\":\"bad email\"}");
+        var other = await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "bad", password = "long enough password" });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, dup.StatusCode);
+        Assert.Equal(await Detail(other), await Detail(dup));                              // a taken email reads like any other refusal
+        Assert.DoesNotContain("duplicate", await dup.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "w@example.com", password = "short" })).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/v1/auth/password", new { email = "dup@example.com", password = "wrong" })).StatusCode);
+        var wrong = await c.PostAsJsonAsync("/v1/auth/password", new { email = "dup@example.com", password = "wrong" });
+        var nobody = await c.PostAsJsonAsync("/v1/auth/password", new { email = "nobody@example.com", password = "wrong" });
+        Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized), (wrong.StatusCode, nobody.StatusCode));
+        Assert.Equal(await Detail(wrong), await Detail(nobody));
+        Assert.DoesNotContain("unauthorized_credentials", await wrong.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = "email-nobody", code = "000000" })).StatusCode);
     }
+
+    static async Task<string?> Detail(HttpResponseMessage r) => System.Text.Json.JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.TryGetProperty("detail", out var d) ? d.GetString() : null;
 
     [Fact]
     public async Task Reset_refresh_and_logout()
@@ -120,6 +131,7 @@ public class AuthTests : IClassFixture<ManagementFactory>
         _f.Stytch.Break = ("/v1/otps/email/login_or_create", 429, "{\"error_type\":\"too_many_requests\",\"error_message\":\"slow down\"}");
         var r = await c.PostAsJsonAsync("/v1/auth/otp", new { email = "limited@example.com" });
         Assert.Equal(HttpStatusCode.TooManyRequests, r.StatusCode);
+        Assert.DoesNotContain("too_many_requests", await r.Content.ReadAsStringAsync());
     }
 
     [Fact]
