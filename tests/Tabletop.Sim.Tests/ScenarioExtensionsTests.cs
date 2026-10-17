@@ -1,19 +1,16 @@
 using System.Net.WebSockets;
-using Tabletop.GameServer.Persistence;
-using Tabletop.GameServer.Properties;
-using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
+using Tabletop.Sim.Tests.Infrastructure;
 
 namespace Tabletop.Sim.Tests;
 
 /// <summary>Set-aside units and per-model entries, on both drivers.</summary>
-[Collection("Postgres")]
-public class ScenarioExtensionsTests(PostgresFixture pg)
+public class ScenarioExtensionsTests
 {
     static CancellationToken Ct => CancellationToken.None;
 
@@ -46,21 +43,13 @@ public class ScenarioExtensionsTests(PostgresFixture pg)
 
     async Task<T> OverSocketAsync<T>(CompiledScenario c, Func<IGameDriver, Task<T>> play)
     {
-        await new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+        var db = new InMemorySeeder();
+        db.Properties.Add(ScenarioCompiler.CoreProperties);
         var credentials = new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList());
-        var seeder = new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db));
-        using var factory = new GameServerFactory();
-        try
-        {
-            await seeder.SeedAsync(c, credentials, Ct);
-            await using var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
-            return await play(driver);
-        }
-        finally
-        {
-            try { await seeder.DeleteAsync(c.Info.Id, Ct); }
-            finally { await TestPool.DeleteAccountsAsync(pg.Db, credentials); }
-        }
+        using var factory = new GameServerFactory(db);
+        await new InMemorySocketRows(db).SeedAsync(c, credentials, Ct);
+        await using var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
+        return await play(driver);
     }
 
     /// <summary>The unit answered at each deploy-family Ask, by question, in log order.</summary>

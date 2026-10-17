@@ -11,11 +11,10 @@ using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
 namespace Tabletop.Sim.Tests.Suite;
 
 /// <summary>
-/// The core group's games on both drivers (the socket one against the in-memory game server and the Docker Postgres). A game an engine defect
-/// blocks is pinned to exactly the failures it shows, so a fix turns up here as a change to make.
+/// The core group's games on the in-process driver (CoreGamesSocketTests: over the socket). A game an engine defect blocks is pinned to
+/// exactly the failures it shows, so a fix turns up here as a change to make.
 /// </summary>
-[Collection("Postgres")]
-public class CoreGamesTests(PostgresFixture pg) : IDisposable
+public class CoreGamesTests
 {
     /// <summary>Each blocked game's failures: every failure contains one of these, and each of these is in some failure.</summary>
     static readonly Dictionary<string, string[]> Blocked = new()
@@ -23,9 +22,6 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
     };
 
     public static TheoryData<string> Games => [.. SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).Select(g => g.Name)];
-
-    readonly GameServerFactory _factory = new();
-    public void Dispose() => _factory.Dispose();
 
     [Fact]
     public void The_core_group_is_about_ten_themed_games()
@@ -40,27 +36,38 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
     public void The_blocked_games_are_the_ones_the_catalog_pins_to_a_known_defect() =>
         Assert.Equal(Blocked.Keys.Order(), SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup && g.Known.Count > 0).Select(g => g.Name).Order());
 
+    // Whole games in process: E2E for the unit suite's time, as `dotnet run --project sim -- suite` plays them all.
+    [Trait("Category", "E2E")]
     [Theory]
     [MemberData(nameof(Games))]
     public async Task Each_core_game_passes_in_process_or_shows_only_its_known_defect(string name) =>
         AssertResult(name, await new SuiteRunner().RunAsync(new SuiteOptions([name], DriverKind.InProcess, false, TempDir()), null, Ct));
 
-    [Theory]
-    [Trait("Category", "E2E")]
-    [MemberData(nameof(Games))]
-    public async Task Each_core_game_passes_over_the_socket_or_shows_only_its_known_defect(string name)
-    {
-        var report = await new SuiteRunner(socket: await SocketAsync()).RunAsync(new SuiteOptions([name], DriverKind.Socket, false, TempDir()), null, Ct);
-        AssertResult(name, report);
-        Assert.Equal(0, await pg.CountAsync("select count(*) from management.game where starts_with(name, $1)", SuiteRows.GameName(report.RunId, "", keep: false)));
-    }
-
-    static void AssertResult(string name, SuiteReport report)
+    internal static void AssertResult(string name, SuiteReport report)
     {
         var failures = report.Games.Single().Failures;
         if (!Blocked.TryGetValue(name, out var known)) { Assert.True(report.Passed, string.Join("\n", failures)); return; }
         Assert.All(failures, f => Assert.True(known.Any(f.Contains), $"unexpected failure: {f}"));
         Assert.All(known, k => Assert.True(failures.Any(f => f.Contains(k)), $"the known failure '{k}' did not show: {string.Join("\n", failures)}"));
+    }
+
+}
+
+/// <summary>The core group's games over the socket, against the in-process game server over the Docker Postgres.</summary>
+[Collection("Postgres")]
+[Trait("Category", "E2E")]
+public class CoreGamesSocketTests(PostgresFixture pg) : IDisposable
+{
+    readonly GameServerFactory _factory = GameServerFactory.OverPostgres(pg.Db);
+    public void Dispose() => _factory.Dispose();
+
+    [Theory]
+    [MemberData(nameof(CoreGamesTests.Games), MemberType = typeof(CoreGamesTests))]
+    public async Task Each_core_game_passes_over_the_socket_or_shows_only_its_known_defect(string name)
+    {
+        var report = await new SuiteRunner(socket: await SocketAsync()).RunAsync(new SuiteOptions([name], DriverKind.Socket, false, TempDir()), null, Ct);
+        CoreGamesTests.AssertResult(name, report);
+        Assert.Equal(0, await pg.CountAsync("select count(*) from management.game where starts_with(name, $1)", SuiteRows.GameName(report.RunId, "", keep: false)));
     }
 
     sealed class FactoryConnector(GameServerFactory factory) : IWebSocketConnector

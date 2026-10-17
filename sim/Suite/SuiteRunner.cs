@@ -1,4 +1,3 @@
-using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -44,7 +43,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         {
             if (sock is not null)
             {
-                var rows = new SuiteRows(sock.Db);
+                var rows = sock.Rows;
                 runLock = await rows.HoldAsync(runId, ct);
                 await rows.SweepAsync(runId, ct);
             }
@@ -99,7 +98,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             if (sock is not null)
             {
                 credentials = await sock.CredentialsAsync(compiled, ct);
-                await new SocketRowSeeder(sock.Db, new PostgresGameRows(sock.Db)).SeedAsync(compiled, credentials, ct);
+                await sock.Rows.SeedAsync(compiled, credentials, ct);
                 inner = await SocketDriver.StartAsync(compiled, sock.Connector(), credentials, ct);
             }
             else inner = await InProcessDriver.StartAsync(compiled, ct);
@@ -124,7 +123,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             {
                 spectator = SuiteRows.Spectator;
                 var session = await sock.SessionAsync(spectator, ct);
-                await new SuiteRows(sock.Db).SeedSpectatorAsync(compiled.Info.Id, session.AccountId, spectator, ct);
+                await sock.Rows.SeedSpectatorAsync(compiled.Info.Id, session.AccountId, spectator, ct);
             }
 
             if (options.Keep)
@@ -141,7 +140,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         {
             // A failed cleanup is this game's failure; the run and its report go on.
             if (sock is not null && !options.Keep)
-                try { await new SuiteRows(sock.Db).DeleteGameAsync(compiled.Info.Id, CancellationToken.None); }
+                try { await sock.Rows.DeleteAsync(compiled.Info.Id, CancellationToken.None); }
                 catch (Exception ex) { failures.Add($"cleanup: {ex.Message}"); }
         }
 

@@ -11,7 +11,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal, plus `ScriptMatch` picks), `AskPicks`, `PolicyView`. `Chooser.cs` is the seeded random stream.
 - `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
 - `Serve/`: `ServeApp` (the runner's minimal API), `ServeArguments`, `SuiteRun`.
-- `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `SocketRowSeeder`, `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
+- `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `ISocketRows` (`SocketRowSeeder`, its Postgres implementation), `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
 - `Invariants/`: `Invariants` (the checks), `ProjectionComparer`.
 - `Recording/`: `Recording`, `RecordingJson` (`SchemaVersion`), `FrameProjector`, `LogLines`.
@@ -35,7 +35,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `ObjectiveGoal.Nearest` (the nearest objective marker the model's team does not control) reads team and control; `objectives`
   is the only scenario that opts in. Build a run's policy with `Scenario.Policy()` so the goal comes along.
 - `sim/` holds no second implementation of the rules. It asserts invariants over the log and projection.
-- `InProcessDriver` hosts the engine in the process. `SocketDriver` seeds rows in Postgres, mints sessions and plays over the game server's WebSocket.
+- `InProcessDriver` hosts the engine in the process. `SocketDriver` plays over the game server's WebSocket, after `ISocketRows` seeds the rows (`SocketRowSeeder`: Postgres) and the sessions are minted.
 - `DriverMode.StepAndWait` stops with one Ask open and answers nothing (`RunOutcome.Paused`).
 - `Invariants.CheckAll` runs eight checks: replay reproduces the projection, an undo keeps the earlier dice, every Ask answered by an addressed team, no model in two places or off the slab, the round advances only through the boundary Ask (a `game_over` Ask between them is skipped), nothing advances after the end, control follows the markers, spells come from the caster's book.
 - One file per run: `<scenario>-<seed>.json` in `--out` (default `./recordings`, git-ignored), plus `summary.json`.
@@ -88,7 +88,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `PoolSize` 4: three armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
   Every run and every concurrent game (the CLI suite beside `sim-runner`) shares them; the dev mint gives a name the same account
   every time, and a 409 from two first mints at once is asked again.
-- A socket run holds an advisory lock, sweeps games an interrupted run left (named `suite-run <run id> <game>`), seeds and deletes each
+- A socket run holds its lock (`ISocketRows.HoldAsync`; Postgres: an advisory lock), sweeps games an interrupted run left (named `suite-run <run id> <game>`, `SuiteRows`), seeds and deletes each
   game's rows: its log and the game, which cascades team, participant and the table_state tree. It never deletes an account: the
   pool outlives every run, and deleting one would cascade into the participants of games still running. A failed delete is that
   game's failure. `--keep` keeps the game (`suite <run id> <game>`), writes each recording, and adds `sim-spectator` as a participant
@@ -109,7 +109,7 @@ dotnet run --project sim -- suite                              # every suite gam
 dotnet run --project sim -- suite --only core,special --driver socket --keep
 dotnet run --project sim -- suite --list
 dotnet run --project sim -- serve                              # the runner service on 127.0.0.1:5180
-dotnet test tests/Tabletop.Sim.Tests                           # unit; --settings tests/e2e.runsettings for the socket-driver games
+dotnet test tests/Tabletop.Sim.Tests                           # unit; --settings tests/e2e.runsettings for Postgres and the suite games
 ```
 
 - Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (recordings and `suite.json`),
@@ -122,7 +122,7 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
 
 ## Conventions and pitfalls
 
-- A scenario passes against both drivers (`DriverAgreementTests`).
+- A scenario passes against both drivers (`DriverAgreementTests`, the socket one over the in-memory stores).
 - Script keys are the question name and its ordinal in the run. Server-minted Ask ids are not keys.
 - A wipe-out does not end a run. The round-4 end depends on the enforcement setting.
 - Socket runs seed Postgres with the server's own effect ids, so grants are checked by name, not id.

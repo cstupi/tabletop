@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Tabletop.Sim.Drivers;
+using Tabletop.Sim.Scenarios;
 using Tabletop.Sim.Serve;
 using Tabletop.Sim.Suite;
 using Tabletop.Sim.Tests.Suite;
@@ -96,8 +98,22 @@ public sealed class ServeTests : IAsyncLifetime
     private async Task StartWithUnreachableDatabaseAsync()
     {
         await app.DisposeAsync();
-        var db = Npgsql.NpgsqlDataSource.Create("Host=127.0.0.1;Port=1;Timeout=1;Database=x;Username=x;Password=x");
-        await StartAsync(new SuiteRunner([SuiteFixtures.Game()], new SuiteSocket(db, (_, _) => throw new InvalidOperationException(), () => throw new InvalidOperationException())));
+        await StartAsync(new SuiteRunner([SuiteFixtures.Game()], new SuiteSocket(new UnreachableRows(), (_, _) => throw new InvalidOperationException(), () => throw new InvalidOperationException())));
+    }
+
+    /// <summary>A database that is not there: every call fails after a second, as a one-second connect timeout does.</summary>
+    private sealed class UnreachableRows : ISocketRows
+    {
+        static async Task<T> Fail<T>(CancellationToken ct)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            throw new InvalidOperationException("the database is unreachable");
+        }
+        public Task SeedAsync(CompiledScenario scenario, SocketCredentials credentials, CancellationToken ct) => Fail<bool>(ct);
+        public Task DeleteAsync(Guid gameId, CancellationToken ct) => Fail<bool>(ct);
+        public Task SeedSpectatorAsync(Guid gameId, Guid accountId, string name, CancellationToken ct) => Fail<bool>(ct);
+        public Task<IAsyncDisposable> HoldAsync(Guid runId, CancellationToken ct) => Fail<IAsyncDisposable>(ct);
+        public Task<IReadOnlyList<Guid>> SweepAsync(Guid runId, CancellationToken ct) => Fail<IReadOnlyList<Guid>>(ct);
     }
 
     [Fact]

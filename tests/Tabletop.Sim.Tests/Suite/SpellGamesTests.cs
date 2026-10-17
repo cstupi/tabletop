@@ -75,6 +75,8 @@ public class SpellGamesTests
         Assert.Equal(used, checkedKinds);
     }
 
+    // Whole games in process: E2E for the unit suite's time, as `dotnet run --project sim -- suite` plays them all.
+    [Trait("Category", "E2E")]
     [Theory]
     [MemberData(nameof(GameNames))]
     public async Task The_game_passes_in_process(string name)
@@ -107,12 +109,12 @@ static class SpellDefects
     }
 }
 
-/// <summary>The spell games over the socket: the in-memory game server built from this tree, the Docker Postgres, the suite's own rows.</summary>
+/// <summary>The spell games over the socket: the in-process game server built from this tree over the Docker Postgres, the suite's own rows.</summary>
 [Collection("Postgres")]
 [Trait("Category", "E2E")]
 public class SpellGamesSocketTests(PostgresFixture pg) : IDisposable
 {
-    readonly GameServerFactory _factory = new();
+    readonly GameServerFactory _factory = GameServerFactory.OverPostgres(pg.Db);
 
     public void Dispose() => _factory.Dispose();
 

@@ -1,6 +1,5 @@
 using Npgsql;
 using Tabletop.GameServer.Configuration;
-using Tabletop.GameServer.Persistence;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Recording;
@@ -144,7 +143,7 @@ public static class Program
         var credentials = await SocketCredentials.MintAsync(compiled, http, ct);
 
         // The rows and the log stay in Postgres on purpose: the game is there to look at.
-        await new SocketRowSeeder(db, new PostgresGameRows(db)).SeedAsync(compiled, credentials, ct);
+        await new SocketRowSeeder(db).SeedAsync(compiled, credentials, ct);
         return await SocketDriver.StartAsync(compiled, new ClientWebSocketConnector(new Uri(address)), credentials, ct);
     }
 }

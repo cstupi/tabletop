@@ -3,6 +3,7 @@ using Tabletop.Content;
 using Tabletop.GameServer.Persistence;
 using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
+using Tabletop.Sim.Suite;
 
 namespace Tabletop.Sim.Drivers;
 
@@ -10,12 +11,14 @@ public sealed class PropertiesMissingException(string hash)
     : Exception($"no properties row for {hash}; start the game server once so it seeds its embedded documents");
 
 /// <summary>
-/// The rows a scenario needs before a socket can name its game. account, game, team and participant are
-/// management's writes and are raw SQL here; the table_state tree and the army snapshots go through
-/// IGameRows, which owns them (game server skeleton plan → Interfaces needed 1).
+/// ISocketRows over Postgres. account, game, team and participant are management's writes and are raw SQL here; the table_state tree
+/// and the army snapshots go through IGameRows, which owns them (game server skeleton plan → Interfaces needed 1). A run's lock is a
+/// session advisory lock keyed on its run id (LockKey), held on a connection of its own.
 /// </summary>
-public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)
+public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows) : ISocketRows
 {
+    public SocketRowSeeder(NpgsqlDataSource db) : this(db, new PostgresGameRows(db)) { }
+
     public async Task SeedAsync(CompiledScenario scenario, SocketCredentials credentials, CancellationToken ct)
     {
         if (!await rows.PropertiesExistAsync(scenario.Properties.ContentHash, ct))
@@ -65,6 +68,79 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)
         await using var connection = await db.OpenConnectionAsync(ct);
         await Execute(connection, null, ct, "delete from game.game_event where game_id = $1", gameId);
         await Execute(connection, null, ct, "delete from management.game where id = $1", gameId);   // the tree cascades
+    }
+
+    public async Task SeedSpectatorAsync(Guid gameId, Guid accountId, string name, CancellationToken ct)
+    {
+        await using var connection = await db.OpenConnectionAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        await Execute(connection, transaction, ct, "insert into management.account (id, name) values ($1, $2) on conflict (id) do nothing", accountId, name);
+        await Execute(connection, transaction, ct,
+            "insert into management.participant (id, game_id, team_id, account_id, army_id, army_snapshot) values ($1, $2, null, $3, null, null)",
+            Guid.CreateVersion7(), gameId, accountId);
+        await transaction.CommitAsync(ct);
+    }
+
+    /// <summary>The advisory lock key of a run: the run id's last eight bytes, the random part of a v7 guid.</summary>
+    public static long LockKey(Guid runId) => BitConverter.ToInt64(runId.ToByteArray(), 8);
+
+    /// <summary>
+    /// A pooled connection's session outlives its dispose, so the lock is unlocked explicitly before the connection goes. A process that
+    /// dies drops the connection, and the server releases the lock with it.
+    /// </summary>
+    public async Task<IAsyncDisposable> HoldAsync(Guid runId, CancellationToken ct)
+    {
+        var connection = await db.OpenConnectionAsync(ct);
+        try
+        {
+            await ProbeAsync(connection, "select pg_advisory_lock($1) is null", runId, ct);
+            return new RunLock(connection, runId);
+        }
+        catch { await connection.DisposeAsync(); throw; }
+    }
+
+    private sealed class RunLock(NpgsqlConnection connection, Guid runId) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            try { await ProbeAsync(connection, "select pg_advisory_unlock($1)", runId, CancellationToken.None); }
+            finally { await connection.DisposeAsync(); }
+        }
+    }
+
+    /// <summary>A live run holds its lock, and a dead process's session released it, so only an interrupted run's games go.</summary>
+    public async Task<IReadOnlyList<Guid>> SweepAsync(Guid runId, CancellationToken ct)
+    {
+        var byRun = new Dictionary<Guid, List<Guid>>();
+        await using (var command = db.CreateCommand("select id, name from management.game where starts_with(name, $1)"))
+        {
+            command.Parameters.AddWithValue(SuiteRows.TransientPrefix);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                if (SuiteRows.TransientRunOf(reader.GetString(1)) is { } run && run != runId)
+                    (byRun.TryGetValue(run, out var list) ? list : byRun[run] = []).Add(reader.GetGuid(0));
+        }
+
+        var swept = new List<Guid>();
+        await using var probe = await db.OpenConnectionAsync(ct);
+        foreach (var (run, games) in byRun)
+        {
+            if (!await ProbeAsync(probe, "select pg_try_advisory_lock($1)", run, ct)) continue;     // a live run
+            try
+            {
+                foreach (var game in games) await DeleteAsync(game, ct);
+                swept.AddRange(games);
+            }
+            finally { await ProbeAsync(probe, "select pg_advisory_unlock($1)", run, CancellationToken.None); }
+        }
+        return swept;
+    }
+
+    private static async Task<bool> ProbeAsync(NpgsqlConnection connection, string sql, Guid run, CancellationToken ct)
+    {
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue(LockKey(run));
+        return (bool)(await command.ExecuteScalarAsync(ct))!;
     }
 
     private static string Wire<T>(T value) where T : struct, Enum => WireJson.Serialize(value).Trim('"');

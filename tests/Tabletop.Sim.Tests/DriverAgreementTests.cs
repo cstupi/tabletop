@@ -1,8 +1,5 @@
 using System.Net.WebSockets;
 using Microsoft.Extensions.DependencyInjection;
-using Tabletop.GameServer.Persistence;
-using Tabletop.GameServer.Properties;
-using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Session;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
@@ -10,13 +7,14 @@ using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
+using Tabletop.Sim.Tests.Infrastructure;
 
 namespace Tabletop.Sim.Tests;
 
-[Collection("Postgres")]
-[Trait("Category", "E2E")]
-public class DriverAgreementTests(PostgresFixture pg)
+/// <summary>Each scenario on the in-process driver and over the socket against GameServerFactory's in-memory stores.</summary>
+public class DriverAgreementTests
 {
+    readonly InMemorySeeder db = new();
     static CancellationToken Ct => CancellationToken.None;
 
     sealed class FactoryConnector(GameServerFactory factory) : IWebSocketConnector
@@ -31,29 +29,18 @@ public class DriverAgreementTests(PostgresFixture pg)
         new(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList());
 
     /// <summary>
-    /// GameServerFactory runs in the Test environment, where Program does not seed the embedded documents, so
-    /// the core document goes into Postgres through the server's own store (idempotent, hash-checked).
-    /// sim/ never writes a properties row.
+    /// GameServerFactory runs in the Test environment, where Program does not seed the embedded documents, so the core set goes into
+    /// the factory's properties store here. sim/ never writes a properties row.
     /// </summary>
-    async Task SeedCoreProperties() =>
-        await new PostgresPropertiesStore(pg.Db).SeedAsync(
-            PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
-
-    /// <summary>The seeder and credentials exist before the try, so the finally can always clean up what a partial seed left.</summary>
-    (SocketRowSeeder Seeder, SocketCredentials Credentials) Prepare(CompiledScenario c) =>
-        (new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)), Credentials(c));
-
-    async Task Seed(SocketRowSeeder seeder, CompiledScenario c, SocketCredentials credentials)
+    (ISocketRows Seeder, SocketCredentials Credentials) Prepare(CompiledScenario c)
     {
-        await SeedCoreProperties();
-        await seeder.SeedAsync(c, credentials, Ct);
+        db.Properties.Add(ScenarioCompiler.CoreProperties);
+        return (new InMemorySocketRows(db), Credentials(c));
     }
 
-    async Task Clean(SocketRowSeeder seeder, CompiledScenario c, SocketCredentials credentials)
-    {
-        try { await seeder.DeleteAsync(c.Info.Id, Ct); }
-        finally { await TestPool.DeleteAccountsAsync(pg.Db, credentials); }
-    }
+    static Task Seed(ISocketRows seeder, CompiledScenario c, SocketCredentials credentials) => seeder.SeedAsync(c, credentials, Ct);
+
+    static Task Clean(ISocketRows seeder, CompiledScenario c, SocketCredentials credentials) => seeder.DeleteAsync(c.Info.Id, Ct);
 
     static RunLoop LoopFor(IGameDriver driver, CompiledScenario c, ulong seed, AnswerScript? script = null, RunSettings? settings = null) =>
         new(driver, c, new ComposedAnswers(script ?? c.Scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed), settings);
@@ -91,7 +78,7 @@ public class DriverAgreementTests(PostgresFixture pg)
 
         // A second compile: the ids differ, the seed does not.
         var c = ScenarioCompiler.Compile(scenario);
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
         try
         {
@@ -132,11 +119,11 @@ public class DriverAgreementTests(PostgresFixture pg)
     }
 
     [Fact]
-    public async Task The_log_lands_in_postgres_and_hydration_reproduces_the_game()
+    public async Task The_log_lands_in_the_store_and_hydration_reproduces_the_game()
     {
         const ulong seed = 22;
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate").WithSeed(seed));
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
         try
         {
@@ -149,9 +136,7 @@ public class DriverAgreementTests(PostgresFixture pg)
                 lastSeq = report.LastSeq;
                 played = await driver.ProjectionAsync(Ct);
             }
-            // PostgresFixture.CountAsync returns int, so the cast is what makes the comparison a long one.
-            Assert.Equal(lastSeq, (long)await pg.CountAsync(
-                "select coalesce(max(seq), 0) from game.game_event where game_id = $1", c.Info.Id));
+            Assert.Equal(lastSeq, await db.Log.LastSeqAsync(c.Info.Id, Ct));
 
             // Every socket gone, so the session leaves memory; connecting again hydrates from the log alone.
             // The registry releases it after the last socket's unwind, which is asynchronous to the dispose.
@@ -172,7 +157,7 @@ public class DriverAgreementTests(PostgresFixture pg)
         // Team 1's socket holds the connect-time AtRest and the AtRest broadcast by team 0's command.
         // A refused command from team 1 must still be reported as refused, not read off one of those.
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(5));
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
         try
         {
@@ -199,7 +184,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     public async Task Every_event_is_returned_exactly_once_across_submit_and_drain()
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(6));
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
         try
         {
@@ -223,7 +208,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     {
         const ulong seed = 23;
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(seed));
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
         try
         {
@@ -305,7 +290,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     public async Task A_malformed_frame_is_reported_as_the_cause_of_the_failed_wait()
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(7));
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, credentials) = Prepare(c);
         try
         {
@@ -323,7 +308,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     public async Task A_rejected_connect_leaves_no_socket_open_and_no_session_pinned()
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(8));
-        using var factory = new GameServerFactory();
+        using var factory = new GameServerFactory(db);
         var (seeder, good) = Prepare(c);
         try
         {
