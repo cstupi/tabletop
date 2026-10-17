@@ -340,6 +340,7 @@ export interface MoveRegion {
   readonly stoppable: boolean;
   readonly separation?: number;
   readonly passesModels: boolean;
+  readonly ignoresTerrain: boolean;
 }
 
 export interface ObjectiveControlSet {

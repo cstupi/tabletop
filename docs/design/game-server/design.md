@@ -517,7 +517,8 @@ functions read it:
   of them, at any point)"*, p.11 *"Units may not move through impassable terrain"*, p.7 *"no part of
   their bases move further than the total movement distance"*, and the landing against every impassable
   volume on the table, p.11 *"may not end their move partially overhanging gaps or terrain"* with p.7
-  *"physically impossible locations"*, except the Aircraft move (p.13 *"when moving and stopping"*); a
+  *"physically impossible locations"*, except an Aircraft's move, its own or a forced one (`MoveRegion.IgnoresTerrain`, p.13 *"when
+  moving and stopping"*); a
   model answered where it stands is not judged, one already standing off the table is not judged for the
   edge, and one whose base already touches an impassable volume is not judged for sweeping that volume);
   `aircraft_minimum`; and

@@ -1177,7 +1177,8 @@ a *current* column means the event spine has been broken.
 - **Unit coherency is never enforced.** Nothing judges it. The 1-inch separation, base overlap and a path through a model are
   judged by `GfMoves.ContactBreach` and `OverlapBreach` under the enforcement setting; `MoveRegion.Separation` and
   `PassesModels` carry the Ask's terms (Separation 1 except the Charge move, close-in, consolidation and an Aircraft's
-  move (move step, forced move, reposition); PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask).
+  move (move step, forced move, reposition); PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask;
+  IgnoresTerrain on an Aircraft's move, which exempts its landing, p.13 *"ignore all units and terrain when moving and stopping"*).
 - **Missions beyond the core one do not exist here.** Objective seizing and the round-4 winner are the ruleset's `OnRoundEnded` and `JudgeAdvance`, not interpreter steps; players keep their own counters.
 
 ### Concurrency

@@ -62,7 +62,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - An Ask answer inside its legal set is also asked of `IGameRules.AnswerBreach`, which names the rule broken; the dispatcher decides it as a
   `Breach` (`StrictRefuses(Illegal)`) under the enforcement setting. Grimdark Future's (`GfRules.Moves.cs`) are `move_not_offered`, `move_exit`,
   `move_off_table`, `move_impassable`, `move_allowance` (`GfMoves.PathBreach`, p.7 and p.11, against the Ask's own parameters, plus the landing
-  against every impassable volume, which a Flying unit's Ask does not list), `difficult_cap`
+  against every impassable volume, which a Flying unit's Ask does not list, unless the region `IgnoresTerrain`: an Aircraft, p.13), `difficult_cap`
   (`GfMoves.DifficultCapBreach`: p.11 holds every model of a `MoveRegion` to its `DifficultCap` once any model's path, or an earlier segment of the
   move, enters difficult ground), `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13) and p.7's contact clauses
   (`GfMoves.ContactBreach`: `move_overlap` on a base, `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`). All read the

@@ -37,12 +37,12 @@ public class GfForcedMoveTerrainTests
     static Guid BogId => Bog.Volumes[0].Id;
 
     /// <summary>A caster's Hypnosis on the target, cast on a 6 and its morale test failed on a 1, under strict: the caster's team holds the move Ask.</summary>
-    static Sim Hypnotised(PropertyInstance[] targetRules, out Unit target, string? granted = null)
+    static Sim Hypnotised(PropertyInstance[] targetRules, out Unit target, string? granted = null, double targetX = 28)
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]); target = Unit("T", "4+", "4+", targetRules, 1, []);
         var sim = new Sim(State([wizard], [target], x1: -4, x2: 4, enforcement: Enforcement.Strict, terrain: [Wall, Bog]),
             new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(6, 1));
-        foreach (var (u, x) in new[] { (wizard, 20.0), (target, 28.0) })
+        foreach (var (u, x) in new[] { (wizard, 20.0), (target, targetX) })
         {
             var m = u.Models[0].Id;
             sim.Append([new ModelsMoved([new ModelRelocation(m, sim.Model(m).Location, new OnTable(new Placement(new Point3(x, 20, 0), new Yaw(0))))])]);
@@ -130,6 +130,18 @@ public class GfForcedMoveTerrainTests
         Assert.Empty(region.DifficultVolumeIds);
         Assert.Null(region.DifficultCap);
         Assert.Null(region.Separation);                                                                         // p.13 "ignore all units"
+    }
+
+    [Fact]
+    public void Under_strict_an_aircraft_target_may_be_left_standing_in_impassable_terrain()
+    {
+        // p.13 Aircraft: "Aircraft ignore all units and terrain when moving and stopping": keyed on the unit, not on the action move's 30" minimum.
+        var sim = Hypnotised([P(GfNames.Aircraft)], out var target);
+        Assert.True(Region(sim).IgnoresTerrain);
+        var m = target.Models[0].Id;
+        Assert.Null(GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations([Shifted(sim, m, 3)])));
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, m, 3)));                                                  // ends in the wall
+        Assert.Equal(31, X(sim, m), 6);
     }
 
     [Fact]
