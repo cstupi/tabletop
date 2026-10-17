@@ -43,6 +43,7 @@ builder.Services.AddOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServ
 });
 
 var app = builder.Build();
+Roller.Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<Roller>();
 if (!app.Environment.IsEnvironment("Test")) await app.Services.GetRequiredService<PropertiesSeeder>().SeedEmbeddedAsync(CancellationToken.None);
 var options = app.Services.GetRequiredService<GameServerOptions>();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = options.KeepAliveInterval, KeepAliveTimeout = options.KeepAliveTimeout });

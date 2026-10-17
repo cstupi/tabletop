@@ -96,11 +96,19 @@ public static class Lookup
     public static int? UnitParameter(GameState state, PropertySet props, Guid unitId, string entry)
     {
         var own = UnitProperties(state, props, unitId).Where(p => p.Name == entry).Select(p => p.Parameter).ToList();
-        if (own.Count > 0) return own.Sum(p => p ?? 0);
+        if (own.Count > 0) return ParameterSum.Of(own);
         var model = LivingModels(state, unitId).Select(id => ModelParameter(state, id, entry)).Where(p => p is not null).ToList();
-        return model.Count == 0 ? null : model.Sum(p => p ?? 0);
+        return model.Count == 0 ? null : ParameterSum.Of(model);
     }
 
     public static int? ModelParameter(GameState state, Guid modelId, string entry) =>
         state.Projection.Models[modelId].Slot.Properties.FirstOrDefault(p => p.Name == entry)?.Parameter;
+}
+
+/// <summary>Rule parameters summed in 64 bits and clamped into ±1,000,000: a snapshot's parameters are user data, and an int overflow
+/// in a sum would throw in Advance or wrap to a nonsense sign.</summary>
+public static class ParameterSum
+{
+    public const int Limit = 1_000_000;
+    public static int Of(IEnumerable<int?> parameters) => (int)Math.Clamp(parameters.Sum(p => (long)(p ?? 0)), -Limit, Limit);
 }

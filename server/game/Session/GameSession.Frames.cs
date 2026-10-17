@@ -45,11 +45,16 @@ public sealed partial class GameSession
         var before = Play?.Projection.LastSeq ?? 0;
         if (Play is null || Dispatcher is null || Info.Status is not (GameStatus.Playing or GameStatus.Ended))
             await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.WrongStatus, $"commands are not accepted while the game is {Info.Status}"));
+        else if (Play.Projection.LastSeq >= _services.Options.MaxEventsPerGame)
+            await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.NotPermitted, "this game's log is full"));
         else
             switch (Dispatcher.Dispatch(Play, message.Command, ActorOf(from)))
             {
                 case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
-                case Applied a: await RunToRestAsync(a.Events, from.ParticipantId, a.Warning); break;
+                case Applied a:
+                    if (!await RunToRestAsync(a.Events, from.ParticipantId, a.Warning))
+                        await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.Unknown, "the rules engine failed on this command; nothing was applied"));
+                    break;
             }
         if (Faulted) return;
         var rest = Rest();

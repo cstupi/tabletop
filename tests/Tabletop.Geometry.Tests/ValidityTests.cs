@@ -55,6 +55,14 @@ public class ValidityTests
     public void A_footprint_of_an_undefined_kind_is_invalid() => Assert.False(new Footprint((FootprintKind)7, 2, 2).IsValid(1));
 
     [Theory]
+    [InlineData(144, 144, true)] [InlineData(144.01, 48, false)] [InlineData(72, 1e9, false)]
+    public void No_table_edge_is_over_144_inches(double width, double length, bool valid) => Assert.Equal(valid, Table.IsValid(new TableSize(width, length)));
+
+    [Fact]
+    public void A_swept_check_takes_at_most_4096_samples() =>
+        Assert.Equal((1, 10, Sampling.MaxSamples, 1), (Sampling.Steps(0, 0.1), Sampling.Steps(1, 0.1), Sampling.Steps(1e12, 0.1), Sampling.Steps(double.NaN, 0.1)));
+
+    [Theory]
     [InlineData(72, 48, true)]
     [InlineData(0.05, 0.05, true)]                                     // small but every built-in zone still builds on it
     [InlineData(1e-4, 48, true)]                                       // a sliver, but every outline on it has twice its area above 1e-6

@@ -56,7 +56,7 @@ public static class Movement
             var dir = new Point2(Math.Cos(angle), Math.Sin(angle));
             var limit = startLimit;
             var reached = 0.0;
-            for (var k = 1; ; k++)
+            for (var k = 1; k <= Sampling.MaxSamples; k++)
             {
                 var d = Math.Min(k * Step, limit);
                 var at = origin + dir * d;
@@ -83,7 +83,7 @@ public static class Movement
         var origin = start.Placement.Position.Horizontal;
         var delta = destination - origin;
         var distance = delta.Length;
-        var steps = Math.Max(1, (int)Math.Ceiling(distance / Step));
+        var steps = Sampling.Steps(distance, Step);
         var baseOutline = start.BaseOutline();
         var (_, baseRadius) = baseOutline.BoundingCircle();
         var reach = distance + baseRadius;
@@ -147,7 +147,7 @@ public static class Movement
     {
         var origin = start.Placement.Position.Horizontal;
         var delta = destination - origin;
-        var steps = Math.Max(1, (int)Math.Ceiling(delta.Length / Step));
+        var steps = Sampling.Steps(delta.Length, Step);
         var baseOutline = start.BaseOutline();
         var (_, baseRadius) = baseOutline.BoundingCircle();
         var near = Prefilter(volumes, origin, delta.Length + baseRadius);

@@ -24,6 +24,13 @@ public class StatValueTests
     [Fact]
     public void Wrong_format_is_a_FormatException() => Assert.Throws<FormatException>(() => StatValue.Read(StatKind.Count, "4+"));
 
+    /// <summary>Only ASCII digits, and few enough that int parsing cannot overflow (security review: content path).</summary>
+    [Theory]
+    [InlineData(StatKind.TargetNumber, "٤+")] [InlineData(StatKind.Count, "३")] [InlineData(StatKind.Distance, "١٢\"")]
+    [InlineData(StatKind.Count, "99999999999")] [InlineData(StatKind.TargetNumber, "4294967297+")] [InlineData(StatKind.Distance, "1234567.5")]
+    public void Non_ascii_digits_and_overlong_numbers_are_FormatExceptions(StatKind kind, string text) =>
+        Assert.Throws<FormatException>(() => StatValue.Read(kind, text));
+
     [Fact]
     public void Wrong_kind_accessor_is_an_InvalidOperationException() =>
         Assert.Throws<InvalidOperationException>(() => StatValue.Read(StatKind.Count, "3").Inches);

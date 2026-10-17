@@ -99,7 +99,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     public int? Parameter(Side side, string entry)
     {
         var instances = On(side).Where(p => p.Entry.Name == entry).ToList();
-        return instances.Count == 0 ? null : instances.Sum(p => p.Parameter ?? 0);
+        return instances.Count == 0 ? null : ParameterSum.Of(instances.Select(p => p.Parameter));
     }
 
     /// <summary>Effects of one kind acting on a side, in ordinal order, whose conditions hold now (a per-die condition is judged with the die).</summary>
