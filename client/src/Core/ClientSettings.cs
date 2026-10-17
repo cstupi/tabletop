@@ -36,25 +36,41 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     sealed record Dto(bool? Animate, string[]? MutedWindowKinds, bool? RememberMe, string? ManagementUrl, string? GameServerUrl, string? LogFilter, bool? LogOpen,
         string? Theme = null, bool? CameraFollow = null, bool? TurnBanner = null, bool? RangeRings = null, string? WebUrl = null);
 
-    public static ClientSettings Load(string path)
+    public static ClientSettings Load(string path) => Load(path, BuildInfo.Current);
+
+    /// <summary>A release build always reaches the servers it was built for: persisted server addresses are a development
+    /// build's override, and a release build neither reads nor writes them.</summary>
+    public static ClientSettings Load(string path, BuildInfo build)
     {
-        try
-        {
-            if (!File.Exists(path)) return Default;
-            var d = JsonSerializer.Deserialize<Dto>(File.ReadAllText(path), Json);
-            if (d is null) return Default;
-            return new ClientSettings(d.Animate ?? Default.Animate, new HashSet<string>(d.MutedWindowKinds ?? []), d.RememberMe ?? Default.RememberMe,
-                d.ManagementUrl ?? Default.ManagementUrl, d.GameServerUrl ?? Default.GameServerUrl,
-                Enum.TryParse<LogFilter>(d.LogFilter, true, out var f) && Enum.IsDefined(f) && !int.TryParse(d.LogFilter, out _) ? f : Default.LogFilter, d.LogOpen ?? Default.LogOpen)
-                with { Theme = UiThemes.Resolve(d.Theme).Id, CameraFollow = d.CameraFollow ?? true, TurnBanner = d.TurnBanner ?? true, RangeRings = d.RangeRings ?? false, WebUrl = d.WebUrl ?? Default.WebUrl };
-        }
-        catch (Exception e) when (e is JsonException or IOException) { return Default; }
+        var def = DefaultFor(build);
+        var d = Read(path);
+        if (d is null) return def;
+        var release = build.WebUrl is not null;
+        return new ClientSettings(d.Animate ?? def.Animate, new HashSet<string>(d.MutedWindowKinds ?? []), d.RememberMe ?? def.RememberMe,
+            release ? def.ManagementUrl : d.ManagementUrl ?? def.ManagementUrl, release ? def.GameServerUrl : d.GameServerUrl ?? def.GameServerUrl,
+            Enum.TryParse<LogFilter>(d.LogFilter, true, out var f) && Enum.IsDefined(f) && !int.TryParse(d.LogFilter, out _) ? f : def.LogFilter, d.LogOpen ?? def.LogOpen)
+            with { Theme = UiThemes.Resolve(d.Theme).Id, CameraFollow = d.CameraFollow ?? true, TurnBanner = d.TurnBanner ?? true, RangeRings = d.RangeRings ?? false,
+                WebUrl = release ? def.WebUrl : d.WebUrl ?? def.WebUrl };
     }
 
-    public void Save(string path)
+    /// <summary>Whether the file at <paramref name="path"/> carries a server address, which only a development build (or a
+    /// release before release builds stopped writing them) saves.</summary>
+    public static bool NamesServers(string path) => Read(path) is { } d && (d.ManagementUrl ?? d.GameServerUrl ?? d.WebUrl) is not null;
+
+    static Dto? Read(string path)
     {
+        try { return File.Exists(path) ? JsonSerializer.Deserialize<Dto>(File.ReadAllText(path), Json) : null; }
+        catch (Exception e) when (e is JsonException or IOException) { return null; }
+    }
+
+    public void Save(string path) => Save(path, BuildInfo.Current);
+
+    public void Save(string path, BuildInfo build)
+    {
+        var dev = build.WebUrl is null;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(new Dto(Animate, MutedWindowKinds.Order().ToArray(), RememberMe, ManagementUrl, GameServerUrl, LogFilter.ToString(), LogOpen, Theme, CameraFollow, TurnBanner, RangeRings, WebUrl), Json));
+        File.WriteAllText(path, JsonSerializer.Serialize(new Dto(Animate, MutedWindowKinds.Order().ToArray(), RememberMe, dev ? ManagementUrl : null, dev ? GameServerUrl : null,
+            LogFilter.ToString(), LogOpen, Theme, CameraFollow, TurnBanner, RangeRings, dev ? WebUrl : null), Json));
     }
 
     public ClientSettings Mute(string windowKind) => this with { MutedWindowKinds = new HashSet<string>(MutedWindowKinds) { windowKind } };

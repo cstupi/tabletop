@@ -15,13 +15,14 @@ Those asset columns reach it through the per-game manifest rather than the asset
 `GET /v1/assets/{id}` is owner-only. It writes one owner-side row, through management:
 `POST /v1/layouts` from its own copy of the draft.
 
-Local, per-machine state is three files under Godot's `user://`, which `OS.GetUserDataDir()`
-resolves per platform: `%APPDATA%\Godot\app_userdata\Tabletop\` on Windows, `~/.local/share` on
-Linux, `~/Library/Application Support` on macOS:
+Local, per-machine state is three files in `UserData.Dir`: a release build's is `OS.GetUserDataDir()`,
+which resolves per platform (`%APPDATA%\Godot\app_userdata\Tabletop\` on Windows,
+`~/.local/share/godot/app_userdata/Tabletop/` on Linux, `~/Library/Application Support/Godot/app_userdata/Tabletop/` on
+macOS); a development build's is the sibling `Tabletop-dev`. Godot's own `logs/` stay under `Tabletop` for both:
 
 | File | Contents | Failure behaviour |
 | --- | --- | --- |
-| `settings.json` | `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl`, `LogFilter`, `LogOpen`, `Theme`, `CameraFollow`, `TurnBanner`, `RangeRings` | missing, unreadable or malformed reads as `ClientSettings.Default`; every field is individually nullable in the DTO, so a partial file loses only its missing fields |
+| `settings.json` | `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl`, `LogFilter`, `LogOpen`, `Theme`, `CameraFollow`, `TurnBanner`, `RangeRings`, `WebUrl`; a release build ignores and never writes the three server addresses | missing, unreadable or malformed reads as `ClientSettings.Default`; every field is individually nullable in the DTO, so a partial file loses only its missing fields |
 | `session.bin` | the session JWT, in a file created readable and writable by its owner alone | absent, unreadable or not three dot-separated segments reads as null and the login screen shows; an `IOException` or `UnauthorizedAccessException` is caught, not thrown |
 | `cache/{hash}.bin` | asset blobs, keyed by SHA-256 | a partial download lives in `.part` and never becomes a cache entry; a hash mismatch deletes the part and the piece keeps its proxy |
 

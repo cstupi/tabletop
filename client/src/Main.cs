@@ -20,15 +20,15 @@ public partial class Main : Node
     public override void _Ready()
     {
         Instance = this;
-        GetWindow().Title = $"Tabletop {BuildInfo.Current.Version}";
-        var userDir = OS.GetUserDataDir();
-        _settingsPath = Path.Combine(userDir, "settings.json");
+        GetWindow().Title = BuildInfo.Current.WindowTitle;
+        var data = UserData.Open(BuildInfo.Current, OS.GetUserDataDir());
+        _settingsPath = data.Settings;
         var settings = ClientSettings.Load(_settingsPath);
-        var store = new SessionStore(Path.Combine(userDir, "session.bin"));
+        var store = new SessionStore(data.Session);
         Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
         ApplyTheme();
         Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); };
-        Cache = new AssetCache(Path.Combine(userDir, "cache"), Http);
+        Cache = new AssetCache(data.Cache, Http);
         Session.PhaseChanged += () => _dispatcher.Post(Route);
         var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };
         refresh.Timeout += () => _ = Session.RefreshAsync();
