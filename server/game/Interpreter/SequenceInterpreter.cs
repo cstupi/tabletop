@@ -61,7 +61,7 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
     /// <summary>
     /// Who a step boundary is gated to, or null for no gate. The actor's team, and only when WaitsBetweenSteps is on. Every team,
     /// whatever that setting says, for a frame with no actor and no parent: the roll-off is the only one, and nothing else keeps its log
-    /// open, so its dice would never be reachable by RerollDice, which needs the frame on the stack. The Ask is unsealed, so the
+    /// open, so its dice would never be reachable by SetDice (the rules suite's), which needs the frame on the stack. The Ask is unsealed, so the
     /// dispatcher closes it on the first answer and any team releases it. A nested actorless frame - the terrain-wounds deal-wounds -
     /// is not gated, because its own assign Ask already suspends it.
     /// </summary>

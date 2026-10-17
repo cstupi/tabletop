@@ -9,7 +9,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `Program.cs`, `SimOptions.cs`, `Summary.cs`: console entry, option parsing (`UsageException`), the per-run summary table and `summary.json`.
 - `Scenarios/`: `Scenario`, `ScenarioBuilder`, `ScenarioCatalog` (the named scenarios), `ScenarioCompiler`, `Expectation`.
 - `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal, plus `ScriptMatch` picks), `AskPicks`, `PolicyView`. `Chooser.cs` is the seeded random stream.
-- `Suite/`: the rules suite. `TestGame`, `DiceFix`, `PlayerModifier`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
+- `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
 - `Serve/`: `ServeApp` (the runner's minimal API), `ServeArguments`, `SuiteRun`.
 - `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `ISocketRows` (`SocketRowSeeder`, its Postgres implementation), `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
@@ -70,14 +70,13 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   narrowed by `When.Shooting` or `When.Charging`. They never select by `Applied`, so a rule that stops acting on some occasions fails.
 - Fired: the entry is in a step's `StepCompleted.Applied` or a `RollModifier.Source` of the effective log (`Fired.In`). A rule that acts
   where no step completes (Scout, Ambush, Immobile, Aircraft's Advance-only restriction) gets the game's `Evidence` predicate instead.
-- `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. A game with fixes runs
+- `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. `SetDice` is no player
+  command: a game server takes it only with `GameServerOptions.AcceptsSetDice` on, which the Development environment sets (the
+  compose `game` service) and the in-process driver passes to its `RulesEngineFactory`; anywhere else it is refused. A game with fixes runs
   with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable; a fix that never meets its roll fails
   the game. A fix lands before the step that decides from those dice (opr-sequences.md → Dice edits), so the casting result, a
   hit's extra hits and per-die grants, and a morale test's consequence follow the fixed faces; added attack dice were drawn on the
   faces as rolled.
-- `PlayerModifier(sequence, ordinal, roll, amount)` (`TestGame.Modifiers`): the ordinal-th frame of that sequence gets `AddModifier` from
-  the first team's participant as its `sequence_started` arrives (`DiceFixingDriver`), with the step gate on, so the frame's next roll
-  of that kind carries it. One that never meets its frame fails the game. `core-player-modifier` plays it.
 - `LogQueries.Of(run)` reads the effective log for checks: frames with parents and steps, rolls with dice as they stand after edits and
   rerolls, Asks with answers, removals, deployments, activations, moves. It reads the log; it never computes a rule.
 - Expected values in checks are literals from the rule text. `sim/` holds no second rules engine.
@@ -126,7 +125,8 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
   `--list`. Each failing game prints its replay command line.
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
-- `--driver socket` needs Postgres, the game server and management running, with management in the Development environment.
+- `--driver socket` needs Postgres, the game server and management running, both servers in the Development environment (the game
+  server for `SetDice`, management for the session mint).
 - Sessions come from `POST /v1/dev/sessions`, which exists only in Development, for the pool accounts above.
 - Socket environment, from the process or the nearest `.env`: `TABLETOP_DB_CONNECTION` (required), `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`), `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`).
 

@@ -14,7 +14,7 @@ public partial class LogDrawer : Control
     public CombatLogPanel CombatLog => _log;
     readonly Button _toggle = new() { Text = "Log (G)" };
 
-    /// <summary>A failed undo or dice edit from the log, for the screen's toast.</summary>
+    /// <summary>A failed undo from the log, for the screen's toast.</summary>
     public event Action<string>? Reported;
     /// <summary>The panel opened or closed: the Hud lays out again.</summary>
     public event Action? OpenChanged;

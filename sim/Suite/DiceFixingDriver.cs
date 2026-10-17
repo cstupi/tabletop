@@ -5,7 +5,7 @@ namespace Tabletop.Sim.Suite;
 
 /// <summary>
 /// A driver that applies a game's DiceFixes as their rolls arrive: each event the run loop takes passes through here, and a roll a
-/// fix names is set by SetDice (an ordinary command, legal under every enforcement setting) while its frame is still on the stack,
+/// fix names is set by SetDice (taken only by a server with GameServerOptions.AcceptsSetDice on) while its frame is still on the stack,
 /// before the loop answers the step gate that holds it there. The edit's events join the batch the loop receives. Nothing here
 /// reads a rule: a fix names a roll kind and an ordinal, and the faces are the game's literals.
 /// </summary>

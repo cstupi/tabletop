@@ -64,7 +64,7 @@ Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
   hits)`. The hit total is the successes plus the extra hits, so the line adds up.
 - **Pass and fail** are shown by the die (bright or faded, per theme), not by words. The result uses p.8's words: hits,
   blocked, wounds; a single-die test reads passed or failed, then its consequence.
-- **Rerolls and edits** stay on the roll's line: the faces now standing, with `rerolled ⚀ → ⚄` or `set by hand ⚀ → ⚅`.
+- **A rule's forced reroll and a `SetDice`** (the rules suite's) stay on the roll's line: the faces now standing, with `rerolled ⚀ → ⚄` or `set by hand ⚀ → ⚅`.
 - A roll with no threshold and no required face (a property's own roll) shows its faces and no result.
 - A roll judged on the raw face alone reads `unmodified 6+`; one every face passes (a spell's hits) reads no target. A roll made
   once per wound being dealt counts its dice as wounds (`3 wounds:`) and reads `N ignored, N wounds stand`.
@@ -87,7 +87,7 @@ charger); outside any block it always does. A grant reads `[unit] gets [rule]`.
 `sequence_started` without an action, `sequence_finished`, `sequence_abandoned`, `turn_started`, `turn_ended`, and a passed
 react window. The events stay in the log the server keeps; the combat log does not draw them.
 
-**Clicking a line** expands it under the line: Undo to here, Reroll, Set die, +1, the rule chips with their text
+**Clicking a line** expands it under the line: Undo to here, the rule chips with their text
 (`StepCompleted.Applied`). Clicking it again collapses it. The filters (All, Rolls, My units, This unit), the drawer, the
 follow-the-newest scrolling and the dice tray (the latest roll's line) are unchanged.
 
@@ -100,16 +100,15 @@ on dice and no cover verdict.
   granted. Rending's hits carry `AP` with `Via` `Rending`; a weapon's own AP has none. `RollEffects.Attributed` reads it with
   `LiveSet.GrantorOf`: pass one's `GrantedBy`, or for a per-die grant applied with `LiveSet.WithGranted` for a block group, the
   live rule whose per-die `grant_property` row names that entry and amount. The `granted_` key of `score-hits` is unchanged.
-  A player's modifier (`AddModifier`, `Source` `player`) carries the participant's name as `Via`.
 - **`Die.Triggered`** (list of string, optional): what this die set off, as `Rule` or `Rule +N hit(s)` (attacks, wounds), written
   when the roll is recorded, from `RollEffects.Triggers` on that die (pure; `PerDie` still records in `score-hits`). It names
   the rule (Rending, Furious, Relentless, Surge) that acted on the die, so the client counts sixes by rule without knowing any
-  rule. A die rerolled or set by hand carries what its new face sets off, from its record's `FaceTriggers`. A spell's hit roll carries them too (Crack on Electric Tempest), and so
+  rule. A die a forced reroll or `SetDice` replaces carries what its new face sets off, from its record's `FaceTriggers`. A spell's hit roll carries them too (Crack on Electric Tempest), and so
   does a defense roll, from the defender's side (Shred's `+1 wound` on a 1, added to the line's wounds). The dice an
   extra-attacks row adds carry no `+N attacks`: those rows do not apply to newly generated attacks.
 - **`RollRecord.FaceTriggers`** (list of `{ Raw, Triggered }`, optional): what each raw face sets off on this roll, every face of
   the convention judged under the record's plan and passed to `RollEffects.Triggers` when the roll is recorded; faces that set off
-  nothing are left out. A player's `RerollDice` and `SetDice` stamp the new die's `Triggered` from it.
+  nothing are left out. A forced reroll and `SetDice` (the rules suite's) stamp the new die's `Triggered` from it.
 - **`RollRecord.Cover`** (`CoverVerdict { InCover, Models, Of, IgnoredBy? }`, optional): on every defense roll of a shooting attack,
   the target unit's p.11 verdict: `InCover` the majority test passed, `Models` of `Of` living models fully inside cover terrain or
   behind a sight blocker, `IgnoredBy` the rule that took the +1 away from a unit in cover (a `suppress_modifiers` cover row such

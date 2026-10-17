@@ -35,7 +35,12 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `Hydrator` builds a `GameSession` from the rows, the `game.game_event` log and `GameRulesRegistry.Resolve(info.GameRules)`. The engine comes from `IRulesEngineFactory.Create(rules, info)`.
 - `GameSession` is one game in memory. All mutation runs on its mailbox loop (a `Channel`), so there is no lock. A newer socket for a participant replaces the older.
 - A command frame goes to `CommandDispatcher.Dispatch`, which returns `Applied(events, warning)` or `Refused`. It never appends or broadcasts.
-- `Classify` sorts commands: `Override` (menu edits: moves, markers, wounds, conditions, score, round), `Undo`, `Abandon`, `Answer`, `Engine` (dice commands).
+- `Classify` sorts commands: `Override` (menu edits: moves, markers, wounds, conditions, score, round), `Undo`, `Abandon`, `Answer`, `Engine` (`SetDice`).
+- Dice and modifiers are the rules' alone: no player command rerolls, sets a face or adds a modifier. `SetDice` is the rules
+  suite's way to fix a roll's faces. `RulesEngine` takes it only when built with `acceptsSetDice`, which comes from
+  `GameServerOptions.AcceptsSetDice`: on in the Development environment (the compose `game` service, which the suite's socket
+  driver targets), off otherwise. The sim's in-process driver and `GameServerFactory` turn it on. Off, `SetDice` is refused under
+  every enforcement setting (`Judge` says `Illegal`, `Execute` refuses `NotPermitted`).
 - `GameSession.RunToRestAsync` is the write path for a command, the catch-up at start and the end of setup: the command's events, then `IRulesEngine.Advance` repeatedly until it returns nothing (cap 10000 iterations), each batch applied to the projection as it comes; then one `IEventLog.AppendAsync` of every batch (one transaction, one `NpgsqlBatch`), then each batch broadcast as its own `EventsMessage`, in order. Nothing is sent before the append returns.
 - A failed append faults the session before anything is sent; the projection, ahead of the log, is discarded with it. An `Advance` exception or a `ProjectionDesyncException` appends what was staged, then faults.
 - A fault closes every socket 1011.
@@ -96,7 +101,8 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - Under compose, `game` runs `dotnet watch run` over the bind-mounted repo with `TabletopBuildSlot=-game`, so it builds into `obj/Unix-game/` and `bin/-game/`. A host `dotnet build` never disturbs it.
 - `game` starts after management is healthy, which has run the migrations.
 - Both servers bind `127.0.0.1` under compose.
-- `dotnet run` reads `.env` through `DotEnv` and needs `TABLETOP_DB_CONNECTION` and `TABLETOP_STYTCH_PROJECT_ID`.
+- `dotnet run` reads `.env` through `DotEnv` and needs `TABLETOP_DB_CONNECTION` and `TABLETOP_STYTCH_PROJECT_ID`. A host run the
+  suite's socket driver plays against needs `ASPNETCORE_ENVIRONMENT=Development`, or every `SetDice` is refused.
 
 ## Conventions and pitfalls
 

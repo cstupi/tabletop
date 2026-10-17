@@ -176,8 +176,7 @@ depth-first and `Validate` recurses.
 
 A kind-5 roll is recorded as a `RollRecord` whose `Roll` is the **entry's** name, such as
 `Regeneration`, `Impact` or `Fearless`, with the effect row's threshold. It is not a `roll` row,
-because nothing targets it. `AddModifier` therefore cannot name it, so a player cannot
-hand-modify a `Regeneration` roll ([the effect grammar spec](../../superpowers/specs/2026-08-29-effect-grammar-design.md) → `Roll` nests).
+because nothing targets it ([the effect grammar spec](../../superpowers/specs/2026-08-29-effect-grammar-design.md) → `Roll` nests).
 
 ## Pass one: `LiveProperties.Settle`
 

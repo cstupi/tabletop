@@ -89,8 +89,7 @@ already holds. With Animate on the tray's dice tumble for 0.4 s, each face chang
 roll: OPR's `roll-to-hit` takes one pool per Quality value the attacking models bring, since
 rulebook p.4 tests each attack against *"the model's Quality value"* and a joined hero brings its
 own. Each block's threshold is what tells the pools apart. The combat log's roll entries follow the
-same list: one `RollEntry` per `RollRecord`, with "Reroll all" and "Set die 1…" naming a `RollRecord` by id, while "+1"
-(`AddModifier`) names a roll by name. Godot physics is out
+same list: one `RollEntry` per `RollRecord`. Godot physics is out
 of the scene, so a die on the table would be a canned animation of a result the server has already
 decided, and the readout says more than a tumbling die can. The client shell spec → Animation says
 the same.
