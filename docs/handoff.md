@@ -120,8 +120,7 @@ The `combat-log` branch's extras are ported onto `main` (2026-10-16): the nested
 `Hold → shoots [target]`, a single-die test's `failed → Shaken`, the roll-off's tie names and winner, grant and
 cross-unit condition lines, repeated-undo headers, Hud row wrapping with a width floor and tray clipping; spell hit dice and
 defense dice carry their triggers; an added attack die names no extra attacks. Not built: AP reads `AP -1`, not `AP(1)`;
-a rerolled or edited die loses its `Triggered`. The branch and its worktree (`.claude/worktrees/agent-a2e178ee30d9e5f0b`)
-can be deleted.
+a rerolled or edited die loses its `Triggered`.
 
 **D. Markers, casting, set-aside, terrain labels.** Per-model red wound pips and blue spell-token dots
 (`ModelMarks`, `ModelMarkNodes`); a yellow 12-spike ring round every base of a Shaken unit. The move step's stop button
