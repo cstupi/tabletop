@@ -104,28 +104,31 @@ public sealed partial class PostgresGameRows
         await tx.CommitAsync(ct);
     }
 
-    /// <summary>Children are replaced whole: the draft is a value and one drop is one write.</summary>
+    /// <summary>Children are replaced whole: the draft is a value and one drop is one write. Every delete and insert goes in one
+    /// NpgsqlBatch, one round trip, however many pieces the draft holds (security review M6).</summary>
     internal static async Task WriteTreeAsync(NpgsqlConnection conn, NpgsqlTransaction tx, TableState draft, CancellationToken ct)
     {
-        async Task Run(string sql, params object?[] args)
+        await using var batch = new NpgsqlBatch(conn, tx);
+        void Add(string sql, params object?[] args)
         {
-            await using var cmd = new NpgsqlCommand(sql, conn, tx);
-            foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
-            await cmd.ExecuteNonQueryAsync(ct);
+            var cmd = new NpgsqlBatchCommand(sql);
+            foreach (var a in args) cmd.Parameters.Add(new NpgsqlParameter { Value = a ?? DBNull.Value });
+            batch.BatchCommands.Add(cmd);
         }
-        foreach (var table in new[] { "terrain_placement", "marker", "deployment_zone" }) await Run($"delete from management.{table} where table_state_id = $1", draft.Id);
+        foreach (var table in new[] { "terrain_placement", "marker", "deployment_zone" }) Add($"delete from management.{table} where table_state_id = $1", draft.Id);
         foreach (var t in draft.Terrain)
         {
-            await Run("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+            Add("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                 t.Id, draft.Id, t.Mesh.Builtin, t.Mesh.AssetId, t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale);
             foreach (var v in t.Volumes)
-                await Run($"insert into management.terrain_volume (id, terrain_placement_id, {VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 16).Select(i => "$" + i))})",
+                Add($"insert into management.terrain_volume (id, terrain_placement_id, {VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 16).Select(i => "$" + i))})",
                     [v.Id, t.Id, .. VolumeValues(v.Volume)]);
         }
         foreach (var m in draft.Markers)
-            await Run("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+            Add("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
                 m.Id, draft.Id, EnumText(m.Kind), m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees, m.Diameter, m.Label, m.Visual.Builtin, m.Visual.AssetId);
         foreach (var z in draft.Zones)
-            await Run("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, draft.Id, z.Shape, z.TeamOrdinal);
+            Add("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, draft.Id, z.Shape, z.TeamOrdinal);
+        await batch.ExecuteNonQueryAsync(ct);
     }
 }
