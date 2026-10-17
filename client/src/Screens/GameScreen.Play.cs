@@ -61,7 +61,7 @@ public partial class GameScreen
         _menu.PickPieceRequested += Input.PickNextPiece; _menu.PickPointRequested += Input.PickNextPoint;
         _onItem = item =>
         {
-            if (ReferenceEquals(item, _leave)) Guarded.Run(_session.LeaveAsync, Toast);   // Leave is a management call, not a command
+            if (ReferenceEquals(item, _leave)) ConfirmLeave();                             // Leave is a management call, not a command
             else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
         };
         _menu.ItemChosen += _onItem;
@@ -185,6 +185,19 @@ public partial class GameScreen
         _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;
         _roster = null; _banner = null; _markers = null; _floating = null; _rings = null; _modelMarks = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
+    }
+
+    /// <summary>Leave gives the seat up for good, unlike Home, which keeps it: asked once, Esc cancels.</summary>
+    void ConfirmLeave()
+    {
+        var d = new ConfirmationDialog
+        {
+            Title = "Leave this game?", OkButtonText = "Leave", CancelButtonText = "Stay",
+            DialogText = "Leaving gives up your seat in this game. Home closes the game and keeps your seat.", DialogAutowrap = true,
+        };
+        d.Confirmed += () => Guarded.Run(_session.LeaveAsync, Toast);
+        d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        AddChild(d); d.PopupCentered(new Vector2I(380, 0));
     }
 
     /// <summary>The team menu, from the header's team names (spec → Layout): what the team panel's right-click opened.</summary>
