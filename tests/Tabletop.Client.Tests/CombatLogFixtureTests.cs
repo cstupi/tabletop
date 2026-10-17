@@ -65,8 +65,8 @@ public class CombatLogFixtureTests(ITestOutputHelper output)
         string[] expected =
         [
             "Hit · 3+ · 8 dice: ⚁ ⚅ ⚀ ⚅ ⚅ ⚀ ⚄ ⚀ · 4 hits",
-            "Block · 5+ (AP -1, AP -4) → needs 6 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds",
-            "Block · 5+ (AP -1) → needs 6 · ⚀ · 0 blocked, 1 wound",
+            "Block · 5+ (AP(1), AP(4)) → needs 6 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds",
+            "Block · 5+ (AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound",
             "Regeneration · 5+ · 3 wounds: ⚀ ⚅ ⚀ · 1 ignored, 2 wounds stand",
         ];
         Assert.Equal(expected, rolls.Where(expected.Contains));

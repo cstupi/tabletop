@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { RecordedRoll } from '../protocol/recording.generated';
+  import { modifierText } from '../recording/modifier';
 
   let { rolls }: { rolls: readonly RecordedRoll[] } = $props();
 </script>
@@ -20,7 +21,7 @@
     <p class="muted">
       net {roll.net >= 0 ? `+${roll.net}` : roll.net}
       {#if roll.modifiers.length > 0}
-        · {roll.modifiers.map((m) => `${m.source} ${m.amount >= 0 ? `+${m.amount}` : m.amount}`).join(', ')}
+        · {roll.modifiers.map(modifierText).join(', ')}
       {/if}
       · {roll.success.filter(Boolean).length}/{roll.raw.length} passed
     </p>

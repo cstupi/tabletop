@@ -123,7 +123,10 @@ public static class RollWords
         return printed + (parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})") + (changed ? $" → needs {Math.Clamp(t - net, 2, 6)}" : "");
     }
 
-    public static string Modifier(RollModifier m) => $"{(m.Via is { } via ? via + " " : "")}{m.Source} {Signed(m.Amount)}";
+    /// <summary>`cover +1`, a spell's `-1`; AP as p.13 writes it, `AP(1)` for the weapon's own and `Rending AP(+4)` for a granted one (p.14).</summary>
+    public static string Modifier(RollModifier m) => m.Source == "AP"
+        ? m.Via is { } granted ? $"{granted} AP({Signed(-m.Amount)})" : $"AP({-m.Amount})"
+        : $"{(m.Via is { } via ? via + " " : "")}{m.Source} {Signed(m.Amount)}";
 
     /// <summary>The expanded lines: the printed value and each change, each modifier, the cover verdict's count.</summary>
     public static IReadOnlyList<string> Details(RollRecord r)
