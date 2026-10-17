@@ -66,6 +66,14 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash });
     }
 
+    public async Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)
+    {
+        await using var c = await db.Open();
+        var rows = await c.QueryAsync<(Guid Id, string Kind)>(@"select a.id, a.kind from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash
+            where a.owner_id = @ownerId and b.uploaded and a.id = any(@ids)", new { ownerId, ids = ids.ToArray() });
+        return rows.ToDictionary(r => r.Id, r => AssetRules.Kind(r.Kind));
+    }
+
     /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too and returns its S3 key.</summary>
     public async Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id)
     {

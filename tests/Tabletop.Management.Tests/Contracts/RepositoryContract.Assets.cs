@@ -24,6 +24,19 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Uploaded_kinds_names_only_the_owners_uploaded_assets()
+    {
+        var (owner, stranger) = (await NewAccount(), await NewAccount());
+        var uploaded = await Assets.Create(owner, Mini(name: "up"));
+        await Assets.MarkUploaded(owner, uploaded.Hash);
+        var pending = await Assets.Create(owner, Texture());
+        var theirs = await Assets.Create(stranger, Mini(name: "theirs"));
+        await Assets.MarkUploaded(stranger, theirs.Hash);
+        var kinds = await Assets.UploadedKinds(owner, [uploaded.Id, pending.Id, theirs.Id, Guid.CreateVersion7()]);
+        Assert.Equal(new Dictionary<Guid, AssetKind> { [uploaded.Id] = AssetKind.Miniature }, kinds);
+    }
+
+    [Fact]
     public async Task Asset_blobs_are_per_owner()
     {
         var (a, b) = (await NewAccount(), await NewAccount());

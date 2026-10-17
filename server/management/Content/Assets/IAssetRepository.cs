@@ -14,6 +14,8 @@ public interface IAssetRepository
     /// <summary>Null fields keep the stored value.</summary>
     Task<AssetDto?> Patch(Guid ownerId, Guid id, PatchAssetRequest p);
     Task MarkUploaded(Guid ownerId, string hash);
+    /// <summary>The kind of each of these ids that is an asset of the owner with its bytes uploaded; other ids are absent.</summary>
+    Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids);
     /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too and returns its S3 key.</summary>
     Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id);
     Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId);

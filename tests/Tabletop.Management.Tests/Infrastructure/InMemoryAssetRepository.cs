@@ -73,6 +73,14 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)
+    {
+        lock (rows.Gate)
+            return Task.FromResult<IReadOnlyDictionary<Guid, AssetKind>>(ids.Distinct()
+                .Where(id => rows.Assets.TryGetValue(id, out var a) && a.Owner == ownerId && rows.Blobs[(a.Owner, a.Hash)].Uploaded)
+                .ToDictionary(id => id, id => rows.Assets[id].Kind));
+    }
+
     public Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id)
     {
         lock (rows.Gate)
