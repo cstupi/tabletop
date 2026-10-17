@@ -223,8 +223,9 @@ the presence channel instead.
 ### Session creation and hydration
 
 `SessionRegistry` is the only thing that creates a session, and it does so only when a socket
-arrives. `GetOrHydrateAsync` takes a process-wide `SemaphoreSlim` so that two sockets landing
-together hydrate once. It returns a live non-faulted session if there is one, and otherwise
+arrives. `GetOrHydrateAsync` takes that game's own `SemaphoreSlim` (held in a reference-counted map, removed
+when no one holds or waits on it) so that two sockets landing together hydrate once, and a slow
+hydration holds up only its own game. It returns a live non-faulted session if there is one, and otherwise
 calls `Hydrator.HydrateAsync` and `StartAsync`.
 
 `Hydrator` is the one path. It branches only on status:
@@ -313,15 +314,15 @@ the staged events, the instance is discarded, and the next hydration rebuilds fr
 catches up through `RunToRestAsync`. A failed append of unknown outcome is the same case: the next
 `seq` is unknown and only the log is trusted.
 
-**An engine or projection failure stores what was staged, then faults.** An exception from
-`Advance`, or a `ProjectionDesyncException` from applying a staged batch, ends staging; step 3
-appends everything staged (the batch that failed to apply included) and the session faults
-without step 4. A desync means this server has just written an event naming an id its own
-projection does not hold. A resync would replay the same event from the same log and throw again,
-and hydration hits it in `Hydrator` instead, where `ConnectionHandshake` closes the socket with
-`1011`. The client's opposite treatment of the same exception, dropping the projection and
-rebuilding it from the log, works because a client holds one copy of a log it can re-read. The
-server holds the only copy, and the log it would rebuild from is the log that faulted.
+**An engine or projection failure rolls the run back.** An exception from `Advance`, or any
+exception from applying a staged batch (a `ProjectionDesyncException` above all), ends staging;
+nothing staged is appended or sent, `Play` is rebuilt by applying the stored log to a fresh
+`EventApplier`, and `RunToRestAsync` returns false. The command is answered `Refused(Unknown,
+"the rules engine failed on this command; nothing was applied")` and its `AtRest`; the exception
+goes to the server log. A batch this server could not apply, once stored, would throw on every later
+hydration and leave the game unopenable; refused, it leaves the game playable from its last stored
+state, where undo and the menu still work. At hydration the catch-up stores nothing and the
+session stays live.
 
 ### The rest frame
 
@@ -663,8 +664,9 @@ possible without the app running a roll-off in setup.
 
 ### The creator's two transitions
 
-`game.created_by` is read for exactly two socket commands and nothing else. The creator is not a
-host, cannot kick, and does not own the log.
+`game.created_by` is read for the two transitions below, `SetConfiguration` (creator only), and
+`PickTeam` naming another participant or a team someone else holds (the creator's placing; see
+Watchers and lobby authority). The creator is not a host, cannot kick, and does not own the log.
 
 **`StartSetup`** is creator only, `lobby` only. It creates the `table_state` draft row with
 `NewDraft()`: `GameServerOptions.DefaultTableWidth` × `DefaultTableLength` (72 × 48) and the
@@ -725,7 +727,7 @@ never filtered. It is the reveal. Three properties:
   `ConnectAsync`'s log delivery. The log itself is never filtered, which keeps one canonical
   history.
 
-### Watchers
+### Watchers and lobby authority
 
 An account that is not a participant of the game and whose session has the `admin` role joins as a
 watcher (admin watch spec); anyone else is `Rejected(NotAParticipant)`, and so is an admin naming a game
@@ -743,6 +745,19 @@ joining it.
 - What a watcher sends: a `SightQuery` is answered. A command (answers and undo included), an edit,
   presence or a ping is answered `Refused` with reason `watcher` (`RefusalReason.Watcher`; `MessageId`
   the command or edit id, `Guid.Empty` for presence and ping) and nothing else follows, no `AtRest`.
+- From `playing` on, a participant with no team is answered exactly as a watcher (`GameSession.Watches`):
+  game flow makes that participant a spectator. Before `playing` a teamless participant is choosing a team
+  and edits and points as anyone does. `CommandDispatcher.Dispatch` refuses every command from an actor
+  with no team (`NotPermitted`), so the override path, undo and abandon need a team; either team may
+  still undo or correct anything.
+- A frame from a connection the session no longer holds (replaced, or closed over its account's socket
+  cap) is dropped.
+
+Lobby edits that change who plays: `SetConfiguration` is the creator's. Teams are shared by design (game
+flow: two players on a side), and `PickTeam(TeamId, ParticipantId?)` takes an empty team freely; a team
+another participant holds is joined only by the creator's placing (`ParticipantId` names whom the
+creator places; a non-creator naming anyone but themselves, or a held team, is `NotPermitted`). A lobby
+edit from a participant whose row has gone is refused.
 
 ### Presence and the drain
 
@@ -770,6 +785,38 @@ write finishes first. `HostOptions.ShutdownTimeout` bounds the whole thing at 30
 the event log" is therefore *finishing the queue*. Every event is appended before it is
 broadcast, so nothing is held in memory that the log does not already have and the drain has
 nothing to flush.
+
+### Limits
+
+Every bound is a property of `GameServerOptions` (the connection limits are also read from `TABLETOP_*`)
+or a record it holds (`DraftLimits`, `ArmyLimits`). The figures and why:
+
+| What | Bound | Over it | Why this figure |
+| --- | --- | --- | --- |
+| Open connections | Kestrel `MaxConcurrentConnections` 2000, `MaxConcurrentUpgradedConnections` 1000 (`TABLETOP_MAX_CONNECTIONS`, `TABLETOP_MAX_UPGRADED_CONNECTIONS`) | refused by Kestrel | one small server's worth |
+| Sockets per account | 4 (`TABLETOP_SOCKETS_PER_ACCOUNT`) | the account's oldest closed `1000`, as a replaced socket | a player, a second window, the sim's recorder |
+| `Connect` | 5 s from the upgrade, 8 KB | `1002`, `1009` | a JWT and two numbers |
+| Any later frame | 64 KB; `ReplaceDraft` 512 KB; presence 16 KB | `1009` | the largest legal draft serialises to about 380 KB |
+| Text in a frame | no C0 control, DEL, or bidi override or isolate (U+202A–202E, U+2066–2069), property names included (`InboundText`) | a command or edit `Refused(Unknown)` by its id; any other frame dropped | a label that reads as something else; NUL breaks Postgres text |
+| Frame rate | commands, edits and sight queries 20/s, burst 40 (`TABLETOP_FRAME_RATE`, `TABLETOP_FRAME_BURST`); pings 3/s, burst 6; presence 30/s, burst 60 (`FrameLimiter`, `TokenBucket`) | the read loop waits for a token (the peer is slowed by its own TCP window); a ping or presence frame is dropped | a player clicks far below 20/s; the client sends presence at 20 Hz |
+| Outbound queue | 20 000 messages or 64 MB (`SocketLimits`); presence coalesced per participant, latest wins | `1013` | the connect sequence queues the whole log at once, 500 events a message |
+| Session lifetime | the JWT's `exp` | `1008` "session expired" | revocation reaches an open socket |
+| Events per game | 200 000 (`TABLETOP_MAX_EVENTS_PER_GAME`) | every command `Refused(NotPermitted)` | many times a full game's log |
+| Draft (`DraftLimits`) | 64 pieces, 8 volumes a piece, 32 markers; labels 64, notes 500 characters; volumes from 0 to at most 24" and upward; markers 0.5–6" across; scale up to 10; positions finite within 144" of the table's centre; table edges at most 144" (`Table.MaxEdge`); a built-in visual a lowercase slug (the catalog lives in the client); zone shapes the style's own, once each | the edit `Refused(Unknown)`; removals always apply | p.6 recommends 15 or more pieces; the client's generators place 13–21 |
+| Assets in a setup edit | each must exist in `management.asset` and belong to a participant (`IGameRows.AssetOwnersAsync`) | `Refused(NotPermitted)` | a stranger's mesh id would publish their blob |
+| Army at `PickArmy` and `EndSetup` (`ArmyLimits`) | 150 units, 50 models a unit, 1000 models; bases 0.4–12", heights 0.1–24", a defined base shape; Quality and Defense 2+–6+, Attacks 1–100, Range up to 144"; rule parameters 0–100 | `Refused(Illegal)` naming what is out of range | an army is user data read by every step; 100 keeps a titan's Tough playable |
+| Override commands (`MenuLimits`) | an action or a grant's entry and effect must exist in the property set; a condition 1–64 characters (conditions are free names: game flow, "anything else the unit currently is"); positions finite within the table's diagonal of its centre (`GfAnswers.Moves`' bound); wounds, tokens 0–10 000; score ±10 000; round 0–100 | `Refused(Unknown)` | what the menu writes is read back by every later step |
+| Presence (`PresenceLimits`) | 64 placements, 64 selected models, finite coordinates; a ping's point finite | dropped | one unit's drag |
+| A roll | 1000 dice (`Roller.MaxDice`); a negative count throws | clamped, logged | the rulebook's largest pool is a few hundred |
+| A swept check | 4096 samples (`Sampling.MaxSamples`: `Movement`, `Collision.Slide`, `Collision.Crosses`) | samples spread further apart | a forged length costs a bounded loop |
+| Rule parameter sums | ±1 000 000 in 64-bit arithmetic (`ParameterSum`) | clamped | no overflow from user data |
+| Stat text | ASCII digits, at most six (`StatValue.Read`) | `FormatException` | `\d` matches other scripts' digits |
+| Enums on the wire | by name only (`JsonStringEnumConverter(allowIntegerValues: false)` in `ContentJson`) | unreadable frame, `1007` | an integer names no member |
+| JWKS | cached 10 min; an unknown `kid` refetches at most once per 30 s, one fetch shared; a 5 s fetch timeout; on failure the held keys serve for at most 1 h after their fetch, then verification fails closed | `1011` | a stream of made-up kids costs one request per 30 s |
+
+Close reasons sent to a peer are fixed phrases, cut to 123 UTF-8 bytes; exception text and type names go
+to the server log only. The send loop catches everything; the handshake releases the game in a finally
+nested outside the detach.
 
 ## Key decisions
 
@@ -856,7 +903,7 @@ Decisions this module settles itself:
 | `interface IGameRows` | six reads: `ReadGameAsync`, `FindParticipantAsync`, `ReadDraftAsync`, `ReadSnapshotsAsync`, `ReadArmyAsync`, `PropertiesExistAsync`; seven writes: `CreateTeamAsync`, `SetParticipantTeamAsync`, `SetParticipantArmyAsync`, `SetConfigurationAsync`, `StartSetupAsync`, `WriteDraftAsync`, `EndSetupAsync`; `sealed record OwnedArmy(Army Army, Guid OwnerId)` |
 | `interface ISessionVerifier` | `Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken)`; `sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt, IReadOnlySet<string> Roles)` with `IsAdmin`; `const string StytchJwtVerifier.AccountClaim = "account_id"`, `RolesClaim = "roles"` |
 | `static class DraftEditor` | `TableState? Apply(TableState, SetupEdit, out string? missing)`, `TableState DropOffSlab(TableState)`, `bool OnSlab(TableState, Point3)` |
-| `sealed class GameServerOptions` | `DbConnection`, `StytchProjectId`, `StytchJwksUrl`, `MinimumClientVersion`, `PresenceRelayHz = 20`, `HandshakeTimeout = 10 s`, `KeepAliveInterval = 20 s`, `KeepAliveTimeout = 60 s`, `DefaultTableWidth = 72`, `DefaultTableLength = 48`, `DefaultTextureBuiltin = "grass"`; `static FromEnvironment(IConfiguration)` |
+| `sealed class GameServerOptions` | `DbConnection`, `StytchProjectId`, `StytchJwksUrl`, `MinimumClientVersion`, `PresenceRelayHz = 20`, `HandshakeTimeout = 5 s`, the connection limits, `Outbound`, `ActionRate`, `PingRate`, `PresenceRate`, `MaxEventsPerGame`, `Draft`, `Army` (Limits), `KeepAliveInterval = 20 s`, `KeepAliveTimeout = 60 s`, `DefaultTableWidth = 72`, `DefaultTableLength = 48`, `DefaultTextureBuiltin = "grass"`; `static FromEnvironment(IConfiguration)` |
 
 ### Consumed
 
@@ -905,7 +952,7 @@ sequenceDiagram
     participant DB as Postgres
 
     C->>H: ws upgrade, then Connect(jwt, gameId, version)
-    Note over H: 10 s HandshakeTimeout, and a first frame that is not Connect is a 1002
+    Note over H: 5 s HandshakeTimeout, an 8 KB cap, and a first frame that is not Connect is a 1002
     H->>H: version below minimum? Rejected(UpgradeRequired)
     H->>V: VerifyAsync(jwt)
     V->>V: RS256, issuer, audience, account_id claim
@@ -988,8 +1035,8 @@ mailbox, so command latency for a game is one round trip plus however many `Adva
 the engine takes. A `GameRules` hook that emits an event every iteration turns one command into a
 chain of appends before any other frame for that game is handled. The whole chain ends in one
 `AtRest`, after the last of its events, so the batch has one terminator however many appends it
-took. A `DuplicateSequenceException`, any other append failure, and a `ProjectionDesyncException`
-from applying the batch all fault the game.
+took. A `DuplicateSequenceException` and any other append failure fault the game; an `Advance`
+exception or a batch the projection cannot apply refuses the command and stores nothing.
 
 ### A setup edit, for contrast
 
@@ -1223,7 +1270,7 @@ stateDiagram-v2
     hydrating --> live : rows + draft/snapshot + log, then StartAsync (+ Advance)
     hydrating --> absent : GameNotFound / GameRowsInconsistent / UnknownGameRules / ProjectionDesync, close 1011
     live --> live : sockets attach and detach, a newer socket replaces an older one per participant
-    live --> faulted : any append failure, a ProjectionDesyncException applying the batch, or a draft write failure
+    live --> faulted : any append failure, or a draft write failure
     live --> absent : ReleaseIfEmptyAsync when the last socket goes
     faulted --> absent : released, or replaced on the next GetOrHydrateAsync
     live --> drained : SIGTERM, DrainAllAsync, every socket closed 1001
@@ -1239,16 +1286,16 @@ edge back to `absent` is recovered by hydrating again.
 
 | Hazard | What the system does | Test |
 | --- | --- | --- |
-| Two sockets for one game arriving together | `SessionRegistry`'s semaphore serialises get-or-hydrate; one hydration, one session | `The_last_socket_leaving_releases_the_session_and_the_next_hydrates_again` |
+| Two sockets for one game arriving together | `SessionRegistry`'s per-game semaphore serialises get-or-hydrate; one hydration, one session; another game's hydration is not held up | `A_slow_hydration_holds_up_only_its_own_game` |
 | Two tasks serving one game | Nothing prevents it. The `(game_id, seq)` primary key rejects the loser's append, `PostgresEventLog` raises `DuplicateSequenceException`, the session faults and closes every socket with `1011`, and the next hydrate replaces the instance | `Losing_the_seq_race_faults_the_session_and_closes_every_socket` |
 | A partially appended batch | `AppendAsync` is one transaction; a duplicate anywhere in the batch lands none of it | `A_duplicate_seq_is_refused_and_nothing_of_the_batch_lands` |
 | A live event interleaved into a connecting client's log delivery | `ConnectAsync` is one mailbox turn | `Connecting_at_playing_yields_welcome_board_and_the_log_then_live_events` |
 | Two members of one team answering the same Ask | The dispatcher refuses the second with `NotPermitted`; one answer per team | `Only_an_addressed_team_may_answer_and_an_unknown_ask_is_unknown` |
 | Two people dragging the same piece in setup | Arrival order on the mailbox; last drop wins, and each sees the other's drag through presence | `Anyone_edits_everyone_sees_the_whole_draft_and_the_row_follows` |
 | A crash between an append and `Advance` | `StartAsync` runs `RunToRestAsync` after hydrating a `playing` game | `Starting_advances_the_engine_and_a_sealed_answer_is_withheld_per_viewer` |
-| An event the server's own projection cannot apply | `EventApplier` throws `ProjectionDesyncException`, `AppendAsync` faults the session and closes every socket with `1011`; the next hydrate throws the same exception and the handshake closes with `1011` | `An_event_the_servers_own_projection_cannot_apply_faults_the_session` |
+| An event the server's own projection cannot apply, or an `Advance` that throws | The run is rolled back: nothing stored or sent, the projection rebuilt from the log, the command refused; the session stays live | `An_event_the_servers_own_projection_cannot_apply_rolls_the_command_back`, `An_engine_that_throws_in_advance_refuses_the_command_and_stays_usable` |
 | An engine that never rests | `RunToRestAsync` caps at 10 000 iterations and logs an error | — |
-| Two sockets for one participant | The newer replaces the older, closed with `1000`; presence stays one value | `A_second_connection_for_the_same_participant_replaces_the_first` |
+| Two sockets for one participant | The newer replaces the older, closed with `1000`; the older's read loop stops and any frame it still delivers is dropped; presence stays one value | `A_second_connection_for_the_same_participant_replaces_the_first`, `A_replaced_socket_is_read_no_further` |
 
 ### Lifecycle
 
@@ -1282,27 +1329,27 @@ edge back to `absent` is recovered by hydrating again.
 - **A game deleted while a session is live.** `DELETE /v1/games/{id}` removes the rows and the
   log. The session keeps serving from memory until its sockets close. The next append fails on
   the foreign key rather than on the primary key, so it is not the duplicate path.
-- **A JWT expiring mid-game does nothing.** Nothing re-verifies an open socket, so a deleted
-  account's live socket survives until it closes. Revocation latency is a reconnect, not a
-  heartbeat.
+- **A socket lives as long as its JWT.** A timer closes it `1008` ("session expired") at the
+  token's `exp`; the client reconnects with the token it has refreshed since (any close other than
+  `1000` after `Welcome` reconnects). Revocation latency is at most the token's lifetime.
 
 ### Left to break
 
 - **Illegal game states.** Nothing is an invariant: a dead model on the table, a unit marked
   activated twice, an active team whose turn it is not. Only references are checked, because
   applying an event naming nothing would throw inside the applier.
-- **A log the projection cannot apply is unrecoverable in place.** The batch is durable before it
-  is applied, so an event naming an id nothing created stays in the log. Every subsequent hydrate
-  replays it and throws, and the game cannot be opened until the row is removed by hand. The
-  fault makes the bug loud on the first occurrence instead of letting one player's copy diverge.
+- **A stored log the projection cannot apply is unrecoverable in place.** This server rolls back
+  a batch it cannot apply before storing it, so such a log comes only from outside (a hand edit, an
+  older build). Every hydrate replays it and throws, and the game cannot be opened until the row is
+  removed by hand.
 - **`GameRules` is not pinned.** Only `Properties` is content-addressed. Restarting an ended
   game after a deploy that changed a step list may replay differently. Pinning a build version
   was rejected: every deploy would become a wall old games cannot cross.
 - **Hand-move positions are rested.** `MenuTranslation` rests each hand move with `Battlefield.Settle`, which ignores the
   client's `Z`; the `X`/`Y` the client chose are recorded. Accepted under "anyone can move
   anything, and the record says who".
-- **No rate limiting anywhere.** A client may send presence at any rate. The relay is capped at
-  20 Hz outbound. The inbound side is not capped.
+- **Limits are per connection and per game, not per account over time.** An account may hold four
+  sockets; each is rate-limited on its own. Nothing caps how many games one account plays at once.
 
 ## Testing
 
@@ -1333,10 +1380,10 @@ Two things are exercised only by `dotnet test`'s own scheduling:
   handle, which proves the fault path but not the mechanism that would produce it in
   production.
 - **Nothing tests the mailbox under load.** Ordering is proven for two frames, not for a
-  thousand, and the unbounded queue's behaviour under a stalled database is untested.
+  thousand, and the unbounded mailbox's behaviour under a stalled database is untested.
 
-Also untested: `HttpJwksSource`'s cache and rotation-refetch, because the socket tests swap in a
-static source. Every `Advance` behaviour beyond "the inert engine returns nothing" is untested
+`HttpJwksSource` is tested over a counting `HttpMessageHandler` and a manual clock
+(`JwksSourceTests`); the socket tests swap in a static source. Every `Advance` behaviour beyond "the inert engine returns nothing" is untested
 too. The loop's cap and its interleaving with appends are first exercised by the scheduler and
 interpreter plans.
 
