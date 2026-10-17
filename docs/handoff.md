@@ -4,8 +4,7 @@ The game is built end to end and playable from the server's side: a Grimdark Fut
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
 `sim/` plays whole games headless; `viewer/` draws them. On 2026-10-15 the owner played in the client and reported setup,
 movement, log, marker and game-end problems; *2026-10-15* below was built in response, and *2026-10-16* settled the
-combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items. All on `main`,
-none of it yet seen working in Godot. An undone roll's dice stay spent: an undo always draws fresh
+combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -153,11 +152,6 @@ in range); the decision box and the unit card show it. Checked over the socket: 
   Hybrid size classes (proposed: the lower class); "perimeter" undefined in the book (proposed: convex hull of the bases).
   Next: review it with the owner, then plan and build.
 
-**H. Still to check on screen from 2026-10-12:** the Hud layout at odd window heights (`godot.log` should hold no "Hud
-layout did not settle"; then remove `GameScreen.NoteLayout`); Undo on the stranded game `01a13331-…` (one press should
-reopen the activation choice); the decision box column, terrain lock, the 360 px side panel, log follow, the other
-player's cursor name. Open: whether "Undo to here" offers only action boundaries.
-
 **Housekeeping.** Docker Desktop restarting takes every container down with exit 255;
 `docker compose up -d` brings them back.
 
@@ -173,30 +167,15 @@ bases; sight lines reject by bounding box before the exact test (`SightBlockers`
 2,196 → 369, turn-boundary `Advance` 38–46 ms → 2–2.6 ms. The dev stack's `dotnet watch` (Debug, hot reload) is
 12.8× slower than Release; production builds Release.
 
-**Owner's on-screen checks for this set** (nothing ran in Godot): terrain, markers and zones correct after every setup
-edit, a refused drag snaps back, undo and reconnect redraw the table, models and built-in meshes load at the right scale
-and facing, several copies of one model all show, no flicker per batch; an activation leaves header, roster, unit card,
-markers, decision box and dice tray showing what they did before; dice tumble then settle; the drawer appends and
-scrolls; Undo tooltip and dialog, Ctrl+Z twice; a sealed Ask's "Revealed:" line shows when the next Ask opens in the same
-frame; a long engine run shows all at once after the commit rather than batch by batch.
-
 **Open from the review:** range rings (24 ms per redraw, ~1.5M distance calls), an incremental combat-log panel, a by-id
 index for grant rows. Risks to watch:
 GLB parsing off the main thread, template copies of rigged or animated models.
 
 ### 1. Open items from the defect fixes
 
-- **Owner decision (admin watch):** the spec has `GET /v1/games` list only the caller's games for a non-admin, but the client's Home
-  screen is the public game browser players join from (`HomeScreen.LoadPage`, web-app spec → *Games are public, listed in the
-  client*). The list stays public, so it already lists every game for an admin, and no `Admin` policy exists in management. Restricting
-  it needs another way for a player to find a game to join.
-
 - **Deploy caution:** games `playing` with an open sequence frame must be ended or abandoned before running this server. The step
   lists of attack-sequence, casting, spell-hits and morale-test changed (`SequenceInterpreter` indexes steps by position), so a
   parked frame can resolve hits twice. Nothing guards it; a guard needs a sequence version.
-- **Owner decision:** dice edits cannot correct a cast, a morale test or score-hits in normal play (`WaitsBetweenSteps` off, so the
-  deciding step runs in the same advance as the roll; `SequenceInterpreter.cs:62-69`). Smallest fix: a "stop before" flag on the
-  `result`, `score-hits`, `override` and `consequence` steps reusing the Continue gate. Alternative: an atomic rewind-and-edit correction.
 - **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
   Impact, attack-start faces, dice-distance moves.
 - **D13:** a player's `AddModifier` lands in `Projection.PendingModifiers` (`Projection.cs:94`) but nothing reads it into a roll plan.
@@ -213,14 +192,14 @@ GLB parsing off the main thread, template copies of rigged or animated models.
   effects" is unbuilt.
 - **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
 
-### 2. The client: the owner's on-screen check
+### 2. The client
 
 **In-game UX** (merged to `main`; spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`): the table to the edges with the header, decision box, dice, log drawer and
 end message over it; selection, hover, formations, and target and casualty picks on the table; the sight check, answered by
 the server; hand moves under the enforcement setting. New games start with Frontline deployment zones,
 drawn through round 0.
 
-**Client UX** (branch `client-ux`; spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`):
+**Client UX** (spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`):
 
 - **Collision.** A drag slides along Impassable Solids, stops at other models' bases and rests on the highest Solid under the
   base (`Collision.Slide`, `Separate`, `RestHeight`); Alt places freely. The server rests every placement (`Battlefield.Settle`)
@@ -238,92 +217,11 @@ drawn through round 0.
 - **Table UX.** WASD/Q/E camera, Space/Tab/roster focus glide, camera follow, the army roster (R), the header's
   activation counts and objective chips, unit markers, floating results, range rings (V), turn banners.
 
-**The owner's check** (`./scripts/client`, two players or against the sim's socket players, both themes):
-
-*Layout and in-game UX*
-1. Layout, hover and distance, selection, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
-   shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take
-   wounds one model at a time), zones during deployment and gone at round 1, the end message, F1,
-   the shooting lasers (one second, shooter to nearest target model, none in melee), Ctrl held to measure (live for the
-   other player, gone on release).
-2. At 1280×720 and 1920×1080, with the log open and a decision taken, nothing overlaps: the decision box and dice sit in the
-   right column above the undo and log buttons, the log above them and below a three-line header, toasts stack top right,
-   "Close log (G)" fits its button, a long activation list scrolls inside the decision box, and the unit card stays in its
-   column.
-
-*Collision*
-3. A model dragged onto a hill stands on it; dragged into a building, it stops and slides along the wall.
-4. A model dragged into another unit stops at contact; a unit dragged against a wall compresses.
-5. Alt drops a model anywhere, and it still rests on what is under it.
-6. In setup, a wood dragged onto a hill sits on it and stops at a building; the large sight blocker is impassable.
-7. The move circle goes around other models, except for a Flying unit. Models walk into the built-in ruin.
-
-*Combat log and dice*
-8. The drawer opens 640 px wide. An action is one `R2 · Team 1 · [unit] · Charge → [target]` header with its lines
-   beneath; no question, answer or close lines.
-9. Each roll is one line: faces against the target its modifiers make (`Block · Defense 4+ (cover +1) → needs 3 · …`), a
-   shooting block always states cover or no cover with the model count; clicking a line expands its actions and rule chips.
-10. Undo to here, Reroll all, Set die 1… and +1 act; clicking an entry highlights what it touched; undone entries are struck
-    through, and several undone activations show as separate blocks.
-11. The filters work, This unit follows the card's unit (including an enemy activation that shot it), and the filter and the
-    open state survive a restart. Opening the drawer after events arrived while it was closed lands at the end of the log.
-12. The dice tray shows the latest roll as the log's collapsed line; with Animate on the faces tumble 0.4 s, off they appear
-    settled; a reroll re-tumbles; a roll-off shows neutral. Clicking the tray opens the drawer at that roll, expanded.
-
-*Unit card*
-13. The card shows nothing until a unit is selected or my activation starts; a selected unit stays through my next
-    activation; an enemy activation leaves it; clicking empty table returns it to my activating unit or hides it.
-14. The AP column is filled, a removed model's pips dim, rule chips and the AP cell show hover text, and clicking a wound row
-    selects that model.
-15. With my unit on the card, hovering an enemy shows the strip above the card (Defense, models alive, distance, each weapon's
-    range within or beyond), and moving across units does not reset the card's scroll.
-
-*Themes and settings*
-16. Login and Home draw in Sci-fi; Home → Settings → Fantasy reskins at once and persists across a relaunch.
-17. Fantasy is readable: log rows and buttons, wound rows, Settings check boxes, header and end-game team colours, team panels,
-    button hover, pressed and disabled.
-18. A mid-game theme switch restyles the header, unit card, dice tray, log, table team colours, markers and undo button; a
-    switch in lobby or setup keeps typed text. Dice: Fantasy bone pips, Sci-fi numerals, failed dice faded.
-19. Escape closes Settings and reopening works; Animate, Camera follow, Turn banner and Range rings persist (on, on, on, off).
-
-*Table UX*
-20. WASD moves the way the camera faces, faster zoomed out, and stops 12" past each table edge. Q/E orbit with an empty
-    hand; while dragging a unit they turn it and the camera stays put.
-21. In the piece menu's text prompt, the Settings dialog or a number dialog, WASDQE do not move the camera and R and V do
-    nothing.
-22. Space, Tab and a roster click glide about 0.3 s. The opponent's activation glides to their unit, but not within 2 s of my
-    own camera move or focus, not while I hold a unit, and not with Camera follow off.
-23. The roster: mine first under team-coloured headers, with ticks, pips and condition icons; off-table units dimmed; R
-    collapses it and the card grows into the space; a click anywhere on a row selects and centres.
-24. The header at 1280×720: "k not activated" counts down, objective chips take the controller's colour (plain when
-    neutral), "Team 2 activating: …" shows, the team row wraps clear of the toasts.
-25. Markers show over units, hide at End and come back at Home. "-1 wound", "-2 models" and "Shaken" float as each step plays
-    (all together with Animate off); joining a game over 500 events in floats nothing and shows no banners.
-26. V shows one closed, labelled outline per range around my selected unit, none for melee-only or enemy units; the setting
-    persists and the Settings toggle redraws.
-27. "Round 2" and "Team k's turn" show once each, not again while the same team keeps the turn; clicks pass through; none
-    with Animate off or the setting off.
-
-*Undo*
-28. **Undo** shows lower right, left of the log button, through all of play; disabled with nothing to undo; its tooltip reads
-    `Undo: ` and the action's log line.
-29. Each press steps back one action, including the opponent's (a move, a deploy, an answer, a menu edit), with the engine
-    events after it; Ctrl+Z does the same.
-30. An undo whose range holds a roll, a reroll or a dice edit first asks "Undo dice rolls?", listing each lost roll in the
-    log's collapsed words; Cancel keeps them, Undo undoes. An undo with no rolls in range goes at once.
-
-**Owner decisions:**
-- An Aircraft's Teleport-style placement (`RepositionStep.Place`, `GfMoves.cs` ~l.427) keeps the 1" separation and the
-  impassable landing check. p.13's *"ignore all units and terrain when moving and stopping"* may cover a placement; the two
-  checks change together.
-- The `move_through_models` sweep is 2D (`Collision.Crosses`), so a model moving across a roof passes through a ground model
-  under it.
-- The book-table ruins (`ruins`, `large-ruins`, `overgrown-ruins`) keep p.12's declarations (Cover, and Rush/Charge or
-  Difficult); only the built-in `ruin` is BlocksLineOfSight and SeeInAndOut, a walk-in Difficult Area with Cover.
-- The card does not mark which model a Shift-click or wound-row click selected.
-- Home has a text "Settings" button; the spec has a gear.
-
 **Deferred minors:**
+- The card does not mark which model a Shift-click or wound-row click selected; Home has a text "Settings" button where
+  the spec has a gear.
+- The book-table ruins (`ruins`, `large-ruins`, `overgrown-ruins`) keep p.12's declarations; only the built-in `ruin` is
+  BlocksLineOfSight and SeeInAndOut, a walk-in Difficult Area with Cover.
 - Under `strict` the client shows no warning for a drag the server refuses: a landing within 1" of another unit, a path
   through a model, and a flyer's drag or a placement dropped on a base.
 - The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s
@@ -335,12 +233,7 @@ rule; the client holds none); objective markers are locked in play under every e
 menu unlocks them (client-local); terrain is locked from the end of setup, so a drag on it starts only in Setup (`TerrainLock`); the e2e sight check's
 observer has only melee weapons, so it never proves a non-empty `CanShoot` (the unit tests do).
 
-### 3. Check the built-in terrain meshes in the client
-
-The built-in terrain meshes are glTF Y-up; `BuiltinContent.MeshOrientation` (pitch 90) stands them up. Check that hills,
-woods and buildings stand upright with their bases flush on the table, and water and pads lie flat.
-
-### 4. Smaller items
+### 3. Smaller items
 
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
   spends the use; a granted Counter-Attack or Unwieldy on a unit with no melee weapon stays until next used.
