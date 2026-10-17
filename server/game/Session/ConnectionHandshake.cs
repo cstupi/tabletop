@@ -87,9 +87,10 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
                     if (!inbound.CleanText) { await RefuseTextAsync(connection, frame); continue; }
                     if (frame is Reauth reauth)
                     {
-                        if (await RenewAsync(reauth.SessionJwt, session, watcher, reading.Token) is { } renewed)
-                        { session = renewed; expiry.Change(Clamp(renewed.ExpiresAt - time.GetUtcNow()), Timeout.InfiniteTimeSpan); }
-                        else await connection.SendAsync(new Refused(reauth.ReauthId, RefusalReason.NotPermitted, "the session does not renew this socket"));
+                        var (renewed, revoked) = await RenewAsync(reauth.SessionJwt, session, connect.GameId, participantId, watcher, reading.Token);
+                        if (renewed is not null) { session = renewed; expiry.Change(Clamp(renewed.ExpiresAt - time.GetUtcNow()), Timeout.InfiniteTimeSpan); continue; }
+                        await connection.SendAsync(new Refused(reauth.ReauthId, RefusalReason.NotPermitted, "the session does not renew this socket"));
+                        if (revoked) { await connection.CloseAsync(WebSocketCloseStatus.PolicyViolation, "no longer in this game"); break; }
                         continue;
                     }
                     await game.ReceiveAsync(connection, frame);
@@ -113,13 +114,24 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         finally { await registry.ReleaseIfEmptyAsync(game); }
     }
 
-    /// <summary>The refreshed session when it verifies, names the socket's account and, for an admin watcher, is still an admin's; else null.</summary>
-    private async Task<VerifiedSession?> RenewAsync(string jwt, VerifiedSession current, bool watcher, CancellationToken ct)
+    /// <summary>
+    /// The refreshed session when it verifies, names the socket's account and passes connect's authorization again: a participant is still
+    /// this participant of the game, a watcher is still an admin and the game still exists. A token that does not verify or names another
+    /// account renews nothing (the old expiry stands); a session that no longer authorizes this socket is `revoked`, and the socket closes.
+    /// </summary>
+    private async Task<(VerifiedSession? Renewed, bool Revoked)> RenewAsync(string jwt, VerifiedSession current, Guid gameId, Guid? participantId,
+        bool watcher, CancellationToken ct)
     {
-        VerifiedSession? renewed;
-        try { renewed = await verifier.VerifyAsync(jwt, ct); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "cannot verify a reauth for account {AccountId}", current.AccountId); return null; }
-        return renewed is not null && renewed.AccountId == current.AccountId && (!watcher || renewed.IsAdmin) ? renewed : null;
+        try
+        {
+            if (await verifier.VerifyAsync(jwt, ct) is not { } renewed || renewed.AccountId != current.AccountId) return (null, false);
+            var authorized = watcher
+                ? renewed.IsAdmin && await rows.ReadGameAsync(gameId, ct) is not null
+                : await rows.FindParticipantAsync(gameId, renewed.AccountId, ct) == participantId;
+            return authorized ? (renewed, false) : (null, true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { log.LogWarning(ex, "cannot check a reauth for account {AccountId} in {GameId}", current.AccountId, gameId); return (null, false); }
     }
 
     /// <summary>A command, edit or reauth holding a control or bidi-override character is refused by its id; any other such frame is dropped.</summary>

@@ -103,6 +103,13 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
         }
     }
 
+    /// <summary>Management's leave: the account's participant row in the game goes.</summary>
+    public void RemoveParticipant(Guid gameId, Guid accountId)
+    {
+        lock (_gate)
+            foreach (var p in _participants.Values.Where(p => p.GameId == gameId && p.AccountId == accountId).ToList()) _participants.Remove(p.Id);
+    }
+
     /// <summary>Deletes the game and what cascades from it: teams, participants, its table_state tree.</summary>
     public void DeleteGame(Guid gameId)
     {

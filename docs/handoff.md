@@ -89,8 +89,7 @@ Upstream MinIO images are gone; both compose files use `pgsty/minio` pinned by d
 - Free-text "Mark as having taken…" is refused for an action the rules don't define.
 
 **Army-book rules:** all play, including Spawn, Split, Reinforcement (reserve units the import adds,
-`ArmyBookReserves`) and Takedown Shot / Strike (`ArmyBookAdditions`). Armies imported before 2026-10-17 lack those
-reserves and weapons until re-imported.
+`ArmyBookReserves`) and Takedown Shot / Strike (`ArmyBookAdditions`).
 
 ### 2026-10-16
 

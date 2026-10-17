@@ -123,6 +123,37 @@ public class ConnectionLimitsTests
     }
 
     [Fact]
+    public async Task A_reauth_from_a_participant_who_has_left_is_refused_and_the_socket_closes()
+    {
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby);
+        await using var client = await TestClient.OpenAsync(factory);
+        await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        await client.ExpectAsync<AtRest>();
+        db.GameRows.RemoveParticipant(seeded.GameId, seeded.CreatorAccountId);
+        var id = Guid.NewGuid();
+        await client.SendAsync(new Reauth(id, TestKeys.Mint(seeded.CreatorAccountId)));
+        Assert.Equal((id, RefusalReason.NotPermitted), (await client.ExpectAsync<Refused>()) is var r ? (r.MessageId, r.Reason) : default);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, await client.WaitClosedAsync());
+    }
+
+    [Fact]
+    public async Task A_watchers_reauth_after_the_game_is_deleted_is_refused_and_the_socket_closes()
+    {
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby);
+        var admin = await db.SeedAccountAsync("Admin");
+        await using var client = await TestClient.OpenAsync(factory);
+        await client.ConnectAsync(admin, seeded.GameId, jwt: TestKeys.Mint(admin, roles: new[] { "admin" }));
+        await client.ExpectAsync<AtRest>();
+        db.GameRows.DeleteGame(seeded.GameId);
+        var id = Guid.NewGuid();
+        await client.SendAsync(new Reauth(id, TestKeys.Mint(admin, roles: new[] { "admin" })));
+        Assert.Equal(id, (await client.ExpectAsync<Refused>()).MessageId);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, await client.WaitClosedAsync());
+    }
+
+    [Fact]
     public async Task A_reauth_that_does_not_verify_is_refused()
     {
         using var factory = new GameServerFactory(db);
