@@ -48,7 +48,8 @@ public partial class Roster : PanelContainer
                 line.AddChild(new Label { Text = row.Name, ThemeTypeVariation = v, ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill });
                 line.AddChild(row.Activated ? Icon("activated") : new Control { CustomMinimumSize = new Vector2(16, 16), MouseFilter = MouseFilterEnum.Ignore });   // an empty spacer keeps the columns lined up
                 line.AddChild(new Label { Text = row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}", ThemeTypeVariation = v });
-                if (row.Inside is { } transport) line.AddChild(Chip($"in {transport}"));     // passengers spec: the unit is inside that Transport
+                if (row.Inside is { } transport) line.AddChild(Chip($"in {transport}"));
+                if (row.Reserve is { } reserve) line.AddChild(Chip(reserve));                // held off the table until its property places it     // passengers spec: the unit is inside that Transport
                 foreach (var c in row.Conditions) line.AddChild(Icon(c));
                 var id = row.UnitId;
                 line.GuiInput += e =>

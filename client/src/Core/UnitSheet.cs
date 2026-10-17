@@ -5,7 +5,7 @@ namespace Tabletop.Client.Core;
 
 /// <summary>A rule as the sheet shows it: its label with the parameter, its catalog text, and the *not automated* tag (a loaded catalog without it).</summary>
 public sealed record SheetRule(string Label, string? Text, bool NotAutomated);
-public enum ChipKind { Activated, Condition, SpellTokens, Grant }
+public enum ChipKind { Activated, Condition, SpellTokens, Grant, Reserve }
 /// <summary>A status chip; Condition keeps the raw condition name, the key an icon is looked up by.</summary>
 public sealed record SheetChip(ChipKind Kind, string Text, string? Condition = null);
 public sealed record SheetWeapon(string Name, int Count, string Range, string Attacks, string Ap, SheetRule? ApRule, IReadOnlyList<SheetRule> Rules);
@@ -48,6 +48,7 @@ public static class UnitSheet
     static IReadOnlyList<SheetChip> Chips(Projection p, Names n, UnitInPlay unit)
     {
         var chips = new List<SheetChip>();
+        if (RosterView.ReserveOf(p, unit) is { } reserve) chips.Add(new(ChipKind.Reserve, reserve));
         if (unit.Actions.Count > 0) chips.Add(new(ChipKind.Activated, $"Activated: {string.Join(", ", unit.Actions.Order(StringComparer.Ordinal))}"));
         chips.AddRange(unit.Conditions.Order(StringComparer.Ordinal).Select(c => new SheetChip(ChipKind.Condition, RosterView.Words(c), c)));
         var tokens = p.Models.Values.Where(m => m.UnitId == unit.Id).Sum(m => m.SpellTokens);
