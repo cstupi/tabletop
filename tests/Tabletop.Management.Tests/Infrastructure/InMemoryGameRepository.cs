@@ -144,7 +144,8 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
                 ids.UnionWith(table.Markers.Where(m => m.Visual.AssetId is not null).Select(m => m.Visual.AssetId!.Value));
             }
             return Task.FromResult<IReadOnlyList<ManifestRow>>(ids
-                .Where(a => rows.Assets.TryGetValue(a, out var asset) && rows.Blobs[(asset.Owner, asset.Hash)].Uploaded)
+                .Where(a => rows.Assets.TryGetValue(a, out var asset) && rows.Blobs[(asset.Owner, asset.Hash)].Uploaded
+                    && rows.Participants.Any(p => p.GameId == id && p.AccountId == asset.Owner))
                 .Select(a => rows.Assets[a] is var x ? new ManifestRow(a, x.Owner, AssetRules.Kind(x.Kind), x.Hash, x.Scale, x.Orientation.Pitch, x.Orientation.Yaw, x.Orientation.Roll) : null!)
                 .ToList());
         }

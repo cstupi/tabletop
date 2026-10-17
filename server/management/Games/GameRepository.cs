@@ -151,6 +151,6 @@ public sealed class GameRepository(Database db) : IGameRepository
         return (await c.QueryAsync<ManifestRow>(@"select a.id as AssetId, a.owner_id as OwnerId, a.kind as Kind, a.blob_hash as Hash, a.scale::float8 as Scale,
             a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw, a.orientation_roll::float8 as Roll
             from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash
-            where a.id = any(@ids) and b.uploaded", new { ids = ids.ToArray() })).ToList();
+            where a.id = any(@ids) and b.uploaded and a.owner_id in (select account_id from participant where game_id = @id)", new { ids = ids.ToArray(), id })).ToList();
     }
 }

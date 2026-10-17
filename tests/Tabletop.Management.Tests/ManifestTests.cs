@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using Tabletop.Content;
 using Tabletop.Management.Content.Armies;
 using Tabletop.Management.Content.Assets;
@@ -56,5 +57,30 @@ public class ManifestTests : IClassFixture<ManagementFactory>
         using var http = _f.Blobs.Client();
         Assert.Equal(TestGlb.Build((6, null, true)), await http.GetByteArrayAsync(manifest.Assets.Single(m => m.AssetId == bMesh.Id).Url));
         Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync($"/v1/games/{game.Id}/assets")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Assets_owned_by_a_non_participant_are_never_presigned()
+    {
+        _f.Rows.SeedProperties("sha256:m2", "GF", "grimdark-future");
+        var (hostId, strangerId) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var host = await _f.AuthenticatedClient(hostId, "H");
+        await _f.AuthenticatedClient(strangerId, "S");
+        var game = await host.PostJson<GameInfo>("/v1/games", new CreateGameRequest("M2", "sha256:m2", SchedulerShape.PlayerTurn, Enforcement.Silent, false));
+        AssetDto Uploaded(Guid owner, string name)
+        {
+            var glb = TestGlb.Build((3 + name.Length * 3, null, true));
+            var dto = _f.Services.GetRequiredService<IAssetRepository>().Create(owner, new CreateAssetRequest(name, AssetKind.Terrain,
+                Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(glb)), glb.Length, "model/gltf-binary", 1, new(0, 0, 0), null)).Result;
+            _f.Services.GetRequiredService<IAssetRepository>().MarkUploaded(owner, dto.Hash).Wait();
+            return dto;
+        }
+        var mine = Uploaded(hostId, "mine");
+        var theirs = Uploaded(strangerId, "theirs-asset");
+        // A table naming another account's asset id, as a setup edit could: only the participant's asset is presigned.
+        TerrainPlacement At(Guid asset) => new(Guid.CreateVersion7(), VisualRef.OfAsset(asset), new Tabletop.Geometry.Point3(10, 10, 0), new Tabletop.Geometry.Yaw(0), 1, []);
+        _f.Rows.SeedGameTable(game.Id, new TableState(Guid.CreateVersion7(), null, new Tabletop.Geometry.TableSize(72, 48), VisualRef.OfBuiltin("grass"), [At(mine.Id), At(theirs.Id)], [], []));
+        var manifest = await host.GetJson<Manifest>($"/v1/games/{game.Id}/assets");
+        Assert.Equal([mine.Id], manifest.Assets.Select(a => a.AssetId));
     }
 }
