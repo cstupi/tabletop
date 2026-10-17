@@ -21,12 +21,13 @@ public sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? Tea
 /// <summary>
 /// Teams, participants and configuration: what a lobby connect receives.
 /// RngSeed is the game's stored dice seed, generated once when the game row is created and never changed —
-/// which is what makes undo and replay exact. It is not derived from Id.
+/// which is what makes undo and replay exact. It is not derived from Id. It is server-only: every die is a pure function of it,
+/// so it is never serialized, and a deserialized GameInfo carries 0. The game server reads it from the game row.
 /// </summary>
 public sealed record GameInfo(
     Guid Id, string Name, GameStatus Status, Guid CreatedBy,
     string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps,
-    long RngSeed,
+    [property: JsonIgnore] long RngSeed,
     IReadOnlyList<Team> Teams, IReadOnlyList<Participant> Participants)
 {
     /// <summary>The optional rules the players opted into: keys and values the game's ruleset defines (snake_case), opaque outside it. An absent key is that

@@ -16,7 +16,7 @@ namespace Tabletop.Management.Tests;
 public sealed class InMemoryRows
 {
     public sealed class AccountRow { public required string Name; public bool StarterSeeded; }
-    public sealed class BlobRow { public required string Key; public long ByteSize; public required string ContentType; public bool Uploaded; }
+    public sealed class BlobRow { public required string Key; public long ByteSize; public required string ContentType; public bool Uploaded; public DateTimeOffset CreatedAt = DateTimeOffset.UtcNow; }
     public sealed class AssetRow
     {
         public required Guid Owner; public required string Hash; public required string Name; public AssetKind Kind;

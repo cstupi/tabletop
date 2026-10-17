@@ -51,6 +51,11 @@ public sealed class InMemoryArmyRepository(InMemoryRows rows) : IArmyRepository
                 .ToList());
     }
 
+    public Task<int> Count(Guid ownerId)
+    {
+        lock (rows.Gate) return Task.FromResult(rows.Armies.Values.Count(a => a.Owner == ownerId));
+    }
+
     public Task<Army?> Patch(Guid ownerId, Guid id, PatchArmyRequest p)
     {
         lock (rows.Gate)

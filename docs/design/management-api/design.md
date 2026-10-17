@@ -303,7 +303,7 @@ sequenceDiagram
     K-->>S: session_jwt, user{external_id?}
     A->>X: Complete(session)
     alt external_id absent
-        X->>R: Insert(Guid.CreateVersion7(), email local part)
+        X->>R: Insert(Guid.CreateVersion7(), Player-xxxx)
         X->>S: SetExternalId(user_id, account id)
         S->>K: PUT /v1/users/{user_id}
     else external_id present
@@ -343,15 +343,31 @@ spends it, and linking at `POST /v1/auth/otp` would create an account row for an
 stamps the claim from it. **No Stytch identifier is stored in our schema** (accounts → *Auth is a module,
 not a vendor*). `account` is `id`, `name` and `starter_seeded_at`.
 
+A new account's `name` is `Sessions.DefaultName()`, `Player-` and four random hex digits, never derived
+from the email: account names are public (game browser, participant lists). The player sets one with
+`PATCH /v1/account`. Accounts created before this rule keep the email local part they were given until
+renamed.
+
+Stytch's own error never reaches the caller. `Sessions.Problem` maps a `StytchException` to a fixed detail
+and `AuthEndpoints` logs the `error_type`: `401`/`404` → `401` "Wrong email, password or code."; `429` →
+`429`; `5xx` and transport failures → `502`; `weak_password` → `422` naming the password; every other `4xx`,
+`duplicate_email` included, → `422` with one generic detail, so signup does not say whether an email has an
+account. A signup that succeeds still shows that the email was free; that is inherent in password signup
+without an email-verification step.
+
 After the account row exists and before the session is stamped, `Sessions.Complete` calls
 `StarterAssets.SeedIfNeeded` (§6, *Starter miniatures*). A failure is logged and never blocks the login.
 
 Verification is `Microsoft.AspNetCore.Authentication.JwtBearer` with
 `MapInboundClaims = false`, `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = {project_id}`,
-`ValidAlgorithms = [RS256]`, `ClockSkew = 30s`, and an `IssuerSigningKeyResolver` that delegates to
-the `StytchJwks` singleton. `StytchJwks.Resolve(kid)` caches the key set. On a `kid` it does not
-hold, it refetches **once, at most every 30 seconds**, behind a `SemaphoreSlim`. That is the key
-rotation path, and the only reason the cache is not permanent.
+`ValidAlgorithms = [RS256]`, `ClockSkew = 30s`. The `IssuerSigningKeyResolver` is synchronous, so it
+reads the `StytchJwks` cache only (`Cached(kid)`); the bearer handler's `OnMessageReceived` event reads the
+token's `kid` and awaits `StytchJwks.Ensure(kid)` first. `Ensure` completes at once when the kid is held;
+otherwise it joins the one fetch in flight or starts it, so concurrent callers share one request and a
+caller holding its kid never waits. A miss refetches **at most every 30 seconds**; that is the key
+rotation path, and the only reason the cache is not permanent. A fetch is bounded to 5 s
+(`StytchJwks.DefaultFetchTimeout`, also the `stytch-jwks` client's timeout); a failed or slow fetch is
+logged and leaves the cached set, so the token is a `401`.
 
 The JWKS endpoint `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` **takes no credentials**.
 Stytch's reference page lists a `basicAuth` scheme and passes `-u project:secret` in its example.
@@ -485,7 +501,9 @@ Two records, per the asset library spec. `blob` is the bytes, keyed `(owner_id, 
 profiles are per kind and one is empty: a texture carries nothing (identity and enumerations →
 *`ASSET` profiles are per kind*).
 
-Upload is three calls and no server-side bytes:
+Upload is three calls. The browser's bytes land in a staging key; the server reads them once at
+confirm, verifies them and copies them to the content key itself, so no URL a user holds ever writes a
+content key:
 
 ```mermaid
 sequenceDiagram
@@ -496,21 +514,20 @@ sequenceDiagram
 
     B->>B: convert STL to GLB, SHA-256 the bytes
     B->>M: POST /v1/assets {name, kind, hash, byteSize, contentType, scale, orientation, modelledBase}
-    M->>M: validate: 64-hex hash, content type per kind, modelledBase iff miniature
-    M->>DB: insert blob on conflict do nothing, then insert asset
+    M->>M: validate: name, 64-hex hash, content type per kind, size cap, modelledBase iff miniature, finite numbers
+    M->>DB: lock the account row, check the quota, insert blob, insert asset
     alt blob.uploaded already true (same bytes twice)
         M-->>B: 201 CreateAssetResponse{asset, uploadUrl = null}
     else new bytes
-        M->>S3: presign PUT {owner}/{hash}, 15 min
+        M->>S3: presign PUT staging/{owner}/{assetId}, 5 min
         M-->>B: 201 CreateAssetResponse{asset, uploadUrl}
         B->>S3: PUT the bytes with the declared Content-Type
     end
     B->>M: POST /v1/assets/{id}/confirm
-    M->>S3: HEAD: Size(key)
-    M->>S3: GET bytes 0-19
-    M->>S3: GET the JSON chunk
-    M->>M: CountTriangles: sum over primitives
-    M->>DB: update blob set uploaded = true
+    M->>S3: HEAD staging key, copy to staging/{owner}/{assetId}.held, delete staging key
+    M->>S3: stream the held copy: SHA-256, GLB or image checks
+    M->>S3: copy held to {owner}/{hash}, delete held
+    M->>DB: update blob set uploaded = true (0 rows: the sweep took it, delete the content object, 409)
     M-->>B: ConfirmResponse{asset, triangles, warning?}
     B->>M: PUT /v1/assets/{id}/volumes (terrain only)
 ```
@@ -518,33 +535,57 @@ sequenceDiagram
 *The three-call upload, including the dedup short-circuit.*
 
 The hash is computed client-side so the service can answer "already there" before any bytes move
-(management API, "Asset bytes never pass through the API"). Nothing recovers a `blob` row whose
-confirm never arrives. The presigned `PUT` carries no size constraint, so the declared `byteSize`
-is checked only after the bytes are in the bucket.
+(management API, "Asset bytes never pass through the API" — the server reads them only to verify).
+The presigned `PUT` carries no size constraint, so the declared `byteSize` is capped at create (a mesh
+64 MiB, a texture 16 MiB, `UploadLimits`) and checked against the object at confirm. The `.held` copy,
+which no URL names, is what is hashed, validated and kept, so a `PUT` racing the confirm cannot swap the
+bytes.
 
-`confirm` is where every check lives:
+**Quota.** At create, inside the insert's transaction (`select ... for update` on the account row), an
+account holds at most 500 assets and 1 GiB of blob bytes, pending blobs included and each hash counted
+once (`AssetQuota`, `AssetQuotaExceeded` → `422`). An account holds at most 200 folders.
+
+`confirm` is where every content check lives:
 
 | Condition | Answer |
 | --- | --- |
-| `Size(key)` is null | `409`, the bytes are not there yet |
-| size ≠ `asset.ByteSize` | `422` |
-| content type is `model/gltf-binary` and the magic is not `glTF`/version 2 | the object is **deleted** and `422`. An STL renamed `.glb` dies here |
-| triangles > `GlbHeader.WarnAbove` (100,000) | `200` with `Warning` set. **Never refused** |
+| the blob is already uploaded | `200`, any staging object deleted |
+| no staging object | `409`, the bytes are not there yet |
+| size ≠ `asset.ByteSize` or over the cap | staging deleted, `422` |
+| SHA-256 ≠ the declared hash | `422` |
+| a GLB or texture check fails | `422` with fixed text; the detail is logged |
+| triangles > 100,000 | `200` with `Warning` set |
+| the blob row was swept meanwhile | content object deleted, `409` |
 | otherwise | `200`, `blob.uploaded = true` |
 
 **GLB only**, narrowed from `architecture.md`'s "glTF/GLB": a `.gltf` with external `.bin` buffers
-is several files with relative references. That breaks single-object presigned upload and makes the
-header read pointless. `GlbHeader` is pure and headless:
+is several files with relative references. `GlbHeader.Check(length, RangeReader)` is the validator; every
+JSON read checks the value's kind, every range check is overflow-safe, and any parse fault is
+`GlbHeader.Malformed`:
 
-- `IsGlb(first12)`: magic `0x46546C67` and version 2.
-- `JsonChunkLength(first20)`: the chunk length at offset 12, with chunk type `JSON` at 16.
-- `CountTriangles(jsonChunk)`: for every primitive of every mesh, take
-  `accessors[indices ?? attributes.POSITION].count` and convert by `mode`: 4 → `count/3`, 5 and 6
-  (strip, fan) → `count - 2`, points and lines → 0. Meshes are counted **once each, not per node**,
-  because that is what a client loads into memory.
+- magic `glTF`, version 2, header length equal to the object's; JSON chunk ≤ 1 MiB; the BIN chunk inside
+  the file;
+- exactly one buffer, with no `uri`, inside the BIN chunk; every bufferView on it and inside it, byteStride
+  4–252 and a multiple of 4;
+- every accessor ≤ 3,000,000 elements, Σ count × element size ≤ 128 MiB, each inside its bufferView, sparse
+  indices and values bounded; every attribute and morph target of a primitive has POSITION's count;
+- vertices (Σ POSITION counts) ≤ 500,000 and triangles ≤ 1,000,000, refused; above 100,000 triangles
+  warns (mesh conversion → *The threshold*). Triangles convert by `mode`: 4 → `count/3`, 5 and 6 →
+  `count - 2`, points and lines → 0, meshes counted once each, not per node;
+- at most 8 images, each through a bufferView with no `uri`, `mimeType` png, jpeg or webp matching the
+  header bytes, each side 1–4096;
+- `extensionsRequired` within `KHR_mesh_quantization`, `KHR_texture_transform`, `KHR_materials_unlit`,
+  `KHR_materials_emissive_strength`, `EXT_texture_webp`. The web converter emits none; compressed-geometry
+  extensions are refused.
 
-The threshold warns and does not block (mesh conversion → *The threshold*). It is unrelated to
-`game.enforcement`, whose `strict` position refuses. Nothing about uploads refuses.
+A texture (`ImageHeader.CheckTexture`) must carry the magic of its declared type (PNG IHDR, JPEG SOFn
+within the first 1 MiB, WebP VP8/VP8L/VP8X) and sides 1–4096. Only headers are read.
+
+**Sweep.** `UploadSweeper` (a `BackgroundService`, every 10 minutes) runs `UploadSweep.Run(now)`: staging
+objects (`.held` copies included) older than 1 hour are deleted, then `DeleteAbandoned(now − 1 h)` deletes
+blob rows still not uploaded after an hour (`blob.created_at`, reset when a new asset reuses the pending
+blob) with their asset rows, and their objects. A MinIO lifecycle rule expiring `staging/` after a day is
+the operator's backstop.
 
 Download is `GET /v1/assets/{id}/download` → a presigned `GET` valid 60 minutes, `409` until
 confirmed. Delete removes the asset row. When that was the owner's **last** reference to the hash
@@ -557,7 +598,9 @@ rows rather than a cross-account count.
 `const string`s (`Columns`, `InsertColumns`, `InsertValues`) so the SQL is written once. The six
 terrain declarations are `bool` columns mapped to the `TerrainDeclarations` flags enum. `PUT
 /v1/assets/{id}/volumes` is delete-then-insert with fresh ids and answers `409` unless the kind is
-terrain.
+terrain; at most 16 volumes, each with a defined kind, known declarations, a valid footprint, finite numbers
+and notes ≤ 2000. Asset and folder names pass `Limits.Text`. Deleting an asset also deletes its staging
+key.
 
 **Starter miniatures.** `StarterMeshes` builds six GLBs in memory (five round figures, 25 to 60 mm, and the
 221 × 119 mm hull), sized from `ArmyForgeImport.HeightFromBase` and `DefaultBody`. `StarterAssets.SeedIfNeeded`
@@ -589,7 +632,24 @@ import*).
 
 `ArmyForgeClient.ListId(source)` accepts a share link's `id=` parameter or a bare id and returns
 null otherwise (`422`). `Fetch(listId)` calls `GET https://army-forge.onepagerules.com/api/tts?id={id}`
-and throws `ArmyForgeException(status)` on non-200, which the endpoint maps to `502`.
+with a 10 s budget (`ArmyForgeClient.DefaultTimeout`) and a 2 MB response cap (`MaxBytes`, checked on
+`Content-Length` and while reading), and throws `ArmyForgeException(status)`: a status on non-200, null when
+unreachable, timed out or oversize. The endpoint maps both to `502` with fixed text ("Army Forge did not
+return that list." / "Army Forge could not be reached."), an unreadable export to `422`, and logs the
+exception.
+
+`ToArmy` validates the list before building (`ArmyLimits`, `InvalidArmyException` → `422` with the reason):
+Quality and Defense integers 2–6; size 1–50 per entry; at most 100 units and 500 models after merging;
+weapon `Attacks` 1–100 and `Count` 0 to 4 × the entry's size; rule ratings 0–50; `range` a whole number of
+inches 0–120 (null is melee); every chosen base 0.4–12" a side; list, unit, weapon, rule and item names
+through `Limits.Text` (≤ 64, no control or bidirectional formatting characters); `source` ≤ 512; a repeated
+or missing `selectionId` and an empty list are refused. An account keeps at most 200 armies
+(`IArmyRepository.Count`).
+
+`PATCH /v1/armies/{id}` runs `ArmyLimits.Patch` first (`422`): name as above, slot bases 0.4–12" with a
+defined shape, heights 0.1–24", at most 100 unit and 500 slot patches. Every asset id it writes
+(`UnitPatch.AssetId`, `SlotPatch.AssetId`) must be an uploaded `miniature` of the caller's
+(`AssetReferences.Check`), else `422`; clearing names no asset.
 
 `ArmyForgeList.cs` is the **subset of the export this project reads**, verified against a live
 fetch (`c2-6YsWRH3py`, 26 KB, saved as a fixture). Every optional member is nullable
@@ -755,6 +815,14 @@ client, which a service-to-service call would have avoided. There are no service
 `update`. A state patch deletes the three child collections and rewrites them. `POST` requires a
 name and answers `422` without one. A game's draft has none. A saved layout must have one.
 
+Both writes go through `LayoutRules.Problem` (`422`): name ≤ 64 characters with no control or
+bidirectional formatting characters; table sides above 0 and at most 144"; at most 64 terrain pieces, 32
+markers, 16 zones and 16 volumes per piece; finite positions, yaws and volume dimensions; terrain scale in
+(0, 100], marker diameter in (0, 24"]; builtin names, marker labels and zone shapes ≤ 64; volume notes ≤
+2000; defined enum values. Then `AssetReferences.Check`: every asset id the layout names is an uploaded
+asset **of the caller's** of a fitting kind (`texture` for the texture, `terrain` for a placement, either
+mesh kind for a marker visual), else `422`. An account holds at most 200 layouts.
+
 `LayoutRepository.ReadTree(connection, id, name, size, texture)` is `static`. It is the one reader
 of the placement/volume/marker/zone tree, and the game-server plan reads the same rows for a game's
 draft.
@@ -813,7 +881,10 @@ Endpoint behaviour:
 
 - `POST /v1/games` validates the `properties_hash` against the `properties` table and copies
   `game_rules` from the chosen row, so a game can never name a ruleset its pinned set disagrees
-  with. An unknown hash is `422` with a pointer to `GET /v1/properties`.
+  with. An unknown hash is `422` with a pointer to `GET /v1/properties`. The name is ≤ 64 characters with
+  no control or bidirectional formatting characters. `GameRepository.Create` writes `game.rng_seed` once.
+  The seed never leaves the servers: every die is a pure function of it, so `GameInfo.RngSeed` is
+  `[JsonIgnore]` and no create, get or join response (nor any game-server frame) carries it.
 - `GET /v1/games` lists **every status**, keyset over `id`, **descending**. Filtering is the user's, not
   the server's. "Open games" was the wrong phrase. Nothing is hidden by status (accounts → *Still
   open*). Descending by id means newest first: the list filters by status, name and created-by-me,
@@ -840,11 +911,13 @@ Endpoint behaviour:
 ### 11. The manifest, the one cross-owner read
 
 The library is private for discovery, not for access. Every other asset route is owner-only. This
-one is authorized by participation and returns presigned URLs for every asset in play, whoever owns
-it (management API → *The game manifest*).
+one is authorized by participation and returns presigned URLs for every asset in play that **a
+participant of the game owns** (management API → *The game manifest*). An id in play that no participant
+owns (a setup edit can name any id) is dropped, so the manifest never presigns a stranger's blob.
 
 `GameRepository.ManifestAssets(gameId)` collects one `HashSet<Guid>` of asset ids from five
-sources, then joins `asset` to `blob` and keeps only what is uploaded:
+sources, then joins `asset` to `blob` and keeps only what is uploaded and owned by an account with a
+`participant` row in the game:
 
 | Source | Query | When |
 | --- | --- | --- |
@@ -882,17 +955,23 @@ plus `AddProblemDetails()`. The status vocabulary across the whole surface:
 
 | Status | When |
 | --- | --- |
-| `400` | a malformed version header, a non-positive `limit` |
+| `400` | a malformed version header, a non-positive `limit`, a body that does not bind (an enum as an integer or an unknown name) |
 | `401` | no token, wrong issuer, expired token, Stytch `401`/`404` on a login |
 | `404` | a missing row, another owner's row, a game the caller is not a participant of (for the participant-only routes) |
-| `409` | confirm before the bytes are there, download before confirm, volumes on a non-terrain asset, Stytch `duplicate_email` |
+| `409` | confirm before the bytes are there, download before confirm, volumes on a non-terrain asset |
+| `413` | a request body over 1 MB |
 | `415` | a content type the kind does not accept. STL is refused here, at create time |
-| `422` | validation, an unknown `properties_hash`, an unimportable game system, a folder cycle, Stytch `weak_password`/`breached_password` |
+| `422` | validation and limits (§14), an asset reference that is not the caller's uploaded asset of a fitting kind, an unknown `properties_hash`, an unimportable game system, a folder cycle, any Stytch `4xx` other than `401`/`404`/`429` (`duplicate_email` included, with the same detail as the rest) |
 | `426` | `Tabletop-Client-Version` below `MinimumClientVersion` |
+| `429` | a rate limit (§14), Stytch `429` |
 | `502` | Army Forge unreachable or non-200, Stytch `5xx` |
 
+Problem details are fixed text. Upstream errors (Stytch's `error_type`, Army Forge and GLB parse
+exceptions) are logged, never echoed.
+
 Response bodies serialise through `ContentJson.Configure`: camelCase, snake_case enums, nulls
-omitted. A `TableState` or a `GameInfo` on HTTP is therefore byte-identical to the same value on
+omitted. Request bodies bind with the same options except that enums bind **by name only**
+(`JsonStringEnumConverter(allowIntegerValues: false)`), so `{"kind": 99}` is a `400`. A `TableState` or a `GameInfo` on HTTP is therefore byte-identical to the same value on
 the socket. That is why those types live in `libs/Tabletop.Content` and `libs/Tabletop.Protocol`
 instead of being redefined here. Everything with no contract type is a DTO of this project.
 
@@ -960,6 +1039,36 @@ joined game that survives with the account gone from its participants and a join
 account was last in, which ends.
 
 ---
+
+### 14. Abuse limits: proxy, rate limits, sizes and counts
+
+The service is hosted behind Caddy on the same machine. `UseForwardedHeaders` runs first and believes
+`X-Forwarded-For` and `X-Forwarded-Proto` only from `TABLETOP_TRUSTED_PROXIES` (comma-separated addresses,
+default `127.0.0.1,::1`), one hop deep; any other peer is its own client whatever it claims.
+
+`UseRateLimiter` runs after authentication (`Http/RateLimiting.cs`). Fixed one-minute windows, each
+overridable by a `TABLETOP_` variable, `0` turning it off:
+
+| Budget | Partition | Default | Variable |
+| --- | --- | --- | --- |
+| every request | client IP | 600 | `RATE_LIMIT_PER_IP` |
+| every authenticated request | `account_id` | 600 | `RATE_LIMIT_PER_ACCOUNT` |
+| the credential endpoints (`/v1/auth/otp`, `otp/verify`, `password`, `password/signup`, `password/reset`, `password/reset/complete`) | client IP | 20 | `RATE_LIMIT_AUTH_PER_IP` |
+| the same endpoints, by the email in the body | lowercased email (`EmailThrottle`) | 5 | `RATE_LIMIT_AUTH_PER_EMAIL` |
+
+`session/refresh` and logout are not credential endpoints and carry only the general budgets. A refusal is
+`429` with fixed text. Under `Development` (compose, `./scripts/management`) every default is `0`, so the
+simulator and the E2E suite never trip them; tests set them per host.
+
+`BodySizeLimit` refuses a request body over 1 MB with `413`, from `Content-Length` or, without one, by
+counting as it reads. Asset bytes never pass through this service.
+
+Text and counts (`Http/Limits.cs`, `422`): every stored name (account, folder, asset, game, layout, army,
+unit, weapon, rule) is at most 64 characters with no control (`Cc`) or bidirectional formatting characters
+(U+200E/F, U+061C, U+202A–E, U+2066–9); volume notes at most 2000 (line feeds and tabs allowed); an army's
+source at most 512. An account holds at most 200 armies, 200 layouts and 200 folders. Assets, layouts and
+armies carry their own caps (§6, §8, §9). Migration `016_text_limits.sql` repeats the length limits as
+`not valid` check constraints.
 
 ## Key decisions
 
@@ -1071,7 +1180,7 @@ and a build whose environment is unset serves `404` for it.
 | `Http.Keyset`, `Http.Page<T>` | `Keyset.Parse(int?, Guid?)`, `Keyset.Default = 50`, `Max = 200`; `Page<T>.Of(items, limit, id)` |
 | `Http.Problems`, `Http.CurrentAccount` | `NotFound()`, `Conflict(detail)`, `Unprocessable(detail)`, `BadGateway(detail)`; `CurrentAccount.Id(ClaimsPrincipal)` |
 | `Persistence.Database`, `Persistence.Migrator`, `Persistence.IMigrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)`; `IMigrator.Run()`, implemented by `PostgresMigrator` |
-| `Identity.StytchJwks` | `Resolve(string? kid)`, `Url` |
+| `Identity.StytchJwks` | `Ensure(string? kid)`, `Cached(string? kid)`, `Resolve(string? kid)`, `Url`, `DefaultFetchTimeout` |
 | `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `RolesClaim = "roles"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
 | `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
 | `Identity.Sessions` | `Complete(StytchSession) : SessionResponse`; `static Problem(StytchException) : IResult` |
@@ -1079,12 +1188,14 @@ and a build whose environment is unset serves `404` for it.
 | `Identity.IAccountRepository`, `AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)`, `BlobKeys(accountId)`, `HostedGameIds(accountId)`, `JoinedGameIds(accountId)`, `Delete(accountId)` |
 | `Identity.AccountDeleter` | `Delete(Guid accountId) : Task<bool>` |
 | `Content.VolumeRow` | `ToVolume()`, `static From(id, Volume)`, `Columns`, `InsertColumns`, `InsertValues` |
-| `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Put`, `Delete` |
+| `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `StagingPrefix`, `StagingKey(owner, assetId)`, `HeldKey(owner, assetId)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `OpenRead`, `Copy`, `ListOlderThan`, `Put`, `Delete` |
 | `Content.Assets.StarterMeshes`, `StarterAssets` | `StarterMeshes` builds the six starter GLBs in memory, deterministically; `StarterAssets.SeedIfNeeded(account)` puts the bytes, then `IAssetRepository.AddStarter` writes the rows into the `Starter` folder and sets `starter_seeded_at` |
-| `Content.Assets.GlbHeader` | `IsGlb`, `JsonChunkLength`, `CountTriangles`, `HeaderBytes = 20`, `WarnAbove = 100_000` |
+| `Content.Assets.GlbHeader`, `ImageHeader`, `UploadLimits`, `ContentCheck`, `RangeReader` | `GlbHeader.Check(length, RangeReader)`, `GlbHeader.Malformed`, `ImageHeader.CheckTexture`; `UploadLimits` holds every upload limit and the extension allowlist |
+| `Content.Assets.UploadSweep`, `UploadSweeper` | `Run(now)`; the hosted service runs it every 10 minutes |
+| `Content.Assets.AssetReferences` | `Check(assets, owner, refs)`, `Miniature`, `Terrain`, `Texture`, `Mesh` |
 | `Content.Assets.AssetKind`, `AssetRules` | `{ Miniature, Terrain, Texture }`; `ContentTypes`, `IsSha256`, `Kind`, `Shape` |
-| `Content.Assets.IAssetRepository`, `AssetRepository` | `Create`, `Get`, `List`, `Patch`, `MarkUploaded`, `Delete`, `GetVolumes`, `PutVolumes`, `StarterSeeded`, `AddStarter` |
-| `Content.Assets.IFolderRepository`, `FolderRepository` | `List`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
+| `Content.Assets.IAssetRepository`, `AssetRepository` | `Create(owner, r, AssetQuota?)` (throws `AssetQuotaExceeded`), `Get`, `List`, `Patch`, `MarkUploaded` (false when the row is gone), `UploadedKinds`, `DeleteAbandoned(cutoff)`, `Delete`, `GetVolumes`, `PutVolumes`, `StarterSeeded`, `AddStarter` |
+| `Content.Assets.IFolderRepository`, `FolderRepository` | `List`, `Count`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
 | `Content.Armies.ArmyForgeClient` | `static ListId(source)`, `static Parse(json)`, `Fetch(listId)`, `HttpClientName = "army-forge"`, `BaseUrl`; `ArmyForgeException(Status)` |
 | `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog, set = Round)`, `ParseBase(text, set)`, `HeightFromBase(base)`, `GameRules`, `DefaultBody`, `HeightScale`; `PropertyLevel { Unit, Model }`; `BaseSet { Round, Square }`; `UnsupportedGameSystemException` |
 | `Content.Armies.ICatalogKinds`, `CatalogKinds` | `For(string gameRules) : IReadOnlyDictionary<string, PropertyLevel>` |
@@ -1160,13 +1271,13 @@ server may not have finished seeding.
 
 ### Key resolution, and the refresh loop
 
-**Key resolution.** The `JwtBearer` handler calls `StytchJwks.Resolve(kid)` for every request. On
-an empty cache it fetches `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` with no credentials.
-When the token names a `kid` the cached set does not hold, it refetches **once, and only if the
-last fetch is more than 30 seconds old**. That floor is a stampede guard. It is also the exposure:
-a Stytch key rotation inside 30 seconds of the last fetch answers `401` until the window passes.
-The resolver is called synchronously, as `Resolve(kid).GetAwaiter().GetResult()`. The fetch blocks
-a request thread behind a `SemaphoreSlim` that every other concurrent caller also waits on.
+**Key resolution.** The `JwtBearer` handler's `OnMessageReceived` awaits `StytchJwks.Ensure(kid)` for
+every request, and its resolver then reads `StytchJwks.Cached(kid)`. On an empty cache `Ensure` fetches
+`GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` with no credentials. When the token names a `kid` the
+cached set does not hold, it refetches **once, and only if the last miss refetch is more than 30 seconds
+old**. That floor is a stampede guard. It is also the exposure: a Stytch key rotation inside 30 seconds of
+the last fetch answers `401` until the window passes. One fetch runs at a time; concurrent callers await it
+asynchronously, and a fetch is cut off after 5 s.
 
 **Refresh.** The client calls `POST /v1/auth/session/refresh` about once a minute with the JWT it
 holds, expired or not. Stytch documents that `/v1/sessions/authenticate` accepts a JWT already past
@@ -1489,13 +1600,13 @@ on purpose. Normalised, a later migration could alter what a past game was playe
 
 | Hazard | Consequence | Disposition |
 | --- | --- | --- |
-| `POST /v1/assets` and then no `confirm` | a `blob` row with `uploaded = false` forever, and possibly an S3 object with no confirm | **left in place.** No reaper. The row is invisible to downloads and manifests, and delete removes it with the asset |
+| `POST /v1/assets` and then no `confirm` | a pending `blob` row and possibly a staging object | `UploadSweep` deletes both after an hour; the row is invisible to downloads and manifests meanwhile |
+| Account and layout/army/folder counts under concurrent creates | the 200-per-account counts are read before the insert, so a burst can overshoot by the number in flight | accepted; the asset quota is checked under a row lock |
 | Presigned `PUT` carries no size constraint | `IBlobStore.PresignUpload` takes `byteSize` and does not use it, so a client can `PUT` any number of bytes. The only size check is `confirm`, after the bytes are in the bucket | not addressed. A content-length-range condition would need a POST policy rather than a presigned `PUT` |
 | S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted. The alternative is deleting bytes before committing, which loses data on rollback |
 | Account deletion: Stytch fails with anything but `404` | content and hosted games are already gone, joined games already left. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
 | A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Notable gaps* |
 | JWKS refetch throttle | a Stytch key rotation within 30 seconds of the last fetch yields `401`s until the window passes | accepted stampede guard |
-| Blocking key resolution | `IssuerSigningKeyResolver` calls `jwks.Resolve(kid).GetAwaiter().GetResult()`, so the first request after a cold start blocks a thread-pool thread on an outbound HTTP call, behind a semaphore every other concurrent request also waits on | not addressed. A burst at startup is the exposure |
 | Presigned download URL outlives participation | a player who left keeps a working URL for up to 60 minutes | **accepted**: another player retaining a mesh they were already shown harms nobody |
 | Manifest `ExpiresAt` is 60 minutes, and games run hours | mid-game asset loads fail after an hour unless the client re-requests | the spec leaves re-issue undecided. The client must handle it |
 | `GET /v1/games/{id}` exposes participants' display names to any logged-in caller | there is no relationship graph, but a public game reveals who is in it | consistent with games being public; what an account looks like to another account beyond a name is undecided (accounts) |

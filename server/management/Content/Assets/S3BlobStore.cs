@@ -35,6 +35,33 @@ public sealed class S3BlobStore(ManagementOptions options) : IBlobStore
         catch (AmazonS3Exception e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound) { return null; }
     }
 
+    public async Task<BlobRead?> OpenRead(string key, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await _s3.GetObjectAsync(new GetObjectRequest { BucketName = options.S3Bucket, Key = key }, ct);
+            return new BlobRead(response.ResponseStream, response.ContentLength, response);
+        }
+        catch (AmazonS3Exception e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound) { return null; }
+    }
+
+    public Task Copy(string sourceKey, string destinationKey) =>
+        _s3.CopyObjectAsync(new CopyObjectRequest { SourceBucket = options.S3Bucket, SourceKey = sourceKey, DestinationBucket = options.S3Bucket, DestinationKey = destinationKey });
+
+    public async Task<IReadOnlyList<string>> ListOlderThan(string prefix, DateTimeOffset cutoff)
+    {
+        var keys = new List<string>();
+        var request = new ListObjectsV2Request { BucketName = options.S3Bucket, Prefix = prefix };
+        ListObjectsV2Response page;
+        do
+        {
+            page = await _s3.ListObjectsV2Async(request);
+            keys.AddRange((page.S3Objects ?? []).Where(o => o.LastModified is { } m && new DateTimeOffset(m.ToUniversalTime(), TimeSpan.Zero) < cutoff).Select(o => o.Key));
+            request.ContinuationToken = page.NextContinuationToken;
+        } while (page.IsTruncated == true);
+        return keys;
+    }
+
     public async Task<byte[]> ReadRange(string key, long first, long lastInclusive)
     {
         using var response = await _s3.GetObjectAsync(new GetObjectRequest { BucketName = options.S3Bucket, Key = key, ByteRange = new ByteRange(first, lastInclusive) });

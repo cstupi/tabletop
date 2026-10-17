@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Tabletop.Content;
 using Tabletop.Geometry;
+using Tabletop.Management.Http;
 
 namespace Tabletop.Management.Content.Armies;
 
@@ -34,9 +35,75 @@ public static class ArmyForgeImport
 
     public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set = BaseSet.Round)
     {
-        if (!GameRules.TryGetValue(list.GameSystem, out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem);
-        var units = Merge(list.Units).Select((m, i) => Unit(m, i + 1, catalog, set)).ToList();
+        if (!GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem ?? "");
+        Validate(list, source, set);
+        var merged = Merge(list.Units);
+        if (merged.Count > ArmyLimits.MaxUnits) throw new InvalidArmyException($"The list has {merged.Count} units; at most {ArmyLimits.MaxUnits} import.");
+        var units = merged.Select((m, i) => Unit(m, i + 1, catalog, set)).ToList();
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units);
+    }
+
+    /// <summary>Every entry against ArmyLimits, before anything is built. A name is checked before a message quotes it.</summary>
+    private static void Validate(AfList list, string source, BaseSet set)
+    {
+        static void Check(string? problem) { if (problem is not null) throw new InvalidArmyException(problem); }
+        Check(Limits.Text(source, "source", Limits.Source));
+        Check(Limits.Text(list.Name, "Army name", Limits.Name));
+        if (list.Units is not { Count: > 0 }) throw new InvalidArmyException("The list has no units.");
+        var ids = new HashSet<string>();
+        foreach (var u in list.Units)
+        {
+            if (string.IsNullOrEmpty(u.SelectionId)) throw new InvalidArmyException("Every entry needs a selectionId.");
+            Check(Limits.Text(u.Name, "Unit name", Limits.Name));
+            var unit = $"Unit '{u.Name}': ";
+            if (!ids.Add(u.SelectionId)) throw new InvalidArmyException($"The list names entry '{Quoted(u.SelectionId)}' twice.");
+            if (u.Size is < 1 or > ArmyLimits.MaxEntrySize) throw new InvalidArmyException($"{unit}size {u.Size} is outside 1–{ArmyLimits.MaxEntrySize}.");
+            TargetNumber(u.Quality, unit, "quality");
+            TargetNumber(u.Defense, unit, "defense");
+            void Rules(List<AfRule>? rules)
+            {
+                foreach (var r in rules ?? [])
+                {
+                    Check(Prefixed(unit, Limits.Text(r.Name, "rule name", Limits.Name)));
+                    if (Rating(r.Rating) is { } n and (< 0 or > ArmyLimits.MaxRating)) throw new InvalidArmyException($"{unit}rule '{r.Name}' rating {n} is outside 0–{ArmyLimits.MaxRating}.");
+                }
+            }
+            Rules(u.Rules);
+            foreach (var item in u.Loadout ?? [])
+            {
+                if (item.Type == "ArmyBookWeapon")
+                {
+                    Check(Prefixed(unit, Limits.Text(item.Name, "weapon name", Limits.Name)));
+                    var weapon = $"{unit}weapon '{item.Name}' ";
+                    var attacks = item.Attacks ?? 1;
+                    if (attacks is < ArmyLimits.MinAttacks or > ArmyLimits.MaxAttacks) throw new InvalidArmyException($"{weapon}has {attacks} attacks; the range is {ArmyLimits.MinAttacks}–{ArmyLimits.MaxAttacks}.");
+                    var maxCount = u.Size * ArmyLimits.WeaponsPerModel;
+                    if (item.Count < 0 || item.Count > maxCount) throw new InvalidArmyException($"{weapon}count {item.Count} is outside 0–{maxCount}.");
+                    Range(item.Range, weapon);
+                    Rules(item.SpecialRules);
+                }
+                else if (item.Type == "ArmyBookItem")
+                {
+                    Check(Prefixed(unit, Limits.Text(item.Name, "item name", Limits.Name)));
+                    Rules(item.Content);
+                }
+            }
+            if (ParseBase(set == BaseSet.Round ? u.Bases?.Round : u.Bases?.Square, set) is { } b && ArmyLimits.Base(b) is not null)
+                throw new InvalidArmyException($"{unit}base {Mm(b)} mm is outside {ArmyLimits.MinBase}–{ArmyLimits.MaxBase} inches.");
+        }
+        var models = list.Units.Sum(u => u.Size);
+        if (models > ArmyLimits.MaxModels) throw new InvalidArmyException($"The list has {models} models; at most {ArmyLimits.MaxModels} import.");
+    }
+
+    private static string? Prefixed(string prefix, string? problem) => problem is null ? null : prefix + problem;
+
+    /// <summary>A selectionId is never checked text, so a message quotes it only when it would pass as a name.</summary>
+    private static string Quoted(string id) => Limits.Text(id, "id", Limits.Name) is null ? id : "(unprintable)";
+
+    private static string Mm(Base b)
+    {
+        static string F(double inches) => (inches * 25.4).ToString("G4", CultureInfo.InvariantCulture);
+        return b.Shape == BaseShape.Circle ? F(b.A) : $"{F(b.A)}x{F(b.B)}";
     }
 
     /// <summary>A unit as it will be built: the host entry, then the entries whose models join it.</summary>
@@ -74,7 +141,7 @@ public static class ArmyForgeImport
     private static Unit Unit(Merged m, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set)
     {
         var host = m.Host;
-        var stats = new Dictionary<string, string> { ["Quality"] = TargetNumber(host.Quality), ["Defense"] = TargetNumber(host.Defense) };
+        var stats = new Dictionary<string, string> { ["Quality"] = Target(host.Quality), ["Defense"] = Target(host.Defense) };
         var unitProps = new List<PropertyInstance>();
         var models = new List<ModelSlot>();
         Section(host, catalog, set, unitProps, models);
@@ -110,7 +177,7 @@ public static class ArmyForgeImport
             {
                 var wstats = new Dictionary<string, string> { ["Attacks"] = (item.Attacks ?? 1).ToString(CultureInfo.InvariantCulture) };
                 // Melee is `"range": 0` on some entries and `"range": null` on others in the same export; `is { } range and > 0` excludes both.
-                if (Range(item.Range) is { } range and > 0) wstats["Range"] = $"{range.ToString(CultureInfo.InvariantCulture)}\"";
+                if (Range(item.Range, "") is { } range and > 0) wstats["Range"] = $"{range.ToString(CultureInfo.InvariantCulture)}\"";
                 var props = (item.SpecialRules ?? []).Select(r => new PropertyInstance(r.Name, Rating(r.Rating))).ToList();
                 Weapon W() => new(Guid.CreateVersion7(), item.Name, new Dictionary<string, string>(wstats), props);
                 if (item.Count >= u.Size) slotWeapons.ForEach(s => s.Add(W()));
@@ -122,7 +189,7 @@ public static class ArmyForgeImport
 
         var body = Body(u.Bases, set);
         var slotStats = unitProps is null
-            ? new Dictionary<string, string> { ["Quality"] = TargetNumber(u.Quality), ["Defense"] = TargetNumber(u.Defense) }
+            ? new Dictionary<string, string> { ["Quality"] = Target(u.Quality), ["Defense"] = Target(u.Defense) }
             : new Dictionary<string, string>();
         for (var i = 0; i < u.Size; i++)
             into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
@@ -149,12 +216,22 @@ public static class ArmyForgeImport
         return null;
     }
 
-    private static string TargetNumber(JsonElement e) => e.ValueKind switch
+    /// <summary>A validated quality or defense as its stat value: "4+".</summary>
+    private static string Target(JsonElement e) => $"{TargetNumber(e, "", "")}+";
+
+    /// <summary>A number (4) or a string ("4+", "4"), 2 to 6.</summary>
+    private static int TargetNumber(JsonElement e, string unit, string field)
     {
-        JsonValueKind.Number => $"{e.GetInt32()}+",
-        JsonValueKind.String => e.GetString()!.TrimEnd('+') + "+",
-        _ => throw new JsonException("quality/defense must be a number or a string"),
-    };
+        int? n = e.ValueKind switch
+        {
+            JsonValueKind.Number when e.TryGetInt32(out var v) => v,
+            JsonValueKind.String when int.TryParse(e.GetString()!.TrimEnd('+'), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) => v,
+            _ => null,
+        };
+        if (n is not { } t) throw new InvalidArmyException($"{unit}{field} must be a number from {ArmyLimits.MinTarget} to {ArmyLimits.MaxTarget}.");
+        if (t is < ArmyLimits.MinTarget or > ArmyLimits.MaxTarget) throw new InvalidArmyException($"{unit}{field} {t} is outside {ArmyLimits.MinTarget}–{ArmyLimits.MaxTarget}.");
+        return t;
+    }
 
     private static int? Rating(JsonElement? e) => e switch
     {
@@ -163,5 +240,12 @@ public static class ArmyForgeImport
         _ => null,
     };
 
-    private static double? Range(JsonElement? e) => e is { ValueKind: JsonValueKind.Number } r ? r.GetDouble() : null;
+    /// <summary>Null for an absent or null range, else a whole number of inches, 0 to 120.</summary>
+    private static int? Range(JsonElement? e, string weapon)
+    {
+        if (e is not { } r || r.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return null;
+        if (r.ValueKind != JsonValueKind.Number || !r.TryGetInt32(out var n)) throw new InvalidArmyException($"{weapon}range must be a whole number of inches.");
+        if (n is < 0 or > ArmyLimits.MaxRange) throw new InvalidArmyException($"{weapon}range {n} is outside 0–{ArmyLimits.MaxRange}.");
+        return n;
+    }
 }

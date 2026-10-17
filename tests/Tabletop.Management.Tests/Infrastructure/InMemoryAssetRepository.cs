@@ -26,12 +26,19 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
         rows.Assets.Add(id, a);
     }
 
-    public Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r)
+    public Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
     {
         lock (rows.Gate)
         {
             rows.RequireAccount(ownerId);
-            rows.Blobs.TryAdd((ownerId, r.Hash), new InMemoryRows.BlobRow { Key = IBlobStore.Key(ownerId, r.Hash), ByteSize = r.ByteSize, ContentType = r.ContentType });
+            if (quota is not null)
+            {
+                if (rows.Assets.Values.Count(a => a.Owner == ownerId) >= quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
+                if (!rows.Blobs.ContainsKey((ownerId, r.Hash)) && rows.Blobs.Where(b => b.Key.Owner == ownerId).Sum(b => b.Value.ByteSize) + r.ByteSize > quota.Bytes)
+                    throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+            }
+            if (!rows.Blobs.TryAdd((ownerId, r.Hash), new InMemoryRows.BlobRow { Key = IBlobStore.Key(ownerId, r.Hash), ByteSize = r.ByteSize, ContentType = r.ContentType })
+                && rows.Blobs[(ownerId, r.Hash)] is { Uploaded: false } pending) pending.CreatedAt = DateTimeOffset.UtcNow;
             var id = rows.NextId();
             InsertAsset(id, new InMemoryRows.AssetRow { Owner = ownerId, Hash = r.Hash, Name = r.Name, Kind = r.Kind, Scale = r.Scale, Orientation = r.Orientation, ModelledBase = r.ModelledBase });
             return Task.FromResult(Dto(id, rows.Assets[id]));
@@ -67,10 +74,22 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
         }
     }
 
-    public Task MarkUploaded(Guid ownerId, string hash)
+    public Task<bool> MarkUploaded(Guid ownerId, string hash)
     {
-        lock (rows.Gate) if (rows.Blobs.TryGetValue((ownerId, hash), out var b)) b.Uploaded = true;
-        return Task.CompletedTask;
+        lock (rows.Gate)
+        {
+            if (!rows.Blobs.TryGetValue((ownerId, hash), out var b)) return Task.FromResult(false);
+            b.Uploaded = true;
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)
+    {
+        lock (rows.Gate)
+            return Task.FromResult<IReadOnlyDictionary<Guid, AssetKind>>(ids.Distinct()
+                .Where(id => rows.Assets.TryGetValue(id, out var a) && a.Owner == ownerId && rows.Blobs[(a.Owner, a.Hash)].Uploaded)
+                .ToDictionary(id => id, id => rows.Assets[id].Kind));
     }
 
     public Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id)
@@ -99,6 +118,20 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             if (!rows.Assets.TryGetValue(assetId, out var a)) throw new InvalidOperationException($"foreign key violation: no asset {assetId}");
             a.Volumes = volumes.Select(v => new TerrainVolume(rows.NextId(), v)).ToList();
             return Task.FromResult<IReadOnlyList<TerrainVolume>>(a.Volumes.ToList());
+        }
+    }
+
+    public Task<IReadOnlyList<string>> DeleteAbandoned(DateTimeOffset cutoff)
+    {
+        lock (rows.Gate)
+        {
+            var gone = rows.Blobs.Where(b => !b.Value.Uploaded && b.Value.CreatedAt < cutoff).ToList();
+            foreach (var (key, blob) in gone)
+            {
+                foreach (var id in rows.Assets.Where(a => a.Value.Owner == key.Owner && a.Value.Hash == key.Hash).Select(a => a.Key).ToList()) rows.RemoveAsset(id);
+                rows.Blobs.Remove(key);
+            }
+            return Task.FromResult<IReadOnlyList<string>>(gone.Select(b => b.Value.Key).ToList());
         }
     }
 

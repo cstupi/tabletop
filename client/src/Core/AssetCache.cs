@@ -8,6 +8,11 @@ public sealed class HashMismatchException(string expected, string actual) : Exce
     public string Actual { get; } = actual;
 }
 
+public sealed class AssetTooLargeException(long cap) : Exception($"Download exceeds the {cap}-byte cap.")
+{
+    public long Cap { get; } = cap;
+}
+
 /// <summary>Blobs by SHA-256 on disk. Fetched once per machine; the same mesh in two games is one download.</summary>
 public sealed class AssetCache(string root, HttpClient http)
 {
@@ -16,7 +21,16 @@ public sealed class AssetCache(string root, HttpClient http)
     public string PathFor(string hash) => Path.Combine(root, $"{hash}.bin");
     public bool Has(string hash) => File.Exists(PathFor(hash));
 
-    public async Task<string> FetchAsync(string hash, Uri url, CancellationToken ct)
+    public const long MeshCap = 64L << 20, TextureCap = 16L << 20;
+
+    /// <summary>The download cap for an asset kind; an unknown kind gets the mesh cap.</summary>
+    public static long CapFor(AssetKind? kind) => kind == AssetKind.Texture ? TextureCap : MeshCap;
+
+    public Task<string> FetchAsync(string hash, Uri url, CancellationToken ct) => FetchAsync(hash, url, MeshCap, ct);
+
+    /// <summary>Downloads unless cached. Over <paramref name="maxBytes"/>, by Content-Length or by the bytes actually streamed,
+    /// it throws <see cref="AssetTooLargeException"/> and keeps nothing.</summary>
+    public async Task<string> FetchAsync(string hash, Uri url, long maxBytes, CancellationToken ct)
     {
         var path = PathFor(hash);
         if (File.Exists(path)) return path;
@@ -27,10 +41,21 @@ public sealed class AssetCache(string root, HttpClient http)
         {
             using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength > maxBytes) throw new AssetTooLargeException(maxBytes);
             using var sha = SHA256.Create();
             await using (var file = File.Create(part))
             await using (var hashing = new CryptoStream(file, sha, CryptoStreamMode.Write))
-                await response.Content.CopyToAsync(hashing, ct);
+            await using (var body = await response.Content.ReadAsStreamAsync(ct))
+            {
+                var buffer = new byte[81920];
+                long total = 0;
+                for (int n; (n = await body.ReadAsync(buffer, ct)) > 0;)
+                {
+                    total += n;
+                    if (total > maxBytes) throw new AssetTooLargeException(maxBytes);   // a missing or lying Content-Length
+                    await hashing.WriteAsync(buffer.AsMemory(0, n), ct);
+                }
+            }
             var actual = Convert.ToHexStringLower(sha.Hash!);
             if (actual != hash) { File.Delete(part); throw new HashMismatchException(hash, actual); }
             try { if (!File.Exists(path)) File.Move(part, path); }

@@ -136,7 +136,7 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
-    public async Task Manifest_is_every_uploaded_asset_in_play_whoever_owns_it()
+    public async Task Manifest_is_every_uploaded_asset_in_play_that_a_participant_owns()
     {
         var hash = await NewProperties();
         var (a, b) = (await NewAccount("A"), await NewAccount("B"));
@@ -154,7 +154,10 @@ public abstract partial class RepositoryContract
         await Armies.Patch(a, aArmy.Id, new PatchArmyRequest(null, [new UnitPatch(aArmy.Units[0].Id, aMesh.Id)], [new SlotPatch(aArmy.Units[0].Models[1].Id, pending.Id, false, null, null)]));
         await PickArmy(game, a, aArmy.Id);
         var bArmy = SmallArmy();
-        var frozen = ArmySnapshot.Of(bArmy with { Units = [bArmy.Units[1] with { Models = [bArmy.Units[1].Models[0] with { AssetId = bMesh.Id }] }] }, Guid.CreateVersion7());
+        var stranger = await NewAccount("C");
+        var strangerMesh = await Uploaded(stranger, Mini(name: "c-mesh"));                // named in play, owned by no participant: never presigned
+        var frozen = ArmySnapshot.Of(bArmy with { Units = [bArmy.Units[1] with { Models = [bArmy.Units[1].Models[0] with { AssetId = bMesh.Id },
+            bArmy.Units[1].Models[0] with { Id = Guid.CreateVersion7(), AssetId = strangerMesh.Id }] }] }, Guid.CreateVersion7());
         await FreezeArmy(game, b, frozen);
         await SeedGameTable(game, texture.Id);
 

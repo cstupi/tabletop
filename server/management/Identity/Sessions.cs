@@ -13,7 +13,7 @@ public sealed class Sessions(StytchClient stytch, IAccountRepository accounts, S
     /// dev session's refresh carries the Stytch user's roles again.</param>
     public async Task<SessionResponse> Complete(StytchSession session, IReadOnlyList<string>? roles = null)
     {
-        var name = session.User.Emails.FirstOrDefault()?.Email.Split('@')[0] ?? "player";
+        var name = DefaultName();                                        // never the email: account names are public
         Guid accountId;
         if (Guid.TryParse(session.User.ExternalId, out var linked))
         {
@@ -50,12 +50,17 @@ public sealed class Sessions(StytchClient stytch, IAccountRepository accounts, S
     private static HashSet<string> RolesClaim(string jwt) =>
         new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(jwt).Claims.Where(c => c.Type == StytchAuthentication.RolesClaim).Select(c => c.Value).ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>Fixed details only: Stytch's error_type is logged by the caller, never returned, and a taken email on signup
+    /// reads like any other refused signup, so the response does not say whether an account exists.</summary>
     public static IResult Problem(StytchException e) => e.Status switch
     {
-        401 or 404 => Results.Problem(title: "Unauthorized", detail: e.ErrorType, statusCode: 401),
-        _ when e.ErrorType == "duplicate_email" => Problems.Conflict("An account with that email already exists."),
-        429 => Problems.TooManyRequests(e.ErrorType),
-        >= 500 => Problems.BadGateway($"Stytch: {e.ErrorType}"),
-        _ => Problems.Unprocessable(e.ErrorType),
+        401 or 404 => Results.Problem(title: "Unauthorized", detail: "Wrong email, password or code.", statusCode: 401),
+        429 => Problems.TooManyRequests("Too many attempts. Wait a minute and try again."),
+        >= 500 => Problems.BadGateway("The sign-in service is unavailable. Try again shortly."),
+        _ when e.ErrorType == "weak_password" => Problems.Unprocessable("That password is too weak. Use a longer one."),
+        _ => Problems.Unprocessable("Those details were not accepted. Check them, or sign in if you already have an account."),
     };
+
+    /// <summary>A random public handle for a new account; the player renames it with PATCH /v1/account.</summary>
+    public static string DefaultName() => "Player-" + System.Security.Cryptography.RandomNumberGenerator.GetHexString(4, lowercase: true);
 }

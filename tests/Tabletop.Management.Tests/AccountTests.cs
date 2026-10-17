@@ -23,6 +23,9 @@ public class AccountTests : IClassFixture<ManagementFactory>
         var c = await _f.AuthenticatedClient(id, "Old");
         Assert.Equal(new AccountRow(id, "New"), await c.PatchJson<AccountRow>("/v1/account", new RenameRequest("New")));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PatchAsJsonAsync("/v1/account", new RenameRequest("  "), ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PatchAsJsonAsync("/v1/account", new RenameRequest(new string('n', 65)), ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PatchAsJsonAsync("/v1/account", new RenameRequest("ev\u202Eil"), ContentJson.Options)).StatusCode);
+        Assert.Equal("New", (await c.GetJson<AccountRow>("/v1/account")).Name);
     }
 
     [Fact]

@@ -24,6 +24,6 @@ public interface IGameRepository
     Task<bool> End(Guid id);
     /// <summary>The game, everything below it, and its event log.</summary>
     Task<bool> Delete(Guid id);
-    /// <summary>Every uploaded asset in play: the participants' picked armies' slots, their frozen snapshots, and the game's table.</summary>
+    /// <summary>Every uploaded asset in play (the participants' picked armies' slots, their frozen snapshots, and the game's table) that a participant of the game owns.</summary>
     Task<IReadOnlyList<ManifestRow>> ManifestAssets(Guid id);
 }

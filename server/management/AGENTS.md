@@ -11,11 +11,12 @@
   - `StytchAuthentication`: JWT bearer setup, `AccountClaim = "account_id"`, `RolesClaim = "roles"`. `StytchJwks`: key cache.
   - `AuthEndpoints` (`/v1/auth/*`), `AccountEndpoints` (`/v1/account`), `IAccountRepository` / `AccountRepository`, `AccountDeleter`.
   - `Sessions`: the post-authenticate step. `DevSessions`: the Development-only token mint.
-- `Content/Assets/`: `AssetEndpoints`, `IAssetRepository` / `AssetRepository`, `FolderEndpoints`, `IFolderRepository` / `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `StarterAssets`, `StarterMeshes`.
-- `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyEndpoints`, `IArmyRepository` / `ArmyRepository`, `ICatalogKinds` / `CatalogKinds`.
-- `Content/Layouts/`: `LayoutEndpoints`, `ILayoutRepository` / `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
+- `Content/Assets/`: `AssetEndpoints`, `IAssetRepository` / `AssetRepository`, `FolderEndpoints`, `IFolderRepository` / `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `ImageHeader`, `UploadLimits`, `UploadSweep` / `UploadSweeper`, `StarterAssets`, `StarterMeshes`.
+- `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyLimits` (import and patch bounds, `InvalidArmyException`), `ArmyEndpoints`, `IArmyRepository` / `ArmyRepository`, `ICatalogKinds` / `CatalogKinds`.
+- `Content/Layouts/`: `LayoutEndpoints`, `LayoutRules` (bounds), `ILayoutRepository` / `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
 - `Games/`: `GameEndpoints`, `IGameRepository` / `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`; `GET /v1/properties/{hash}/rules`, a pinned set's catalog entries with `rule_text`, 404 for an unknown hash).
-- `Http/`: `ClientVersionMiddleware`, `Keyset` / `Page<T>`, `CurrentAccount`, `Problems`.
+- `Http/`: `ClientVersionMiddleware`, `BodySizeLimit`, `RateLimiting` / `RateLimits` / `EmailThrottle`, `Limits` (text and count limits), `Keyset` / `Page<T>`, `CurrentAccount`, `Problems`.
+- `Content/Assets/AssetReferences`: the check every asset-reference write goes through (an uploaded asset of the caller's, of a fitting kind).
 - `Persistence/`: `Database` (one `NpgsqlDataSource`), `Migrator` (DbUp), `IMigrator` / `PostgresMigrator` (the startup step), `Migrations/NNN_*.sql` (embedded resources).
 
 ## How it works
@@ -23,14 +24,18 @@
 - Login: the client calls `/v1/auth/{otp,otp/verify,password,password/signup,password/reset,password/reset/complete,session/refresh}`. Each Stytch authenticate result goes through `Sessions.Complete`.
 - `Sessions.Complete` ensures the account row exists, links the Stytch user's `external_id` to the account id, seeds the starter miniatures, and stamps `account_id` and `roles` (the Stytch user's RBAC role ids, the authenticate response's `user.roles`) into the session's custom claims through `StytchClient.StampAccount`. A refreshed session keeps its stamp unless the user's Stytch roles differ from the ones it carries, when it is stamped again, so a role change reaches the next refresh.
 - A new account id is a v7 UUID. The link to Stytch is written before the row insert, so a retry leaves no orphan and the next login inserts a missing row.
-- Authenticated requests carry the Stytch session JWT. Verification: RS256, issuer `stytch.com/{projectId}`, audience the project id, keys from `StytchJwks`. `CurrentAccount.Id` reads the `account_id` claim and throws `UnauthorizedAccessException` (401) without it.
-- Assets: `POST /v1/assets` returns a presigned PUT URL, the client uploads to MinIO, `POST /v1/assets/{id}/confirm` checks the object size and the GLB header (`GlbHeader`) and marks the blob uploaded. `GET /v1/assets/{id}/download` returns a presigned GET.
-- Blobs are keyed by owner and content hash (`IBlobStore.Key`). Presigned PUT URLs cannot enforce size; the confirm size check is the only guard.
+- A new account is named `Player-xxxx` (`Sessions.DefaultName`), never from the email; `PATCH /v1/account` renames. Accounts created earlier keep their email-derived name until renamed.
+- Authenticated requests carry the Stytch session JWT. Verification: RS256, issuer `stytch.com/{projectId}`, audience the project id, keys from `StytchJwks`: `OnMessageReceived` awaits `Ensure(kid)` (one fetch in flight, 5 s cap, 30 s floor on misses), and the synchronous key resolver reads `Cached(kid)` only. `CurrentAccount.Id` reads the `account_id` claim and throws `UnauthorizedAccessException` (401) without it.
+- Assets: `POST /v1/assets` checks the name, size cap (mesh 64 MiB, texture 16 MiB) and quota (500 assets, 1 GiB, under an account-row lock) and returns a presigned PUT (5 min) to `staging/{owner}/{assetId}`. `POST /v1/assets/{id}/confirm` copies it to a `.held` key no URL names, hashes and validates that copy (`GlbHeader.Check`, `ImageHeader.CheckTexture`, limits in `UploadLimits`), copies it to `{owner}/{hash}` and marks the blob uploaded. No user URL ever writes a content key. `GET /v1/assets/{id}/download` returns a presigned GET. Volumes: ≤ 16 per asset, bounded notes.
+- `UploadSweeper` runs `UploadSweep.Run` every 10 min: staging objects and never-confirmed blob rows older than 1 h go. Operator backstop: a MinIO lifecycle rule expiring `staging/` after a day. The S3 credentials need ListBucket and CopyObject.
+- Folders: at most 200 per account, names via `Limits.Text`.
+- Blobs are keyed by owner and content hash (`IBlobStore.Key`). Presigned PUT URLs cannot enforce size; the create cap and the confirm size check are the guards.
 - Starter miniatures: `StarterAssets.SeedIfNeeded` runs at login while `account.starter_seeded_at` is null. It puts `StarterMeshes.All` (deterministic in-memory GLBs) into the blob store, then `IAssetRepository.AddStarter` files them in a `Starter` folder. The blob writes have a 5 s budget (`StarterAssets.Budget`), so an unreachable MinIO holds a login for at most that. A failure is logged and never blocks login; the next login tries again.
-- Armies: `POST /v1/armies/import` takes an Army Forge share link or list id, fetches `https://army-forge.onepagerules.com/api/tts?id=...`, and maps it with `ArmyForgeImport`. `bases` (`round` by default, or `square`) picks which of Army Forge's two published bases every slot gets; height is `HeightFromBase` (1.5 × the larger dimension) of that base. Only Grimdark Future and Age of Fantasy lists import. Fetch failures return 502.
-- Layouts: `/v1/layouts` stores a `TableState` per owner. Folders: `/v1/folders` nest and hold assets via `PUT /v1/folders/{id}/assets/{assetId}`.
+- Armies: `POST /v1/armies/import` takes an Army Forge share link or list id (10 s, 2 MB, fixed 502 text), fetches `https://army-forge.onepagerules.com/api/tts?id=...`, and maps it with `ArmyForgeImport`. `bases` (`round` by default, or `square`) picks which of Army Forge's two published bases every slot gets; height is `HeightFromBase` (1.5 × the larger dimension) of that base. Only Grimdark Future and Age of Fantasy lists import. Fetch failures return 502. `ArmyLimits` bounds import and `PATCH` (422); a patched slot asset must be the caller's uploaded miniature; at most 200 armies per account.
+- Layouts: `/v1/layouts` stores a `TableState` per owner, checked by `LayoutRules` (≤ 144" sides, ≤ 64 terrain, ≤ 32 markers, ≤ 16 zones, ≤ 16 volumes a piece, bounded text) and `AssetReferences` (texture, terrain, mesh kinds); at most 200 per account. Folders: `/v1/folders` nest and hold assets via `PUT /v1/folders/{id}/assets/{assetId}`.
 - `DELETE /v1/account` (`AccountDeleter`): deletes the games the account hosted (`game.created_by`) with their logs, leaves the games it joined through `IGameRepository.Leave`, then the account row (content cascades), its blobs and the Stytch user.
-- Games: create, list, get, join, leave, end, delete under `/v1/games`. The list is public and each `GameSummary` carries `ParticipantNames`. `GameRepository.Create` generates the game's `rng_seed` once. `GET /v1/games/{id}/assets` returns presigned downloads (60 min) for participants only.
+- Games: create, list, get, join, leave, end, delete under `/v1/games`. The list is public and each `GameSummary` carries `ParticipantNames`. `GameRepository.Create` generates the game's `rng_seed` once; it is server-only (`GameInfo.RngSeed` is `[JsonIgnore]`), never in a response. `GET /v1/games/{id}/assets` returns presigned downloads (60 min) for participants only, of assets a participant owns.
+- Request bodies: at most 1 MB (`BodySizeLimit`, 413); enums bind by name only (an integer is a 400). Every stored name passes `Limits.Text` (≤ 64, no control or bidi characters).
 - Lists page by keyset: `limit` (default 50, max 200) and `after`; the cursor is the last item's id because ids are v7. `Page<T>.Next` is null on a short page.
 - `ClientVersionMiddleware` reads `Tabletop-Client-Version` (`ProtocolVersion.Header`) on every request. Below `MinimumClientVersion` gives `ProtocolVersion.UpgradeRequiredStatusCode`; a non-integer gives 400; absent is accepted.
 - Rows by writer: management writes a game's rows at creation and at end/leave/delete. The game server writes them only while the game is `lobby` or `setup`, plus `game.status` `playing → ended` when its log ends the game.
@@ -39,6 +44,7 @@
 
 - `ManagementOptions.From` reads `TABLETOP_`-prefixed environment variables (`AddEnvironmentVariables("TABLETOP_")`), names below without the prefix. `DotEnv.Load` fills the environment from the nearest `.env` above the binary; an existing variable wins.
 - Required: `DB_CONNECTION`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `STYTCH_PROJECT_ID`, `STYTCH_SECRET`. A missing one fails startup.
+- Rate limits and proxy (design §14): `TRUSTED_PROXIES` (default `127.0.0.1,::1`), `RATE_LIMIT_PER_IP` (600/min), `RATE_LIMIT_PER_ACCOUNT` (600), `RATE_LIMIT_AUTH_PER_IP` (20), `RATE_LIMIT_AUTH_PER_EMAIL` (5); `0` is off, and every default is `0` under `Development`. Read lazily, so test overrides apply.
 - Optional: `STYTCH_BASE_URL` (default `https://test.stytch.com`), `WEB_URL` (default `http://localhost:5173`; the only CORS origin, and the base of the password-reset redirect), `MANAGEMENT_URL` (default `http://0.0.0.0:5100`), `MIN_CLIENT_VERSION` (default `ProtocolVersion.Current`), `S3_PUBLIC_ENDPOINT`.
 - `S3_PUBLIC_ENDPOINT` is the address presigned URLs name, for a client that reaches MinIO at a different address than the server. SigV4 signs the host, so `S3BlobStore` presigns with a second client on `S3SigningEndpoint` (public endpoint, else `S3_ENDPOINT`). Compose sets it to `http://127.0.0.1:9000` beside `S3_ENDPOINT=http://minio:9000`.
 - `STYTCH_SECRET` is never in a file: `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management` (`UserSecretsId` `tabletop-management`), or `TABLETOP_STYTCH_SECRET` in `.env` for the compose container.
@@ -48,7 +54,7 @@
 
 - Password reset sends `{WEB_URL}/reset-password` as the redirect. It must be registered as a `RESET_PASSWORD` redirect URL in the Stytch project dashboard (`http://localhost:5173/reset-password` locally), or resets fail at Stytch.
 - The `account_id` claim needs no dashboard setting. The `roles` claim carries whatever roles the Stytch user has: an admin (who watches any game on the game server) is a user assigned the `admin` role of the project's RBAC policy in the dashboard.
-- `Sessions.Problem` maps Stytch errors: 401/404 to 401, `duplicate_email` to 409, 429 to 429, 5xx to 502, other to 422.
+- `Sessions.Problem` maps Stytch errors to fixed text (the `error_type` is logged): 401/404 to 401, 429 to 429, 5xx to 502, `weak_password` to its own 422, every other 4xx (`duplicate_email` included) to one generic 422, so signup does not reveal an existing account.
 - `POST /v1/dev/sessions` (`{ "name": "...", "roles": ["admin"] }`, `roles` optional and stamped in place of the Stytch user's) exists only when the host environment is Development (`DevSessions` and `MapDevSession` are both gated). It derives a name-based v8 account id, creates the Stytch user at `<name>@example.com` if absent, mints a real Stytch session through an embeddable magic-link token, and runs `Sessions.Complete`. The simulator's socket driver uses it.
 - `./scripts/management` sets `ASPNETCORE_ENVIRONMENT=Development`. Compose publishes port 5100 on loopback only because of this route.
 
@@ -79,7 +85,7 @@ dotnet test tests/Tabletop.Management.Tests --settings tests/e2e.runsettings  # 
 - Tests seed what no repository writes (Properties sets, catalog entries, lobby picks, frozen armies, a game's table, the event log) through `InMemoryRows`.
 - `Contracts/RepositoryContract` runs against the fakes (unit) and the SQL classes on a `TestDatabase` (E2E); `BlobStoreContract` against `InMemoryBlobStore` and `S3BlobStore`. A fake's behaviour changes with its SQL class, and the contract test with both. `MigrationTests` is E2E.
 - `FakeStytch`, `FakeArmyForge` and `TestKeys` replace the network; tests sign their own JWTs. `Fixtures/` and `TestGlb` supply files.
-- Config overrides in tests are in-memory keys without the `TABLETOP_` prefix.
+- Config overrides in tests are in-memory keys without the `TABLETOP_` prefix; `ManagementFactory.Settings` adds per-host ones. The factory turns every rate limit off; `RateLimitTests` builds hosts with limits on and a startup filter standing in for the TCP peer.
 
 ## Pitfalls
 

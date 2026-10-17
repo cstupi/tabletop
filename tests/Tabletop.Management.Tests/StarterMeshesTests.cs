@@ -32,13 +32,13 @@ public class StarterMeshesTests
     }
 
     [Fact]
-    public void Each_is_a_glb_the_upload_check_accepts_and_its_bytes_are_stable()
+    public async Task Each_is_a_glb_the_upload_check_accepts_and_its_bytes_are_stable()
     {
         foreach (var m in StarterMeshes.All)
         {
-            Assert.True(GlbHeader.IsGlb(m.Glb));
-            var len = GlbHeader.JsonChunkLength(m.Glb);
-            Assert.InRange(GlbHeader.CountTriangles(m.Glb.AsSpan(GlbHeader.HeaderBytes, len)), 12, 5_000);
+            var check = await GlbHeader.Check(m.Glb.Length, (first, last) => Task.FromResult(m.Glb[(int)first..(int)(last + 1)]));
+            Assert.Null(check.Rejection);
+            Assert.InRange(check.Triangles!.Value, 12, 5_000);
             Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(m.Glb.AsSpan(8)), (uint)m.Glb.Length);
             Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(m.Glb)), m.Hash);
         }

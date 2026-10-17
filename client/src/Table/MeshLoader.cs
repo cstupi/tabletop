@@ -15,51 +15,48 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     readonly Dictionary<string, Task<Node3D?>> _templates = new();
     bool _disposed;
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
-    readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, TaskCompletionSource<string?> Done), float> _queue = new();
+    readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, long Cap, TaskCompletionSource<string?> Done), float> _queue = new();
     readonly SemaphoreSlim _inFlight = new(2, 2);
-    Task? _manifestLoad;
     DateTimeOffset _expires = DateTimeOffset.MaxValue;
+    CoalescedRefresh? _refresh;
+
+    /// <summary>Manifest fetches, one at a time. Loads (an unknown id, lapsed URLs) ask through <see cref="CoalescedRefresh.RunIfDue"/>:
+    /// at most one start per 5 s, so a batch of unknown ids shares one refresh instead of one each.</summary>
+    CoalescedRefresh Refresh => LazyInitializer.EnsureInitialized(ref _refresh, () => new CoalescedRefresh(() => Task.Run(async () =>
+    {
+        try
+        {
+            var m = await management.GetManifest(gameId);
+            lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; _expires = m.ExpiresAt; }
+        }
+        catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
+    }), TimeSpan.FromSeconds(5)));
 
     /// <summary>Starts a manifest fetch, or joins the one in flight. Returns the task so a caller can wait for it.</summary>
-    public Task RefreshManifest()
-    {
-        lock (_manifest)
-        {
-            if (_manifestLoad is { IsCompleted: false } running) return running;
-            return _manifestLoad = Task.Run(async () =>
-            {
-                try
-                {
-                    var m = await management.GetManifest(gameId);
-                    lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; _expires = m.ExpiresAt; }
-                }
-                catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
-            });
-        }
-    }
+    public Task RefreshManifest() => Refresh.Run();
 
     /// <summary>Fetches the bytes (queued by distance), then builds the scene on the main thread. Null when the asset cannot be had.</summary>
     public async Task<Node3D?> LoadAssetAsync(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)
     {
-        Task? load; lock (_manifest) load = _manifestLoad;
-        if (load is not null) await load;
-        if (DateTimeOffset.UtcNow >= _expires) await RefreshManifest();      // the entries' download URLs have lapsed
+        await Refresh.Current;
+        bool lapsed; lock (_manifest) lapsed = DateTimeOffset.UtcNow >= _expires;
+        if (lapsed) await Refresh.RunIfDue();      // the entries' download URLs have lapsed
         ManifestEntry? entry; lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
         if (entry is null)
         {
             // Another player's army or terrain that arrived after the last fetch: one shared refresh before the owner-only fallback.
-            await RefreshManifest();
+            await Refresh.RunIfDue();
             lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
         }
-        Uri url; string hash; double scale; Orientation orientation;
-        if (entry is not null) (url, hash, scale, orientation) = (entry.Url, entry.Hash, entry.Scale, entry.Orientation);
+        Uri url; string hash; double scale; Orientation orientation; AssetKind kind;
+        if (entry is not null) (url, hash, scale, orientation, kind) = (entry.Url, entry.Hash, entry.Scale, entry.Orientation, entry.Kind);
         else
         {
-            try { var mine = await management.GetDownload(assetId); var asset = (await management.ListAssets(AssetKind.Miniature, null)).Items.Concat((await management.ListAssets(AssetKind.Terrain, null)).Items).FirstOrDefault(a => a.Id == assetId); if (asset is null) return null; (url, hash, scale, orientation) = (mine.Url, asset.Hash, asset.Scale, asset.Orientation); }
+            try { var mine = await management.GetDownload(assetId); var asset = (await management.ListAssets(AssetKind.Miniature, null)).Items.Concat((await management.ListAssets(AssetKind.Terrain, null)).Items).FirstOrDefault(a => a.Id == assetId); if (asset is null) return null; (url, hash, scale, orientation, kind) = (mine.Url, asset.Hash, asset.Scale, asset.Orientation, asset.Kind); }
             catch (Exception) { return null; }   // not in the manifest and not mine: the proxy stays
         }
         var done = new TaskCompletionSource<string?>();
-        _queue.Enqueue((assetId, hash, url, done), cameraPosition.DistanceTo(piecePosition));
+        _queue.Enqueue((assetId, hash, url, AssetCache.CapFor(kind), done), cameraPosition.DistanceTo(piecePosition));
         _ = Pump();
         var path = await done.Task;
         return path is null ? null : await Build(path, scale, orientation);
@@ -71,7 +68,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         try
         {
             if (!_queue.TryDequeue(out var item, out _)) return;
-            try { item.Done.SetResult(await cache.FetchAsync(item.Hash, item.Url, CancellationToken.None)); }
+            try { item.Done.SetResult(await cache.FetchAsync(item.Hash, item.Url, item.Cap, CancellationToken.None)); }
             catch (Exception e) { GD.PushWarning($"asset {item.AssetId}: {e.Message}"); item.Done.SetResult(null); }
         }
         finally { _inFlight.Release(); }
@@ -116,6 +113,14 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     {
         var parsed = await Task.Run(() =>
         {
+            // A cached blob may predate the server's checks or be hostile: Godot sees it only after GlbPreflight. Built-ins
+            // (res://) ship in the build.
+            if (!path.StartsWith("res://", StringComparison.Ordinal))
+            {
+                string? refusal;
+                try { refusal = GlbPreflight.CheckFile(path); } catch (IOException e) { refusal = e.Message; }
+                if (refusal is not null) { GD.PushWarning($"GLB {path} refused: {refusal}"); return ((GltfDocument, GltfState)?)null; }
+            }
             var doc = new GltfDocument(); var state = new GltfState();
             var err = doc.AppendFromFile(path, state);
             if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return ((GltfDocument, GltfState)?)null; }

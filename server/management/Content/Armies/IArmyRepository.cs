@@ -11,6 +11,8 @@ public interface IArmyRepository
     Task<Army?> Get(Guid ownerId, Guid id);
     /// <summary>Ascending by id, after the cursor.</summary>
     Task<IReadOnlyList<ArmySummary>> List(Guid ownerId, Http.Keyset page);
+    /// <summary>The owner's armies.</summary>
+    Task<int> Count(Guid ownerId);
     /// <summary>Unit patches first (every slot of the unit), then slot patches. Patches naming a unit or slot outside the army are ignored.</summary>
     Task<Army?> Patch(Guid ownerId, Guid id, PatchArmyRequest p);
     /// <summary>A participant row that picked the army keeps no army (on delete set null).</summary>

@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using Tabletop.Content;
 using Tabletop.Management.Content.Armies;
 using Tabletop.Management.Content.Assets;
@@ -31,12 +32,17 @@ public class ManifestTests : IClassFixture<ManagementFactory>
         }
         var aMesh = await Upload(a, TestGlb.Build((3, null, true)), AssetKind.Miniature, "a-mesh");
         var bMesh = await Upload(b, TestGlb.Build((6, null, true)), AssetKind.Miniature, "b-mesh");
-        var texture = await Upload(b, [0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4], AssetKind.Texture, "board");
+        var texture = await Upload(b, TestImages.Png(4, 4), AssetKind.Texture, "board");
         var unconfirmed = await a.PostJson<CreateAssetResponse>("/v1/assets", new CreateAssetRequest("pending", AssetKind.Miniature, new string('a', 64), 10, "model/gltf-binary", 1, new(0, 0, 0), Tabletop.Geometry.Base.Circle(1)));
 
         var aArmy = await a.PostJson<Army>("/v1/armies/import", new ImportRequest("c2-6YsWRH3py"));
         var aUnit = aArmy.Units[0];
-        await a.PatchJson<Army>($"/v1/armies/{aArmy.Id}", new PatchArmyRequest(null, [new UnitPatch(aUnit.Id, aMesh.Id)], [new SlotPatch(aUnit.Models[1].Id, unconfirmed.Asset.Id, false, null, null)]));
+        await a.PatchJson<Army>($"/v1/armies/{aArmy.Id}", new PatchArmyRequest(null, [new UnitPatch(aUnit.Id, aMesh.Id)], null));
+        lock (_f.Rows.Gate)                 // the API refuses an unconfirmed asset; the row is written directly, as a slot whose asset lost its bytes
+        {
+            var row = _f.Rows.Armies[aArmy.Id];
+            row.Army = row.Army with { Units = row.Army.Units.Select(un => un with { Models = un.Models.Select(m => m.Id == aUnit.Models[1].Id ? m with { AssetId = unconfirmed.Asset.Id } : m).ToList() }).ToList() };
+        }
         var bArmy = await b.PostJson<Army>("/v1/armies/import", new ImportRequest("c2-6YsWRH3py"));
         var bSnapshot = ArmySnapshot.Of(bArmy with { Units = [bArmy.Units[0] with { Models = [bArmy.Units[0].Models[0] with { AssetId = bMesh.Id }] }] }, Guid.CreateVersion7());
 
@@ -56,5 +62,30 @@ public class ManifestTests : IClassFixture<ManagementFactory>
         using var http = _f.Blobs.Client();
         Assert.Equal(TestGlb.Build((6, null, true)), await http.GetByteArrayAsync(manifest.Assets.Single(m => m.AssetId == bMesh.Id).Url));
         Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync($"/v1/games/{game.Id}/assets")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Assets_owned_by_a_non_participant_are_never_presigned()
+    {
+        _f.Rows.SeedProperties("sha256:m2", "GF", "grimdark-future");
+        var (hostId, strangerId) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var host = await _f.AuthenticatedClient(hostId, "H");
+        await _f.AuthenticatedClient(strangerId, "S");
+        var game = await host.PostJson<GameInfo>("/v1/games", new CreateGameRequest("M2", "sha256:m2", SchedulerShape.PlayerTurn, Enforcement.Silent, false));
+        AssetDto Uploaded(Guid owner, string name)
+        {
+            var glb = TestGlb.Build((3 + name.Length * 3, null, true));
+            var dto = _f.Services.GetRequiredService<IAssetRepository>().Create(owner, new CreateAssetRequest(name, AssetKind.Terrain,
+                Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(glb)), glb.Length, "model/gltf-binary", 1, new(0, 0, 0), null)).Result;
+            _f.Services.GetRequiredService<IAssetRepository>().MarkUploaded(owner, dto.Hash).Wait();
+            return dto;
+        }
+        var mine = Uploaded(hostId, "mine");
+        var theirs = Uploaded(strangerId, "theirs-asset");
+        // A table naming another account's asset id, as a setup edit could: only the participant's asset is presigned.
+        TerrainPlacement At(Guid asset) => new(Guid.CreateVersion7(), VisualRef.OfAsset(asset), new Tabletop.Geometry.Point3(10, 10, 0), new Tabletop.Geometry.Yaw(0), 1, []);
+        _f.Rows.SeedGameTable(game.Id, new TableState(Guid.CreateVersion7(), null, new Tabletop.Geometry.TableSize(72, 48), VisualRef.OfBuiltin("grass"), [At(mine.Id), At(theirs.Id)], [], []));
+        var manifest = await host.GetJson<Manifest>($"/v1/games/{game.Id}/assets");
+        Assert.Equal([mine.Id], manifest.Assets.Select(a => a.AssetId));
     }
 }

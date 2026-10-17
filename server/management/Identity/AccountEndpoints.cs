@@ -13,9 +13,9 @@ public static class AccountEndpoints
             await accounts.Get(CurrentAccount.Id(user)) is { } row ? Results.Ok(row) : Problems.Unauthorized());
         group.MapPatch("", async (System.Security.Claims.ClaimsPrincipal user, RenameRequest r, IAccountRepository accounts) =>
         {
-            if (string.IsNullOrWhiteSpace(r.Name)) return Problems.Unprocessable("name is required");
+            if (Limits.Text(r.Name?.Trim(), "name", Limits.Name) is { } problem) return Problems.Unprocessable(problem);
             var id = CurrentAccount.Id(user);
-            return await accounts.Rename(id, r.Name.Trim()) ? Results.Ok(await accounts.Get(id)) : Problems.Unauthorized();
+            return await accounts.Rename(id, r.Name!.Trim()) ? Results.Ok(await accounts.Get(id)) : Problems.Unauthorized();
         });
         group.MapDelete("", async (System.Security.Claims.ClaimsPrincipal user, AccountDeleter deleter) =>
         {
