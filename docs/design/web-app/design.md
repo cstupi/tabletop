@@ -735,16 +735,18 @@ are standable, area volumes are stood inside, and `impassable` is orthogonal to 
 
 ### 11. Armies
 
-**Import.** `POST /v1/armies/import { source }`, and management fetches the list. The browser
+**Import.** `POST /v1/armies/import { source, bases }`, and management fetches the list. The browser
 never calls Army Forge, so the parser lives in one place, there is no CORS problem, and a change
 to Army Forge's format is a server deploy rather than a client release. The web app's only
 contribution is `normaliseSource`. A share link is passed through whole (management reads its
 `id=` and keeps the link as `source`), any other URL carrying `id=` collapses to the bare id, a
-bare id passes, and anything else is rejected locally before a request is made.
+bare id passes, and anything else is rejected locally before a request is made. A Round / Square choice beside the
+source field (default Round) sends `bases`: Army Forge publishes a round and a square base for every unit, and the
+choice applies to the whole army.
 
 **A changed list means a re-import.** There is no copy operation, so nothing carries bindings
 across a list change by construction. `reimport` imports the same source as a new
-army and then deletes the old one, in that order, so a failed import leaves the original
+army, on the form's current base set, and then deletes the old one, in that order, so a failed import leaves the original
 untouched. The confirm dialog states the cost: every per-slot mesh, base and height override is
 lost. Unit defaults are quick to set again, per-slot meshes are not. The trade is accepted
 because an army is cheap to rebuild and list changes are rare.
@@ -757,8 +759,8 @@ asset reference is a plain field on the model slot (`MODEL_SLOT.asset_id`).
 plus a per-slot override. A unit-level picker sets every slot's mesh. A per-slot picker
 overrides one, and overriding is **expected rather than exceptional**, because the models in a
 unit are often made from different meshes. Base shape and height are per slot too, defaulting
-from the import. Army Forge publishes a recommended round base; height has no source and import
-writes 1.5″.
+from the import. The base is Army Forge's round or square base, by the set chosen at import; height has no source and
+import writes 1.5 × the round base's long axis.
 
 `armies/patches.ts` is one function per edit, each returning a whole `PatchArmyRequest`:
 `unitDefault`, `slotMesh` (null becomes `clearAsset: true`, since an omitted null cannot express
@@ -847,7 +849,7 @@ surface*. `client.ts` has one function per row and no others.
 | `api.account` | `GET`, `PATCH`, `DELETE /v1/account` | `RenameRequest` → `AccountRow(Id, Name)` / `204` |
 | `api.assets` | `GET /v1/assets?limit&after&kind`, `POST /v1/assets`, `GET/PATCH/DELETE /{id}`, `POST /{id}/confirm`, `GET /{id}/download`, `GET/PUT /{id}/volumes` | `CreateAssetRequest`, `PatchAssetRequest`, `Volume[]` → `Page<AssetDto>`, `CreateAssetResponse(Asset, UploadUrl?)`, `ConfirmResponse(Asset, Triangles?, Warning?)`, `DownloadResponse(Url, ExpiresAt)`, `TerrainVolume[]` |
 | `api.folders` | `GET`, `POST /v1/folders`, `PATCH/DELETE /{id}`, `PUT/DELETE /{id}/assets/{assetId}` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)`; four of them `204` with no body |
-| `api.armies` | `POST /v1/armies/import`, `GET /v1/armies?limit&after`, `GET/PATCH/DELETE /{id}` | `ImportRequest(Source)`, `PatchArmyRequest(Name?, Units?, Slots?)` → `Army`, `Page<ArmySummary>`, `204` |
+| `api.armies` | `POST /v1/armies/import`, `GET /v1/armies?limit&after`, `GET/PATCH/DELETE /{id}` | `ImportRequest(Source, Bases)`, `PatchArmyRequest(Name?, Units?, Slots?)` → `Army`, `Page<ArmySummary>`, `204` |
 | **Not consumed** | `/v1/games*`, `/v1/layouts*`, `/v1/properties`, `/v1/games/{id}/assets`, `/healthz` | The preparation-versus-play line |
 
 ### Consumed as value shapes
@@ -971,7 +973,7 @@ sequenceDiagram
     participant F as Army Forge
 
     U->>P: Re-import, then confirm the warning about lost overrides
-    P->>M: POST /v1/armies/import with a source
+    P->>M: POST /v1/armies/import with a source and a base set
     M->>F: GET /api/tts?id=...
     alt Army Forge answers with a Grimdark Future list
         F-->>M: the list

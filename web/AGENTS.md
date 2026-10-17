@@ -11,7 +11,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (six declarations, `defaultVolume`).
 - `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence).
 - `src/lib/library/` `folders.ts`, `volume-edit.ts` (`toDraft`, `fromDraft`).
-- `src/lib/armies/` `import.ts` (`normaliseSource`), `patches.ts` (`PatchArmyRequest` builders).
+- `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport` with a `BaseSet`), `patches.ts` (`PatchArmyRequest` builders).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`.
 - `tests/` Vitest; `tests/fixtures/` STL files and `make-fixtures.ts`.
 

@@ -42,7 +42,8 @@ the confirm dialog names the set.
 
 ## Tests
 
-- `ArmyForgeImportTests`: the fixture imported square gives `Rect(50, 25)` Beast Riders and Blood Hounds and `Rect(30, 30)` Blood Warriors, with the
-  same heights as the round import; a square-only and a neither entry; `ParseBase` per set.
+- `ArmyForgeImportTests`: the fixture imported square gives `Rect(50, 25)` Beast Riders and Blood Hounds and
+  `Rect(30, 30)` Blood Warriors, with the same heights as the round import; a square-only and a neither entry;
+  `ParseBase` per set.
 - `ArmyTests`: `POST /v1/armies/import` with `bases: "square"` writes rect bases; without `bases` writes round ones.
 - `web/tests/armies.test.ts`: `api.armies.import` sends `bases`; `reimport` passes the chosen set.
