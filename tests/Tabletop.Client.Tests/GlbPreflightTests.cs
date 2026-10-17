@@ -335,6 +335,70 @@ public class GlbPreflightTests
         Refused(Glb(j, b), "EXT_meshopt_compression");
     }
 
+    public static TheoryData<string, long> Wrapping => new()
+    {
+        { "bufferViews.0.byteOffset", int.MaxValue },
+        { "bufferViews.0.byteOffset", uint.MaxValue },
+        { "bufferViews.0.byteOffset", long.MaxValue },
+        { "bufferViews.0.byteLength", uint.MaxValue - 35 },
+        { "bufferViews.0.byteLength", long.MaxValue },
+        { "accessors.0.byteOffset", int.MaxValue },
+        { "accessors.0.byteOffset", long.MaxValue - 8 },
+        { "accessors.0.count", long.MaxValue },
+        { "accessors.0.count", (long.MaxValue / 12) + 2 },
+        { "buffers.0.byteLength", long.MaxValue },
+    };
+
+    static void Set(JsonObject json, string path, long value)
+    {
+        var parts = path.Split('.');
+        JsonNode node = json;
+        for (var i = 0; i < parts.Length - 1; i++) node = int.TryParse(parts[i], out var k) ? node[k]! : node[parts[i]]!;
+        node[parts[^1]] = value;
+    }
+
+    [Theory]
+    [MemberData(nameof(Wrapping))]
+    public void Offsets_lengths_and_counts_that_would_wrap_are_refused(string path, long value)
+    {
+        var (j, b) = Triangle();
+        Set(j, path, value);
+        Assert.NotNull(GlbPreflight.Check(Glb(j, b)));
+    }
+
+    [Theory]
+    [InlineData("indices", int.MaxValue)]
+    [InlineData("indices", long.MaxValue)]
+    [InlineData("values", int.MaxValue)]
+    [InlineData("values", long.MaxValue)]
+    public void Sparse_offsets_that_would_wrap_are_refused(string part, long offset)
+    {
+        var (j, b) = Triangle();
+        var sparse = new JsonObject
+        {
+            ["count"] = 1,
+            ["indices"] = new JsonObject { ["bufferView"] = 1, ["componentType"] = 5123 },
+            ["values"] = new JsonObject { ["bufferView"] = 0 },
+        };
+        sparse[part]!["byteOffset"] = offset;
+        j["accessors"]![0]!["sparse"] = sparse;
+        Assert.NotNull(GlbPreflight.Check(Glb(j, b)));
+    }
+
+    [Theory]
+    [InlineData(int.MaxValue)]
+    [InlineData(long.MaxValue)]
+    public void An_image_buffer_view_offset_that_would_wrap_is_refused(long offset)
+    {
+        var glb = WithImages(Png(4, 4));
+        var reason = GlbPreflight.Check(glb);
+        Assert.Null(reason);
+        var json = (JsonObject)JsonNode.Parse(Encoding.UTF8.GetString(glb, 20, (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12))).TrimEnd())!;
+        var bin = glb[(28 + (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12)))..];
+        json["bufferViews"]![2]!["byteOffset"] = offset;
+        Assert.NotNull(GlbPreflight.Check(Glb(json, bin)));
+    }
+
     /// <summary>Real GLBs from scripts/terrain-meshes (gltf-transform, as the web converter writes) pass.</summary>
     [Fact]
     public void The_built_in_terrain_meshes_pass()
