@@ -11,7 +11,10 @@ the whole draft, and every lobby edit with a `GameInfoMessage`. The client has n
 
 `LobbyPanel` covers the six lobby edits: `CreateTeam`, `PickTeam` (with `null` meaning watch),
 `PickArmy`, `SetConfiguration` pre-filled with the current values, and, for the creator only,
-`StartSetup` and `EndSetup`. The creator's two buttons are absent for anyone else. A forged edit is
+`StartSetup` and `EndSetup`. The creator's two buttons are absent for anyone else. Its Players list
+(`LobbySeats`) shows every participant, teamless ones included, with their team or "No team"; for
+the creator each row is a team picker (No team, then the teams by ordinal) sending
+`PickTeam(teamId, participantId)`, the server's path for putting a second player on a held team. A forged edit is
 refused with `NotPermitted`, so the UI is a convenience over a server rule rather than the rule
 itself. The "End setup" button notes how many placements are still off the slab, because the
 end-setup command deletes those rows before flipping.

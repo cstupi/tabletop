@@ -30,6 +30,7 @@ public partial class LobbyPanel : VBoxContainer
         foreach (var t in game.Teams) teams.AddChild(Btn($"Join team {t.Ordinal}", () => Guarded.Send(s, new PickTeam(t.Id))));
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
+        AddChild(Seats(s, game));
         var armies = new OptionButton(); armies.AddItem("No army"); AddChild(armies);
         AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         Guarded.Run(async () =>
@@ -57,6 +58,24 @@ public partial class LobbyPanel : VBoxContainer
             _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = EndText(s); };
             s.BoardChanged += _onBoard;
         }
+    }
+
+    /// <summary>Every participant, teamless ones included. The creator's rows carry a team picker that places that participant (PickTeam with its id).</summary>
+    static Container Seats(Session s, GameInfo game)
+    {
+        var list = new VBoxContainer();
+        list.AddChild(new Label { Text = "Players" });
+        foreach (var seat in LobbySeats.Of(game))
+        {
+            var row = new HFlowContainer(); list.AddChild(row);
+            row.AddChild(new Label { Text = seat.Name + (seat.HasArmy ? " ⚔" : ""), AutowrapMode = TextServer.AutowrapMode.WordSmart });
+            if (!s.IsCreator) { row.AddChild(new Label { Text = seat.Seat }); continue; }
+            var picker = new OptionButton(); foreach (var c in LobbySeats.Choices(game)) picker.AddItem(c.Label);
+            picker.Select(seat.Selected);
+            picker.ItemSelected += i => Guarded.Send(s, LobbySeats.Pick(game, seat.ParticipantId, (int)i));
+            row.AddChild(picker);
+        }
+        return list;
     }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
