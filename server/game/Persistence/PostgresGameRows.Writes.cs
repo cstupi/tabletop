@@ -40,10 +40,10 @@ public sealed partial class PostgresGameRows
     public async Task SetConfigurationAsync(Guid gameId, SetConfiguration c, CancellationToken ct)
     {
         // game_rules follows the chosen properties row, as management copies it on create (management plan → Rows by writer: both are rewritten on set_configuration).
-        // The six configuration columns and nothing else: rng_seed is management's, written once at creation.
-        await using var cmd = db.CreateCommand("update management.game set name = $2, properties_hash = $3, game_rules = (select game_rules from management.properties where content_hash = $3), scheduler_shape = $4, enforcement = $5, waits_between_steps = $6 where id = $1");
+        // The seven configuration columns and nothing else: rng_seed is management's, written once at creation.
+        await using var cmd = db.CreateCommand("update management.game set name = $2, properties_hash = $3, game_rules = (select game_rules from management.properties where content_hash = $3), scheduler_shape = $4, enforcement = $5, waits_between_steps = $6, optional_rules = $7::jsonb where id = $1");
         cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(c.Name); cmd.Parameters.AddWithValue(c.PropertiesHash);
-        cmd.Parameters.AddWithValue(EnumText(c.SchedulerShape)); cmd.Parameters.AddWithValue(EnumText(c.Enforcement)); cmd.Parameters.AddWithValue(c.WaitsBetweenSteps);
+        cmd.Parameters.AddWithValue(EnumText(c.SchedulerShape)); cmd.Parameters.AddWithValue(EnumText(c.Enforcement)); cmd.Parameters.AddWithValue(c.WaitsBetweenSteps); cmd.Parameters.AddWithValue(OptionalRulesJson(c.OptionalRules));
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

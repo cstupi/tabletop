@@ -21,6 +21,7 @@ public abstract partial class RepositoryContract
         Assert.Equal([(creator, "Clay", (Guid?)null, (Guid?)null)], game.Participants.Select(p => (p.AccountId, p.Name, p.TeamId, p.ArmyId)));
         Assert.Empty(game.Teams);
         Assert.Equal(game.RngSeed, (await Games.Get(game.Id))!.RngSeed);
+        Assert.Empty((await Games.Get(game.Id))!.OptionalRules);                                           // the column default: the core game
         Assert.NotEqual(game.RngSeed, (await Games.Create(creator, GameRequest(hash)))!.RngSeed);
         Assert.True(await Games.IsCreator(game.Id, creator));
         Assert.True(await Games.IsParticipant(game.Id, creator));

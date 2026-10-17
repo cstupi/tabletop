@@ -230,6 +230,18 @@ public abstract class GameRowsContract
         var game = (await Rows.ReadGameAsync(seeded.GameId, Ct))!;
         Assert.Equal(("Saturday", hash, "grimdark-future", SchedulerShape.PlayerTurn, Enforcement.Strict, true, 42L, GameStatus.Lobby),
             (game.Name, game.PropertiesHash, game.GameRules, game.SchedulerShape, game.Enforcement, game.WaitsBetweenSteps, game.RngSeed, game.Status));
+        Assert.Equal([new("line_of_sight", "hybrid_true")], game.OptionalRules);
+    }
+
+    [Fact]
+    public async Task A_seeded_game_has_no_optional_rules_and_a_configuration_replaces_the_map_whole()
+    {
+        var seeded = await Seeder.SeedGameAsync(GameStatus.Lobby);
+        Assert.Empty((await Rows.ReadGameAsync(seeded.GameId, Ct))!.OptionalRules);
+        var hash = await Seeder.SeedPropertiesAsync();
+        await Rows.SetConfigurationAsync(seeded.GameId, new SetConfiguration("a", hash, SchedulerShape.PlayerTurn, Enforcement.Strict, false, new Dictionary<string, string> { ["melee_separation"] = "off" }), Ct);
+        await Rows.SetConfigurationAsync(seeded.GameId, new SetConfiguration("a", hash, SchedulerShape.PlayerTurn, Enforcement.Strict, false, new Dictionary<string, string> { ["unit_sight_blocking"] = "perimeter" }), Ct);
+        Assert.Equal([new("unit_sight_blocking", "perimeter")], (await Rows.ReadGameAsync(seeded.GameId, Ct))!.OptionalRules);
     }
 
     /// <summary>The tree as the reads hand it back: terrain, volumes and markers by id, zones by team ordinal.</summary>

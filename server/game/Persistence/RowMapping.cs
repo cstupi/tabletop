@@ -40,6 +40,11 @@ public static class RowMapping
         v.Declarations.HasFlag(TerrainDeclarations.Dangerous), v.Notes,
     ];
 
+    /// <summary>game.optional_rules (jsonb, an object of strings) read as text.</summary>
+    public static IReadOnlyDictionary<string, string> OptionalRules(string json) =>
+        System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? [];
+    public static string OptionalRulesJson(IReadOnlyDictionary<string, string> map) => System.Text.Json.JsonSerializer.Serialize(map);
+
     public static Guid? NullableGuid(NpgsqlDataReader r, int i) => r.IsDBNull(i) ? null : r.GetGuid(i);
     public static string? NullableString(NpgsqlDataReader r, int i) => r.IsDBNull(i) ? null : r.GetString(i);
 }
