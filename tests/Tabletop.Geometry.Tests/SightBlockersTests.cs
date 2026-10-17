@@ -145,3 +145,48 @@ public class SightBlockersTests
         return (volumes, models);
     }
 }
+
+/// <summary>A unit's perimeter (optional-rules spec → Units as sight blockers): the convex hull of its bases, as a sight prism.</summary>
+public class PerimeterTests
+{
+    // Two models 0.5" apart along x at y 10: their bases span x 2.37–3.63 and 4.13–5.39, the gap is x 3.63–4.13.
+    static readonly PlacedModel Left = Fx.Model(3, 10), Right = Fx.Model(4.76, 10);
+    static PlacedModel Observer => Fx.Model(3.88, 0);
+    static PlacedModel Target => Fx.Model(3.88, 20);
+
+    [Fact] public void A_line_through_the_gap_between_two_bodies_is_clear()
+    {
+        var bodies = new SightBlockers([Bodies.AsBlockingVolume(Guid.CreateVersion7(), Left), Bodies.AsBlockingVolume(Guid.CreateVersion7(), Right)]);
+        Assert.True(bodies.Check(Observer, Target).Clear);
+    }
+
+    [Fact] public void The_perimeter_closes_the_gap_and_the_reading_names_it()
+    {
+        var unit = Guid.CreateVersion7();
+        var perimeter = Bodies.Perimeter(unit, [Left, Right]);
+        Assert.Equal((0, 1.5), (perimeter.Bottom, perimeter.Top));
+        var sight = new SightBlockers([], [perimeter]);
+        var reading = sight.Measure(Observer, Target);
+        Assert.False(reading.Clear);
+        Assert.Equal([unit], reading.Blockers);
+        Assert.True(sight.Check(Observer, Target, id => id == unit).Clear);                       // an ignored prism never blocks
+    }
+
+    [Fact] public void The_hull_holds_every_base_and_no_more_than_their_span()
+    {
+        var perimeter = Bodies.Perimeter(Guid.CreateVersion7(), [Left, Right, Fx.Model(3.88, 11.5)]);
+        Assert.InRange(perimeter.Outline.Min(p => p.X), 2.37 - 0.02, 2.37 + 1e-9);
+        Assert.InRange(perimeter.Outline.Max(p => p.X), 5.39 - 1e-9, 5.39 + 0.02);
+        Assert.InRange(perimeter.Outline.Max(p => p.Y), 12.13 - 1e-9, 12.13 + 0.02);
+        var past = new SightBlockers([], [perimeter]);
+        Assert.True(past.Check(Fx.Model(0, 0), Fx.Model(0, 20)).Clear);                            // a line beside the unit
+    }
+
+    [Fact] public void Volumes_report_before_prisms()
+    {
+        var wall = Fx.Box(3.88, 5, 4, 0.2, 0, 4, d: Fx.Blocks);
+        var unit = Guid.CreateVersion7();
+        var reading = new SightBlockers([wall], [Bodies.Perimeter(unit, [Left, Right])]).Measure(Observer, Target);
+        Assert.Equal([wall.Id, unit], reading.Blockers);
+    }
+}
