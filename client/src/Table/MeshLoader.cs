@@ -116,6 +116,14 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     {
         var parsed = await Task.Run(() =>
         {
+            // A cached blob may predate the server's checks or be hostile: Godot sees it only after GlbPreflight. Built-ins
+            // (res://) ship in the build.
+            if (!path.StartsWith("res://", StringComparison.Ordinal))
+            {
+                string? refusal;
+                try { refusal = GlbPreflight.CheckFile(path); } catch (IOException e) { refusal = e.Message; }
+                if (refusal is not null) { GD.PushWarning($"GLB {path} refused: {refusal}"); return ((GltfDocument, GltfState)?)null; }
+            }
             var doc = new GltfDocument(); var state = new GltfState();
             var err = doc.AppendFromFile(path, state);
             if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return ((GltfDocument, GltfState)?)null; }
