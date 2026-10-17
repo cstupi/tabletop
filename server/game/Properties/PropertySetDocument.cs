@@ -18,7 +18,7 @@ public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesPara
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier, int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind,
     string? Replacement, EffectDuration Duration, IReadOnlyList<ConditionDocument> Conditions, IReadOnlyList<EffectDocument> Children,
-    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null);
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null, int? Floor = null);
 public sealed record ConditionDocument(ConditionKind Kind, EffectSubject? Subject, Comparison Comparison, int? Number, IReadOnlyList<string> Values);
 
 public static class PropertiesJson
@@ -88,10 +88,13 @@ public static class PropertiesJson
             {
                 if (e.Kind != CatalogKind.Model) problems.Add($"{e.Name}: targeting is set on a spell or a pick entry (kind model)");
                 if (pick.Count != 1) problems.Add($"{e.Name}: a pick entry picks one");
-                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration != EffectDuration.Once)) problems.Add($"{e.Name}: a pick entry's rows have duration once");
+                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration == EffectDuration.Interaction && !IsUseRow(f)))
+                    problems.Add($"{e.Name}: a pick entry's rows have duration once or are take_test, roll, add_hit hits or remove_wounds");
                 if (e.Effects.Any(f => !f.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values is [PickPoint])))
                     problems.Add($"{e.Name}: a pick entry's row has an at_point naming {PickPoint}");
             }
+            if (e.Targeting?.Requires is { } required && !names.Contains(required)) problems.Add($"{e.Name}: targeting requires no entry '{required}'");
+            if (e.Effects.Any(f => f.Kind == EffectKind.RemoveWounds) && e.Targeting is null) problems.Add($"{e.Name}: remove_wounds belongs to a pick entry");
             if (!spell && e.Targeting is null && e.Effects.Any(f => f.Duration == EffectDuration.Once)) problems.Add($"{e.Name}: a once row belongs to a spell or a pick entry");
             foreach (var f in e.Effects) ValidateEffect(d, names, e.Name, f, problems);
         }
@@ -111,7 +114,19 @@ public static class PropertiesJson
 
     /// <summary>The point a pick entry is used at (army-book rules spec: "Once per activation, before attacking, pick …").</summary>
     const string PickPoint = "before-attacking";
-    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start"];
+
+    /// <summary>A pick entry's row the use itself resolves on the picked target rather than grants to it: a morale test ("must take a morale test"),
+    /// dice whose successes deal hits ("roll 3 dice. For each 2+ … takes 3 hits"), hits ("takes 1 hit"), a heal ("remove D3 wounds") or a move ("which may immediately move by up to 9"").</summary>
+    static bool IsUseRow(EffectDocument f) => f.Kind switch
+    {
+        EffectKind.TakeTest or EffectKind.RemoveWounds or EffectKind.Move => true,
+        // "Roll one die, on a 4+ place a marker on it": the dice row's children may be the markers a success places.
+        EffectKind.Roll => f.Children.Count > 0 && (f.Children.All(c => c.Kind == EffectKind.AddHit && c.TargetQuantity is null or TargetQuantity.Hits)
+            || f.Children.All(c => c.Duration is EffectDuration.Marker or EffectDuration.SpentMarker)),
+        EffectKind.AddHit => f.TargetQuantity is null or TargetQuantity.Hits && f.Conditions.All(c => c.Kind != ConditionKind.RollResult),
+        _ => false,
+    };
+    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start", "activation-end", "after-deploy"];
 
     static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)
     {
@@ -123,6 +138,8 @@ public static class PropertiesJson
         if (f.Threshold is not null && f.Kind != EffectKind.Roll) problems.Add(At("threshold is roll only"));
         if (f.CapKind is not null && f.Kind != EffectKind.Multiply) problems.Add(At("cap_kind is multiply only"));
         if (f.Replacement is not null && f.Kind != EffectKind.ReplaceStat) problems.Add(At("replacement is replace_stat only"));
+        if (f.Kind == EffectKind.ReplaceStat && f.Replacement is null && !f.AmountFromParameter) problems.Add(At("replace_stat needs a replacement or the parameter"));
+        if (f.Floor is not null && f.Kind != EffectKind.ModifyStat) problems.Add(At("floor is modify_stat only"));
         if (f.TargetTerrain is not null && f.Kind != EffectKind.CountAsTerrain) problems.Add(At("target_terrain is count_as_terrain only"));
         if (f.Kind == EffectKind.AddHit && f.TargetQuantity is TargetQuantity.Wounds && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             problems.Add(At("add_hit wounds is per die: it needs a roll_result condition"));
@@ -154,14 +171,14 @@ public static class PropertiesJson
             if (c.Values.Count != 1) problems.Add(At($"{c.Kind} names exactly one value"));
             else if (c.Kind == ConditionKind.HoldsProperty && !names.Contains(c.Values[0])) problems.Add(At($"holds_property names no entry '{c.Values[0]}'"));
         }
-        if (f.AmountDice is not null && f.Kind != EffectKind.Place) problems.Add(At("amount_dice is place only"));
-        if (f.AmountDice is not null and not "d3") problems.Add(At($"amount_dice is 'd3', not '{f.AmountDice}'"));
+        if (f.AmountDice is not null && f.Kind is not (EffectKind.Place or EffectKind.RemoveWounds)) problems.Add(At("amount_dice is place or remove_wounds only"));
+        if (f.AmountDice is not null and not "d3" and not "d3+1") problems.Add(At($"amount_dice is 'd3' or 'd3+1', not '{f.AmountDice}'"));
         if (f.Kind == EffectKind.AddHit && f.TargetQuantity == TargetQuantity.Attacks && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             problems.Add(At("add_hit attacks is per die: it needs a roll_result condition"));
         foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.AtPoint))
             foreach (var v in c.Values.Where(v => !Points.Contains(v))) problems.Add(At($"no point '{v}'"));
         foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.UsageCount && c.Values.Count > 0))
-            if (c.Values[0] is not "round" and not "activation") problems.Add(At($"usage_count scope is round or activation, not '{c.Values[0]}'"));
+            if (c.Values[0] is not "round" and not "activation" and not "game") problems.Add(At($"usage_count scope is round, activation or game, not '{c.Values[0]}'"));
         // A roll's children may read the roll they are children of: a property's own roll is a RollRecord named for the entry.
         foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems, f.Kind == EffectKind.Roll ? entry : null);
     }
@@ -173,7 +190,7 @@ public static class PropertiesJson
         Effect Build(EffectDocument f) => new(newId(), f.Subject, f.Ordinal, f.Kind, f.TargetRoll, f.TargetStat, f.TargetEntry, f.TargetAction, f.TargetQuantity, f.TargetResult,
             f.TargetModifier, f.Amount, f.AmountFromParameter, f.Threshold, f.CapKind, f.Replacement, f.Duration,
             f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList(),
-            f.TargetTerrain, f.TargetCondition, f.AmountDice);
+            f.TargetTerrain, f.TargetCondition, f.AmountDice, f.Floor);
         return new PropertySet(Hash(d), d.Name, d.GameRules, d.Stats, d.Actions, d.Rolls.Select(r => new RollDefinition(r)).ToList(),
             d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList(), e.Played != false)).ToList(),
             d.Books ?? []);

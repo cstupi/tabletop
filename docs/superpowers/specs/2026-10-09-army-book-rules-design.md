@@ -58,9 +58,10 @@ One mechanism, three targets:
 
 - **The entry.** A `model` entry with `targeting` (side, range, line of sight, an optional required property), an
   `at_point` of `before-attacking`, its use counted per carrying model and activation by the mechanism (`usage_count`
-  counts per unit), and its effect rows with duration `once`.
-  `PropertiesJson.Validate` (`server/game/Properties/PropertySetDocument.cs:73`, `:77`) admits `targeting` and `once` rows
-  on a `model` entry that has a `before-attacking` `at_point`; today only spells may carry them.
+  counts per unit), and its effect rows with duration `once`, or use rows an active resolves on its target (`take_test`,
+  `add_hit` hits, a `roll` of hits, `remove_wounds`).
+  `PropertiesJson.Validate` admits `targeting`, `once` rows and use rows on a `model` entry whose rows have a
+  `before-attacking` `at_point`.
 - **Where it is offered.** `GfHooks.ReactionsAt` (`server/game/Rules/GrimdarkFuture/GfHooks.cs:82-100`) offers at
   `before-attacking` the cast reaction and the live Move/Place rows. It also offers one `use` reaction per carrying model
   whose pick entry has not been used this activation (`GfPick.Uses`) and has a target (`GfPick.Offers`). A Shaken unit is
@@ -108,6 +109,103 @@ ordered so that each batch's mechanisms are in place before it:
    Ranged Shrouding, Darkborn (a floor on a modified distance), Grounded Precision (the attacker's terrain), Entrenched,
    Mobile Artillery (a move this round), Quick Readjustment (one row of a rule suppressed), No Retreat (wounds after a
    passed test).
+
+### Readings of the batches
+
+Where an Army Forge text leaves a reading open, the one most consistent with the core rulebook is played:
+
+- **Batch 2.** Written-out Buffs, Marks and Debuffs take the rows of the books' spells of the same wording: *"when
+  attacking"* is melee or shooting (Toxin Mist), *"loses AP(+1)"* lowers a weapon's AP and gives none to a weapon without
+  it (Corrode Weapons), a speed row's three actions are one grant spent together (Shock Speed). *"With Caster"*, *"with
+  Tough"* is `targeting.requires`. Before-attacking actives are pick entries with use rows: Mend's *"remove D3 wounds"* is
+  a `remove_wounds` row (p.4 D3); Fatigue Debuff and Mind Control are a `take_test` with Terrifying Fury's and Deep
+  Hypnosis's consequences, p.10's ordinary consequence included; Breath Attack and the Storms roll their dice under their
+  own name (*"roll one die. On a 2+"*, *"roll 3 dice. For each 2+"*), then ask one target per success, and a unit may be
+  picked for more than one success (*"for each 2+ one enemy unit … takes 3 hits"*). Their hits resolve as a spell's hits
+  (`spell-hits`): they are neither shooting nor melee, so no *when shooting* or *in melee* rule reaches them. A Buff
+  that raises the move of the unit using it, picked mid-move, applies to the rest of that move: the grant applies the
+  next time the move is read. Primeborn's text is Guardian's and so are its rows. Bane in Melee Buff is the Buff
+  template with X in running-text case (*"Bane in melee"*); the generator reads X ignoring case.
+- **Batch 3.** *"Counts as having Ambush"* (Infiltrate, Rapid Ambush, Ambushing Piercing Shot) is a `grant_property` of
+  Ambush, and Lookup's Aura grants follow a chain (Infiltrate Aura gives Infiltrate, which gives Ambush). Where an
+  Ambusher is placed, the rules are read by name off the unit definitions (`GfAmbush`), since deployment is judged
+  before a unit has a position: Infiltrate and Surprise Attack (*"counts as having Infiltrate"*) deploy over 3" from
+  enemy units, an enemy unit with Repel Ambushers holds every Ambusher over 12" from it, and a base within 6" of a
+  friendly model with Ambush Beacon ignores the distance. Rapid Ambush adds round one's boundary to the Ambushers'.
+  Ambushing Piercing Shot's *"on the round in which it deploys via this rule"* is the unit condition `ambushed this
+  round`, set on arrival and cleared as a round starts. Re-Deployment's units are picked at the Scouts phase's deploy
+  Ask beside the Scouts, up to two per side, each removed to the shelf and placed again within the zone (p.6, not a
+  Scout's 12"). Ambush Re-Deployment is offered in the activation-end window of a unit all of whose models hold it,
+  once a game; the unit goes to the shelf set aside and is one of the next round's Ambushers. Fanatic and Vanguard are
+  `place 9` rows at a point, `after-deploy`, whose window opens when a deployment turn's unit is fully placed (a Scout's
+  too; an Ambusher's arrival is a round boundary, not a deployment turn, and opens none). Surprise Attack is a pick
+  entry offered only in the unit's first activation and once a game for the unit: it rolls X dice and its one target
+  takes one hit per 2+ (`rule-hits`, blocked under AP(1)). Takedown Shot and Takedown Strike are not built: each is
+  an attack with a profile no weapon carries (Quality 2+, AP(2), Deadly(3), Takedown); the build path is the import
+  adding that profile as a weapon of the carrying model, used once a game.
+- **Batch 4.** Bounding and Dash are `place` rows of *"D3+1"* (`amountDice d3+1`); Dash's *"at the end of this unit's
+  activation"* is a point, `activation-end`, whose window opens after the activation's own work. Hit & Run is Harassing's
+  text and rows. A *"pick one effect"* rule (Versatile Attack, Watchborn, Versatile Defense, Versatile Reach) and Speed
+  Feat's *"you may use this rule"* are `set_condition` rows at `activation-start`: the player picks one, its condition is
+  set on the unit, and the effect rows read it; the unit's choice clears as its next activation starts, which is
+  Versatile Defense's *"until the units' next activation"* and outlasts the others' activation only while they cannot act
+  (*"when shooting or charging"*, *"when this unit moves"*). Versatile Defense's choice *"when … deployed"* is not
+  offered: deployment opens no point. Re-Position Artillery is a pick entry (a friendly model within 6" with Artillery,
+  used before attacking as every pick is) whose `move 9` row moves the picked model's unit under its own move rules.
+  Coordinate runs after the activation's morale tests: the team may activate another of its units within 12" that has
+  not activated and is not Shaken (its activation is idle, p.10); that activation is followed by its own end-of-
+  activation window and morale tests, and offers no Coordinate. Delayed Action is offered as the activation option
+  `Delay` while an opponent has more units on the table left to activate, once a round; the turn ends and the unit stays
+  unactivated. Inquisitorial Agent and Martial Prowess offer a unit that has activated this round its actions again, once
+  a game, at most ⌈n/3⌉ such units a round (n: the army's units holding the rule), clearing fatigue. Instinctive is
+  read when the activation starts: a unit that can charge is offered only Charge, one that can shoot may not Rush and
+  takes its shot without being asked; its only target is the closest valid one, and its shooting or charging attacks
+  that activation get +1 to hit.
+- **Batch 5.** *"The attacking unit takes X hits"* and *"the attacker takes X hits per wound taken"* are hits with no roll to
+  hit (`rule-hits`), blocked as melee hits, dealt by the wounded model's unit; only wounds from a weapon or Impact attack in a
+  melee set them off, so they set off nothing in turn. Deathstrike and Self-Destruct count a model killed by those wounds;
+  Retaliate counts each wound a carrier took. Self-Destruct's survivors are removed after the Unwieldy strike, *"after both
+  sides have finished attacking"*, then each side's hits are dealt. Ravage rolls at its unit's turn to attack: the
+  charger's before its strikes, the defender's after it struck back (or struck first with Counter); each 6 is a wound with
+  no block (`rule-wounds`). Crossing Attack and Strafing read *"moves through enemy units"* as an action's move segment
+  crossing an enemy model's base; after the move the player picks one unit it crossed (once: one move per activation);
+  Strafing's weapon is in no shooting group (*"may only be used in this way"*) and makes its attack as a shot.
+  Protection Feat is a roll to ignore wounds at 5+, *"once per game"* read as every wound of the first attack it is
+  rolled against (it is used automatically, the first time). Regenerative Strength moves to batch 6 (a marker on a
+  model); Takedown Shot and Takedown Strike are under batch 3.
+- **Batch 6.** A marker is a grant of the rule's marker row (duration `marker`, kept for the game, or `spent_marker`, spent
+  with its fellows the first time one applies), so *"for each marker"* is the sum of its grants; a carried rule's marker
+  rows act only through those grants. *"For every two markers"* is two marker rows the markers cycle through, the first
+  of each pair never acting. Steadfast, Battleborn and Honor Code roll at the round boundary, before the Ambushers. The
+  Frenzies and Vengeance read *"fully destroys an enemy unit"* as an attack's wounds leaving the unit with no model in
+  play (a unit Routed by a morale test is not counted); Vengeance places one marker per model that carried it at the start
+  of the game, for its own side. The Growths place their marker as the round starts. Spotters and Tags are pick entries
+  (used before attacking); *"friendly units may remove markers … before rolling"* removes them all at the attack that
+  reads them. A marker its holder's own side placed (Fortified Growth's *"enemies attacking this unit get AP(-1)"*)
+  reaches every opponent. Regenerative Strength's markers are the wounds its model ignored, and its *"+X attacks"* go to
+  the model's first melee weapon.
+- **Batch 7.** Caster Group's caster is the group's first model in play (the pick made for the player), Caster(X) with X its
+  models in play; it gets X tokens at the round start in place of what it held, and a killed caster's tokens pass to the
+  next. Spell Accumulator's tokens pay a friendly caster's spell value after the caster's own, and count in its spend for
+  the roll, from a model within 12" of the caster in another unit that is not Shaken. Spell Conduit adds a `cast_from`
+  choice after the spell is picked; a cast from a conduit measures its targets from the conduit and rolls +1. Extended
+  Buff Range adds to a Hero's Buff picks (range alone, unit grain) the friendly units holding it within 24" of the Hero's
+  unit, when that unit holds it too. Reanimation rolls as its activation starts, one die per killed model and per wound
+  its models carry; each 5+ restores a killed model first (placed by the engine within 1" of a model in play, on no base),
+  then a wound. Any X or count from an imported army is bounded where it becomes grants or dice: 20 markers of one rule
+  on a unit, 60 hits or dice for one use. Spawn, Split and Reinforcement are not built: each places a unit the army
+  snapshot does not hold (*"a new unit of X"*, *"a new copy of it"*); the build path is the import adding the units X
+  names, from the book's units, as reserve units of the army, which the rule then places.
+- **Batch 8.** Armor is a `replace_stat` of Defense from the parameter. *"To a min. of 6""* is a `modify_stat` row's
+  `floor`: the stat goes no lower than 6, or than itself when already lower. A charge's distance is read at its target
+  (`GfMelee.ChargeDistance`, the charge move's allowance), so the target's Melee Shrouding and Darkborn take from it.
+  Grounded Precision reads the attacker's own terrain (`Interaction.AttackerTerrain`). Entrenched and Mobile Artillery
+  read *"hasn't moved during the round"* as the unit condition `moved this round`, set by its moves and cleared as a round
+  starts. Quick Readjustment is a `suppress_property` naming a roll: Indirect's modifiers of the hit roll go, Indirect
+  stays. Heavy Impact grants Impact with its own X (a `grant_property` from the parameter) and its Impact hits are
+  blocked under AP(1). No Retreat turns the failed test into a pass, rolls one die per wound left to the unit and deals
+  a wound on each 1-3 through deal-wounds with no roll to ignore it.
+- **Order.** Batch 3 is taken after batches 4–8, on the Ambush placement code another branch wrote.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the
 same rule ids as the books' upgrade gains): Banner *"This model and its unit get +1 to morale test rolls."*, Musician

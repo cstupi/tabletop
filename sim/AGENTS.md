@@ -28,7 +28,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   sampled further than `DifficultCap` is sampled again within it (p.11); a disembark is sampled until the base is fully within
   `ExitWithin` of the container and fully on the table; a `MinDistance` is sampled above (or, where the table has no room for it, met at
   `Movement.FarthestOnTable`'s corner).
-- `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, does not cross a model (`Collision.Crosses`, in three dimensions over the terrain) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`). A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases, within the zone, and an Ambusher anywhere over 9" from every enemy model (p.13).
+- `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, does not cross a model (`Collision.Crosses`, in three dimensions over the terrain) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`). A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases, within the zone, and an Ambusher anywhere over 9" from every enemy model (p.13), or the distance `GfAmbush` gives (Infiltrate 3", Repel Ambushers 12"), within 6" of a friendly Ambush Beacon first.
 - `AnswerPolicy` reads only `PolicyView`'s geometry members. A policy that reads other state is a second `IAnswerSource`.
 - The one opt-in exception is a `MoveGoal` (`Scenario.Goal`, `ScenarioBuilder.Seeking`). It names a point per model and only ranks
   the destinations the uniform sampler already found legal: all `MoveSamples` are drawn and the passing one nearest the point wins.
@@ -46,6 +46,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `ScenarioArmy.Passengers` (builder `passengers:`) maps a unit ordinal to the Transport unit ordinal it deploys inside: after the
   set-aside conditions, one `MoveModels` per unit from the shelf into the Transport's first model, as the roster's Put in transport
   does (passengers spec). `core-transport-deploy` plays it under strict.
+- `ScenarioArmy.Conditions` (builder `conditions:`) lists (unit ordinal, condition) pairs the run sets before the first answer, after the set-aside ones,
+  as the unit menu does: a unit Shaken from the start (the rally games).
 - `ScenarioArmy.Models` (builder `models:`) gives one model its own rules, stats or weapons (`ScenarioModel(unit, model, ...)`, 1-based):
   a Hero in a unit, a lone caster.
 - `Scenario.OptionalRules` (builder `Options`) is the game's optional-rules map, in `GameInfo` and the socket seeder's row.

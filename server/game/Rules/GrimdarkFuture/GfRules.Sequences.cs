@@ -31,6 +31,14 @@ public sealed partial class GrimdarkFutureRules
         GfCasting.SpellHits(),
         GfCasting.SpellTest(),
         GfPick.PickRule(),
+        GfChoice.ChooseEffect(),
+        GfActivationEnd.Window(),
+        GfActivationEnd.Coordinate(),
+        GfActivationEnd.AfterDeploy(),
+        GfAmbush.AmbushRedeploy(),
+        GfRuleHits.RuleHits(),
+        GfRuleHits.RuleWounds(),
+        GfMarkers.Rally(),
         GfContainers.TransportDestroyed(),
     }.ToDictionary(s => s.Name));
 
@@ -43,7 +51,7 @@ public sealed partial class GrimdarkFutureRules
     public RollSpec RollSpec(string roll) => GfRolls.Spec(roll);
     public string HitRoll => GfNames.Hit;
     public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => GfHooks.ReactionsAt(state, properties, point, frame);
-    public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => GfHooks.EndOfTurnSequences(state, properties, turn.Activation?.UnitId);
+    public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => GfActivationEnd.Sequences(state, properties, turn.Activation);
     public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => round == 0 ? [] : GfHooks.OnRoundStarted(state, properties);
     public IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, TurnContext turn) => GfHooks.OnTurnEnded(state, properties, turn);
     public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams) => null;

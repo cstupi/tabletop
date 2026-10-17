@@ -36,6 +36,8 @@ public static class Conditions
                 return c.Comparison == Comparison.Neq ? !present : present;
             }
             // The terrain list describes the defender, or the lone party when there is no defender (a resolve check, a move, a hazard roll).
+            // The attacker's own terrain, where the interaction reads it (an attack: "has most of them within 1\" of terrain, they get +1 to hit").
+            case ConditionKind.PositionTerrain when side == Side.Attacker && ix.Defender is not null && ix.AttackerTerrain is { } own: return Membership(c, own, true);
             case ConditionKind.PositionTerrain: return Membership(c, ix.DefenderTerrain, ix.Defender is null || side == Side.Defender);
             case ConditionKind.RoundNumber: return c.Compare(ix.Round);
             case ConditionKind.UsageCount: return c.Compare(Usage(ix, source, c));
@@ -71,14 +73,19 @@ public static class Conditions
 
     /// <summary>How many times the rule has been used. A weapon rule with no scope counts the sequences that used the weapon (Limited, "once per game").
     /// A scope of `round` or `activation` counts the sequences this rule started for its holder's unit (its name is their Action) since the
-    /// last round_started, or since the unit's activation began (its last action_recorded) (army-rule hooks spec).</summary>
+    /// last round_started, or since the unit's activation began (its last action_recorded) (army-rule hooks spec), or with `game` over the whole log ("once per game").</summary>
     static int Usage(Interaction ix, LiveProperty source, EffectCondition c)
     {
         var log = EventApplier.EffectiveLog(ix.State.Applier.Log).ToList();
-        if (c.Values.FirstOrDefault() is "round" or "activation")
+        if (c.Values.FirstOrDefault() is "round" or "activation" or "game")
         {
             var unit = ix.Of(source.Holder).UnitId;
-            var from = c.Values[0] == "round" ? log.FindLastIndex(e => e.Payload is RoundStarted) : log.FindLastIndex(e => e.Payload is ActionRecorded a && a.UnitId == unit);
+            var from = c.Values[0] switch
+            {
+                "round" => log.FindLastIndex(e => e.Payload is RoundStarted),
+                "activation" => log.FindLastIndex(e => e.Payload is ActionRecorded a && a.UnitId == unit),
+                _ => 0,
+            };
             return log.Skip(Math.Max(0, from)).Count(e => e.Payload is SequenceStarted s && s.Context.Action == source.Entry.Name && s.Context.ActorUnitId == unit);
         }
         return source.WeaponId is not { } w ? 0 : log.Count(e => e.Payload is SequenceStarted s && s.Context.WeaponIds.Contains(w));

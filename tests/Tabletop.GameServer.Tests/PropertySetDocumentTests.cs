@@ -172,7 +172,7 @@ public class PropertySetDocumentTests
         EntryDocument E(params EffectDocument[] f) => new("X", CatalogKind.Model, false, Aggregation.All, null, null, "X.", null, f);
         IReadOnlyList<string> V(EntryDocument e) => PropertiesJson.Validate(TestProperties.RulebookDocument with { Entries = [.. TestProperties.RulebookDocument.Entries, e] });
         Assert.Empty(V(E(F(EffectKind.Place, "d3"))));
-        Assert.Contains(V(E(F(EffectKind.Move, "d3"))), p => p.Contains("amount_dice is place only"));
+        Assert.Contains(V(E(F(EffectKind.Move, "d3"))), p => p.Contains("amount_dice is place or remove_wounds only"));
         Assert.Contains(V(E(F(EffectKind.Place, "d6"))), p => p.Contains("amount_dice is 'd3'"));
         Assert.Contains(V(E(F(EffectKind.Place, when: [new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["whenever"])]))), p => p.Contains("no point 'whenever'"));
         Assert.Contains(V(E(F(EffectKind.AddHit, q: TargetQuantity.Attacks))), p => p.Contains("add_hit attacks is per die"));

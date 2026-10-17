@@ -35,13 +35,13 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         IReadOnlyList<ScenarioRule>? unitRules = null, IReadOnlyList<ScenarioRule>? modelRules = null,
         IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null,
         IReadOnlyList<int>? setAside = null, IReadOnlyList<ScenarioModel>? models = null, IReadOnlyDictionary<int, int>? passengers = null,
-        IReadOnlyDictionary<int, int>? sizes = null, IReadOnlyDictionary<int, Point2>? anchors = null)
+        IReadOnlyDictionary<int, int>? sizes = null, IReadOnlyDictionary<int, Point2>? anchors = null, IReadOnlyList<(int Unit, string Condition)>? conditions = null)
     {
         _armies.Add(new ScenarioArmy(armyName, units, modelsPerUnit, unitRules ?? [], modelRules ?? [],
             weapons ?? [new ScenarioWeapon("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, [])],
             unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook)
         { SetAside = setAside ?? [], Models = models ?? [], Passengers = passengers ?? new Dictionary<int, int>(),
-          Sizes = sizes ?? new Dictionary<int, int>(), Anchors = anchors ?? new Dictionary<int, Point2>() });
+          Sizes = sizes ?? new Dictionary<int, int>(), Anchors = anchors ?? new Dictionary<int, Point2>(), Conditions = conditions ?? [] });
         return this;
     }
 

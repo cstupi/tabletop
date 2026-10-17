@@ -14,7 +14,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched];
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8];
 
     private static partial class ArmyGames
     {
@@ -177,11 +177,12 @@ public static partial class SuiteCatalog
         /// Who acts. Shoots: the rule's side holds and shoots every activation, the opponent holds with blades only, so every hit roll is the
         /// rule's side's and every defense roll the target's. Shot: the reverse. ShotWhileMoving: Shot with the rule's side free to move.
         /// Charges: only the rule's side moves, both have blades, so every melee is its charge. Charged: the reverse. Moves: the rule's side
-        /// moves and shoots freely at a holding opponent with blades only. In Shoots and Shot both sides hold in their 12"-deep zones on a 36"
+        /// moves and shoots freely at a holding opponent with blades only. Exchange: both sides hold and shoot.
+        /// In Shoots and Shot both sides hold in their 12"-deep zones on a 36"
         /// table, so every shot crosses at least 12": a rule that acts "when it shoots ... enemies over 9" away" (the Boosts, Slayer, Piercing
         /// Hunter, Havocbound, Guardian) takes every shooting attack of its holder as its occasion (By/On with When.Shooting).
         /// </summary>
-        enum Play { Shoots, Shot, ShotWhileMoving, Charges, Charged, Moves }
+        enum Play { Shoots, Shot, ShotWhileMoving, Charges, Charged, Moves, Exchange }
 
         /// <summary>
         /// One army game. Carriers: models with their own rules (an Aura or a pick entry on one model). GunRange: the rule side's rifle range.
@@ -191,11 +192,14 @@ public static partial class SuiteCatalog
             IReadOnlyList<DiceFix> dice, IReadOnlyList<GameCheck> checks, IReadOnlyList<ScenarioRule>? weapon = null, int models = 3,
             IReadOnlyList<ScenarioRule>? enemy = null, Dictionary<string, string>? enemyStats = null, int enemyUnits = 2, int? enemyModels = null,
             int enemyAttacks = 2, IReadOnlyList<ScenarioRule>? enemyWeapon = null, int? rounds = null, Func<ScenarioBuilder, ScenarioBuilder>? board = null, int? units = null, ulong seed = 1,
-            IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null)
+            IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null, string? enemyBook = null,
+            IReadOnlyList<(int Unit, string Condition)>? conditions = null, int enemyRange = 60, IReadOnlyList<int>? setAside = null,
+            IReadOnlyList<int>? enemySetAside = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null,
+            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
-            var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged, play is not Play.Charged);
-            var (guns, enemyGuns) = (play is Play.Shoots or Play.Moves, play is Play.Shot or Play.ShotWhileMoving);
+            var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged or Play.Exchange, play is not Play.Charged);
+            var (guns, enemyGuns) = (play is Play.Shoots or Play.Moves or Play.Exchange, play is Play.Shot or Play.ShotWhileMoving or Play.Exchange);
             IReadOnlyList<ScenarioRule> Still(IReadOnlyList<ScenarioRule> own, int count, bool still) =>
                 still ? [.. own, .. Enumerable.Range(1, count).Select(u => R(u, "Immobile"))] : own;
             var close = play is Play.Charges or Play.Charged;
@@ -205,9 +209,10 @@ public static partial class SuiteCatalog
             var builder = new ScenarioBuilder(name, seed).Table(36, length ?? (close ? 26 : 36)).RoundCap(rounds ?? 4)
                 .Seeking(Closing).Scripted(Script(play, book.Army, count, enemyUnits, more))
                 .Army(book.Army, count, models, modelRules: Still(rules, count, holds), armyBook: book.Uid,
-                    weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers)
-                .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats,
-                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? []), Blade(1)] : [Blade(1)]);
+                    weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers, conditions: conditions,
+                    setAside: setAside, anchors: anchors)
+                .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
+                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(1)], setAside: enemySetAside, anchors: enemyAnchors);
             return new TestGame(name, ArmyPrefix + book.Uid, (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
         }
 

@@ -27,7 +27,7 @@ public class RoundBoundaryTests
         h.Answer(0, new SelectedPieces([a[1]]));
         Assert.Empty(h.P.OpenAsks); Assert.Null(h.P.Scheduler.ActiveTeamId);                                // waiting for the models
         seq = h.P.LastSeq; h.Deploy(a[1]);
-        Assert.Equal(["models_moved", "condition_set", "turn_started", "ask_opened"], h.Kinds(seq));      // the arrival clears set-aside; A has no more Ambushers, B never had one: the hook is done
+        Assert.Equal(["models_moved", "condition_set", "condition_set", "turn_started", "ask_opened"], h.Kinds(seq));      // the arrival clears set-aside and marks it ambushed this round; A has no more Ambushers, B never had one: the hook is done
         Assert.DoesNotContain(SetAside, h.P.Units[a[1]].Conditions);
         Assert.Contains(Assert.IsType<Options>(h.Open.Legal).Choices, c => c.Pieces[0] == a[1]);           // deploying wrote nothing to the record
         Assert.Empty(h.P.Units[a[1]].Actions);

@@ -15,8 +15,13 @@ public static class GfHooks
         foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Fatigued)))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Fatigued, false));
         // p.13 gives tokens "even if they are not on the table" and says nothing of casualties; a dead model's tokens are never spent because ReactionsAt only counts AliveModels.
-        foreach (var m in state.Projection.Models.Values)
-            if (Lookup.ModelParameter(state, m.Id, GfNames.Caster) is { } x && x > 0) changes.Add(new SpellTokensSet(m.Id, Math.Min(GfNames.TokenCap, m.SpellTokens + x)));
+        foreach (var u in state.Projection.Units.Values)
+            foreach (var c in new[] { GfNames.MovedThisRound, GfAmbush.AmbushedThisRound, GfAmbush.ReDeployed }.Where(u.Conditions.Contains))
+                changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), c, false));
+        // Caster Group's caster and Spell Accumulator's tokens with them (GfSpellSupport).
+        changes.AddRange(GfSpellSupport.RoundStartTokens(state));
+        // The Growths: "place one marker on it at the beginning of each round if it's on the table and isn't Shaken".
+        changes.AddRange(GfMarkers.AtRoundStart(state, props));
         return changes;
     }
 
@@ -26,6 +31,8 @@ public static class GfHooks
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
         // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
         changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
+        // Instinctive's mark is the activation's: "that attack".
+        changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.InstinctiveCondition)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.InstinctiveCondition, false)));
         // Owner ruling: a granted Flying "applies to the whole move - its per activation": what this activation used and kept is spent now.
         changes.AddRange(GfMoves.FlyingHeldThisActivation(state, turn.AnsweredAtSeq));
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
@@ -105,14 +112,20 @@ public static class GfHooks
                     reactions.Add(new Reaction(team, GfPick.Key(entry.Name, model), $"{entry.Name} ({state.Projection.Models[model].Slot.Name}): pick a target",
                         GfNames.PickRuleSeq, new SequenceContext(unit, [], [], GfPick.Key(entry.Name, model))));
             var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
-            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place).DistinctBy(x => x.Source.Entry.Name))
-                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row), GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
+            if (point == GfNames.ActivationEnd && GfAmbush.MayReDeploy(state, unit))
+                reactions.Add(new Reaction(team, $"{GfAmbush.AmbushReDeployment}|{unit:N}", $"{GfAmbush.AmbushReDeployment}: remove, and deploy as an Ambusher next round",
+                    GfAmbush.AmbushRedeploySeq, new SequenceContext(unit, [], [], GfAmbush.AmbushReDeployment)));
+            // A set_condition row at a point is one effect of a rule's choice ("pick one effect"): the rule offers one choose-effect use, which asks which.
+            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place or EffectKind.SetCondition).DistinctBy(x => x.Source.Entry.Name))
+                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row),
+                    row.Kind == EffectKind.SetCondition ? GfNames.ChooseEffectSeq : GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
         }
         return reactions;
     }
 
     static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
     static string Label(string entry, Effect row) => row.Kind == EffectKind.Place
-        ? $"{entry}: place within {(row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + "D3")}\""
+        ? $"{entry}: place within {(row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + (row.AmountDice == "d3+1" ? "D3+1" : "D3"))}\""
+        : row.Kind == EffectKind.SetCondition ? $"{entry}: pick an effect"
         : $"{entry}: move up to {row.Amount}\"";
 }

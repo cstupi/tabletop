@@ -74,7 +74,7 @@ test, `impact`, the attack-start rolls and a dice-distance move
 
 ## The effect grammar: two passes
 
-An effect is a row saying what a named rule does. Seventeen kinds cover Grimdark Future and its army books.
+An effect is a row saying what a named rule does. Eighteen kinds cover Grimdark Future and its army books.
 **Four of them act on other properties** rather than on game state: grant, suppress, modify a
 parameter, suppress modifiers. Resolution is two passes for that reason. `Bane` deletes
 `Regeneration` from the interaction and `Thrust` adds an `AP` that may not have been there, so which
@@ -115,7 +115,7 @@ roll that hit group produces, as `Rending`'s *unmodified 6s get AP(+4)* needs.
 **Ordering is `Effect.Ordinal`, an explicit integer field, not registration order.** Restricting
 modifiers to arithmetic would make them commute and remove the explicit priority scheme
 `architecture.md` calls for, but across every rule in the book commutativity holds for one of
-seventeen kinds. Suppression and parameter-modification do not commute, and the rulebook orders
+eighteen kinds. Suppression and parameter-modification do not commute, and the rulebook orders
 several by hand.
 `Deadly` is *"resolved first"*. `Blast` applies *"after resolving other special rules"*. Every
 enumeration in `LiveSet.Effects` and in `LiveProperties.Settle` is `OrderBy(Ordinal)`.
@@ -155,7 +155,7 @@ used in `LiveSet.GrantsRead`, and `RollEffects.Consume(live)` emits a `GrantRemo
 unit with the same `EntryName`, so the grants one spell left are consumed together. Reading a grant to
 build a legal set consumes nothing.
 
-The seventeen kinds, the eleven predicates, the two-pass code in detail, and the worked rows for
+The eighteen kinds, the eleven predicates, the two-pass code in detail, and the worked rows for
 `AP`, `Stealth`, `Impact`, `Bane`, `Rending`, `Blast` and `Unstoppable` are in
 [the effect grammar](effect-grammar.md).
 

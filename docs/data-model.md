@@ -183,6 +183,7 @@ erDiagram
         units target_range
         bool played
         bool target_line_of_sight
+        text target_requires
     }
     EFFECT {
         enum subject

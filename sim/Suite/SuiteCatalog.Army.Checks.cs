@@ -33,7 +33,8 @@ public static partial class SuiteCatalog
             public SequenceStarted? Nearest(params string[] sequences) => Ancestors.Prepend(Frame).FirstOrDefault(f => sequences.Contains(f.Sequence));
         }
 
-        sealed record LoggedAsk(Ask Ask, SequenceStarted? Frame, IReadOnlyList<SequenceStarted> Ancestors);
+        /// <summary>An Ask with its frame; Steps: how many steps the log had completed when it opened.</summary>
+        sealed record LoggedAsk(Ask Ask, SequenceStarted? Frame, IReadOnlyList<SequenceStarted> Ancestors, int Steps = 0);
 
         /// <summary>
         /// One attack-sequence of the log: the attacking unit, its target, its weapon group, whether it was made shooting or in a melee the
@@ -113,7 +114,7 @@ public static partial class SuiteCatalog
                             break;
                         case AskOpened a:
                             var asked = a.Ask.FrameId is { } id && frames.TryGetValue(id, out var f2) ? f2 : null;
-                            asks.Add(new LoggedAsk(a.Ask, asked, asked is null ? [] : Ancestors(asked.FrameId)));
+                            asks.Add(new LoggedAsk(a.Ask, asked, asked is null ? [] : Ancestors(asked.FrameId), steps.Count));
                             break;
                     }
                 return new ArmyLog(steps, asks);

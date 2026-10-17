@@ -16,8 +16,9 @@ public enum Aggregation { All, Any, Majority, None }
 public enum TargetSide { Friendly, Enemy }
 public enum TargetGrain { Unit, Model }
 /// <summary>Who a spell or a pick entry may target. LineOfSight null: the target must be in sight (p.13, and a Mark's or Debuff's "in line of
-/// sight"); false: range alone (a Buff's "pick one friendly unit within 12"").</summary>
-public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null);
+/// sight"); false: range alone (a Buff's "pick one friendly unit within 12""). Requires: an entry the target must hold, the unit (unit grain)
+/// or the model (model grain): a pick's "pick one friendly model … with X".</summary>
+public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null, string? Requires = null);
 
 /// <summary>One named rule. Effects may be empty: then it is a name GameRules checks for at a hook it owns. Played is false only on a generated
 /// text-only entry (army-book rules spec → Played flag): the unit card shows its text, and LiveProperties.Gather skips it.</summary>
@@ -26,14 +27,17 @@ public sealed record CatalogEntry(string Name, CatalogKind Kind, bool TakesParam
 
 public enum EffectSubject { Self, Opponent }
 public enum EffectKind { ModifyRoll, ModifyStat, ReplaceStat, ForceReroll, Roll, AddHit, Multiply, OverrideResult, GrantProperty, SuppressProperty, ModifyParameter, SuppressModifiers,
-    CountAsTerrain, TakeTest, SetCondition, Move, Place }
+    CountAsTerrain, TakeTest, SetCondition, Move, Place, RemoveWounds }
 /// <summary>p.11's terrain types a holder can count as being in (count_as_terrain).</summary>
 public enum TargetTerrain { Difficult, Dangerous }
 public enum TargetQuantity { Hits, Wounds, Attacks }
 public enum TargetResult { Wound, MoraleTest }
 public enum TargetModifier { Cover, ToHitPenalties, RangePenalties }
 public enum CapKind { ModelsInTargetUnit }
-public enum EffectDuration { Interaction, Once }
+/// <summary>Interaction: the row acts whenever it holds. Once: a grant spent the next time it applies (spell library). Marker and SpentMarker: one grant per
+/// marker a rule places on a unit (army-book rules spec, batch 6), stacking; a Marker stays for the game, a SpentMarker goes with its fellows the first time
+/// one applies ("may remove markers … to get"). A carried entry's marker rows act only through those grants.</summary>
+public enum EffectDuration { Interaction, Once, Marker, SpentMarker }
 
 /// <summary>One effect row with its conditions and nested children (a roll's per-success effect, a hit's granted rule).</summary>
 public sealed record Effect(
@@ -42,7 +46,7 @@ public sealed record Effect(
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier,
     int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind, string? Replacement, EffectDuration Duration,
     IReadOnlyList<EffectCondition> Conditions, IReadOnlyList<Effect> Children,
-    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null)
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null, int? Floor = null)
 {
     /// <summary>The signed amount: when it comes from the parameter, Amount is the sign (schema.md → amount is signed).</summary>
     public int EffectiveAmount(int? parameter) => AmountFromParameter ? Math.Sign(Amount ?? 1) * (parameter ?? 0) : Amount ?? 1;
@@ -91,5 +95,8 @@ public sealed class PropertySet(string contentHash, string name, string gameRule
     public ActionDefinition Action(string name) => Actions.FirstOrDefault(a => a.Name == name) ?? throw new KeyNotFoundException($"No action '{name}' in {ContentHash}.");
     public bool HasRoll(string name) => Rolls.Any(r => r.Name == name);
     public IEnumerable<Effect> AllEffects() => Entries.SelectMany(e => e.Effects).SelectMany(Flatten);
+    /// <summary>An effect row by id, children included: what a grant names.</summary>
+    public Effect? EffectById(Guid id) => _byId.Value.GetValueOrDefault(id);
+    private readonly Lazy<IReadOnlyDictionary<Guid, Effect>> _byId = new(() => entries.SelectMany(e => e.Effects).SelectMany(Flatten).GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First()));
     static IEnumerable<Effect> Flatten(Effect e) => new[] { e }.Concat(e.Children.SelectMany(Flatten));
 }

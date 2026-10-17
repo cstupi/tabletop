@@ -19,12 +19,18 @@ public static class RuleTemplates
         return cut > 0 && Enum.TryParse<RulePattern>(name[(cut + 1)..], out var p) && p.ToString() == name[(cut + 1)..] ? p : null;
     }
 
-    /// <summary>X when the description is the pattern's template with X the name less its suffix; null otherwise and for a Debuff.</summary>
+    /// <summary>X when the description is the pattern's template with X the name less its suffix; null otherwise and for a Debuff. X is
+    /// compared ignoring case, since a book writes a rule name in running text ("which gets Bane in melee once" for Bane in Melee Buff);
+    /// the template around it is compared exactly.</summary>
     public static string? Base(RulePattern p, string name, string description)
     {
         var x = name[..name.LastIndexOf(' ')];
         var template = p switch { RulePattern.Aura => AuraText, RulePattern.Buff => BuffText, RulePattern.Mark => MarkText, _ => null };
-        return template is not null && description == string.Format(template, x) ? x : null;
+        if (template is null) return null;
+        var slot = template.IndexOf("{0}", StringComparison.Ordinal);
+        var (before, after) = (template[..slot], template[(slot + 3)..]);
+        return description.Length == before.Length + x.Length + after.Length && description.StartsWith(before, StringComparison.Ordinal)
+            && description.EndsWith(after, StringComparison.Ordinal) && string.Equals(description.Substring(before.Length, x.Length), x, StringComparison.OrdinalIgnoreCase) ? x : null;
     }
 
     /// <summary>

@@ -13,23 +13,31 @@ edges and the free-for-all roll-off.
 | Sequence | Steps | File | Started by |
 | --- | --- | --- | --- |
 | `hold` | `activation-terrain`, `casting-window`, `shoot-or-not` | `GfMoves` | the scheduler, from the turn Ask |
-| `advance` | `activation-terrain`, `move`, `shoot-or-not` | `GfMoves` | the scheduler |
-| `rush` | `activation-terrain`, `move` | `GfMoves` | the scheduler |
+| `advance` | `activation-terrain`, `move`, `crossing`, `shoot-or-not` | `GfMoves` | the scheduler |
+| `rush` | `activation-terrain`, `move`, `crossing` | `GfMoves` | the scheduler |
 | `idle` | `activation-terrain`, `activation-start` | `GfMoves` | the scheduler, for an Idle activation (p.11: a unit activated in dangerous terrain tests) |
-| `charge` | `activation-terrain`, `charge-target`, `move`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
+| `charge` | `activation-terrain`, `charge-target`, `move`, `crossing`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
-| `melee` | `melee-start`, `counter`, `impact`, `charger-attacks`, `strike-back`, `compare`, `consolidate` | `GfMelee` | `charge`'s `fight` |
+| `melee` | `melee-start`, `counter`, `impact`, `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage`, `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
 | `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
 | `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
-| `deal-wounds` | `assign`, `disgorge` | `GfAttack`, `GfContainers` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal` |
+| `deal-wounds` | `assign`, `disgorge`, `caster-group`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfSpellSupport`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
 | `morale-test` | `test`, `override`, `consequence` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
-| `casting` | `pick-spell`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
-| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects` |
-| `spell-test` | `test`, `consequence` | `GfCasting` | `casting`'s `effects`, for a `take_test` row |
+| `casting` | `pick-spell`, `origin`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
+| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects`, `pick-rule`'s `rule-effects` |
+| `spell-test` | `test`, `consequence` | `GfCasting` | `casting`'s `effects` or `pick-rule`'s `rule-effects`, for a `take_test` row |
 | `reposition` | `reposition` | `GfMoves` | a `move` or `place` row offered at its point by `GfHooks.ReactionsAt` |
-| `pick-rule` | `rule-target` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
+| `pick-rule` | `rule-roll`, `rule-target`, `rule-effects` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
+| `choose-effect` | `choose` | `GfChoice` | a rule's `set_condition` rows offered at their point by `GfHooks.ReactionsAt` (*"pick one effect"*) |
+| `activation-end` | `activation-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds a row at `activation-end` (Dash) |
+| `after-deploy` | `after-deploy` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences` after a deployment turn, when the unit holds a row at `after-deploy` (Fanatic, Vanguard) |
+| `ambush-redeploy` | `remove` | `GfAmbush` | the `activation-end` window, for a unit all of whose models hold Ambush Re-Deployment |
+| `coordinate` | `coordinate-pick`, `coordinate-act`, `coordinate-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds Coordinate |
+| `rule-hits` | `hit`, `score-hits`, `resolve` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct`, `pick-rule`'s `rule-effects` (Surprise Attack) |
+| `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage`, an action's `crossing` (Crossing Attack) |
+| `rally` | `rally` | `GfMarkers` | `IGameRules.RoundBoundaryStep`, for a Shaken unit holding Steadfast, Battleborn or Honor Code |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
 ```mermaid

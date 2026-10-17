@@ -12,8 +12,8 @@ public static partial class GfMoves
     /// "Rush - Moves 12” but can’t shoot", so Rush's shoot-or-not, reached only through Quick Shot, is not a player step). The dangerous terrain
     /// test, the reaction window and Hold's casting checkpoint are internal.</summary>
     public static Sequence Hold() => new(GfNames.HoldSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new CastingWindowStep(), new ShootOrNotStep().Labelled("Shoot")]);
-    public static Sequence Advance() => new(GfNames.AdvanceSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Advance, false).Labelled("Move"), new ShootOrNotStep().Labelled("Shoot")]);
-    public static Sequence Rush() => new(GfNames.RushSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Rush, false).Labelled("Move"), new ShootOrNotStep()]);
+    public static Sequence Advance() => new(GfNames.AdvanceSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Advance, false).Labelled("Move"), new GfRuleHits.CrossingStep(), new ShootOrNotStep().Labelled("Shoot")]);
+    public static Sequence Rush() => new(GfNames.RushSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Rush, false).Labelled("Move"), new GfRuleHits.CrossingStep(), new ShootOrNotStep()]);
     /// <summary>p.10's idle activation is an activation (p.11 "or is activated in it"): a Shaken unit idling in dangerous terrain, or counting as in it, still tests.</summary>
     public static Sequence Idle() => new(GfNames.IdleSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start")]);
     public static Sequence DangerousTerrain() => new(GfNames.DangerousTerrain, [new DangerousTestStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.ActorUnitId!.Value], [], null))]);
@@ -245,6 +245,17 @@ public static partial class GfMoves
         {
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
+            // A choice made at the unit's last activation lasts until this one (Versatile Defense: "until the units' next activation"): cleared first.
+            // Instinctive's mark is written as the activation starts, when "it is able to shoot/charge an enemy unit" is read.
+            if (ctx.Frame.Value("dangerous_dice") == 0 && ctx.Frame.Value("activation_marked") == 0)
+            {
+                var marks = GfChoice.Cleared(ctx.State, ctx.Properties, unit).ToList();
+                if (GrimdarkFutureRules.InstinctiveAttack(ctx.State, ctx.Properties, ctx.Projection.Units[unit]) is not null)
+                    marks.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.InstinctiveCondition, true));
+                // Reanimation: "When a unit … is activated, roll as many dice as … it could restore" (GfReanimation).
+                marks.AddRange(GfReanimation.Reanimate(ctx, unit));
+                if (marks.Count > 0 || ctx.Rolls.Count > 0) return new Complete(marks, new Dictionary<string, int> { ["activation_marked"] = 1 }, Repeat: true);
+            }
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             var rules = TerrainFor(ctx, unit, live);
             if (rules.Aircraft) return new Complete([]);                                                 // p.13: Aircraft "ignore all units and terrain when moving and stopping"
@@ -331,7 +342,8 @@ public static partial class GfMoves
         var capSkipped = crossedDifficult && allowance > GfNames.DifficultCap;
         if (flying && (capSkipped || exposed.Count > 0)) live.Record(Side.Attacker, GfNames.Flying);
         if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
-        if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
+        if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true));
+            if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.MovedThisRound)) changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.MovedThisRound, true)); }
         return (changes, (int)Math.Round(used * 10), rules.IgnoresDangerous ? 0 : DangerousDice(ctx.State, exposed), crossedDifficult && !strider);
     }
 
@@ -347,6 +359,8 @@ public static partial class GfMoves
             if (ctx.History.LastClosed() is { } closed) return closed.Single is Chosen { OptionId: "shoot" } ? new Push(GfNames.Shooting, ctx.Frame.Context) : new Complete([]);
             var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit, null).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
             if (!canShoot) return new Complete([]);
+            // Instinctive: "it must immediately attack the closest valid target".
+            if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.InstinctiveCondition)) return new Push(GfNames.Shooting, ctx.Frame.Context);
             return new OpenAsks([ctx.Ask("shoot_or_not", "Shoot?", ctx.ActorTeam!.Value, new Options([new AskOption("shoot", "Shoot", [unit]), new AskOption("pass", "Don't shoot", [])]))]);
         }
     }
@@ -371,7 +385,9 @@ public static partial class GfMoves
     public sealed class PointWindowStep(string point, string name) : IStep
     {
         public string Name => name;
-        public StepOutcome Run(StepContext ctx) => Interpreter.Windows.Run(ctx, point) ?? new Complete([]);
+        /// <summary>A use taken here reopens the window with a fresh history, as the casting window does, so a unit holding several rules at the point is
+        /// offered each; a rule's own usage_count keeps it from being offered again.</summary>
+        public StepOutcome Run(StepContext ctx) => Interpreter.Windows.Run(ctx, point) ?? new Complete([], null, Repeat: ctx.History.Children.Count > 0);
     }
 
     public static Sequence Reposition() => new(GfNames.RepositionSeq, [new RepositionStep()]);
@@ -417,7 +433,9 @@ public static partial class GfMoves
             {
                 // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
                 var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
-                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = record.Dice.Sum(d => (d.Raw + 1) / 2) * 10 }, Repeat: true);
+                // "D3+1" (Bounding, Dash): each die's D3 plus one.
+                var plus = row.AmountDice == "d3+1" ? record.Dice.Count : 0;
+                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (record.Dice.Sum(d => (d.Raw + 1) / 2) + plus) * 10 }, Repeat: true);
             }
             var distance = row.AmountDice is null ? row.EffectiveAmount(null) : ctx.Frame.Value("distance_tenths") / 10.0;
             var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();

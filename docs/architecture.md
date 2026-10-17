@@ -173,7 +173,7 @@ two contexts. A sequence is a
 list of C# steps run over a frame stack; a step completes, asks a team for input, pushes a
 nested sequence, or opens an interrupt window, and the stack is rebuilt from the log the way
 the action record is. Properties declaratively attach to a roll or step with a condition and
-contribute an effect — one of the seventeen kinds of
+contribute an effect — one of the eighteen kinds of
 [the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) as
 [the spell library](superpowers/specs/2026-10-02-spell-library-design.md) and
 [army-rule hooks](superpowers/specs/2026-10-02-army-rule-hooks-design.md) extend it.
@@ -184,7 +184,7 @@ modifiers to arithmetic would make them commute and remove the need, but that ho
 the twelve effect kinds ([the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md)).
 Ordering is a field on the effect.
 
-An ability is not only a modifier. Seventeen kinds cover Grimdark Future and its army books, four of which act on
+An ability is not only a modifier. Eighteen kinds cover Grimdark Future and its army books, four of which act on
 *other properties* — granting, suppressing, or altering a parameter — so resolving an
 interaction is two passes: settle which properties and parameters are live, then apply them.
 

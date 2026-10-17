@@ -29,7 +29,7 @@ public static class Lookup
     public static IEnumerable<PropertyInstance> UnitProperties(GameState state, PropertySet props, Guid unitId)
     {
         var unit = state.Projection.Units[unitId];
-        var granted = unit.Grants.Select(g => props.AllEffects().FirstOrDefault(e => e.Id == g.EffectId))
+        var granted = unit.Grants.Select(g => props.EffectById(g.EffectId))
             .Where(r => r is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null })
             .Select(r => new PropertyInstance(r!.TargetEntry!, r.Amount));
         return unit.Definition.Properties.Concat(granted);
@@ -72,17 +72,25 @@ public static class Lookup
     /// The rules carried Auras give the unit (army-book rules spec → Aura: "This model and its unit get X"): a played model entry with aggregation
     /// any and no targeting, on any of the unit's living carriers, whose unconditional subject-self grant_property row names X. The carriers are
     /// the models still in play (AliveModels) once any is, so a carrier removed as a casualty grants nothing; while every model is on the shelf
-    /// they are the definition's, because a deployment rule (Scout, Ambush) is read before the unit has a position.
+    /// they are the definition's, because a deployment rule (Scout, Ambush) is read before the unit has a position. An Aura held as the unit's
+    /// own property, as an army imported before the army-book rules were generated holds a rule every model carried, is carried by every model.
     /// </summary>
     static IEnumerable<string> AuraGrants(GameState state, PropertySet props, Guid unitId)
     {
         var alive = AliveModels(state, unitId);
         var carriers = alive.Count > 0 ? alive.Select(id => state.Projection.Models[id].Slot) : state.Projection.Units[unitId].Definition.Models;
-        return carriers.SelectMany(m => m.Properties)
-            .Select(p => props.Entry(p.Name)).OfType<CatalogEntry>()
-            .Where(e => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any, Played: true, Targeting: null })
-            .SelectMany(e => e.Effects.Where(f => f is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null } && f.Conditions.Count == 0))
-            .Select(f => f.TargetEntry!);
+        var own = carriers.Any() ? state.Projection.Units[unitId].Definition.Properties : [];
+        // "Counts as having X" chains: an Aura of a rule that counts as having another (Infiltrate Aura → Infiltrate → Ambush) gives both.
+        var given = new HashSet<string>();
+        var next = carriers.SelectMany(m => m.Properties).Concat(own).Select(p => p.Name).ToList();
+        while (next.Count > 0)
+        {
+            next = next.Select(props.Entry).OfType<CatalogEntry>()
+                .Where(e => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any, Played: true, Targeting: null })
+                .SelectMany(e => e.Effects.Where(f => f is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null } && f.Conditions.Count == 0))
+                .Select(f => f.TargetEntry!).Where(given.Add).ToList();
+        }
+        return given;
     }
 
     public static int? UnitParameter(GameState state, PropertySet props, Guid unitId, string entry)

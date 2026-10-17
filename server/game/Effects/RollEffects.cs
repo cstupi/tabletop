@@ -106,10 +106,10 @@ public static class RollEffects
     }
 
     /// <summary>Kind-5 rolls a property owns: the property supplies its own dice and threshold, and its child effect is applied once per success.</summary>
-    public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter)
+    public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter, Func<LiveProperty, Effect, bool>? keep = null)
     {
         live.ReadRemoved(side, EffectKind.Roll, e => e.Children.Any(childFilter));
-        var result = live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter)).ToList();
+        var result = live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter) && (keep?.Invoke(x.Source, x.Effect) ?? true)).ToList();
         foreach (var x in result) live.Read(x.Source);
         return result;
     }

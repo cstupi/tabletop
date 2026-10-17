@@ -107,6 +107,7 @@ public static class GfMorale
             var passed = Passed(ctx.Frame);
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0, ["routed"] = 0 };
             if (passed) return new Complete([], values);
+            if (NoRetreat(ctx, unit) is { } holding) return holding;
             if (ctx.Frame.Context.Action == "melee" && GfHooks.AtHalfOrLess(ctx.State, ctx.Properties, unit))
             {
                 values["routed"] = 1;
@@ -114,6 +115,26 @@ public static class GfMorale
                 return new Complete([new ModelsMoved(living.Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList())], values);
             }
             return new Complete([new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true)], values);
+        }
+
+        /// <summary>
+        /// No Retreat: "When a unit where most models have this rule fails a morale test that causes it to be Shaken or Routed, the test counts as passed
+        /// instead. Then, roll as many dice as the number of wounds it would take to fully destroy it, and for each result of 1-3 the unit takes one wound,
+        /// which can't be ignored." The roll (Repeat), then the wounds through deal-wounds, which rolls no ignore die under this Action. Null when the
+        /// unit does not hold it.
+        /// </summary>
+        static StepOutcome? NoRetreat(StepContext ctx, Guid unit)
+        {
+            var held = new Dictionary<string, int> { ["passed"] = 1, ["routed"] = 0, ["no_retreat"] = 1 };
+            if (ctx.Frame.Value("no_retreat") == 1)
+                return ctx.History.Children.Count == 0 && ctx.Frame.Value("wounds") > 0 && Lookup.AliveModels(ctx.State, unit).Count > 0
+                    ? new Push(GfNames.DealWounds, new SequenceContext(null, [unit], [], GfNames.NoRetreat)) : new Complete([], held);
+            var live = ctx.Settle(Ix(ctx, unit));
+            if (!live.Use(Side.Attacker, GfNames.NoRetreat)) return null;
+            var toDestroy = Lookup.AliveModels(ctx.State, unit).Sum(m => Math.Max(0, (Lookup.ModelParameter(ctx.State, m, GfNames.Tough) ?? 1) - ctx.Projection.Models[m].Wounds));
+            var record = ctx.Roll(new Dice.RollPlan(GfNames.NoRetreat, null, [], ctx.Rules.RollSpec(GfNames.Morale).Convention, null, new HashSet<int>()), Math.Min(toDestroy, GfRuleHits.MaxDealt));
+            var wounds = record.Dice.Count(d => d.Raw <= 3);
+            return new Complete(RollEffects.Consume(live), new Dictionary<string, int>(held) { ["wounds"] = wounds }, Repeat: true);
         }
     }
 }

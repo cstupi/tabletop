@@ -43,7 +43,7 @@ public class PickGrammarTests
     {
         Assert.Contains("Unit Pick: targeting is set on a spell or a pick entry (kind model)", Problems(Buff("Unit Pick") with { Kind = CatalogKind.Unit, Aggregation = null }));
         Assert.Contains("No Point: a pick entry's row has an at_point naming before-attacking", Problems(Buff("No Point", Grant("Stealth", EffectSubject.Self))));
-        Assert.Contains("Lasting: a pick entry's rows have duration once", Problems(Buff("Lasting", Grant("Stealth", EffectSubject.Self, EffectDuration.Interaction, BeforeAttacking))));
+        Assert.Contains("Lasting: a pick entry's rows have duration once or are take_test, roll, add_hit hits or remove_wounds", Problems(Buff("Lasting", Grant("Stealth", EffectSubject.Self, EffectDuration.Interaction, BeforeAttacking))));
         Assert.Contains("Two: a pick entry picks one", Problems(Buff("Two") with { Targeting = new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 2, 12) }));
     }
 

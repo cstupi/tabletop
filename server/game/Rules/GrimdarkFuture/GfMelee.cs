@@ -10,9 +10,9 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfMelee
 {
     /// <summary>Outline labels: p.9 ("must pick one valid target"; Charge moves; the target's models "must move by up to 3”"; The melee sequence).</summary>
-    public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep().Labelled("Pick target"), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true).Labelled("Charge move"), new DefenderClosesStep().Labelled("Target moves"), new FightStep().Labelled("Melee")]);
+    public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep().Labelled("Pick target"), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true).Labelled("Charge move"), new GfRuleHits.CrossingStep(), new DefenderClosesStep().Labelled("Target moves"), new FightStep().Labelled("Melee")]);
     /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.</summary>
-    public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new UnwieldyStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
+    public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
     public static IReadOnlyList<Guid> MeleeWeapons(GameState state, Guid unit, Func<Weapon, bool>? filter = null) =>
         Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => !w.Stats.ContainsKey(GfNames.Range) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
@@ -30,6 +30,8 @@ public static class GfMelee
     /// <summary>Unwieldy: "Strikes last when charging": the charger's weapon, or every weapon of a charger the rule was granted to.</summary>
     static bool StrikesLast(StepContext ctx, Weapon w) => w.Properties.Any(p => p.Name == GfNames.Unwieldy) || ChargerLive(ctx).Has(Side.Attacker, GfNames.Unwieldy);
     static bool CounterStruck(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(StruckKey) == 1);
+    /// <summary>The defender took its turn to attack: it struck first with Counter, or it struck back (strike-back recorded its groups).</summary>
+    internal static bool DefenderStruck(StepContext ctx) => CounterStruck(ctx) || ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && (s.Values?.ContainsKey(StepRepeat.Key) ?? false));
     static Guid Charger(StepContext ctx) => ctx.Frame.Context.ActorUnitId!.Value;
     static Guid Defender(StepContext ctx) => ctx.Frame.Context.TargetUnitIds[0];
     /// <summary>By step name, not by index: charge's first step is the activation's dangerous terrain test (p.11).</summary>
@@ -108,10 +110,15 @@ public static class GfMelee
     /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
     /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target.
     /// </summary>
+    /// <summary>The charge distance at a target: the charger's own, and what the target's rules take from it ("Enemies get -3\" movement to a min. of 6\" when trying
+    /// to charge units where all models have this rule").</summary>
+    public static double ChargeDistance(GameState state, PropertySet props, Guid unit, Guid target) =>
+        StatReader.ActionDistance(LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), Party.Whole(state, target), AttackKind.Melee, GfNames.Charge, null, [])),
+            Side.Attacker, GfNames.Charge);
+
     public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
     {
         var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
-        var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
         // p.13 Flying "may move through units and terrain": a Flying charger's reach is not blocked by impassable terrain.
         var impassable = live.Has(Side.Attacker, "Flying") ? [] : Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
         var team = Teams.Of(state, unit);
@@ -122,6 +129,7 @@ public static class GfMelee
         return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t =>
         {
             var enemies = Lookup.LivingModels(state, t);
+            var distance = ChargeDistance(state, props, unit, t);
             // The distance test is cheap and the path walk is not: walk only the pairs already within charge distance.
             return inside is { } container
                 ? enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
@@ -146,6 +154,8 @@ public static class GfMelee
             var unit = Charger(ctx);
             var team = ctx.ActorTeam;
             var targets = ChargeTargets(ctx.State, ctx.Properties, unit);
+            // Instinctive: "it must immediately attack the closest valid target".
+            if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.InstinctiveCondition)) targets = GrimdarkFutureRules.Closest(ctx.State, unit, targets);
             // p.7: "if being within charge distance becomes impossible (due to killed models, special rules, etc.)" after the action was taken.
             if (targets.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("charge_target", "Charge which unit?", team!.Value, new PieceSelection(targets, 1, 1))]);

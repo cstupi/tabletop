@@ -8,7 +8,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfCasting
 {
-    public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new ResultStep(), new TargetsStep(), new EffectsStep()]);
+    public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new OriginStep(), new TokenSpendStep(), new RollStep(), new ResultStep(), new TargetsStep(), new EffectsStep()]);
     /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
     public static Sequence SpellTest() => new(GfNames.SpellTestSeq,
         [new GfAttack.PushStep("test", GfNames.MoraleTest, ctx => new SequenceContext(ctx.Frame.Context.TargetUnitIds[0], [], [], "spell")), new ConsequenceStep()]);
@@ -20,7 +20,7 @@ public static class GfCasting
     /// </summary>
     public static IReadOnlyList<Guid> Casters(GameState state, Guid unit) =>
         state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken) ? []
-            : Lookup.AliveModels(state, unit).Where(m => Lookup.ModelParameter(state, m, GfNames.Caster) is not null && state.Projection.Models[m].SpellTokens > 0).ToList();
+            : Lookup.AliveModels(state, unit).Where(m => GfSpellSupport.CasterValue(state, m) is not null && GfSpellSupport.Available(state, m) > 0).ToList();
 
     /// <summary>
     /// p.13: a caster may "spend as many tokens as the spell's value to try casting one or more spells (only one try per spell)": one option per
@@ -31,7 +31,7 @@ public static class GfCasting
     {
         var tried = TriedPicks(state, unit);
         return Casters(state, unit).SelectMany(m => props.SpellsOf(state.Projection.Models[m].Slot.ArmyBook)
-                .Where(e => !tried.Contains((e.Name, m)) && e.Cost <= state.Projection.Models[m].SpellTokens)
+                .Where(e => !tried.Contains((e.Name, m)) && e.Cost <= GfSpellSupport.Available(state, m))
             .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
     }
 
@@ -87,8 +87,10 @@ public static class GfCasting
         if (self.SpellTokens > 0) spenders.Add(self);
         var sights = new Dictionary<Guid, Sight>();                                                                // one per spending unit, not per pair
         Sight From(Guid unit) => sights.TryGetValue(unit, out var s) ? s : sights[unit] = Sight.From(state, unit);
+        // A model holding tokens that is no caster is a Spell Accumulator: it spends only for a friendly caster of another unit in its reach (GfSpellSupport).
+        var accumulators = GfSpellSupport.Accumulators(state, casterModel).Select(m => m.Id).ToHashSet();
         spenders.AddRange(state.Projection.Models.Values.Where(m => m.Id != casterModel && m.Location is OnTable && m.SpellTokens > 0
-                && mine.Any(c => Battlefield.Distance(state, c, m.Id) <= GfNames.CastRange && From(m.UnitId).CanSee(m.Id, c)))
+                && (GfSpellSupport.CasterValue(state, m.Id) is not null ? mine.Any(c => Battlefield.Distance(state, c, m.Id) <= GfNames.CastRange && From(m.UnitId).CanSee(m.Id, c)) : accumulators.Contains(m.Id)))
             .OrderBy(m => mine.Min(c => Battlefield.Distance(state, c, m.Id))));
         return spenders;
     }
@@ -118,11 +120,39 @@ public static class GfCasting
                 null => Lookup.LivingModels(state, unit).Where(m => Battlefield.Distance(state, casterModel, m) <= t.Range
                     && (m == casterModel || t.LineOfSight == false || sight.Value.CanSee(casterModel, m))).ToList(),
             };
+            // "with Caster", "with Tough": the unit holds the rule (one of its models or the unit itself), or the model does.
+            if (t.Requires is { } rule)
+                models = t.Grain == TargetGrain.Model ? models.Where(m => Holds(state, m, rule)).ToList()
+                    : state.Projection.Units[unit].Definition.Properties.Any(p => p.Name == rule) || Lookup.AliveModels(state, unit).Any(m => Holds(state, m, rule)) ? models : [];
             if (models.Count == 0) continue;
             if (t.Grain == TargetGrain.Unit) result.Add(unit); else result.AddRange(models);
         }
+        // Extended Buff Range: "If this unit is within 24" of another friendly unit with this rule that has a Hero in it, then that Hero may use special rules
+        // that allow it to pick friendly units within 12" (except for spells) on this unit as if it was in range." A Buff's pick (range alone) only.
+        if (t is { Side: TargetSide.Friendly, Grain: TargetGrain.Unit, LineOfSight: false, Requires: null } && Holds(state, casterModel, GfNames.Hero) && Extends(state, casterUnit))
+            result.AddRange(candidates.Where(u => u != casterUnit && !result.Contains(u) && Extends(state, u) && Battlefield.UnitDistance(state, casterUnit, u) is { } d && d <= ExtendedReach));
         return result;
     }
+
+    static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule);
+
+    public const string ExtendedBuffRange = "Extended Buff Range";
+    const double ExtendedReach = 24;
+    static bool Extends(GameState state, Guid unit) =>
+        state.Projection.Units[unit].Definition.Properties.Any(p => p.Name == ExtendedBuffRange) || Lookup.AliveModels(state, unit).Any(m => Holds(state, m, ExtendedBuffRange));
+
+    /// <summary>
+    /// The entry a spell-hits or spell-test frame resolves, read off its parent: a casting frame's picked spell, or a pick-rule frame's entry
+    /// (army-book rules spec → the pick: a before-attacking active's hits and tests resolve as a spell's do).
+    /// </summary>
+    internal static CatalogEntry? SourceEntry(StepContext ctx, FrameView parent) =>
+        parent.Frame.Sequence == GfNames.PickRuleSeq ? (GfPick.Parse(parent.Context.Action) is var (name, _) ? ctx.Properties.Entry(name) : null)
+            : ctx.Properties.Entry(Picked(parent).Spell);
+
+    /// <summary>The rows that deal hits: a spell's add_hit rows, and the add_hit children of a pick entry's dice row ("for each 2+ … takes 3 hits").</summary>
+    internal static IReadOnlyList<Effect> HitRows(CatalogEntry entry) => HitRows(entry.Effects);
+    static IReadOnlyList<Effect> HitRows(IEnumerable<Effect> rows) =>
+        rows.SelectMany(e => e.Kind == EffectKind.Roll ? e.Children : [e]).Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
 
     /// <summary>pick-spell completes only on an offered option, which Pick always parses.</summary>
     static (string Spell, Guid Caster) Picked(FrameView casting) => Pick(((Chosen)casting.Frame.Steps[0].Answer!).OptionId) ?? throw new InvalidOperationException("pick-spell recorded an option it did not offer");
@@ -139,11 +169,55 @@ public static class GfCasting
                 if (GfAnswers.Option(closed) is not { } picked || Pick(picked.Id) is not var (spellName, caster)) return new Finish([]);
                 var cost = ctx.Properties.Entry(spellName)?.Cost ?? 0;
                 ctx.Applied.Add(GfNames.Caster);
+                if (Lookup.ModelParameter(ctx.State, caster, GfNames.Caster) is null) ctx.Applied.Add(GfSpellSupport.CasterGroup);
+                var paid = GfSpellSupport.Pay(ctx.State, caster, cost);
+                if (paid.Count > 1) ctx.Applied.Add(GfSpellSupport.SpellAccumulator);
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
-                return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
+                return new Complete(paid);
             }
             var options = SpellOptions(ctx.State, ctx.Properties, unit);
             return options.Count == 0 ? new Finish([]) : new OpenAsks([ctx.Ask("cast", "Cast which spell?", ctx.ActorTeam!.Value, new Options(options))]);
+        }
+    }
+
+    const string ConduitKey = "conduit_option";
+
+    /// <summary>
+    /// The conduit a cast is made from: the option origin validated (its index among the recorded Ask's options, as `conduit_option`), and only while
+    /// that model is still a conduit in the caster's reach. Null for the caster's own position, and for anything else: an answer outside the Ask
+    /// (accepted under warn or silent) never names a model.
+    /// </summary>
+    static Guid? Origin(GameState state, FrameView casting)
+    {
+        for (var f = casting; f is not null; f = f.Parent)
+        {
+            if (f.Frame.Sequence != GfNames.CastingSeq) continue;
+            if (!f.Values.TryGetValue(ConduitKey, out var index) || FrameReader.Recorded(state, f.Id, "cast_from")?.Legal is not Options offered
+                || index < 0 || index >= offered.Choices.Count || !Guid.TryParseExact(offered.Choices[index].Id, "N", out var model)) return null;
+            return GfSpellSupport.Conduits(state, Picked(f).Caster).Contains(model) ? model : null;
+        }
+        return null;
+    }
+
+    /// <summary>Spell Conduit: with a conduit in reach the player picks where the spell is cast from, the caster or a conduit.</summary>
+    sealed class OriginStep : IStep
+    {
+        public string Name => "origin";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var (_, caster) = Picked(ctx.Frame);
+            if (ctx.History.LastClosed() is { } closed)
+            {
+                // Read against the Ask's own options (GfAnswers.Option): an id it did not offer casts from the caster.
+                if (GfAnswers.Option(closed) is not { Id: not "self" } option || closed.Ask.Legal is not Options offered
+                    || !Guid.TryParseExact(option.Id, "N", out var model) || !GfSpellSupport.Conduits(ctx.State, caster).Contains(model)) return new Complete([]);
+                ctx.Applied.Add(GfSpellSupport.SpellConduit);
+                return new Complete([], new Dictionary<string, int> { [ConduitKey] = offered.Choices.ToList().FindIndex(c => c.Id == option.Id) });
+            }
+            var conduits = GfSpellSupport.Conduits(ctx.State, caster);
+            if (conduits.Count == 0) return new Complete([]);
+            return new OpenAsks([ctx.Ask("cast_from", "Cast from", ctx.ActorTeam!.Value,
+                new Options([new AskOption("self", "The caster", [caster]), .. conduits.Select(m => new AskOption($"{m:N}", $"{GfSpellSupport.SpellConduit} ({ctx.Projection.Models[m].Slot.Name}): +1 to cast", [m]))]))]);
         }
     }
 
@@ -173,7 +247,7 @@ public static class GfCasting
             var (_, caster) = Picked(ctx.Frame);
             var casterUnit = ctx.Projection.Models[caster].UnitId;
             var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
-            ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1);
+            ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens"), conduit: Origin(ctx.State, ctx.Frame) is not null), 1);
             return new Complete(RollEffects.Consume(live));
         }
     }
@@ -200,7 +274,7 @@ public static class GfCasting
             if (ctx.History.LastClosed() is not null) return new Complete([]);
             var (spellName, caster) = Picked(ctx.Frame);
             var spell = ctx.Properties.Entry(spellName)!;
-            var eligible = SpellTargets(ctx, caster, spell);
+            var eligible = SpellTargets(ctx, Origin(ctx.State, ctx.Frame) ?? caster, spell);
             if (eligible.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("spell_targets", $"{spellName}: pick up to {spell.Targeting!.Count}", ctx.ActorTeam!.Value, new PieceSelection(eligible, 1, Math.Min(spell.Targeting.Count, eligible.Count)))]);
         }
@@ -243,18 +317,18 @@ public static class GfCasting
         {
             if (effect.Conditions.Count == 0) return true;
             var ix = GfAttack.AttackInteraction(ctx, casterUnit, targetUnit, [], null, null);
-            return effect.Conditions.All(c => c.Kind == ConditionKind.RollResult || Conditions.Holds(ix, Side.Attacker, c, new LiveProperty(Side.Attacker, spell, null, null, null, null), null));
+            return effect.Conditions.All(c => c.Kind is ConditionKind.RollResult or ConditionKind.AtPoint or ConditionKind.UsageCount || Conditions.Holds(ix, Side.Attacker, c, new LiveProperty(Side.Attacker, spell, null, null, null, null), null));
         }
     }
 
     /// <summary>A spell's weapon rules for the hit interaction: the child rules of its add_hit rows that hold for this target, settled into the attacker's
-    /// instances before pass one. Empty outside a casting frame.</summary>
+    /// instances before pass one. Empty outside a casting or pick-rule frame.</summary>
     internal static IReadOnlyList<(string Entry, int? Parameter)> WeaponRules(StepContext ctx, Guid caster, Guid target)
     {
         for (var f = ctx.Frame; f is not null; f = f.Parent)
-            if (f.Frame.Sequence == GfNames.CastingSeq)
-                return ctx.Properties.Entry(Picked(f).Spell) is { } spell
-                    ? EffectsStep.Holding(ctx, caster, target, spell).Where(e => e.Kind == EffectKind.AddHit)
+            if (f.Frame.Sequence is GfNames.CastingSeq or GfNames.PickRuleSeq)
+                return SourceEntry(ctx, f) is { } spell
+                    ? HitRows(EffectsStep.Holding(ctx, caster, target, spell))
                         .SelectMany(e => e.Children.Where(c => c.Kind == EffectKind.GrantProperty).Select(c => (c.TargetEntry!, c.Amount))).ToList() : [];
         return [];
     }
@@ -266,7 +340,7 @@ public static class GfCasting
         public string Name => "hit";
         public StepOutcome Run(StepContext ctx)
         {
-            var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
+            var spell = SourceEntry(ctx, ctx.Frame.Parent!)!;
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
             var target = ctx.Frame.Context.TargetUnitIds[0];
             var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
@@ -276,7 +350,7 @@ public static class GfCasting
             var live = ctx.Settle(ix);
             var multiplier = 1; var rolled = false;
             ctx.Applied.Add(spell.Name);
-            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
+            foreach (var hit in HitRows(EffectsStep.Holding(ctx, casterUnit, target, spell)))
             {
                 var n = hit.EffectiveAmount(null);
                 if (hit.TargetRoll is null) values["hits"] += n;
@@ -305,7 +379,7 @@ public static class GfCasting
         {
             var target = ctx.Frame.Context.TargetUnitIds[0];
             if (!Failed(ctx.State, ctx.Frame.Id)) return new Complete([]);
-            var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
+            var spell = SourceEntry(ctx, ctx.Frame.Parent!)!;
             var children = spell.Effects.Where(e => e.Kind == EffectKind.TakeTest).SelectMany(e => e.Children).ToList();
             if (children.Count > 0) ctx.Applied.Add(spell.Name);
             var changes = children.Where(c => c.Kind == EffectKind.SetCondition)

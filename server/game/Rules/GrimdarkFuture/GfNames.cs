@@ -7,11 +7,26 @@ public static class GfNames
     public const string Hold = "Hold", Advance = "Advance", Rush = "Rush", Charge = "Charge";
     public const string Hit = "hit", DefenseRoll = "defense", Morale = "morale", Casting = "casting", RollOff = "roll-off";
     public const string Shaken = "shaken", Fatigued = "fatigued", Moved = "moved";
+    /// <summary>A unit that moved since the round began (Entrenched, Mobile Artillery: "hasn't moved during the round"); cleared as a round starts.</summary>
+    public const string MovedThisRound = "moved this round";
     public const string BeforeAttacking = "before-attacking";
-    /// <summary>Army-book rules spec → the pick: the sequence a Buff, Mark or Debuff's use pushes, its Ask's question and its one step.</summary>
-    public const string PickRuleSeq = "pick-rule", RuleTarget = "rule_target", RuleTargetStep = "rule-target";
+    /// <summary>Army-book rules spec → the pick: the sequence a Buff, Mark, Debuff or before-attacking active pushes, its Ask's question and its steps.</summary>
+    public const string PickRuleSeq = "pick-rule", RuleTarget = "rule_target", RuleRollStep = "rule-roll", RuleTargetStep = "rule-target", RuleEffectsStep = "rule-effects";
     public const string QuickShot = "Quick Shot";   // army-rule hooks: a name check on the rush sequence's shooting
     public const string ActivationStart = "activation-start", AfterShooting = "after-shooting", AfterMelee = "after-melee", AttackStart = "attack-start", RepositionSeq = "reposition";
+    /// <summary>Army-book rules spec, batch 4: the end of an activation (Dash, Coordinate), the sequences it opens, and a rule's choice of effect at a point.</summary>
+    public const string ActivationEnd = "activation-end", ActivationEndSeq = "activation-end", CoordinateSeq = "coordinate", ChooseEffectSeq = "choose-effect", Delay = "Delay";
+    /// <summary>Army-book rules spec, batch 3: the point after a unit is deployed (Fanatic, Vanguard) and its window.</summary>
+    public const string AfterDeploy = "after-deploy", AfterDeploySeq = "after-deploy";
+    public const string Coordinate = "Coordinate", DelayedAction = "Delayed Action", Instinctive = "Instinctive", InstinctiveCondition = "instinctive";
+    public const string InquisitorialAgent = "Inquisitorial Agent", MartialProwess = "Martial Prowess";
+    /// <summary>Army-book rules spec, batch 5: hits and wounds a rule deals outside an attack, and the rules that deal them.</summary>
+    public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds";
+    /// <summary>Army-book rules spec, batch 6: the round-start roll that may end Shaken, and the rule read off a model's ignored wounds.</summary>
+    public const string RallySeq = "rally", RegenerativeStrength = "Regenerative Strength";
+    /// <summary>Army-book rules spec, batch 8: the rules the grammar additions leave to the ruleset.</summary>
+    public const string HeavyImpact = "Heavy Impact", NoRetreat = "No Retreat";
+    public const string Deathstrike = "Deathstrike", Retaliate = "Retaliate", SelfDestruct = "Self-Destruct", Ravage = "Ravage", CrossingAttack = "Crossing Attack", Strafing = "Strafing";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
     public const string DangerousTerrain = "dangerous-terrain", CastingSeq = "casting", SpellHitsSeq = "spell-hits", RollOffSeq = "roll-off";

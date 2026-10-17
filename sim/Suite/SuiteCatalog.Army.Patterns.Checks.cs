@@ -13,7 +13,7 @@ public static partial class SuiteCatalog
     private static partial class ArmyGames
     {
         /// <summary>What the target held and where every placed model stood as an attack-sequence began.</summary>
-        sealed record AttackStart(IReadOnlyList<Grant> TargetGrants, IReadOnlyDictionary<Guid, Placement> At);
+        sealed record AttackStart(IReadOnlyList<Grant> TargetGrants, IReadOnlyDictionary<Guid, Placement> At, IReadOnlyList<Grant>? AttackerGrants = null);
         sealed record PickAsk(Ask Ask, string Entry, Guid Carrier, IReadOnlyDictionary<Guid, Placement> At);
 
         /// <summary>Shootings: each shooting frame's grants per unit as it began.</summary>
@@ -48,7 +48,8 @@ public static partial class SuiteCatalog
                             if (s.Sequence == ShootingSequence)
                                 shootings[s.FrameId] = grants.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<Grant>)[.. kv.Value]);
                             if (s.Sequence == AttackSequence && s.Context.TargetUnitIds is [var target, ..])
-                                attacks[s.FrameId] = new AttackStart([.. grants.GetValueOrDefault(target) ?? []], new Dictionary<Guid, Placement>(at));
+                                attacks[s.FrameId] = new AttackStart([.. grants.GetValueOrDefault(target) ?? []], new Dictionary<Guid, Placement>(at),
+                                    s.Context.ActorUnitId is { } by ? [.. grants.GetValueOrDefault(by) ?? []] : []);
                             break;
                         case AskOpened { Ask: { Question: "rule_target", FrameId: { } f } ask } when frames.TryGetValue(f, out var frame)
                             && frame.Context.Action is { } key && key.LastIndexOf('|') is var cut and > 0 && Guid.TryParseExact(key[(cut + 1)..], "N", out var carrier):

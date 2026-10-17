@@ -55,6 +55,7 @@ public class DiceEditTests
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"{spell}|{wizard.Models[0].Id}"));
         Pass(sim);
+        Pass(sim);                                                                                  // origin: no Spell Conduit in reach
         sim.Answer(Samples.Team1, new Passed());
         Pass(sim);
         Assert.Single(sim.Steps("roll"));

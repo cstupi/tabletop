@@ -18,10 +18,13 @@ public sealed partial class GrimdarkFutureRules
             ? units.Where(u => !u.Conditions.Contains(SetAside))
             : units.Where(u => u.Conditions.Contains(SetAside) && Lookup.UnitHas(state, props, u.Id, Scout));
         var ids = units.Select(u => u.Id).ToList();
-        if (ids.Count == 0) return null;
+        // Re-Deployment: "After all other units are deployed … you may remove up to two friendly units from the table and deploy them again": picked beside the Scouts.
+        var again = phase == Scouts ? GfAmbush.ReDeployable(state, teamId) : [];
+        if (ids.Count == 0 && again.Count == 0) return null;
         return phase == Deployment
             ? new TurnAsk(AskQuestions.Deploy, "Deploy one unit", new PieceSelection(ids, 1, 1), AllowPass: false)
-            : new TurnAsk(AskQuestions.DeployScouts, "Deploy a Scout", new PieceSelection(ids, 1, 1), AllowPass: false);
+            : new TurnAsk(AskQuestions.DeployScouts, again.Count == 0 ? "Deploy a Scout" : ids.Count == 0 ? "Re-deploy a unit or pass" : "Deploy a Scout or re-deploy a unit",
+                new PieceSelection([.. ids, .. again], 1, 1), AllowPass: ids.Count == 0);
     }
 
     /// <summary>
@@ -41,9 +44,11 @@ public sealed partial class GrimdarkFutureRules
             var ordinal = Teams.Of(state, model.UnitId) is { } team ? state.Info.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal : null;
             if (table.Zones.FirstOrDefault(z => z.TeamOrdinal == ordinal) is not { } zone) continue;
             var placed = new PlacedModel(new ModelBody(model.Slot.Base, model.Slot.Height), at);
-            if (p.Scheduler.Phase == Deployment && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed))
+            // Re-Deployment's units "deploy them again": within the zone, in the Scouts phase as before it.
+            var again = p.Units[model.UnitId].Conditions.Contains(GfAmbush.ReDeployed);
+            if ((p.Scheduler.Phase == Deployment || again) && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed))
                 return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it (p.6)");
-            if (p.Scheduler.Phase == Scouts && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, ScoutReach))
+            if (p.Scheduler.Phase == Scouts && !again && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, ScoutReach))
                 return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond 12\" of its deployment zone: Scouts deploy fully within 12\" of it (p.14)");
         }
         return null;
@@ -65,24 +70,37 @@ public sealed partial class GrimdarkFutureRules
             if (!p.Units[model.UnitId].Conditions.Contains(SetAside)) continue;
             var team = Teams.Of(state, model.UnitId);
             var placed = Battlefield.At(state, model.Id, at);
-            var near = p.Models.Values.Any(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team
-                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= AmbushDistance + 1e-6);
-            if (near)
-                return new(AmbushDistanceRule, $"{model.Slot.Name} would be placed within 9\" of an enemy unit: Ambushers deploy over 9\" away from enemy units (p.13)");
+            // Army-book rules (batch 3): Ambush Beacon lifts the distance within 6" of a friendly beacon; Infiltrate deploys over 3"; Repel Ambushers
+            // holds an Ambusher over 12" from its own unit.
+            if (GfAmbush.NearBeacon(state, team, placed)) continue;
+            var reach = GfAmbush.Reach(state, model.UnitId);
+            var near = p.Models.Values.FirstOrDefault(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team
+                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= GfAmbush.Kept(state, o.UnitId, reach) + 1e-6);
+            if (near is not null)
+            {
+                var kept = GfAmbush.Kept(state, near.UnitId, reach);
+                return new(AmbushDistanceRule, kept > reach
+                    ? $"{model.Slot.Name} would be placed within {kept}\" of an enemy unit with Repel Ambushers: Ambushers set up over 12\" away from it"
+                    : $"{model.Slot.Name} would be placed within {reach}\" of an enemy unit: Ambushers deploy over {reach}\" away from enemy units (p.13)");
+            }
         }
         return null;
     }
 
+    /// <summary>The set-aside units of the team that may deploy as Ambushers now: those holding Ambush (Surprise Attack counts as having Infiltrate, which counts as having Ambush), or removed by Ambush Re-Deployment ("deploy it as if it had Ambush"),
+    /// from round two; in round one only those with Rapid Ambush ("may be deployed at the start of any round, including the first").</summary>
     public static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>
-        TeamUnits.Of(state, teamId).Where(u => u.Conditions.Contains(SetAside) && Lookup.UnitHas(state, props, u.Id, Ambush) && TeamUnits.AllShelved(state, u)).Select(u => u.Id).ToList();
+        TeamUnits.Of(state, teamId).Where(u => u.Conditions.Contains(SetAside) && TeamUnits.AllShelved(state, u)
+            && (Lookup.UnitHas(state, props, u.Id, Ambush) || GfAmbush.RemovedToAmbush(state, u.Id) || GfAmbush.Carries(state, u.Id, GfAmbush.SurpriseAttack))
+            && (state.Projection.Scheduler.Round >= 2 || GfAmbush.Carries(state, u.Id, GfAmbush.RapidAmbush))).Select(u => u.Id).ToList();
 
     /// <summary>
     /// Page 13: from round two, Ambushers deploy "starting with the player that activates next", alternating, until every team has passed
     /// or has none left. Read from the deploy_ambusher Asks since round_started; a pass stands for this boundary; nothing is written to the record.
     /// </summary>
-    public HookResult RoundBoundaryStep(GameState state, PropertySet props, int round, IReadOnlyList<Guid> order)
+    HookResult AmbushBoundary(GameState state, PropertySet props, int round, IReadOnlyList<Guid> order)
     {
-        if (round < 2) return new HookDone();
+        if (round < 1) return new HookDone();
         var log = SchedulerLog.Of(state);
         var since = log.SinceRound.Select(e => e.Payload).ToList();
         var asks = since.OfType<AskOpened>().Where(o => o.Ask.Question == AskQuestions.DeployAmbusher).ToList();
@@ -95,7 +113,7 @@ public sealed partial class GrimdarkFutureRules
             {
                 if (TeamUnits.ModelsOf(state, u).Any(m => m.Location is OnShelf)) return new HookWaiting();      // models still coming off the shelf
                 if (GfHooks.ArrivedFromSetAside(state, u.Id) is { Count: > 0 } arrived)                          // arrived, with any unit inside: no longer set aside, so casualties on the shelf are never offered again
-                    return new HookEmit(arrived.Cast<EventPayload>().ToList());
+                    return new HookEmit([.. arrived.Cast<EventPayload>(), GfAmbush.Arrived(u.Id)]);
             }
             if (answer is not SelectedPieces) passed.Add(a.Ask.Teams[0]);
         }

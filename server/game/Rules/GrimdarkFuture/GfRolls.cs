@@ -150,8 +150,10 @@ public static class GfRolls
     }
 
     /// <summary>p.13: one die on 4+, ±1 per token spent for or against.</summary>
-    public static RollPlan CastingPlan(StepContext ctx, LiveSet live, int netTokens) =>
-        ctx.Plan(live, Side.Attacker, GfNames.Casting, netTokens == 0 ? [] : [new RollModifier("tokens", netTokens)], threshold: new TargetRead(4, null));
+    /// <summary>conduit: cast from a Spell Conduit's position, which "get +1 to casting rolls when doing so" (army-book rules spec, batch 7).</summary>
+    public static RollPlan CastingPlan(StepContext ctx, LiveSet live, int netTokens, bool conduit = false) =>
+        ctx.Plan(live, Side.Attacker, GfNames.Casting, [.. netTokens == 0 ? [] : new[] { new RollModifier("tokens", netTokens) }, .. conduit ? new[] { new RollModifier(GfSpellSupport.SpellConduit, 1) } : []],
+            threshold: new TargetRead(4, null));
 
     /// <summary>
     /// The roll-off the scheduler starts (scheduler → Deployment; p.6, p.50). Two steps, because the boundary between them is the confirm

@@ -57,6 +57,7 @@ erDiagram
         float8 target_range
         bool played
         bool target_line_of_sight
+        text target_requires
     }
     EFFECT {
         uuid id PK
@@ -103,7 +104,7 @@ erDiagram
     }
 ```
 
-`effect` is one table for seventeen kinds. Six columns serve a single kind each: `threshold`,
+`effect` is one table for eighteen kinds. Six columns serve a single kind each: `threshold`,
 `cap_kind`, `replacement`, `target_terrain` (`count_as_terrain`), `target_condition` (`set_condition`) and
 `amount_dice` (`place`). The self-reference carries nesting. `condition_value` exists
 because one predicate can name a set: `Fast` applies to *Rush/Charge*. The `properties_hash`

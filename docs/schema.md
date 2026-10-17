@@ -35,7 +35,7 @@ tables. These are those tables, with `book` and `book_spell` for the army books 
 
 A content-addressed document was the alternative, and it is what `blob` already does for asset
 bytes. It was rejected for the reason this section opens with: the effect grammar is **closed**
-— seventeen effect kinds, eleven predicate kinds, four stat kinds — so it is exactly the structure
+— eighteen effect kinds, eleven predicate kinds, four stat kinds — so it is exactly the structure
 a database can enforce, and putting it in `jsonb` would be the magic-string move at the one
 place the enforcement is cheapest.
 
@@ -114,7 +114,7 @@ different spells is qualified with the alphabetically first book holding it, in 
 
 ### One `effect` table for every kind
 
-The seventeen kinds share most of their shape — a subject, an ordering, a thing being acted on,
+The eighteen kinds share most of their shape — a subject, an ordering, a thing being acted on,
 and usually one number. `entry_name` is the catalog entry it belongs to. `amount` carries the number, and
 `amount_from_parameter` says the number is the entry's own `X`, which is what makes `Impact(X)`
 and `Blast(X)` one row rather than one row per value of X.
@@ -136,7 +136,7 @@ could not check it and nothing said what it may contain:
 | `target_terrain` | `difficult \| dangerous` | Count as terrain |
 | `target_condition` | a condition name (`fatigued` in the corpus); no check | Set a condition |
 
-`Roll`, `Move` and `Place` act on nothing and leave all nine null.
+`Roll`, `Move`, `Place` and `Remove wounds` act on nothing named and leave all nine null; `Remove wounds` acts on the model a pick entry picked.
 
 The three foreign keys are the point. `Bane` suppresses `Regeneration`, and it must not be able
 to name a rule that does not exist in the set it belongs to; `Reliable` replaces `Quality`, which
@@ -147,7 +147,7 @@ must be a stat that set declares. As a string, neither could be checked.
 and differ only in direction. So `amount` holds `-1` or `+1` when
 `amount_from_parameter` is set, and the effective value is that sign applied to `X`.
 
-Four columns exist for one kind each, beside `target_terrain` and `target_condition` above, which is the honest price of collapsing seventeen kinds into one table:
+Four columns exist for one kind each, beside `target_terrain` and `target_condition` above, which is the honest price of collapsing eighteen kinds into one table:
 
 - **`threshold`** — `Roll` only. `Impact(X)` is *X dice at 2+*, so it needs a count and a
   score, and the count is `amount`.
@@ -156,8 +156,9 @@ Four columns exist for one kind each, beside `target_terrain` and `target_condit
   rule — but written as text the engine could not read it. Grimdark Future has exactly one cap,
   `models_in_target_unit`; a second ruleset needing another adds a value, which is a code
   change like every other closed set here.
-- **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*.
-- **`amount_dice`** — `Place` only, checked to `d3`: a placement whose distance is a die roll.
+- **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*. A `Replace a stat` with no replacement takes the parameter (Armor: *"Counts as having Defense X+"*).
+- **`floor`** — `Modify a stat` only: *"to a min. of N"*, the stat no lower than N, or than itself when already lower (Ranged Shrouding, Melee Shrouding, Darkborn).
+- **`amount_dice`** — `Place` and `Remove wounds` only, checked to `d3` or `d3+1`: a placement whose distance is a die roll (*"within D3+1""*: a D3 plus one), a heal of *"D3 wounds"*.
 
 Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` honest: a `Multiply` row with a
 `threshold` is rejected. `target_terrain` and `amount_dice` carry only a value check and `target_condition` none;
@@ -167,14 +168,14 @@ Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` hone
 with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
 self-referencing and nullable; one level covers the whole rulebook and nothing forbids deeper.
 
-**`duration` is `interaction | once`**, default `interaction`. Per
+**`duration` is `interaction | once | marker | spent_marker`**, default `interaction`. Per
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): a `once` effect, when it
 applies, writes a grant onto its target — a fourth in-play store on the unit, rebuilt from the
 log and never a row — consumed the first time that grant's effect applies. Every core rule is
-`interaction`.
+`interaction`. A `marker` or `spent_marker` row is one marker a rule places on a unit: one grant per marker, stacking; a `marker` grant stays for the game, a `spent_marker` grant is consumed with its fellows the first time one applies (army-book rules spec, batch 6).
 
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
-first"*, `Blast` applies *"after resolving other special rules"* — and four of the seventeen kinds
+first"*, `Blast` applies *"after resolving other special rules"* — and four of the eighteen kinds
 act on other properties rather than on game state, which does not commute.
 
 ### Ordered child rows record their position
@@ -343,10 +344,9 @@ entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a mod
 ### The catalog's per-kind check
 
 `cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
-on a spell and on a pick entry (a `model` entry an army-book Buff, Mark or Debuff writes); `target_line_of_sight` is null
-(in sight) or false (range alone, a Buff), and set only with a target; `aggregation` only when `kind = model`;
-`takes_parameter` is false for a spell. `PropertiesJson.Validate` holds a pick entry to count one and `once` rows at
-`before-attacking`.
+on a spell and on a pick entry (a `model` entry an army-book Buff, Mark, Debuff or before-attacking active writes); `target_line_of_sight` is null
+(in sight) or false (range alone, a Buff), and set only with a target; `target_requires` names the rule the target must hold (*"with Caster"*), set only with a target; `aggregation` only when `kind = model`;
+`takes_parameter` is false for a spell. `PropertiesJson.Validate` holds a pick entry to count one and rows at `before-attacking` that are `once` or a use (`take_test`, `roll` of hits, `add_hit`, `remove_wounds`).
 
 ### A game records its creator
 
