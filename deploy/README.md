@@ -181,14 +181,18 @@ journalctl -t tabletop-game -t tabletop-management --since today       # several
 docker logs --since 1h -f tabletop-management                          # the current container only (Docker's dual-logging cache)
 ```
 
-The journal's size and age are the host's settings. Once per host, as root:
+The journal's size and age are the host's settings; tabletop's logs share the cap with everything else on the host.
+docker1 keeps its journal persistent under `SystemMaxUse=500M` in `/etc/systemd/journald.conf`. On a new host, as root:
 
 ```bash
 mkdir -p /etc/systemd/journald.conf.d
-printf '[Journal]\nStorage=persistent\nSystemMaxUse=2G\nMaxRetentionSec=30day\n' > /etc/systemd/journald.conf.d/size.conf
+printf '[Journal]\nStorage=persistent\nSystemMaxUse=500M\n' > /etc/systemd/journald.conf.d/size.conf
 systemctl restart systemd-journald
 journalctl --disk-usage            # the journal's files and their total size
 ```
+
+The servers log one line per message (the simple console formatter, `SingleLine`) and leave HTTP-client request
+traces at `Warning`, so routine traffic stays small within a shared cap.
 
 A persistent journal lives in `/var/log/journal`. Without that directory the default `Storage=auto` keeps the journal in
 `/run/log/journal`, which a reboot clears; `ls /var/log/journal` shows which one the host has, and `Storage=persistent`
