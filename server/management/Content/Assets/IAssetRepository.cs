@@ -25,7 +25,8 @@ public interface IAssetRepository
     Task<IReadOnlyList<AssetDto>> List(Guid ownerId, Http.Keyset page, AssetKind? kind);
     /// <summary>Null fields keep the stored value.</summary>
     Task<AssetDto?> Patch(Guid ownerId, Guid id, PatchAssetRequest p);
-    Task MarkUploaded(Guid ownerId, string hash);
+    /// <summary>False when the owner has no blob row for the hash (the sweep deleted it).</summary>
+    Task<bool> MarkUploaded(Guid ownerId, string hash);
     /// <summary>The kind of each of these ids that is an asset of the owner with its bytes uploaded; other ids are absent.</summary>
     Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids);
     /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too and returns its S3 key.</summary>

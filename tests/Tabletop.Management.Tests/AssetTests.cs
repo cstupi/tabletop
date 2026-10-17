@@ -198,6 +198,30 @@ public class AssetTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
+    public async Task A_sweep_between_the_copy_and_marking_uploaded_leaves_no_content_object_without_a_row()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var glb = TestGlb.Build((36, null, true));
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb));
+        await Put(created.UploadUrl!, glb);
+        var content = IBlobStore.Key(owner, created.Asset.Hash);
+        _f.Blobs.BeforeCopy = async (_, destination) =>
+        {
+            if (destination != content) return;
+            lock (_f.Rows.Gate) _f.Rows.Blobs[(owner, created.Asset.Hash)].CreatedAt -= TimeSpan.FromHours(2);
+            await new UploadSweep(_f.Services.GetRequiredService<IAssetRepository>(), _f.Blobs).Run(DateTimeOffset.UtcNow);
+        };
+        try
+        {
+            Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
+        }
+        finally { _f.Blobs.BeforeCopy = null; }
+        AssertNothingStored(owner, created.Asset);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync($"/v1/assets/{created.Asset.Id}")).StatusCode);
+    }
+
+    [Fact]
     public async Task Bytes_that_are_not_the_declared_hash_are_refused_and_never_reach_the_content_key()
     {
         var owner = Guid.CreateVersion7();

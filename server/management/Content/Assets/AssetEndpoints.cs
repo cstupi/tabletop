@@ -136,7 +136,12 @@ public static class AssetEndpoints
             await blobs.Copy(held, content);
         }
         finally { await blobs.Delete([held]); }
-        await assets.MarkUploaded(owner, asset.Hash);
+        if (!await assets.MarkUploaded(owner, asset.Hash))
+        {
+            // The sweep deleted the rows while this confirm ran; no row names the content object, so it goes too.
+            await blobs.Delete([content]);
+            return Problems.Conflict("The upload was abandoned before it was confirmed; create the asset again.");
+        }
         var warning = triangles > UploadLimits.WarnTriangles ? $"{triangles:N0} triangles is above the {UploadLimits.WarnTriangles:N0} this table renders comfortably; every participant downloads it." : null;
         return Results.Ok(new ConfirmResponse((await assets.Get(owner, id))!, triangles, warning));
     }

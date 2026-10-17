@@ -74,10 +74,14 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
         }
     }
 
-    public Task MarkUploaded(Guid ownerId, string hash)
+    public Task<bool> MarkUploaded(Guid ownerId, string hash)
     {
-        lock (rows.Gate) if (rows.Blobs.TryGetValue((ownerId, hash), out var b)) b.Uploaded = true;
-        return Task.CompletedTask;
+        lock (rows.Gate)
+        {
+            if (!rows.Blobs.TryGetValue((ownerId, hash), out var b)) return Task.FromResult(false);
+            b.Uploaded = true;
+            return Task.FromResult(true);
+        }
     }
 
     public Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)

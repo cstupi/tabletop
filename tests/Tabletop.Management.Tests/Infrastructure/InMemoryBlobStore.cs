@@ -46,10 +46,13 @@ public sealed class InMemoryBlobStore : IBlobStore
     public Task<BlobRead?> OpenRead(string key, CancellationToken ct = default) =>
         Task.FromResult(_objects.TryGetValue(key, out var b) ? new BlobRead(new MemoryStream(b, writable: false), b.Length) : null);
 
-    public Task Copy(string sourceKey, string destinationKey)
+    /// <summary>Runs ahead of each Copy, for tests that interleave work with one.</summary>
+    public Func<string, string, Task>? BeforeCopy { get; set; }
+
+    public async Task Copy(string sourceKey, string destinationKey)
     {
+        if (BeforeCopy is { } before) await before(sourceKey, destinationKey);
         Write(destinationKey, _objects.TryGetValue(sourceKey, out var b) ? b : throw new KeyNotFoundException($"no object {sourceKey}"));
-        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<string>> ListOlderThan(string prefix, DateTimeOffset cutoff) =>

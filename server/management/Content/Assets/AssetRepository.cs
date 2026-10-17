@@ -70,10 +70,10 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         return n == 1 ? await Get(ownerId, id) : null;
     }
 
-    public async Task MarkUploaded(Guid ownerId, string hash)
+    public async Task<bool> MarkUploaded(Guid ownerId, string hash)
     {
         await using var c = await db.Open();
-        await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash });
+        return await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash }) == 1;
     }
 
     public async Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)

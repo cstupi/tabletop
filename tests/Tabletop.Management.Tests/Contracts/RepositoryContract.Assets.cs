@@ -166,6 +166,16 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Mark_uploaded_reports_whether_the_blob_row_is_there()
+    {
+        var owner = await NewAccount();
+        var pending = await Assets.Create(owner, Mini());
+        Assert.True(await Assets.MarkUploaded(owner, pending.Hash));
+        Assert.True(await Assets.MarkUploaded(owner, pending.Hash));
+        Assert.False(await Assets.MarkUploaded(owner, Mini().Hash));
+    }
+
+    [Fact]
     public async Task Creating_an_asset_on_a_pending_blob_restarts_its_clock()
     {
         var owner = await NewAccount();
