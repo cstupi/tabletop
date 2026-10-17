@@ -78,7 +78,7 @@ because a single predicate still has to test a state's absence. `Impact` is *unl
 | `UsageCount` | the effective log | **no** | how many `sequence_started` payloads name this weapon id, the usage record `Limited` reads; with a first value `round`, `activation` or `game`, how many sequences the holder's unit started under this entry's name in that scope |
 | `HoldsProperty` | `Lookup.UnitHas` on the named side | yes | the side holds the one named entry under its own aggregation, granted instances included; a suppression does not unhold, so a Boost still sees its base |
 | `MostModels` | the named side's living models | yes | more than half meet `Compare` on the one named value: a declared stat's target number (`Defense lte 3`), or a rule's parameter, which a model without the rule fails (`Tough gte 3`) |
-| `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`); always true on a granted row, since the grant is that use |
+| `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`, `activation-end`); always true on a granted row, since the grant is that use |
 
 `Validate` refuses a subject on the four relational predicates, `Range`, `RoundNumber`, `UsageCount` and
 `AtPoint`, and requires one, with exactly one value, on `HoldsProperty` and `MostModels`. A range test is about
@@ -164,9 +164,9 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, and `Blast` for cover |
 | 13 | `CountAsTerrain` | two | `GfMoves` reads the `TargetTerrain` row: `difficult` caps the holder's next move at 6", `dangerous` runs the `dangerous-terrain` test at its next activation, an idle one included | spells granting either terrain type |
 | 14 | `TakeTest` | two | `GfCasting`'s `effects` step pushes `spell-test`, which pushes `morale-test` for the target with p.10's consequence; the row's children apply when the test fails | morale-test spells |
-| 15 | `SetCondition` | two | `spell-test`'s `consequence` sets `TargetCondition` on the target's unit | *Terrifying Fury* (`fatigued`) |
+| 15 | `SetCondition` | two | `spell-test`'s `consequence` sets `TargetCondition` on the target's unit; at an `at_point`, the rule's rows are a choice: `GfHooks.ReactionsAt` offers the rule once and `choose-effect` sets the row picked (the unit's chosen conditions clear as its next activation starts), read by the rule's `actor_state` rows | *Terrifying Fury* (`fatigued`); Versatile Attack, Speed Feat |
 | 16 | `Move` | two | `spell-test`'s `consequence` opens a `move` Ask to the caster's team over the target's alive models, `Amount` inches under that unit's own move rules, which may pass; at an `at_point`, `GfHooks.ReactionsAt` offers it and `reposition` moves the holder | *Deep Hypnosis*; `Hit & Run Fighter`, `Harassing`, `Guerrilla` |
-| 17 | `Place` | two | `GfHooks.ReactionsAt` offers it at its `at_point` and `reposition` places the holder, `Amount` inches or `AmountDice` (`d3`) | `Teleport`, `Rapid Blink`, `Wolfborn` |
+| 17 | `Place` | two | `GfHooks.ReactionsAt` offers it at its `at_point` and `reposition` places the holder, `Amount` inches or `AmountDice` (`d3`, or `d3+1`: a D3 plus one per die) | `Teleport`, `Rapid Blink`, `Wolfborn`, Bounding, Dash |
 | 18 | `RemoveWounds` | two | a pick entry's use row: `pick-rule`'s `rule-effects` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model | `Mend` |
 
 `Roll` nests. *X dice at 2+, each success adds a hit* is a `Roll` whose `Amount` is the count or
@@ -382,7 +382,7 @@ before-attacking` is an army-book Buff, Mark, Debuff or before-attacking active.
 dice. For each 2+ one enemy unit …"*) and asks one target per success, or one without dice; it writes one `GrantAdded`
 per `once` row on each unit it picks, read and consumed as a spell's is; and it resolves the use rows on each target:
 `add_hit` hits (top-level, or the `roll` row's children) push `spell-hits`, `take_test` pushes `spell-test`, and
-`remove_wounds` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model. A granted row's `at_point` holds
+`remove_wounds` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model, and a `move` row moves the picked model's unit up to `Amount` under its own move rules. A granted row's `at_point` holds
 wherever the grant is read: it said when the rule was used. Each carrying model has one use per activation, counted by
 `GfPick.Uses`; a row with `usage_count lt 1 [game]` makes it one per game (`GfPick.GameUses`).
 
@@ -403,6 +403,7 @@ unit's own properties, the aggregated model properties **and** the grants store.
 | Interrupt | `Caster` |
 | Wound assignment | `Tough`, `Hero` |
 | Containment | `Transport` |
+| Activation (army-book) | `Coordinate`, `Delayed Action`, `Inquisitorial Agent`, `Martial Prowess`, `Instinctive` (its +1 to hit is rows) |
 
 This is name-matching. The alternative is inventing grammar for deployment timing, movement
 exemption and a token economy, most of which would be used by one property each. That is where

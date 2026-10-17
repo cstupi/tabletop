@@ -104,22 +104,23 @@
       "played": false
     },
     {
-      "name": "Bounding",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, you may place all models with this rule in it anywhere fully within D3\u002B1\u0022 of their position.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bounding Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Bounding.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Bounding",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Caster Group",
@@ -169,15 +170,6 @@
       ]
     },
     {
-      "name": "Coordinate",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "At the end of this unit\u0027s activation, another friendly unit within 12\u0022 that hasn\u0027t activated yet may be activated immediately. May not be used if this unit was activated via Coordinate.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Counter-Attack Aura",
       "kind": "model",
       "takesParameter": false,
@@ -215,22 +207,23 @@
       "played": false
     },
     {
-      "name": "Dash",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per round, at the end of this unit\u0027s activation, you may place all models with this rule in it anywhere fully within D3\u002B1\u0022 of their position.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Dash Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Dash.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Dash",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Deathstrike",
@@ -256,15 +249,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Defensive Growth.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Delayed Action",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per round, if your opponent has more units left to activate than you, then this model\u0027s unit may pass its turn instead of activating (may still be activated later).",
       "effects": [],
       "played": false
     },
@@ -652,15 +636,6 @@
       ]
     },
     {
-      "name": "Hit \u0026 Run",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per round, units where all models have this rule may move by up to 3\u0022 after shooting or being in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Hit \u0026 Run Fighter Aura",
       "kind": "model",
       "takesParameter": false,
@@ -816,24 +791,6 @@
       "played": false
     },
     {
-      "name": "Inquisitorial Agent",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, if all models in this unit have this rule, it may be activated even if it had already activated this round (stops being fatigued when activated for the second time). Only up to one third of the units in the army with this rule at the beginning of the game (rounding up) may use it in a single round.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Instinctive",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this model is activated, if it is able to shoot/charge an enemy unit, then it must immediately attack the closest valid target and gets \u002B1 to hit rolls for that attack.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Lustbound Boost Aura",
       "kind": "model",
       "takesParameter": false,
@@ -870,15 +827,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Martial Prowess",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, if all models in this unit have this rule, it may be activated even if it had already activated this round (stops being fatigued when activated for the second time). Only up to one third of the units in the army with this rule at the beginning of the game (rounding up) may use it in a single round.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Melee Evasion Aura",
@@ -1455,15 +1403,6 @@
       "played": false
     },
     {
-      "name": "Re-Position Artillery",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, pick one friendly model within 6\u0022 with Artillery, which may immediately move by up to 9\u0022.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Reanimation Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1851,8 +1790,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Speed Feat.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Speed Feat",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Spell Accumulator",
@@ -2272,22 +2221,23 @@
       "played": false
     },
     {
-      "name": "Versatile Attack",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, pick one effect: until the end of the activation, when shooting or charging enemies over 9\u0022 away, all models with this rule in this unit either get AP(\u002B1) or get \u002B1 to hit rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Versatile Defense Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Versatile Defense.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Versatile Defense",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Versatile Reach Aura",
@@ -2295,8 +2245,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Versatile Reach.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Versatile Reach",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Warbound Boost Aura",
@@ -2316,15 +2276,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Watchborn",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, pick one effect: until the end of the activation, when shooting or charging enemies over 9\u0022 away, all models with this rule in this unit either get AP(\u002B1) or get \u002B1 to hit rolls.",
-      "effects": [],
-      "played": false
     }
   ]
 }

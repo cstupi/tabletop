@@ -161,6 +161,15 @@ public static class GfPick
                 if (entry.Effects.Any(e => e.Kind == EffectKind.TakeTest)) return new Push(GfNames.SpellTestSeq, new SequenceContext(actor, [targetUnit], [], null));
             }
             var changes = new List<StateChange>();
+            // "Which may immediately move by up to 9"": the picked model's unit moves under its own move rules, its player answering for it.
+            if (entry.Effects.FirstOrDefault(e => e.Kind == EffectKind.Move && e.Duration != EffectDuration.Once) is { } move)
+            {
+                var inches = move.EffectiveAmount(null);
+                if (ctx.History.LastClosed("move") is not { } moved)
+                    return new OpenAsks([ctx.Ask("move", $"{entry.Name}: move up to {inches}\"", ctx.ActorTeam!.Value, GfMoves.ForcedMoveRegion(ctx, targetUnit, inches), allowPass: true)]);
+                changes.AddRange(GfMoves.ApplyForcedMove(ctx, targetUnit, inches, GfAnswers.Moves(ctx.State, moved)).Changes);
+                ctx.Applied.Add(entry.Name);
+            }
             if (entry.Effects.FirstOrDefault(e => e.Kind == EffectKind.RemoveWounds) is { } heal && ctx.Projection.Models.TryGetValue(target, out var healed))
             {
                 // p.4: "D3 … roll a D6 and halve the result, rounding up".

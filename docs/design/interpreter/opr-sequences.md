@@ -26,10 +26,13 @@ edges and the free-for-all roll-off.
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
 | `casting` | `pick-spell`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
-| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects` |
-| `spell-test` | `test`, `consequence` | `GfCasting` | `casting`'s `effects`, for a `take_test` row |
+| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects`, `pick-rule`'s `rule-effects` |
+| `spell-test` | `test`, `consequence` | `GfCasting` | `casting`'s `effects` or `pick-rule`'s `rule-effects`, for a `take_test` row |
 | `reposition` | `reposition` | `GfMoves` | a `move` or `place` row offered at its point by `GfHooks.ReactionsAt` |
-| `pick-rule` | `rule-target` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
+| `pick-rule` | `rule-roll`, `rule-target`, `rule-effects` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
+| `choose-effect` | `choose` | `GfChoice` | a rule's `set_condition` rows offered at their point by `GfHooks.ReactionsAt` (*"pick one effect"*) |
+| `activation-end` | `activation-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds a row at `activation-end` (Dash) |
+| `coordinate` | `coordinate-pick`, `coordinate-act`, `coordinate-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds Coordinate |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
 ```mermaid

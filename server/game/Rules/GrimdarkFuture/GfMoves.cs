@@ -245,6 +245,15 @@ public static partial class GfMoves
         {
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
+            // A choice made at the unit's last activation lasts until this one (Versatile Defense: "until the units' next activation"): cleared first.
+            // Instinctive's mark is written as the activation starts, when "it is able to shoot/charge an enemy unit" is read.
+            if (ctx.Frame.Value("dangerous_dice") == 0 && ctx.Frame.Value("activation_marked") == 0)
+            {
+                var marks = GfChoice.Cleared(ctx.State, ctx.Properties, unit).ToList();
+                if (GrimdarkFutureRules.InstinctiveAttack(ctx.State, ctx.Properties, ctx.Projection.Units[unit]) is not null)
+                    marks.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.InstinctiveCondition, true));
+                if (marks.Count > 0) return new Complete(marks, new Dictionary<string, int> { ["activation_marked"] = 1 }, Repeat: true);
+            }
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             var rules = TerrainFor(ctx, unit, live);
             if (rules.Aircraft) return new Complete([]);                                                 // p.13: Aircraft "ignore all units and terrain when moving and stopping"
@@ -347,6 +356,8 @@ public static partial class GfMoves
             if (ctx.History.LastClosed() is { } closed) return closed.Single is Chosen { OptionId: "shoot" } ? new Push(GfNames.Shooting, ctx.Frame.Context) : new Complete([]);
             var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit, null).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
             if (!canShoot) return new Complete([]);
+            // Instinctive: "it must immediately attack the closest valid target".
+            if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.InstinctiveCondition)) return new Push(GfNames.Shooting, ctx.Frame.Context);
             return new OpenAsks([ctx.Ask("shoot_or_not", "Shoot?", ctx.ActorTeam!.Value, new Options([new AskOption("shoot", "Shoot", [unit]), new AskOption("pass", "Don't shoot", [])]))]);
         }
     }
@@ -371,7 +382,9 @@ public static partial class GfMoves
     public sealed class PointWindowStep(string point, string name) : IStep
     {
         public string Name => name;
-        public StepOutcome Run(StepContext ctx) => Interpreter.Windows.Run(ctx, point) ?? new Complete([]);
+        /// <summary>A use taken here reopens the window with a fresh history, as the casting window does, so a unit holding several rules at the point is
+        /// offered each; a rule's own usage_count keeps it from being offered again.</summary>
+        public StepOutcome Run(StepContext ctx) => Interpreter.Windows.Run(ctx, point) ?? new Complete([], null, Repeat: ctx.History.Children.Count > 0);
     }
 
     public static Sequence Reposition() => new(GfNames.RepositionSeq, [new RepositionStep()]);
@@ -417,7 +430,9 @@ public static partial class GfMoves
             {
                 // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
                 var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
-                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = record.Dice.Sum(d => (d.Raw + 1) / 2) * 10 }, Repeat: true);
+                // "D3+1" (Bounding, Dash): each die's D3 plus one.
+                var plus = row.AmountDice == "d3+1" ? record.Dice.Count : 0;
+                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (record.Dice.Sum(d => (d.Raw + 1) / 2) + plus) * 10 }, Repeat: true);
             }
             var distance = row.AmountDice is null ? row.EffectiveAmount(null) : ctx.Frame.Value("distance_tenths") / 10.0;
             var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();

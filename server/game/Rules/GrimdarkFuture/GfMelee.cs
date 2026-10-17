@@ -146,6 +146,8 @@ public static class GfMelee
             var unit = Charger(ctx);
             var team = ctx.ActorTeam;
             var targets = ChargeTargets(ctx.State, ctx.Properties, unit);
+            // Instinctive: "it must immediately attack the closest valid target".
+            if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.InstinctiveCondition)) targets = GrimdarkFutureRules.Closest(ctx.State, unit, targets);
             // p.7: "if being within charge distance becomes impossible (due to killed models, special rules, etc.)" after the action was taken.
             if (targets.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("charge_target", "Charge which unit?", team!.Value, new PieceSelection(targets, 1, 1))]);

@@ -32,9 +32,7 @@ public sealed partial class GrimdarkFutureRules
         var phase = state.Projection.Scheduler.Phase;
         if (phase is Deployment or Scouts) return DeployAsk(state, props, teamId, phase);
         var actionRows = props.Actions.Select(a => a.Name).ToList();
-        var options = TeamUnits.Of(state, teamId)
-            .Where(u => u.Actions.Count == 0 && TeamUnits.AnyOnTable(state, u))
-            .SelectMany(u => { var (actions, note) = ActivationChoices(state, props, u, actionRows); return actions.Select(a => ActivationOption.For(u, a, note)); }).ToList();
+        var options = ActivationOptions(state, props, teamId, actionRows).ToList();
         return options.Count == 0 ? null : new TurnAsk(AskQuestions.Activate, "Activate a unit", new Options(options), AllowPass: true);
     }
 
@@ -54,6 +52,12 @@ public sealed partial class GrimdarkFutureRules
         if (unit.Conditions.Contains(Shaken)) return ([ActivationOption.Idle], ShakenNote);
         if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return (actionRows.Where(a => a == Hold).ToList(), ImmobileNote);
         if (Lookup.UnitHas(state, props, unit.Id, Artillery)) return (actionRows.Where(a => a == Hold).ToList(), ArtilleryNote);
+        // Instinctive: a unit that can charge must charge; one that can shoot must take an action it shoots in (p.7: Rush "can't shoot").
+        switch (InstinctiveAttack(state, props, unit))
+        {
+            case Charge: return (actionRows.Where(a => a == Charge).ToList(), InstinctiveNote);
+            case Hold: return (actionRows.Where(a => a is not Rush and not Charge).ToList(), InstinctiveNote);
+        }
         // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
         return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0
             ? (actionRows.Where(a => a != Charge).ToList(), NoChargeNote)
@@ -69,8 +73,11 @@ public sealed partial class GrimdarkFutureRules
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch
     {
         SelectedPieces { PieceIds: [var unit] } when state.Projection.Units.ContainsKey(unit) => new Activation(unit, Deploy, false, []),
+        // Delayed Action: the turn passes with the unit unrecorded, so it may still be activated later.
+        Chosen c when ActivationOption.TryParse(c.OptionId, out var unit, out var action) && state.Projection.Units.ContainsKey(unit) && action == Delay
+            => new Activation(unit, action, false, []),
         Chosen c when ActivationOption.TryParse(c.OptionId, out var unit, out var action) && state.Projection.Units.ContainsKey(unit)
-            => new Activation(unit, action, true, [new ActionRecorded(unit, action)]),
+            => new Activation(unit, action, true, ActivationChanges(state, unit, action)),
         _ => null,
     };
 

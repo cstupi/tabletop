@@ -126,6 +126,25 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   that raises the move of the unit using it, picked mid-move, applies to the rest of that move: the grant applies the
   next time the move is read. Primeborn's text is Guardian's and so are its rows. Bane in Melee Buff is the Buff
   template with X in running-text case (*"Bane in melee"*); the generator reads X ignoring case.
+- **Batch 4.** Bounding and Dash are `place` rows of *"D3+1"* (`amountDice d3+1`); Dash's *"at the end of this unit's
+  activation"* is a point, `activation-end`, whose window opens after the activation's own work. Hit & Run is Harassing's
+  text and rows. A *"pick one effect"* rule (Versatile Attack, Watchborn, Versatile Defense, Versatile Reach) and Speed
+  Feat's *"you may use this rule"* are `set_condition` rows at `activation-start`: the player picks one, its condition is
+  set on the unit, and the effect rows read it; the unit's choice clears as its next activation starts, which is
+  Versatile Defense's *"until the units' next activation"* and outlasts the others' activation only while they cannot act
+  (*"when shooting or charging"*, *"when this unit moves"*). Versatile Defense's choice *"when … deployed"* is not
+  offered: deployment opens no point. Re-Position Artillery is a pick entry (a friendly model within 6" with Artillery,
+  used before attacking as every pick is) whose `move 9` row moves the picked model's unit under its own move rules.
+  Coordinate runs after the activation's morale tests: the team may activate another of its units within 12" that has
+  not activated and is not Shaken (its activation is idle, p.10); that activation is followed by its own end-of-
+  activation window and morale tests, and offers no Coordinate. Delayed Action is offered as the activation option
+  `Delay` while an opponent has more units on the table left to activate, once a round; the turn ends and the unit stays
+  unactivated. Inquisitorial Agent and Martial Prowess offer a unit that has activated this round its actions again, once
+  a game, at most ⌈n/3⌉ such units a round (n: the army's units holding the rule), clearing fatigue. Instinctive is
+  read when the activation starts: a unit that can charge is offered only Charge, one that can shoot may not Rush and
+  takes its shot without being asked; its only target is the closest valid one, and its shooting or charging attacks
+  that activation get +1 to hit.
+- **Order.** Batch 3 is taken after batches 4–8: its Ambush rules sit in the Ambush placement code another branch changes.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the
 same rule ids as the books' upgrade gains): Banner *"This model and its unit get +1 to morale test rolls."*, Musician

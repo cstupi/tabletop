@@ -86,6 +86,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   `Bodies.Perimeter` keyed by its id in place of its bodies, except the target's own unit, which blocks per model; a unit `SeesThrough` passes
   (p.56 Hybrid: `GfSight.SizeClass`, elevation) blocks nothing on that pair's line, cover included. Melee separation `off`: `consolidate` moves
   nobody when both units stand, and `GfMoves.ContactBreach` skips `move_separation` against a unit the mover was within 1" of when its move started.
+- Army-book activation rules (batch 4): `GfActivationEnd.Sequences` is the end of an activation: an `activation-end` window (Dash), p.10's morale tests, then `coordinate` (Coordinate activates another unit inside the turn). `GfChoice`: a rule's `set_condition` rows at a point are a choice the `choose-effect` sequence sets; `activation-terrain` clears a unit's chosen conditions and writes Instinctive's mark as its activation starts. `GfRules.Activation.cs`: the activate Ask's Delayed Action `Delay` option (a turn with no sequence and nothing recorded), Inquisitorial Agent's and Martial Prowess's second activation, Instinctive's forced attack (`ActivationChoices`, `shoot-or-not`, the closest target in `ValidTargets` and `charge-target`).
 
 ## Commands
 

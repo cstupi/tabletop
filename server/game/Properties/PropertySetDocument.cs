@@ -116,15 +116,15 @@ public static class PropertiesJson
     const string PickPoint = "before-attacking";
 
     /// <summary>A pick entry's row the use itself resolves on the picked target rather than grants to it: a morale test ("must take a morale test"),
-    /// dice whose successes deal hits ("roll 3 dice. For each 2+ … takes 3 hits"), hits ("takes 1 hit") or a heal ("remove D3 wounds").</summary>
+    /// dice whose successes deal hits ("roll 3 dice. For each 2+ … takes 3 hits"), hits ("takes 1 hit"), a heal ("remove D3 wounds") or a move ("which may immediately move by up to 9"").</summary>
     static bool IsUseRow(EffectDocument f) => f.Kind switch
     {
-        EffectKind.TakeTest or EffectKind.RemoveWounds => true,
+        EffectKind.TakeTest or EffectKind.RemoveWounds or EffectKind.Move => true,
         EffectKind.Roll => f.Children.Count > 0 && f.Children.All(c => c.Kind == EffectKind.AddHit && c.TargetQuantity is null or TargetQuantity.Hits),
         EffectKind.AddHit => f.TargetQuantity is null or TargetQuantity.Hits && f.Conditions.All(c => c.Kind != ConditionKind.RollResult),
         _ => false,
     };
-    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start"];
+    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start", "activation-end"];
 
     static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)
     {
@@ -168,7 +168,7 @@ public static class PropertiesJson
             else if (c.Kind == ConditionKind.HoldsProperty && !names.Contains(c.Values[0])) problems.Add(At($"holds_property names no entry '{c.Values[0]}'"));
         }
         if (f.AmountDice is not null && f.Kind is not (EffectKind.Place or EffectKind.RemoveWounds)) problems.Add(At("amount_dice is place or remove_wounds only"));
-        if (f.AmountDice is not null and not "d3") problems.Add(At($"amount_dice is 'd3', not '{f.AmountDice}'"));
+        if (f.AmountDice is not null and not "d3" and not "d3+1") problems.Add(At($"amount_dice is 'd3' or 'd3+1', not '{f.AmountDice}'"));
         if (f.Kind == EffectKind.AddHit && f.TargetQuantity == TargetQuantity.Attacks && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             problems.Add(At("add_hit attacks is per die: it needs a roll_result condition"));
         foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.AtPoint))

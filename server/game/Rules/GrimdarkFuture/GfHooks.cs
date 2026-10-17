@@ -26,6 +26,8 @@ public static class GfHooks
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
         // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
         changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
+        // Instinctive's mark is the activation's: "that attack".
+        changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.InstinctiveCondition)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.InstinctiveCondition, false)));
         // Owner ruling: a granted Flying "applies to the whole move - its per activation": what this activation used and kept is spent now.
         changes.AddRange(GfMoves.FlyingHeldThisActivation(state, turn.AnsweredAtSeq));
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
@@ -105,14 +107,17 @@ public static class GfHooks
                     reactions.Add(new Reaction(team, GfPick.Key(entry.Name, model), $"{entry.Name} ({state.Projection.Models[model].Slot.Name}): pick a target",
                         GfNames.PickRuleSeq, new SequenceContext(unit, [], [], GfPick.Key(entry.Name, model))));
             var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
-            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place).DistinctBy(x => x.Source.Entry.Name))
-                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row), GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
+            // A set_condition row at a point is one effect of a rule's choice ("pick one effect"): the rule offers one choose-effect use, which asks which.
+            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place or EffectKind.SetCondition).DistinctBy(x => x.Source.Entry.Name))
+                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row),
+                    row.Kind == EffectKind.SetCondition ? GfNames.ChooseEffectSeq : GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
         }
         return reactions;
     }
 
     static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
     static string Label(string entry, Effect row) => row.Kind == EffectKind.Place
-        ? $"{entry}: place within {(row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + "D3")}\""
+        ? $"{entry}: place within {(row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + (row.AmountDice == "d3+1" ? "D3+1" : "D3"))}\""
+        : row.Kind == EffectKind.SetCondition ? $"{entry}: pick an effect"
         : $"{entry}: move up to {row.Amount}\"";
 }

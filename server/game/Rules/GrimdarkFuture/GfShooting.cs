@@ -26,6 +26,15 @@ public static class GfShooting
 
     public static IReadOnlyList<Guid> ValidTargets(StepContext ctx, Guid unit, WeaponGroup group)
     {
+        var targets = Valid(ctx, unit, group);
+        if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.InstinctiveCondition)) return targets;
+        // Instinctive: "it must immediately attack the closest valid target": the closest unit any of its groups could shoot.
+        var closest = GrimdarkFutureRules.Closest(ctx.State, unit, [.. Groups(ctx.State, ctx.Properties, unit, null).SelectMany(g => Valid(ctx, unit, g)).Distinct()]);
+        return [.. targets.Where(closest.Contains)];
+    }
+
+    static IReadOnlyList<Guid> Valid(StepContext ctx, Guid unit, WeaponGroup group)
+    {
         var team = ctx.TeamOf(unit);
         // The in-play reading: an enemy unit inside a container is still a candidate, and EligibleModels is what rules it out (or, for a fellow occupant, in).
         return ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team && Lookup.AliveModels(ctx.State, u.Id).Count > 0).Select(u => u.Id).Where(target =>
