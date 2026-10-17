@@ -6,7 +6,7 @@ xUnit projects, one per library, per server and for the client's Godot-free core
 
 - `Tabletop.Geometry.Tests`, `Tabletop.Content.Tests`, `Tabletop.Protocol.Tests`: one per lib, headless.
 - `Tabletop.GameServer.Tests`: the game server and its rules engine; the largest project.
-- `Tabletop.Management.Tests`: the management API.
+- `Tabletop.Management.Tests`: the management API over in-memory repositories and blob store; the SQL repositories, `S3BlobStore` and migrations are E2E.
 - `Tabletop.Client.Tests`: compiles `client/src/Core/**/*.cs` from source, so a `using Godot` there breaks this project.
 - `Tabletop.Sim.Tests`: `sim/`; references `Tabletop.GameServer.Tests` for its Postgres fixture.
 - `Tabletop.ArmyBooks.Tests`: the generator, against `Fixtures/`.

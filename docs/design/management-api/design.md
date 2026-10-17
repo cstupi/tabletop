@@ -59,18 +59,20 @@ server/management/Tabletop.Management.csproj      net10.0, LangVersion 12, RootN
   Program.cs                                      composition root; `public partial class Program` for the test host
   Configuration/                                  ManagementOptions, DotEnv
   Http/                                           ClientVersionMiddleware, Keyset, Page<T>, Problems, CurrentAccount
-  Persistence/                                    Database, Migrator, Migrations/001_schema.sql, Migrations/002_blob_uploaded.sql,
+  Persistence/                                    Database, Migrator, IMigrator/PostgresMigrator, Migrations/001_schema.sql, Migrations/002_blob_uploaded.sql,
                                                   Migrations/003_account_starter.sql, Migrations/004_properties_seeded_at.sql
   Identity/                                       StytchJwks, StytchAuthentication, StytchClient, Sessions,
-                                                  AccountRepository, AuthEndpoints, AccountEndpoints, AccountDeleter
+                                                  IAccountRepository/AccountRepository, AuthEndpoints, AccountEndpoints, AccountDeleter
   Content/VolumeRows.cs                           VolumeRow, shared by asset_volume and terrain_volume
-  Content/Assets/                                 IBlobStore, S3BlobStore, GlbHeader, AssetRepository/Endpoints/Dtos,
-                                                  FolderRepository/Endpoints, StarterMeshes, StarterAssets
-  Content/Armies/                                 ArmyForgeList, ArmyForgeClient, ArmyForgeImport, CatalogKinds,
-                                                  ArmyRepository, ArmyEndpoints
-  Content/Layouts/                                LayoutRepository, LayoutEndpoints
-  Games/                                          GameDtos, GameRepository, GameEndpoints, PropertiesEndpoint, ManifestEndpoint
-tests/Tabletop.Management.Tests/                  TestDatabase, TestKeys, FakeStytch, FakeArmyForge, TestGlb, ManagementFactory
+  Content/Assets/                                 IBlobStore, S3BlobStore, GlbHeader, IAssetRepository, AssetRepository/Endpoints/Dtos,
+                                                  IFolderRepository, FolderRepository/Endpoints, StarterMeshes, StarterAssets
+  Content/Armies/                                 ArmyForgeList, ArmyForgeClient, ArmyForgeImport, ICatalogKinds/CatalogKinds,
+                                                  IArmyRepository/ArmyRepository, ArmyEndpoints
+  Content/Layouts/                                ILayoutRepository/LayoutRepository, LayoutEndpoints
+  Games/                                          GameDtos, IGameRepository/GameRepository, GameEndpoints, PropertiesEndpoint, ManifestEndpoint
+tests/Tabletop.Management.Tests/Infrastructure/   ManagementFactory, InMemoryRows, InMemory*Repository, InMemoryCatalogKinds,
+                                                  InMemoryBlobStore, TestDatabase, TestKeys, FakeStytch, FakeArmyForge, TestGlb
+tests/Tabletop.Management.Tests/Contracts/        RepositoryContract, run by InMemoryRepositoryContractTests and PostgresRepositoryContractTests
 scripts/management                                run the API from WSL
 ```
 
@@ -161,9 +163,13 @@ only; conversion is not in the product*). It costs a two-step create-then-confir
 
 ### 1. Composition and the request pipeline
 
-One process, one composition root. Every collaborator is a singleton. The repositories hold only a
-`Database`, which holds an `NpgsqlDataSource`, which is the pool. There is no scoped state and no
-unit of work. A repository method opens a connection, does its work, and returns.
+One process, one composition root. Every collaborator is a singleton. Endpoints, `Sessions`,
+`DevSessions`, `AccountDeleter` and `StarterAssets` depend on repository interfaces
+(`IAccountRepository`, `IAssetRepository`, `IFolderRepository`, `IArmyRepository`, `ICatalogKinds`,
+`ILayoutRepository`, `IGameRepository`) and on `IBlobStore`; the SQL classes implement them and hold
+only a `Database`, which holds an `NpgsqlDataSource`, which is the pool. There is no scoped state and
+no unit of work. A repository method opens a connection, does its work, and returns. The test host
+registers in-memory implementations of the same interfaces (*Testing*).
 
 ```mermaid
 graph TD
@@ -445,7 +451,8 @@ table.
 
 `Migrator.Run(connectionString)` is DbUp over `Persistence/Migrations/*.sql` embedded in the
 assembly, journalled in `public.schema_version`, one transaction per script. It runs at process
-startup and in `TestDatabase`, and is idempotent. `001_schema.sql` is a byte-for-byte copy of
+startup through `IMigrator` (`PostgresMigrator`, which the test host replaces with a no-op) and in
+`TestDatabase`, and is idempotent. `001_schema.sql` is a byte-for-byte copy of
 `scripts/postgres/init/001_schema.sql` and is never edited. Later changes are new scripts. The
 **baseline** case: a database created by `docker compose`'s init already holds `001` and has no
 journal, so `Migrator` detects `management.account` without a journal, creates the journal, and
@@ -897,20 +904,20 @@ behind an ordinary `DELETE` (`schema.md` → *Deleting an account is application
 sequenceDiagram
     participant E as AccountEndpoints
     participant D as AccountDeleter
-    participant DB as Postgres
-    participant G as GameRepository
-    participant S3 as MinIO
+    participant A as IAccountRepository
+    participant G as IGameRepository
+    participant S3 as IBlobStore
     participant K as Stytch
 
     E->>D: Delete(accountId)
-    D->>DB: exists(account)?
-    D->>DB: select s3_key from blob where owner_id = me
-    D->>DB: select game_id from participant where account_id = me<br/>UNION select id from game where created_by = me
+    D->>A: Get(accountId), null answers 401
+    D->>A: BlobKeys: select s3_key from blob where owner_id = me
+    D->>A: GameIds: select game_id from participant where account_id = me<br/>UNION select id from game where created_by = me
     loop per game id
         D->>G: Delete(gameId)
-        G->>DB: delete game.game_event, then game (cascades team, participant, table_state)
+        Note over G: delete game.game_event, then game (cascades team, participant, table_state)
     end
-    D->>DB: delete from account (cascades army, asset, blob, folder, table_state)
+    D->>A: Delete: delete from account (cascades army, asset, blob, folder, table_state, participant)
     D->>S3: Delete(keys)
     D->>K: DELETE /v1/users/{external_id}
     K-->>D: 200, or 404 which is logged and ignored
@@ -1041,27 +1048,27 @@ and a build whose environment is unset serves `404` for it.
 | `Http.ClientVersion`, `ClientVersionVerdict`, `ClientVersionMiddleware` | `Decide(string?, int) : ClientVersionVerdict { Accept, UpgradeRequired, Malformed }` |
 | `Http.Keyset`, `Http.Page<T>` | `Keyset.Parse(int?, Guid?)`, `Keyset.Default = 50`, `Max = 200`; `Page<T>.Of(items, limit, id)` |
 | `Http.Problems`, `Http.CurrentAccount` | `NotFound()`, `Conflict(detail)`, `Unprocessable(detail)`, `BadGateway(detail)`; `CurrentAccount.Id(ClaimsPrincipal)` |
-| `Persistence.Database`, `Persistence.Migrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)` |
+| `Persistence.Database`, `Persistence.Migrator`, `Persistence.IMigrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)`; `IMigrator.Run()`, implemented by `PostgresMigrator` |
 | `Identity.StytchJwks` | `Resolve(string? kid)`, `Url` |
 | `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `RolesClaim = "roles"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
 | `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
 | `Identity.Sessions` | `Complete(StytchSession) : SessionResponse`; `static Problem(StytchException) : IResult` |
 | `Identity.DevSessions`, `Identity.DevSessionEndpoint` | `Mint(name) : SessionResponse`, `static AccountIdFor(name) : Guid`, `static EmailFor(name) : string`; `DevSessionRequest(Name)`; `MapDevSession`, registered only under a development environment |
-| `Identity.AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)` |
+| `Identity.IAccountRepository`, `AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)`, `BlobKeys(accountId)`, `GameIds(accountId)`, `Delete(accountId)` |
 | `Identity.AccountDeleter` | `Delete(Guid accountId) : Task<bool>` |
 | `Content.VolumeRow` | `ToVolume()`, `static From(id, Volume)`, `Columns`, `InsertColumns`, `InsertValues` |
 | `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Put`, `Delete` |
-| `Content.Assets.StarterMeshes`, `StarterAssets` | `StarterMeshes` builds the six starter GLBs in memory, deterministically; `StarterAssets.SeedIfNeeded(account)` writes them into the `Starter` folder and sets `starter_seeded_at` |
+| `Content.Assets.StarterMeshes`, `StarterAssets` | `StarterMeshes` builds the six starter GLBs in memory, deterministically; `StarterAssets.SeedIfNeeded(account)` puts the bytes, then `IAssetRepository.AddStarter` writes the rows into the `Starter` folder and sets `starter_seeded_at` |
 | `Content.Assets.GlbHeader` | `IsGlb`, `JsonChunkLength`, `CountTriangles`, `HeaderBytes = 20`, `WarnAbove = 100_000` |
 | `Content.Assets.AssetKind`, `AssetRules` | `{ Miniature, Terrain, Texture }`; `ContentTypes`, `IsSha256`, `Kind`, `Shape` |
-| `Content.Assets.AssetRepository` | `Create`, `Get`, `List`, `Patch`, `MarkUploaded`, `Delete`, `GetVolumes`, `PutVolumes` |
-| `Content.Assets.FolderRepository` | `List`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
+| `Content.Assets.IAssetRepository`, `AssetRepository` | `Create`, `Get`, `List`, `Patch`, `MarkUploaded`, `Delete`, `GetVolumes`, `PutVolumes`, `StarterSeeded`, `AddStarter` |
+| `Content.Assets.IFolderRepository`, `FolderRepository` | `List`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
 | `Content.Armies.ArmyForgeClient` | `static ListId(source)`, `static Parse(json)`, `Fetch(listId)`, `HttpClientName = "army-forge"`, `BaseUrl`; `ArmyForgeException(Status)` |
 | `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog)`, `ParseBase(round)`, `HeightFromBase(base)`, `GameRules`, `DefaultBody`, `HeightScale`; `PropertyLevel { Unit, Model }`; `UnsupportedGameSystemException` |
-| `Content.Armies.CatalogKinds` | `For(string gameRules) : IReadOnlyDictionary<string, PropertyLevel>` |
-| `Content.Armies.ArmyRepository` | `Insert`, `Get`, `List`, `Patch`, `Delete`; `ArmySummary`, `ImportRequest`, `UnitPatch`, `SlotPatch`, `PatchArmyRequest` |
-| `Content.Layouts.LayoutRepository` | `Save`, `Get`, `List`, `Patch`, `Delete`, `static ReadTree`; `LayoutSummary`, `PatchLayoutRequest` |
-| `Games.GameRepository` | `ListProperties`, `Create`, `List`, `Get`, `IsParticipant`, `IsCreator`, `Join`, `Leave`, `End`, `Delete`, `ManifestAssets` |
+| `Content.Armies.ICatalogKinds`, `CatalogKinds` | `For(string gameRules) : IReadOnlyDictionary<string, PropertyLevel>` |
+| `Content.Armies.IArmyRepository`, `ArmyRepository` | `Insert`, `Get`, `List`, `Patch`, `Delete`; `ArmySummary`, `ImportRequest`, `UnitPatch`, `SlotPatch`, `PatchArmyRequest` |
+| `Content.Layouts.ILayoutRepository`, `LayoutRepository` | `Save`, `Get`, `List`, `Patch`, `Delete`; `LayoutRepository.ReadTree` is `static`; `LayoutSummary`, `PatchLayoutRequest` |
+| `Games.IGameRepository`, `GameRepository` | `ListProperties`, `RuleTexts`, `Create`, `List`, `Get`, `IsParticipant`, `IsCreator`, `Join`, `Leave`, `End`, `Delete`, `ManifestAssets` |
 | `Games` DTOs | `PropertiesSummary`, `CreateGameRequest`, `GameSummary`, `ManifestEntry`, `Manifest`, `ManifestRow` |
 
 ### Consumed
@@ -1485,8 +1492,9 @@ that is not the caller's.
 
 ## Testing
 
-Test-driven throughout: a failing test, then the code, every task ending green. `dotnet test
-tests/Tabletop.Management.Tests` reaches 58 tests across thirteen tasks.
+Test-driven throughout: a failing test, then the code. Two suites (spec
+`2026-10-16-test-suites-design.md`): `dotnet test tests/Tabletop.Management.Tests` is the unit suite and reaches no
+live service; `--settings tests/e2e.runsettings` runs the `Category=E2E` tests against `docker compose up -d`.
 
 ### Headless unit tests, no Docker
 
@@ -1497,16 +1505,24 @@ tests/Tabletop.Management.Tests` reaches 58 tests across thirteen tasks.
 | `GlbHeader` | magic and version, the JSON chunk length, triangle count per `mode` (4, 5, 6, lines), summing over primitives, the 100,000 boundary. `TestGlb.Build` synthesises a structurally valid GLB with an empty binary chunk |
 | `ArmyForgeImport` | against the **real** saved export (`Fixtures/army-forge-c2-6YsWRH3py.json`): parse, combined merge, stats and bases, catalog-driven property level, the weapon cursor over a hand-written five-model list, range on ranged weapons and absent on melee, `ListId` from a share link and a bare id, an `aof` list importing as `grimdark-future` and `aofs` refused, the height scaled from the base. Two hand-written lists cover the join: a hero merged into a squad (six slots, the host's unit stats, the hero's own slot stats, rules, base and weapon on slot six) and the resolution rules (a hero naming an absorbed `combined` partner joins the merged unit, a name nothing answers and a name whose entry itself joins each stay their own unit) |
 
-### Integration tests, Docker required
+### Endpoint tests over the fakes, no Docker
 
-`ManagementFactory : WebApplicationFactory<Program>` with three fakes and one real dependency:
+`ManagementFactory : WebApplicationFactory<Program>` replaces every live dependency:
 
-- **`TestDatabase`**: a database of its own per factory on the Docker Postgres named in `.env`,
-  created, migrated by `Migrator.Run`, dropped `with (force)` on dispose. `MigrationTests` asserts
-  33 tables across the `management` and `game` schemas and that a second `Migrator.Run` is a no-op.
+- **The repositories**: `InMemoryAccountRepository`, `InMemoryAssetRepository`, `InMemoryFolderRepository`,
+  `InMemoryArmyRepository`, `InMemoryCatalogKinds`, `InMemoryLayoutRepository` and `InMemoryGameRepository` over one
+  `InMemoryRows`, the schema's rows behind one lock. It checks the foreign keys the repositories lean on (a missing
+  account, a missing blob, a game still naming its creator), applies the declared cascades by hand, and hands out
+  strictly increasing v7 ids, so creation order is id order. Its `Seed*`, `PickArmy` and `FreezeArmy` write the rows no
+  repository writes: Properties sets and catalog entries, a participant's lobby pick and frozen army, a game's table, the
+  event log.
+- **`InMemoryBlobStore`** for `IBlobStore`. Presigned URLs name `blobs.invalid`; `Client()` is the `HttpClient` that
+  serves them, refusing a PUT whose content type differs from the signed one.
+- **`IMigrator`**: a no-op. `Database` is removed, and `DB_CONNECTION` and `S3_ENDPOINT` name a closed port, so a test
+  that still reaches Postgres or S3 fails at once.
 - **`TestKeys`**: an RSA key, a JWT minter matching Stytch's claim shape, a fake JWKS handler that
   counts fetches, and `Rotate()`. `AuthenticatedClient(accountId)` inserts the account row, mints a
-  JWT and sets the bearer header. Every later test uses that helper.
+  JWT and sets the bearer header.
 - **`FakeStytch`**: an `HttpMessageHandler` implementing enough of Stytch to log in: users by
   email, one fixed OTP code, passwords, external ids, sessions minted through `TestKeys`, plus
   revoke and delete lists to assert against. It asserts Basic auth is present on every call. It
@@ -1514,11 +1530,27 @@ tests/Tabletop.Management.Tests` reaches 58 tests across thirteen tasks.
   Stytch. `ManagementFactory.HostEnvironment` defaults to `Testing` and that one test class stands
   a second host up as `Development`.
 - **`FakeArmyForge`**: serves the fixture for one id and `404` for anything else.
-- **MinIO, real.** `BlobStoreTests` does a presigned `PUT`, a `HEAD`, a ranged read and a presigned
-  `GET` against the actual bucket, and the asset tests upload real bytes through the real presigned
-  URL. A fake here would have hidden the mechanism being designed.
 
-Notable integration assertions: `426` before anything else runs, and `problem+json` on it; the CORS
+### Contract tests, both suites
+
+`Contracts/RepositoryContract` states each repository's contract once and runs twice: `InMemoryRepositoryContractTests`
+over the fakes (unit) and `PostgresRepositoryContractTests` over the SQL classes on a `TestDatabase` (E2E). It covers
+keyset paging (assets and armies ascending after the cursor, games descending before it), per-owner blob dedup and the
+last delete returning the key, account deletion cascading content and participant rows and being refused while a game
+names the account as creator, folder cycles and cascades, army patch precedence and the lobby pick cleared on army
+delete, layout copies with fresh ids, join idempotence, the last leave ending the game under concurrent leaves, the
+latest Properties set per name, rule texts, catalog kinds, and the manifest's union of picks, snapshots and the game
+table. `BlobStoreContract` does the same for `InMemoryBlobStore` (unit) and `S3BlobStore` on MinIO (E2E): a presigned
+`PUT`, a size, a ranged read, a presigned `GET`, a PUT refused for the wrong content type.
+
+### E2E only, Docker required
+
+- **`TestDatabase`**: a database of its own per fixture on the Docker Postgres named in `.env`,
+  created, migrated by `Migrator.Run`, dropped `with (force)` on dispose. `MigrationTests` asserts
+  the table count across the `management` and `game` schemas and that a second `Migrator.Run` is a no-op.
+- `PostgresRepositoryContractTests` and `S3BlobStoreTests`, above.
+
+Notable endpoint assertions: `426` before anything else runs, and `problem+json` on it; the CORS
 preflight answered for `TABLETOP_WEB_URL` and not for another origin; the same bytes twice
 short-circuiting the upload and only the second delete removing the blob; an STL renamed `.glb`
 refused at confirm; a 100,001-triangle GLB warned and accepted; keyset paging across three assets;
@@ -1553,7 +1585,7 @@ Stytch user and one stamp call per mint, with the second JWT accepted by `GET /v
 
 ### Notable gaps
 
-- **No concurrency test anywhere.** Not the double leave, not two creates racing on one hash, not
+- **Concurrency is tested only for the double leave.** Not two creates racing on one hash, not
   two confirms.
 - **The compose-init baseline path is never exercised.** `TestDatabase` creates an empty database,
   so `Migrator.Baseline` always takes its early return. The branch for a database the compose init

@@ -9,14 +9,14 @@
 - `Identity/`
   - `StytchClient`: the only code that calls Stytch (basic auth, snake_case JSON).
   - `StytchAuthentication`: JWT bearer setup, `AccountClaim = "account_id"`, `RolesClaim = "roles"`. `StytchJwks`: key cache.
-  - `AuthEndpoints` (`/v1/auth/*`), `AccountEndpoints` (`/v1/account`), `AccountRepository`, `AccountDeleter`.
+  - `AuthEndpoints` (`/v1/auth/*`), `AccountEndpoints` (`/v1/account`), `IAccountRepository` / `AccountRepository`, `AccountDeleter`.
   - `Sessions`: the post-authenticate step. `DevSessions`: the Development-only token mint.
-- `Content/Assets/`: `AssetEndpoints`, `AssetRepository`, `FolderEndpoints`, `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `StarterAssets`, `StarterMeshes`.
-- `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyEndpoints`, `ArmyRepository`, `CatalogKinds`.
-- `Content/Layouts/`: `LayoutEndpoints`, `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
-- `Games/`: `GameEndpoints`, `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`; `GET /v1/properties/{hash}/rules`, a pinned set's catalog entries with `rule_text`, 404 for an unknown hash).
+- `Content/Assets/`: `AssetEndpoints`, `IAssetRepository` / `AssetRepository`, `FolderEndpoints`, `IFolderRepository` / `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `StarterAssets`, `StarterMeshes`.
+- `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyEndpoints`, `IArmyRepository` / `ArmyRepository`, `ICatalogKinds` / `CatalogKinds`.
+- `Content/Layouts/`: `LayoutEndpoints`, `ILayoutRepository` / `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
+- `Games/`: `GameEndpoints`, `IGameRepository` / `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`; `GET /v1/properties/{hash}/rules`, a pinned set's catalog entries with `rule_text`, 404 for an unknown hash).
 - `Http/`: `ClientVersionMiddleware`, `Keyset` / `Page<T>`, `CurrentAccount`, `Problems`.
-- `Persistence/`: `Database` (one `NpgsqlDataSource`), `Migrator` (DbUp), `Migrations/NNN_*.sql` (embedded resources).
+- `Persistence/`: `Database` (one `NpgsqlDataSource`), `Migrator` (DbUp), `IMigrator` / `PostgresMigrator` (the startup step), `Migrations/NNN_*.sql` (embedded resources).
 
 ## How it works
 
@@ -26,7 +26,7 @@
 - Authenticated requests carry the Stytch session JWT. Verification: RS256, issuer `stytch.com/{projectId}`, audience the project id, keys from `StytchJwks`. `CurrentAccount.Id` reads the `account_id` claim and throws `UnauthorizedAccessException` (401) without it.
 - Assets: `POST /v1/assets` returns a presigned PUT URL, the client uploads to MinIO, `POST /v1/assets/{id}/confirm` checks the object size and the GLB header (`GlbHeader`) and marks the blob uploaded. `GET /v1/assets/{id}/download` returns a presigned GET.
 - Blobs are keyed by owner and content hash (`IBlobStore.Key`). Presigned PUT URLs cannot enforce size; the confirm size check is the only guard.
-- Starter miniatures: `StarterAssets.SeedIfNeeded` runs at login while `account.starter_seeded_at` is null. It writes `StarterMeshes.All` (deterministic in-memory GLBs) into a `Starter` folder. A failure is logged and never blocks login.
+- Starter miniatures: `StarterAssets.SeedIfNeeded` runs at login while `account.starter_seeded_at` is null. It puts `StarterMeshes.All` (deterministic in-memory GLBs) into the blob store, then `IAssetRepository.AddStarter` files them in a `Starter` folder. A failure is logged and never blocks login.
 - Armies: `POST /v1/armies/import` takes an Army Forge share link or list id, fetches `https://army-forge.onepagerules.com/api/tts?id=...`, and maps it with `ArmyForgeImport`. Only Grimdark Future and Age of Fantasy lists import. Fetch failures return 502.
 - Layouts: `/v1/layouts` stores a `TableState` per owner. Folders: `/v1/folders` nest and hold assets via `PUT /v1/folders/{id}/assets/{assetId}`.
 - Games: create, list, get, join, leave, end, delete under `/v1/games`. The list is public and each `GameSummary` carries `ParticipantNames`. `GameRepository.Create` generates the game's `rng_seed` once. `GET /v1/games/{id}/assets` returns presigned downloads (60 min) for participants only.
@@ -41,7 +41,7 @@
 - Optional: `STYTCH_BASE_URL` (default `https://test.stytch.com`), `WEB_URL` (default `http://localhost:5173`; the only CORS origin, and the base of the password-reset redirect), `MANAGEMENT_URL` (default `http://0.0.0.0:5100`), `MIN_CLIENT_VERSION` (default `ProtocolVersion.Current`), `S3_PUBLIC_ENDPOINT`.
 - `S3_PUBLIC_ENDPOINT` is the address presigned URLs name, for a client that reaches MinIO at a different address than the server. SigV4 signs the host, so `S3BlobStore` presigns with a second client on `S3SigningEndpoint` (public endpoint, else `S3_ENDPOINT`). Compose sets it to `http://127.0.0.1:9000` beside `S3_ENDPOINT=http://minio:9000`.
 - `STYTCH_SECRET` is never in a file: `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management` (`UserSecretsId` `tabletop-management`), or `TABLETOP_STYTCH_SECRET` in `.env` for the compose container.
-- `ManagementOptions` is registered as a factory so `WebApplicationFactory` overrides apply. It is resolved right after `Build()`, then `Migrator.Run`.
+- `ManagementOptions` is registered as a factory so `WebApplicationFactory` overrides apply. It is resolved right after `Build()`, then `IMigrator.Run`.
 
 ## Identity and the Stytch dashboard
 
@@ -53,8 +53,8 @@
 
 ## Persistence
 
-- Npgsql plus Dapper, SQL inline in the repositories. `Database` forces `Search Path=management,game,public`, so SQL names tables bare.
-- `Migrator.Run` runs at startup: DbUp over the embedded `Persistence/Migrations/*.sql`, one transaction per script, journal `public.schema_version`. It strips the connection's `Search Path` for DbUp, so every script names its schema.
+- Endpoints and services depend on the repository interfaces; the SQL classes implement them (Npgsql plus Dapper, SQL inline) and are registered in `Program.cs`. A new query is a member on the interface, the SQL class and the in-memory fake. `Database` forces `Search Path=management,game,public`, so SQL names tables bare.
+- `Migrator.Run` runs at startup through `IMigrator`: DbUp over the embedded `Persistence/Migrations/*.sql`, one transaction per script, journal `public.schema_version`. It strips the connection's `Search Path` for DbUp, so every script names its schema.
 - `Migrator` baselines a database created by compose's init SQL (the `management.account` table exists, no journal) by recording `001_schema.sql` as applied.
 - `001_schema.sql` is a copy of `scripts/postgres/init/001_schema.sql`. Neither is edited. A schema change is a new `NNN_*.sql` here, and `docs/schema.md` follows.
 
@@ -64,7 +64,8 @@
 docker compose up -d                  # Postgres and MinIO (full stack: management and game as dotnet-watch containers)
 ./scripts/management                  # host run on :5100, Development; needs .env and the Stytch secret
 dotnet build server/management
-dotnet test tests/Tabletop.Management.Tests    # needs docker compose up -d
+dotnet test tests/Tabletop.Management.Tests                                   # unit: nothing running
+dotnet test tests/Tabletop.Management.Tests --settings tests/e2e.runsettings  # E2E: docker compose up -d
 ```
 
 - Under compose, the `management` service runs `dotnet watch` with its own build slot (`TabletopBuildSlot=-management`), `TABLETOP_DB_CONNECTION` host `postgres`, and `TABLETOP_S3_ENDPOINT=http://minio:9000`. The game server container waits on its health check.
@@ -73,7 +74,9 @@ dotnet test tests/Tabletop.Management.Tests    # needs docker compose up -d
 
 ## Tests
 
-- `tests/Tabletop.Management.Tests`: xUnit over `ManagementFactory` (`WebApplicationFactory<Program>`) against the Docker Postgres through `TestDatabase`. Environment is `Testing`; `DevSessionTests` sets `HostEnvironment` to Development.
+- `tests/Tabletop.Management.Tests`: xUnit over `ManagementFactory` (`WebApplicationFactory<Program>`), which registers the in-memory fakes in `Infrastructure/`: an `InMemory*` per repository interface over one `InMemoryRows` (keys, foreign keys and cascades of the migrations), `InMemoryBlobStore` (its `Client()` serves the presigned URLs), and a no-op `IMigrator`. Database and S3 settings name a closed port. Environment is `Testing`; `DevSessionTests` sets `HostEnvironment` to Development.
+- Tests seed what no repository writes (Properties sets, catalog entries, lobby picks, frozen armies, a game's table, the event log) through `InMemoryRows`.
+- `Contracts/RepositoryContract` runs against the fakes (unit) and the SQL classes on a `TestDatabase` (E2E); `BlobStoreContract` against `InMemoryBlobStore` and `S3BlobStore`. A fake's behaviour changes with its SQL class, and the contract test with both. `MigrationTests` is E2E.
 - `FakeStytch`, `FakeArmyForge` and `TestKeys` replace the network; tests sign their own JWTs. `Fixtures/` and `TestGlb` supply files.
 - Config overrides in tests are in-memory keys without the `TABLETOP_` prefix.
 
