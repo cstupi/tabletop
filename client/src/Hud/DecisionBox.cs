@@ -96,7 +96,11 @@ public partial class DecisionBox : PanelContainer
     void RenderAsk()
     {
         var p = _s.Projection; var game = _s.Game;
-        if (p is null || game is null || game.Status != GameStatus.Playing) { Reset(); _renderedAsk = null; _title.Text = _note.Text = _hint.Text = ""; return; }
+        if (p is null || game is null || game.Status != GameStatus.Playing)
+        {
+            if (_s.Phase == SessionPhase.Reconnecting) KeepGhosts();
+            Reset(); _renderedAsk = null; _title.Text = _note.Text = _hint.Text = ""; return;
+        }
         var fresh = _reveals.Drain();                                           // every reveal since the last render, in order
         if (fresh.Count > 0) _revealed = string.Join("\n", fresh);
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
@@ -126,7 +130,7 @@ public partial class DecisionBox : PanelContainer
         switch (mine.Mode)
         {
             case AskMode.Choose: RenderChoose(mine); break;
-            case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); break;
+            case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); RestoreMove(mine.Ask.Id); break;
             case AskMode.TokenSpend: RenderSpend(mine, p, names); break;
             case AskMode.Confirm:                                               // "Continue" for a step gate, "End the round" at the round boundary
                 _onEnter = () => Send(mine.Ask, new Confirmed());
@@ -289,7 +293,7 @@ public partial class DecisionBox : PanelContainer
     void Unhook()
     {
         _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
-        _proposed = null; _deployAt = null; _deployUnit = null; _regate = null; _gate = new(true, null); _regions = null;
+        _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click
         UnhookPicks();
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Minimum = null; _input.Region = null; _input.Reach = null; _input.Eligible = new HashSet<Guid>(); }

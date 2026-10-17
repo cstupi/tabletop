@@ -12,6 +12,8 @@ namespace Tabletop.Client.Hud;
 public partial class DecisionBox
 {
     Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit;
+    /// <summary>The facings the player gave the ghosts, read at each drop, and the ghosts kept across a reconnect.</summary>
+    readonly Dictionary<Guid, Yaw> _turned = new(); readonly GhostStash _stash = new();
     // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
     /// <summary>The open move's per-model regions and the team colour they draw in; null outside a move and for a disembark.</summary>
@@ -136,6 +138,28 @@ public partial class DecisionBox
     {
         if (_proposed is not null && _proposed.ContainsKey(modelId)) { _proposed[modelId] = position; _regate?.Invoke(); }
         if (_deployAt is not null && _deployAt.ContainsKey(modelId)) _deployAt[modelId] = position;
+        if ((_proposed?.ContainsKey(modelId) == true || _deployAt?.ContainsKey(modelId) == true) && NodeYaw(modelId) is { } yaw) _turned[modelId] = yaw;
+    }
+
+    /// <summary>A reconnect drops the projection and the table's nodes: the move's or the deploy's ghosts are kept for the same Ask or unit.</summary>
+    void KeepGhosts()
+    {
+        if (_renderedAsk is { } ask && _proposed is { } proposed) _stash.Keep(ask, proposed, _turned);
+        else if (_deployUnit is { } unit && _deployAt is { } at) _stash.Keep(unit, at, _turned);
+    }
+
+    /// <summary>After the move's render for the Ask the ghosts were kept for: each back where it stood, facing as it was, and the commit gated again.</summary>
+    void RestoreMove(Guid askId)
+    {
+        if (_stash.Take(askId) is not { } kept || _proposed is not { } proposed) return;
+        foreach (var (id, ghost) in kept)
+        {
+            if (!proposed.ContainsKey(id) || _view.PieceAt(id) is not { } n || !IsInstanceValid(n)) continue;
+            proposed[id] = ghost.Position;
+            n.Position = WorldFrame.ToGodot(ghost.Position);
+            if (ghost.Yaw is { } yaw) { n.Rotation = new Vector3(0, WorldFrame.Radians(yaw), 0); _turned[id] = yaw; }
+        }
+        _regate?.Invoke();
     }
 
     /// <summary>Deployment placement: the server waits for every model of the unit just picked (MidDeploy). A click on the table drops
@@ -148,6 +172,12 @@ public partial class DecisionBox
         _hint.Text = "Click the table where the unit goes";
         var unit = mid.UnitId;
         _input.PlacementPoint = at => DropDeploy(unit, at);                        // its own slot: a menu point pick cannot take it
+        if (_stash.Take(unit) is { } kept && _s.Projection is { } p)                // the placement a reconnect interrupted, for the models still on the shelf
+        {
+            var layout = kept.Where(kv => p.Models.GetValueOrDefault(kv.Key) is { Location: OnShelf } m && m.UnitId == unit)
+                .Select(kv => new ModelRelocation(kv.Key, new OnShelf(), new OnTable(new Placement(kv.Value.Position, kv.Value.Yaw ?? new Yaw(0))))).ToList();
+            if (layout.Count > 0) ShowDeploy(layout);
+        }
     }
 
     void DropDeploy(Guid unit, Point3 at)
@@ -156,6 +186,11 @@ public partial class DecisionBox
         var models = p.Models.Values.Where(m => m.UnitId == unit && m.Location is OnShelf).OrderBy(m => m.Slot.Ordinal).ToList();
         var layout = DeployView.Layout(models, at, _view.Size);
         if (layout.Count == 0) return;                                              // nothing fits there: the pick stands for another click
+        ShowDeploy(layout);
+    }
+
+    void ShowDeploy(IReadOnlyList<ModelRelocation> layout)
+    {
         _input.PlacementPoint = null;
         _deployAt = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
         _input.Proposing.Clear(); foreach (var r in layout) _input.Proposing.Add(r.ModelId);
