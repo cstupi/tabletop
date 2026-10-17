@@ -267,6 +267,14 @@ Not Postgres `enum` types. The values are closed and extending them is a code ch
 accepted — but `ALTER TYPE ADD VALUE` has transaction restrictions that bite in migrations,
 while altering a check constraint is ordinary DDL. Text also reads directly in queries.
 
+### Stored names have a length check
+
+`account.name`, `folder.name`, `asset.name`, `army.name`, `game.name` and `table_state.name` are at most 64
+characters and `army.source` at most 512, by `check (char_length(...) <= n)` constraints from management's
+`011_text_limits.sql`. They are `not valid`: rows written before the limits keep their values, and every insert
+and update is checked. The API enforces the same limits first (`Http/Limits.cs`), plus a refusal of control and
+bidirectional formatting characters that the schema does not repeat.
+
 ### Lengths, coordinates and angles are `double precision`
 
 Every length, coordinate, yaw and scale column is `double precision`, which Postgres also names
@@ -355,6 +363,8 @@ undone roll's dice stay spent and no RNG state is stored anywhere. Management wr
 seed once, at creation, and never again. It is not derived from the game id, because a simulator
 run then has no way to choose one. The absent default is deliberate,
 so a caller that omits the seed fails loudly instead of playing a game nobody can reproduce.
+The seed is server-only: every die is a function of it, so it never appears in an HTTP response or a
+socket frame (`GameInfo.RngSeed` is not serialized); the game server reads it from this column.
 
 ### `participant` links to its game, and holds the army it picked
 
@@ -372,7 +382,7 @@ touching the game.
 presigned PUT and flipped by `/confirm`, so the gap between the two is visible rather than
 indistinguishable from a finished upload. These two columns arrive as management's
 `002_blob_uploaded.sql` rather than in `001_schema.sql`. The init SQL, `scripts/postgres/init/001_schema.sql`, is
-management's `001_schema.sql`; every table and column from `002` to `009` reaches the database through management's
+management's `001_schema.sql`; every table, column and constraint from `002` on reaches the database through management's
 migrations only.
 
 ### `account` records whether its starter meshes were seeded

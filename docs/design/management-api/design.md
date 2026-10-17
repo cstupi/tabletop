@@ -303,7 +303,7 @@ sequenceDiagram
     K-->>S: session_jwt, user{external_id?}
     A->>X: Complete(session)
     alt external_id absent
-        X->>R: Insert(Guid.CreateVersion7(), email local part)
+        X->>R: Insert(Guid.CreateVersion7(), Player-xxxx)
         X->>S: SetExternalId(user_id, account id)
         S->>K: PUT /v1/users/{user_id}
     else external_id present
@@ -343,15 +343,31 @@ spends it, and linking at `POST /v1/auth/otp` would create an account row for an
 stamps the claim from it. **No Stytch identifier is stored in our schema** (accounts → *Auth is a module,
 not a vendor*). `account` is `id`, `name` and `starter_seeded_at`.
 
+A new account's `name` is `Sessions.DefaultName()`, `Player-` and four random hex digits, never derived
+from the email: account names are public (game browser, participant lists). The player sets one with
+`PATCH /v1/account`. Accounts created before this rule keep the email local part they were given until
+renamed.
+
+Stytch's own error never reaches the caller. `Sessions.Problem` maps a `StytchException` to a fixed detail
+and `AuthEndpoints` logs the `error_type`: `401`/`404` → `401` "Wrong email, password or code."; `429` →
+`429`; `5xx` and transport failures → `502`; `weak_password` → `422` naming the password; every other `4xx`,
+`duplicate_email` included, → `422` with one generic detail, so signup does not say whether an email has an
+account. A signup that succeeds still shows that the email was free; that is inherent in password signup
+without an email-verification step.
+
 After the account row exists and before the session is stamped, `Sessions.Complete` calls
 `StarterAssets.SeedIfNeeded` (§6, *Starter miniatures*). A failure is logged and never blocks the login.
 
 Verification is `Microsoft.AspNetCore.Authentication.JwtBearer` with
 `MapInboundClaims = false`, `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = {project_id}`,
-`ValidAlgorithms = [RS256]`, `ClockSkew = 30s`, and an `IssuerSigningKeyResolver` that delegates to
-the `StytchJwks` singleton. `StytchJwks.Resolve(kid)` caches the key set. On a `kid` it does not
-hold, it refetches **once, at most every 30 seconds**, behind a `SemaphoreSlim`. That is the key
-rotation path, and the only reason the cache is not permanent.
+`ValidAlgorithms = [RS256]`, `ClockSkew = 30s`. The `IssuerSigningKeyResolver` is synchronous, so it
+reads the `StytchJwks` cache only (`Cached(kid)`); the bearer handler's `OnMessageReceived` event reads the
+token's `kid` and awaits `StytchJwks.Ensure(kid)` first. `Ensure` completes at once when the kid is held;
+otherwise it joins the one fetch in flight or starts it, so concurrent callers share one request and a
+caller holding its kid never waits. A miss refetches **at most every 30 seconds**; that is the key
+rotation path, and the only reason the cache is not permanent. A fetch is bounded to 5 s
+(`StytchJwks.DefaultFetchTimeout`, also the `stytch-jwks` client's timeout); a failed or slow fetch is
+logged and leaves the cached set, so the token is a `401`.
 
 The JWKS endpoint `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` **takes no credentials**.
 Stytch's reference page lists a `basicAuth` scheme and passes `-u project:secret` in its example.
@@ -755,6 +771,14 @@ client, which a service-to-service call would have avoided. There are no service
 `update`. A state patch deletes the three child collections and rewrites them. `POST` requires a
 name and answers `422` without one. A game's draft has none. A saved layout must have one.
 
+Both writes go through `LayoutRules.Problem` (`422`): name ≤ 64 characters with no control or
+bidirectional formatting characters; table sides above 0 and at most 144"; at most 64 terrain pieces, 32
+markers, 16 zones and 16 volumes per piece; finite positions, yaws and volume dimensions; terrain scale in
+(0, 100], marker diameter in (0, 24"]; builtin names, marker labels and zone shapes ≤ 64; volume notes ≤
+2000; defined enum values. Then `AssetReferences.Check`: every asset id the layout names is an uploaded
+asset **of the caller's** of a fitting kind (`texture` for the texture, `terrain` for a placement, either
+mesh kind for a marker visual), else `422`. An account holds at most 200 layouts.
+
 `LayoutRepository.ReadTree(connection, id, name, size, texture)` is `static`. It is the one reader
 of the placement/volume/marker/zone tree, and the game-server plan reads the same rows for a game's
 draft.
@@ -813,7 +837,10 @@ Endpoint behaviour:
 
 - `POST /v1/games` validates the `properties_hash` against the `properties` table and copies
   `game_rules` from the chosen row, so a game can never name a ruleset its pinned set disagrees
-  with. An unknown hash is `422` with a pointer to `GET /v1/properties`.
+  with. An unknown hash is `422` with a pointer to `GET /v1/properties`. The name is ≤ 64 characters with
+  no control or bidirectional formatting characters. `GameRepository.Create` writes `game.rng_seed` once.
+  The seed never leaves the servers: every die is a pure function of it, so `GameInfo.RngSeed` is
+  `[JsonIgnore]` and no create, get or join response (nor any game-server frame) carries it.
 - `GET /v1/games` lists **every status**, keyset over `id`, **descending**. Filtering is the user's, not
   the server's. "Open games" was the wrong phrase. Nothing is hidden by status (accounts → *Still
   open*). Descending by id means newest first: the list filters by status, name and created-by-me,
@@ -840,11 +867,13 @@ Endpoint behaviour:
 ### 11. The manifest, the one cross-owner read
 
 The library is private for discovery, not for access. Every other asset route is owner-only. This
-one is authorized by participation and returns presigned URLs for every asset in play, whoever owns
-it (management API → *The game manifest*).
+one is authorized by participation and returns presigned URLs for every asset in play that **a
+participant of the game owns** (management API → *The game manifest*). An id in play that no participant
+owns (a setup edit can name any id) is dropped, so the manifest never presigns a stranger's blob.
 
 `GameRepository.ManifestAssets(gameId)` collects one `HashSet<Guid>` of asset ids from five
-sources, then joins `asset` to `blob` and keeps only what is uploaded:
+sources, then joins `asset` to `blob` and keeps only what is uploaded and owned by an account with a
+`participant` row in the game:
 
 | Source | Query | When |
 | --- | --- | --- |
@@ -882,17 +911,23 @@ plus `AddProblemDetails()`. The status vocabulary across the whole surface:
 
 | Status | When |
 | --- | --- |
-| `400` | a malformed version header, a non-positive `limit` |
+| `400` | a malformed version header, a non-positive `limit`, a body that does not bind (an enum as an integer or an unknown name) |
 | `401` | no token, wrong issuer, expired token, Stytch `401`/`404` on a login |
 | `404` | a missing row, another owner's row, a game the caller is not a participant of (for the participant-only routes) |
-| `409` | confirm before the bytes are there, download before confirm, volumes on a non-terrain asset, Stytch `duplicate_email` |
+| `409` | confirm before the bytes are there, download before confirm, volumes on a non-terrain asset |
+| `413` | a request body over 1 MB |
 | `415` | a content type the kind does not accept. STL is refused here, at create time |
-| `422` | validation, an unknown `properties_hash`, an unimportable game system, a folder cycle, Stytch `weak_password`/`breached_password` |
+| `422` | validation and limits (§14), an asset reference that is not the caller's uploaded asset of a fitting kind, an unknown `properties_hash`, an unimportable game system, a folder cycle, any Stytch `4xx` other than `401`/`404`/`429` (`duplicate_email` included, with the same detail as the rest) |
 | `426` | `Tabletop-Client-Version` below `MinimumClientVersion` |
+| `429` | a rate limit (§14), Stytch `429` |
 | `502` | Army Forge unreachable or non-200, Stytch `5xx` |
 
+Problem details are fixed text. Upstream errors (Stytch's `error_type`, Army Forge and GLB parse
+exceptions) are logged, never echoed.
+
 Response bodies serialise through `ContentJson.Configure`: camelCase, snake_case enums, nulls
-omitted. A `TableState` or a `GameInfo` on HTTP is therefore byte-identical to the same value on
+omitted. Request bodies bind with the same options except that enums bind **by name only**
+(`JsonStringEnumConverter(allowIntegerValues: false)`), so `{"kind": 99}` is a `400`. A `TableState` or a `GameInfo` on HTTP is therefore byte-identical to the same value on
 the socket. That is why those types live in `libs/Tabletop.Content` and `libs/Tabletop.Protocol`
 instead of being redefined here. Everything with no contract type is a DTO of this project.
 
@@ -1071,7 +1106,7 @@ and a build whose environment is unset serves `404` for it.
 | `Http.Keyset`, `Http.Page<T>` | `Keyset.Parse(int?, Guid?)`, `Keyset.Default = 50`, `Max = 200`; `Page<T>.Of(items, limit, id)` |
 | `Http.Problems`, `Http.CurrentAccount` | `NotFound()`, `Conflict(detail)`, `Unprocessable(detail)`, `BadGateway(detail)`; `CurrentAccount.Id(ClaimsPrincipal)` |
 | `Persistence.Database`, `Persistence.Migrator`, `Persistence.IMigrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)`; `IMigrator.Run()`, implemented by `PostgresMigrator` |
-| `Identity.StytchJwks` | `Resolve(string? kid)`, `Url` |
+| `Identity.StytchJwks` | `Ensure(string? kid)`, `Cached(string? kid)`, `Resolve(string? kid)`, `Url`, `DefaultFetchTimeout` |
 | `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `RolesClaim = "roles"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
 | `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
 | `Identity.Sessions` | `Complete(StytchSession) : SessionResponse`; `static Problem(StytchException) : IResult` |
@@ -1160,13 +1195,13 @@ server may not have finished seeding.
 
 ### Key resolution, and the refresh loop
 
-**Key resolution.** The `JwtBearer` handler calls `StytchJwks.Resolve(kid)` for every request. On
-an empty cache it fetches `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` with no credentials.
-When the token names a `kid` the cached set does not hold, it refetches **once, and only if the
-last fetch is more than 30 seconds old**. That floor is a stampede guard. It is also the exposure:
-a Stytch key rotation inside 30 seconds of the last fetch answers `401` until the window passes.
-The resolver is called synchronously, as `Resolve(kid).GetAwaiter().GetResult()`. The fetch blocks
-a request thread behind a `SemaphoreSlim` that every other concurrent caller also waits on.
+**Key resolution.** The `JwtBearer` handler's `OnMessageReceived` awaits `StytchJwks.Ensure(kid)` for
+every request, and its resolver then reads `StytchJwks.Cached(kid)`. On an empty cache `Ensure` fetches
+`GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` with no credentials. When the token names a `kid` the
+cached set does not hold, it refetches **once, and only if the last miss refetch is more than 30 seconds
+old**. That floor is a stampede guard. It is also the exposure: a Stytch key rotation inside 30 seconds of
+the last fetch answers `401` until the window passes. One fetch runs at a time; concurrent callers await it
+asynchronously, and a fetch is cut off after 5 s.
 
 **Refresh.** The client calls `POST /v1/auth/session/refresh` about once a minute with the JWT it
 holds, expired or not. Stytch documents that `/v1/sessions/authenticate` accepts a JWT already past
@@ -1495,7 +1530,6 @@ on purpose. Normalised, a later migration could alter what a past game was playe
 | Account deletion: Stytch fails with anything but `404` | content and hosted games are already gone, joined games already left. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
 | A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Notable gaps* |
 | JWKS refetch throttle | a Stytch key rotation within 30 seconds of the last fetch yields `401`s until the window passes | accepted stampede guard |
-| Blocking key resolution | `IssuerSigningKeyResolver` calls `jwks.Resolve(kid).GetAwaiter().GetResult()`, so the first request after a cold start blocks a thread-pool thread on an outbound HTTP call, behind a semaphore every other concurrent request also waits on | not addressed. A burst at startup is the exposure |
 | Presigned download URL outlives participation | a player who left keeps a working URL for up to 60 minutes | **accepted**: another player retaining a mesh they were already shown harms nobody |
 | Manifest `ExpiresAt` is 60 minutes, and games run hours | mid-game asset loads fail after an hour unless the client re-requests | the spec leaves re-issue undecided. The client must handle it |
 | `GET /v1/games/{id}` exposes participants' display names to any logged-in caller | there is no relationship graph, but a public game reveals who is in it | consistent with games being public; what an account looks like to another account beyond a name is undecided (accounts) |
