@@ -1176,7 +1176,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `sealed record SequenceContext(Guid? ActorUnitId, IRL<Guid> TargetUnitIds, IRL<Guid> WeaponIds, string? Action)` | |
 | `sealed record GameEvent(long Seq, Guid? Actor, EventPayload Payload, string? Warning)` | `string Kind` `[JsonIgnore]` |
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |
-| `sealed record Ask(...)`; `sealed record AskOption(string Id, string Label, IRL<Guid> Pieces)`; `static class AskQuestions` | nine `const string` question names |
+| `sealed record Ask(...)`; `sealed record AskOption(string Id, string Label, IRL<Guid> Pieces, string? Note = null)`; `static class AskQuestions` | nine `const string` question names; `Note` is the ruleset's reason a choice set is limited, shown as sent |
 | `sealed record MoveContainment(IRL<Guid> Enterable, Guid? ExitingId, double? ExitWithin)` | not a union member, used as `MoveRegion.Containment` |
 | `sealed record TeamAnswer(Guid TeamId, AskAnswer Answer)`; `sealed record DieReplacement(int Index, Die Old, Die New)`; `sealed record DieValue(int Index, int Raw)` | |
 | `enum PlacementKind { Held, Proposed }`; `Presence`, `Cursor`, `Selection`, `PresencePlacement`, `Measurement`, `Ping` | |

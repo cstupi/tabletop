@@ -97,7 +97,9 @@ me it shows the waiting line instead.
 | `charge_target`, `takedown_target`, `spell_targets` (PieceSelection) | the prompt | eligible units glow; clicking one picks it |
 | `spend_tokens` (TokenSpend) | a stepper per caster, sealed, as today | — |
 
-A refusal shows in the box as an orange line, as `AskPanel` does today.
+A refusal shows in the box as an orange line, as `AskPanel` does today. An option's `Note` (the ruleset's reason a
+unit's choices are limited, e.g. Shaken p.10) shows once in warning colour under that unit's options, and under the
+unit card's rule chips while that unit is on the card.
 
 **Hint line.** Under the box, the keys that apply now, e.g. `Drag to move · Shift: one model · 1–5 while holding:
 rows · Enter: commit · Esc: cancel`.
@@ -111,6 +113,9 @@ Lower right, a button by default. **G** or a click opens it upward from the corn
 it today (undo-to-here, struck-through undone events), with each roll's dice inline. The Animate toggle moves into it.
 
 ## Table interaction
+
+**Team tint.** Every model is drawn in the proxy colour blended halfway toward its team's colour (`Palette.Tinted`);
+yellow stays the selection highlight.
 
 **Hover a unit.** Its name floats above it in its team's colour. With one of my units selected, the distance follows
 the name (`Red Warriors · 8.4"`), measured between the closest models of the two units, base edge to base edge (p.5),

@@ -356,7 +356,9 @@ take. `GrimdarkFutureRules.LegalTurn` builds it as an `Options` legal set whose 
 `"{unit name}: {action}"` and `Pieces = [unitId]`, so the client highlights the unit. The id names
 both halves because under `warn` or `silent` an out-of-set `Chosen` still reaches the scheduler
 and must still say what the player meant (scheduler spec → Enforcement). The client renders
-`Label` and `Pieces` and never parses the id.
+`Label` and `Pieces` and never parses the id. When the ruleset limits a unit's actions,
+`Note` carries the reason in the book's words and page (`GfRules.ActivationChoices`: Aircraft p.13, Shaken p.10,
+Immobile p.14, Artillery p.13, no enemy in charge range p.7); every option of that unit carries the same note.
 
 For Grimdark Future the legal set is *units of this team with an empty action record and at least
 one model on the table*, crossed with `ActionsFor`:
