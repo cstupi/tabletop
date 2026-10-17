@@ -214,7 +214,7 @@ public void A_hold_action_carries_the_verdict_settled_by_fire_groups() { /* Hold
 - `Target`: printed part from `Basis` (`{Stat} {Printed}+`) or `{Threshold}+` when absent; clauses in order: the cover verdict when
   `Cover` is set and not applied (`no cover: M/N models`, `cover ignored (X)`), each basis change (`{Source} {SetTo}+` or `{Source}
   ±n`), each modifier (`{Via} {Source} ±n`); `→ needs N` when anything changed the printed value, N = threshold − net modifier,
-  clamped 2..6; `RequiredRaw` reads `needs {r} unmodified`.
+  clamped 2..6; `RequiredRaw` reads `unmodified {r}+`, nothing when it is 1.
 - Result for `hit`: successes + the sum of `+n hit(s)` triggers; the parenthesis groups triggered dice by rule:
   `(3 sixes: Rending)`, `(2 sixes: Furious +2 hits)`; `sixes` is the face word when every die of the group shows one face, else `dice`.
 - Amendments on the line: `rerolled ⚀ → ⚄`, `set by hand ⚀ → ⚅`.
@@ -249,8 +249,8 @@ Assert.Equal("Hit · Quality 4+ · 2 dice: ⚀ ⚄ · 1 hit · rerolled ⚀ → 
   `TurnStarted`, `TurnEnded`, a `StepCompleted` with no roll and no change, and `DiceRerolled`/`DiceEdited` of a roll in the log
   (already on its line).
 - Change lines: `N models wounded`, `N models removed` (wounded to the shelf), `{unit} Fled!` (a step that sends models to the shelf
-  with no wound on them: they left the table, not died), `Shaken`, `Shaken cleared`. A change following a single-die roll in the same
-  step frame stays its own line under it.
+  with no wound on them: they left the table, not died), `Shaken`, `Shaken cleared`. A change in a later roll-less step of a
+  single-die test's frame goes on the test's line as its consequence (`failed → Shaken`; spec → Consequence).
 - Outside actions: `Round N`; `Undone to: {header of the block the undo reached}` (else `Undone to #{seq}`); a menu edit
   (`StateChange` payload with an actor) is LogText's line with ` · by hand`; the rest LogText's.
 

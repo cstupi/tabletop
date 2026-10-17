@@ -66,10 +66,19 @@ Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
   blocked, wounds; a single-die test reads passed or failed, then its consequence.
 - **Rerolls and edits** stay on the roll's line: the faces now standing, with `rerolled ⚀ → ⚄` or `set by hand ⚀ → ⚅`.
 - A roll with no threshold and no required face (a property's own roll) shows its faces and no result.
+- A roll judged on the raw face alone reads `unmodified 6+`; one every face passes (a spell's hits) reads no target. A roll made
+  once per wound being dealt counts its dice as wounds (`3 wounds:`) and reads `N ignored, N wounds stand`.
+- **Consequence.** A single-die test (not a hit, a block or a roll per wound) takes the change words of its frame's later steps
+  that roll nothing, up to the frame's end, after its result: `failed → Shaken`, `failed → [unit] Fled!`. Those steps draw no
+  change line of their own.
+- **Roll-off ties.** Each record's dice are labelled by the teams they belong to, in ordinal order: every team on the first
+  record, then the teams still tied, as the server rolls them. `Team k wins` goes on the record after which no team is tied:
+  `Roll-off · Team 1 ⚂ · Team 2 ⚂`, then `Roll-off · Team 1 ⚀ · Team 2 ⚃ · Team 2 wins`.
 
 **Change.** What a step did to the table, after the rolls that caused it: `2 models removed`, `1 model wounded`, `Shaken`,
 `Shaken cleared`, and `[unit] Fled!` for models a step sent to the shelf with no wound on them (a rout after a failed morale
-test).
+test). A condition on a unit other than the block's actor names it first (`[unit] · Fatigued`, a strike-back's fatigue on the
+charger); outside any block it always does. A grant reads `[unit] gets [rule]`.
 
 **Outside any action:** `Round 2`; deployment, one line per unit placed; an objective seized or contested; a menu edit, tagged
 `by hand`; `Undone to: [the action's header]`, the undone lines struck through; the game's end.
@@ -92,9 +101,11 @@ on dice and no cover verdict.
   `LiveSet.GrantorOf`: pass one's `GrantedBy`, or for a per-die grant applied with `LiveSet.WithGranted` for a block group, the
   live rule whose per-die `grant_property` row names that entry and amount. The `granted_` key of `score-hits` is unchanged.
 - **`Die.Triggered`** (list of string, optional): what this die set off, as `Rule` or `Rule +N hit(s)` (attacks, wounds), written
-  when the hit roll is recorded, from `RollEffects.Triggers` on that die (pure; `PerDie` still records in `score-hits`). It names
+  when the roll is recorded, from `RollEffects.Triggers` on that die (pure; `PerDie` still records in `score-hits`). It names
   the rule (Rending, Furious, Relentless, Surge) that acted on the die, so the client counts sixes by rule without knowing any
-  rule. A die a reroll or an edit replaced carries none.
+  rule. A die a reroll or an edit replaced carries none. A spell's hit roll carries them too (Crack on Electric Tempest), and so
+  does a defense roll, from the defender's side (Shred's `+1 wound` on a 1, added to the line's wounds). The dice an
+  extra-attacks row adds carry no `+N attacks`: those rows do not apply to newly generated attacks.
 - **`RollRecord.Cover`** (`CoverVerdict { InCover, Models, Of, IgnoredBy? }`, optional): on every defense roll of a shooting attack,
   the target unit's p.11 verdict: `InCover` the majority test passed, `Models` of `Of` living models fully inside cover terrain or
   behind a sight blocker, `IgnoredBy` the rule that took the +1 away from a unit in cover (a `suppress_modifiers` cover row such
@@ -112,12 +123,18 @@ The rules stay on the server: the client reads names and numbers from the record
   types regenerated (`TABLETOP_WRITE_GENERATED=1`).
 - `server/game`: `RollEffects`, `LiveSet`, `GfRolls` (`Cover`, `DefensePlan`), `GfAttack` (`roll-to-block` groups, the cover
   values), `GfShooting` (`fire-groups`), `RollPlan` / `Roller` / `StepContext.Roll` for the die triggers and the verdict. Tests in
-  `GfCombatLogTests` (a Rending weapon with AP(1), a Furious charge) and `GfCoverTests` (screened, half, Blast, Indirect, a Hold
+  `GfCombatLogTests` (a Rending weapon with AP(1), a Furious charge, an added attack's die, Shred on a defense die),
+  `SpellWeaponRuleTests` (Crack on a spell's hit roll) and `GfCoverTests` (screened, half, Blast, Indirect, a Hold
   action, melee).
-- `client/src/Core`: `CombatLog` and `RollEntry` produce the three line kinds and the dropped set; `LogText` keeps its words for
-  the lines outside actions. `CombatLogTests` on built records: cover in, out and ignored, an old record, Rending and Furious
-  triggers, a basis change, a reroll and an edit, a fled unit, the dropped set, the header's move.
-- `client/src/Hud/CombatLogPanel.cs`, `DiceTray.cs`: one line per entry, expand on click.
+- `client/src/Core`: `CombatLog` (`CombatLog.Words`: change lines, the nested block's and header's words, the consequences and
+  roll-off labels) and `RollEntry` produce the three line kinds and the dropped set; `LogText` keeps its words for the lines
+  outside actions. `CombatLogTests` on built records: cover in, out and ignored, an old record, Rending and Furious triggers, a
+  basis change, a reroll and an edit, a fled unit, the dropped set, the header's move. `CombatLogBlockTests`: `shoots`, an
+  answered target, a strike-back, the nested cast, a consequence, condition subjects, a grant, repeated undos, deployment and a
+  round end's changes, roll-off ties. `RollLineTests`: raw-face and all-pass targets, a roll per wound, `cast`, dangerous terrain.
+  `CombatLogFixtureTests` against the owner's game `01a126db`, seq 245 and 251–354.
+- `client/src/Hud/CombatLogPanel.cs`, `DiceTray.cs`: one row per entry, expand on click; a roll row wraps to the panel's width;
+  the tray clips a long line and carries all of it as its tooltip.
 - `viewer/src/lib/live/logLines.ts` reads the same records; it is not changed by this spec.
 
 ## Out of scope

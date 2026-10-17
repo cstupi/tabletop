@@ -109,11 +109,24 @@ public class UndoPlanTests
         var (plan, log, n) = Plan([.. before.Select(Engine), Me(reroll)]);
         var roll = CombatLog.Build(log, n).OfType<RollEntry>().Single();
         Assert.Equal(3L, plan!.ToSeq);
-        Assert.Equal([$"{roll.Title} · rerolled ⚁ → ⚄"], plan.LostRolls);
+        Assert.Equal([roll.Collapsed(CombatLog.Pip)], plan.LostRolls);           // the line already ends with its live amendments
+        Assert.EndsWith(" · rerolled ⚁ → ⚄", plan.LostRolls[0]);
 
         var edit = new DiceEdited(Samples.Frame, Samples.Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]);
         var (edited, elog, en) = Plan([.. before.Select(Engine), Me(edit)]);
-        Assert.Equal([$"{CombatLog.Build(elog, en).OfType<RollEntry>().Single().Title} · set by hand ⚅ → ⚀"], edited!.LostRolls);
+        Assert.Equal([CombatLog.Build(elog, en).OfType<RollEntry>().Single().Collapsed(CombatLog.Pip)], edited!.LostRolls);
+        Assert.EndsWith(" · set by hand ⚅ → ⚀", edited.LostRolls[0]);
+    }
+
+    [Fact]
+    public void A_roll_and_its_reroll_both_in_the_range_are_listed_once()
+    {
+        var reroll = new DiceRerolled(Samples.Frame, Samples.Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]);
+        var (plan, log, n) = Plan(Engine(Round1), Me(Move),
+            Engine(new SequenceStarted(Samples.Frame, "x", new SequenceContext(Samples.Unit, [], [], null))),
+            Engine(new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit], [])), Engine(reroll));
+        Assert.Equal(1L, plan!.ToSeq);
+        Assert.Equal([CombatLog.Build(log, n).OfType<RollEntry>().Single().Collapsed(CombatLog.Pip)], plan.LostRolls);
     }
 
     [Fact]

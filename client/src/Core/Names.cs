@@ -6,6 +6,8 @@ namespace Tabletop.Client.Core;
 public sealed class Names(GameInfo game, Projection? projection)
 {
     public string Participant(Guid? id) => id is null ? "the game" : game.Participants.FirstOrDefault(p => p.Id == id)?.Name ?? Short(id.Value);
+    /// <summary>The game's teams by ordinal.</summary>
+    public IReadOnlyList<Team> Teams => [.. game.Teams.OrderBy(t => t.Ordinal)];
     public string Team(Guid id) => game.Teams.FirstOrDefault(t => t.Id == id) is { } t ? $"Team {t.Ordinal}" : Short(id);
     public string Unit(Guid id) => projection?.Units.GetValueOrDefault(id)?.Definition.Name ?? Short(id);
     public string Model(Guid id) => projection?.Models.GetValueOrDefault(id) is { } m ? $"{Unit(m.UnitId)} ({m.Slot.Name})" : Short(id);

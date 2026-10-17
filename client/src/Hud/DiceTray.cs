@@ -28,7 +28,8 @@ public partial class DiceTray : PanelContainer
         AddChild(_line);
         _line.AddChild(_row);   // a Button lays out no children: the row fills it and sets its minimum size
         _row.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        _row.MinimumSizeChanged += () => _line.CustomMinimumSize = _row.GetCombinedMinimumSize();
+        _row.MinimumSizeChanged += () => _line.CustomMinimumSize = new(0, _row.GetCombinedMinimumSize().Y);   // the height only: a long line clips, the tooltip has all of it
+        _line.ClipContents = true;
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
@@ -65,8 +66,10 @@ public partial class DiceTray : PanelContainer
     {
         if (_shown is not { } r) return;
         var settled = _tumble <= 0;
+        _line.TooltipText = r.Collapsed(CombatLog.Pip);
         foreach (var c in _row.GetChildren()) { _row.RemoveChild(c); c.QueueFree(); }
         _tumbling.Clear();
+        if (r.DieLabels is { Count: > 0 }) { Add(new Label { Text = r.Collapsed(CombatLog.Pip) }); return; }   // a roll-off: the team words go between the faces
         Add(new Label { Text = r.Title });
         foreach (var d in r.Dice)
         {
@@ -76,8 +79,9 @@ public partial class DiceTray : PanelContainer
             Add(c);
             if (!settled) _tumbling.Add(c);
         }
-        // An unjudged roll has no pass or fail, so no result label.
+        // An unjudged roll has no pass or fail, so no result label; a roll-off whose dice no team labels may still name the winner.
         if (settled && r.Judged) Add(new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Dim });
+        else if (settled && r.Outcome.Length > 0) Add(new Label { Text = r.Outcome });
     }
 
     void Add(Control c) { Ignore(c); _row.AddChild(c); }

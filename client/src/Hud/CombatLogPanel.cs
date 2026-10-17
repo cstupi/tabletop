@@ -89,36 +89,63 @@ public partial class CombatLogPanel : VBoxContainer
     {
         if (Holds(e)) { _open.Add(Key(e)); _folded.Remove(Key(e)); }
         var open = e is ActivationBlock ? !_folded.Contains(Key(e)) : _open.Contains(Key(e));
-        var text = e switch
-        {
-            ActivationBlock b => $"{(open ? "▾" : "▸")} {b.Header}{(open || b.Chain.Length == 0 ? "" : $"  ·  {b.Chain}")}",
-            RollEntry r => $"{(open ? "▾" : "▸")} {r.Title}",
-            LineEntry l => l.Text,
-            _ => "",
-        };
-        var row = new HBoxContainer(); into.AddChild(row);
         var faded = e.Undone || _s.PendingUndoTo is { } to && e.Seq > to;
-        var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
-        if (faded) button.Modulate = Ui.Faded;
         var set = e is ActivationBlock ? _folded : _open;   // a block starts open, a roll closed
-        button.Pressed += () => { Highlight(e); if (e is LineEntry) return; if (!set.Remove(Key(e))) set.Add(Key(e)); Render(false); };
-        row.AddChild(button);
-        if (e is RollEntry line) Faces(row, line, faded);
-        if (e is RollEntry shown && shown.Record.Id == _reveal) _revealed = button;
-        if (e is not RollEntry && !e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
+        void Toggle() { Highlight(e); if (e is LineEntry) return; if (!set.Remove(Key(e))) set.Add(Key(e)); Render(false); }
+        Control shown;
+        if (e is RollEntry roll && roll.DieLabels is not { Count: > 0 }) into.AddChild(shown = RollRow(roll, open, faded, Toggle));
+        else
+        {
+            var text = e switch
+            {
+                ActivationBlock b => $"{(open ? "▾" : "▸")} {b.Header}{(open || b.Chain.Length == 0 ? "" : $"  ·  {b.Chain}")}",
+                RollEntry r => $"{(open ? "▾" : "▸")} {r.Collapsed(CombatLog.Pip)}",   // a roll-off: the team words go between the faces
+                LineEntry l => l.Text,
+                _ => "",
+            };
+            var row = new HBoxContainer(); into.AddChild(row);
+            var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
+            if (faded) button.Modulate = Ui.Faded;
+            button.Pressed += Toggle;
+            row.AddChild(button);
+            if (e is not RollEntry && !e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
+            shown = button;
+        }
+        if (e is RollEntry revealed && revealed.Record.Id == _reveal) _revealed = shown;
         if (!open) return;
         var inner = new VBoxContainer(); var indent = new MarginContainer(); indent.AddThemeConstantOverride("margin_left", 16);
         indent.AddChild(inner); into.AddChild(indent);
         if (e is ActivationBlock block) foreach (var x in block.Entries) Add(inner, x);
-        if (e is RollEntry roll) Details(inner, roll);
+        if (e is RollEntry opened) Details(inner, opened);
     }
 
-    /// <summary>The roll's raw faces, bright on a success and faded on a failure (an unjudged die plain), then its result and live amendments.</summary>
-    static void Faces(HBoxContainer row, RollEntry r, bool faded)
+    /// <summary>The roll as its title, its raw faces (bright on a success, faded on a failure, an unjudged die plain), then its outcome and
+    /// live amendments, wrapping to the panel's width; each label keeps a width floor. A left click anywhere on it is the row's; the
+    /// wheel passes through to the scroll.</summary>
+    static Control RollRow(RollEntry r, bool open, bool faded, Action clicked)
     {
-        foreach (var d in r.Dice) row.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
-        var tail = string.Join(" · ", new[] { r.Result }.Concat(r.Amendments.Where(a => !a.Undone).Select(a => a.Line(CombatLog.Pip))).Where(t => t.Length > 0));
-        if (tail.Length > 0) row.AddChild(new Label { Text = tail, ThemeTypeVariation = faded ? Variation.Dim : "" });
+        var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        row.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) { row.AcceptEvent(); clicked(); } };
+        Label Words(string t, string variation = "") => new()
+        {
+            Text = r.Undone ? Strike(t) : t, CustomMinimumSize = new(160, 0), AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill, ThemeTypeVariation = variation,
+        };
+        row.AddChild(Words($"{(open ? "▾" : "▸")} {r.Title}"));
+        var flow = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; row.AddChild(flow);
+        foreach (var d in r.Dice) flow.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
+        var tail = string.Join(" · ", new[] { r.Outcome }.Concat(r.Amendments.Where(a => !a.Undone).Select(a => a.Line(CombatLog.Pip))).Where(t => t.Length > 0));
+        if (tail.Length > 0) flow.AddChild(Words(tail, faded ? Variation.Dim : ""));
+        Ignore(row); row.MouseFilter = MouseFilterEnum.Pass;
+        if (faded) row.Modulate = Ui.Faded;
+        return row;
+    }
+
+    /// <summary>The click belongs to the row: nothing in it takes the mouse.</summary>
+    static void Ignore(Control c)
+    {
+        c.MouseFilter = MouseFilterEnum.Ignore;
+        foreach (var child in c.GetChildren()) if (child is Control k) Ignore(k);
     }
 
     void Details(VBoxContainer into, RollEntry r)
@@ -132,7 +159,7 @@ public partial class CombatLogPanel : VBoxContainer
             line.AddChild(new Label { Text = d.Text, ThemeTypeVariation = !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure });
         }
         foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
-        var chips = new HFlowContainer(); into.AddChild(chips);   // the rules that acted in the step, with their catalog text
+        var chips = new HFlowContainer(); if (r.Applied.Count > 0) into.AddChild(chips); else chips.QueueFree();   // the rules that acted in the step, with their catalog text
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (r.Undone) return;
         var actions = new HBoxContainer(); into.AddChild(actions);

@@ -75,6 +75,15 @@ public class SpellWeaponRuleTests
     }
 
     [Fact]
+    public void Crack_on_a_spell_names_itself_on_the_six_of_its_hit_roll()
+    {
+        var t = Unit("T", "4+", "4+", [], 5, []);
+        var (sim, _) = Cast(TestProperties.Core, "Electric Tempest (Human Defense Force)", HumanDefenseForce, t, t, 6, 6, 3, 4, 4);
+        var dice = sim.Steps("hit").Single().Rolls.Single().Dice;
+        Assert.Equal([["Crack"], null], dice.Select(d => d.Triggered?.ToArray()));
+    }
+
+    [Fact]
     public void Bane_and_Disintegrate_on_a_spell_suppress_the_targets_Regeneration()
     {
         foreach (var spell in new[] { "Venom Bolt", "Burn Bolt" })

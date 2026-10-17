@@ -97,7 +97,7 @@ public class CombatLogTests
     {
         Assert.Equal("Morale · Quality 4+ · ⚀ · failed", Line(Roll("morale", 4, [], [D(1, 1, false)], Quality4)).Collapsed(CombatLog.Pip));
         var fatigued = new RollRecord(Guid.CreateVersion7(), "hit", 6, [], [D(6, 6, true)], 6);
-        Assert.Equal("Hit · 6+ unmodified · ⚅ · 1 hit", Line(fatigued).Collapsed(CombatLog.Pip));
+        Assert.Equal("Hit · unmodified 6+ · ⚅ · 1 hit", Line(fatigued).Collapsed(CombatLog.Pip));
     }
 
     [Fact]
@@ -119,15 +119,15 @@ public class CombatLogTests
     [Fact]
     public void A_roll_with_no_target_number_shows_its_faces_without_a_result()
     {
-        var roll = new RollRecord(Samples.Roll, "roll-off", null, [new RollModifier("bonus", 1)], [new Die(4, 5, false), new Die(2, 2, false)]);
+        var roll = new RollRecord(Samples.Roll, "scatter", null, [new RollModifier("bonus", 1)], [new Die(4, 5, false), new Die(2, 2, false)]);
         var (entries, _, _) = Build(Round1, new SequenceStarted(Samples.Frame, "x", new SequenceContext(Samples.Unit, [], [], "Hold")),
             new StepCompleted(Samples.Frame, "roll", null, [roll], []), new SequenceFinished(Samples.Frame));
         var block = Assert.IsType<ActivationBlock>(entries[1]);
         var r = block.Entries.OfType<RollEntry>().Single();
         Assert.Equal(["4 → 5", "2"], r.Dice.Select(d => d.Text));
         Assert.Equal("", r.Result);
-        Assert.Equal("Roll off · 2 dice: ⚃ ⚁", r.Collapsed(CombatLog.Pip));
-        Assert.Equal("Roll off", block.Chain);
+        Assert.Equal("Scatter · 2 dice: ⚃ ⚁", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Scatter", block.Chain);
         Assert.False(r.Judged);
     }
 
@@ -164,15 +164,20 @@ public class CombatLogTests
     public void A_unit_sent_to_the_shelf_unwounded_after_a_failed_morale_test_fled()
     {
         var morale = Roll("morale", 4, [], [D(1, 1, false)], Quality4);
+        var shelf = new StepCompleted(Samples.Frame, "consequence", null, [], [new ModelsMoved([new ModelRelocation(Samples.Model, Samples.Deploy.To, new OnShelf())])]);
         var (entries, _, _) = Build(Round1, new ModelsMoved([Samples.Deploy]),
             new SequenceStarted(Samples.Frame, "charge", new SequenceContext(Samples.Unit, [Enemy], [], "Charge")),
-            new StepCompleted(Samples.Frame, "test", null, [morale], []),
-            new StepCompleted(Samples.Frame, "consequence", null, [], [new ModelsMoved([new ModelRelocation(Samples.Model, Samples.Deploy.To, new OnShelf())])]),
-            new SequenceFinished(Samples.Frame));
+            new StepCompleted(Samples.Frame, "test", null, [morale], []), shelf, new SequenceFinished(Samples.Frame));
         var block = entries.OfType<ActivationBlock>().Single();
-        Assert.Equal(["Morale · Quality 4+ · ⚀ · failed", "Battle Brothers Fled!"],
+        // The test's consequence goes on its line; the rout draws no line of its own.
+        Assert.Equal(["Morale · Quality 4+ · ⚀ · failed → Battle Brothers Fled!"],
             block.Entries.Select(e => e is RollEntry r ? r.Collapsed(CombatLog.Pip) : ((LineEntry)e).Text));
         Assert.Equal("Morale failed → Battle Brothers Fled!", block.Chain);
+
+        // A rout no single-die test precedes in its frame reads as its own line.
+        var (loose, _, _) = Build(Round1, new ModelsMoved([Samples.Deploy]),
+            new SequenceStarted(Samples.Frame, "charge", new SequenceContext(Samples.Unit, [Enemy], [], "Charge")), shelf, new SequenceFinished(Samples.Frame));
+        Assert.Equal(["Battle Brothers Fled!"], loose.OfType<ActivationBlock>().Single().Entries.OfType<LineEntry>().Select(l => l.Text));
     }
 
     [Fact]

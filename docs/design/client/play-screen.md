@@ -13,9 +13,9 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed. A click selects and centres the unit; R collapses to the team headers |
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
 | `DecisionBox` | right column, above the undo and log buttons | the first open Ask addressed to me (below) |
-| `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
-| `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; G opens it |
-| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is neither an `Undone` marker nor an `AskClosed`, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll in the combat log's collapsed words when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
+| `DiceTray` | above the decision box | the latest roll's log line, its height only (a long line clips; the tooltip holds all of it); a click opens the log there, expanded |
+| `LogDrawer` | lower right | `CombatLogPanel`: action blocks (a cast nested in one), roll lines, change lines, one row per entry; filters All/Rolls/My units/This unit; 640 px; G opens it |
+| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is neither an `Undone` marker nor an `AskClosed`, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll once, as its combat log line, when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
 | `TurnBanner` | upper third, transient | `TurnBanners`: `Round n` 1.5 s; `Team k's turn` 1 s when the team differs from the previous `TurnStarted`'s; silent while `Session.CatchingUp`, on a batch with an undo, with Animate off or the setting off. Clicks pass through |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
@@ -236,22 +236,41 @@ picked.
 
 ## The combat log
 
-`CombatLog` builds the play log from `Session.Log`, once per log state (`Session.CombatLog`, shared with the dice tray and the undo button), and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled: opening the drawer and every new entry show the newest, once the rows are laid out (the scroll bar's `Changed`); scrolling up lets go, scrolling back to the end follows again. A
-block (`ActivationBlock`) opens at the first `SequenceStarted` with `Context.Action` while none is open. It closes at that
-frame's `SequenceFinished` or `SequenceAbandoned`, or at an `Undone` whose `ToSeq` is before its start. A live block closes only
-at a live finish (a dead one stays inside the block, struck through); a block whose start is undone closes at its own undone
-finish, so it never absorbs a later activation. A block's targets are the distinct targets, in order, of every `SequenceStarted`
-inside it: an activation starts with none, and its nested attack frames name the units attacked. Inside a block each event is a
-`LineEntry`, `LogText.Describe(event, names)` with a `Names` context that resolves participants, teams, units, weapons, models
-and markers, degrading an unknown id to its first eight characters. Each `RollRecord` of a step is one `RollEntry`: the roll's
-name, its threshold with its basis (the stat, the printed value and each change), the dice, the result (`passed`/`failed` for
-one die, else `{successes} {roll}s`) and the chain's parts (`{k} model(s) wounded`, `{k} model(s) removed`, each condition set
-or cleared). The chain's "wounded" leaves out a model the same step sends to the shelf; that model counts as removed. A reroll
-or a set die attaches to the entry it amends, by `RollId`, as a `RollAmendment`; an added modifier (`ModifierAdded`) is its own
-`LogText` line. A roll with neither `Threshold` nor `RequiredRaw` (a roll-off, a property's own roll) is not judged: its dice
-show the face, and the modified value if different, with no pass or fail; its result and its collapsed line's result part are
-empty, its chain part is the roll's name alone, and the dice tray paints it neutral. `EventApplier.EffectiveLog` decides which
-entries are struck through, so an undone range stays visible. Presence never appears in the log.
+`CombatLog` builds the play log from `Session.Log`, once per log state (`Session.CombatLog`, shared with the dice tray and the undo button), and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled: opening the drawer and every new entry show the newest, once the rows are laid out (the scroll bar's `Changed`); scrolling up lets go, scrolling back to the end follows again. The
+lines are the combat-log spec's (`2026-10-13-combat-log-design.md` → The log).
+
+An action block (`ActivationBlock`) opens at a `SequenceStarted` with `Context.Action` while none is open; a `casting` frame inside
+it is a nested block (`Nested`, header `Cast {spell} → {targets}`, the spell's label read off the frame's own `Options` Ask). The
+header is `R{round} · {Team} · {Unit} · {Action}[ → {targets}][ · moved {d}"]`: `→ shoots {target}` once a `shooting` frame opened
+inside it; targets from the action frame, from nested frames whose actor is the block's actor (a strike-back adds none) and from a
+`SelectedPieces` answer on the action frame's own steps; `moved` is the most any of the actor's models moved, each model's
+table-to-table moves summed, to 0.5". A block closes at its frame's `SequenceFinished` or `SequenceAbandoned`, or at an `Undone`
+whose `ToSeq` is before its start. A live block closes only at a live finish (a dead one stays inside the block, struck through); a
+block whose start is undone closes at its own undone finish, so it never absorbs a later activation. A block is open, its entries
+indented beneath it; a click folds it to its header and its chain (each live roll's `Label` and successes, or a single die's result,
+and each change line, `Hit 3 → 2 models removed → Morale failed → Shaken`).
+
+Each `RollRecord` of a step is one `RollEntry` (`RollWords` composes the words from the record): `Title` (label and target),
+the raw faces, `Outcome` and each live amendment, by `RollId`, as a `RollAmendment`. A single-die test (`RollEntry.IsTest`: not a hit,
+a block or a roll per wound) takes as its `Consequence` the change words of its frame's later steps with no roll, up to the frame's
+end; those steps draw no line of their own (`failed → Shaken`). A roll-off's dice are labelled by the teams they belong to and the
+record that broke the tie carries `Team k wins` (`CombatLog.Aftermath`, from `winner_ordinal`). A step's changes follow its rolls as
+`LineEntry` lines: `{k} model(s) wounded` (leaving out a model the same step sends to the shelf), `{k} model(s) removed`,
+`{unit} Fled!` for models shelved unwounded, each condition set or cleared (`{unit} · ` first when it is not the block's actor), and
+`{unit} gets {rule}` for a grant. Outside an action: `Round n`, `{Team} · {unit} deployed` for a player's placement from the shelf,
+a step's deployment or objective change and a round end's objective changes (`LogText.RoundChange`), a menu edit ending `· by hand`,
+`Undone to: {header}` (the first block the undo took back that no earlier undo had already taken, else the action it stepped into)
+and the game's end; an added modifier (`ModifierAdded`) is its `LogText` line. Words come from `Names` (participants, teams, units,
+weapons, models, markers; an unknown id degrades to its first eight characters). Asks, answers, closes, sequence starts without an
+action, finishes, abandons, turns and steps with neither roll nor change draw nothing. A roll with neither `Threshold` nor
+`RequiredRaw` (a roll-off, a property's own roll) shows its faces and no result; the dice tray paints it neutral.
+`EventApplier.EffectiveLog` decides which entries are struck through, so an undone range stays visible. Presence never appears in
+the log.
+
+A roll row wraps to the panel's width: its title, then its faces and outcome in a flow, each label at least 160 px wide; the wheel
+scrolls the panel over it. A click expands its `Details` (the weapons, the basis and each change, each modifier, the cover verdict's
+count, the target), each die, each amendment, the rule chips when the step applied any, then Undo to here, Reroll all, Set die 1… and
++1. Every other row carries Undo to here beside it.
 
 Filters are All, Rolls, My units and This unit; the last two keep blocks and roll entries whose actor or a target matches. The
 filter and the open state persist in `ClientSettings` (`LogFilter`, `LogOpen`). The panel lives in `LogDrawer`, 640 px wide, a

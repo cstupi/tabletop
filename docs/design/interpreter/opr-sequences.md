@@ -96,7 +96,7 @@ for a strike-back.
 | --- | --- |
 | `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]`, `Values["in_cover"]` and the cover verdict's `cover_models`, `cover_of`, `cover_indirect`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
 | `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
-| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
+| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`); an added die leaves out the extra-attacks rows, which do not apply to newly generated attacks. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
 | `score-hits` | Every `hit` roll of the frame as it now stands, through `RollEffects.PerDie`. Writes `Values["extra_hits"]` (`Surge`/`Relentless` per unmodified 6 on a success) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["self_wounds"]` (`Hazardous`'s 1s) with `Values["wounds"]` equal to it. Consumes the per-die grants |
 | `resolve` | `Push(resolve-hits, ...)` |
 | `self-wounds` | `Push(deal-wounds)` at the attacker's own unit, with no actor, when `self_wounds` is above 0 |
@@ -125,7 +125,8 @@ lost the majority, `Values["cover_indirect"]`; `roll-to-block` puts the one verd
 in cover terrain, screened by a sight blocker, or unseen. `Battlefield` supplies only the two
 model lists, `ModelsInCoverTerrain` and `ModelsBehindSightBlockers`, and the fraction is the size
 of their union, because the fraction is a ruleset number. Sight is measured from the whole
-eligible attacker set, not from one vantage model. Indirect drops the sight list. `deal` pushes `deal-wounds`.
+eligible attacker set, not from one vantage model. Indirect drops the sight list. Each defense die carries what it set off on the
+defender's side as `Die.Triggered` (Shred's `+1 wound` on a 1). `deal` pushes `deal-wounds`.
 
 `Impact` hits enter here directly, skipping the hit roll. Spell hits enter after a hit roll that
 cannot fail, so *on rolls of 6* rules read a real die.
@@ -447,7 +448,7 @@ shape:
 - **`AddHit` with no `RollResult` condition** → `Push(spell-hits, ...)`. Its `hit` step rolls
   `amount` dice at threshold 1 with `RequiredRaw` 1, so every die is a hit (p.5's natural 1 does not
   judge a roll that is no test, and an edit is judged the same way) and *on rolls of 6* rules read a
-  real die. Its `score-hits` is `attack-sequence`'s: `extra_hits`, `self_wounds` and
+  real die; each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`). Its `score-hits` is `attack-sequence`'s: `extra_hits`, `self_wounds` and
   `granted_<entry>_<amount>` from the dice as they now stand, and it `Finish`es the frame when the
   spell scored no hit. Then `resolve-hits` is pushed.
 - **Any effect with `Duration = Once`** → `GrantAdded(targetUnit, new Grant(id, effect.Id,
