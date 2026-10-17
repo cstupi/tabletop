@@ -1,6 +1,6 @@
 # Grimdark Future's sequences
 
-Fifteen sequences, what each step does, which rulebook page it comes from, and where the
+Nineteen sequences, what each step does, which rulebook page it comes from, and where the
 composition is subtle. [design.md](design.md) designs the generic interpreter they run on.
 Everything here lives in `server/game/Rules/GrimdarkFuture/`, the only directory in the module
 allowed to name an OPR rule.
@@ -15,6 +15,7 @@ edges and the free-for-all roll-off.
 | `hold` | `activation-terrain`, `casting-window`, `shoot-or-not` | `GfMoves` | the scheduler, from the turn Ask |
 | `advance` | `activation-terrain`, `move`, `shoot-or-not` | `GfMoves` | the scheduler |
 | `rush` | `activation-terrain`, `move` | `GfMoves` | the scheduler |
+| `idle` | `activation-terrain`, `activation-start` | `GfMoves` | the scheduler, for an Idle activation (p.11: a unit activated in dangerous terrain tests) |
 | `charge` | `activation-terrain`, `charge-target`, `move`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
 | `melee` | `melee-start`, `counter`, `impact`, `charger-attacks`, `strike-back`, `compare`, `consolidate` | `GfMelee` | `charge`'s `fight` |
@@ -26,6 +27,9 @@ edges and the free-for-all roll-off.
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
 | `casting` | `pick-spell`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
 | `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects` |
+| `spell-test` | `test`, `consequence` | `GfCasting` | `casting`'s `effects`, for a `take_test` row |
+| `reposition` | `reposition` | `GfMoves` | a `move` or `place` row offered at its point by `GfHooks.ReactionsAt` |
+| `pick-rule` | `rule-target` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
 ```mermaid
@@ -128,8 +132,9 @@ of their union, because the fraction is a ruleset number. Sight is measured from
 eligible attacker set, not from one vantage model. Indirect drops the sight list. Each defense die carries what it set off on the
 defender's side as `Die.Triggered` (Shred's `+1 wound` on a 1). `deal` pushes `deal-wounds`.
 
-`Impact` hits enter here directly, skipping the hit roll. Spell hits enter after a hit roll that
-cannot fail, so *on rolls of 6* rules read a real die.
+`Impact` hits enter here directly, skipping the hit roll. Spell hits enter from `spell-hits`: after a hit roll
+that cannot fail when the spell prints *"Roll as many dice as hits"*, so *on rolls of 6* rules read a real die,
+and with no die rolled when it does not.
 
 ### `deal-wounds`: the defender's Ask
 
@@ -435,25 +440,34 @@ still takes its test.
 
 | Step | Does |
 | --- | --- |
-| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spell entries not yet tried this activation whose `Cost` the model can pay. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and nothing else |
+| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spells the pinned set lists under that model's own book (`PropertySet.SpellsOf(slot.ArmyBook)`, p.13: *"the Caster's spells must be picked from their own faction"*), not yet tried this activation, whose `Cost` the model can pay. A slot with no book, or a book the set does not list, is offered nothing. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and nothing else |
 | `spend-tokens` | `Windows.SimultaneousSpend` then `Windows.Spends`, over `GfCasting.SpendCapacity`. Each addressed team names which of its own models pays what and each named model is deducted its own count. `Values["net_tokens"]` is the own team's counts summed less everyone else's |
 | `roll` | `GfRolls.CastingPlan(net_tokens)`: one die at 4+ with the net token spend as a signed modifier (p.13) |
 | `result` | The `roll` die as it now stands (→ Dice edits): `Values["passed"]` 0/1, and a failure `Finish`es (p.13: *"on 4+ resolve the effect"*) |
 | `targets` | `PieceSelection` from the spell entry's four columns: `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the maximum with a minimum of 1, `Range` from the caster model, and line of sight from the caster model |
 | `effects` | Once per chosen target, via `Values["target_index"]` and `Repeat`: every effect of the spell whose conditions hold, in ordinal order |
 
-`effects` can do exactly two things, because `PropertiesJson.Validate` refuses any other spell
+`effects` can do exactly three things, because `PropertiesJson.Validate` refuses any other spell
 shape:
 
-- **`AddHit` with no `RollResult` condition** → `Push(spell-hits, ...)`. Its `hit` step rolls
-  `amount` dice at threshold 1 with `RequiredRaw` 1, so every die is a hit (p.5's natural 1 does not
+- **`AddHit` with no `RollResult` condition** → `Push(spell-hits, ...)`. Its `hit` step adds
+  `amount` hits; when the row's `TargetRoll` is `hit` (the spell prints *"Roll as many dice as hits"*) it rolls
+  them as dice at threshold 1 with `RequiredRaw` 1, so every die is a hit (p.5's natural 1 does not
   judge a roll that is no test, and an edit is judged the same way) and *on rolls of 6* rules read a
-  real die; each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`). Its `score-hits` is `attack-sequence`'s: `extra_hits`, `self_wounds` and
-  `granted_<entry>_<amount>` from the dice as they now stand, and it `Finish`es the frame when the
-  spell scored no hit. Then `resolve-hits` is pushed.
-- **Any effect with `Duration = Once`** → `GrantAdded(targetUnit, new Grant(id, effect.Id,
-  effect.TargetEntry ?? spell.Name, casterUnit, 1))`. A model-grain target's grant lands on its
-  unit, because the grants store is the unit's.
+  real die; each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`). With no `TargetRoll`
+  the hits land and no die is rolled. The spell's weapon rules (its `add_hit`'s `grant_property` children) are
+  in the hit interaction, so `Blast` and `Deadly` multiply, and the hits resolve with attack kind `spell`. A
+  model target is resolved as a unit of one: `GfAttack.TakedownModel` reads the model off the `targets` answer,
+  `Blast` is capped at one model and the wounds go to that model with no allocation. Its `score-hits` is
+  `attack-sequence`'s: `extra_hits`, `self_wounds` and `granted_<entry>_<amount>` from the dice as they now
+  stand, and it `Finish`es the frame when the spell scored no hit. Then `resolve-hits` is pushed.
+- **`TakeTest`** → `Push(spell-test, ...)`: `test` pushes `morale-test` for the target with p.10's ordinary
+  consequence and attack kind `spell`, and `consequence`, when the test failed, applies the row's children: a
+  `SetCondition` on the target's unit, or a `Move` Ask to the caster's team over the target's models.
+- **Every effect with `Duration = Once`** → one `GrantAdded(targetUnit, new Grant(id, effect.Id,
+  spell.Name, casterUnit, 1))` per once-row, none when the target already holds grants of that spell
+  (p.13: the same spell does not stack). A model-grain target's grant lands on its unit, because the grants
+  store is the unit's.
 
 `EligibleSpenders` is p.13's per-model test: *models with tokens within 18 inches and line of
 sight of the caster's unit*, both sides, **the caster included**. `SpendCapacity` groups it by
@@ -655,7 +669,7 @@ own sunset, *"must use the unit's Defense until all other models have been kille
 the one settled before any group fired, so a second group does not find the hero alone that the
 first group left it. The morale threshold is the best of the unit's Quality and every living
 `Hero` model's own, which is `Hero`'s *"may take morale tests on behalf of the unit"* resolved
-always-when-it-helps. design.md → Rulings, 13 records the mechanism.
+always-when-it-helps. [decisions.md → Rulings](decisions.md#rulings), 13, records the mechanism.
 
 The dangerous-terrain test and every kind-5 property roll (`Regeneration`, `Impact`, `Fearless`)
 borrow a convention from a spec but are **not** `roll` rows. Nothing targets them, so they exist

@@ -37,8 +37,9 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
   declare: `Collision.Slide`, `Collision.Separate`, `Collision.Crosses`, `Containment.VolumesFullyContaining`,
   `Containment.BaseFullyWithin`, `Movement`, `Table`, `ZoneStyles`.
 - **`Properties` types.** The catalog, effect and condition rows are interpreted only by the game
-  server. The eight tables exist in SQL here. The C# for them belongs to the game server and
-  interpreter modules. `architecture.md` → Rules as data leaves the content import undesigned.
+  server. Eight of the ten tables exist in `001_schema.sql` here; management's `005_spell_library.sql` adds
+  `book` and `book_spell`. The C# for them, and the seeder that writes them, belong to the game server and
+  interpreter modules.
 - **Any rules.** No legality, dice, turn order, threshold derivation, phase list or action list. The
   strings that name those things are on the wire. The code that reads them is not in `libs/`.
 - **Any persistence code.** The schema ships as SQL that Docker applies on first volume creation. The
@@ -1137,7 +1138,7 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `readonly record struct StatValue(StatKind Kind, string Text)` | `static StatValue Read(StatKind, string)` (throws `FormatException`), `int TargetNumber`, `double Inches`, `int Count`, all `[JsonIgnore]` and all throwing `InvalidOperationException` on the wrong kind |
 | `sealed record PropertyInstance(string Name, int? Parameter)` | zero or one integer parameter, across the whole of Grimdark Future |
 | `sealed record Weapon(Guid Id, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties)` | a melee weapon has no `Range` stat at all |
-| `sealed record ModelSlot(Guid Id, int Ordinal, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties, Base Base, double Height, Guid? AssetId, IRL<Weapon> Weapons)` | `Base`+`Height` are the hitbox, `AssetId` is appearance and soft |
+| `sealed record ModelSlot(Guid Id, int Ordinal, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties, Base Base, double Height, Guid? AssetId, IRL<Weapon> Weapons, string? ArmyBook = null)` | `Base`+`Height` are the hitbox, `AssetId` is appearance and soft; `ArmyBook` is the Army Forge book uid the slot was imported from, null when unknown |
 | `sealed record Unit(Guid Id, int Ordinal, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties, IRL<ModelSlot> Models)` | |
 | `sealed record Army(Guid Id, string Name, string GameSystem, string Source, IRL<Unit> Units)` | `GameSystem` is the `GameRules` identifier |
 | `sealed record ArmySnapshot(Guid Id, string Name, string GameSystem, IRL<Unit> Units)` | `static Of(Army, Guid id)`, no `ArmyId`, no `Source` |
@@ -1168,7 +1169,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `abstract record Location` | `OnTable(Placement)` `[table]`, `OnShelf` `[shelf]`, `Inside(Guid ContainerId)` `[inside]` |
 | `sealed record ModelRelocation(Guid ModelId, Location From, Location To)` | |
 | `enum SubjectKind { Unit, Model }`; `sealed record Subject(SubjectKind Kind, Guid Id)` | |
-| `sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)` | |
+| `sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)` | `EntryName` is the spell or pick entry that wrote it, `EffectId` the one effect row it holds |
 | `sealed record Die(int Raw, int Modified, bool Success)`; `sealed record RollModifier(string Source, int Amount)` | |
 | `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null)` | `Threshold` null for the roll-off; `RequiredRaw` the raw face a roll judged on alone, null otherwise; `Basis` null for a threshold no stat gave and in logs written before it, and `EventApplier` does not read it |
 | `sealed record ThresholdBasis(string Stat, int Printed, IRL<ThresholdChange> Changes)` | the stat a threshold was read from, its printed value and each change applied |
@@ -1682,7 +1683,6 @@ on a slow network. Timing out on the client is the rejected alternative (presenc
 | --- | --- |
 | Every geometry body, plus `ZoneStyles`, `Movement`, `Table`, `BaseFullyWithin` | geometry module (`docs/design/geometry/design.md`) |
 | The `Properties` C# types and the interpreter | game server and interpreter modules; `architecture.md` → Rules as data |
-| How authored `Properties` content reaches the eight tables (the content import) | `architecture.md` → Rules as data; whole-design review → Left as first-pass assertions; spell effects → Deliberately not decided |
 | The real migration mechanism and every migration after 001 | management API module |
 | Hosting: AWS, containers, the S3 endpoint | `architecture.md` → Deployment |
 | The presence sample rate, the debounce interval, and whether a participant may hold two connections | presence → Deliberately not decided |

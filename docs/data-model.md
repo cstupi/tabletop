@@ -45,6 +45,9 @@ erDiagram
     PROPERTIES ||--|{ ACTION : names
     PROPERTIES ||--|{ ROLL : names
     CATALOGENTRY ||--o{ EFFECT : does
+    PROPERTIES ||--o{ BOOK : lists
+    BOOK }o--o{ CATALOGENTRY : "its spells, in order"
+    MODELSLOT }o..o| BOOK : "army book, by uid, soft"
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECTCONDITION : "all must hold"
     GAME ||--o| TABLESTATE : "setup result"
@@ -85,6 +88,7 @@ erDiagram
         enum base_shape
         units base_dims
         units height
+        string army_book
     }
     WEAPON {
         string name
@@ -153,6 +157,12 @@ erDiagram
     ROLL {
         string name
     }
+    BOOK {
+        string uid
+        string name
+        string version
+        list spells
+    }
     STATDEFINITION {
         enum level
         string name
@@ -184,6 +194,9 @@ erDiagram
         enum cap_kind
         string replacement
         enum duration
+        enum target_terrain
+        string target_condition
+        enum amount_dice
         int position
     }
     EFFECTCONDITION {
@@ -306,7 +319,8 @@ time, so storing it would be two sources for one fact. A source identifier had n
 — the only candidate was a heuristic that was deliberately deferred.
 
 **A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions, one
-catalog of named rules, and the actions and rolls that effects can target. `GAME.game_rules`
+catalog of named rules, the actions and rolls that effects can target, and the army books that
+list the catalog's spells. `GAME.game_rules`
 names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
 data half is pinned, which is an open problem for replay.
 
@@ -410,4 +424,5 @@ writes only events and one row: `game.status = 'ended'` when its own log ends th
 | `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |
 | `GAME.created_by`, `TERRAINPLACEMENT` built-in or asset | [The setup phase](superpowers/specs/2026-09-04-setup-phase-design.md) |
 | `EFFECT.duration`, spell targeting on `CATALOGENTRY` | [Spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) |
+| `BOOK`, `MODELSLOT.army_book`, `EFFECT.target_terrain` and `target_condition` | [The spell library](superpowers/specs/2026-10-02-spell-library-design.md) |
 | `GAME.name`, `enforcement`, `waits_between_steps`; nullable participant team and snapshot | [The whole-design review](superpowers/specs/2026-09-04-whole-design-review.md) |

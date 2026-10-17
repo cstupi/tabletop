@@ -5,7 +5,7 @@ It is a fourth deliverable, a console executable and a library at `sim/Tabletop.
 root namespace `Tabletop.Sim`. A game is a `Scenario`. A decision is answered by a script, by a
 seeded policy, or by both in one run. The game runs against an in-process `GameSession` or a
 real WebSocket, behind one `IGameDriver`. A run ends `ended`, `round_limit`, `stuck` or
-`failed`, checks seven invariants, and writes one recording file. `sim/` contains no second
+`failed`, checks eight invariants, and writes one recording file. `sim/` contains no second
 implementation of the rules: it may read anything the engine exposes, but it may never narrow a
 legal set and never compute a rules outcome the engine should compute.
 
@@ -14,7 +14,7 @@ legal set and never compute a rules outcome the engine should compute.
 **In scope.** The `Chooser`, the scenario record and its compiler, the ten catalog scenarios;
 the answer policy over all seven `LegalSet` shapes and the script that overrides it; the
 `IGameDriver` interface and both implementations; the run loop, its outcomes and its
-hand-placement of deployed models; the seven invariants and the projection comparer; the
+hand-placement of deployed models; the eight invariants and the projection comparer; the
 recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; the
 rules suite and its runner service (spec `docs/superpowers/specs/2026-10-09-rules-suite-design.md`); and
 the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliverable.
@@ -68,7 +68,7 @@ flowchart TD
         Scen["Scenarios: Scenario, ScenarioCompiler, ScenarioCatalog"]
         Ans["Answers: AnswerScript, AnswerPolicy, ComposedAnswers"]
         Loop["Run: RunLoop, RunOutcome, HandPlacement"]
-        Inv["Invariants: the seven checks"]
+        Inv["Invariants: the eight checks"]
         Rec["Recording: FrameProjector, RecordingJson"]
         Drv["Drivers: IGameDriver"]
     end
@@ -156,7 +156,7 @@ A scenario is C#. `Scenario` is a record with a fluent `ScenarioBuilder`, and
 ```mermaid
 flowchart LR
     Builder["ScenarioBuilder: Army, Terrain, Marker, Zones, Shape, RoundCap, Scripted, Expect"]
-    Scenario["Scenario record: Seed, Shape, Enforcement, RoundCap, Table, Armies, Terrain, Markers, ZoneShapes, Spells, Script, ScriptOnly, Expectations"]
+    Scenario["Scenario record: Seed, Shape, Enforcement, RoundCap, Table, Armies, Terrain, Markers, ZoneShapes, Script, ScriptOnly, Expectations"]
     Compiler["ScenarioCompiler.Compile"]
     Compiled["CompiledScenario"]
     Info["GameInfo at Playing, RngSeed set"]
@@ -195,7 +195,7 @@ The ten catalog scenarios and what each exists to exercise:
 | `player-turn` | `SchedulerShape.PlayerTurn` | the second scheduler shape |
 | `free-for-all` | alternating activation | three teams, `ZoneStyles.FreeForAll` zones |
 | `stalemate` | alternating activation | one model a side and `RoundCap(3)`, so the run must hit the cap |
-| `casting` | alternating activation | a `Caster(2)` and one scenario-declared spell, so casting's two player decisions open in a whole-game run |
+| `casting` | alternating activation | a `Caster(2)` slot on each side whose `ArmyBook` is Human Defense Force (`z65fgu0l29i4lnlu`), so casting's two player decisions open in a whole-game run on that book's six spells |
 | `final-round` | alternating activation | one model a side and `RoundCap(6)`, so the run reaches the end of round 4 under `strict` and `game_ended` follows |
 | `final-round-warn` | alternating activation | the same under `warn`: the `game_over` Ask follows round 4, `AnswerPolicy` answers End, and `game_ended` follows |
 | `final-round-silent` | alternating activation | the same under `silent`: round 5 starts with no warning |
@@ -671,7 +671,7 @@ one line per event kind. It takes the ordinals as a third argument because `Proj
 team-ordinal lookup. The ordinals live on `GameInfo.Teams`, and `FrameProjector` builds the
 dictionary once.
 
-### The seven invariants
+### The eight invariants
 
 Beyond a scenario's own `Expectation` list, every run checks what holds for any game whatever
 the ruleset. Each is a statement about the log, the projection and the slab. None recomputes an
@@ -686,6 +686,7 @@ outcome the engine produced.
 | `TheRoundAdvancedOnlyThroughTheBoundaryAsk` | For every `RoundStarted` with `Round >= 2`, the nearest preceding `AskClosed` must have closed an Ask whose question is `AskQuestions.EndRound`, or `GameEvent.Actor` must be non-null. |
 | `NothingAdvancesAfterTheEnd` | Nothing the engine writes follows `game_ended` until a round is started by hand. |
 | `ControlFollowsTheMarkers` | Every `objective_control_set`, alone or inside another event's changes, names a marker the game holds at that point and, when it names a team, a team of the game. |
+| `SpellsComeFromTheCastersBook` | Every closed `pick-spell` names a spell the pinned set lists under its caster model's `ModelSlot.ArmyBook`, and every grant whose `EntryName` is a spell, or no entry at all, names one some caster's book lists. |
 
 Invariant 2 needs no second run. The dice are counter-based on `(RngSeed, cursor)` and `RngSeed`
 is the stored seed, so die *k* is a pure function of that seed and *k*, and `Undone(N)` shortens
@@ -848,14 +849,14 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 
 | Type | Members |
 | --- | --- |
-| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)`, `MoveGoal? Goal { init; }`, `AnswerPolicy? Policy()` (null when script-only) |
+| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)`, `MoveGoal? Goal { init; }`, `AnswerPolicy? Policy()` (null when script-only) |
 | `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats, string? ArmyBook = null)` | `IRL<int> SetAside { init; }` (unit ordinals set aside before deployment), `IRL<ScenarioModel> Models { init; }` |
 | `sealed record ScenarioModel(int Unit, int Model, IRL<ScenarioRule>? Rules, IRD<string,string>? Stats, IRL<ScenarioWeapon>? Weapons)` | one model's own rules, stats and weapons (1-based ordinals) |
 | `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)` | |
 | `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |
-| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Seeking`, `Expect`, `Build` |
+| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army` (with an `armyBook` for its slots), `Terrain`, `Marker`, `Scripted`, `Seeking`, `Expect`, `Build` |
 | `sealed record CompiledScenario(Scenario, GameInfo Info, Board Board, PropertySet Properties, IRL<Guid> TeamIds, IRL<Guid> ParticipantIds, IRD<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` | `Guid ParticipantFor(Guid teamId)` |
-| `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties`, `PropertySet PropertiesFor(IRL<EntryDocument>)` |
+| `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties` (the composed shipped set) |
 | `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` |
 | `abstract record Expectation` | `EventOfKind(string, int AtLeast = 1)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int AtLeast = 1)`, `Outcome(string)`, `Warnings(string, int)`, `Won(int)`, `MostMarkersWin` |
 | `static class Expectations` | `IRL<string> Check(IRL<Expectation>, Projection, IRL<GameEvent>, RunOutcome, CompiledScenario)`, `int ModelsOnTable(Projection, CompiledScenario, int teamOrdinal)`, `int ModelsOnTable(Projection, CompiledScenario, Guid teamId)` |
@@ -1324,14 +1325,12 @@ repo root, spanning every project"* (`CLAUDE.md`), so `dotnet build` at the root
 
 **4. The catalog ships ten scenarios.** `casting` is one of them, beside `skirmish`, `terrain`, `player-turn`,
 `free-for-all`, `stalemate`, the three `final-round` presets and `objectives`. Casting is not a mode — a spell is cast inside an ordinary
-activation — so the preset differs from `skirmish` only in fielding a `Caster(2)` and declaring
-a spell. It exists because none of the other nine opens casting's two player decisions, the
-per-model token spend map (p.13) and the caster spending its own leftover tokens on its own
-roll. The spell is the
-scenario's own: `ScenarioBuilder.Spells` folds it into the pinned `PropertySet`, so the hash
-differs from `CoreProperties` for that run alone. The shipped content document is every special
-rule on pages 13–15 and holds no spells, because a spell list belongs to an army book this
-project has not designed. A regression scenario for a specific rules interaction is still a
+activation — so the preset differs from `skirmish` only in fielding a `Caster(2)` slot whose
+`ArmyBook` is Human Defense Force. It exists because none of the other scenarios opens casting's two player
+decisions, the per-model token spend map (p.13) and the caster spending its own leftover tokens on its own
+roll. The spells are that book's six in the shipped set, which holds every official book's spells
+([the spell library](../../superpowers/specs/2026-10-02-spell-library-design.md)), so every scenario runs on
+the production hash and the socket driver runs `casting` too. A regression scenario for a specific rules interaction is still a
 script and is added the same way, so the shape of the catalog does not change.
 
 **5. The socket driver waits for a rest frame, not a quiet window.** The game server sends

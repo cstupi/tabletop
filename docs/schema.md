@@ -5,343 +5,7 @@ entities and relationships; this is tables, columns and constraints.
 
 Where the two disagree, the conceptual model is the intent and this is the expression.
 
-## Diagram
-
-```mermaid
-erDiagram
-
-    PROPERTIES ||--|{ STAT_DEFINITION : declares
-    PROPERTIES ||--|{ CATALOG_ENTRY : catalogs
-    PROPERTIES ||--|{ ACTION : names
-    PROPERTIES ||--|{ ROLL : names
-    CATALOG_ENTRY ||--o{ EFFECT : does
-    EFFECT ||--o{ EFFECT : "nests, per success"
-    EFFECT ||--o{ EFFECT_CONDITION : "all must hold"
-    EFFECT_CONDITION ||--|{ CONDITION_VALUE : ""
-    GAME }o--|| PROPERTIES : "pinned by hash"
-    ACCOUNT ||--o{ BLOB : owns
-    ACCOUNT ||--o{ ASSET : owns
-    ACCOUNT ||--o{ FOLDER : owns
-    ACCOUNT ||--o{ ARMY : owns
-    ACCOUNT ||--o{ TABLE_STATE : "saved layouts"
-    ACCOUNT ||--o{ PARTICIPANT : "plays as"
-    ACCOUNT ||--o{ GAME : created
-
-    BLOB ||--o{ ASSET : bytes
-    ASSET ||--o{ ASSET_VOLUME : "terrain profile"
-    FOLDER ||--o{ FOLDER : nests
-    ASSET ||--o{ ASSET_FOLDER : ""
-    FOLDER ||--o{ ASSET_FOLDER : ""
-
-    ARMY ||--|{ UNIT : contains
-    UNIT ||--o{ UNIT_STAT : ""
-    UNIT ||--o{ UNIT_PROPERTY : ""
-    UNIT ||--|{ MODEL_SLOT : contains
-    MODEL_SLOT ||--o{ SLOT_STAT : ""
-    MODEL_SLOT ||--o{ SLOT_PROPERTY : ""
-    MODEL_SLOT ||--o{ WEAPON : loadout
-    MODEL_SLOT }o..o| ASSET : "appearance, soft"
-    WEAPON ||--o{ WEAPON_STAT : ""
-    WEAPON ||--o{ WEAPON_PROPERTY : ""
-
-    TABLE_STATE ||--o{ TERRAIN_PLACEMENT : ""
-    TABLE_STATE ||--o{ MARKER : ""
-    TABLE_STATE ||--o{ DEPLOYMENT_ZONE : ""
-    TABLE_STATE }o..o| ASSET : texture
-    TERRAIN_PLACEMENT }o..o| ASSET : "mesh, or a built-in"
-    TERRAIN_PLACEMENT ||--o{ TERRAIN_VOLUME : overrides
-    MARKER }o..o| ASSET : visual
-
-    GAME ||--|{ TEAM : has
-    GAME ||--o| TABLE_STATE : "setup result"
-    GAME ||--o{ GAME_EVENT : "append-only"
-    TEAM ||--|{ PARTICIPANT : has
-
-    ACCOUNT {
-        uuid id PK
-        text name
-        timestamptz starter_seeded_at
-    }
-    BLOB {
-        uuid owner_id PK
-        text hash PK
-        text s3_key
-        bigint byte_size
-        bool uploaded
-        text content_type
-    }
-    ASSET {
-        uuid id PK
-        uuid owner_id FK
-        text blob_hash FK
-        text name
-        text kind
-        float8 scale
-        float8 orientation_pitch
-        float8 orientation_yaw
-        float8 orientation_roll
-        text modelled_base_shape
-        float8 modelled_base_a
-        float8 modelled_base_b
-    }
-    ASSET_VOLUME {
-        uuid id PK
-        uuid asset_id FK
-        text kind
-        text footprint
-        float8 dim_a
-        float8 dim_b
-        float8 offset_x
-        float8 offset_y
-        float8 yaw
-        float8 bottom
-        float8 top
-        bool impassable
-        bool blocks_los
-        bool see_in_out
-        bool cover
-        bool difficult
-        bool dangerous
-        text notes
-    }
-    FOLDER {
-        uuid id PK
-        uuid owner_id FK
-        uuid parent_id FK
-        text name
-    }
-    ASSET_FOLDER {
-        uuid asset_id PK
-        uuid folder_id PK
-    }
-    ARMY {
-        uuid id PK
-        uuid owner_id FK
-        text name
-        text game_system
-        text source
-    }
-    UNIT {
-        uuid id PK
-        uuid army_id FK
-        int ordinal
-        text name
-    }
-    UNIT_STAT {
-        uuid unit_id PK
-        text stat PK
-        text value
-    }
-    UNIT_PROPERTY {
-        uuid unit_id PK
-        text name PK
-        int parameter
-    }
-    MODEL_SLOT {
-        uuid id PK
-        uuid unit_id FK
-        int ordinal
-        text name
-        text base_shape
-        float8 base_a
-        float8 base_b
-        float8 height
-        uuid asset_id FK
-    }
-    SLOT_STAT {
-        uuid slot_id PK
-        text stat PK
-        text value
-    }
-    SLOT_PROPERTY {
-        uuid slot_id PK
-        text name PK
-        int parameter
-    }
-    WEAPON {
-        uuid id PK
-        uuid slot_id FK
-        text name
-    }
-    WEAPON_STAT {
-        uuid weapon_id PK
-        text stat PK
-        text value
-    }
-    WEAPON_PROPERTY {
-        uuid weapon_id PK
-        text name PK
-        int parameter
-    }
-    TABLE_STATE {
-        uuid id PK
-        uuid owner_id FK
-        uuid game_id FK
-        text name
-        float8 width
-        float8 length
-        text texture_builtin
-        uuid texture_asset_id FK
-    }
-    TERRAIN_PLACEMENT {
-        uuid id PK
-        uuid table_state_id FK
-        text builtin
-        uuid asset_id FK
-        float8 pos_x
-        float8 pos_y
-        float8 pos_z
-        float8 yaw
-        float8 scale
-    }
-    TERRAIN_VOLUME {
-        uuid id PK
-        uuid terrain_placement_id FK
-        text kind
-        text footprint
-        float8 dim_a
-        float8 dim_b
-        float8 offset_x
-        float8 offset_y
-        float8 yaw
-        float8 bottom
-        float8 top
-        bool impassable
-        bool blocks_los
-        bool see_in_out
-        bool cover
-        bool difficult
-        bool dangerous
-        text notes
-    }
-    MARKER {
-        uuid id PK
-        uuid table_state_id FK
-        text kind
-        float8 pos_x
-        float8 pos_y
-        float8 pos_z
-        float8 yaw
-        float8 diameter
-        text label
-        text visual_builtin
-        uuid visual_asset_id FK
-    }
-    DEPLOYMENT_ZONE {
-        uuid id PK
-        uuid table_state_id FK
-        text shape
-        int team_ordinal
-    }
-    GAME {
-        uuid id PK
-        text name
-        text status
-        text game_rules
-        text properties_hash
-        text scheduler_shape
-        text enforcement
-        bool waits_between_steps
-        bigint rng_seed
-        uuid created_by FK
-        timestamptz created_at
-    }
-    TEAM {
-        uuid id PK
-        uuid game_id FK
-        int ordinal
-    }
-    PARTICIPANT {
-        uuid id PK
-        uuid game_id FK
-        uuid team_id FK
-        uuid account_id FK
-        uuid army_id FK
-        jsonb army_snapshot
-    }
-    PROPERTIES {
-        text content_hash PK
-        text name
-        text game_rules
-        timestamptz seeded_at
-    }
-    ACTION {
-        text properties_hash PK
-        text name PK
-        float8 distance
-        int position
-    }
-    ROLL {
-        text properties_hash PK
-        text name PK
-    }
-    STAT_DEFINITION {
-        text properties_hash PK
-        text level PK
-        text name PK
-        text kind
-    }
-    CATALOG_ENTRY {
-        text properties_hash PK
-        text name PK
-        text kind
-        bool takes_parameter
-        text aggregation
-        int cost
-        text faction
-        text rule_text
-        text target_side
-        text target_grain
-        int target_count
-        float8 target_range
-        bool played
-        bool target_line_of_sight
-    }
-    EFFECT {
-        uuid id PK
-        text properties_hash FK
-        text entry_name FK
-        uuid parent_effect_id FK
-        text subject
-        int ordinal
-        text kind
-        text target_roll FK
-        text target_stat_level FK
-        text target_stat FK
-        text target_entry FK
-        text target_action FK
-        text target_quantity
-        text target_result
-        text target_modifier
-        int amount
-        bool amount_from_parameter
-        int threshold
-        text cap_kind
-        text replacement
-        text duration
-        int position
-    }
-    EFFECT_CONDITION {
-        uuid id PK
-        uuid effect_id FK
-        text kind
-        text subject
-        text comparison
-        int number
-        int position
-    }
-    CONDITION_VALUE {
-        uuid condition_id PK
-        text value PK
-        int position
-    }
-    GAME_EVENT {
-        uuid game_id PK
-        bigint seq PK
-        text kind
-        jsonb payload
-    }
-```
+The tables and their columns are drawn in [`schema-diagram.md`](schema-diagram.md).
 
 ## Decisions
 
@@ -361,22 +25,22 @@ So the army is four tables plus six for stats and properties, and every constrai
 argued for is a constraint the database holds: `base_shape` is checked, a weapon cannot exist
 without a slot, the six terrain declarations are columns rather than strings in an array.
 
-### `Properties` is eight tables, not a document
+### `Properties` is ten tables, not a document
 
 The schema pinned `game.properties_hash` and stored nothing to resolve it against. **The data
 half of a ruleset had no home** — stat declarations and the three property catalogs were
 designed in [content values](superpowers/specs/2026-08-29-content-values-design.md) and
 [the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) and never given
-tables. These are those tables.
+tables. These are those tables, with `book` and `book_spell` for the army books that list a set's spells.
 
 A content-addressed document was the alternative, and it is what `blob` already does for asset
 bytes. It was rejected for the reason this section opens with: the effect grammar is **closed**
-— twelve effect kinds, eight predicate kinds, four stat kinds — so it is exactly the structure
+— seventeen effect kinds, eleven predicate kinds, four stat kinds — so it is exactly the structure
 a database can enforce, and putting it in `jsonb` would be the magic-string move at the one
 place the enforcement is cheapest.
 
 The cost is real and accepted: pinning by content hash now needs a canonical serialisation to
-hash, because the set is spread across eight tables rather than being a run of bytes.
+hash, because the set is spread across ten tables rather than being a run of bytes.
 
 ### An action is a row, because an effect can target it
 
@@ -432,50 +96,47 @@ returns it so the unit card tags the rule *not automated* while showing its text
 
 **A spell is the fourth, and it is not a property**, which is why this table is not called
 `property_definition`. A property is attached to something and travels with an army; a spell is
-cast, belongs to a faction's book, and is picked at the moment of casting.
+cast, is listed by an army book, and is picked at the moment of casting.
 
-Everything else it needs already exists. A spell's effect is one of the twelve kinds, and
-*"target enemy unit within 12″"* is the range predicate the eight conditions already cover. What
-it has that no property has is a **cost**, which is why `cost` is on the entry —
-`Caster(X)` grants X spell tokens a round and casting spends as many tokens as the spell's
-value.
+A spell's effect is an `add_hit`, a `take_test`, or a row with `duration = once`. What it has that no
+property has is a **cost**, which is why `cost` is on the entry — `Caster(X)` grants X spell tokens a
+round and casting spends as many tokens as the spell's value, which the generator writes from Army
+Forge's `threshold`. Spell entries also carry **`target_side`, `target_grain`, `target_count`,
+`target_range`**, from which the casting sequence's target Ask computes its legal set.
 
-`faction` groups spells by army book. ~~It is null for the other three kinds.~~ **Corrected
-2026-09-04** by [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): faction
-rules such as `Hive Bond` are unit rules spells grant by name, so `faction` is set on any kind
-that came from an army book and null for a core rule. Spell entries also carry **`target_side`,
-`target_grain`, `target_count`, `target_range`**, nullable and checked to the spell kind, from
-which the casting sequence's target Ask computes its legal set. **It is not
-enforced.** The rulebook says a caster's spells come from their own faction, and this records
-which book a spell came from so the UI can group them — nothing in this project stops a player
-choosing wrongly, for the same reason players count their own points.
+`faction` is null on every entry and nothing reads it: one spell entry may be listed by six books, and
+`book_spell` is what says which.
 
-Spell content lives in the per-faction army books rather than the core rulebook, so the rows
-come later. The shape is what had to exist first.
+A set holds every official book's spells, generated by `scripts/ArmyBooks` into
+`server/game/Content/army-books/` and composed with the core document before hashing
+([the spell library](superpowers/specs/2026-10-02-spell-library-design.md)). A spell name two books use for
+different spells is qualified with the alphabetically first book holding it, in parentheses.
 
-### One `effect` table, not twelve
+### One `effect` table for every kind
 
-The twelve kinds share most of their shape — a subject, an ordering, a thing being acted on,
+The seventeen kinds share most of their shape — a subject, an ordering, a thing being acted on,
 and usually one number. `entry_name` is the catalog entry it belongs to. `amount` carries the number, and
 `amount_from_parameter` says the number is the entry's own `X`, which is what makes `Impact(X)`
 and `Blast(X)` one row rather than one row per value of X.
 
-**What an effect acts on is seven different things, so it is seven columns rather than one**, eight
+**What an effect acts on is nine different things, so it is nine columns rather than one**, ten
 counting the level a stat reference needs. A
 single `target` string would have been a magic string with no defined contents — the database
 could not check it and nothing said what it may contain:
 
 | Column | Vocabulary | Used by |
 | --- | --- | --- |
-| `target_roll` | **FK** to `roll` in the same set | Modify a roll, Force a reroll |
+| `target_roll` | **FK** to `roll` in the same set | Modify a roll, Force a reroll, Take a test, a spell's Add a hit that rolls its hits |
 | `target_stat`, `target_stat_level` | **FK** to `stat_definition` in the same set. That table's key is `(properties_hash, level, name)`, so the level travels with the name and the FK is two columns | Modify a stat, Replace a stat |
 | `target_action` | **FK** to `action` in the same set | Modify a stat, where the stat is a move distance |
 | `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |
-| `target_quantity` | `hits \| wounds` | Multiply |
+| `target_quantity` | `hits \| wounds \| attacks` | Multiply (`hits \| wounds`), Add a hit (`wounds`, `attacks`; null is `hits`) |
 | `target_result` | `wound \| morale_test` | Override a result |
 | `target_modifier` | `cover \| to_hit_penalties \| range_penalties` | Suppress modifiers |
+| `target_terrain` | `difficult \| dangerous` | Count as terrain |
+| `target_condition` | a condition name (`fatigued` in the corpus); no check | Set a condition |
 
-`Roll` and `Add a hit` act on nothing and leave all seven null.
+`Roll`, `Move` and `Place` act on nothing and leave all nine null.
 
 The three foreign keys are the point. `Bane` suppresses `Regeneration`, and it must not be able
 to name a rule that does not exist in the set it belongs to; `Reliable` replaces `Quality`, which
@@ -486,7 +147,7 @@ must be a stat that set declares. As a string, neither could be checked.
 and differ only in direction. So `amount` holds `-1` or `+1` when
 `amount_from_parameter` is set, and the effective value is that sign applied to `X`.
 
-Three columns exist for one kind each, which is the honest price of collapsing twelve into one:
+Four columns exist for one kind each, beside `target_terrain` and `target_condition` above, which is the honest price of collapsing seventeen kinds into one table:
 
 - **`threshold`** — `Roll` only. `Impact(X)` is *X dice at 2+*, so it needs a count and a
   score, and the count is `amount`.
@@ -496,9 +157,11 @@ Three columns exist for one kind each, which is the honest price of collapsing t
   `models_in_target_unit`; a second ruleset needing another adds a value, which is a code
   change like every other closed set here.
 - **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*.
+- **`amount_dice`** — `Place` only, checked to `d3`: a placement whose distance is a die roll.
 
-Per-kind `CHECK` constraints keep the nullable columns honest: a `Multiply` row with a
-`threshold` is rejected.
+Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` honest: a `Multiply` row with a
+`threshold` is rejected. `target_terrain` and `amount_dice` carry only a value check and `target_condition` none;
+`PropertiesJson.Validate` holds all three to their kinds.
 
 **`parent_effect_id` is how `Roll` nests.** *X dice at 2+, each success adds a hit* is a `Roll`
 with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
@@ -511,7 +174,7 @@ log and never a row — consumed the first time that grant's effect applies. Eve
 `interaction`.
 
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
-first"*, `Blast` applies *"after resolving other special rules"* — and four of the twelve kinds
+first"*, `Blast` applies *"after resolving other special rules"* — and four of the seventeen kinds
 act on other properties rather than on game state, which does not commute.
 
 ### Ordered child rows record their position
@@ -567,7 +230,7 @@ inspection. Four that between them exercise every unusual column:
 | `Bane` | **two** effects on one property — `force_reroll` with `target_roll=defense` on the opponent, conditioned on a raw roll result of 6; and `suppress_property` with `target_entry=Regeneration`, unconditional. |
 
 `Bane` is the case that proves conditions belong to the effect and not to the property, and
-`Impact(X)` is the one that proves nesting is needed rather than a thirteenth kind.
+`Impact(X)` is the one that proves nesting is needed rather than a kind of its own.
 
 ### Stats are rows because stats are declared
 
@@ -655,6 +318,20 @@ both send `false`, and the column serves development.
 
 The game server writes `game.status = 'ended'` from `playing` on a strict end, and management writes it on end, leave and delete.
 
+### An army book is a row, and lists its spells
+
+`book (properties_hash, uid, name, version)`, keyed `(properties_hash, uid)` and cascading from `properties`, is one
+Army Forge army book in a pinned set: its `uid`, its name, and the `version` its record carries, null for the book that
+publishes none. `book_spell (properties_hash, book_uid, entry_name, ordinal)`, keyed `(properties_hash, book_uid,
+entry_name)`, lists the book's spells in its own order and references `book` and `catalog_entry`. A book's version is
+a property of the set, not of the game: regenerating one book makes a new set and a new hash. Both arrive as
+management's `005_spell_library.sql`.
+
+`model_slot.army_book text null` is the `uid` of the book the slot's Army Forge entry came from (the TTS export's
+`armyId`), written at import. A caster model may cast exactly the spells the pinned set lists under its slot's book; a
+slot with no book, or a book the set does not list, casts nothing. It is the slot's and not the unit's because every
+entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a model rule.
+
 ### The catalog's per-kind check
 
 `cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
@@ -695,8 +372,9 @@ touching the game.
 `model/gltf-binary | image/png | image/jpeg | image/webp`. The row is written when `POST /v1/assets` hands out a
 presigned PUT and flipped by `/confirm`, so the gap between the two is visible rather than
 indistinguishable from a finished upload. These two columns arrive as management's
-`002_blob_uploaded.sql` rather than in `001_schema.sql`. Together with `account.starter_seeded_at` and
-`properties.seeded_at` below, these are the places this document's tables and the init SQL differ on purpose.
+`002_blob_uploaded.sql` rather than in `001_schema.sql`. The init SQL, `scripts/postgres/init/001_schema.sql`, is
+management's `001_schema.sql`; every table and column from `002` to `009` reaches the database through management's
+migrations only.
 
 ### `account` records whether its starter meshes were seeded
 

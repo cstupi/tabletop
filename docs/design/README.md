@@ -276,7 +276,7 @@ The split is between what is edited per ruleset and what is edited every day:
 
 | Half | Form | Contents |
 | --- | --- | --- |
-| `Properties` | Rows in eight tables, pinned per game | Stat declarations, the catalog of named rules, effects, conditions, actions, rolls |
+| `Properties` | Rows in ten tables, pinned per game | Stat declarations, the catalog of named rules, effects, conditions, actions, rolls, army books and the spells each lists |
 | `GameRules` | C# behind an interface | Turn structure, sequence definitions, dice conventions, threshold derivation, scheduler policy |
 
 Only OPR's `GameRules` is implemented. Warhammer 40,000's core rules were read twice as a
