@@ -38,6 +38,17 @@ public class DragBodiesTests
     }
 
     [Fact]
+    public void A_drag_and_its_region_pass_above_a_lower_model()
+    {
+        var roof = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(4, 20), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.None, null),
+            new TerrainTransform(new Point3(10, 10, 0), new Yaw(0), 1));                                    // x 8..12, y 0..20, top 4
+        var big = new PlacedModel(new ModelBody(Base.Circle(3), 4.5), new Placement(new Point3(11, 3, 4), new Yaw(0)));   // on the roof, edge out to x 12.5
+        PlacedModel[] below = [M(12.8, 10)];                                                                   // on the ground at the roof's foot
+        Assert.Equal(new Point3(11, 13, 4), Drag(big, new(11, 13), below, [roof]));
+        Assert.Equal(13, MoveRuler.Region(big, new MoveRegion([A], 10, [], [], null), [roof], new TableSize(72, 48), below)[45].Y, 6);
+    }
+
+    [Fact]
     public void A_terrain_piece_rests_on_a_hill_and_stops_at_a_building()
     {
         var hill = Piece(20, VolumeKind.Solid, Footprint.Rect(6, 6), 2, TerrainDeclarations.None);

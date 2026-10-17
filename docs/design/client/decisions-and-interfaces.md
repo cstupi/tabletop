@@ -109,7 +109,7 @@ semantics.
 | `Movement.Rays` (180), `Movement.Step` (0.25) | `ExitRegion`'s march-and-bisect loop |
 | `Containment.BaseFullyWithin(model, container, inches)` | the disembark region, edge to edge from the container's base rather than a circle about its centre |
 | `Collision.Slide`, `Collision.Separate`, `Collision.RestHeight(…)` | sliding and resting a dragged model or terrain piece; `DragBodies` names the walls and the other models |
-| `Movement.Region(…, models)` | the move region's boundary around the other models (`MoveRuler.Region(…, others)`) |
+| `Movement.Region(…, models, surfaces)` | the move region's boundary around the other models on the mover's level, the mover rested on the board's volumes (`MoveRuler.Region(…, others)`) |
 | `Distance.ClosestPoints(PlacedModel, PlacedModel)` | a measurement's two points |
 | `Point2`, `Point3`, `Yaw`, `Orientation`, `TableSize`, `Base`, `BaseShape`, `ModelBody`, `PlacedModel`, `Placement`, `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `WorldVolume`, `Polygon` | values throughout |
 

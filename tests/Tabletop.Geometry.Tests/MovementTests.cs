@@ -107,4 +107,14 @@ public class MovementTests
         Assert.True(blocked.Boundary[0].X <= 13 - 1.26 + 1e-6);                          // stops short of contact, centres 1.26 apart
         Assert.Equal(open.Boundary[45], blocked.Boundary[45]);                           // ray 45 is +Y, clear
     }
+
+    [Fact]
+    public void The_region_passes_above_a_lower_model()
+    {
+        var roof = Fx.Box(10, 10, 4, 20, 0, 4);                                           // x 8..12, y 0..20, top 4
+        var start = Fx.Model(11, 3, z: 4, diameter: 3);                                   // on the roof, its edge out to x 12.5
+        PlacedModel[] below = [Fx.Model(12.8, 10)];                                       // on the ground at the roof's foot
+        Assert.Equal(13, Movement.Region(start, 10, [], [], null, null, below, [roof]).Boundary[45].Y, 6);
+        Assert.True(Movement.Region(start, 10, [], [], null, null, below).Boundary[45].Y < 10);    // rested on nothing, it meets the model
+    }
 }

@@ -9,6 +9,13 @@ public class DistanceTests
         Assert.Equal(0, Distance.EdgeToEdge(Fx.Model(0, 0), Fx.Model(1, 0)));
     }
     [Fact] public void Height_does_not_enter_horizontal_distance() => Assert.Equal(4.74, Distance.EdgeToEdge(Fx.Model(0, 0, 0), Fx.Model(6, 0, 4)), 6);
+    [Fact] public void Bodies_measure_in_three_dimensions()
+    {
+        Assert.Equal(4.74, Distance.BodyToBody(Fx.Model(0, 0), Fx.Model(6, 0)), 6);                             // one level: edge to edge
+        Assert.Equal(4.74, Distance.BodyToBody(Fx.Model(0, 0), Fx.Model(6, 0, 1)), 6);                          // heights overlap
+        Assert.Equal(2.5, Distance.BodyToBody(Fx.Model(0, 0), Fx.Model(0.5, 0, 4)), 6);                        // above it: 4 less its 1.5 height
+        Assert.Equal(5, Distance.BodyToBody(Fx.Model(0, 0, diameter: 1), Fx.Model(4, 0, 5.5, diameter: 1)), 6); // 3 across, 4 up
+    }
     [Fact] public void Base_to_point()
     {
         Assert.Equal(2.37, Distance.EdgeToEdge(Fx.Model(0, 0), new Point2(3, 0)), 6);

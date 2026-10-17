@@ -175,7 +175,7 @@ A plain drag of a model outside a move step is a hand move: one `MoveModels` on 
 The server judges it under the game's enforcement setting (`HandMoves.Judge`, rule `hand_move`): placing the unit
 picked at a deploy Ask from the shelf is legal, and anything else is a breach that `silent` accepts, `warn` accepts
 with the warning on the event, and `strict` refuses. Under `strict` the drag does not start and the click only
-selects. The drag slides along impassable terrain and stops at other models' bases (`DragBodies`, `Collision.Separate`); holding Alt
+selects. The drag slides along impassable terrain and stops where its body meets another model's, in plan and height, so it passes above or below a model on another level (`DragBodies`, `Collision.Separate`); holding Alt
 places freely, and the F1 overlay and the move hint say so. A placement that overlaps another base is `move_overlap` under the
 same setting. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
 belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`

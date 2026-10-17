@@ -110,7 +110,10 @@ rounded up (p.4), summed, recorded as a `RollRecord` named for the entry. A plac
 swept, so it crosses impassable terrain and models, and only the landing is checked: each model's displacement is
 at most the distance, and its base touches no impassable volume (p.11: units *"may not end their move partially
 overhanging gaps or terrain"*; `GfMoves.LandsInImpassable`). Under strict, dispatch also refuses a landing off the
-table (`GfMoves.PathBreach`, p.7); p.7's contact clauses judge the landing (`GfMoves.ContactBreach`: `move_overlap`, and `move_separation` by the region's `Separation`; the region sets `PassesModels`, so no path through models is judged). It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
+table (`GfMoves.PathBreach`, p.7); p.7's contact clauses judge the landing (`GfMoves.ContactBreach`: `move_overlap`, and `move_separation` by the region's `Separation`; the region sets `PassesModels`, so no path through models is judged). An Aircraft's placement keeps neither the 1" nor
+the impassable landing check: p.13 *"Aircraft ignore all units and terrain when moving and stopping"*, and the placement's
+landing is where it stops (`GfMoves.PlacementRegion`: `Separation` null, `IgnoresTerrain`; `ApplyPlacement` lists no
+impassable volume for it); `move_overlap` still holds. It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
 difficult lists are empty, which is how the client is told nothing will be swept; `GfMoves` validates it with a
 landing check instead of `Movement.Check`. No wire type changes.
 

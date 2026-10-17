@@ -56,6 +56,48 @@ public class GfContactTests
         Assert.Null(Reposition(P(GfNames.Aircraft)).Separation);
     }
 
+    /// <summary>A placement (army-rule hooks → A placement) of 3" for A at (0, -18.5), whose unit rules are given; B at (2.5, -18.5), an impassable
+    /// 1" block at (0, -15.5).</summary>
+    static Sim Blink(out Guid a, params PropertyInstance[] rules)
+    {
+        var blink = new EntryDocument("Blink", CatalogKind.Model, false, Aggregation.All, null, null, "Blink.", null,
+            [new(EffectSubject.Self, 10, EffectKind.Place, null, null, null, null, null, null, null, 3, false, null, null, null, EffectDuration.Interaction,
+                [new(ConditionKind.AtPoint, null, Comparison.Eq, null, [GfNames.AfterShooting])], [])]);
+        var block = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wall"), new Point3(0, -15.5, 0), new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(1, 1), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null))]);
+        var ua = Unit("A", "4+", "4+", rules, 1, [P("Blink")]);
+        var sim = new Sim(State([ua], [Unit("B", "4+", "4+", [], 1, [])], x1: 0, x2: 2.5, enforcement: Enforcement.Strict, terrain: [block]),
+            GrimdarkFutureRules.Instance, TestProperties.WithSpells(blink), new Tabletop.GameServer.Dice.ScriptedDice(4));
+        sim.Start(GfNames.RepositionSeq, new SequenceContext(ua.Id, [], [], "Blink"));
+        a = ua.Models[0].Id;
+        return sim;
+    }
+
+    static ModelRelocation ToXY(Sim sim, Guid m, double x, double y) => new(m, sim.Model(m).Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))));
+
+    [Fact]
+    public void A_placement_keeps_one_inch_and_lands_clear_of_impassable_terrain()
+    {
+        var sim = Blink(out var a);
+        Assert.Equal(GfNames.MoveSeparationRule, Breach(sim, ToXY(sim, a, 1, -17)));                  // 0.86" from B
+        Assert.Equal(GfNames.MoveImpassableRule, Breach(sim, ToXY(sim, a, 0, -15.5)));                // on the block
+    }
+
+    /// <summary>p.13 Aircraft: "Aircraft ignore all units and terrain when moving and stopping": a placement is a stop.</summary>
+    [Fact]
+    public void An_aircraft_placement_ignores_the_one_inch_rule_and_impassable_terrain()
+    {
+        var sim = Blink(out var a, P(GfNames.Aircraft));
+        var region = Region(sim);
+        Assert.Equal(((double?)null, true), (region.Separation, region.IgnoresTerrain));
+        Assert.Null(Breach(sim, ToXY(sim, a, 1, -17)));
+        Assert.Null(Breach(sim, ToXY(sim, a, 0, -15.5)));
+        Assert.IsType<Applied>(Move(sim, ToXY(sim, a, 0, -15.5)));
+        sim.Run();
+        var at = ((OnTable)sim.Model(a).Location).Placement.Position;
+        Assert.Equal((0, -15.5), (at.X, at.Y));
+    }
+
     static DispatchOutcome Move(Sim sim, params ModelRelocation[] moves) => sim.Dispatch(new AnswerAsk(sim.AskFor(Samples.Team1).Id, new Destinations(moves)), Samples.P1, Samples.Team1);
     static string? Breach(Sim sim, params ModelRelocation[] moves) => GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations(moves))?.Rule;
 
@@ -84,6 +126,44 @@ public class GfContactTests
         Assert.Equal(GfNames.MoveSeparationRule, Breach(sim, To(sim, m, 3.6)));                  // the landing is still judged
         sim.Answer(Samples.Team1, new Destinations([To(sim, m, 5)]));                            // accepted under strict, then applied
         Assert.Equal(5, ((OnTable)sim.Model(m).Location).Placement.Position.X, 3);
+    }
+
+    /// <summary>A plain Solid block 4" tall, x 22..26, y 10..40; B's one model on the ground at its foot, (26.8, 24), clear of it.
+    /// A's one model has a 3" base, so standing at x 25 its edge reaches x 26.5, over B's base.</summary>
+    static Sim Roof(bool onRoof, out Guid a, out Guid b)
+    {
+        var roof = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wall"), new Point3(24, 25, 0), new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(4, 30), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.None, null))]);
+        var ua = Unit("A", "4+", "4+", [], 1, []); ua = ua with { Models = [ua.Models[0] with { Base = Base.Circle(3) }] };
+        var ub = Unit("B", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([ua], [ub], enforcement: Enforcement.Strict, terrain: onRoof ? [roof] : []), 4);
+        (a, b) = (ua.Models[0].Id, ub.Models[0].Id);
+        sim.Append([new ModelsMoved([
+            new ModelRelocation(a, sim.Model(a).Location, new OnTable(new Placement(new Point3(25, 21, onRoof ? 4 : 0), new Yaw(0)))),
+            new ModelRelocation(b, sim.Model(b).Location, new OnTable(new Placement(new Point3(26.8, 24, 0), new Yaw(0))))])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(ua.Id, [], [], GfNames.Advance));
+        return sim;
+    }
+
+    [Fact]
+    public void A_model_crossing_above_a_lower_model_does_not_move_through_it()
+    {
+        ModelRelocation Along(Sim sim, Guid m) => new(m, sim.Model(m).Location, new OnTable(new Placement(new Point3(25, 27, 0), new Yaw(0))));
+        var ground = Roof(false, out var a, out _);
+        Assert.Equal(GfNames.MoveThroughModelsRule, Breach(ground, Along(ground, a)));
+        var roof = Roof(true, out a, out var b);
+        Assert.Null(Breach(roof, Along(roof, a)));
+        Assert.IsType<Applied>(Move(roof, Along(roof, a)));
+        roof.Run();
+        Assert.Equal(4, ((OnTable)roof.Model(a).Location).Placement.Position.Z, 6);
+    }
+
+    [Fact]
+    public void One_inch_is_measured_in_three_dimensions()
+    {
+        var sim = Roof(true, out var a, out _);                                             // A on the roof, 2.5" above B's top
+        var over = new ModelRelocation(a, sim.Model(a).Location, new OnTable(new Placement(new Point3(25, 24, 0), new Yaw(0))));
+        Assert.Null(Breach(sim, over));                                                     // its edge is over B's base, 2.5" up
     }
 
     [Fact]

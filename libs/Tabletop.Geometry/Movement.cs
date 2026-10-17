@@ -22,8 +22,16 @@ public static class Movement
     /// <summary>A volume's world outline, hoisted once, with the bounding circle used to reject it cheaply.</summary>
     internal readonly record struct NearVolume(Guid Id, Outline Outline, Point2 Centre, double Radius);
 
+    /// <summary>Another model's base outline and the height its body spans, with the bounding circle used to reject it cheaply.</summary>
+    internal readonly record struct NearBody(Outline Outline, Point2 Centre, double Radius, double Bottom, double Top);
+
+    /// <summary>
+    /// `models` stop the base where its body meets theirs, in plan and in height: the moving body is rested at each step on `surfaces`
+    /// (<see cref="Collision.RestHeight(PlacedModel, IReadOnlyList{WorldVolume})"/>), so a base passing above or below another model is not stopped.
+    /// </summary>
     public static MovementRegion Region(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
-        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null)
+        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null,
+        IReadOnlyList<WorldVolume>? surfaces = null)
     {
         var origin = start.Placement.Position.Horizontal;
         var baseOutline = start.BaseOutline();
@@ -53,7 +61,7 @@ public static class Movement
                 var d = Math.Min(k * Step, limit);
                 var at = origin + dir * d;
                 var atOutline = baseOutline.Shift(dir * d);
-                if (Touches(at, baseRadius, atOutline, impassableNear) || Touches(baseCentre + dir * d, baseRadius, atOutline, bodies)
+                if (Touches(at, baseRadius, atOutline, impassableNear) || Meets(baseCentre + dir * d, baseRadius, atOutline, start.Body.Height, bodies, surfaces ?? [])
                     || (slab is not null && !slab.ContainsOutline(atOutline))) break;
                 if (difficultCap is { } cap && cap < limit && Touches(at, baseRadius, atOutline, difficultNear))
                 {
@@ -171,24 +179,36 @@ public static class Movement
 
     /// <summary>
     /// The other models' bases the moving base could touch within the allowance: those whose bounding circle lies within
-    /// `allowance` plus both radii of the start, less those it already overlaps (a model is not stopped by a base it starts on).
+    /// `allowance` plus both radii of the start, less those whose body it already overlaps (a model is not stopped by a body it starts in).
     /// The base centre never travels farther than the allowance, so a base outside that ring can never touch it.
     /// </summary>
-    internal static List<NearVolume> NearBodies(PlacedModel start, double allowance, IReadOnlyList<PlacedModel> models)
+    internal static List<NearBody> NearBodies(PlacedModel start, double allowance, IReadOnlyList<PlacedModel> models)
     {
         var origin = start.Placement.Position.Horizontal;
-        var baseOutline = start.BaseOutline();
-        var (centre, bound) = baseOutline.BoundingCircle();
+        var (centre, bound) = start.BaseOutline().BoundingCircle();
         var reach = allowance + bound + centre.DistanceTo(origin);
-        var result = new List<NearVolume>();
+        var result = new List<NearBody>();
         foreach (var m in models)
         {
             var outline = m.BaseOutline();
             var (c, radius) = outline.BoundingCircle();
-            if (origin.DistanceTo(c) > reach + radius + Tolerance.Distance || Outline.InteriorsIntersect(baseOutline, outline)) continue;
-            result.Add(new NearVolume(Guid.Empty, outline, c, radius));
+            if (origin.DistanceTo(c) > reach + radius + Tolerance.Distance || Overlap.Bases(start, m)) continue;
+            result.Add(new NearBody(outline, c, radius, m.Bottom(), m.Top()));
         }
         return result;
+    }
+
+    /// <summary>The base at a step meets a body: in plan, then in height, its bottom rested on the surfaces under it (rested only on a plan hit).</summary>
+    static bool Meets(Point2 at, double atRadius, Outline atOutline, double height, IReadOnlyList<NearBody> bodies, IReadOnlyList<WorldVolume> surfaces)
+    {
+        double? bottom = null;
+        foreach (var b in bodies)
+        {
+            if (at.DistanceTo(b.Centre) > atRadius + b.Radius + Tolerance.Distance || !Outline.InteriorsIntersect(atOutline, b.Outline)) continue;
+            bottom ??= Collision.Rest([atOutline], surfaces, floors: true);
+            if (Overlap.IntervalsOverlap(bottom.Value, bottom.Value + height, b.Bottom, b.Top)) return true;
+        }
+        return false;
     }
 
     /// <summary>Bounding-circle rejection, then the exact test, against the pre-hoisted near volumes.</summary>

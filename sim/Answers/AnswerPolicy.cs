@@ -289,8 +289,8 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
 
     /// <summary>
     /// The region's own contact fields, as the server reads them (p.7, GfMoves.ContactBreach): the landing on no base, the swept path across
-    /// no model standing (unless PassesModels; one it already overlaps is left, Collision.Crosses), and Separation from every other unit's
-    /// model. A geometry test, as Lands is.
+    /// no model standing (unless PassesModels; one it already overlaps is left, Collision.Crosses), and Separation (Distance.BodyToBody) from every other unit's
+    /// model, all in three dimensions. A geometry test, as Lands is.
     /// </summary>
     private static bool Clear(Guid id, PlacedModel? start, Point2 at, MoveRegion m, PolicyView view, IReadOnlyDictionary<Guid, PlacedModel> taken)
     {
@@ -299,8 +299,8 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             .Where(x => x.At is not null).Select(x => (x.Id, At: x.At!.Value)).ToList();
         var everyone = standing.Concat(taken.Where(kv => kv.Key != id).Select(kv => (Id: kv.Key, At: kv.Value))).ToList();
         if (everyone.Any(o => Overlap.Bases(landing, o.At))) return false;
-        if (start is { } s && !m.PassesModels && Collision.Crosses(s, at, standing.Select(o => o.At).ToList())) return false;
+        if (start is { } s && !m.PassesModels && Collision.Crosses(s, at, standing.Select(o => o.At).ToList(), view.Volumes)) return false;
         var unit = view.ModelOf(id).UnitId;
-        return m.Separation is not { } gap || everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.EdgeToEdge(landing, o.At) >= gap + 1e-6);
+        return m.Separation is not { } gap || everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.BodyToBody(landing, o.At) >= gap + 1e-6);
     }
 }

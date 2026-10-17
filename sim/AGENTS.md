@@ -28,7 +28,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   sampled further than `DifficultCap` is sampled again within it (p.11); a disembark is sampled until the base is fully within
   `ExitWithin` of the container and fully on the table; a `MinDistance` is sampled above (or, where the table has no room for it, met at
   `Movement.FarthestOnTable`'s corner).
-- `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, does not cross a model (`Collision.Crosses`) unless the region `PassesModels`, and keeps the region's `Separation`. A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases.
+- `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, does not cross a model (`Collision.Crosses`, in three dimensions over the terrain) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`). A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases.
 - `AnswerPolicy` reads only `PolicyView`'s geometry members. A policy that reads other state is a second `IAnswerSource`.
 - The one opt-in exception is a `MoveGoal` (`Scenario.Goal`, `ScenarioBuilder.Seeking`). It names a point per model and only ranks
   the destinations the uniform sampler already found legal: all `MoveSamples` are drawn and the passing one nearest the point wins.
