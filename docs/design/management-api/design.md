@@ -407,11 +407,13 @@ The derived email is the name lowercased, non-alphanumeric characters replaced b
 user does not, and an embeddable magic link is the endpoint that returns the token instead of
 mailing it. Two names that slug to one address collide as `duplicate_email` → `409`.
 
-The gate is `IHostEnvironment.IsDevelopment()`, in two places: `builder.Environment` around the
-service registration and `app.Environment` around `MapDevSession`. `EnvironmentName` defaults to
+The gate is dev mode: `IHostEnvironment.IsDevelopment()` around the service registration, and
+`StartupGuard.DevMode` (Development and `TABLETOP_DEV_MODE=1` together) around `MapDevSession`.
+Development without the opt-in refuses to start, and `TABLETOP_DEV_MODE` in any other environment
+refuses to start, so neither half alone turns the route on. `EnvironmentName` defaults to
 `Production` when neither `ASPNETCORE_ENVIRONMENT` nor `DOTNET_ENVIRONMENT` is set, so a published
-build has no such route and answers `404`. No configuration key controls it, so no deployment turns
-it on by mistake. The test host runs as `Testing`, which is also not development.
+build has no such route and answers `404`; Caddy answers `404` for `/v1/dev/*` regardless. The test
+host runs as `Testing`, which is also not development.
 
 An account that does not exist is created rather than refused, which is what lets the simulator's
 `SocketRowSeeder` make its own accounts. A repeated name is idempotent down to the Stytch user:
@@ -1179,7 +1181,7 @@ and a build whose environment is unset serves `404` for it.
 | `Http.ClientVersion`, `ClientVersionVerdict`, `ClientVersionMiddleware` | `Decide(string?, int) : ClientVersionVerdict { Accept, UpgradeRequired, Malformed }` |
 | `Http.Keyset`, `Http.Page<T>` | `Keyset.Parse(int?, Guid?)`, `Keyset.Default = 50`, `Max = 200`; `Page<T>.Of(items, limit, id)` |
 | `Http.Problems`, `Http.CurrentAccount` | `NotFound()`, `Conflict(detail)`, `Unprocessable(detail)`, `BadGateway(detail)`; `CurrentAccount.Id(ClaimsPrincipal)` |
-| `Persistence.Database`, `Persistence.Migrator`, `Persistence.IMigrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)`; `IMigrator.Run()`, implemented by `PostgresMigrator` |
+| `Persistence.Database`, `Persistence.Migrator`, `Persistence.IMigrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)`, `Migrator.Pending(connectionString)`; `IMigrator.Run()`, `IMigrator.Pending()`, implemented by `PostgresMigrator`; `MigrateCommand` (`--migrate`) |
 | `Identity.StytchJwks` | `Ensure(string? kid)`, `Cached(string? kid)`, `Resolve(string? kid)`, `Url`, `DefaultFetchTimeout` |
 | `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `RolesClaim = "roles"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
 | `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
@@ -1224,7 +1226,7 @@ and a build whose environment is unset serves `404` for it.
 | Interpreter, through the OPR properties document | declare `Quality` and `Defense` at `model` level beside their `unit` declarations, because a joined hero's slots carry both as slot stats and `slot_stat` has no foreign key to `stat_definition` to catch the gap. **Both are discharged.** A joined hero attacks at its own Quality and blocks on the unit's Defense until every other model is dead, so the slot's `Quality` is read for every hit roll and the slot's `Defense` once the unit holds one model, and a `unit`-kind entry on a slot is the whole unit's rule in `Gather` and `UnitHas` alike (the interpreter design's ruling 13) |
 | Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |
 | Client shell | send `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; treat `426` as a screen; refresh with `POST /v1/auth/session/refresh` about once a minute; apply `ManifestEntry.Scale/Orientation` to another participant's mesh; mirror `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member |
-| Simulator | call `POST /v1/dev/sessions` once per team plus once for the recorder, and seed `participant` rows for the account ids it returns. It needs this service running under `ASPNETCORE_ENVIRONMENT=Development` with the Stytch secret set, and network access to the Stytch test project |
+| Simulator | call `POST /v1/dev/sessions` once per team plus once for the recorder, and seed `participant` rows for the account ids it returns. It needs this service running in dev mode (`ASPNETCORE_ENVIRONMENT=Development`, `TABLETOP_DEV_MODE=1`) with the Stytch secret set, and network access to the Stytch test project |
 | Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a `RESET_PASSWORD` redirect URL, in the test environment and again in live; the OAuth and magic-link redirect URLs are unused and can go. Claims need no dashboard setting |
 
 ---

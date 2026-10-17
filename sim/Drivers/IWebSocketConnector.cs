@@ -70,7 +70,7 @@ public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
             using var response = await http.PostAsJsonAsync(MintPath, new { name }, Json, ct);
             if (response.StatusCode == HttpStatusCode.NotFound)
                 throw new InvalidOperationException(
-                    $"{http.BaseAddress}{MintPath.TrimStart('/')} answered 404; the management API must run as a development environment (./scripts/management sets ASPNETCORE_ENVIRONMENT=Development)");
+                    $"{http.BaseAddress}{MintPath.TrimStart('/')} answered 404; the management API must run in dev mode (ASPNETCORE_ENVIRONMENT=Development and TABLETOP_DEV_MODE=1, as ./scripts/management and compose set)");
             if (response.StatusCode == HttpStatusCode.Conflict && attempt == 0) continue;
             response.EnsureSuccessStatusCode();
             var minted = await response.Content.ReadFromJsonAsync<MintResponse>(Json, ct)

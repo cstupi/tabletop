@@ -7,7 +7,8 @@ namespace Tabletop.Management.Persistence;
 public static class Migrator
 {
     private const string Journal = "schema_version";
-    private const string FirstScript = "Tabletop.Management.Persistence.Migrations.001_schema.sql";
+    private const string ScriptPrefix = "Tabletop.Management.Persistence.Migrations.";
+    private const string FirstScript = ScriptPrefix + "001_schema.sql";
 
     public static void Run(string connectionString)
     {
@@ -15,17 +16,25 @@ public static class Migrator
         // connection string carries a multi-entry Search Path, as TABLETOP_DB_CONNECTION does; every
         // script here names its schema explicitly (001's own `set search_path to management;`, 002's
         // `management.blob`), so the migrator never needs the connection's search_path.
-        var cs = new NpgsqlConnectionStringBuilder(connectionString) { SearchPath = null }.ConnectionString;
+        var cs = WithoutSearchPath(connectionString);
         Baseline(cs);
-        var result = DeployChanges.To.PostgresqlDatabase(cs)
-            .WithScriptsEmbeddedInAssembly(typeof(Migrator).Assembly, s => s.EndsWith(".sql"))
-            .JournalToPostgresqlTable("public", Journal)
-            .WithTransactionPerScript()
-            .LogToNowhere()
-            .Build()
-            .PerformUpgrade();
+        var result = Engine(cs).PerformUpgrade();
         if (!result.Successful) throw new InvalidOperationException("Migration failed", result.Error);
     }
+
+    /// <summary>The scripts not yet journalled. Reads only: a runtime role's check that the owner has migrated.</summary>
+    public static IReadOnlyList<string> Pending(string connectionString) =>
+        Engine(WithoutSearchPath(connectionString)).GetScriptsToExecute().Select(s => s.Name.Replace(ScriptPrefix, "")).ToList();
+
+    private static string WithoutSearchPath(string connectionString) =>
+        new NpgsqlConnectionStringBuilder(connectionString) { SearchPath = null }.ConnectionString;
+
+    private static DbUp.Engine.UpgradeEngine Engine(string cs) => DeployChanges.To.PostgresqlDatabase(cs)
+        .WithScriptsEmbeddedInAssembly(typeof(Migrator).Assembly, s => s.EndsWith(".sql"))
+        .JournalToPostgresqlTable("public", Journal)
+        .WithTransactionPerScript()
+        .LogToNowhere()
+        .Build();
 
     /// <summary>A database created by docker compose's init SQL already holds 001; record it instead of re-running it.</summary>
     private static void Baseline(string connectionString)

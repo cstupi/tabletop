@@ -114,7 +114,7 @@ public sealed class S3BlobStoreTests : BlobStoreContract
 {
     private static readonly HttpClient Shared = new();
     private readonly S3BlobStore _store;
-    public S3BlobStoreTests() { DotEnv.Load(); _store = new S3BlobStore(ManagementOptions.From(new ConfigurationBuilder().AddEnvironmentVariables("TABLETOP_").AddInMemoryCollection(new Dictionary<string, string?> { ["STYTCH_PROJECT_ID"] = "p", ["STYTCH_SECRET"] = "s" }).Build())); }
+    public S3BlobStoreTests() { DotEnv.Load(TestDatabase.RepoRoot); _store = new S3BlobStore(ManagementOptions.From(new ConfigurationBuilder().AddEnvironmentVariables("TABLETOP_").AddInMemoryCollection(new Dictionary<string, string?> { ["STYTCH_PROJECT_ID"] = "p", ["STYTCH_SECRET"] = "s" }).Build())); }
     protected override IBlobStore Store => _store;
     protected override HttpClient Http => Shared;
 }

@@ -73,7 +73,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - Fired: the entry is in a step's `StepCompleted.Applied` or a `RollModifier.Source` of the effective log (`Fired.In`). A rule that acts
   where no step completes (Scout, Ambush, Immobile, Aircraft's Advance-only restriction) gets the game's `Evidence` predicate instead.
 - `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. `SetDice` is no player
-  command: a game server takes it only with `GameServerOptions.AcceptsSetDice` on, which the Development environment sets (the
+  command: a game server takes it only with `GameServerOptions.AcceptsSetDice` on, which dev mode sets (Development and `TABLETOP_DEV_MODE=1`: the
   compose `game` service) and the in-process driver passes to its `RulesEngineFactory`; anywhere else it is refused. A game with fixes runs
   with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable; a fix that never meets its roll fails
   the game. A fix lands before the step that decides from those dice (opr-sequences.md → Dice edits), so the casting result, a
@@ -127,10 +127,10 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
   `--list`. Each failing game prints its replay command line.
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
-- `--driver socket` needs Postgres, the game server and management running, both servers in the Development environment (the game
+- `--driver socket` needs Postgres, the game server and management running, both servers in dev mode (Development and `TABLETOP_DEV_MODE=1`; the game
   server for `SetDice`, management for the session mint).
-- Sessions come from `POST /v1/dev/sessions`, which exists only in Development, for the pool accounts above.
-- Socket environment, from the process or the nearest `.env`: `TABLETOP_DB_CONNECTION` (required), `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`), `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`).
+- Sessions come from `POST /v1/dev/sessions`, which exists only in dev mode, for the pool accounts above.
+- Socket environment, from the process or the working directory's `.env`: `TABLETOP_DB_CONNECTION` (required), `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`), `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`).
 
 ## Conventions and pitfalls
 

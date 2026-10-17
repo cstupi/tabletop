@@ -14,9 +14,19 @@ public sealed class TestDatabase : IDisposable
     /// <summary>The repositories' data source on this database.</summary>
     public Persistence.Database Data { get; }
 
+    /// <summary>The directory holding Tabletop.sln, where the dev .env lives.</summary>
+    public static string RepoRoot { get; } = FindRepoRoot();
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Tabletop.sln"))) dir = dir.Parent;
+        return dir?.FullName ?? Directory.GetCurrentDirectory();
+    }
+
     public TestDatabase()
     {
-        Configuration.DotEnv.Load();
+        Configuration.DotEnv.Load(RepoRoot);
         var dev = Environment.GetEnvironmentVariable("TABLETOP_DB_CONNECTION") ?? throw new InvalidOperationException("TABLETOP_DB_CONNECTION not set; copy .env.example to .env");
         _admin = new NpgsqlConnectionStringBuilder(dev) { Database = "postgres" }.ConnectionString;
         ConnectionString = new NpgsqlConnectionStringBuilder(dev) { Database = Name }.ConnectionString;

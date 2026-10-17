@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Run the game server from WSL in dev mode on 127.0.0.1:5200 (`docker compose stop game` first). Reads .env for
+# TABLETOP_DB_CONNECTION and the Stytch project. Dev mode (Development plus TABLETOP_DEV_MODE=1) accepts SetDice, which the
+# rules suite's socket driver needs. Development without TABLETOP_DEV_MODE=1 refuses to start.
+set -euo pipefail
+export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Development}"
+export TABLETOP_DEV_MODE="${TABLETOP_DEV_MODE:-1}"
+cd "$(dirname "$0")/.."
+exec dotnet run --project server/game/Tabletop.GameServer.csproj "$@"

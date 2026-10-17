@@ -21,7 +21,8 @@ specifics.
 | `tests/` | One xUnit project per library, per server, for the client's core, the sim, the viewer and the army books. |
 | `scripts/` | Launch scripts, the Postgres init schema, `ArmyBooks/` (the army-book generator). |
 | `docs/` | Design, specs, plans, schema. See below. |
-| `Tabletop.sln`, `Directory.Build.props`, `global.json`, `docker-compose.yml` | Root build and stack files. |
+| `deploy/` | The production path: `docker-compose.prod.yml`, `Caddyfile`, systemd units, `prod.env.example`. |
+| `Tabletop.sln`, `Directory.Build.props`, `global.json`, `docker-compose.yml` | Root build and the development stack. |
 
 `client/`, `server/` and `web/` ship to players. `sim/` and `viewer/` ship to developers: neither is in the client's
 export or referenced by a server.
@@ -35,6 +36,10 @@ docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, gam
 dotnet build && dotnet test   # the unit suite, nothing running; --settings tests/e2e.runsettings for the E2E suite (stack up)
 dotnet run --project sim -- suite                    # the rules suite in-process; --driver socket against the stack
 ```
+
+`docker-compose.yml` and the `scripts/` launchers run the servers in dev mode (`ASPNETCORE_ENVIRONMENT=Development` plus
+`TABLETOP_DEV_MODE=1`); Development without the opt-in refuses to start. Production is `deploy/README.md`: Release images or
+systemd units behind Caddy, migrations through `Tabletop.Management --migrate`, and startup guards that refuse dev settings.
 
 The rules suite (`sim/AGENTS.md` → The rules suite) also runs from the viewer's Tests page (`http://127.0.0.1:5174`), which
 drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver against the `game` container).

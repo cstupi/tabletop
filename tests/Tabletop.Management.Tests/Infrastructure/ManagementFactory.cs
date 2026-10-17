@@ -72,5 +72,6 @@ public class ManagementFactory : WebApplicationFactory<Program>
     private sealed class NoMigrations : IMigrator
     {
         public void Run() { }
+        public IReadOnlyList<string> Pending() => [];
     }
 }

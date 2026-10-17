@@ -494,13 +494,22 @@ client's geometry is a cosmetic prediction, overwritten by the event, per Geomet
 
 ## Deployment
 
-**Hosting is deferred.** Local development is the only environment; Docker is introduced only for
-what needs it — Postgres, and S3 substituted by a local store. Hosting is designed when there is
-something to host. Everything below is the first-pass sketch it will be designed against.
+**One Linux host behind Caddy.** `deploy/` is the production path (`deploy/README.md` has the steps):
+both servers run from their Release images (`server/*/Dockerfile`) under `deploy/docker-compose.prod.yml`, or
+as published dlls under the `deploy/systemd/` units, listening on `127.0.0.1` only. Caddy is the only public
+listener: TLS, security headers, the static web build, `/v1` to management (never `/v1/dev/*`), `/ws` to the
+game server, and a blob host that passes presigned object traffic to MinIO. S3 or R2 is the preferred blob
+store; MinIO with a bucket-scoped service user is the self-hosted one. The repo-root `docker-compose.yml` is
+development only.
 
-**ECS Fargate for both servers, RDS Postgres, S3 for blobs.** One deployment model, because
-the game server holds live WebSocket sessions and cannot be serverless — so making the
-management API serverless would mean maintaining two models for no gain.
+**What the environment allows is enforced at startup** (`StartupGuard` in each server). Development
+behaviour (the dev-session mint, `SetDice`, startup migrations) needs `ASPNETCORE_ENVIRONMENT=Development`
+and `TABLETOP_DEV_MODE=1` together; any other environment refuses the test Stytch URL, http or loopback
+public origins and the dev stack's credentials, and never reads a `.env`. The servers connect as runtime
+roles with DML only; the owner role is used only by `Tabletop.Management --migrate`.
+
+One deployment model for both servers, because the game server holds live WebSocket sessions and
+cannot be serverless.
 
 The workload is undemanding: turn-based, small state, and **no simulation tick** — the server
 never advances state on a timer, only when a command arrives.
@@ -515,12 +524,12 @@ The real constraints are statefulness, not throughput:
 
 | Constraint | Resolution |
 | --- | --- |
-| ALB idle timeout drops long-idle sockets | Kestrel's WebSocket ping/pong control frames (`KeepAliveInterval` 20 s, `KeepAliveTimeout` 60 s); no protocol message kind is involved |
-| Deploys kill tasks holding live games | ECS `stopTimeout`, drain to the event log on SIGTERM |
-| Reconnect may land on a different task | Rehydrate from the event log — needed for crash recovery anyway |
+| A proxy's idle timeout drops long-idle sockets | Kestrel's WebSocket ping/pong control frames (`KeepAliveInterval` 20 s, `KeepAliveTimeout` 60 s); no protocol message kind is involved |
+| Deploys kill processes holding live games | A 30 s shutdown timeout (compose `stop_grace_period`, systemd `TimeoutStopSec` 40 s), drain to the event log on SIGTERM |
+| Reconnect may land on a different process | Rehydrate from the event log — needed for crash recovery anyway |
 
-That last row is why Fargate works at all: the event log makes the game server
-stateless-on-recovery, and horizontal scaling falls out of the same mechanism.
+That last row is what makes a restart safe: the event log makes the game server
+stateless-on-recovery, and horizontal scaling would fall out of the same mechanism.
 
 ## There is no offline mode
 

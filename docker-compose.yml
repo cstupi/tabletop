@@ -1,6 +1,7 @@
 name: tabletop
 
-# The servers run from the SDK image with `dotnet watch` over the repo bind-mounted at the host's own path:
+# Development only; deploy/ holds the production path. The servers run from the SDK image with `dotnet watch` over the repo
+# bind-mounted at the host's own path:
 # obj/Unix records absolute paths, so any other mount path would break the WSL host's restore. They run as the
 # host user (TABLETOP_UID/TABLETOP_GID, default 1000) so the obj/ and bin/ they write stay deletable on the host.
 x-dotnet: &dotnet
@@ -21,6 +22,7 @@ x-dotnet: &dotnet
     DOTNET_CLI_TELEMETRY_OPTOUT: "1"
     DOTNET_NOLOGO: "1"
     ASPNETCORE_ENVIRONMENT: Development
+    TABLETOP_DEV_MODE: "1"                # with Development: the dev-session mint, SetDice, startup migrations; Development without it refuses to start
 
 # The Vite dev servers run the same way: repo bind-mounted at the host's path, as the host user. node_modules is shared
 # with the host (both Linux x64 glibc, so the native bindings match); `npm ci` runs on start only when package-lock.json
@@ -66,12 +68,15 @@ services:
       timeout: 3s
       retries: 10
 
+  # MinIO publishes no images of its own any more (quay.io/minio and Docker Hub minio/ are gone); pgsty/minio is the community
+  # build of the same server, mc included. Pinned by digest; deploy/docker-compose.prod.yml uses the same.
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-01-20T14-49-07Z
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${TABLETOP_S3_ACCESS_KEY:-tabletop}
-      MINIO_ROOT_PASSWORD: ${TABLETOP_S3_SECRET_KEY:-tabletop-secret}
+      MINIO_ROOT_USER: ${TABLETOP_MINIO_ROOT_USER:-tabletop}
+      MINIO_ROOT_PASSWORD: ${TABLETOP_MINIO_ROOT_PASSWORD:-tabletop-secret}
+      MINIO_API_CORS_ALLOW_ORIGIN: http://127.0.0.1:5173,http://localhost:5173   # the web app's dev origins: browsers PUT presigned uploads here
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
@@ -83,16 +88,22 @@ services:
       timeout: 3s
       retries: 10
 
+  # The bucket and the bucket-scoped service user management signs with (scripts/minio/init.sh); root stays with MinIO.
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     depends_on:
       minio:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 ${TABLETOP_S3_ACCESS_KEY:-tabletop} ${TABLETOP_S3_SECRET_KEY:-tabletop-secret} &&
-      mc mb --ignore-existing local/${TABLETOP_S3_BUCKET:-tabletop-blobs} &&
-      echo bucket ready"
+    entrypoint: ["/scripts/init.sh"]
+    volumes:
+      - ./scripts/minio:/scripts:ro
+    environment:
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: ${TABLETOP_MINIO_ROOT_USER:-tabletop}
+      MINIO_ROOT_PASSWORD: ${TABLETOP_MINIO_ROOT_PASSWORD:-tabletop-secret}
+      S3_BUCKET: ${TABLETOP_S3_BUCKET:-tabletop-blobs}
+      S3_APP_ACCESS_KEY: ${TABLETOP_S3_APP_ACCESS_KEY:-tabletop-app}
+      S3_APP_SECRET_KEY: ${TABLETOP_S3_APP_SECRET_KEY:-tabletop-app-secret}
 
   dev-init:
     image: mcr.microsoft.com/dotnet/sdk:10.0
@@ -116,10 +127,12 @@ services:
       TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
       TABLETOP_S3_ENDPOINT: http://minio:9000
       TABLETOP_S3_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+      TABLETOP_S3_ACCESS_KEY: ${TABLETOP_S3_APP_ACCESS_KEY:-tabletop-app}         # minio-init's service user, not root
+      TABLETOP_S3_SECRET_KEY: ${TABLETOP_S3_APP_SECRET_KEY:-tabletop-app-secret}
       TabletopBuildSlot: -management
       TABLETOP_MANAGEMENT_URL: http://0.0.0.0:5100
     ports:
-      - "127.0.0.1:5100:5100"   # loopback only: Development maps POST /v1/dev/sessions, which mints a session with no login
+      - "127.0.0.1:5100:5100"   # loopback only: dev mode maps POST /v1/dev/sessions, which mints a session with no login
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5100"]
       interval: 5s
@@ -138,6 +151,7 @@ services:
       <<: *dotnet-env
       TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
       TabletopBuildSlot: -game
+      Kestrel__Endpoints__Http__Url: http://0.0.0.0:5200   # appsettings.json binds 127.0.0.1; the published port needs the container's interface
     ports:
       - "127.0.0.1:5200:5200"
 

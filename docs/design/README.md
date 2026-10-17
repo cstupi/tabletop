@@ -384,8 +384,8 @@ recorded and unmitigated.
 
 ## Runtime topology
 
-Local only. Hosting is deferred until there is something to host; `../architecture.md` carries
-the ECS Fargate sketch a later session will design against.
+Development, below. Production is one host behind Caddy (`../architecture.md` → Deployment,
+`../../deploy/README.md`).
 
 | Process | Where | Address |
 | --- | --- | --- |

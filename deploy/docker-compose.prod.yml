@@ -1,0 +1,139 @@
+# Production stack. Run from the repo root:
+#   docker compose --env-file /etc/tabletop/prod.env -f deploy/docker-compose.prod.yml [--profile minio] up -d --build
+# Caddy (deploy/Caddyfile) runs on the host and is the only thing on a public interface. Published here, on 127.0.0.1 only:
+# management :5100 and game :5200, plus MinIO's S3 API :9000 under the `minio` profile (leave the profile off with S3 or R2).
+# Every secret is a required variable (${VAR:?}); prod.env.example lists them.
+name: tabletop-prod
+
+x-hardened: &hardened
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: "5" }
+
+services:
+  postgres:
+    <<: *hardened
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    user: "70:70"                       # the image's postgres user: no root step, so no capability is needed
+    tmpfs: [/tmp, "/var/run/postgresql:uid=70,gid=70"]
+    environment:
+      POSTGRES_DB: tabletop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${TABLETOP_PG_SUPERUSER_PASSWORD:?set TABLETOP_PG_SUPERUSER_PASSWORD}
+      # Read once, by the init script on an empty volume (scripts/postgres/roles.sh).
+      TABLETOP_DB_OWNER_PASSWORD: ${TABLETOP_DB_OWNER_PASSWORD:?set TABLETOP_DB_OWNER_PASSWORD}
+      TABLETOP_DB_MANAGEMENT_PASSWORD: ${TABLETOP_DB_MANAGEMENT_PASSWORD:?set TABLETOP_DB_MANAGEMENT_PASSWORD}
+      TABLETOP_DB_GAME_PASSWORD: ${TABLETOP_DB_GAME_PASSWORD:?set TABLETOP_DB_GAME_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../scripts/postgres/roles.sh:/docker-entrypoint-initdb.d/000_roles.sh:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tabletop"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    <<: *hardened
+    profiles: [minio]
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${TABLETOP_MINIO_ROOT_USER:-tabletop-root}
+      MINIO_ROOT_PASSWORD: ${TABLETOP_MINIO_ROOT_PASSWORD:?set TABLETOP_MINIO_ROOT_PASSWORD}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${TABLETOP_WEB_URL:?set TABLETOP_WEB_URL}
+      MINIO_BROWSER: "off"
+    volumes:
+      - minio-data:/data
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:9000:9000"           # for Caddy's blob site only
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    <<: *hardened
+    profiles: [minio]
+    restart: "no"
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: ["/scripts/init.sh"]
+    volumes:
+      - ../scripts/minio:/scripts:ro
+    environment:
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: ${TABLETOP_MINIO_ROOT_USER:-tabletop-root}
+      MINIO_ROOT_PASSWORD: ${TABLETOP_MINIO_ROOT_PASSWORD:?set TABLETOP_MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${TABLETOP_S3_BUCKET:-tabletop-blobs}
+      S3_APP_ACCESS_KEY: ${TABLETOP_S3_ACCESS_KEY:?set TABLETOP_S3_ACCESS_KEY}
+      S3_APP_SECRET_KEY: ${TABLETOP_S3_SECRET_KEY:?set TABLETOP_S3_SECRET_KEY}
+    networks: [backend]
+
+  # One-shot: the migrations, as the owner role. management starts only after it succeeds.
+  migrate:
+    <<: *hardened
+    restart: "no"
+    build: { context: .., dockerfile: server/management/Dockerfile }
+    image: tabletop-management:${TABLETOP_VERSION:-latest}
+    command: ["--migrate"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      TABLETOP_DB_CONNECTION: "Host=postgres;Port=5432;Database=tabletop;GSS Encryption Mode=Disable;Username=tabletop_owner;Password=${TABLETOP_DB_OWNER_PASSWORD:?set TABLETOP_DB_OWNER_PASSWORD}"
+    networks: [backend]
+
+  management:
+    <<: *hardened
+    build: { context: .., dockerfile: server/management/Dockerfile }
+    image: tabletop-management:${TABLETOP_VERSION:-latest}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully, required: false }
+    environment:
+      TABLETOP_DB_CONNECTION: "Host=postgres;Port=5432;Database=tabletop;Search Path=management,game,public;GSS Encryption Mode=Disable;Username=tabletop_management;Password=${TABLETOP_DB_MANAGEMENT_PASSWORD:?set TABLETOP_DB_MANAGEMENT_PASSWORD}"
+      TABLETOP_S3_ENDPOINT: ${TABLETOP_S3_ENDPOINT:-http://minio:9000}
+      TABLETOP_S3_PUBLIC_ENDPOINT: ${TABLETOP_S3_PUBLIC_ENDPOINT:?set TABLETOP_S3_PUBLIC_ENDPOINT}
+      TABLETOP_S3_BUCKET: ${TABLETOP_S3_BUCKET:-tabletop-blobs}
+      TABLETOP_S3_ACCESS_KEY: ${TABLETOP_S3_ACCESS_KEY:?set TABLETOP_S3_ACCESS_KEY}
+      TABLETOP_S3_SECRET_KEY: ${TABLETOP_S3_SECRET_KEY:?set TABLETOP_S3_SECRET_KEY}
+      TABLETOP_STYTCH_BASE_URL: ${TABLETOP_STYTCH_BASE_URL:-https://api.stytch.com}
+      TABLETOP_STYTCH_PROJECT_ID: ${TABLETOP_STYTCH_PROJECT_ID:?set TABLETOP_STYTCH_PROJECT_ID}
+      TABLETOP_STYTCH_SECRET: ${TABLETOP_STYTCH_SECRET:?set TABLETOP_STYTCH_SECRET}
+      TABLETOP_WEB_URL: ${TABLETOP_WEB_URL:?set TABLETOP_WEB_URL}
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:5100:5100"
+
+  game:
+    <<: *hardened
+    build: { context: .., dockerfile: server/game/Dockerfile }
+    image: tabletop-game:${TABLETOP_VERSION:-latest}
+    stop_grace_period: 40s              # the server's own shutdown timeout is 30 s
+    depends_on:
+      management: { condition: service_healthy }
+    environment:
+      TABLETOP_DB_CONNECTION: "Host=postgres;Port=5432;Database=tabletop;Search Path=management,game,public;GSS Encryption Mode=Disable;Username=tabletop_game;Password=${TABLETOP_DB_GAME_PASSWORD:?set TABLETOP_DB_GAME_PASSWORD}"
+      TABLETOP_STYTCH_BASE_URL: ${TABLETOP_STYTCH_BASE_URL:-https://api.stytch.com}
+      TABLETOP_STYTCH_PROJECT_ID: ${TABLETOP_STYTCH_PROJECT_ID:?set TABLETOP_STYTCH_PROJECT_ID}
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:5200:5200"
+
+networks:
+  backend:
+    internal: true                      # Postgres and MinIO: no route out
+  edge: {}                              # published ports, and the servers' egress to Stytch and Army Forge
+
+volumes:
+  postgres-data:
+  minio-data:

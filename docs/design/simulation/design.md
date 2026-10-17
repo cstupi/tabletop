@@ -750,7 +750,7 @@ dotnet run --project sim -- serve [--port 5180] [--bind 127.0.0.1] [--out DIR]
 
 `--driver socket` reads `TABLETOP_DB_CONNECTION` (the variable the servers read),
 `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`) and `TABLETOP_SIM_MANAGEMENT` (default
-`http://127.0.0.1:5100`), each from the environment or the nearest `.env`, as the servers load theirs. `TABLETOP_MANAGEMENT_URL` in `.env` is management's bind address, so the client side has its own name. A scenario that declares its own spells cannot run on the socket driver, because
+`http://127.0.0.1:5100`), each from the environment or the working directory's `.env`, as the servers load theirs in Development. `TABLETOP_MANAGEMENT_URL` in `.env` is management's bind address, so the client side has its own name. A scenario that declares its own spells cannot run on the socket driver, because
 those spells have no authored properties document the game server can load, so that combination is a usage
 error with exit code 2. There is no token variable, because the tokens are minted per run.
 

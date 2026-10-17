@@ -5,9 +5,12 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 
 ## Layout
 
-- `Program.cs`: DI, `PropertiesSeeder` at startup (not in the `Test` environment), `/ws`, listens on :5200.
+- `Program.cs`: DI, `StartupGuard.Enforce`, `PropertiesSeeder` at startup (not in the `Test` environment), `/ws`, `/healthz`, listens on `127.0.0.1:5200` (`appsettings.json`; `Kestrel__Endpoints__Http__Url` overrides).
+- `Dockerfile`: the production image (see `deploy/README.md`).
 - `Auth/SessionVerification.cs`: `ISessionVerifier`, `StytchJwtVerifier`, `HttpJwksSource` (JWKS cached 10 minutes).
-- `Configuration/`: `GameServerOptions` (from `TABLETOP_*`), `DotEnv`.
+- `Configuration/`: `GameServerOptions` (from `TABLETOP_*`), `DotEnv` (the working directory's `.env`, Development only), `StartupGuard`: dev mode is
+  `ASPNETCORE_ENVIRONMENT=Development` and `TABLETOP_DEV_MODE=1`; Development without the opt-in refuses to start; every other environment but `Test`
+  refuses `TABLETOP_DEV_MODE`, a JWKS URL that is not Stytch's live API over https, and a dev-stack database password.
 - `Session/`: `ConnectionHandshake`, `SessionRegistry`, `Hydrator`, `GameSession` (partials Connect, Lobby, Setup, EndSetup, Frames, Facts), `SocketConnection`, `PresenceTable`, `SessionHost`.
 - `Dispatch/`: `CommandDispatcher`, `EnforcementPolicy` (silent/warn/strict), `HandMoves` (the `hand_move` breach), `LegalSetMembership`, `MenuTranslation`, `EventFilter`.
 - `Log/`: `IEventLog`, `PostgresEventLog`, `InMemoryEventLog`, `Replay`.
@@ -38,7 +41,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `Classify` sorts commands: `Override` (menu edits: moves, markers, wounds, conditions, score, round), `Undo`, `Abandon`, `Answer`, `Engine` (`SetDice`).
 - Dice and modifiers are the rules' alone: no player command rerolls, sets a face or adds a modifier. `SetDice` is the rules
   suite's way to fix a roll's faces. `RulesEngine` takes it only when built with `acceptsSetDice`, which comes from
-  `GameServerOptions.AcceptsSetDice`: on in the Development environment (the compose `game` service, which the suite's socket
+  `GameServerOptions.AcceptsSetDice`: on in dev mode (`StartupGuard.DevMode`; the compose `game` service, which the suite's socket
   driver targets), off otherwise. The sim's in-process driver and `GameServerFactory` turn it on. Off, `SetDice` is refused under
   every enforcement setting (`Judge` says `Illegal`, `Execute` refuses `NotPermitted`).
 - `GameSession.RunToRestAsync` is the write path for a command, the catch-up at start and the end of setup: the command's events, then `IRulesEngine.Advance` repeatedly until it returns nothing (cap 10000 iterations), each batch applied to the projection as it comes; then one `IEventLog.AppendAsync` of every batch (one transaction, one `NpgsqlBatch`), then each batch broadcast as its own `EventsMessage`, in order. Nothing is sent before the append returns.
@@ -97,7 +100,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 
 ```bash
 docker compose up -d                                        # Postgres, MinIO, management :5100, game :5200
-dotnet run --project server/game/Tabletop.GameServer.csproj # host run; stop the container first: docker compose stop game
+./scripts/game                                              # host run in dev mode; stop the container first: docker compose stop game
 dotnet test tests/Tabletop.GameServer.Tests                 # unit; nothing running
 dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttack"
 ./scripts/army-books fetch                                  # downloads books from Army Forge (the only network call)
@@ -105,10 +108,10 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 ```
 
 - Under compose, `game` runs `dotnet watch run` over the bind-mounted repo with `TabletopBuildSlot=-game`, so it builds into `obj/Unix-game/` and `bin/-game/`. A host `dotnet build` never disturbs it.
-- `game` starts after management is healthy, which has run the migrations.
-- Both servers bind `127.0.0.1` under compose.
-- `dotnet run` reads `.env` through `DotEnv` and needs `TABLETOP_DB_CONNECTION` and `TABLETOP_STYTCH_PROJECT_ID`. A host run the
-  suite's socket driver plays against needs `ASPNETCORE_ENVIRONMENT=Development`, or every `SetDice` is refused.
+- `game` starts after management is healthy, which has run the migrations (dev mode; in production the `--migrate` run does).
+- Under compose both servers listen on the container's `0.0.0.0` and are published on `127.0.0.1` only.
+- A Development run reads `.env` through `DotEnv` and needs `TABLETOP_DB_CONNECTION` and `TABLETOP_STYTCH_PROJECT_ID`. A host run the
+  suite's socket driver plays against needs dev mode (`./scripts/game` sets it), or every `SetDice` is refused.
 
 ## Conventions and pitfalls
 

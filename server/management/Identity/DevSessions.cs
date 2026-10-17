@@ -38,7 +38,7 @@ public sealed class DevSessions(StytchClient stytch, IAccountRepository accounts
 
 public static class DevSessionEndpoint
 {
-    /// <summary>Mapped only under IHostEnvironment.IsDevelopment(). A production build serves no such route.</summary>
+    /// <summary>Mapped only in dev mode (StartupGuard.DevMode: Development and TABLETOP_DEV_MODE=1). A production build serves no such route.</summary>
     public static void MapDevSession(this IEndpointRouteBuilder app) =>
         app.MapPost("/v1/dev/sessions", async (DevSessionRequest r, DevSessions dev) =>
         {

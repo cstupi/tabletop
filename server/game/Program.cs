@@ -10,12 +10,13 @@ using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Scheduler;
 using Tabletop.GameServer.Session;
 
-DotEnv.Load(Directory.GetCurrentDirectory());
+DotEnv.LoadForDevelopment(Directory.GetCurrentDirectory(), DotEnv.ProcessEnvironment());
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
+StartupGuard.Enforce(builder.Environment.EnvironmentName, builder.Configuration);
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(30));
 if (!builder.Environment.IsEnvironment("Test"))
-    builder.Services.AddSingleton(GameServerOptions.FromEnvironment(builder.Configuration, builder.Environment.IsDevelopment()));
+    builder.Services.AddSingleton(GameServerOptions.FromEnvironment(builder.Configuration, StartupGuard.DevMode(builder.Environment.EnvironmentName, builder.Configuration)));
 builder.Services.AddHttpClient<HttpJwksSource>();
 builder.Services.AddSingleton<IJwksSource>(sp => sp.GetRequiredService<HttpJwksSource>());
 builder.Services.AddSingleton<ISessionVerifier, StytchJwtVerifier>();
@@ -38,6 +39,7 @@ if (!app.Environment.IsEnvironment("Test")) await app.Services.GetRequiredServic
 var options = app.Services.GetRequiredService<GameServerOptions>();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = options.KeepAliveInterval, KeepAliveTimeout = options.KeepAliveTimeout });
 
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Map("/ws", async context =>
 {
     if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = StatusCodes.Status400BadRequest; return; }

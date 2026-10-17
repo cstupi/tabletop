@@ -36,8 +36,9 @@ management's rows plus the event log.
 - **HTTP resources.** The game server exposes commands and events and nothing else. Creating,
   joining, leaving, ending and deleting a game are management endpoints, and layouts stay
   management's.
-- **Hosting.** Local only: Postgres from `docker-compose.yml`, the server bound to
-  `http://0.0.0.0:5200`. Deployment is deferred.
+- **Hosting.** Development: Postgres from `docker-compose.yml`, the server on `5200` published on
+  loopback. Production: `deploy/` (the image, compose, systemd, Caddy in front); the server listens on
+  `127.0.0.1:5200` by default.
 - **Migrations.** `scripts/postgres/init/001_schema.sql` reaches the database through compose
   or through management's migrator. This server never migrates.
 
@@ -1378,7 +1379,7 @@ Deferred, with where it is recorded:
 | --- | --- |
 | Every rule: scheduler, interpreter, `Properties`, dice, legality beyond set membership | [scheduler](../scheduler/design.md), [interpreter](../interpreter/design.md) |
 | Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, resting `Z` (`Battlefield.Settle(state, modelId, placement)`) | the interpreter's move step over `Tabletop.Geometry` |
-| Hosting: ECS, ALB idle timeouts, `stopTimeout`, more than one task | `architecture.md` → Deployment |
+| Hosting: proxy idle timeouts, shutdown drain, more than one process | `architecture.md` → Deployment |
 | Terrain as event-driven state, which unlocks army terrain, buildings as targets and mid-game terrain edits | setup content → Still open |
 | A replay viewer | build order step 11 |
 

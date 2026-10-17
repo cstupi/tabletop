@@ -34,7 +34,8 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   `TABLETOP_API_PROXY_TARGET`, default `http://localhost:5100`.
 - `cd web && npm test`: Vitest (`tests/**/*.test.ts`, node environment, 60 s timeout).
 - `cd web && npm run check`: `svelte-kit sync` and `svelte-check`.
-- `cd web && npm run build`: static output to `web/build`, SPA fallback `index.html`.
+- `cd web && npm run build`: static output to `web/build`, SPA fallback `index.html`. Production builds set `TABLETOP_BLOB_ORIGIN`
+  (the presigned URLs' origin) for the CSP; Caddy serves `web/build` (`deploy/README.md`).
 - `cd web && npm run fixtures`: regenerates the STL fixtures.
 
 ## Conventions and pitfalls
@@ -47,6 +48,9 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - Vite exposes only `VITE_*` and `PUBLIC_*` on `import.meta.env` (`envPrefix`); `PUBLIC_API_BASE` is read there, not through `$env`.
 - `session.svelte.ts` wraps `localStorage` in try/catch; a blocked store leaves the session in memory.
 - Table frame: Z up, origin at the corner; mesh space is converted by `Proposal.orientation`, not by the page.
+- `svelte.config.js` sets `kit.csp` (hash mode): `script-src 'self' 'wasm-unsafe-eval'` (meshoptimizer's WASM), `worker-src 'self' blob:`,
+  `connect-src` and `img-src` add the blob origin (`TABLETOP_BLOB_ORIGIN`, default `http://127.0.0.1:9000`) and `PUBLIC_API_BASE`'s origin. A new
+  outside origin goes there.
 
 ## Docs
 
