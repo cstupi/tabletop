@@ -85,18 +85,17 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
   (`docs/schema-diagram.md`; `docs/design/interpreter/` index plus `properties`, `resolution`, `decisions`,
   `interfaces`, `operations`).
 
-**Open from today (owner):**
-- **Passengers in the client.** The client puts a passenger inside a Transport already on the table (pick the passenger,
-  then "Put inside a container"); that now breaches p.15. The legal path is to pick the Transport and board its
-  passengers before placing it, which the client has no gesture for. Needs a client change before strict games use
-  transports.
-- **Base shape:** height under square bases still comes from the round base ("height stays as imported"); Re-import uses
-  the form's current choice, since the army does not store which set it used.
-- **Account deletion** deletes every game the account joined (management-api design §13, deliberate). Since games are
-  public, a player can join a game and delete their account to wipe it. Narrowing it to games the account created would
-  close that.
-- Still not built: Ambush's "over 9" away from enemy units"; under Takedown, `Blast`'s cap and the defence roll read the
-  whole unit; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
+**Owner rulings, 2026-10-16 (built):** account deletion deletes the games the account hosted and leaves the games it
+joined (`IGameRepository.Leave`; accounts are normally locked, not deleted — locking is not built); base height is 1.5 ×
+the larger dimension of the chosen base set.
+
+**In progress:** passengers (spec `2026-10-16-passengers-design.md`, agent branch). During deployment a roster right-click
+marks a shelved unit **Put in transport ▸ [Transport]** (no deploy turn spent; deployed inside it when the Transport
+is); in play a right-click offers **Board transport** in reach. Until it merges, the client's old "Put inside a
+container" during deployment breaches p.15.
+
+**Still not built:** Ambush's "over 9" away from enemy units"; under Takedown, `Blast`'s cap and the defence roll read the
+whole unit; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
 
 ### 2026-10-15
 
