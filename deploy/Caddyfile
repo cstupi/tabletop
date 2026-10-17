@@ -1,0 +1,76 @@
+# The public edge. Caddy terminates TLS (automatic certificates for the two hostnames) and is the only listener on a public
+# interface; the servers and MinIO listen on 127.0.0.1. Settings come from Caddy's environment (systemd: Environment= or
+# EnvironmentFile= on caddy.service):
+#   TABLETOP_WEB_HOST     the web app, /v1 and /ws, e.g. tabletop.example.org      (TABLETOP_WEB_URL's host)
+#   TABLETOP_BLOB_HOST    presigned blob traffic to MinIO, e.g. blobs.tabletop.example.org (TABLETOP_S3_PUBLIC_ENDPOINT's host)
+#   TABLETOP_WEB_ROOT     web/build, copied to the host                (default /srv/tabletop/web)
+#   TABLETOP_S3_BUCKET    the one bucket the blob host serves           (default tabletop-blobs)
+#   TABLETOP_MANAGEMENT_UPSTREAM, TABLETOP_GAME_UPSTREAM, TABLETOP_BLOB_UPSTREAM  default 127.0.0.1:5100, :5200, :9000
+# With S3 or R2 in place of MinIO, presigned URLs name the provider directly: drop the blob site.
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+		-X-Powered-By
+	}
+}
+
+{$TABLETOP_WEB_HOST} {
+	import security_headers
+	encode zstd gzip
+
+	# The script, style and connect policy is the web build's own <meta> CSP (web/svelte.config.js, kit.csp); a meta tag
+	# cannot carry frame-ancestors, so it is here. Browsers enforce both policies.
+	header Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+	# Development only on the servers, and never reachable from outside whatever the server's environment.
+	handle /v1/dev/* {
+		respond 404
+	}
+
+	handle /v1/* {
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy {$TABLETOP_MANAGEMENT_UPSTREAM:127.0.0.1:5100}
+	}
+
+	handle /ws {
+		reverse_proxy {$TABLETOP_GAME_UPSTREAM:127.0.0.1:5200}
+	}
+
+	handle {
+		root * {$TABLETOP_WEB_ROOT:/srv/tabletop/web}
+		@immutable path /_app/immutable/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$TABLETOP_BLOB_HOST} {
+	import security_headers
+
+	# Presigned object reads and uploads in the one bucket; OPTIONS is the browser's CORS preflight for the PUT. Every
+	# other method or path (bucket listing, admin, other buckets) is refused here before MinIO sees it. SigV4 signs the
+	# Host header, which reverse_proxy passes through unchanged.
+	@objects {
+		method GET HEAD PUT OPTIONS
+		path_regexp ^/{$TABLETOP_S3_BUCKET:tabletop-blobs}/[^?]+$
+	}
+	handle @objects {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy {$TABLETOP_BLOB_UPSTREAM:127.0.0.1:9000}
+	}
+	handle {
+		respond 403
+	}
+}
