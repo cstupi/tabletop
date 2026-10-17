@@ -12,6 +12,9 @@ RUN test -n "$TABLETOP_BLOB_ORIGIN" || { echo "the TABLETOP_BLOB_ORIGIN build ar
     TABLETOP_BLOB_ORIGIN="$TABLETOP_BLOB_ORIGIN" npm run build
 
 FROM caddy:2-alpine
+# The image grants the binary cap_net_bind_service as a file capability, which no-new-privileges refuses to exec; :8080
+# needs none.
+RUN setcap -r /usr/bin/caddy
 COPY web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /src/web/build /srv
 USER 65534:65534
