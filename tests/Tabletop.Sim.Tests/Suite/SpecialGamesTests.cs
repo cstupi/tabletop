@@ -64,6 +64,7 @@ public class SpecialGamesTests
 
 /// <summary>The same games over the socket, against the in-memory game server and the Docker Postgres.</summary>
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class SpecialGamesSocketTests(PostgresFixture pg) : IDisposable
 {
     readonly GameServerFactory _factory = new();

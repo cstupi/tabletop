@@ -14,6 +14,10 @@
     <!-- Every slot's generated sources, not only this build's: the SDK excludes just its own obj/ and bin/. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
   </PropertyGroup>
+  <!-- dotnet test skips Category=E2E (tests/default.runsettings); the settings file tests/e2e.runsettings runs only them. -->
+  <PropertyGroup>
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)tests/default.runsettings</RunSettingsFilePath>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(TabletopBuildSlot)' != ''">
     <BaseOutputPath>bin/$(TabletopBuildSlot)/</BaseOutputPath>
   </PropertyGroup>

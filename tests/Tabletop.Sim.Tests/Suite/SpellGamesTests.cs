@@ -109,6 +109,7 @@ static class SpellDefects
 
 /// <summary>The spell games over the socket: the in-memory game server built from this tree, the Docker Postgres, the suite's own rows.</summary>
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class SpellGamesSocketTests(PostgresFixture pg) : IDisposable
 {
     readonly GameServerFactory _factory = new();

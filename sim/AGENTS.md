@@ -109,7 +109,7 @@ dotnet run --project sim -- suite                              # every suite gam
 dotnet run --project sim -- suite --only core,special --driver socket --keep
 dotnet run --project sim -- suite --list
 dotnet run --project sim -- serve                              # the runner service on 127.0.0.1:5180
-dotnet test tests/Tabletop.Sim.Tests
+dotnet test tests/Tabletop.Sim.Tests                           # unit; --settings tests/e2e.runsettings for the socket-driver games
 ```
 
 - Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (recordings and `suite.json`),

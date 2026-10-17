@@ -317,6 +317,7 @@ static class ScenarioArmyRules
 
 /// <summary>Every army game over the socket, against the in-memory game server and the Docker Postgres, as SuiteSocketTests runs the sample.</summary>
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class ArmyGamesSocketTests(PostgresFixture pg) : IDisposable
 {
     readonly GameServerFactory _factory = new();

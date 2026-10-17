@@ -32,7 +32,7 @@ export or referenced by a server.
 cp -n .env.example .env   # then add TABLETOP_STYTCH_SECRET; .env is never committed
 docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173, viewer 5174 (Vite), sim-runner 5180
 ./scripts/client          # build, check and launch the Godot client on Windows
-dotnet build && dotnet test   # every .NET project; the server tests need the stack up
+dotnet build && dotnet test   # the unit suite, nothing running; --settings tests/e2e.runsettings for the E2E suite (stack up)
 dotnet run --project sim -- suite                    # the rules suite in-process; --driver socket against the stack
 ```
 

@@ -46,6 +46,7 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
         AssertResult(name, await new SuiteRunner().RunAsync(new SuiteOptions([name], DriverKind.InProcess, false, TempDir()), null, Ct));
 
     [Theory]
+    [Trait("Category", "E2E")]
     [MemberData(nameof(Games))]
     public async Task Each_core_game_passes_over_the_socket_or_shows_only_its_known_defect(string name)
     {

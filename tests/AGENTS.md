@@ -15,13 +15,16 @@ xUnit projects, one per library, per server and for the client's Godot-free core
 ## Commands
 
 ```bash
-dotnet test                              # everything; needs docker compose up -d
-dotnet test tests/Tabletop.Geometry.Tests
+dotnet test                                          # the unit suite; nothing running
 dotnet test tests/Tabletop.Client.Tests
+dotnet test --settings tests/e2e.runsettings         # the E2E suite; needs docker compose up -d
 ```
 
-- Projects needing the Docker stack: `GameServer.Tests` and `Management.Tests` (Postgres, MinIO), plus the socket-driver tests in `Sim.Tests`.
-- Tests in the `[Collection("Postgres")]` collection need the Docker Postgres up.
+- Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`). The unit suite is every test without
+  `[Trait("Category", "E2E")]` and reaches no live service: servers run over the in-memory fakes in each test project's
+  `Infrastructure/`. E2E tests are the Postgres and S3 adapters, migrations and suite games over the socket driver.
+- `tests/default.runsettings` (from `Directory.Build.props`) excludes E2E; `tests/e2e.runsettings` selects only E2E. A
+  command-line `--filter` narrows within the chosen suite.
 - Never `docker compose down -v`: the Postgres volume holds the schema the server tests read.
 
 ## Regenerating checked-in outputs

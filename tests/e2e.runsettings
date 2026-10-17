@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tier that needs live services alone: pass this file to dotnet test as its settings. -->
+<RunSettings>
+  <RunConfiguration>
+    <TestCaseFilter>Category=E2E</TestCaseFilter>
+  </RunConfiguration>
+</RunSettings>

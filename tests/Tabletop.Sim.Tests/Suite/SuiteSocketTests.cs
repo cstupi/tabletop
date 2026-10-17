@@ -22,6 +22,7 @@ namespace Tabletop.Sim.Tests.Suite;
 /// the one account pool.
 /// </summary>
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class SuiteSocketTests(PostgresFixture pg) : IDisposable
 {
     readonly GameServerFactory _factory = new();

@@ -14,6 +14,7 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Tests;
 
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class DriverAgreementTests(PostgresFixture pg)
 {
     static CancellationToken Ct => CancellationToken.None;

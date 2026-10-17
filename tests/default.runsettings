@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Every test project's default: the unit tier, no live services. tests/e2e.runsettings runs the other tier. -->
+<RunSettings>
+  <RunConfiguration>
+    <TestCaseFilter>Category!=E2E</TestCaseFilter>
+  </RunConfiguration>
+</RunSettings>
