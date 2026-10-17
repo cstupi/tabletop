@@ -1,5 +1,5 @@
 [Unit]
-Description=Tabletop management API (127.0.0.1:5100, behind Caddy)
+Description=Tabletop management API (127.0.0.1:5100, behind the reverse proxy)
 After=network-online.target postgresql.service tabletop-migrate.service
 Wants=network-online.target
 Requires=tabletop-migrate.service

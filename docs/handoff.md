@@ -66,8 +66,8 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 ### 2026-10-17
 
 **Production path** (`deploy/README.md`): Release images (`server/*/Dockerfile`, non-root, Production) or systemd units,
-`deploy/docker-compose.prod.yml`, `deploy/Caddyfile` (`/v1/*` except `/v1/dev/*`, `/ws`, the static web build, a blob
-host for presigned URLs), `prod.env.example`. Migrations run as the owner role through `Tabletop.Management --migrate`;
+`deploy/docker-compose.prod.yml`, `prod.env.example`. Caddy and the WAF are the owner's; `deploy/README.md` lists the
+upstreams they front. Migrations run as the owner role through `Tabletop.Management --migrate`;
 runtime roles `tabletop_management` / `tabletop_game` have DML only (`scripts/postgres/roles.sh`); MinIO signs with a
 bucket-scoped service user (`scripts/minio/init.sh`). Dev mode is `ASPNETCORE_ENVIRONMENT=Development` plus
 `TABLETOP_DEV_MODE=1` (compose, `scripts/management`, `scripts/game`); `StartupGuard` refuses dev settings anywhere else.

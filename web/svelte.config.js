@@ -13,7 +13,7 @@ export default {
     adapter: adapter({ pages: 'build', assets: 'build', fallback: 'index.html', strict: false }),
     alias: { $lib: 'src/lib' },
     // Hash mode: SvelteKit hashes its own inline bootstrap into script-src and writes the policy as a <meta> tag in the
-    // static pages. frame-ancestors cannot be set by a meta tag; deploy/Caddyfile sends it as a header.
+    // static pages. frame-ancestors cannot be set by a meta tag; the reverse proxy has to send it as a header.
     csp: {
       mode: 'hash',
       directives: {

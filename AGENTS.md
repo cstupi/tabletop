@@ -21,7 +21,7 @@ specifics.
 | `tests/` | One xUnit project per library, per server, for the client's core, the sim, the viewer and the army books. |
 | `scripts/` | Launch scripts, the Postgres init schema, `ArmyBooks/` (the army-book generator). |
 | `docs/` | Design, specs, plans, schema. See below. |
-| `deploy/` | The production path: `docker-compose.prod.yml`, `Caddyfile`, systemd units, `prod.env.example`. |
+| `deploy/` | The production path: `docker-compose.prod.yml`, systemd units, `prod.env.example`. |
 | `Tabletop.sln`, `Directory.Build.props`, `global.json`, `docker-compose.yml` | Root build and the development stack. |
 
 `client/`, `server/` and `web/` ship to players. `sim/` and `viewer/` ship to developers: neither is in the client's

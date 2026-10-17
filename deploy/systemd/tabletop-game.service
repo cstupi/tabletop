@@ -1,5 +1,5 @@
 [Unit]
-Description=Tabletop game server (127.0.0.1:5200, behind Caddy)
+Description=Tabletop game server (127.0.0.1:5200, behind the reverse proxy)
 After=network-online.target postgresql.service tabletop-management.service
 Wants=network-online.target
 

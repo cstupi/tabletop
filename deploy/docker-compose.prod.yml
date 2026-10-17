@@ -1,6 +1,6 @@
 # Production stack. Run from the repo root:
 #   docker compose --env-file /etc/tabletop/prod.env -f deploy/docker-compose.prod.yml [--profile minio] up -d --build
-# Caddy (deploy/Caddyfile) runs on the host and is the only thing on a public interface. Published here, on 127.0.0.1 only:
+# The reverse proxy runs on the host and is the only thing on a public interface. Published here, on 127.0.0.1 only:
 # management :5100 and game :5200, plus MinIO's S3 API :9000 under the `minio` profile (leave the profile off with S3 or R2).
 # Every secret is a required variable (${VAR:?}); prod.env.example lists them.
 name: tabletop-prod
@@ -53,7 +53,7 @@ services:
       - minio-data:/data
     networks: [backend, edge]
     ports:
-      - "127.0.0.1:9000:9000"           # for Caddy's blob site only
+      - "127.0.0.1:9000:9000"           # the blob endpoint, for the reverse proxy
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -110,7 +110,7 @@ services:
       TABLETOP_STYTCH_PROJECT_ID: ${TABLETOP_STYTCH_PROJECT_ID:?set TABLETOP_STYTCH_PROJECT_ID}
       TABLETOP_STYTCH_SECRET: ${TABLETOP_STYTCH_SECRET:?set TABLETOP_STYTCH_SECRET}
       TABLETOP_WEB_URL: ${TABLETOP_WEB_URL:?set TABLETOP_WEB_URL}
-      TABLETOP_TRUSTED_PROXIES: 172.31.250.1   # the edge gateway: Caddy on the host reaches the published port through it
+      TABLETOP_TRUSTED_PROXIES: 172.31.250.1   # the edge gateway: the host's reverse proxy reaches the published port through it
     networks: [backend, edge]
     ports:
       - "127.0.0.1:5100:5100"

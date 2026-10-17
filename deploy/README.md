@@ -6,7 +6,6 @@ The production path: the two servers behind Caddy, on Docker (`docker-compose.pr
 | File | What |
 | --- | --- |
 | `docker-compose.prod.yml` | Postgres, MinIO (profile `minio`), the one-shot `migrate`, management, game |
-| `Caddyfile` | The public edge: web app, `/v1`, `/ws`, the blob host; TLS and security headers |
 | `systemd/` | `tabletop-migrate`, `tabletop-management`, `tabletop-game` units for a host run |
 | `prod.env.example` | Every production setting and secret |
 | `../server/*/Dockerfile` | The server images (`dotnet publish -c Release` on `aspnet:10.0`, user `app`) |
@@ -22,7 +21,7 @@ The production path: the two servers behind Caddy, on Docker (`docker-compose.pr
   `ASPNETCORE_ENVIRONMENT=Development` and `TABLETOP_DEV_MODE=1` together. A `.env` is read only in Development.
 - Management never migrates at startup outside dev mode: it connects as a runtime role, and refuses to start while the
   schema is behind the build. `Tabletop.Management --migrate` applies the migrations as the owner role and exits.
-- Both servers answer `GET /healthz`. Caddy does not route it.
+- Both servers answer `GET /healthz`; it is for local health checks, not for the public.
 
 ## Database roles
 
@@ -41,8 +40,7 @@ after `createdb tabletop`.
 
 S3 or Cloudflare R2 is the preferred production store: set `TABLETOP_S3_ENDPOINT` and `TABLETOP_S3_PUBLIC_ENDPOINT` to
 the provider, use a token scoped to the bucket (object Get/Put/Delete, and ListBucket so a missing object answers 404),
-set the bucket's CORS to allow `PUT`, `GET` and `HEAD` from `TABLETOP_WEB_URL`, leave the `minio` profile off and drop
-the Caddyfile's blob site.
+set the bucket's CORS to allow `PUT`, `GET` and `HEAD` from `TABLETOP_WEB_URL`, and leave the `minio` profile off.
 
 Self-hosted MinIO (profile `minio`): `minio-init` creates the bucket, the policy `<bucket>-objects` (Get/Put/Delete on
 its objects, ListBucket on the bucket) and the service user `TABLETOP_S3_ACCESS_KEY` the servers sign with; the root
@@ -60,7 +58,7 @@ docker compose --env-file /etc/tabletop/prod.env -f deploy/docker-compose.prod.y
 - `migrate` runs first on every `up`; `management` starts only after it exits 0, `game` after management is healthy.
 - Containers: `read_only`, `tmpfs /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, `restart: unless-stopped`; Postgres runs
   as its image user (70). Postgres and MinIO sit on an internal network with no route out.
-- Published on 127.0.0.1 only: management 5100, game 5200, MinIO 9000 (profile `minio`, for Caddy's blob site).
+- Published on 127.0.0.1 only: management 5100, game 5200, MinIO 9000 (profile `minio`, the blob endpoint presigned URLs name).
 
 ## Host (systemd)
 
@@ -82,20 +80,17 @@ sudo systemctl daemon-reload && sudo systemctl enable --now tabletop-management 
 - Connection strings: `Host=127.0.0.1;Port=5432;Database=tabletop;Username=...;Password=...;GSS Encryption Mode=Disable`,
   plus `Search Path=management,game,public` for the two runtime roles.
 
-## Caddy
+## Web app and upstreams
 
 ```bash
-cd web && npm ci && TABLETOP_BLOB_ORIGIN=https://blobs.tabletop.example.org npm run build   # web/build
-sudo rsync -a --delete web/build/ /srv/tabletop/web/
+cd web && npm ci && TABLETOP_BLOB_ORIGIN=https://blobs.tabletop.example.org npm run build   # static site in web/build
 ```
 
-Caddy reads `TABLETOP_WEB_HOST`, `TABLETOP_BLOB_HOST` and optionally `TABLETOP_WEB_ROOT`, `TABLETOP_S3_BUCKET` and the
-three `*_UPSTREAM` addresses from its environment (a systemd drop-in on `caddy.service`). The web host serves the build
-with an SPA fallback, `/v1/*` to management (body cap 2 MB, `/v1/dev/*` answers 404) and `/ws` to the game server. The
-blob host passes `GET`, `HEAD`, `PUT` and the CORS preflight `OPTIONS` on `/<bucket>/<key>` to MinIO (body cap 100 MB) and
-answers 403 to anything else. Every response carries HSTS, `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`,
-`Permissions-Policy`, and no `Server` header; the web host adds `frame-ancestors 'none'` to the build's own CSP
-(`web/svelte.config.js`, hash mode; `TABLETOP_BLOB_ORIGIN` at build time names the blob origin it may connect to).
+What the reverse proxy fronts, all on 127.0.0.1: the static `web/build` (SPA fallback to `index.html`), `/v1/*` →
+management 5100, `/ws` → game 5200, and the blob endpoint (`TABLETOP_S3_PUBLIC_ENDPOINT`) → MinIO 9000 or the provider.
+`/v1/dev/*` exists only in dev mode. The web build's CSP is in `web/svelte.config.js` (hash mode; `TABLETOP_BLOB_ORIGIN`
+names the blob origin it may connect to). Management reads client addresses from `X-Forwarded-For` only from
+`TABLETOP_TRUSTED_PROXIES`.
 
 ## Stytch
 
