@@ -265,14 +265,10 @@ What the suite does not check or report today.
 ## Known rule gaps
 
 **Army-book rules not yet played.** Every rule name the official books put on a unit, a weapon, an item or an upgrade
-has a catalog entry. 71 are generated template wrappers (Aura, Buff, Mark) and play; 108 are generated text-only
-entries (`played: false`): the unit card shows their Army Forge text tagged "not automated" and the engine plays them
-as absent. The rules suite lists them and does not fail on them. They are the spec's batches 2–8
-(`docs/superpowers/specs/2026-10-09-army-book-rules-design.md`) and the wrappers of bases those batches author.
-
-**Unit-level names on armies imported before generation stay silent.** A pick entry or a carried Aura held as a
-unit-level property, as armies imported before the generated part hold them, is offered by no `GfPick.Offers` and
-granted by no `Lookup.AuraGrants`, which read model slots; nothing tags it "not automated".
+has a catalog entry and plays except five: Spawn, Split and Reinforcement (each places a unit the army snapshot does not
+hold; build path: the import adds the units X names as reserve units) and Takedown Shot / Takedown Strike (an attack
+profile no weapon has; build path: the import adds it as a once-per-game weapon of the carrying model). Readings of the
+batches are in `docs/superpowers/specs/2026-10-09-army-book-rules-design.md`.
 
 **Unique is a list-building rule.** The engine judges no army list, so Unique's suite game only plays to its end.
 
