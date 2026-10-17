@@ -7,7 +7,6 @@
   import BasePicker from '$lib/components/BasePicker.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { rename, slotBase, slotHeight, slotMesh, slotSummary, unitDefault } from '$lib/armies/patches';
-  import { baseLabel } from '$lib/units/bases';
   import { MAX_NAME, nameProblem } from '$lib/validation';
 
   const id = $derived(page.params.id!);
@@ -78,8 +77,8 @@
                   <th scope="row">{m.name}</th>
                   <td><small>{slotSummary(m)}</small></td>
                   <td><AssetPicker {assets} value={m.assetId ?? null} base={m.base} label="Mesh for {m.name} {i + 1}" onchange={(a) => apply(slotMesh(m.id, a))} /></td>
-                  <td><BasePicker value={m.base} allowNone={false} label="Base for {m.name} {i + 1}" onchangevalue={(b) => b && apply(slotBase(m.id, b))} /> <small>{baseLabel(m.base)}</small></td>
-                  <td><input type="number" step="0.25" min="0.25" value={m.height} aria-label="Height in inches for {m.name} {i + 1}" onchange={(e) => { const h = Number(e.currentTarget.value); if (Number.isFinite(h) && h > 0) apply(slotHeight(m.id, h)); else e.currentTarget.value = String(m.height); }} /></td>
+                  <td><BasePicker value={m.base} allowNone={false} label="Base for {m.name} {i + 1}" onchangevalue={(b) => b && apply(slotBase(m.id, b))} /></td>
+                  <td><input class="height" type="number" step="0.25" min="0.25" value={m.height.toFixed(2)} aria-label="Height in inches for {m.name} {i + 1}" onchange={(e) => { const h = Number(e.currentTarget.value); if (Number.isFinite(h) && h > 0) apply(slotHeight(m.id, h)); else e.currentTarget.value = m.height.toFixed(2); }} /></td>
                 </tr>
               {/each}
             </tbody>
@@ -93,6 +92,7 @@
 {/if}
 {#if error}<p role="alert">{error}</p>{/if}
 <style>
+  input.height { width: 7rem; min-width: 7rem }
   .army-head { padding-block: var(--s4); margin-bottom: var(--s2) }
   .eyebrow { display: block; font-size: .8rem; color: var(--dim); font-family: var(--font-display); text-transform: var(--display-case); letter-spacing: var(--display-tracking) }
   .title { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: clamp(1.3rem, 1rem + 1.5vw, 1.9rem); width: 100%; margin: var(--s1) 0 var(--s2) }
