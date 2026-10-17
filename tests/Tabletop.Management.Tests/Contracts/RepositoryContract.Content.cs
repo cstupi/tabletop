@@ -16,7 +16,7 @@ public abstract partial class RepositoryContract
         await Armies.Insert(owner, army);
         Assert.Equal(ContentJson.Serialize(army), ContentJson.Serialize(await Armies.Get(owner, army.Id)));
         Assert.Null(await Armies.Get(await NewAccount(), army.Id));
-        Assert.Equal([new ArmySummary(army.Id, "Army", "grimdark-future", "test", 2, 3)], await Armies.List(owner, new Keyset(10, null)));
+        Assert.Equal([new ArmySummary(army.Id, "Army", "grimdark-future", "test", 3, 4)], await Armies.List(owner, new Keyset(10, null)));
     }
 
     [Fact]

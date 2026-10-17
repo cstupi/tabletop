@@ -1,0 +1,350 @@
+{
+  "04z57ua0bwth37zh": {
+    "Changelings": {
+      "size": 10,
+      "quality": 6,
+      "defense": 6,
+      "bases": {
+        "round": "25",
+        "square": "25"
+      },
+      "rules": [
+        {
+          "name": "Changebound"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Fireballs",
+          "type": "ArmyBookWeapon",
+          "count": 10,
+          "range": 12,
+          "attacks": 2,
+          "specialRules": []
+        },
+        {
+          "name": "Claws",
+          "type": "ArmyBookWeapon",
+          "count": 10,
+          "range": null,
+          "attacks": 2,
+          "specialRules": [
+            {
+              "name": "Shred"
+            }
+          ]
+        }
+      ]
+    },
+    "Lesser Change Horrors": {
+      "size": 5,
+      "quality": 5,
+      "defense": 5,
+      "bases": {
+        "round": "32",
+        "square": "30"
+      },
+      "rules": [
+        {
+          "name": "Changebound"
+        },
+        {
+          "name": "Split",
+          "rating": "Changelings [10]"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Fireballs",
+          "type": "ArmyBookWeapon",
+          "count": 5,
+          "range": 12,
+          "attacks": 1,
+          "specialRules": []
+        },
+        {
+          "name": "Claws",
+          "type": "ArmyBookWeapon",
+          "count": 5,
+          "range": null,
+          "attacks": 1,
+          "specialRules": [
+            {
+              "name": "Shred"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "4k5amkxoybdiqotm": {
+    "Bot Swarms": {
+      "size": 3,
+      "quality": 5,
+      "defense": 6,
+      "bases": {
+        "round": "40",
+        "square": "40"
+      },
+      "rules": [
+        {
+          "name": "Strider"
+        },
+        {
+          "name": "Tough",
+          "rating": 3
+        },
+        {
+          "name": "Self-Repair"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Swarm Attacks",
+          "type": "ArmyBookWeapon",
+          "count": 3,
+          "range": 0,
+          "attacks": 3,
+          "specialRules": [
+            {
+              "name": "Rending"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "9qvy1oufoangt2gl": {
+    "Lust Warriors": {
+      "size": 5,
+      "quality": 4,
+      "defense": 4,
+      "bases": {
+        "round": "25",
+        "square": "25"
+      },
+      "rules": [
+        {
+          "name": "Lustbound"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Hand Weapon",
+          "type": "ArmyBookWeapon",
+          "count": 5,
+          "range": 0,
+          "attacks": 1,
+          "specialRules": [
+            {
+              "name": "Surge"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "hk70l4d471plza00": {
+    "Mine-Drones": {
+      "size": 5,
+      "quality": 6,
+      "defense": 6,
+      "bases": {
+        "round": "25",
+        "square": "25"
+      },
+      "rules": [
+        {
+          "name": "No Retreat"
+        },
+        {
+          "name": "Self-Destruct",
+          "rating": 2
+        },
+        {
+          "name": "Slow"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Bash",
+          "type": "ArmyBookWeapon",
+          "count": 5,
+          "range": 0,
+          "attacks": 1,
+          "specialRules": []
+        }
+      ]
+    }
+  },
+  "w7qor7b2kuifcyvk": {
+    "Assault Grunts": {
+      "size": 10,
+      "quality": 5,
+      "defense": 5,
+      "bases": {
+        "round": "25",
+        "square": "25"
+      },
+      "rules": [
+        {
+          "name": "Strider"
+        },
+        {
+          "name": "Hive Bond"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Razor Claws",
+          "type": "ArmyBookWeapon",
+          "count": 10,
+          "range": null,
+          "attacks": 2,
+          "specialRules": []
+        }
+      ]
+    },
+    "Hive Swarms": {
+      "size": 3,
+      "quality": 5,
+      "defense": 6,
+      "bases": {
+        "round": "40",
+        "square": "40"
+      },
+      "rules": [
+        {
+          "name": "Strider"
+        },
+        {
+          "name": "Tough",
+          "rating": 3
+        },
+        {
+          "name": "Hive Bond"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Swarm Attacks",
+          "type": "ArmyBookWeapon",
+          "count": 3,
+          "range": 0,
+          "attacks": 3,
+          "specialRules": [
+            {
+              "name": "Bane"
+            }
+          ]
+        }
+      ]
+    },
+    "Massive Spores": {
+      "size": 3,
+      "quality": 6,
+      "defense": 6,
+      "bases": {
+        "round": "40",
+        "square": "40"
+      },
+      "rules": [
+        {
+          "name": "Self-Destruct",
+          "rating": 6
+        },
+        {
+          "name": "No Retreat"
+        },
+        {
+          "name": "Tough",
+          "rating": 3
+        },
+        {
+          "name": "Slow"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Tendrils",
+          "type": "ArmyBookWeapon",
+          "count": 3,
+          "range": 0,
+          "attacks": 3,
+          "specialRules": []
+        }
+      ]
+    },
+    "Shooter Grunts": {
+      "size": 10,
+      "quality": 5,
+      "defense": 5,
+      "bases": {
+        "round": "25",
+        "square": "25"
+      },
+      "rules": [
+        {
+          "name": "Strider"
+        },
+        {
+          "name": "Hive Bond"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Bio-Spiner",
+          "type": "ArmyBookWeapon",
+          "count": 10,
+          "range": 6,
+          "attacks": 2,
+          "specialRules": [
+            {
+              "name": "AP",
+              "rating": 1
+            }
+          ]
+        },
+        {
+          "name": "Razor Claws",
+          "type": "ArmyBookWeapon",
+          "count": 10,
+          "range": null,
+          "attacks": 1,
+          "specialRules": []
+        }
+      ]
+    },
+    "Spores": {
+      "size": 5,
+      "quality": 6,
+      "defense": 6,
+      "bases": {
+        "round": "25",
+        "square": "25"
+      },
+      "rules": [
+        {
+          "name": "Self-Destruct",
+          "rating": 2
+        },
+        {
+          "name": "No Retreat"
+        },
+        {
+          "name": "Slow"
+        }
+      ],
+      "loadout": [
+        {
+          "name": "Tendrils",
+          "type": "ArmyBookWeapon",
+          "count": 5,
+          "range": 0,
+          "attacks": 1,
+          "specialRules": []
+        }
+      ]
+    }
+  }
+}

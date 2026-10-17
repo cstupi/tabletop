@@ -48,8 +48,15 @@ public sealed record ScenarioArmy(
     /// <summary>Unit ordinal to where its first model deploys: HandPlacement puts the unit's row there in place of a drawn anchor.</summary>
     public IReadOnlyDictionary<int, Point2> Anchors { get; init; } = new Dictionary<int, Point2>();
 
+    /// <summary>Unit ordinals the army holds off the table as an import's reserve units (Unit.Reserve): the property placing each, and the unit (or, with
+    /// a model ordinal, the model) holding it.</summary>
+    public IReadOnlyList<ScenarioReserve> Reserves { get; init; } = [];
+
     public int SizeOf(int unit) => Sizes.GetValueOrDefault(unit, ModelsPerUnit);
 }
+
+/// <summary>Unit is a reserve unit placed by Property, held by unit OfUnit or, with OfModel, by that model of it (1-based).</summary>
+public sealed record ScenarioReserve(int Unit, string Property, int OfUnit, int? OfModel = null);
 
 /// <summary>
 /// What a run is: a board, armies, a scheduler shape, enforcement, a round cap, a seed, a script and

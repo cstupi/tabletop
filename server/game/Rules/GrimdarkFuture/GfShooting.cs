@@ -115,6 +115,7 @@ public static class GfShooting
                 var spent = new List<StateChange>();
                 foreach (var (g, i) in groups.Select((g, i) => (g, i)))
                 {
+                    GfAttack.ListRuleWeapons(ctx, g.WeaponIds);
                     var byQuality = GfAttack.AttacksAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action);
                     if (ctx.Frame.Context.Action == GfNames.Rush) spent.AddRange(SpendQuickShot(ctx, unit, assigned.Targets[g.Name], g.WeaponIds));
                     settled[$"attacks_{i}"] = byQuality.Sum(x => x.Attacks);

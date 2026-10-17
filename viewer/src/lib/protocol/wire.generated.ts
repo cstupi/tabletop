@@ -637,6 +637,12 @@ export interface Unit {
   readonly stats: { readonly [key: string]: string };
   readonly properties: readonly PropertyInstance[];
   readonly models: readonly ModelSlot[];
+  readonly reserve?: UnitReserve;
+}
+
+export interface UnitReserve {
+  readonly property: string;
+  readonly of: string;
 }
 
 export interface VisualRef {

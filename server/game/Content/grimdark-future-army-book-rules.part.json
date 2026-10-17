@@ -1289,15 +1289,6 @@
       ]
     },
     {
-      "name": "Reinforcement",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When a unit where all models have this rule is Shaken or fully destroyed, you may remove it from the table as destroyed and place a new copy of it fully within 12\u0022 of any table edge at the beginning of the next round after Ambushers have been deployed. Units that deploy via Reinforcement can\u2019t seize or contest objectives on the round they deploy, and this rule doesn\u2019t apply to the new copy of the unit.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Relentless Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1564,15 +1555,6 @@
       ]
     },
     {
-      "name": "Spawn",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model is activated, you may place a new unit of X fully within 6\u0022 of it.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Speed Feat Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1590,15 +1572,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Split",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is fully destroyed, you may place a new unit of X fully within 6\u0022 of it before removing the last model.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Steadfast Aura",
@@ -1762,24 +1735,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Takedown Shot",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model shoots, it may make one extra attack against the target at Quality 2\u002B with AP(2), Deadly(3), and Takedown.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Takedown Strike",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when it\u0027s this model\u0027s turn to attack in melee, it may make one attack at Quality 2\u002B with AP(2), Deadly(3), and Takedown.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Targeting Visor Boost Aura",

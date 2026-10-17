@@ -20,6 +20,7 @@ public sealed partial class GrimdarkFutureRules
                 return new HookStartSequences(rallying.Select(r => new SequenceStart(GfNames.RallySeq, new SequenceContext(r.Unit, [], [], r.Rule))).ToList());
             if (state.Projection.Stack.Any(f => f.Sequence == GfNames.RallySeq)) return new HookWaiting();
         }
-        return AmbushBoundary(state, props, round, order);
+        // Reinforcement: "at the beginning of the next round after Ambushers have been deployed".
+        return AmbushBoundary(state, props, round, order) is HookDone ? ReinforcementBoundary(state, round, order) : AmbushBoundary(state, props, round, order);
     }
 }

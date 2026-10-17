@@ -20,5 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Persistence/Migrations/*.sql" />
+    <EmbeddedResource Include="Content/Armies/army-book-units.json" LogicalName="army-book-units.json" />
   </ItemGroup>
 </Project>

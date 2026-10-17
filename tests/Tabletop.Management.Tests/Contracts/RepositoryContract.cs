@@ -65,6 +65,8 @@ public abstract partial class RepositoryContract
         ]),
         new Unit(Guid.CreateVersion7(), 1, "Walker", new Dictionary<string, string>(), [],
             [new ModelSlot(Guid.CreateVersion7(), 0, "Walker", new Dictionary<string, string>(), [], Base.Oval(2, 1.5), 3, null, [], null)]),
+        new Unit(Guid.CreateVersion7(), 2, "Swarm", new Dictionary<string, string> { ["Quality"] = "5+", ["Defense"] = "6+" }, [],
+            [new ModelSlot(Guid.CreateVersion7(), 0, "Swarm", new Dictionary<string, string>(), [], Base.Circle(1), 1.5, null, [], "book")], new UnitReserve("Spawn", Guid.CreateVersion7())),
     ]);
 
     protected static TableState SmallLayout(string? name = "Ruins") => new(Guid.CreateVersion7(), name, new TableSize(72, 48), VisualRef.OfBuiltin("grass"),

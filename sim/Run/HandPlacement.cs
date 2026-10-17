@@ -53,6 +53,7 @@ public static class HandPlacement
             .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
         var army = scenario.Scenario.Armies[ordinal - 1];
         var anchor = army.Anchors.TryGetValue(unit.Definition.Ordinal, out var fixedAt) ? fixedAt
+            : unit.Definition.Reserve is { Property: GfReserves.Reinforcement } ? EdgeAnchor(shelved, offsets, table, occupied, chooser) ?? ChooseAnchor(shelved, offsets, null, table, occupied, chooser)
             : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
                 ? BeaconAnchor(shelved, offsets, table, occupied, Beacons(projection, scenario, teamId), chooser)
                     ?? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId, GfAmbush.Reach(unit.Definition)), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
@@ -113,6 +114,21 @@ public static class HandPlacement
                 if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
                 if (placed.All(pm => Distance.EdgeToEdge(pm, beacon) <= BeaconReach - AmbushMargin)) return candidate;
             }
+        return null;
+    }
+
+    /// <summary>Reinforcement: an anchor at which every base is fully within 12" of one table edge (GfReserves.NearEdge) and touches no model; null when none was drawn.</summary>
+    private static Point2? EdgeAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, TableSize table,
+        IReadOnlyList<PlacedModel> occupied, Chooser chooser)
+    {
+        for (var attempt = 0; attempt < AmbushAttempts; attempt++)
+        {
+            var candidate = new Point2(chooser.Double() * table.Width, chooser.Double() * table.Length);
+            var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
+            if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
+            if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
+            if (placed.All(pm => GfReserves.NearEdge(table, pm))) return candidate;
+        }
         return null;
     }
 

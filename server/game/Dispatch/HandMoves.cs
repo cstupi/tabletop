@@ -17,7 +17,7 @@ namespace Tabletop.GameServer.Dispatch;
 public static class HandMoves
 {
     public const string Rule = "hand_move";
-    static readonly HashSet<string> DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher];
+    static readonly HashSet<string> DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
     static readonly HashSet<Guid> NoneDeploying = [];
 
     /// <summary>Null when legal. A model the projection lacks is skipped: MenuTranslation has already refused it as Unknown.</summary>

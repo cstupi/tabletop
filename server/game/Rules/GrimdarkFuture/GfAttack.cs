@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static partial class GfAttack
 {
-    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep(), new GfSpellSupport.TransferStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
+    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new GfReserves.SplitStep(), new DisgorgeStep(), new GfSpellSupport.TransferStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
         AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
@@ -193,6 +193,9 @@ public static partial class GfAttack
                 dead.Add(modelId);
                 if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
             }
+            // Split: "you may place a new unit of X fully within 6" of it before removing the last model": the last model stays for `split`, which removes it.
+            if (moves.Count > 0 && !Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m)) && GfReserves.KeepsLastModel(ctx.State, target))
+                moves.RemoveAt(moves.Count - 1);
             if (moves.Count > 0) changes.Add(new ModelsMoved(moves));
             changes.AddRange(Consumed(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
             var total = ctx.Frame.Value("wounds_dealt") + landed;
@@ -249,6 +252,28 @@ public static partial class GfAttack
 
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
+
+    /// <summary>The Limited weapons an attack-sequence used before the given frame started (the whole log without one): p.14 "may only be used once per game".</summary>
+    public static HashSet<Guid> FiredLimited(GameState state, Guid? before)
+    {
+        var used = new HashSet<Guid>();
+        foreach (var e in EventApplier.EffectiveLog(state.Applier.Log))
+        {
+            if (e.Payload is not SequenceStarted s) continue;
+            if (s.FrameId == before) break;
+            if (s.Sequence == GfNames.AttackSequence) used.UnionWith(s.Context.WeaponIds);
+        }
+        used.IntersectWith(state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => w.Properties.Any(p => p.Name == "Limited")).Select(w => w.Id));
+        return used;
+    }
+
+    /// <summary>A weapon an import added for a rule of its model is named after that rule (Takedown Shot, Takedown Strike): its attack is the rule acting.</summary>
+    public static void ListRuleWeapons(StepContext ctx, IReadOnlyList<Guid> weapons)
+    {
+        foreach (var m in ctx.Projection.Models.Values)
+            foreach (var w in m.Slot.Weapons.Where(w => weapons.Contains(w.Id) && m.Slot.Properties.Any(p => p.Name == w.Name)))
+                ctx.Applied.Add(w.Name);
+    }
 
     /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
     public static bool IsTakedownGroup(GameState state, IReadOnlyList<Guid> weapons) =>

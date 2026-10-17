@@ -36,7 +36,8 @@ public static class Armies
         var moves = new List<ModelRelocation>();
         foreach (var (units, x) in new[] { (team1, x1), (team2, x2) })
             foreach (var (u, ui) in units.Select((u, i) => (u, i)))
-                foreach (var m in u.Models) moves.Add(new ModelRelocation(m.Id, new OnShelf(), new OnTable(new Placement(new Point3(x, ui * 12 + m.Ordinal * 1.5 - 20, 0), new Yaw(0)))));
+                foreach (var m in u.Reserve is null ? u.Models : [])   // a reserve unit stays on the shelf until its rule places it
+                    moves.Add(new ModelRelocation(m.Id, new OnShelf(), new OnTable(new Placement(new Point3(x, ui * 12 + m.Ordinal * 1.5 - 20, 0), new Yaw(0)))));
         applier.Apply(new GameEvent(1, null, new ModelsMoved(moves), null));
         return new GameState(info, board, applier, GrimdarkFutureRules.Instance);
     }

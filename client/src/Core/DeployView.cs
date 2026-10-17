@@ -9,7 +9,7 @@ public sealed record MidDeploy(Guid UnitId, string Question, IReadOnlyList<Guid>
 /// <summary>Deploying from the shelf. The deploy Asks pick a unit, and the activation ends only when every model of it is placed (scheduler → Deployment).</summary>
 public static class DeployView
 {
-    static readonly HashSet<string> Questions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher];
+    static readonly HashSet<string> Questions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
     const int PerRow = 5; const double Gap = 0.2;
 
     /// <summary>

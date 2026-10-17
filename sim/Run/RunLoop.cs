@@ -16,7 +16,7 @@ namespace Tabletop.Sim.Run;
 public sealed partial class RunLoop(
     IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)
 {
-    private static readonly string[] DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher];
+    private static readonly string[] DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
 
     private readonly RunSettings _settings = settings ?? new RunSettings();
     private readonly List<GameEvent> _log = [];

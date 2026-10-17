@@ -35,10 +35,12 @@ switch (args.FirstOrDefault())
     case "generate":
     {
         List<AfBook> books;
+        List<(string Uid, string Name, string Json)> raw;
         try
         {
             var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dump, "index.json")));
-            books = index.Select(e => ArmyForgeJson.ReadBook(File.ReadAllText(Path.Combine(dump, "books", e.Uid + ".json"))) with { Name = e.Name, VersionString = e.VersionString }).ToList();
+            raw = index.Select(e => (e.Uid, e.Name, File.ReadAllText(Path.Combine(dump, "books", e.Uid + ".json")))).ToList();
+            books = index.Zip(raw).Select(p => ArmyForgeJson.ReadBook(p.Second.Json) with { Name = p.First.Name, VersionString = p.First.VersionString }).ToList();
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
@@ -56,6 +58,8 @@ switch (args.FirstOrDefault())
         var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-army-rules.part.json")));
         var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand);
         problems.AddRange(ruleProblems);
+        var (reserveUnits, reserveProblems) = ReserveUnits.Build(raw);
+        problems.AddRange(reserveProblems);
         if (problems.Count == 0)
         {
             built = BookWriter.Build(books);
@@ -65,6 +69,9 @@ switch (args.FirstOrDefault())
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
         var rulesPath = Arg("--rules", Path.Combine(content, PropertiesSeeder.GeneratedPart));
         File.WriteAllText(rulesPath, RuleWriter.Serialize(rules!));
+        var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName));
+        File.WriteAllText(unitsPath, reserveUnits);
+        Console.WriteLine($"wrote {unitsPath}");
         Console.WriteLine($"wrote {built.Count} books, {built.SelectMany(b => b.Spells).Select(s => s.Name).Distinct().Count()} spells");
         Console.WriteLine($"wrote {rulesPath}: {report!.Generated} generated, {rules!.Entries.Count - report.Generated} text-only");
         foreach (var (group, count) in report.Groups) Console.WriteLine($"  {group}: {count}");
@@ -72,6 +79,6 @@ switch (args.FirstOrDefault())
         return 0;
     }
     default:
-        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--from DIR] [--out DIR] [--rules FILE]");
+        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
         return 2;
 }
