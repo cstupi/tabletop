@@ -6,7 +6,8 @@ namespace Tabletop.GameServer.Persistence;
 public sealed record OwnedArmy(Army Army, Guid OwnerId);
 
 /// <summary>
-/// Management's rows as this server sees them. Reads at hydration and end-setup; writes only while the game is lobby or setup, and `game.status` once more: `playing → ended`
+/// Management's rows as this server sees them. Reads at hydration and end-setup; writes while the game is lobby or setup, a participant's team and army
+/// while deployment waits for players (WaitingForPlayers), and `game.status` once more: `playing → ended`
 /// when this server's own log ends the game (enforcement spec → The row and the broadcast). Nothing here is a join across the schema boundary: the log is IEventLog.
 /// </summary>
 public interface IGameRows
@@ -26,6 +27,13 @@ public interface IGameRows
     Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct);
     Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct);
     Task SetParticipantArmyAsync(Guid participantId, Guid? armyId, CancellationToken ct);
+    /// <summary>One more participant row for an account already in the game, on teamId: an account holds one row per team it plays (self-play).</summary>
+    Task AddSeatAsync(Guid participantId, Guid gameId, Guid accountId, Guid teamId, CancellationToken ct);
+    /// <summary>Deletes one of an account's participant rows; the session calls it only while the account keeps another.</summary>
+    Task RemoveSeatAsync(Guid participantId, CancellationToken ct);
+    /// <summary>While deployment waits for players: the army a participant brings after the flip, its army_id and army_snapshot in one write,
+    /// guarded on playing and on no snapshot yet.</summary>
+    Task JoinArmyAsync(Guid gameId, Guid participantId, Guid armyId, ArmySnapshot snapshot, CancellationToken ct);
     Task SetConfigurationAsync(Guid gameId, SetConfiguration configuration, CancellationToken ct);
     /// <summary>Inserts the game's table_state tree and flips status to setup, in one transaction.</summary>
     Task StartSetupAsync(Guid gameId, TableState draft, CancellationToken ct);

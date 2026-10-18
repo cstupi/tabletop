@@ -47,6 +47,36 @@ public abstract class GameRowsContract
     }
 
     [Fact]
+    public async Task An_account_holds_one_seat_per_team_and_its_oldest_row_is_the_one_found()
+    {
+        var seeded = await Seeder.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var first = seeded.Participants[0].ParticipantId;
+        var second = Session.GameSession.SeatIdAfter(first);
+        await Rows.AddSeatAsync(second, seeded.GameId, seeded.CreatorAccountId, seeded.TeamIds[1], Ct);
+        Assert.Equal([seeded.TeamIds[0], seeded.TeamIds[1]], (await Rows.ReadGameAsync(seeded.GameId, Ct))!.Participants
+            .Where(p => p.AccountId == seeded.CreatorAccountId).Select(p => p.TeamId));
+        Assert.Equal(first, await Rows.FindParticipantAsync(seeded.GameId, seeded.CreatorAccountId, Ct));
+        await Assert.ThrowsAnyAsync<Exception>(() => Rows.AddSeatAsync(Guid.CreateVersion7(), seeded.GameId, seeded.CreatorAccountId, seeded.TeamIds[1], Ct));   // a team once per account
+        await Rows.RemoveSeatAsync(second, Ct);
+        Assert.Single((await Rows.ReadGameAsync(seeded.GameId, Ct))!.Participants, p => p.AccountId == seeded.CreatorAccountId);
+    }
+
+    [Fact]
+    public async Task An_army_joins_a_playing_game_once()
+    {
+        var seeded = await Seeder.SeedGameAsync(GameStatus.Playing, teams: 2);
+        var army = await Seeder.SeedArmyAsync(seeded.Participants[1].AccountId);
+        var snapshot = ArmySnapshot.Of(army, Guid.CreateVersion7());
+        await Rows.JoinArmyAsync(seeded.GameId, seeded.Participants[1].ParticipantId, army.Id, snapshot, Ct);
+        var joined = Assert.Single(await Rows.ReadSnapshotsAsync(seeded.GameId, Ct));
+        Assert.Equal((seeded.Participants[1].ParticipantId, snapshot.Id), (joined.ParticipantId, joined.Snapshot.Id));
+        Assert.Equal(army.Id, (await Rows.ReadGameAsync(seeded.GameId, Ct))!.Participants.Single(p => p.Id == seeded.Participants[1].ParticipantId).ArmyId);
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Rows.JoinArmyAsync(seeded.GameId, seeded.Participants[1].ParticipantId, army.Id, snapshot, Ct));
+        var lobby = await Seeder.SeedGameAsync(GameStatus.Lobby);
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Rows.JoinArmyAsync(lobby.GameId, lobby.Participants[0].ParticipantId, army.Id, snapshot, Ct));
+    }
+
+    [Fact]
     public async Task Reads_an_army_tree_back_to_the_sample()
     {
         var owner = await Seeder.SeedAccountAsync("Owner");

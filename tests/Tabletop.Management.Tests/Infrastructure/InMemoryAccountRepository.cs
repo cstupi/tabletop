@@ -39,7 +39,7 @@ public sealed class InMemoryAccountRepository(InMemoryRows rows) : IAccountRepos
     {
         lock (rows.Gate)
             return Task.FromResult<IReadOnlyList<Guid>>(rows.Participants
-                .Where(p => p.AccountId == accountId && rows.Games.TryGetValue(p.GameId, out var g) && g.CreatedBy != accountId).Select(p => p.GameId).ToList());
+                .Where(p => p.AccountId == accountId && rows.Games.TryGetValue(p.GameId, out var g) && g.CreatedBy != accountId).Select(p => p.GameId).Distinct().ToList());
     }
 
     public Task Delete(Guid accountId)

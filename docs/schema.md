@@ -382,8 +382,10 @@ socket frame (`GameInfo.RngSeed` is not serialized); the game server reads it fr
 ### `participant` links to its game, and holds the army it picked
 
 `team_id` is nullable, because a participant with no team is what a spectator is, so the link to
-the game cannot travel through the team. `participant.game_id` is its own column, and
-`unique (game_id, account_id)` is what stops an account joining twice. `army_id` is the lobby's
+the game cannot travel through the team. `participant.game_id` is its own column. A row is one
+seat: an account holds one row per team it plays (self-play: one account on both teams, each row
+with its own army), and `unique nulls not distinct (game_id, account_id, team_id)` (migration 018)
+stops it holding a team twice or joining twice without one. `army_id` is the lobby's
 pick, nullable and `on delete set null`. It stands until `army_snapshot` is written at the start of
 setup, after which the snapshot is what plays, and the army may then change or be deleted without
 touching the game.

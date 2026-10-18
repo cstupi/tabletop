@@ -22,6 +22,8 @@ public class EndSetupTests
         await using var creator = await TestClient.OpenAsync(factory); await using var other = await TestClient.OpenAsync(factory);
         await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId); await other.ConnectAsync(seeded.Participants[1].AccountId, seeded.GameId);
         await creator.SendAsync(Edit(new PickArmy(army.Id))); await creator.ExpectAsync<GameInfoMessage>(); await other.ExpectAsync<GameInfoMessage>();
+        var theirs = await db.SeedArmyAsync(seeded.Participants[1].AccountId);
+        await other.SendAsync(Edit(new PickArmy(theirs.Id))); await creator.ExpectAsync<GameInfoMessage>(); await other.ExpectAsync<GameInfoMessage>();
 
         await other.SendAsync(Edit(new EndSetup()));
         Assert.Equal(RefusalReason.WrongStatus, (await other.ExpectAsync<Refused>()).Reason);       // still lobby
@@ -37,14 +39,15 @@ public class EndSetupTests
         Assert.Equal(GameStatus.Playing, (await other.ExpectAsync<GameInfoMessage>()).Game.Status);
         var board = (await other.ExpectAsync<BoardMessage>()).Board;
         Assert.Equal([on.Id], board.Table.Terrain.Select(t => t.Id));
-        var inPlay = Assert.Single(board.Armies);
+        Assert.Equal(2, board.Armies.Count);
+        var inPlay = board.Armies.Single(a => a.ParticipantId == seeded.Participants[0].ParticipantId);
         Assert.Equal((seeded.Participants[0].ParticipantId, army.Name, army.Units.Count), (inPlay.ParticipantId, inPlay.Snapshot.Name, inPlay.Snapshot.Units.Count));
         Assert.Empty((await other.ExpectAsync<EventsMessage>()).Events);
         Assert.IsType<AskOpened>((await other.ExpectAsync<EventsMessage>()).Events.Single().Payload);   // the engine advanced after the flip
         Assert.Equal(1L, (await other.ExpectAsync<AtRest>()).Seq);                                     // and the transition ends at rest, on the opened log
 
         Assert.Equal(GameStatus.Playing, db.GameRows.Game(seeded.GameId)!.Status);
-        Assert.Single(db.GameRows.ParticipantsOf(seeded.GameId), p => p.ArmySnapshot is not null);
+        Assert.Equal(2, db.GameRows.ParticipantsOf(seeded.GameId).Count(p => p.ArmySnapshot is not null));
         Assert.DoesNotContain(db.GameRows.DraftOf(seeded.GameId)!.Terrain, t => t.Id == off.Id);
 
         await creator.SendAsync(Edit(new SetTableSize(new TableSize(1, 1))));
@@ -58,6 +61,8 @@ public class EndSetupTests
     {
         var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
         var army = await db.SeedArmyAsync(seeded.CreatorAccountId);
+        var theirs = await db.SeedArmyAsync(seeded.Participants[1].AccountId);
+        await db.GameRows.SetParticipantArmyAsync(seeded.Participants[1].ParticipantId, theirs.Id, CancellationToken.None);   // an army a side: deployment waits for no one
         using (var first = GameServerFactory.WithoutScheduler(db))
         {
             await using var c = await TestClient.OpenAsync(first);
@@ -72,7 +77,7 @@ public class EndSetupTests
         await using var again = await TestClient.OpenAsync(second);
         var welcome = await again.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         Assert.Equal(GameStatus.Playing, welcome.Game.Status);
-        Assert.Single((await again.ExpectAsync<BoardMessage>()).Board.Armies);
+        Assert.Equal(2, (await again.ExpectAsync<BoardMessage>()).Board.Armies.Count);
         var moved = Assert.IsType<ModelsMoved>((await again.ExpectAsync<EventsMessage>()).Events.Single().Payload);
         Assert.IsType<OnTable>(moved.Moves.Single().To);
     }

@@ -77,8 +77,9 @@ public sealed class GameRepository(Database db) : IGameRepository
         await using var c = await db.Open();
         // A named record, not a ValueTuple: Dapper maps to constructor parameters by column name and cannot map tuple element names.
         var rows = await c.QueryAsync<SummaryRow>(@"select g.id as Id, g.name as Name, g.status as Status, g.created_by as CreatedBy, g.created_at as CreatedAt,
-            (select count(*) from participant p where p.game_id = g.id)::int as Participants,
-            array(select a.name from participant p join account a on a.id = p.account_id where p.game_id = g.id order by p.id) as ParticipantNames
+            (select count(distinct p.account_id) from participant p where p.game_id = g.id)::int as Participants,
+            array(select a.name from (select distinct on (p.account_id) p.account_id, p.id from participant p where p.game_id = g.id order by p.account_id, p.id) p
+                  join account a on a.id = p.account_id order by p.id) as ParticipantNames
             from game g where (@after::uuid is null or g.id < @after::uuid) order by g.id desc limit @limit", new { after = page.After, limit = page.Limit });
         return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList())).ToList();
     }
@@ -109,12 +110,13 @@ public sealed class GameRepository(Database db) : IGameRepository
         return await c.ExecuteScalarAsync<bool>("select exists(select 1 from game where id = @id and created_by = @accountId)", new { id, accountId });
     }
 
-    /// <summary>Joining the game is a participant row with no team, at any status; joining twice is the same row (unique (game_id, account_id)).</summary>
+    /// <summary>Joining the game is a participant row with no team, at any status; an account already in the game (on any team) adds nothing.
+    /// Two joins at once are one row: unique nulls not distinct (game_id, account_id, team_id) takes only one teamless row.</summary>
     /// <remarks>Taking a team is a game-server lobby edit before play, not this. See the game-flow spec, "Teams are frozen at the flip, and a team is a slot".</remarks>
     public async Task<GameInfo?> Join(Guid id, Guid accountId)
     {
         await using var c = await db.Open();
-        await c.ExecuteAsync("insert into participant (id, game_id, account_id) select @pid, @id, @accountId where exists (select 1 from game where id = @id) on conflict (game_id, account_id) do nothing",
+        await c.ExecuteAsync("insert into participant (id, game_id, account_id) select @pid, @id, @accountId where exists (select 1 from game where id = @id) and not exists (select 1 from participant where game_id = @id and account_id = @accountId) on conflict do nothing",
             new { pid = Guid.CreateVersion7(), id, accountId });
         return await Get(id);
     }

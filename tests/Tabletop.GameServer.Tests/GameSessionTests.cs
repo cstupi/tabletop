@@ -43,7 +43,7 @@ public class GameSessionTests
         if (info.Status == GameStatus.Lobby) session = new GameSession(info.Id, info, GrimdarkFutureRules.Instance, null, null, null, services);
         else
         {
-            var board = Samples.Board;   // one instance, shared by the applier and the state (the sample is a property)
+            var board = Samples.Board with { Armies = [.. Samples.Board.Armies, new ArmyInPlay(P2, Tabletop.Content.ArmySnapshot.Of(Tabletop.Content.Tests.ArmyTests.Sample(), Guid.CreateVersion7()))] };   // one instance, shared by the applier and the state; an army a side, so deployment waits for no one
             var applier = new EventApplier(board, info);
             applier.ApplyAll(await log.ReadAsync(info.Id, 0, CancellationToken.None));
             session = new GameSession(info.Id, info, GrimdarkFutureRules.Instance, null, new GameState(info, board, applier, GrimdarkFutureRules.Instance), services.Engines.Create(GrimdarkFutureRules.Instance, info), services);
@@ -150,13 +150,16 @@ public class GameSessionTests
     }
 
     [Fact]
-    public async Task A_second_connection_for_the_same_participant_replaces_the_first()
+    public async Task A_second_connection_for_the_same_participant_joins_the_first_and_both_hear_the_game()
     {
         var (session, _, clay, _, _) = await PlayingAsync();
         var again = new RecordingClient(Samples.P1);
         await session.AttachAsync(again);
-        Assert.Equal(WebSocketCloseStatus.NormalClosure, clay.Closed!.Value.Status);
-        Assert.Equal(3, session.Clients.Count);
+        Assert.Null(clay.Closed);                                     // two windows of one account both play (AccountSockets caps them)
+        Assert.Equal(4, session.Clients.Count);
+        await session.ReceiveAsync(again, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+        Assert.Equal(1, clay.Events.Single().Seq);
+        Assert.Equal(1, again.Events.Single().Seq);
     }
 
     /// <summary>Security review M8: a throwing Advance rolls the whole command back; the session stays usable from the last stored state.</summary>

@@ -9,6 +9,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(CreateTeam), "create_team")]
 [JsonDerivedType(typeof(PickTeam), "pick_team")]
 [JsonDerivedType(typeof(PickArmy), "pick_army")]
+[JsonDerivedType(typeof(LeaveTeam), "leave_team")]
 [JsonDerivedType(typeof(SetConfiguration), "set_configuration")]
 [JsonDerivedType(typeof(StartSetup), "start_setup")]
 [JsonDerivedType(typeof(EndSetup), "end_setup")]
@@ -28,13 +29,21 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(ReplaceDraft), "replace_draft")]
 public abstract record Edit;
 
-/// <summary>Writes the game's rows; accepted at any status (teams and armies stay editable through setup).</summary>
+/// <summary>Writes the game's rows; accepted in lobby and setup (teams and armies stay editable through setup), and PickTeam and PickArmy
+/// also while deployment waits for players (WaitingForPlayers).</summary>
 public abstract record LobbyEdit : Edit;
 public sealed record CreateTeam : LobbyEdit;
-/// <summary>Null leaves the team: a participant with no team watches. A team another participant holds is joined only by the creator's
-/// placing (ParticipantId names whom the creator places; null is the sender), so two players share a side only with the creator's approval.</summary>
+/// <summary>
+/// The sender (ParticipantId null) takes TeamId as one more of its teams: an account may hold several teams, each a participant row of its own
+/// with its own army (self-play). Null gives up every team: a participant with no team watches. A team another account holds is joined only by
+/// the creator's placing (ParticipantId names the participant row the creator moves onto TeamId), so two players share a side only with the
+/// creator's approval.
+/// </summary>
 public sealed record PickTeam(Guid? TeamId, Guid? ParticipantId = null) : LobbyEdit;
-public sealed record PickArmy(Guid? ArmyId) : LobbyEdit;
+/// <summary>The army the sender brings to TeamId, one of its teams; null TeamId is its first team (or its row when it holds none).</summary>
+public sealed record PickArmy(Guid? ArmyId, Guid? TeamId = null) : LobbyEdit;
+/// <summary>The sender gives up one of its teams, and the army it brought to it; the account keeps its other teams. Lobby and setup only.</summary>
+public sealed record LeaveTeam(Guid TeamId) : LobbyEdit;
 /// <summary>Creator only. OptionalRules replaces the game's map whole; the ruleset refuses a key or value it does not define (RefusalReason.Unknown).</summary>
 public sealed record SetConfiguration(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps,
     IReadOnlyDictionary<string, string> OptionalRules) : LobbyEdit;
