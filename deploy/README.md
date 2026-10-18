@@ -14,7 +14,7 @@ repo-root `docker-compose.yml` is development only.
 | `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors` |
 | `../scripts/postgres/roles.sh` | The database roles |
 | `../scripts/postgres/backup.sh` | `pg-backup`'s nightly `pg_dump`, keeping the newest 14 |
-| `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher when `RELEASE_S3_ACCESS_KEY` is set |
+| `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher (Put on `releases/*` and `builtin/*`) when `RELEASE_S3_ACCESS_KEY` is set |
 | `../scripts/release`, `../scripts/release-client` | Cut a release from a clone: test, publish the client, install the web app, deploy (below) |
 | `../.github/workflows/` | `ci.yml` (build and tests), `release.yml` (a `vX.Y.Z` tag publishes the client) |
 
@@ -132,7 +132,8 @@ sudo -E scripts/release --deploy home --version v1.0.0     # reads ./home.env, e
 `--deploy home` runs the unit suite, the rules suite and the web checks in `mcr.microsoft.com/dotnet/sdk:10.0` and
 `node:24-alpine` containers over the clone (`--skip-tests` skips them), exports and packages the client in the builder
 container (Client releases, below), builds the images tagged with the version, runs `up -d`, waits on the containers' own
-states (`migrate` and `minio-init` exited 0; postgres, minio, management, game and web healthy), then uploads the client.
+states (`migrate` and `minio-init` exited 0; postgres, minio, management, game and web healthy), then uploads the client
+and publishes the built-in content (`builtin/`, same publisher and container, `--skip-builtin` skips it).
 `--skip-client` skips the client. An update is the same command after `git fetch && git checkout vX.Y.Z`.
 
 **Trusted proxy.** Caddy's requests reach management from its address on `gateway_default`, so
@@ -209,6 +210,13 @@ Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. A release i
 `GET /v1/client/latest` reads and the web app's Download page shows. Asset keys (`{owner}/{hash}`, `staging/`) never
 collide with it. Old versions stay until deleted by hand (`aws s3 rm --recursive s3://<bucket>/releases/X.Y.Z/`).
 
+The built-in content (the terrain catalog `client/content/builtin/catalog.json`, its meshes and the table textures; spec
+`docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md`) goes to the same bucket under `builtin/`:
+each file at `builtin/<sha256>`, then `builtin/catalog.json` naming the release version. `GET /v1/builtin` serves it,
+every `/v1` response names its version (`Tabletop-Builtin-Version`), and a signed-in client fetches a new version within
+about two minutes and caches it, so improved or new built-ins reach players without a client update. Objects an older
+catalog named stay; delete them by hand if ever needed (nothing references a hash once no catalog names it).
+
 Cut one:
 
 ```bash
@@ -250,16 +258,23 @@ app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and installs it to `TABLETOP_WEB
   (`/opt/tabletop`), restarts `tabletop-migrate` (the migrations, as the owner role), starts management and game.
 - `home`: the home-server stack, every build and test in containers (Home server, above).
 
+Every mode then publishes the built-in content (`scripts/release-client builtin`; `--skip-builtin` skips it) with the
+`RELEASE_S3_*` publisher: on the host when it has `aws` and `jq`, else in the builder container, for `home` always in the
+container on `tabletop-home_backend` against `http://tabletop-s3:9000`. Publishing only the built-ins (a terrain
+change, no client or server change) is `scripts/release-client [--in-container] builtin X.Y.Z build/release/X.Y.Z` with
+the same settings; a new version string busts every client's cache.
+
 `docker` and `systemd` wait for `/healthz` on 127.0.0.1:5100 and :5200; every deploy prints a summary. The env file is
 read as compose reads it: one pair of surrounding quotes is dropped (`KEY="x"` is `x`). Export templates for a host run:
 `~/.local/share/godot/export_templates/4.7.2.stable.mono/` (Godot's *Manage Export Templates*, or the `.tpz` from the
 Godot release page unzipped there).
 
-**Access.** Management's service user already reads `releases/*` (Get on the bucket's objects). The publisher needs
-Put on `releases/*` only:
+**Access.** Management's service user already reads `releases/*` and `builtin/*` (Get on the bucket's objects). The
+publisher needs Put on `releases/*` and `builtin/*` only:
 
 - MinIO (profile `minio`): set `RELEASE_S3_ACCESS_KEY` and `RELEASE_S3_SECRET_KEY` in `prod.env`; `minio-init` creates
-  the policy `<bucket>-releases` (`s3:PutObject` on `arn:aws:s3:::<bucket>/releases/*`) and attaches it to that user.
+  the policy `<bucket>-releases` (`s3:PutObject` on `arn:aws:s3:::<bucket>/releases/*` and `.../builtin/*`) and attaches it
+  to that user. `minio-init` runs on every `up`, so a deploy updates an existing publisher's policy before the publish.
 - S3: an IAM user with that statement. R2: an API token with Object Read & Write on the bucket (R2 tokens do not scope
   to a prefix).
 

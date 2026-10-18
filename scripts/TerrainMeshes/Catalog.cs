@@ -1,6 +1,6 @@
 namespace Tabletop.TerrainMeshes;
 
-/// <summary>Every built-in terrain mesh by its file's basename (client/src/Core/BuiltinContent.TerrainMeshGroups).</summary>
+/// <summary>Every built-in terrain mesh by its file's basename (client/content/builtin/catalog.json, "meshes").</summary>
 public static class Catalog
 {
     public static readonly IReadOnlyList<(string Name, Func<Model> Build)> All =
