@@ -24,7 +24,7 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows) : ISock
         if (!await rows.PropertiesExistAsync(scenario.Properties.ContentHash, ct))
             throw new PropertiesMissingException(scenario.Properties.ContentHash);
 
-        var accounts = scenario.Info.Participants.Select((_, i) => credentials.AccountOf(i)).ToList();
+        var accounts = scenario.Info.Participants.Select((_, i) => credentials.AccountOf(scenario.CredentialOf(i))).ToList();
         var info = scenario.Info;
 
         await using var connection = await db.OpenConnectionAsync(ct);

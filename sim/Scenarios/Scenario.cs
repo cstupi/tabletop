@@ -92,6 +92,10 @@ public sealed record Scenario(
     /// </summary>
     public bool WaitsBetweenSteps { get; init; }
 
+    /// <summary>Self-play: one account holds every team, a participant row per team (game-flow spec → One account, several teams), and the
+    /// driver plays every side through that account's one connection.</summary>
+    public bool SelfPlay { get; init; }
+
     /// <summary>The game's optional rules (GameInfo.OptionalRules): the ruleset's keys and values, empty for the core game.</summary>
     public IReadOnlyDictionary<string, string> OptionalRules { get; init; } = new Dictionary<string, string>();
 

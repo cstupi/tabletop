@@ -46,6 +46,9 @@ public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRow
     public Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct) => throw new NotSupportedException("a scenario declares its teams");
     public Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct) => Unsupported(nameof(SetParticipantTeamAsync));
     public Task SetParticipantArmyAsync(Guid participantId, Guid? armyId, CancellationToken ct) => Unsupported(nameof(SetParticipantArmyAsync));
+    public Task AddSeatAsync(Guid participantId, Guid gameId, Guid accountId, Guid teamId, CancellationToken ct) => throw new NotSupportedException("a scenario declares its participants");
+    public Task RemoveSeatAsync(Guid participantId, CancellationToken ct) => Unsupported(nameof(RemoveSeatAsync));
+    public Task JoinArmyAsync(Guid gameId, Guid participantId, Guid armyId, ArmySnapshot snapshot, CancellationToken ct) => Unsupported(nameof(JoinArmyAsync));
     public Task SetConfigurationAsync(Guid gameId, SetConfiguration configuration, CancellationToken ct) => Unsupported(nameof(SetConfigurationAsync));
     public Task StartSetupAsync(Guid gameId, TableState draft, CancellationToken ct) => Unsupported(nameof(StartSetupAsync));
     public Task WriteDraftAsync(Guid gameId, TableState draft, CancellationToken ct) => Unsupported(nameof(WriteDraftAsync));
