@@ -1,4 +1,5 @@
 using Godot;
+using Tabletop.Client.Core;
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -15,12 +16,14 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     MeshInstance3D _proxy = null!;
     Node3D? _mesh;
     Color _base = Palette.Proxy, _tint = Palette.Proxy;
-    bool _highlighted, _ghost;
+    bool _highlighted, _ghost, _showHitboxes = true;
+    Node3D? _ring;
+    readonly StandardMaterial3D _ringMaterial = new() { Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
     Base _footprint = Base.Circle(1);
 
     public void SetBody(Base b, double height)
     {
-        _proxy?.QueueFree();
+        _proxy?.QueueFree(); _ring?.QueueFree(); _ring = null;
         _footprint = b;
         var h = (float)height;
         Mesh mesh = b.Shape switch
@@ -79,7 +82,18 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         if (!_highlighted) { _base = tint; Apply(); }
     }
 
-    void Apply() => _proxy.MaterialOverride = Palette.Translucent(_mesh is null ? _base : _base with { A = 0.12f });
+    /// <summary>Show hitboxes (ClientSettings.ShowHitboxes), live. Off, a model with a mesh draws the mesh and a thin base ring in its team colour or highlight.</summary>
+    public void SetShowHitboxes(bool on) { if (on == _showHitboxes) return; _showHitboxes = on; Apply(); }
+
+    void Apply()
+    {
+        var look = HitboxLook.Piece(_showHitboxes, _mesh is not null, _ghost);
+        _proxy.Visible = look != PieceProxy.RingOnly;
+        _proxy.MaterialOverride = Palette.Translucent(look == PieceProxy.Solid ? _base : _base with { A = 0.12f });
+        if (look != PieceProxy.RingOnly) { _ring?.QueueFree(); _ring = null; return; }
+        _ringMaterial.AlbedoColor = _base with { A = 1 };
+        if (_ring is null) AddChild(_ring = Palette.BaseRing(_footprint, _ringMaterial));
+    }
 
     public Aabb Bounds => _proxy.GlobalTransform * _proxy.GetAabb();
 }

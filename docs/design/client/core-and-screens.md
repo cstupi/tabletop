@@ -163,9 +163,9 @@ undo button `Ui.Theme`; nothing is recreated, so typed input survives. `DiceFace
 dimmed when the die failed.
 
 `ClientSettings` holds `Theme` (an id, resolved on load so an unknown one reads as the default), `CameraFollow` (true),
-`TurnBanner` (true), `RangeRings` (false) and `MeasureMode` (`Horizontal`), each nullable in the DTO. `SettingsDialog` (`Screens/`), opened from the
+`TurnBanner` (true), `RangeRings` (false), `ShowHitboxes` (true) and `MeasureMode` (`Horizontal`), each nullable in the DTO. `SettingsDialog` (`Screens/`), opened from the
 header and from Home, is an `AcceptDialog` with a theme `OptionButton` and checkboxes for `Animate`, camera follow,
-turn banner and range rings; each change goes through `Session.UpdateSettings` and applies at once, and a theme change
+turn banner, hitboxes and range rings; each change goes through `Session.UpdateSettings` and applies at once, and a theme change
 reaches `Main` through `Session.SettingsChanged`.
 
 `scripts/check-client` is the colour gate: `new Color(`, `new Godot.Color(`, `Colors.`, `Color.FromHtml`, `Color.Color8`,
