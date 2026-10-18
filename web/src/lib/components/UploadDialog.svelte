@@ -11,6 +11,8 @@
   import { classifyFiles, type Intake } from '$lib/upload/intake';
   import { STAGE_LABELS, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
   import { circle } from '$lib/units/bases';
+  import { UNIT_SCALES, type MeshUnit } from '$lib/units/units';
+  import { describeSize, GLB_DEFAULTS, suggestUnit } from '$lib/mesh/size';
   import { formatBytes, MAX_NAME, nameProblem, sizeProblem } from '$lib/validation';
 
   let { open, onclose, onuploaded }: { open: boolean; onclose: () => void; onuploaded: (o: UploadOutcome) => void } = $props();
@@ -59,7 +61,7 @@
       try {
         glb = new Uint8Array(await intake.file.arrayBuffer());
         const d = await describeGlb(glb); glbInfo = { triangles: d.triangles }; meshBounds = d.bounds;
-        scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 };   // a dropped GLB gets no proposal; the user sets both
+        scale = GLB_DEFAULTS.scale; orientation = { ...GLB_DEFAULTS.orientation };   // glTF: metres, Y-up, front +Z
         seeded = true; stage = 'preview'; return;
       } catch (e) { error = `That GLB could not be read: ${e instanceof Error ? e.message : String(e)}. Export it again as a binary glTF (.glb).`; intake = null; return; }
     }
@@ -78,7 +80,13 @@
       stage = 'preview';
     } catch (e) { if (t === convToken) { error = `The STL could not be converted: ${e instanceof Error ? e.message : String(e)}. Check it opens in your slicer, then try again.`; stage = 'drop'; } }
   }
-  const numbersOk = $derived(kind === 'texture' || ([scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite) && scale > 0));
+  const size = $derived(meshBounds && kind !== 'texture' && numbersOkFor(scale, orientation) ? describeSize(meshBounds, { scale, orientation }) : null);
+  /** Only a dropped GLB is checked: its unit comes from the glTF standard, not a guess, so an implausible size means the exporter ignored it. */
+  const suggested = $derived(intake?.kind === 'glb' && meshBounds && scale > 0 ? suggestUnit(meshBounds, scale) : null);
+  const UNIT_LABELS: Record<MeshUnit, string> = { mm: 'mm', cm: 'cm', in: 'inches', m: 'm' };
+  const UNIT_NAMES: Record<MeshUnit, string> = { mm: 'millimetres', cm: 'centimetres', in: 'inches', m: 'metres' };
+  function numbersOkFor(s: number, o: Orientation) { return [s, o.pitch, o.roll, o.yaw].every(Number.isFinite) && s > 0; }
+  const numbersOk = $derived(kind === 'texture' || numbersOkFor(scale, orientation));
   function standUp() {
     const pitch = orientation.pitch === 90 ? 0 : 90;
     orientation = { ...orientation, pitch };
@@ -146,8 +154,10 @@
           <fieldset><legend>Scale</legend>
             <input type="number" step="any" min="0" bind:value={scale} aria-label="Scale, inches per model unit" /> ×
             <span class="seg units" role="group" aria-label="The model was made in">
-              <button type="button" onclick={() => (scale = 1 / 25.4)}>mm</button><button type="button" onclick={() => (scale = 1 / 2.54)}>cm</button><button type="button" onclick={() => (scale = 1)}>inches</button>
+              {#each Object.keys(UNIT_SCALES) as MeshUnit[] as u (u)}<button type="button" aria-pressed={scale === UNIT_SCALES[u]} onclick={() => (scale = UNIT_SCALES[u])}>{UNIT_LABELS[u]}</button>{/each}
             </span>
+            {#if size}<p class="size" aria-live="polite">{size}</p>{/if}
+            {#if suggested}<p class="suggest" role="status">That is not a miniature's size in these units; it looks like {UNIT_NAMES[suggested]}. <button type="button" onclick={() => (scale = UNIT_SCALES[suggested!])}>Use {UNIT_LABELS[suggested]}</button></p>{/if}
           </fieldset>
           <fieldset><legend>Orientation (degrees)</legend>
             <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} /></label>
@@ -163,7 +173,7 @@
           {#if result.supports.suspected}
             <p role="alert">This file looks pre-supported: {result.supports.supportLike} thin, tall pieces stand under it. Supports are never removed here — please drop the unsupported file instead.</p>
           {/if}
-        {:else if glbInfo}<p>{glbInfo.triangles.toLocaleString()} triangles, {formatBytes(bytes)}. No conversion ran, so set the scale and orientation yourself.</p>{/if}
+        {:else if glbInfo}<p>{glbInfo.triangles.toLocaleString()} triangles, {formatBytes(bytes)}. Read as glTF: metres, Y up, front +Z. Check the size, and that the model stands on the ring and faces the arrow.</p>{/if}
         {#if tooBig}<p role="alert">{tooBig}</p>{/if}
         {#if !numbersOk}<p role="alert">Scale must be a number above zero, and the orientation numbers.</p>{/if}
         {#if stage === 'uploading' && uploadStage}
@@ -193,8 +203,8 @@
   .head { display: flex; justify-content: space-between; align-items: center; gap: var(--s4); margin-bottom: var(--s4); }
   .head h2 { display: inline-flex; align-items: center; gap: var(--s2); margin: 0; font-size: 1.15rem; }
   .preview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s5); min-height: 24rem; }
-  .view { padding: 0; margin: 0; background: var(--view-bg); min-height: 20rem; overflow: hidden; }
-  @media (max-width: 48rem) { .preview { grid-template-columns: minmax(0, 1fr); } .view { height: 20rem; } }
+  .view { padding: 0; margin: 0; background: var(--view-bg); height: min(34rem, calc(100dvh - 10rem)); min-height: 20rem; overflow: hidden; align-self: start; position: sticky; top: 0; }
+  @media (max-width: 48rem) { .preview { grid-template-columns: minmax(0, 1fr); } .view { height: 20rem; position: static; } }
   .drop { display: flex; flex-direction: column; align-items: center; gap: var(--s3); border: 2px dashed var(--accent); padding: var(--s7) var(--s4); text-align: center; color: var(--text); background: var(--rule); }
   .drop :global(.icon) { color: var(--accent); }
   .drop input { display: block; margin: var(--s2) auto; max-width: 100%; }
@@ -204,5 +214,7 @@
   fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0; }
   .units { vertical-align: middle; margin-left: var(--s2); }
   .units > button { min-height: 2.25rem; }
+  .size, .suggest { margin: var(--s2) 0 0; }
+  .suggest button { margin-left: var(--s2); }
   progress { width: 100%; }
 </style>

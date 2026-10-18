@@ -453,8 +453,15 @@ taller than it is wide". The plan implements the second half only, taller than w
 not test the footprint against any base. A wide, squat terrain piece therefore has no axis that
 is taller than wide, falls through to Z, and is right by luck rather than by rule.
 
-`propose()` is the only place a proposal is manufactured. A dropped GLB gets **no proposal**:
-scale 1, identity orientation, and the user sets both, as the spec requires.
+`propose()` manufactures the STL proposal. A dropped GLB takes `GLB_DEFAULTS` (`mesh/size.ts`), the glTF
+standard rather than a guess: metres (`scale = 1000/25.4`, 39.37 inches per unit), Y up and front +Z, so
+`{ pitch: 90, yaw: 180, roll: 0 }` stands it on the table with its front along the facing arrow (+Y).
+
+`suggestUnit(bounds, scale)` checks a dropped GLB: when its largest dimension at the current scale is outside 2 mm–1 m but
+millimetres or centimetres bring it inside, it names the unit nearest a 32 mm miniature. The dialog offers that unit as a
+*Use mm* / *Use cm* button and never switches by itself. STLs are not checked. The Scale field keeps one-click mm, cm,
+inches and m buttons (`UNIT_SCALES`), and `describeSize` reads out the confirmed size under it from `worldExtent`:
+"32 mm tall, 25 × 25 mm footprint (1.26 in tall, 0.98 × 0.98 in)".
 
 #### 6.7 Coordinate frames
 
@@ -582,8 +589,19 @@ modes.
 | `volumes: Volume[]` | Outlines at `bottom` and `top`; orange solid, green area |
 | `onmeasure(m: Measure)` | Reports `width`, `length`, `height` and the framed table rectangle |
 
-The world is drawn Z-up by setting `camera.up = (0, 0, 1)` and leaving the GLB's data alone. The
-stored orientation is what stands the model up. The ring is the **modelled base** in inches: a
+The world is drawn Z-up by setting `camera.up = (0, 0, 1)` before `OrbitControls` is built (it fixes its orbit frame
+from `camera.up`) and leaving the GLB's data alone. The stored orientation is what stands the model up.
+
+Orbit mode is a miniature seen on a table. The camera orbits freely around the vertical through the centre of the model and
+ring; its angle from straight up runs from 0 (looking straight down) to 85° (just above the table plane), so it never goes
+under the table. It starts at 45° in that range, 30° round from the front (+Y, where the facing arrow points), at the
+distance that fits the bounding sphere of the model plus ring and arrow. Panning is off. A new GLB resets the view; a
+changed scale, orientation or base refits the distance and keeps the angle; a resize changes only the aspect.
+
+Lighting reads from every angle: a `RoomEnvironment` through `PMREMGenerator` (built in code, so no file and no CSP
+change) at 0.4, a hemisphere fill, a key light above and to the side of the camera and a rim light behind the model, both
+moved with the camera each frame, under ACES tone mapping. The upload dialog's preview has a fixed height and stays in
+view while the form scrolls. The ring is the **modelled base** in inches: a
 circle or oval outline with the oval's `a` along +Y, or a rectangle as four edges. The arrow is the
 facing. Standing the mesh on that ring turns "scale = 0.0394" into a decision a person can make.
 If the model is twice the ring, the units guess was wrong.

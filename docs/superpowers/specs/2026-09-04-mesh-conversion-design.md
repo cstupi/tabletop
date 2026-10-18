@@ -72,7 +72,8 @@ Each behaviour is from the sketch, kept:
 open in both [the asset library](2026-08-28-asset-library-design.md) and
 [geometry values](2026-08-29-geometry-values-design.md) — whether the tool or the user writes
 them: the converter proposes, the user confirms in the preview, and the fields hold the
-confirmed value. A GLB dropped straight in gets no proposal and the user sets both.
+confirmed value. A GLB dropped straight in is read by the glTF standard (metres, Y up, front +Z): scale 39.37 and
+`{ pitch: 90, yaw: 180, roll: 0 }`, which the user confirms like any proposal.
 
 ## The threshold
 
