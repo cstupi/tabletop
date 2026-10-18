@@ -3,7 +3,7 @@ using Tabletop.Client.Core;
 
 namespace Tabletop.Client.Screens;
 
-/// <summary>The settings that apply at once: theme, animation, camera follow, turn banner and range rings.</summary>
+/// <summary>The settings that apply at once: theme, animation, camera follow, turn banner, hitboxes and range rings.</summary>
 public partial class SettingsDialog : AcceptDialog
 {
     SettingsDialog(Session session)
@@ -18,6 +18,7 @@ public partial class SettingsDialog : AcceptDialog
         Check(box, "Animate", session.Settings.Animate, session, (s, on) => s with { Animate = on });
         Check(box, "Camera follows the action", session.Settings.CameraFollow, session, (s, on) => s with { CameraFollow = on });
         Check(box, "Turn banner", session.Settings.TurnBanner, session, (s, on) => s with { TurnBanner = on });
+        Check(box, "Show hitboxes (B)", session.Settings.ShowHitboxes, session, (s, on) => s with { ShowHitboxes = on });
         Check(box, "Range rings on at start", session.Settings.RangeRings, session, (s, on) => s with { RangeRings = on });
     }
 

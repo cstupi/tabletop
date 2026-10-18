@@ -27,6 +27,7 @@ public partial class KeyOverlay : PanelContainer
         ("Space", "glide the camera to the active unit, else the selected one"),
         ("R", "collapse or expand the roster"),
         ("V", "range rings for my selected unit"),
+        ("B", "show or hide the hitboxes: off, a model with a mesh draws only the mesh and its base ring; remembered"),
         ("Ctrl+Z", "undo the last action, whoever took it"),
         ("G", "open or close the log"),
         ("Delete / Backspace", "in setup: remove the selected terrain piece or marker"),

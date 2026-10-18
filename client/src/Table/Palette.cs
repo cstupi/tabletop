@@ -30,8 +30,9 @@ public static class Palette
 
     /// <summary>A thin ring on a base's outline, just above the ground: a circle's or an oval's ellipse, a rectangle's four sides. Base A is the
     /// length along the facing (Godot −Z), B the width across (X), a circle's A its diameter.</summary>
-    public static Node3D BaseRing(Base b)
+    public static Node3D BaseRing(Base b, Material? material = null)
     {
+        material ??= GhostRingMaterial;
         const float Lift = 0.03f, Line = 0.08f;
         var ring = new Node3D { Name = "BaseRing" };
         if (b.Shape == BaseShape.Rect)
@@ -39,7 +40,7 @@ public static class Palette
             float w = (float)b.B, l = (float)b.A;
             foreach (var (size, at) in new[] { (new Vector3(w, Line / 2, Line), new Vector3(0, Lift, l / 2)), (new Vector3(w, Line / 2, Line), new Vector3(0, Lift, -l / 2)),
                          (new Vector3(Line, Line / 2, l), new Vector3(w / 2, Lift, 0)), (new Vector3(Line, Line / 2, l), new Vector3(-w / 2, Lift, 0)) })
-                ring.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, Position = at, MaterialOverride = GhostRingMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+                ring.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, Position = at, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
             return ring;
         }
         float across = (float)(b.Shape == BaseShape.Circle ? b.A : b.B), along = (float)b.A;
@@ -48,7 +49,7 @@ public static class Palette
         ring.AddChild(new MeshInstance3D
         {
             Mesh = new TorusMesh { InnerRadius = 1 - tube, OuterRadius = 1, Rings = 48 }, Scale = new Vector3(across / 2, 0.25f, along / 2), Position = new Vector3(0, Lift, 0),
-            MaterialOverride = GhostRingMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         });
         return ring;
     }

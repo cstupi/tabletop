@@ -17,6 +17,8 @@ public partial class TableView : Node3D
     public IReadOnlyList<WorldVolume> Volumes { get; private set; } = [];
     /// <summary>Ids whose nodes Redraw leaves where they are: a drop the server has not answered, a drag in hand.</summary>
     public Func<Guid, bool> IsHeld { get; set; } = _ => false;
+    /// <summary>The selected piece's id, which setup edits (its volumes show whatever Show hitboxes says).</summary>
+    public Func<Guid?> Selected { get; set; } = () => null;
 
     public override void _Ready()
     {
@@ -34,7 +36,7 @@ public partial class TableView : Node3D
         Camera.Current = true;
     }
 
-    Action? _onBoard, _onGame, _onBuiltins; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Action? _onBoard, _onGame, _onBuiltins, _onSettings; Action<IReadOnlyList<GameEvent>>? _onEvents;
     GameStatus? _status;
 
     public override void _ExitTree()
@@ -42,7 +44,7 @@ public partial class TableView : Node3D
         if (_session is null) return;
         _meshes.Dispose();
         _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard; _session.GameChanged -= _onGame;
-        BuiltinContent.Changed -= _onBuiltins;
+        BuiltinContent.Changed -= _onBuiltins; _session.SettingsChanged -= _onSettings;
     }
 
     /// <summary>A new built-in catalog: the slab's texture and every built-in piece's mesh are drawn again from it.</summary>
@@ -64,7 +66,17 @@ public partial class TableView : Node3D
         _onGame = () => { var status = _session.Game?.Status; if (status == GameStatus.Playing && _status != GameStatus.Playing) _meshes.RefreshManifest(); _status = status; };
         session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard; session.GameChanged += _onGame;
         _onBuiltins = RedrawBuiltins; BuiltinContent.Changed += _onBuiltins;
+        _onSettings = RefreshLooks; session.SettingsChanged += _onSettings;
         Redraw(); Camera.FocusOn(Size);
+    }
+
+    /// <summary>Show hitboxes and the selection, on every drawn model and terrain piece: a setting or selection change applies at once.</summary>
+    public void RefreshLooks()
+    {
+        if (_session is null) return;
+        var show = _session.Settings.ShowHitboxes; var inSetup = _session.Projection is null; var selected = Selected();
+        foreach (var n in _pieces.GetChildren().OfType<PieceNode>()) n.SetShowHitboxes(show);
+        foreach (var n in _terrain.GetChildren().OfType<TerrainNode>()) n.SetLook(show, HitboxLook.Editing(inSetup, n.PlacementId, selected));
     }
 
     TableState? Table => _session.Projection?.Board.Table ?? _session.Draft;
@@ -76,7 +88,7 @@ public partial class TableView : Node3D
         if (table.Size != Size || _slab.GetChildCount() == 0) { Size = table.Size; _slab.Set(Size, table.Texture); }
         Volumes = table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
         Sync(_terrain, table.Terrain, t => t.Id, BoardDiff.SameShape,
-            t => { var n = new TerrainNode { PlacementId = t.Id }; n.Build(t); LoadTerrainMesh(n, t); return n; }, (n, t) => n.Place(t));
+            t => { var n = new TerrainNode { PlacementId = t.Id }; n.Build(t); n.SetLook(_session.Settings.ShowHitboxes, HitboxLook.Editing(_session.Projection is null, t.Id, Selected())); LoadTerrainMesh(n, t); return n; }, (n, t) => n.Place(t));
         // A play marker wins over a setup marker of the same id: one disc per id.
         var played = _session.Projection?.Markers.Values.ToList() ?? [];
         var markers = table.Markers.Where(m => played.All(q => q.Id != m.Id)).Concat(played);
@@ -91,7 +103,7 @@ public partial class TableView : Node3D
         // Each model's proxy takes its team's tint, recoloured on every redraw so it follows ownership as GameInfo arrives.
         Color Tint(ModelInPlay m) => Palette.Tinted(_session.Projection is { } p && _session.Game is { } g ? SheetFocus.TeamOf(p, g, m.UnitId)?.Ordinal : null);
         Sync(_pieces, onTable, m => m.Id, (_, _) => true,
-            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); n.SetTint(Tint(m)); Place(n, m); LoadPieceMesh(n, m); return n; },
+            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetShowHitboxes(_session.Settings.ShowHitboxes); n.SetBody(m.Slot.Base, m.Slot.Height); n.SetTint(Tint(m)); Place(n, m); LoadPieceMesh(n, m); return n; },
             (n, m) => { n.SetTint(Tint(m)); Place(n, m); });
     }
 

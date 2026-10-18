@@ -53,6 +53,8 @@ public partial class GameScreen : Control
         if (_session.GameId is not null)
         {
             Table.Bind(_session); Input.Bind(Table, _session); overlay.Bind(Table, _session);
+            Table.Selected = () => Input.Selected?.PieceId; Input.SelectionChanged += Table.RefreshLooks;
+            Input.IntentPressed += i => { if (i == Intent.ToggleHitboxes) _session.UpdateSettings(x => x with { ShowHitboxes = !x.ShowHitboxes }); };
             // The selected terrain piece or setup marker, in setup and play, in the unit card's slot (GameScreen.Layout).
             _hud.AddChild(_terrainCard = new TerrainCard()); _terrainCard.Bind(_session, Input, Toast);
             _terrainCard.MinimumSizeChanged += QueueLayout; _terrainCard.VisibilityChanged += QueueLayout;
@@ -79,7 +81,7 @@ public partial class GameScreen : Control
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.Frame.Render -= _onFrame;
         _session.RefusedReceived -= _onRefused; _session.ConnectionLost -= _onLost;
-        if (Input is not null && IsInstanceValid(Input)) Input.SelectionChanged -= ShowSelection;
+        if (Input is not null && IsInstanceValid(Input)) { Input.SelectionChanged -= ShowSelection; Input.SelectionChanged -= Table.RefreshLooks; }
         FreePlayPanels();
     }
 

@@ -31,7 +31,7 @@ public class HotkeysTests
     {
         // The Godot side maps with Enum.TryParse(keycode.ToString()); these are Godot.Key members as Godot 4.7 spells them.
         string[] godot = ["Key1", "Key2", "Key3", "Key4", "Key5", "Key6", "Key7", "Key8", "Key9", "Enter", "KpEnter", "Escape", "Shift",
-            "Q", "E", "C", "L", "M", "P", "G", "Z", "Tab", "Backtab", "Space", "Home", "End", "F1", "Slash", "Question", "Ctrl", "W", "A", "S", "D", "R", "V", "Delete", "Backspace", "H"];
+            "Q", "E", "C", "L", "M", "P", "G", "Z", "Tab", "Backtab", "Space", "Home", "End", "F1", "Slash", "Question", "Ctrl", "W", "A", "S", "D", "R", "V", "Delete", "Backspace", "H", "B"];
         Assert.Equal(godot.Order(), Enum.GetNames<HotKey>().Order());
     }
 }
