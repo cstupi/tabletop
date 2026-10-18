@@ -27,7 +27,7 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
 - `src/Panels/`: `LobbyPanel`, `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
 - `content/themes/<id>/`: per theme `fonts/`, `icons/` and `LICENSES.md`; `fantasy` also has `panel.svg`, `button.svg` and `dice/`.
 - `scenes/`: `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
-- `content/builtin/`: `textures/` (five table textures: ash, desert, grass, snow, urban) and `terrain/` (thirteen grouped `.glb` meshes from `scripts/terrain-meshes`: `hill`, `lake` and `crater` round, `hill-rect` square; vertex-coloured PBR, translucent materials in a node of their own). A missing file draws the piece's volumes.
+- `content/builtin/`: `textures/` (five table textures: ash, desert, grass, snow, urban) and `terrain/` (thirteen grouped `.glb` meshes from `scripts/terrain-meshes`: `hill`, `lake` and `crater` round, `hill-rect` square; vertex-coloured PBR, translucent materials in a node of their own). A missing file draws the piece's volumes. `MeshLoader` reads the meshes raw, so each `.glb.import` is Keep File (`importer="keep"`): an export ships an imported file only as its import. A new mesh needs the same (`BuiltinContentTests`); `scripts/release-client export` fails when a pack lacks a mesh or a texture's import (`scripts/pck-files` lists a pack).
 
 ## How it works
 
