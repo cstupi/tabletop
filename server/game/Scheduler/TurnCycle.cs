@@ -32,7 +32,7 @@ public sealed record CycleComplete(TurnContext Turn) : CycleStep;
 /// </summary>
 public sealed class TurnCycle(PropertySet properties)
 {
-    public static Ask AskFor(Guid teamId, TurnAsk ask) => new(Guid.CreateVersion7(), ask.Question, ask.Prompt, [teamId], ask.Legal, ask.AllowPass, Sealed: false, WindowKind: null, FrameId: null);
+    public static Ask AskFor(Guid teamId, TurnAsk ask) => new(Guid.CreateVersion7(), ask.Question, ask.Prompt, [teamId], ask.Legal, ask.AllowPass, Sealed: false, WindowKind: null, FrameId: null) { OwnUnitsOnly = true };   // p.50: each player activates their own units
 
     public CycleState Read(GameState state, Guid teamId, SchedulerLog log)
     {

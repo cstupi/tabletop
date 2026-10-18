@@ -27,7 +27,7 @@ public class GfDeploymentZoneTests
     static MoveModels At(SchedulerHarness h, Guid unit, double x, double y) => new(h.P.Units[unit].Definition.Models
         .Select((m, i) => new ModelRelocation(m.Id, h.P.Models[m.Id].Location, new OnTable(new Placement(new Point3(x + i * 2, y, 0), new Yaw(0))))).ToList());
 
-    static Actor TeamOf(SchedulerHarness h, int team) => new(Guid.CreateVersion7(), h.Teams[team]);
+    static Actor TeamOf(SchedulerHarness h, int team) => new(h.State.Info.Participants.First(p => p.TeamId == h.Teams[team]).Id, h.Teams[team]);
 
     [Fact]
     public void Strict_refuses_a_unit_placed_outside_its_deployment_zone_and_accepts_one_fully_within()

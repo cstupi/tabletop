@@ -149,7 +149,7 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
             if (!_games.TryGetValue(gameId, out var g)) return Task.FromResult<GameInfo?>(null);
             var teams = _teams.Values.Where(t => t.GameId == gameId).OrderBy(t => t.Ordinal).Select(t => new Team(t.Id, t.Ordinal)).ToList();
             var participants = _participants.Values.Where(p => p.GameId == gameId).OrderBy(p => p.Id)
-                .Select(p => new Participant(p.Id, p.AccountId, _accounts[p.AccountId], p.TeamId, p.ArmyId)).ToList();
+                .Select(p => new Participant(p.Id, p.AccountId, _accounts[p.AccountId], p.TeamId, p.ArmyId, (p.ArmyId is { } a && _armies.TryGetValue(a, out var owned) ? owned.Army.Name : null) ?? p.ArmySnapshot?.Name)).ToList();
             return Task.FromResult<GameInfo?>(new GameInfo(g.Id, g.Name, g.Status, g.CreatedBy, g.GameRules, g.PropertiesHash, g.SchedulerShape, g.Enforcement,
                 g.WaitsBetweenSteps, g.RngSeed, teams, participants) { OptionalRules = new Dictionary<string, string>(g.OptionalRules) });
         }

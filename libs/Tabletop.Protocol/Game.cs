@@ -15,8 +15,10 @@ public enum Enforcement { Silent, Warn, Strict }
 
 public sealed record Team(Guid Id, int Ordinal);
 
-/// <summary>TeamId is null until the participant picks one; a participant with no team is never Asked. ArmyId is the lobby pick, null after deployment.</summary>
-public sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId);
+/// <summary>A seat: one team and one army (game-flow spec → Participants). TeamId is null until the participant picks one; a participant with no
+/// team is never Asked. ArmyId is the lobby pick; ArmyName its name (the snapshot's once play begins), null with no army or where the rows
+/// do not carry it.</summary>
+public sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId, string? ArmyName = null);
 
 /// <summary>
 /// Teams, participants and configuration: what a lobby connect receives.

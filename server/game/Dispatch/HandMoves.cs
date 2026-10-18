@@ -40,6 +40,12 @@ public static class HandMoves
             // Passengers spec → Take out of transport: back to the shelf from a container still on the shelf, while the rules would let it go in.
             if (model.Location is Inside from && move.To is OnShelf && mine && p.Models.TryGetValue(from.ContainerId, out var holder) && holder.Location is OnShelf
                 && state.Rules.MayDeployInside(state, model.UnitId, from.ContainerId, NoneDeploying)) continue;
+            if (model.Location is OnShelf && move.To is OnTable && placing.Contains(model.UnitId) && !OwnedByActor(state, p.Units[model.UnitId], actor))
+            {
+                // p.50 Team Games: a teammate places their own pick; another player's hand on it is the hand_move breach.
+                outside = new Breach(Rule, $"{name} is another player's unit: each player deploys their own units (p.50)", new StrictRefuses(RefusalReason.Illegal));
+                break;
+            }
             if (model.Location is OnShelf && move.To is OnTable && placing.Contains(model.UnitId))
             {
                 // A Transport placed with units inside: they deploy with it only while the rules still allow them in (set aside since they went in: not).
@@ -55,6 +61,12 @@ public static class HandMoves
         if (outside is { } b) return overlap is null ? b : b with { Detail = $"{b.Detail}; {overlap.Detail}" };
         return overlap is null ? null : new Breach(overlap.Rule, overlap.Detail, new StrictRefuses(RefusalReason.Illegal));
     }
+
+    /// <summary>The unit is the actor's seat's, or another seat of the actor's account (self-play).</summary>
+    static bool OwnedByActor(GameState state, UnitInPlay unit, Actor actor) =>
+        unit.ParticipantId == actor.ParticipantId
+        || state.Info.Participants.FirstOrDefault(p => p.Id == unit.ParticipantId)?.AccountId is { } owner
+           && owner == state.Info.Participants.FirstOrDefault(p => p.Id == actor.ParticipantId)?.AccountId;
 
     /// <summary>The units the team picked in the deploy-family Ask the scheduler waits on; empty when any Ask has opened since, or none was answered.</summary>
     static HashSet<Guid> Placing(GameState state, Guid team)

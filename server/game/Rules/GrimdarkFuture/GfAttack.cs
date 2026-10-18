@@ -145,7 +145,7 @@ public static partial class GfAttack
                 if (toughOnly && allocation.Keys.FirstOrDefault() is var first && first != Guid.Empty)
                     allocation = new Dictionary<Guid, int> { [first] = wounds };
             }
-            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
+            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null), unit: target)]);
 
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);

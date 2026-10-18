@@ -244,11 +244,13 @@ public abstract class GameRowsContract
         await Rows.SetParticipantArmyAsync(p, army.Id, Ct);
         Participant Read(GameInfo g) => g.Participants.Single(x => x.Id == p);
         Assert.Equal((seeded.TeamIds[1], (Guid?)army.Id), (Read((await Rows.ReadGameAsync(seeded.GameId, Ct))!).TeamId, Read((await Rows.ReadGameAsync(seeded.GameId, Ct))!).ArmyId));
+        Assert.Equal(army.Name, Read((await Rows.ReadGameAsync(seeded.GameId, Ct))!).ArmyName);         // the lobby names each seat's army
         await Rows.SetParticipantTeamAsync(p, null, Ct);
         await Rows.SetParticipantArmyAsync(p, null, Ct);
         var cleared = Read((await Rows.ReadGameAsync(seeded.GameId, Ct))!);
         Assert.Null(cleared.TeamId);
         Assert.Null(cleared.ArmyId);
+        Assert.Null(cleared.ArmyName);
     }
 
     [Fact]

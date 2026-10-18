@@ -24,6 +24,17 @@ public class WaitingForPlayersTests
     }
 
     [Fact]
+    public void A_team_of_two_players_waits_until_each_has_an_army()
+    {
+        var ann = new Participant(Guid.CreateVersion7(), Account, "Ann", T1, null);
+        var cid = new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), "Cid", T1, null);
+        var bob = new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), "Bob", T2, null);
+        Assert.Equal("Team 1 waits for Cid to pick an army", Assert.Single(WaitingForPlayers.Teams(Game(ann, cid, bob), Board(ann.Id, bob.Id))).Text);
+        Assert.Equal("Team 1 has no army", Assert.Single(WaitingForPlayers.Teams(Game(ann, cid, bob), Board(bob.Id))).Text);
+        Assert.Empty(WaitingForPlayers.Teams(Game(ann, cid, bob), Board(ann.Id, cid.Id, bob.Id)));
+    }
+
+    [Fact]
     public void One_account_holding_both_teams_with_an_army_each_waits_for_nothing()
     {
         var a = new Participant(Guid.CreateVersion7(), Account, "Ann", T1, null);
