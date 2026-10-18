@@ -95,6 +95,7 @@ check_pack() {   # <platform> <out>: the export's pack holds the built-in conten
     grep -qxF "$want" <<< "$listing" || missing+=("$want")
   done
   (( ${#missing[@]} == 0 )) || die "the $p export's pack is missing built-in content: ${missing[*]}"
+  echo "release-client: pack ok: $p ($(wc -l <<< "$listing") files, built-in content present)"
 }
 
 release_notes() {   # <version> <out>: <out>/notes.txt from the tag's annotation, else CHANGELOG.md's section, else empty
