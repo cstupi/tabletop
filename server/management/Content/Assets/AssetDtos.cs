@@ -10,6 +10,10 @@ public sealed record CreateAssetResponse(AssetDto Asset, Uri? UploadUrl);
 public sealed record ConfirmResponse(AssetDto Asset, long? Triangles, string? Warning);
 public sealed record PatchAssetRequest(string? Name, double? Scale, Orientation? Orientation, Base? ModelledBase);
 public sealed record DownloadResponse(Uri Url, DateTimeOffset ExpiresAt);
+/// <summary>The body of a bulk request: 1 to <c>Limits.Bulk</c> asset ids.</summary>
+public sealed record BulkAssetsRequest(IReadOnlyList<Guid> AssetIds);
+/// <summary>Per-item outcome: <c>NotFound</c> lists ids that are not the caller's assets.</summary>
+public sealed record BulkAssetsResponse(IReadOnlyList<Guid> Done, IReadOnlyList<Guid> NotFound);
 
 public static class AssetRules
 {
