@@ -35,8 +35,19 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     /// <summary>Starts a manifest fetch, or joins the one in flight. Returns the task so a caller can wait for it.</summary>
     public Task RefreshManifest() => Refresh.Run();
 
+    /// <summary>Each asset's file and corrections once found, so a second piece of it (another model of the unit, a ghost drawn again)
+    /// is a duplicate of the template at once: no manifest wait, no queue, no frame drawn with the hitbox alone. A failure is not kept.</summary>
+    readonly Dictionary<Guid, Task<(string Path, double Scale, Orientation Orientation)?>> _resolved = new();
+
     /// <summary>Fetches the bytes (queued by distance), then builds the scene on the main thread. Null when the asset cannot be had.</summary>
     public async Task<Node3D?> LoadAssetAsync(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)
+    {
+        if (!_resolved.TryGetValue(assetId, out var resolved) || resolved.IsCompleted && resolved.Result is null)
+            _resolved[assetId] = resolved = Resolve(assetId, cameraPosition, piecePosition);
+        return await resolved is { } file ? await Build(file.Path, file.Scale, file.Orientation) : null;
+    }
+
+    async Task<(string Path, double Scale, Orientation Orientation)?> Resolve(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)
     {
         await Refresh.Current;
         bool lapsed; lock (_manifest) lapsed = DateTimeOffset.UtcNow >= _expires;
@@ -59,7 +70,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         _queue.Enqueue((assetId, hash, url, AssetCache.CapFor(kind), done), cameraPosition.DistanceTo(piecePosition));
         _ = Pump();
         var path = await done.Task;
-        return path is null ? null : await Build(path, scale, orientation);
+        return path is null ? null : (path, scale, orientation);
     }
 
     async Task Pump()

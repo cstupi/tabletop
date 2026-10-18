@@ -139,11 +139,15 @@ public partial class TableView : Node3D
     /// <summary>Out of the tree now, so a lookup by id this frame finds only the live node; freed at the end of the frame.</summary>
     static void Drop(Node n) { n.GetParent().RemoveChild(n); n.QueueFree(); }
 
-    async void LoadPieceMesh(PieceNode n, ModelInPlay m)
+    void LoadPieceMesh(PieceNode n, ModelInPlay m)
     {
-        if (m.Slot.AssetId is not { } asset) return;
-        var scene = await _meshes.LoadAssetAsync(asset, Camera.GlobalPosition, WorldFrame.ToGodot(((OnTable)m.Location).Placement.Position));
-        if (!IsInstanceValid(n)) { scene?.QueueFree(); return; }
+        if (m.Slot.AssetId is { } asset) LoadMesh(n, asset, WorldFrame.ToGodot(((OnTable)m.Location).Placement.Position));
+    }
+    // A loaded asset comes back at once (MeshLoader keeps it resolved), so a node never draws a frame without it.
+    async void LoadMesh(PieceNode n, Guid asset, Vector3 at)
+    {
+        var scene = await _meshes.LoadAssetAsync(asset, Camera.IsInsideTree() ? Camera.GlobalPosition : Camera.Position, at);
+        if (!IsInstanceValid(n) || n.IsQueuedForDeletion()) { scene?.QueueFree(); return; }
         n.SetMesh(scene);
     }
     // A built-in's group mesh is fitted to the placement's first volume; an asset's mesh carries its own scale.
@@ -163,17 +167,8 @@ public partial class TableView : Node3D
     public void ShowExitGhosts(IReadOnlyList<Guid> modelIds, Guid containerId)
     {
         ClearExitGhosts();
-        if (_session.Projection is not { } p || p.Models.GetValueOrDefault(containerId)?.Location is not OnTable at) return;
-        foreach (var id in modelIds)
-        {
-            if (p.Models.GetValueOrDefault(id) is not { } m) continue;
-            var n = new PieceNode { ModelId = id, UnitId = m.UnitId };
-            n.SetBody(m.Slot.Base, m.Slot.Height);
-            n.Position = WorldFrame.ToGodot(at.Placement.Position);
-            n.Rotation = new Vector3(0, WorldFrame.Radians(at.Placement.Yaw), 0);
-            n.SetHighlight(Palette.Ghost);
-            _ghosts.AddChild(n);
-        }
+        if (_session.Projection is not { } p) return;
+        foreach (var g in GhostLooks.Exiting(p, modelIds, containerId)) _ghosts.AddChild(Ghost(g, Palette.Ghost));
     }
 
     /// <summary>
@@ -185,19 +180,23 @@ public partial class TableView : Node3D
     {
         ClearExitGhosts();
         if (_session.Projection is not { } p) return;
-        foreach (var r in placements)
-        {
-            if (r.To is not OnTable to || p.Models.GetValueOrDefault(r.ModelId) is not { } m) continue;
-            var n = new PieceNode { ModelId = r.ModelId, UnitId = m.UnitId };
-            n.SetBody(m.Slot.Base, m.Slot.Height);
-            n.Position = WorldFrame.ToGodot(to.Placement.Position);
-            n.Rotation = new Vector3(0, WorldFrame.Radians(to.Placement.Yaw), 0);
-            n.SetHighlight(Palette.Ghost);
-            _ghosts.AddChild(n);
-        }
+        foreach (var g in GhostLooks.Placing(p, placements)) _ghosts.AddChild(Ghost(g, Palette.Ghost));
     }
 
-    public void ClearExitGhosts() { foreach (var c in _ghosts.GetChildren()) c.QueueFree(); }
+    /// <summary>A ghost of a model (<see cref="GhostLook"/>): its hitbox at once, its own mesh — the placed model's, from the same loader
+    /// and template — when it has one and it has loaded. Not in any layer: the caller parents it.</summary>
+    public PieceNode Ghost(GhostLook g, Color colour)
+    {
+        var n = new PieceNode { ModelId = g.ModelId, UnitId = g.UnitId };
+        n.SetBody(g.Base, g.Height);
+        n.Position = WorldFrame.ToGodot(g.At.Position);
+        n.Rotation = new Vector3(0, WorldFrame.Radians(g.At.Yaw), 0);
+        n.SetGhost(colour);
+        if (g.AssetId is { } asset) LoadMesh(n, asset, n.Position);
+        return n;
+    }
+
+    public void ClearExitGhosts() { foreach (var c in _ghosts.GetChildren()) Drop(c); }
     public bool IsExitGhost(Guid modelId) => _ghosts.GetChildren().OfType<PieceNode>().Any(p => p.ModelId == modelId);
 
     /// <summary>The projection's node first, then a disembark ghost — an occupant has only the ghost, and never both at once.</summary>
