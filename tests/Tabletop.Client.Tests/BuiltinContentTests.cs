@@ -104,7 +104,7 @@ public class BuiltinContentTests
     public void Every_built_in_mesh_ships_raw_in_the_export()
     {
         var client = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client"));
-        foreach (var file in BuiltinContent.Terrain.Values.Select(t => t.MeshFile!).Distinct())
+        foreach (var file in BuiltinContent.Packed.Meshes.Select(m => BuiltinContent.Packed.FileFor(BuiltinCatalog.MeshPath(m), null)))
         {
             var path = Path.Combine(client, file["res://".Length..]);
             Assert.True(File.Exists(path), $"{file} is missing");
