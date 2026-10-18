@@ -12,14 +12,14 @@ namespace Tabletop.Client.Panels;
 public partial class SetupToolbar : VBoxContainer
 {
     readonly GameScreen _screen;
-    Session _session = null!; VBoxContainer _selected = null!; Label _selectedHead = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
-    Action? _onSelection, _onBoard, _onBuiltins; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
+    Session _session = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
+    Action? _onBoard, _onBuiltins; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
     public SetupToolbar(GameScreen screen) => _screen = screen;
 
     public override void _ExitTree()
     {
         if (_session is null) return;
-        _screen.Input.SelectionChanged -= _onSelection; _session.BoardChanged -= _onBoard;
+        _session.BoardChanged -= _onBoard;
         _screen.Input.PieceRightClicked -= _onRight; _screen.Input.IntentPressed -= _onIntent;
         BuiltinContent.Changed -= _onBuiltins;
     }
@@ -28,10 +28,6 @@ public partial class SetupToolbar : VBoxContainer
     {
         var s = _session = Main.Instance.Session; var size0 = SizeNow(s);   // the board may not have arrived yet
         AddChild(new Label { Text = "Setup" });
-
-        // First, so a click on the table shows the piece's controls without scrolling.
-        AddChild(_selectedHead = new Label { Text = "Selected placement", Visible = false });
-        _selected = new VBoxContainer(); AddChild(_selected);
 
         var table = Section(_ => "Table");
         table.AddChild(new Label { Text = SetupLimits.SizeHint, ThemeTypeVariation = Variation.Dim });
@@ -87,17 +83,15 @@ public partial class SetupToolbar : VBoxContainer
         layoutName.TextSubmitted += _ => SaveLayout();
         layouts.AddChild(Btn("Save as", SaveLayout));
 
-        _onSelection = () => RenderSelected(s, _selected);
         _onBoard = () =>
         {
             if (s.Draft is { } d && !_width.HasFocus() && !_length.HasFocus()) { _width.SetValueNoSignal(d.Size.Width); _length.SetValueNoSignal(d.Size.Length); }
-            RenderSelected(s, _selected);
             RefreshLimits();
         };
-        _screen.Input.SelectionChanged += _onSelection; s.BoardChanged += _onBoard;   // a draft edit changes what the selected piece shows
-        RenderSelected(s, _selected);
+        s.BoardChanged += _onBoard;
         RefreshLimits();
 
+        // The selected piece's details and edits are the terrain card's (Hud/TerrainCard), in the unit card's slot.
         // Right-click a terrain piece or setup marker: its menu. Delete or Backspace removes the selected one, unless a text field has the key.
         AddChild(_menu = new PieceMenu(s, _screen.Toast));
         _onRight = (id, at) => { if (s.Draft is { } d) _menu.Open(MenuModel.ForSetupPiece(d, id), at); };
@@ -168,19 +162,6 @@ public partial class SetupToolbar : VBoxContainer
         dialog.PopupCentered();
     }
 
-    /// <summary>Setup phase -> Terrain: anyone may swap a piece's built-in mesh for an asset from their library, and the
-    /// placement keeps its volumes and declarations. "Reset volumes" is how a user takes the new mesh's own instead.</summary>
-    async Task SwapForAsset(Session s, Guid placementId)
-    {
-        var assets = (await s.Management.ListAssets(AssetKind.Terrain, null)).Items.Where(x => x.Uploaded).ToList();
-        if (!IsInstanceValid(this)) return;
-        if (assets.Count == 0) { _screen.Toast("No terrain in your library; upload some in the web app."); return; }
-        var pick = new OptionButton(); foreach (var x in assets) pick.AddItem(x.Name);
-        var dialog = Dialog("Swap this piece's mesh (its volumes and declarations stay)", pick);
-        dialog.Confirmed += () => Guarded.Send(s, new SwapTerrainMesh(placementId, VisualRef.OfAsset(assets[pick.Selected].Id)));
-        dialog.PopupCentered();
-    }
-
     async Task LoadLayout(Session s)
     {
         var layouts = await s.Management.ListLayouts();
@@ -189,62 +170,5 @@ public partial class SetupToolbar : VBoxContainer
         var dialog = Dialog("Load a layout (replaces the whole draft, size included)", pick);
         dialog.Confirmed += () => Guarded.Run(async () => await s.SendEditAsync(new ReplaceDraft(await s.Management.GetLayout(layouts[pick.Selected].Id))), _screen.Toast);
         dialog.PopupCentered();
-    }
-
-    /// <summary>Every volume field is one OverrideTerrainVolumes carrying the placement's whole volume list with one volume changed.</summary>
-    static void EditVolume(Session s, TerrainPlacement t, Guid volumeId, Func<Volume, Volume> change) =>
-        Guarded.Send(s, new OverrideTerrainVolumes(t.Id, t.Volumes.Select(v => v.Id != volumeId ? v : v with { Volume = change(v.Volume) }).ToList()));
-
-    static SpinBox Spin(double value, double max, Action<double> changed) { var sb = new SpinBox { MinValue = 0, MaxValue = max, Step = 0.25, Value = value, CustomMinimumSize = new Vector2(70, 0) }; sb.ValueChanged += v => changed(v); return sb; }
-
-    void RenderSelected(Session s, VBoxContainer box)
-    {
-        foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); }
-        var sel = _screen.Input.Selected; var draft = s.Draft;
-        _selectedHead.Visible = false;                                              // the heading only over something to show
-        if (sel is null || draft is null) return;
-        _selectedHead.Visible = draft.Markers.Any(m => m.Id == sel.PieceId) || draft.Terrain.Any(x => x.Id == sel.PieceId);
-        if (draft.Markers.FirstOrDefault(m => m.Id == sel.PieceId) is { } marker) { box.AddChild(Btn("Remove marker", () => Guarded.Send(s, new RemoveSetupMarker(marker.Id)))); return; }
-        var t = draft.Terrain.FirstOrDefault(x => x.Id == sel.PieceId); if (t is null) return;
-        box.AddChild(new Label { Text = t.Mesh.IsBuiltin ? BuiltinContent.Terrain.GetValueOrDefault(t.Mesh.Builtin!)?.Label ?? t.Mesh.Builtin : $"asset {Names.Short(t.Mesh.AssetId!.Value)}" });
-        var scale = new SpinBox { MinValue = 0.25, MaxValue = 4, Step = 0.25, Value = t.Scale }; box.AddChild(scale); scale.ValueChanged += v => Guarded.Send(s, new ScaleTerrain(t.Id, v));
-        // Facing: a turn in place, moved clear of an Impassable piece it would swing into (MenuModel.TurnInDraft). Q/E turn a held piece.
-        var facing = new HFlowContainer(); box.AddChild(facing);
-        void TurnTo(double degrees) { if (s.Draft is { } now && MenuModel.TurnInDraft(now, t.Id, degrees) is { } turn) Guarded.Send(s, turn); }
-        facing.AddChild(new Label { Text = "Facing" });
-        var yaw = new SpinBox { MinValue = 0, MaxValue = 359, Step = 1, Value = Math.Round(t.Yaw.Degrees), Suffix = "°", CustomMinimumSize = new Vector2(70, 0), TooltipText = "Degrees counter-clockwise from above" };
-        yaw.ValueChanged += TurnTo; facing.AddChild(yaw);
-        facing.AddChild(Btn($"⟲ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees + MenuModel.TerrainTurn)));
-        facing.AddChild(Btn($"⟳ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees - MenuModel.TerrainTurn)));
-        box.AddChild(Wide("Remove", () => Guarded.Send(s, new RemoveTerrain(t.Id))));
-        var swap = new OptionButton(); var names = BuiltinContent.Terrain.Keys.Order().ToList(); foreach (var n in names) swap.AddItem(n); box.AddChild(swap);
-        box.AddChild(Wide("Swap mesh for this built-in (keeps volumes)", () => Guarded.Send(s, new SwapTerrainMesh(t.Id, VisualRef.OfBuiltin(names[swap.Selected])))));
-        box.AddChild(Wide("Swap mesh for one of my assets (keeps volumes)", () => Guarded.Run(() => SwapForAsset(s, t.Id), _screen.Toast)));
-        box.AddChild(Wide("Reset volumes to the source's", () => Guarded.Run(async () =>
-            await s.SendEditAsync(new OverrideTerrainVolumes(t.Id, t.Mesh.IsBuiltin ? BuiltinContent.VolumesOf(t.Mesh.Builtin!) : (await s.Management.GetAssetVolumes(t.Mesh.AssetId!.Value)).Select(v => new TerrainVolume(Guid.CreateVersion7(), v.Volume)).ToList())), _screen.Toast)));
-        foreach (var (tv, i) in t.Volumes.Select((v, i) => (v, i)))
-        {
-            var row = new VBoxContainer(); box.AddChild(row);
-            row.AddChild(new Label { Text = $"volume {i + 1}" });
-            var shape = new HFlowContainer(); row.AddChild(shape);
-            var kind = new OptionButton(); foreach (var k in Enum.GetNames<VolumeKind>()) kind.AddItem(k); kind.Select((int)tv.Volume.Kind); shape.AddChild(kind);
-            kind.ItemSelected += k => EditVolume(s, t, tv.Id, v => v with { Kind = (VolumeKind)k });
-            var fp = tv.Volume.Footprint;
-            shape.AddChild(new Label { Text = fp.Kind == FootprintKind.Circle ? "radius" : "w×l" });
-            shape.AddChild(Spin(fp.A, 144, x => EditVolume(s, t, tv.Id, v => v with { Footprint = v.Footprint.Kind == FootprintKind.Circle ? new Footprint(FootprintKind.Circle, x, x) : v.Footprint with { A = x } })));
-            if (fp.Kind == FootprintKind.Rect) shape.AddChild(Spin(fp.B, 144, x => EditVolume(s, t, tv.Id, v => v with { Footprint = v.Footprint with { B = x } })));
-            var heights = new HFlowContainer(); row.AddChild(heights);
-            heights.AddChild(new Label { Text = "from" }); heights.AddChild(Spin(tv.Volume.Bottom, 60, x => EditVolume(s, t, tv.Id, v => v with { Bottom = x })));
-            heights.AddChild(new Label { Text = "to" }); heights.AddChild(Spin(tv.Volume.Top, 60, x => EditVolume(s, t, tv.Id, v => v with { Top = x })));
-            var flags = new HFlowContainer(); row.AddChild(flags);
-            foreach (var flag in new[] { TerrainDeclarations.Impassable, TerrainDeclarations.BlocksLineOfSight, TerrainDeclarations.SeeInAndOut, TerrainDeclarations.Cover, TerrainDeclarations.Difficult, TerrainDeclarations.Dangerous })
-            {
-                var cb = new CheckBox { Text = flag.ToString(), ButtonPressed = tv.Volume.Declarations.HasFlag(flag) };
-                cb.Toggled += on => EditVolume(s, t, tv.Id, v => v with { Declarations = on ? v.Declarations | flag : v.Declarations & ~flag });
-                flags.AddChild(cb);
-            }
-            var notes = new LineEdit { Text = tv.Volume.Notes ?? "", PlaceholderText = $"notes, Enter to save (at most {TextLimits.Notes} characters)", MaxLength = TextLimits.Notes }; row.AddChild(notes);
-            notes.TextSubmitted += text => EditVolume(s, t, tv.Id, v => v with { Notes = text.Length == 0 ? null : text });
-        }
     }
 }

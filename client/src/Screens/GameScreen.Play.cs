@@ -113,7 +113,7 @@ public partial class GameScreen
     void NoteLayout()
     {
         var changed = new List<string>();
-        foreach (var (name, part) in new (string, Control?)[] { ("corner", _corner), ("toasts", _toasts), ("header", _header), ("roster", _roster), ("card", _card),
+        foreach (var (name, part) in new (string, Control?)[] { ("corner", _corner), ("toasts", _toasts), ("header", _header), ("roster", _roster), ("card", _card), ("terrain", _terrainCard),
             ("decision", _decision), ("dice", _dice), ("log", _logDrawer), ("undo", _undo) })
         {
             if (part is null || !IsInstanceValid(part)) continue;
@@ -125,7 +125,7 @@ public partial class GameScreen
     }
 
     /// <summary>Every Hud part into its HudLayout slot (spec → Layout), over the width the side panel leaves. Outside play only the
-    /// corner and the toasts exist. The unit card starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
+    /// corner, the toasts and the terrain card exist. The unit card (or the terrain card, in the same slot) starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
     /// column back; the dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
     void Layout()
     {
@@ -134,13 +134,19 @@ public partial class GameScreen
         var w = _hud.Size.X - (IsInstanceValid(_sidePanel) && _sidePanel.Visible ? _sidePanel.Size.X : 0);
         var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
         var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
-        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card), Shows(_decision), Shows(_dice), logOpen), buttonH);
+        // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
+        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision), Shows(_dice), logOpen), buttonH);
         if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
         PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
         if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
         if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
-        if (Shows(_card)) _card!.Place(Shows(_roster) ? HudLayout.Below(r[HudPart.UnitCard], _roster!.Position.Y + _roster.Size.Y) : r[HudPart.UnitCard]);
+        if (r.TryGetValue(HudPart.UnitCard, out var cardSlot))
+        {
+            if (Shows(_roster)) cardSlot = HudLayout.Below(cardSlot, _roster!.Position.Y + _roster.Size.Y);
+            if (Shows(_card)) _card!.Place(cardSlot);
+            if (Shows(_terrainCard)) _terrainCard!.Place(cardSlot);
+        }
         if (Shows(_decision)) _decision!.Place(r[HudPart.Decision]);
         if (Shows(_dice))
         {

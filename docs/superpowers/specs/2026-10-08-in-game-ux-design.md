@@ -127,7 +127,7 @@ and a thin line joins those two bases. Each model with more than one wound shows
 piece's name (the built-in's label; an asset piece reads `Terrain`, since the game's asset manifest carries no names),
 the volume's declarations in the order Cover, Difficult, Dangerous, Impassable, Blocks LOS, See in/out (`Open` with none)
 and its height range on the table: `Ruin · Cover, Difficult, Blocks LOS, See in/out · 0–4"`. A left-click selects the
-piece and pins its label until the selection moves elsewhere. `TerrainLabel` (Core) builds the text;
+piece, and its details show in the terrain card in the unit card's slot (the unit card gives the slot up until a unit is selected). `TerrainLabel` (Core) builds the text;
 `TableInput.HoveredTerrain` names the piece under the cursor.
 
 **Select.** Left-click a unit selects it: its models light and the stat sheet shows it. Left-click on empty table or

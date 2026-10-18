@@ -15,7 +15,7 @@ public partial class GameScreen : Control
     public TableInput Input { get; private set; } = null!;
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; readonly List<TeamPanel> _teams = new();
-    Control _hud = null!; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
+    Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
     public override void _Ready()
@@ -28,7 +28,7 @@ public partial class GameScreen : Control
         Input = new TableInput(); Table.AddChild(Input);
         viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
         var overlay = new PresenceOverlay(); Table.AddChild(overlay);
-        // The side panel scrolls: a selected terrain piece lists every volume's fields, more than a window's height.
+        // The side panel scrolls: the setup toolbar's sections are taller than a window.
         _sidePanel = new ScrollContainer { CustomMinimumSize = new Vector2(360, 0), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; root.AddChild(_sidePanel);
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", DecisionBox.ScrollGap); _sidePanel.AddChild(inset);   // clear of the bar
         inset.AddChild(_side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
@@ -50,7 +50,13 @@ public partial class GameScreen : Control
         _onFocus = c => { if (c is BaseButton) c.ReleaseFocus(); };
         GetViewport().GuiFocusChanged += _onFocus;
         _bottom = new HBoxContainer(); _side.AddChild(_bottom);
-        if (_session.GameId is not null) { Table.Bind(_session); Input.Bind(Table, _session); overlay.Bind(Table, _session); }
+        if (_session.GameId is not null)
+        {
+            Table.Bind(_session); Input.Bind(Table, _session); overlay.Bind(Table, _session);
+            // The selected terrain piece or setup marker, in setup and play, in the unit card's slot (GameScreen.Layout).
+            _hud.AddChild(_terrainCard = new TerrainCard()); _terrainCard.Bind(_session, Input, Toast);
+            _terrainCard.MinimumSizeChanged += QueueLayout; _terrainCard.VisibilityChanged += QueueLayout;
+        }
         Input.SelectionChanged += ShowSelection;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) RefreshAll(); };
         _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
