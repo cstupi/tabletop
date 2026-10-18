@@ -197,8 +197,8 @@ public class TerrainMeshTests
     }
 
     /// <summary>Byte-identical, or the same file but for float rounding: MathF's results differ in the last bits between CPUs,
-    /// so a mesh generated on one machine is checked on another. The same JSON but for numbers within a relative 1e-4 (its length may differ),
-    /// and every 4-byte word of BIN equal or two normal floats within a relative 1e-4 (indices and other integers stay exact:
+    /// so a mesh generated on one machine is checked on another. The same JSON but for numbers within 1e-4, absolute below 1 and relative above (its length may differ),
+    /// and every 4-byte word of BIN equal or two normal floats within that tolerance (indices and other integers stay exact:
     /// as floats they are denormal or zero).</summary>
     static bool SameGlb(byte[] a, byte[] b)
     {
@@ -218,7 +218,7 @@ public class TerrainMeshTests
         return true;
     }
 
-    static bool Near(double x, double y) => Math.Abs(x - y) <= 1e-4 * Math.Max(1e-3, Math.Max(Math.Abs(x), Math.Abs(y)));
+    static bool Near(double x, double y) => Math.Abs(x - y) <= 1e-4 * Math.Max(1, Math.Max(Math.Abs(x), Math.Abs(y)));   // absolute 1e-4 near zero (normals, colours), relative above 1
 
     static bool SameJson(JsonElement x, JsonElement y) => (x.ValueKind, y.ValueKind) switch
     {
