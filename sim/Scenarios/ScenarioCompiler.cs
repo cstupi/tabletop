@@ -43,12 +43,14 @@ public static class ScenarioCompiler
 
     public static CompiledScenario Compile(Scenario s)
     {
-        var teams = s.Armies.Select((_, i) => new Team(Guid.CreateVersion7(), i + 1)).ToList();
+        // A team game (rulebook p.50) seats several armies on one team: one participant per army, on the team its Team names.
+        var ordinals = s.Armies.Select((a, i) => a.Team ?? i + 1).ToList();
+        var teams = Enumerable.Range(1, ordinals.Max()).Select(o => new Team(Guid.CreateVersion7(), o)).ToList();
         // Self-play: every team's row belongs to one account, the first's; the rows are still one per team, each with its army.
         var account = Guid.CreateVersion7();
-        var participants = teams.Select((t, i) => s.SelfPlay
-            ? new Participant(Guid.CreateVersion7(), account, "Sim 1", t.Id, null)
-            : new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Sim {i + 1}", t.Id, null)).ToList();
+        var participants = s.Armies.Select((a, i) => s.SelfPlay
+            ? new Participant(Guid.CreateVersion7(), account, "Sim 1", teams[ordinals[i] - 1].Id, null, a.Name)
+            : new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Sim {i + 1}", teams[ordinals[i] - 1].Id, null, a.Name)).ToList();
         // The recorder: a participant with no team, which is what a spectator is (whole-design review ruling 5).
         // It is never Asked, and its filtered event stream is what the driver's projection and the recording are built from.
         var recorder = new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), "Recorder", null, null);

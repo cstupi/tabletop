@@ -60,7 +60,7 @@ public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
     /// The accounts every socket game plays on: participant i of any game is sim-player-i, so concurrent games and every run share
     /// them. As many as the most participants any scenario has (the recorder included).
     /// </summary>
-    public const int PoolSize = 4;
+    public const int PoolSize = 5;
     public static IReadOnlyList<string> Pool { get; } = Enumerable.Range(0, PoolSize).Select(i => $"sim-player-{i}").ToList();
 
     /// <summary>A fresh session for participant i's account, which the socket driver sends as a Reauth before the one it holds expires. None: no renewal.</summary>

@@ -89,7 +89,7 @@ public sealed partial class RunLoop(
     {
         var open = (await driver.OpenAsksAsync(ct)).FirstOrDefault(a => a.Ask.Teams.Contains(teamId) && !a.Answers.ContainsKey(teamId))
             ?? throw new InvalidOperationException($"no ask is open for team {teamId:N}");
-        var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct);
+        var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct, Seat(open.Ask, teamId, answer, await driver.ProjectionAsync(ct)));
         if (result is SubmitResult.Rejected rejected)
             throw new InvalidOperationException($"'{open.Ask.Question}' refused: {rejected.Reason} {rejected.Detail}");
         answers.Record(open.Ask, answer);
@@ -157,7 +157,7 @@ public sealed partial class RunLoop(
         foreach (var teamId in open.Ask.Teams.Where(t => !open.Answers.ContainsKey(t)))
         {
             var answer = answers.Answer(open.Ask, view);
-            var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct);
+            var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct, Seat(open.Ask, teamId, answer, projection));
             if (result is SubmitResult.Rejected rejected)
                 return new RunOutcome.Stuck(StuckReason.SubmitRefused,
                     $"'{open.Ask.Question}' answered with {answer.GetType().Name}: {rejected.Reason} {rejected.Detail}");
@@ -235,11 +235,30 @@ public sealed partial class RunLoop(
         if (!projection.Units.ContainsKey(unitId)) return null;
         var moves = HandPlacement.IntoZone(projection, scenario, teamId, unitId, chooser);
         if (moves.Count == 0) return null;
-        var result = await driver.SubmitAsync(driver.ParticipantFor(teamId), new MoveModels(moves), ct);
+        var result = await driver.SubmitAsync(projection.Units[unitId].ParticipantId, new MoveModels(moves), ct);   // the unit's own seat places it (p.50)
         Absorb(await driver.DrainEventsAsync(ct));
         return result is SubmitResult.Rejected rejected
             ? new RunOutcome.Stuck(StuckReason.SubmitRefused, $"hand placement of unit {unitId}: {rejected.Reason} {rejected.Detail}")
             : null;
+    }
+
+    /// <summary>
+    /// Who of a team answers (rulebook p.50 Team Games, game-flow spec → Participants): the Ask's Seat; for an own-units pick, the owner of the unit
+    /// the answer picks; else the team's first seat. Nothing here judges the answer: the server refuses a wrong seat.
+    /// </summary>
+    private Guid? Seat(Ask ask, Guid teamId, AskAnswer answer, Projection projection)
+    {
+        if (ask.Seat is { } seat && scenario.TeamOfParticipant.GetValueOrDefault(seat) == teamId) return seat;
+        if (!ask.OwnUnitsOnly) return null;
+        IEnumerable<Guid> pieces = answer switch
+        {
+            Chosen c when ask.Legal is Options o && o.Choices.FirstOrDefault(x => x.Id == c.OptionId) is { } option => option.Pieces,
+            SelectedPieces s => s.PieceIds,
+            _ => [],
+        };
+        return pieces.Select(id => projection.Models.TryGetValue(id, out var m) ? m.UnitId : id)
+            .Select(id => projection.Units.TryGetValue(id, out var u) ? u.ParticipantId : (Guid?)null)
+            .FirstOrDefault(p => p is { } owner && scenario.TeamOfParticipant.GetValueOrDefault(owner) == teamId);
     }
 
     /// <summary>

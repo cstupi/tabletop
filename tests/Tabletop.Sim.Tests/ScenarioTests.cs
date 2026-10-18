@@ -30,6 +30,21 @@ public class ScenarioTests
         Assert.Equal(new Tabletop.Geometry.TableSize(72, 48), c.Board.Table.Size);
     }
 
+    /// <summary>Rulebook p.50 Team Games: several players a side, each with their own army; one zone a team.</summary>
+    [Fact]
+    public void A_team_game_seats_two_armies_on_each_team()
+    {
+        var c = ScenarioCompiler.Compile(new ScenarioBuilder("two-a-side", seed: 5)
+            .Army("A", 1, 1, team: 1).Army("B", 1, 1, team: 2).Army("C", 1, 1, team: 1).Army("D", 1, 1, team: 2).Build());
+        Assert.Equal(2, c.TeamIds.Count);
+        Assert.Equal(4, c.ParticipantIds.Count);
+        Assert.Equal([c.TeamIds[0], c.TeamIds[1], c.TeamIds[0], c.TeamIds[1]], c.ParticipantIds.Select(p => c.TeamOfParticipant[p]));
+        Assert.Equal(c.ParticipantIds, c.Board.Armies.Select(a => a.ParticipantId));
+        Assert.Equal(2, c.Board.Table.Zones.Count);
+        Assert.Equal(["A", "B", "C", "D"], c.Info.Participants.Where(p => p.TeamId is not null).Select(p => p.ArmyName));
+        Assert.Throws<InvalidOperationException>(() => new ScenarioBuilder("one-side", 1).Army("A", 1, 1, team: 1).Army("C", 1, 1, team: 1).Build());
+    }
+
     [Fact]
     public void Compiling_twice_repeats_the_seed_and_not_the_ids()
     {

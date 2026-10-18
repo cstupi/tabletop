@@ -51,7 +51,7 @@ public static class HandPlacement
         var offsets = shelved.Select((_, i) => new Point2(i % cols * spacing, i / cols * spacing)).ToList();
         var occupied = projection.Models.Values.Where(m => m.Location is OnTable)
             .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
-        var army = scenario.Scenario.Armies[ordinal - 1];
+        var army = scenario.Scenario.Armies[scenario.ParticipantIds.ToList().IndexOf(unit.ParticipantId)];   // the unit's own army: a team may seat several
         var anchor = army.Anchors.TryGetValue(unit.Definition.Ordinal, out var fixedAt) ? fixedAt
             : unit.Definition.Reserve is { Property: GfReserves.Reinforcement } ? EdgeAnchor(shelved, offsets, table, occupied, chooser) ?? ChooseAnchor(shelved, offsets, null, table, occupied, chooser)
             : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
