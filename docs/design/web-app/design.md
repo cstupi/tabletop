@@ -185,7 +185,7 @@ graph TD
     Units["units/ — units.ts, bases.ts, volumes.ts"]
     Mesh["mesh/ — stl, weld, decimate, normals, glb, guess, supports, bounds, convert, three-frame"]
     Upload["upload/ — sha256.ts, upload.ts, intake.ts"]
-    LibMod["library/ — folders.ts, volume-edit.ts"]
+    LibMod["library/ — folders.ts, selection.ts, bulk.ts, volume-edit.ts"]
     Armies["armies/ — import.ts, patches.ts"]
 
     Routes --> Comps
@@ -733,6 +733,35 @@ modelled base, over the same `MeshPreview`, fed from `GET /v1/assets/{id}/downlo
 URL. It lists folder membership as checkboxes over `PUT`/`DELETE
 /v1/folders/{id}/assets/{assetId}`. For terrain it mounts the volume editor.
 
+**Uploads land in the open folder.** `UploadDialog` takes the folder list and
+`uploadTarget(folders, selected)` (`library/bulk.ts`): the folder selected in the tree, or none
+under *All assets*. Its "Adds to" select (folders by path, `folderOptions`, plus "No folder")
+starts there and can be changed before confirming. After each confirmed upload (every asset of
+"Add another" too) the dialog files it with `PUT /v1/folders/{id}/assets/{assetId}`; the done line
+names the folder. A filing failure keeps the asset and says so (`role="alert"`).
+
+**Multi-select.** Each tile carries a checkbox. The checkbox, Ctrl/Cmd-click, Space on a focused
+tile and a 500 ms touch long-press toggle a tile; Shift-click (or Shift-Space) adds the range from
+the last toggled tile in view order; while anything is selected a plain tile click toggles instead
+of opening. `library/selection.ts` holds it as pure functions (`click`, `selectAll`, `clear`,
+`keepOnly`); the selection keeps only tiles in view, so changing folder or filter drops the rest.
+Escape clears it. The grid is `role="grid"` with `aria-multiselectable`, each cell `aria-selected`;
+arrow keys move focus between tiles. A selection bar (sticky while anything is selected) shows the
+count and:
+
+- *Add to folder…* under *All*, *Move to folder…* inside a folder: files the selection into the
+  picked folder; a move also unfiles it from the folder in view and its sub-folders (`holdersIn`,
+  except the target). Dragging a tile (or the selection, when the tile is in it) onto a folder in
+  the tree does the same (`ASSET_DRAG` data type).
+- *Remove from folder* (inside a folder): unfiles from the folder in view and its sub-folders.
+- *Delete*: one `confirm` naming the count and up to ten names, the same wording as a single
+  delete (never blocked by an army reference).
+
+Each action goes through `runBulk`: management's bulk endpoints, at most 200 ids a request
+(`BULK_MAX`), chunks sent one after another, so 500 assets cost three requests against the
+per-account rate limit. The outcome lists ids done, not found and failed; the page reports each
+failure kind in one sentence. There is no bulk download: the asset page has no file download.
+
 **Deleting an asset is never blocked**, and the page says why. The army holds the hitbox and the
 asset is only appearance, so an army pointing at a deleted mesh stays playable and draws the
 slot's own hitbox: the base shape extruded to its height, semi-transparent. The reference never
@@ -961,8 +990,8 @@ surface*. `client.ts` has one function per row and no others.
 | --- | --- | --- |
 | `api.auth` | `POST /v1/auth/otp`, `/otp/verify`, `/password`, `/password/signup`, `/password/reset`, `/password/reset/complete`, `/session/refresh`; `DELETE /v1/auth/session` | `EmailRequest`, `OtpVerifyRequest(MethodId, Code)`, `PasswordRequest(Email, Password)`, `ResetCompleteRequest(Token, Password)`, `RefreshRequest(SessionJwt)` → `OtpSentResponse(MethodId)` / `SessionResponse(SessionJwt, Account)` / `202` / `204` |
 | `api.account` | `GET`, `PATCH`, `DELETE /v1/account` | `RenameRequest` → `AccountRow(Id, Name)` / `204` |
-| `api.assets` | `GET /v1/assets?limit&after&kind`, `POST /v1/assets`, `GET/PATCH/DELETE /{id}`, `POST /{id}/confirm`, `GET /{id}/download`, `GET/PUT /{id}/volumes` | `CreateAssetRequest`, `PatchAssetRequest`, `Volume[]` → `Page<AssetDto>`, `CreateAssetResponse(Asset, UploadUrl?)`, `ConfirmResponse(Asset, Triangles?, Warning?)`, `DownloadResponse(Url, ExpiresAt)`, `TerrainVolume[]` |
-| `api.folders` | `GET`, `POST /v1/folders`, `PATCH/DELETE /{id}`, `PUT/DELETE /{id}/assets/{assetId}` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)`; four of them `204` with no body |
+| `api.assets` | `GET /v1/assets?limit&after&kind`, `POST /v1/assets`, `POST /v1/assets/delete` (bulk), `GET/PATCH/DELETE /{id}`, `POST /{id}/confirm`, `GET /{id}/download`, `GET/PUT /{id}/volumes` | `CreateAssetRequest`, `PatchAssetRequest`, `Volume[]` → `Page<AssetDto>`, `CreateAssetResponse(Asset, UploadUrl?)`, `ConfirmResponse(Asset, Triangles?, Warning?)`, `DownloadResponse(Url, ExpiresAt)`, `TerrainVolume[]` |
+| `api.folders` | `GET`, `POST /v1/folders`, `PATCH/DELETE /{id}`, `PUT/DELETE /{id}/assets/{assetId}`, `POST /{id}/assets`, `POST /{id}/assets/remove` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)`; four of them `204` with no body; the bulk pair and `/v1/assets/delete` take `BulkAssetsRequest(AssetIds)` → `BulkAssetsResponse(Done, NotFound)` |
 | `api.armies` | `POST /v1/armies/import`, `GET /v1/armies?limit&after`, `GET/PATCH/DELETE /{id}` | `ImportRequest(Source, Bases)`, `PatchArmyRequest(Name?, Units?, Slots?)` → `Army`, `Page<ArmySummary>`, `204` |
 | `api.client` | `GET /v1/client/latest` | → `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`; `404` before the first release |
 | **Not consumed** | `/v1/games*`, `/v1/layouts*`, `/v1/properties`, `/v1/games/{id}/assets`, `/healthz` | The preparation-versus-play line |

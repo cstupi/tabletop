@@ -1173,6 +1173,8 @@ writes `builtin/`.
 | `GET`/`PUT /v1/assets/{id}/volumes` | `Volume[]` → `TerrainVolume[]` | owner |
 | `GET /v1/folders`, `POST /v1/folders` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)` list / `201` | owner |
 | `PATCH /v1/folders/{id}`, `DELETE /v1/folders/{id}`, `PUT`/`DELETE /v1/folders/{id}/assets/{assetId}` | `FolderRequest` for `PATCH`; all four → `204` | owner |
+| `POST /v1/folders/{id}/assets`, `POST /v1/folders/{id}/assets/remove` | `BulkAssetsRequest(AssetIds)` (1–200) → `BulkAssetsResponse(Done, NotFound)`; `404` for a folder not the caller's, `422` outside 1–200 | owner |
+| `POST /v1/assets/delete` | `BulkAssetsRequest(AssetIds)` (1–200) → `BulkAssetsResponse(Done, NotFound)`; each as `DELETE /v1/assets/{id}`, blobs included | owner |
 | `POST /v1/armies/import` | `ImportRequest(Source, Bases = round)` → `201 Tabletop.Content.Army` | owner |
 | `GET /v1/armies?limit&after` | → `Page<ArmySummary>` | owner |
 | `GET`/`PATCH`/`DELETE /v1/armies/{id}` | `PatchArmyRequest(Name?, Units?, Slots?)` → `Army` / `204` | owner |

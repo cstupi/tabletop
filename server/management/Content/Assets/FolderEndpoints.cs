@@ -27,5 +27,18 @@ public static class FolderEndpoints
             await folders.AddAsset(CurrentAccount.Id(u), id, assetId) ? Results.NoContent() : Problems.NotFound());
         g.MapDelete("/{id:guid}/assets/{assetId:guid}", async (ClaimsPrincipal u, Guid id, Guid assetId, IFolderRepository folders) =>
             await folders.RemoveAsset(CurrentAccount.Id(u), id, assetId) ? Results.NoContent() : Problems.NotFound());
+        g.MapPost("/{id:guid}/assets", (ClaimsPrincipal u, Guid id, BulkAssetsRequest r, IFolderRepository folders) => Bulk(u, id, r, folders, folders.AddAsset));
+        g.MapPost("/{id:guid}/assets/remove", (ClaimsPrincipal u, Guid id, BulkAssetsRequest r, IFolderRepository folders) => Bulk(u, id, r, folders, folders.RemoveAsset));
+    }
+
+    /// <summary>Files or unfiles each asset; 404 when the folder is not the caller's, else the per-asset outcome.</summary>
+    private static async Task<IResult> Bulk(ClaimsPrincipal u, Guid id, BulkAssetsRequest r, IFolderRepository folders, Func<Guid, Guid, Guid, Task<bool>> apply)
+    {
+        if (Limits.BulkIds(r.AssetIds) is { } bad) return Problems.Unprocessable(bad);
+        var owner = CurrentAccount.Id(u);
+        if (!(await folders.List(owner)).Any(f => f.Id == id)) return Problems.NotFound();
+        List<Guid> done = [], notFound = [];
+        foreach (var assetId in r.AssetIds.Distinct()) (await apply(owner, id, assetId) ? done : notFound).Add(assetId);
+        return Results.Ok(new BulkAssetsResponse(done, notFound));
     }
 }
