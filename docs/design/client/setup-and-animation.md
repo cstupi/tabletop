@@ -40,9 +40,11 @@ Table section names the 12–144" range; a layout name (Enter saves) and a marke
 name in a menu dialog stop at 64 characters, a volume's notes at 500; an empty or invalid layout name
 is caught before the request.
 
-`BuiltinContent` ships with the client: 35 terrain names with their `Volume` and declarations, five
-textures, two marker visuals, and the zone style ids. A minimal art set ships with it, so that a
-generated table looks like a table.
+The built-in catalog is data, `client/content/builtin/catalog.json`: 35 terrain names with their `Volume` and
+declarations and the mesh each draws with, and five textures. The client packs it (`BuiltinContent.Packed`) with its
+meshes and textures, and the server publishes it with each release, which the client caches and uses in place of the
+packed one (spec `2026-10-18-builtin-content-from-server-design.md`). `BuiltinContent` adds two marker visuals and the
+zone style ids. A minimal art set ships with it, so that a generated table looks like a table.
 
 The art is eighteen files, not fifty. The 35 pieces group into thirteen meshes that differ only by
 footprint, height, scale and yaw: `hill` (4 pieces, round), `hill-rect` (2, square), `woods` (5), `ruins` (4), `building` (3),

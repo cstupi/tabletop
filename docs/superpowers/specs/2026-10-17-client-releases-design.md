@@ -99,6 +99,7 @@ Every version stays under `releases/X.Y.Z/` until an operator deletes it (`aws s
 ## Access
 
 - Management's service user reads `releases/*` through its existing object policy (Get on the bucket's objects).
-- The publisher's credentials need Put on `releases/*` only. Self-hosted MinIO: `scripts/minio/init.sh` creates a
+- The publisher's credentials need Put on `releases/*` only (and `builtin/*`, which it also publishes: spec
+  `2026-10-18-builtin-content-from-server-design.md`). Self-hosted MinIO: `scripts/minio/init.sh` creates a
   `<bucket>-releases` policy and a user for it when `RELEASE_S3_ACCESS_KEY` is set in `prod.env`. S3 or R2: a token scoped to the
   bucket with object write.

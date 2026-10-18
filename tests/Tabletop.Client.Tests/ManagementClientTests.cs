@@ -95,4 +95,21 @@ public class ManagementClientTests
         var ex = await Assert.ThrowsAsync<ManagementException>(() => c.GetRuleTexts("sha256:nope"));
         Assert.Equal(404, ex.Status);
     }
+
+    [Fact]
+    public async Task A_responses_builtin_version_is_raised_and_GetBuiltin_is_null_when_nothing_is_published()
+    {
+        var (c, f) = Make();
+        var seen = new List<string>();
+        c.BuiltinVersionSeen += seen.Add;
+        f.Answer(HttpStatusCode.OK, new AccountRow(Guid.CreateVersion7(), "Clay"));
+        await c.GetAccount();
+        Assert.Empty(seen);
+        var withHeader = new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("{\"title\":\"Not found\"}") };
+        withHeader.Headers.Add(ProtocolVersion.BuiltinHeader, "1.3.0");
+        f.Respond(withHeader);
+        Assert.Null(await c.GetBuiltin());
+        Assert.Equal(["1.3.0"], seen);
+        Assert.Equal("http://localhost:5100/v1/builtin", f.Requests[^1].RequestUri!.ToString());
+    }
 }

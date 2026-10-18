@@ -10,7 +10,7 @@ godot --headless --path client --import          # then refresh the .import file
 
 ## Layout
 
-- `Catalog`: name → builder, the thirteen groups `BuiltinContent.TerrainMeshGroups` names. `Program` writes each and prints
+- `Catalog`: name → builder, the thirteen meshes `client/content/builtin/catalog.json` lists under `meshes`. `Program` writes each and prints
   its triangles and size.
 - `Model`, `Part`, `Material`: a mesh in the unit box (footprint x, z in [−0.5, 0.5], within r = 0.5 when `Round`; height y in
   [0, 1]; glTF Y-up), one `Part` per `Material`. Every vertex is clamped into the box. Colours are sRGB per vertex.

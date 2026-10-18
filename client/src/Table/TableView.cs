@@ -34,7 +34,7 @@ public partial class TableView : Node3D
         Camera.Current = true;
     }
 
-    Action? _onBoard, _onGame; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Action? _onBoard, _onGame, _onBuiltins; Action<IReadOnlyList<GameEvent>>? _onEvents;
     GameStatus? _status;
 
     public override void _ExitTree()
@@ -42,6 +42,14 @@ public partial class TableView : Node3D
         if (_session is null) return;
         _meshes.Dispose();
         _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard; _session.GameChanged -= _onGame;
+        BuiltinContent.Changed -= _onBuiltins;
+    }
+
+    /// <summary>A new built-in catalog: the slab's texture and every built-in piece's mesh are drawn again from it.</summary>
+    void RedrawBuiltins()
+    {
+        if (Table is { } table) _slab.Set(Size, table.Texture);
+        foreach (var n in _terrain.GetChildren().OfType<TerrainNode>()) if (n.Drawn.Mesh.IsBuiltin) LoadTerrainMesh(n, n.Drawn);
     }
 
     public void Bind(Session session)
@@ -55,6 +63,7 @@ public partial class TableView : Node3D
         // The manifest lists the game's assets by who has picked what; it is fetched again when play starts, when every army is in.
         _onGame = () => { var status = _session.Game?.Status; if (status == GameStatus.Playing && _status != GameStatus.Playing) _meshes.RefreshManifest(); _status = status; };
         session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard; session.GameChanged += _onGame;
+        _onBuiltins = RedrawBuiltins; BuiltinContent.Changed += _onBuiltins;
         Redraw(); Camera.FocusOn(Size);
     }
 

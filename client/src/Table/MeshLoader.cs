@@ -77,9 +77,10 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     public async Task<Node3D?> LoadBuiltinAsync(string name, Volume? fit = null)
     {
         var file = BuiltinContent.TerrainMeshFile(name);
-        // The res:// path is passed through unchanged: GltfDocument reads it with Godot's FileAccess, so it works from
-        // the editor and from an exported .pck alike, which GlobalizePath would not. Built-ins ship inside the build and
-        // never enter the cache. A missing file returns null, and TerrainNode keeps its proxies visible.
+        // A served catalog's mesh is a cached blob (BuiltinSync downloaded it), preflighted in Template like any asset; else
+        // the packed res:// file. That path is passed through unchanged: GltfDocument reads it with Godot's FileAccess, so it
+        // works from the editor and from an exported .pck alike, which GlobalizePath would not. A missing file returns null,
+        // and TerrainNode keeps its proxies visible.
         if (file is null || !Godot.FileAccess.FileExists(file)) return null;
         var scene = await Build(file, 1, BuiltinContent.MeshOrientation);
         if (scene is null) return null;

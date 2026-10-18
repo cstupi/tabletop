@@ -25,10 +25,17 @@ public partial class Main : Node
         _settingsPath = data.Settings;
         var settings = ClientSettings.Load(_settingsPath);
         var store = new SessionStore(data.Session);
-        Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
+        var management = new ManagementClient(Http, new Uri(settings.ManagementUrl));
+        Session = new Session(management, new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
         ApplyTheme();
         Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); };
         Cache = new AssetCache(data.Cache, Http);
+        // Built-in content: the saved server catalog when complete, else the packed one; a release's new version syncs while signed in.
+        BuiltinContent.Cache = Cache;
+        var builtins = new BuiltinSync(data.Builtin, Cache, management.GetBuiltin, () => BuiltinContent.Catalog,
+            catalog => _dispatcher.Post(() => { BuiltinContent.Use(catalog); GD.Print($"built-in content {catalog.Version}"); }));
+        if (builtins.LoadCached() is { } saved) BuiltinContent.Use(saved);
+        management.BuiltinVersionSeen += version => { if (management.Jwt is not null) _ = builtins.Notice(version); };
         Session.PhaseChanged += () => _dispatcher.Post(Route);
         var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };
         refresh.Timeout += () => _ = Session.RefreshAsync();
