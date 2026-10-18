@@ -106,6 +106,7 @@ public partial class CombatLogPanel : VBoxContainer
             var row = new HBoxContainer(); into.AddChild(row);
             var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
             if (faded) button.Modulate = Ui.Faded;
+            if (e is ActivationBlock { Spell: { } spell } cast) button.TooltipText = SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "";
             button.Pressed += Toggle;
             row.AddChild(button);
             if (!_s.IsWatching && e is not RollEntry && !e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));

@@ -118,7 +118,9 @@ changes.
 
 Distance is edge-to-edge between bases, and the participant measuring has already resolved
 that against the two bases. So what goes on the wire is the two points it resolved to. The
-receiver draws a line between them and computes the length itself.
+receiver draws a line between them and computes the length itself, in the measurement's mode:
+horizontal (across the table plane, 2D; also what a measurement with no mode means) or straight
+(the line through the height difference, 3D).
 
 No anchor union, no piece references, and no re-resolution on the receiving side against
 bases it would have to look up.

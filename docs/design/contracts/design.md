@@ -636,7 +636,8 @@ receiver raycast every other cursor. `Selection(PieceId, IRL<Guid> ModelIds)` is
 with the models inside it (empty means the whole unit), or during setup a terrain placement or
 marker. `PresencePlacement` carries `PlacementKind { Held, Proposed }`, so a drag and a movement
 ghost are one value differing only in what others draw. `Measurement` is two already-resolved
-points. The receiver draws a line and computes the length itself. There is no anchor union and no
+points and an optional `MeasureMode` (`Horizontal`, the table plane, when absent; `Straight`, through the height
+difference). The receiver draws a line and computes the length itself, in that mode. There is no anchor union and no
 re-resolution. `Ping(Sender, Point, Target?)` rides as its own message rather than a field on
 `Presence`, because presence is state and a ping is an instant.
 `EditTests.A_ping_is_not_a_presence_field` asserts that by reflection.
