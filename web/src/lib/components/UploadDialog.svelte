@@ -3,6 +3,7 @@
   import MeshPreview from './MeshPreview.svelte';
   import BasePicker from './BasePicker.svelte';
   import Icon from './Icon.svelte';
+  import ScaleOrientation from './ScaleOrientation.svelte';
   import { BUDGETS } from '$lib/mesh/decimate';
   import { convertInWorker, describeGlb, STEPS, type ConversionResult, type Progress } from '$lib/mesh/convert';
   import type { Bounds } from '$lib/mesh/types';
@@ -11,8 +12,7 @@
   import { classifyFiles, type Intake } from '$lib/upload/intake';
   import { STAGE_LABELS, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
   import { circle } from '$lib/units/bases';
-  import { UNIT_SCALES, type MeshUnit } from '$lib/units/units';
-  import { describeSize, GLB_DEFAULTS, suggestUnit } from '$lib/mesh/size';
+    import { GLB_DEFAULTS } from '$lib/mesh/size';
   import { formatBytes, MAX_NAME, nameProblem, sizeProblem } from '$lib/validation';
 
   let { open, onclose, onuploaded }: { open: boolean; onclose: () => void; onuploaded: (o: UploadOutcome) => void } = $props();
@@ -80,17 +80,12 @@
       stage = 'preview';
     } catch (e) { if (t === convToken) { error = `The STL could not be converted: ${e instanceof Error ? e.message : String(e)}. Check it opens in your slicer, then try again.`; stage = 'drop'; } }
   }
-  const size = $derived(meshBounds && kind !== 'texture' && numbersOkFor(scale, orientation) ? describeSize(meshBounds, { scale, orientation }) : null);
-  /** Only a dropped GLB is checked: its unit comes from the glTF standard, not a guess, so an implausible size means the exporter ignored it. */
-  const suggested = $derived(intake?.kind === 'glb' && meshBounds && scale > 0 ? suggestUnit(meshBounds, scale) : null);
-  const UNIT_LABELS: Record<MeshUnit, string> = { mm: 'mm', cm: 'cm', in: 'inches', m: 'm' };
-  const UNIT_NAMES: Record<MeshUnit, string> = { mm: 'millimetres', cm: 'centimetres', in: 'inches', m: 'metres' };
   function numbersOkFor(s: number, o: Orientation) { return [s, o.pitch, o.roll, o.yaw].every(Number.isFinite) && s > 0; }
   const numbersOk = $derived(kind === 'texture' || numbersOkFor(scale, orientation));
   function standUp() {
-    const pitch = orientation.pitch === 90 ? 0 : 90;
+    const pitch = orientation.pitch === 90 ? 0 : 90;   // only an STL gets here; the shared component toggles a GLB's pitch itself
     orientation = { ...orientation, pitch };
-    if (intake?.kind === 'stl') { forcedAxis = pitch === 90 ? 'y' : 'z'; void runConversion(); }   // a GLB has no conversion: only the pitch changes
+    forcedAxis = pitch === 90 ? 'y' : 'z'; void runConversion();
   }
   function setKind(k: 'miniature' | 'terrain') {
     kind = k;
@@ -151,20 +146,7 @@
         </select></label>
         {#if kind === 'miniature'}<label>Modelled base <BasePicker bind:value={base} label="Modelled base" /></label>{/if}
         {#if kind !== 'texture'}
-          <fieldset><legend>Scale</legend>
-            <input type="number" step="any" min="0" bind:value={scale} aria-label="Scale, inches per model unit" /> ×
-            <span class="seg units" role="group" aria-label="The model was made in">
-              {#each Object.keys(UNIT_SCALES) as MeshUnit[] as u (u)}<button type="button" aria-pressed={scale === UNIT_SCALES[u]} onclick={() => (scale = UNIT_SCALES[u])}>{UNIT_LABELS[u]}</button>{/each}
-            </span>
-            {#if size}<p class="size" aria-live="polite">{size}</p>{/if}
-            {#if suggested}<p class="suggest" role="status">That is not a miniature's size in these units; it looks like {UNIT_NAMES[suggested]}. <button type="button" onclick={() => (scale = UNIT_SCALES[suggested!])}>Use {UNIT_LABELS[suggested]}</button></p>{/if}
-          </fieldset>
-          <fieldset><legend>Orientation (degrees)</legend>
-            <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} /></label>
-            <label>Roll <input type="number" step="15" bind:value={orientation.roll} /></label>
-            <label>Yaw (facing) <input type="number" step="15" bind:value={orientation.yaw} /></label>
-            <button type="button" onclick={standUp} disabled={stage === 'uploading'}>Stand up / lay flat</button>
-          </fieldset>
+          <ScaleOrientation bind:scale bind:orientation bounds={meshBounds} checkUnit={intake?.kind === 'glb'} gltf={intake?.kind === 'glb'} disabled={stage === 'uploading'} onstandup={intake?.kind === 'stl' ? standUp : undefined} />
         {/if}
         {#if result}
           <p>{result.trianglesBefore.toLocaleString()} → {result.trianglesAfter.toLocaleString()} triangles, {formatBytes(bytes)}</p>
@@ -210,11 +192,5 @@
   .drop input { display: block; margin: var(--s2) auto; max-width: 100%; }
   .drop.over { border-style: solid; background: var(--panel-solid); }
   :global([data-theme='fantasy']) .drop { border-color: var(--wood); border-radius: 4px; }
-  fieldset { margin: var(--s3) 0; }
-  fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0; }
-  .units { vertical-align: middle; margin-left: var(--s2); }
-  .units > button { min-height: 2.25rem; }
-  .size, .suggest { margin: var(--s2) 0 0; }
-  .suggest button { margin-left: var(--s2); }
   progress { width: 100%; }
 </style>

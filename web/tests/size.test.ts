@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeSize, GLB_DEFAULTS, suggestUnit } from '../src/lib/mesh/size';
+import { describeSize, GLB_DEFAULTS, suggestUnit, toggleUpright } from '../src/lib/mesh/size';
 import { UNIT_SCALES } from '../src/lib/units/units';
 import { toWorld, worldExtent } from '../src/lib/mesh/guess';
 import type { Bounds } from '../src/lib/mesh/types';
@@ -56,5 +56,18 @@ describe('describeSize', () => {
   });
   it('shows small sizes to a tenth of a millimetre', () => {
     expect(describeSize({ min: [0, 0, 0], max: [1.5, 1.5, 1.5] }, { scale: UNIT_SCALES.mm, orientation: { pitch: 0, yaw: 0, roll: 0 } })).toBe('1.5 mm tall, 1.5 × 1.5 mm footprint (0.06 in tall, 0.06 × 0.06 in)');
+  });
+});
+
+describe('toggleUpright', () => {
+  it('lays a standing model flat, keeping yaw', () => {
+    expect(toggleUpright({ pitch: 90, yaw: 180, roll: 0 }, true)).toEqual({ pitch: 0, yaw: 180, roll: 0 });
+  });
+  it('stands a flat glTF up with the glTF yaw when it had none', () => {
+    expect(toggleUpright({ pitch: 0, yaw: 0, roll: 0 }, true)).toEqual({ pitch: 90, yaw: 180, roll: 0 });
+  });
+  it('keeps a chosen yaw, and an STL never gets the glTF yaw', () => {
+    expect(toggleUpright({ pitch: 0, yaw: 90, roll: 0 }, true).yaw).toBe(90);
+    expect(toggleUpright({ pitch: 0, yaw: 0, roll: 0 }, false).yaw).toBe(0);
   });
 });
