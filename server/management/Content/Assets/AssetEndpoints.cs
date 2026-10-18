@@ -71,6 +71,21 @@ public static class AssetEndpoints
             return Results.NoContent();
         });
 
+        g.MapPost("/delete", async (ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets, IBlobStore blobs) =>
+        {
+            if (Limits.BulkIds(r.AssetIds) is { } bad) return Problems.Unprocessable(bad);
+            var owner = CurrentAccount.Id(user);
+            List<Guid> done = [], notFound = [];
+            foreach (var id in r.AssetIds.Distinct())
+            {
+                var (found, orphaned) = await assets.Delete(owner, id);
+                if (!found) { notFound.Add(id); continue; }
+                await blobs.Delete(orphaned is null ? [IBlobStore.StagingKey(owner, id)] : [orphaned, IBlobStore.StagingKey(owner, id)]);
+                done.Add(id);
+            }
+            return Results.Ok(new BulkAssetsResponse(done, notFound));
+        });
+
         g.MapPost("/{id:guid}/confirm", Confirm);
 
         g.MapGet("/{id:guid}/download", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>

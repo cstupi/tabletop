@@ -17,6 +17,9 @@ n=$(( b[0] | b[1]<<8 | b[2]<<16 | b[3]<<24 )); i=4
 for ((k = 0; k < n; k++)); do   # each entry: u32 length, the path (zero-padded to it), u64 offset, u64 size, md5, u32 flags
   len=$(( b[i] | b[i+1]<<8 | b[i+2]<<16 | b[i+3]<<24 ))
   (( len > 0 && i + 4 + len + 36 <= ${#b[@]} )) || die "$f: entry $k runs past the directory"
-  tail -c +$(( dir + i + 5 )) "$f" | head -c "$len" | tr -d '\0'; echo
+  # The path is already in b: print its bytes (no pipe out of tail, which head would cut short with SIGPIPE under pipefail).
+  esc=""
+  for ((c = i + 4; c < i + 4 + len; c++)); do (( b[c] == 0 )) || printf -v esc '%s\\%03o' "$esc" "${b[c]}"; done
+  printf '%b\n' "$esc"
   i=$(( i + 4 + len + 36 ))
 done

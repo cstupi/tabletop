@@ -28,9 +28,11 @@ public static class TerrainGenerators
     public static IReadOnlyList<string> Fixed(Planet planet) => FixedPieces[planet];
     public static IReadOnlyList<string> Rolled(Planet planet, int twoD6) => Table[planet][Math.Clamp(twoD6, 2, 12) - 2];
 
-    /// <summary>The pieces land beside the long edge, off the slab, in rows 8" apart, four to a row, each facing a random 15° step; players drag them on.</summary>
-    public static IReadOnlyList<AddTerrain> Generate(Planet planet, TableSize table, Random rng)
+    /// <summary>The pieces land beside the long edge, off the slab, in rows 8" apart, four to a row, each facing a random 15° step; players drag them on. A piece
+    /// the catalog (default: the one in use) does not list is skipped.</summary>
+    public static IReadOnlyList<AddTerrain> Generate(Planet planet, TableSize table, Random rng, BuiltinCatalog? catalog = null)
     {
+        catalog ??= BuiltinContent.Catalog;
         var names = new List<string>(Fixed(planet));
         var extra = Enumerable.Range(0, 4).Sum(_ => rng.Next(1, 4));                        // 4D3
         for (var i = 0; i < extra; i++)
@@ -39,6 +41,7 @@ public static class TerrainGenerators
             names.Add(alternatives[rng.Next(alternatives.Count)]);
         }
         var yaws = names.Select(_ => new Yaw(rng.Next(0, 24) * 15)).ToList();
-        return names.Select((name, i) => new AddTerrain(BuiltinContent.Place(name, new Point3(table.Width + 4 + (i % 4) * 8, 4 + (i / 4) * 8, 0), yaws[i]))).ToList();
+        return names.Select((name, i) => (name, yaw: yaws[i])).Where(x => catalog.Terrain.ContainsKey(x.name))
+            .Select((x, i) => new AddTerrain(catalog.Place(x.name, new Point3(table.Width + 4 + (i % 4) * 8, 4 + (i / 4) * 8, 0), x.yaw))).ToList();
     }
 }

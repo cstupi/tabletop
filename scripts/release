@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Cut a release from a clone on the server host (or any machine with the tools): check, test, publish the client builds,
-# build and install the web app, deploy the servers. The client steps are scripts/release-client, which the GitHub release
+# build and install the web app, deploy the servers, publish the built-in content. The client steps are scripts/release-client, which the GitHub release
 # workflow runs too. Spec: docs/superpowers/specs/2026-10-17-client-releases-design.md; operator guide: deploy/README.md.
 #
-#   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-tests] [--dry-run]
+#   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-builtin]
+#                   [--skip-tests] [--dry-run]
 #
 # --version     the tag to release; default the v*.*.* tag on HEAD. The tag must name HEAD and the tree must be clean.
 # --deploy      docker (default): deploy/docker-compose.prod.yml up --build; systemd: publish to TABLETOP_INSTALL_DIR
@@ -12,6 +13,10 @@
 # --env-file    the settings, KEY=VALUE lines; the environment wins over the file. Default /etc/tabletop/prod.env; for home,
 #               home.env in the clone if present, else /etc/tabletop/home.env.
 # --skip-client no client export or upload: on the host with Godot, else (and always for home) in the builder container.
+# --skip-builtin no built-in content publish (scripts/release-client builtin: the terrain catalog, meshes and textures to
+#               builtin/ in the blob store, which clients fetch when its version changes; spec
+#               docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md). It runs after the deploy, with the
+#               client's upload credentials, on the host with aws and jq or else (and always for home) in the builder container.
 # --skip-tests  no build, tests or checks.  --dry-run  print what would change.
 #
 # Settings read: TABLETOP_WEB_URL (the client's web origin), TABLETOP_S3_PUBLIC_ENDPOINT (the web build's blob origin),
@@ -23,7 +28,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-version="" deploy=docker env_file="" skip_client=0 skip_tests=0 dry=0
+version="" deploy=docker env_file="" skip_client=0 skip_builtin=0 skip_tests=0 dry=0
 die() { echo "release: $*" >&2; exit 1; }
 step() { printf '\n== %s\n' "$*"; }
 run() { if [[ $dry == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
@@ -35,9 +40,10 @@ while [[ $# -gt 0 ]]; do
     --deploy) deploy=${2:?--deploy needs docker, home, systemd or none}; shift 2 ;;
     --env-file) env_file=${2:?--env-file needs a path}; shift 2 ;;
     --skip-client) skip_client=1; shift ;;
+    --skip-builtin) skip_builtin=1; shift ;;
     --skip-tests) skip_tests=1; shift ;;
     --dry-run) dry=1; shift ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -104,6 +110,13 @@ if [[ $skip_client == 0 ]]; then
   else
     need dotnet "install the .NET 10 SDK (global.json)"; need aws "install the AWS CLI v2"; need zip; need jq; need sha256sum; need unzip
   fi
+fi
+builtin_args=()
+if [[ $skip_builtin == 0 ]]; then
+  for key in RELEASE_S3_ENDPOINT RELEASE_S3_BUCKET RELEASE_S3_ACCESS_KEY RELEASE_S3_SECRET_KEY; do
+    [[ -n "${!key:-}" ]] || die "$key is empty (the built-in content upload needs it; or pass --skip-builtin)"
+  done
+  if [[ $deploy == home ]]; then builtin_args=(--in-container); need docker; fi
 fi
 case $deploy in
   docker) need docker; need curl ;;
@@ -251,9 +264,16 @@ case $deploy in
   none) ;;
 esac
 
+if [[ $skip_builtin == 0 ]]; then
+  step "Built-in content (${RELEASE_S3_ENDPOINT}${RELEASE_S3_NETWORK:+, network $RELEASE_S3_NETWORK})"
+  run mkdir -p "$out"
+  DRY_RUN=$dry "$root/scripts/release-client" "${builtin_args[@]}" builtin "$version" "$out"
+fi
+
 step "Done"
 echo "v$version (${head:0:12})"
 [[ $skip_tests == 1 ]] && echo "  tests:   skipped" || echo "  tests:   build, unit suite, rules suite, check-client, web check and tests"
+[[ $skip_builtin == 1 ]] && echo "  builtin: skipped" || echo "  builtin: s3://${RELEASE_S3_BUCKET:-?}/builtin/catalog.json, version $version"
 [[ $skip_client == 1 ]] && echo "  client:  skipped" || echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"
 if [[ $deploy == home ]]; then echo "  web:     image tabletop-web:$version"
 else echo "  web:     ${TABLETOP_WEB_ROOT:-web/build (not installed)}"; fi

@@ -1081,6 +1081,17 @@ Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. `Releases/C
 under `releases/`, each URL a presigned GET for 15 minutes. No manifest is `404`, an unreadable one `502`. Management
 never writes, lists or prunes `releases/`; `scripts/release-client` publishes there.
 
+### 16. Built-in content
+
+Spec: `docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md`. `Content/Builtin/BuiltinCatalogs` reads
+`builtin/catalog.json` (written by `scripts/release-client builtin`) at most once a minute, as §15 reads its manifest.
+`GET /v1/builtin` answers `ServedBuiltin(Version, Meshes, Textures, Terrain, Files, ExpiresAt)`: `Meshes`, `Textures` and
+`Terrain` passed through unread, `Files` by path, each `ServedBuiltinFile(Sha256, Size, Url)` a presigned GET of
+`builtin/{sha256}` for 15 minutes; a hash that is not 64 lower-case hex is dropped. No catalog is `404`, an unreadable
+one `502`. `BuiltinVersionHeader` puts `Tabletop-Builtin-Version` on every response once a catalog has been read; it
+reads the cached version and never waits on the store, so a stale cache refreshes in the background. Management never
+writes `builtin/`.
+
 ## Key decisions
 
 ### Contested decisions
@@ -1162,6 +1173,8 @@ never writes, lists or prunes `releases/`; `scripts/release-client` publishes th
 | `GET`/`PUT /v1/assets/{id}/volumes` | `Volume[]` → `TerrainVolume[]` | owner |
 | `GET /v1/folders`, `POST /v1/folders` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)` list / `201` | owner |
 | `PATCH /v1/folders/{id}`, `DELETE /v1/folders/{id}`, `PUT`/`DELETE /v1/folders/{id}/assets/{assetId}` | `FolderRequest` for `PATCH`; all four → `204` | owner |
+| `POST /v1/folders/{id}/assets`, `POST /v1/folders/{id}/assets/remove` | `BulkAssetsRequest(AssetIds)` (1–200) → `BulkAssetsResponse(Done, NotFound)`; `404` for a folder not the caller's, `422` outside 1–200 | owner |
+| `POST /v1/assets/delete` | `BulkAssetsRequest(AssetIds)` (1–200) → `BulkAssetsResponse(Done, NotFound)`; each as `DELETE /v1/assets/{id}`, blobs included | owner |
 | `POST /v1/armies/import` | `ImportRequest(Source, Bases = round)` → `201 Tabletop.Content.Army` | owner |
 | `GET /v1/armies?limit&after` | → `Page<ArmySummary>` | owner |
 | `GET`/`PATCH`/`DELETE /v1/armies/{id}` | `PatchArmyRequest(Name?, Units?, Slots?)` → `Army` / `204` | owner |
@@ -1179,6 +1192,7 @@ never writes, lists or prunes `releases/`; `scripts/release-client` publishes th
 | `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}` | → `204` | creator |
 | `GET /v1/games/{id}/assets` | → `Manifest(Assets, ExpiresAt)` | participant |
 | `GET /v1/client/latest` | → `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`; `404` before the first release (§15) | bearer |
+| `GET /v1/builtin` | → `ServedBuiltin(Version, Meshes, Textures, Terrain, Files, ExpiresAt)`; `404` before the first publish (§16) | bearer |
 | **`POST /v1/dev/sessions`, development only, not a product endpoint** | `DevSessionRequest(Name, Roles?)` → `SessionResponse` | none, and the route exists only under `IHostEnvironment.IsDevelopment()` |
 
 The last route is the simulator's token source. Nothing else calls it, no client and no web app may,

@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The packed built-in catalog (BuiltinContent.Packed); its meshes and textures ship as res://content/builtin/ files. -->
+    <EmbeddedResource Include="content/builtin/catalog.json" LogicalName="builtin-catalog.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\libs\Tabletop.Geometry\Tabletop.Geometry.csproj" />
     <ProjectReference Include="..\libs\Tabletop.Content\Tabletop.Content.csproj" />
     <ProjectReference Include="..\libs\Tabletop.Protocol\Tabletop.Protocol.csproj" />

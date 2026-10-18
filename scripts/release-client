@@ -9,6 +9,12 @@
 #   scripts/release-client upload  <version> <out>   the zips, releases/<version>/manifest.json, then releases/latest.json
 #   scripts/release-client build   <version> <out>   export, notes, package
 #   scripts/release-client all     <version> <out>   build, then upload
+#   scripts/release-client builtin <version> <out>   the built-in content (spec 2026-10-18-builtin-content-from-server-design.md):
+#                                                    <out>/builtin/catalog.json (client/content/builtin/catalog.json plus version
+#                                                    and each file's sha256 and size), each file to builtin/<sha256>, then
+#                                                    builtin/catalog.json. BUILTIN_SOURCE names another directory laid out like
+#                                                    client/content/builtin (a test publish). Runs in the upload container
+#                                                    unless aws, jq and sha256sum are on the host.
 #   scripts/release-client --in-container <step> <version> <out>
 #
 # Container mode (--in-container, or automatically when GODOT/godot is not on PATH): export and package run in the
@@ -147,6 +153,30 @@ upload_builds() {   # <version> <out>
   echo "release-client: published $version to $dest/"
 }
 
+builtin_publish() {   # <version> <out>
+  local version=$1 out=$2 src=${BUILTIN_SOURCE:-$root/client/content/builtin} files='{}' path sha size type
+  need jq; need sha256sum; need aws "install the AWS CLI v2"; check_s3
+  [[ -f "$src/catalog.json" ]] || die "$src/catalog.json is missing"
+  while IFS= read -r path; do
+    [[ -f "$src/$path" ]] || die "$src/$path is missing (the catalog names it)"
+    sha=$(sha256sum "$src/$path" | cut -d' ' -f1); size=$(stat -c %s "$src/$path")
+    files=$(jq --arg p "$path" --arg sha "$sha" --argjson size "$size" '. + {($p): {sha256: $sha, size: $size}}' <<< "$files")
+  done < <(jq -r '(.meshes[] | "terrain/\(.).glb"), (.textures[] | "textures/\(.).png")' "$src/catalog.json")
+  mkdir -p "$out/builtin"
+  jq --arg v "$version" --argjson files "$files" '{version: $v} + . + {files: $files}' "$src/catalog.json" > "$out/builtin/catalog.json"
+  echo "release-client: $out/builtin/catalog.json"; jq -r '.files | to_entries[] | "  \(.key)  \(.value.size) bytes  \(.value.sha256)"' "$out/builtin/catalog.json"
+  export AWS_ACCESS_KEY_ID="$RELEASE_S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$RELEASE_S3_SECRET_KEY" AWS_DEFAULT_REGION="${RELEASE_S3_REGION:-us-east-1}"
+  export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+  local s3=(aws --endpoint-url "$RELEASE_S3_ENDPOINT" s3 cp --only-show-errors) dest="s3://$RELEASE_S3_BUCKET/builtin"
+  # The files by content hash (immutable), then the catalog: it never names a missing object.
+  while IFS=$'\t' read -r path sha; do
+    case $path in *.glb) type=model/gltf-binary ;; *.png) type=image/png ;; *) type=application/octet-stream ;; esac
+    run "${s3[@]}" --content-type "$type" --cache-control "public, max-age=31536000, immutable" "$src/$path" "$dest/$sha"
+  done < <(jq -r '.files | to_entries[] | "\(.key)\t\(.value.sha256)"' "$out/builtin/catalog.json")
+  run "${s3[@]}" --content-type application/json --cache-control no-cache "$out/builtin/catalog.json" "$dest/catalog.json"
+  echo "release-client: built-in content $version to $dest/"
+}
+
 # Container mode: the same steps in the builder image (header).
 image="tabletop-client-build:$(sed -nE 's/^ARG GODOT_VERSION=(.+)$/\1/p' "$root/scripts/client-build/Dockerfile")"
 owner=$(stat -c %u:%g "$root")
@@ -191,14 +221,29 @@ container_upload() {   # <version> <out>: the credentials pass by name (-e NAME)
     "$image" /src/scripts/release-client upload "$version" /out
 }
 
+container_builtin() {   # <version> <out>: as container_upload, the output writable for builtin/catalog.json
+  local version=$1 out=$2 net=() src=()
+  check_s3
+  builder_image
+  owned_dir "$out"
+  if [[ -n "${RELEASE_S3_NETWORK:-}" ]]; then net=(--network "$RELEASE_S3_NETWORK")
+  else net=(--dns "${TABLETOP_DNS_1:-1.1.1.1}" --dns "${TABLETOP_DNS_2:-9.9.9.9}"); fi
+  if [[ -n "${BUILTIN_SOURCE:-}" ]]; then src=(-v "$(cd "$BUILTIN_SOURCE" && pwd):/builtin:ro" -e BUILTIN_SOURCE=/builtin); fi
+  run docker run --rm -u "$owner" "${net[@]}" -v "$root:/src:ro" -v "$out:/out" "${src[@]}" -e RELEASE_CLIENT_IN_CONTAINER=1 -e DRY_RUN \
+    -e RELEASE_S3_ENDPOINT -e RELEASE_S3_BUCKET -e RELEASE_S3_ACCESS_KEY -e RELEASE_S3_SECRET_KEY -e RELEASE_S3_REGION \
+    "$image" /src/scripts/release-client builtin "$version" /out
+}
+
 container=0
 if [[ "${1:-}" == --in-container ]]; then container=1; shift; fi
 if [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]]; then container=0
+elif [[ $container == 0 && "${1:-}" == builtin ]]; then
+  for tool in aws jq sha256sum; do command -v $tool >/dev/null 2>&1 || { container=1; echo "release-client: $tool not found; publishing the built-in content from the builder container ($image)"; break; }; done
 elif [[ $container == 0 ]] && ! command -v "${GODOT:-godot}" >/dev/null 2>&1; then
   container=1; echo "release-client: ${GODOT:-godot} not found; running in the builder container ($image)"
 fi
 
-[[ $# -eq 3 ]] || die "usage: scripts/release-client [--in-container] export|notes|package|build|upload|all <version> <out>"
+[[ $# -eq 3 ]] || die "usage: scripts/release-client [--in-container] export|notes|package|build|upload|all|builtin <version> <out>"
 check_version "$2"
 mkdir -p "$3"; out="$(cd "$3" && pwd)"
 if [[ $container == 1 ]]; then
@@ -207,6 +252,7 @@ if [[ $container == 1 ]]; then
     notes) release_notes "$2" "$out" ;;
     upload) container_upload "$2" "$out" ;;
     all) container_build build "$2" "$out"; container_upload "$2" "$out" ;;
+    builtin) container_builtin "$2" "$out" ;;
     *) die "unknown step '$1'" ;;
   esac
   exit 0
@@ -219,5 +265,6 @@ case "$1" in
   # In the builder the host has written notes.txt already.
   build) export_builds "$2" "$out"; [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]] || release_notes "$2" "$out"; package_builds "$2" "$out" ;;
   all) export_builds "$2" "$out"; release_notes "$2" "$out"; package_builds "$2" "$out"; upload_builds "$2" "$out" ;;
+  builtin) builtin_publish "$2" "$out" ;;
   *) die "unknown step '$1'" ;;
 esac

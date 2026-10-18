@@ -52,6 +52,8 @@ builder.Services.AddSingleton<IGameRepository, GameRepository>();
 builder.Services.AddSingleton<Sessions>();
 builder.Services.AddSingleton(sp => new Tabletop.Management.Releases.ClientReleases(sp.GetRequiredService<IBlobStore>(), TimeProvider.System,
     sp.GetRequiredService<ILogger<Tabletop.Management.Releases.ClientReleases>>()));
+builder.Services.AddSingleton(sp => new Tabletop.Management.Content.Builtin.BuiltinCatalogs(sp.GetRequiredService<IBlobStore>(), TimeProvider.System,
+    sp.GetRequiredService<ILogger<Tabletop.Management.Content.Builtin.BuiltinCatalogs>>()));
 if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
 var app = builder.Build();
@@ -79,6 +81,7 @@ app.UseCors(p => p
     .WithOrigins(options.WebUrl.TrimEnd('/'))
     .WithHeaders("Authorization", "Content-Type", Tabletop.Protocol.ProtocolVersion.Header)
     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE"));
+app.UseMiddleware<Tabletop.Management.Content.Builtin.BuiltinVersionHeader>();
 app.UseMiddleware<Tabletop.Management.Http.ClientVersionMiddleware>();
 app.UseMiddleware<Tabletop.Management.Http.BodySizeLimit>();
 app.UseAuthentication();
@@ -94,6 +97,7 @@ app.MapProperties();
 app.MapGames();
 app.MapManifest();
 app.MapClientReleases();
+Tabletop.Management.Content.Builtin.BuiltinEndpoint.MapBuiltin(app);
 if (devMode) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
