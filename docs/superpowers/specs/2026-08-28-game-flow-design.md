@@ -28,7 +28,8 @@ on that side. Teams share a single activation and function as one force; coordin
 inside a team is social, not enforced.
 
 Ownership and authority are therefore different axes. An army belongs to a player.
-Acting with it belongs to the team.
+Acting with it belongs to the team. One person may also hold several teams, an army each
+(*One account, several teams*, below).
 
 ### Teams are frozen at the flip, and a team is a slot
 
@@ -50,8 +51,58 @@ contradicted each other. The model, stated here once because this is where teams
 
 Joining a game and taking a team are two different things, and running them together is what
 generated the contradiction. **Joining stays open at every status**
-([accounts](2026-08-29-accounts-design.md)); **taking a team does not**. Every other document
+([accounts](2026-08-29-accounts-design.md)); **taking a team does not**, with one exception: a
+team no one holds may be taken while deployment waits for players (below). Every other document
 points at this statement rather than restating it.
+
+### Waiting for players
+
+Ruled by the owner 2026-10-17. **Ending setup always opens the game** (`playing`, the board
+snapshotted, the log opened). **Deployment, and the roll-off before it, waits while any team has no
+participant or no army in play** (`WaitingForPlayers`, `libs/Tabletop.Protocol`). A team with a
+participant but no army waits too: deployment needs units on every side, and a side with none
+would be skipped by every turn, which is how a lone player used to fall straight through
+deployment into the rounds. Each team it waits on reads "Waiting for a player on Team 2" or
+"Team 2 has no army", to every client, in the header, the decision box and the side panel.
+
+The wait holds only while the log is empty, so nothing has been rolled, deployed or edited. Two lobby
+edits stay open in it, and everything else is frozen (commands and every other edit are refused
+`WrongStatus`):
+
+- **`PickTeam` onto a team no participant holds.** Any participant takes it for itself (a
+  participant row with no team takes it; an account that already plays a team gets one more row),
+  or the creator places a participant with no team on it. A team someone holds stays held, and
+  nobody leaves a team.
+- **`PickArmy` for a team of mine that has no army.** The army is checked as at the end of setup,
+  snapshotted, written to the participant row (`army_snapshot`) and added to the board the empty
+  log opens on, so hydration reads the same board. The army is final once it joins.
+
+When no team waits, the engine runs: the roll-off opens and play goes on as after any end of setup.
+A teamless participant is not a watcher during the wait, since it may still take the empty team.
+
+### One account, several teams
+
+Ruled by the owner 2026-10-17: one person may play both sides (self-play), from one client or from
+two windows. **A participant row is a seat: one team and one army.** An account holds one row per
+team it plays, and at most one row with no team (`unique nulls not distinct (game_id, account_id,
+team_id)`). Units, armies and turns keep their participant, so nothing in the rules engine changes.
+
+- `PickTeam(team)` adds a team to the sender's teams: its teamless row takes it, else a new row
+  does. `LeaveTeam(team)` gives one up; the account's oldest row, which its sockets carry, is never
+  deleted while it keeps another (it takes the next row's team and army instead).
+  `PickTeam(null)` gives up every team. The empty-team and creator rules apply per team.
+- `PickArmy(army, team)` names the team the army goes to.
+- A command acts as one of the account's seats: `AnswerAsk(ask, answer, team)` for the team it
+  names, or, unnamed, the first of the account's teams the Ask addresses that has not answered; a
+  hand move for the team whose model it moves; anything else for the account's first team. The log
+  records that seat as the actor.
+- A client holding several teams sees each team's sealed answers (it is the same person), and is
+  asked a sealed Ask once per team, in turn. A participant with at least one team is not a watcher.
+- Two sockets of one account both play; whoever answers an Ask first answers it. The account's
+  socket cap (4) closes the oldest.
+- The client acts for the team of the first Ask waiting on one of its teams (`Seats.Acting`): the
+  decision box and the game-over modal say "Playing as Team 2", and the roster, unit card and
+  camera follow that team.
 
 ## What a unit in play records
 

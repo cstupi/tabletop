@@ -72,7 +72,8 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
                 .Select(g =>
                 {
                     var seated = Seated(g.Key);
-                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, seated.Count, seated.Select(p => rows.Accounts[p.AccountId].Name).ToList());
+                    var accounts = seated.Select(p => p.AccountId).Distinct().ToList();   // an account holding several teams is one participant to the browser
+                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList());
                 }).ToList());
     }
 

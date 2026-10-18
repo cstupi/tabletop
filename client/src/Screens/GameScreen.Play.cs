@@ -18,6 +18,7 @@ public partial class GameScreen
     HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; UndoButton? _undo; EndMessage? _end; KeyOverlay? _keys;
     HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
+    Guid? _acting;
     Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; ModelMarkNodes? _modelMarks; Action<IReadOnlyList<GameEvent>>? _onFollow;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
     Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
@@ -84,7 +85,16 @@ public partial class GameScreen
         _end.LeaveRequested += () => Guarded.Run(_session.DisconnectAsync, Toast);
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
         // or holds a unit; never for the history replayed on join.
-        _onFollow = batch => { if (!_session.CatchingUp && _session.Projection is { } p && CameraFocus.FollowTarget(batch, p) is { } at) Table.Camera.Follow(WorldFrame.ToGodot(at), _session.Settings.CameraFollow); };
+        _onFollow = batch =>
+        {
+            if (_session.CatchingUp || _session.Projection is not { } p) return;
+            if (CameraFocus.FollowTarget(batch, p) is { } at) Table.Camera.Follow(WorldFrame.ToGodot(at), _session.Settings.CameraFollow);
+            // Playing both sides: when the next Ask is the other team's, the camera goes to that team's side of the table.
+            var acting = _session.MyTeamId;
+            if (_session.MyTeamIds.Count > 1 && acting != _acting && acting is { } team && _session.Game is { } g && CameraFocus.TeamSide(p, g, team) is { } side)
+                Table.Camera.Centre(WorldFrame.ToGodot(side));
+            _acting = acting;
+        };
         _session.EventsApplied += _onFollow;
         foreach (var part in new Control[] { _header, _roster, _card, _decision, _dice }) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
         _logDrawer.OpenChanged += QueueLayout;

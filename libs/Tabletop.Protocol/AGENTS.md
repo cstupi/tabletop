@@ -14,6 +14,7 @@ Every socket message, the wire JSON, the event log's payloads, and the projectio
 - `Projection.cs`: `Projection`, `UnitInPlay`, `ModelInPlay`; only `EventApplier` writes it.
 - `Presence.cs`: presence, cursor, selection, measurement; latest wins, never logged.
 - `RulesOptions.cs`: `RulesOptionCatalog` (`RulesOption`, `RulesOptionValue`, `RulesPreset`), a ruleset's optional rules as data, sent in `Welcome.Options`. `GameInfo.OptionalRules` and `SetConfiguration.OptionalRules` carry the map; only the ruleset reads its keys.
+- `WaitingForPlayers.cs`: `WaitingForPlayers` (`Teams`, `Holds`) and `TeamWaiting`: the teams deployment waits on after setup (no participant, or no army with a unit), read the same way by the game server and the client. `Edits.cs` also holds `LeaveTeam`; `PickArmy.TeamId` and `AnswerAsk.TeamId` name the team for an account holding several.
 - `ProtocolVersion.cs`: `Current`, the `Tabletop-Client-Version` header, the 426 status, `BuiltinHeader` (`Tabletop-Builtin-Version`, management's published built-in catalog).
 
 ## How it works

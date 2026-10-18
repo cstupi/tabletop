@@ -94,7 +94,7 @@ public class HeaderViewTests
         var endRound = new Ask(Guid.Parse("0198b7ac-4444-7000-8000-000000000004"), AskQuestions.EndRound, "End the round", [Samples.Team2], new Confirmation(), false, false, null, null);
         var p = After(new AskOpened(endRound), new AskOpened(casualties));
         Assert.Equal("Your move: remove casualties · Team 2: end round", HeaderView.Waiting(p, new Names(Game, p), Samples.Team1));
-        Assert.Equal("Team 2: end round · Team 1: remove casualties", HeaderView.Waiting(p, new Names(Game, p), null));
+        Assert.Equal("Team 2: end round · Team 1: remove casualties", HeaderView.Waiting(p, new Names(Game, p), (Guid?)null));
     }
 
     [Fact]

@@ -28,8 +28,9 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(SetDice), "set_dice")]
 public abstract record Command;
 
-/// <summary>The only way to act inside a turn or a sequence, and the only way to pass.</summary>
-public sealed record AnswerAsk(Guid AskId, AskAnswer Answer) : Command;
+/// <summary>The only way to act inside a turn or a sequence, and the only way to pass. TeamId is the team answering, one the sender's account
+/// holds (a player holding two teams answers for each); null is the first team of the sender's the Ask addresses that has not answered.</summary>
+public sealed record AnswerAsk(Guid AskId, AskAnswer Answer, Guid? TeamId = null) : Command;
 /// <summary>A hand move: start and stop per model. Never ends a turn.</summary>
 public sealed record MoveModels(IReadOnlyList<ModelRelocation> Moves) : Command;
 public sealed record PlaceMarker(Marker Marker) : Command;

@@ -40,7 +40,7 @@ public sealed class AccountRepository(Database db) : IAccountRepository
     public async Task<IReadOnlyList<Guid>> JoinedGameIds(Guid accountId)
     {
         await using var c = await db.Open();
-        return (await c.QueryAsync<Guid>(@"select p.game_id from participant p join game g on g.id = p.game_id
+        return (await c.QueryAsync<Guid>(@"select distinct p.game_id from participant p join game g on g.id = p.game_id
                                           where p.account_id = @accountId and g.created_by <> @accountId", new { accountId })).ToList();
     }
 

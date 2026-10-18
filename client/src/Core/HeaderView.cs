@@ -65,16 +65,24 @@ public static class HeaderView
     }
 
     /// <summary>Who the game waits on and for what: one entry per team that has not answered an open Ask, in Ask order.</summary>
-    public static string? Waiting(Projection p, Names n) => Waiting(p, n, null);
+    public static string? Waiting(Projection p, Names n) => Waiting(p, n, (Guid?)null);
 
     /// <summary>As Waiting, with my team's entries first and named "Your move", so the player sees at once whether the game waits on them.</summary>
-    public static string? Waiting(Projection p, Names n, Guid? myTeam)
+    public static string? Waiting(Projection p, Names n, Guid? myTeam) => Waiting(p, n, myTeam is { } t ? [t] : []);
+
+    /// <summary>As Waiting, for a client holding several teams (self-play): each of mine is "Your move (Team 2)".</summary>
+    public static string? Waiting(Projection p, Names n, IReadOnlyCollection<Guid> mine)
     {
+        string Who(Guid t) => !mine.Contains(t) ? n.Team(t) : mine.Count > 1 ? $"Your move ({n.Team(t)})" : "Your move";
         var parts = p.OpenAsks.Values.OrderBy(a => a.Ask.Id)
-            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Mine: t == myTeam, Text: $"{(t == myTeam ? "Your move" : n.Team(t))}: {a.Ask.Question.Replace('_', ' ')}")))
+            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Mine: mine.Contains(t), Text: $"{Who(t)}: {a.Ask.Question.Replace('_', ' ')}")))
             .Distinct().OrderByDescending(x => x.Mine).Select(x => x.Text).ToList();
         return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
+
+    /// <summary>The header's line while deployment waits for players (WaitingForPlayers), one clause per team it waits on.</summary>
+    public static string? WaitingForPlayers(IReadOnlyList<TeamWaiting> waiting) =>
+        waiting.Count == 0 ? null : "Deployment waits: " + string.Join(" · ", waiting.Select(w => w.Text));
 
     /// <summary>The header's line for a client the server answers as a watcher (Session.IsWatching).</summary>
     public const string Watching = "Watching: you have no team in this game, so you see everything and change nothing.";

@@ -18,6 +18,35 @@ public class LobbyTests
     static EditMessage Edit(Edit e) => new(Guid.CreateVersion7(), e);
 
     [Fact]
+    public async Task An_account_holds_two_teams_with_an_army_each_and_leaving_one_keeps_its_first_row()
+    {
+        var (f, g, creator, other) = await LobbyAsync();
+        await using var _ = creator; await using var __ = other; using var ___ = f;
+        var first = g.Participants[0].ParticipantId;
+        await creator.SendAsync(Edit(new CreateTeam()));
+        var third = (await creator.ExpectAsync<GameInfoMessage>()).Game.Teams[2].Id;
+        await creator.SendAsync(Edit(new PickTeam(third)));
+        var seats = (await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Where(p => p.AccountId == g.CreatorAccountId).ToList();
+        Assert.Equal([(first, g.TeamIds[0]), (seats[1].Id, (Guid?)third)], seats.Select(p => (p.Id, p.TeamId)));
+
+        var (a, b) = (await db.SeedArmyAsync(g.CreatorAccountId), await db.SeedArmyAsync(g.CreatorAccountId));
+        await creator.SendAsync(Edit(new PickArmy(a.Id, g.TeamIds[0]))); await creator.ExpectAsync<GameInfoMessage>();
+        await creator.SendAsync(Edit(new PickArmy(b.Id, third)));
+        Assert.Equal([a.Id, b.Id], (await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Where(p => p.AccountId == g.CreatorAccountId).Select(p => p.ArmyId));
+        await creator.SendAsync(Edit(new PickArmy(a.Id, g.TeamIds[1])));
+        Assert.Equal(RefusalReason.Unknown, (await creator.ExpectAsync<Refused>()).Reason);       // not a team of mine
+        await creator.SendAsync(Edit(new LeaveTeam(g.TeamIds[1])));
+        Assert.Equal(RefusalReason.Unknown, (await creator.ExpectAsync<Refused>()).Reason);
+
+        // Leaving the first row's team: the first row (the one the sockets carry) takes the other row's team and army, and that row goes.
+        await creator.SendAsync(Edit(new LeaveTeam(g.TeamIds[0])));
+        var left = (await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.CreatorAccountId);
+        Assert.Equal((first, (Guid?)third, (Guid?)b.Id), (left.Id, left.TeamId, left.ArmyId));
+        await creator.SendAsync(Edit(new LeaveTeam(third)));
+        Assert.Null((await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.CreatorAccountId).TeamId);
+    }
+
+    [Fact]
     public async Task Creating_a_team_and_picking_it_writes_rows_and_broadcasts_the_game_info()
     {
         var (f, g, creator, other) = await LobbyAsync();
@@ -27,7 +56,9 @@ public class LobbyTests
         await other.ExpectAsync<GameInfoMessage>();
         var third = info.Teams[2].Id;
         await other.SendAsync(Edit(new PickTeam(third)));
-        Assert.Equal(third, (await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.Participants[1].AccountId).TeamId);
+        // A team picked is one more team: the account keeps team 2 and takes team 3 on a row of its own.
+        Assert.Equal([info.Teams[1].Id, third], (await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Where(p => p.AccountId == g.Participants[1].AccountId).Select(p => p.TeamId));
+        await other.ExpectAsync<GameInfoMessage>();
         await other.SendAsync(Edit(new PickTeam(null)));
         Assert.Null((await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.Participants[1].AccountId).TeamId);
         Assert.Null(db.GameRows.Participant(g.Participants[1].ParticipantId)!.TeamId);

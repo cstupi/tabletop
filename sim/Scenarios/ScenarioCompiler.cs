@@ -13,6 +13,15 @@ public sealed record CompiledScenario(
 {
     public Guid ParticipantFor(Guid teamId) => TeamOfParticipant.First(kv => kv.Value == teamId).Key;
 
+    /// <summary>The participants a driver connects: every team's, or under self-play the one account's first row, whose connection plays every team.</summary>
+    public IReadOnlyList<Guid> Connected => Scenario.SelfPlay ? [ParticipantIds[0]] : ParticipantIds;
+
+    /// <summary>The participant whose connection sends for participantId: itself, or under self-play the one connection.</summary>
+    public Guid ConnectionFor(Guid participantId) => Scenario.SelfPlay ? ParticipantIds[0] : participantId;
+
+    /// <summary>The credential index of participant i: its own, or under self-play the first's for every team's row.</summary>
+    public int CredentialOf(int participant) => Scenario.SelfPlay && Info.Participants[participant].TeamId is not null ? 0 : participant;
+
     /// <summary>The unit condition a player sets from the menu to set a unit aside before deployment (the ruleset's name); RunLoop sends it for Scenario's set-aside units.</summary>
     public string SetAsideCondition { get; init; } = GfNames.SetAside;
 }
@@ -35,8 +44,11 @@ public static class ScenarioCompiler
     public static CompiledScenario Compile(Scenario s)
     {
         var teams = s.Armies.Select((_, i) => new Team(Guid.CreateVersion7(), i + 1)).ToList();
-        var participants = teams.Select((t, i) =>
-            new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Sim {i + 1}", t.Id, null)).ToList();
+        // Self-play: every team's row belongs to one account, the first's; the rows are still one per team, each with its army.
+        var account = Guid.CreateVersion7();
+        var participants = teams.Select((t, i) => s.SelfPlay
+            ? new Participant(Guid.CreateVersion7(), account, "Sim 1", t.Id, null)
+            : new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Sim {i + 1}", t.Id, null)).ToList();
         // The recorder: a participant with no team, which is what a spectator is (whole-design review ruling 5).
         // It is never Asked, and its filtered event stream is what the driver's projection and the recording are built from.
         var recorder = new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), "Recorder", null, null);

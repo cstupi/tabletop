@@ -447,10 +447,11 @@ are all keyed on the `CompiledScenario`'s ids.
 
 The properties row is not part of the seeding. `sim/` never writes a `properties` row. `GameServerFactory` runs in the `Test` environment, where the game server seeds no embedded documents, so a socket-backed test puts the core set into the factory's properties store itself before `SeedAsync`: the in-memory store in the unit suite, Postgres through `PostgresPropertiesStore` in the E2E suite. `SeedAsync` throws `PropertiesMissingException` when the row is absent.
 
-**One session per participant.** A session JWT names one account,
-`FindParticipantAsync(gameId, accountId)` maps an account to one participant, and a newer socket
-for a participant closes the older one. N participants therefore need N accounts and N tokens,
-in team-ordinal order with the recorder last. In tests `TestKeys.Mint` produces them against the
+**One session per account.** A session JWT names one account, and `FindParticipantAsync(gameId,
+accountId)` maps it to the account's oldest participant row; the session acts for every team the
+account holds. N participants on N accounts need N tokens, in team-ordinal order with the recorder
+last. A self-play scenario (`Scenario.SelfPlay`) puts every team's row on the first account and
+connects once: `CompiledScenario.Connected`, `ConnectionFor` and `CredentialOf`. In tests `TestKeys.Mint` produces them against the
 fake JWKS, so the suite reaches no network.
 
 From the console they come from the management API's development-only mint,

@@ -2,8 +2,8 @@ using System.Net.WebSockets;
 
 namespace Tabletop.GameServer.Session;
 
-/// <summary>Open sockets per account across every game. A socket over the cap closes the account's oldest, as a newer socket for one
-/// participant replaces the older: the newest window is the one in use.</summary>
+/// <summary>Open sockets per account across every game. A socket over the cap closes the account's oldest: under the cap every window
+/// of the account plays (self-play: two windows, one per side).</summary>
 public sealed class AccountSockets(Configuration.GameServerOptions options)
 {
     private readonly Dictionary<Guid, List<SocketConnection>> _open = new();

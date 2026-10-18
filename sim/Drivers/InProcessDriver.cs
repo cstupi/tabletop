@@ -62,7 +62,7 @@ public sealed class InProcessDriver : IGameDriver
 
         _recorder = new RecorderClient(_scenario.RecorderParticipantId);
         await session.ConnectAsync(_recorder);
-        foreach (var participantId in _scenario.ParticipantIds)
+        foreach (var participantId in _scenario.Connected)
         {
             var client = new RecorderClient(participantId);
             _players.Add(client);
@@ -76,7 +76,7 @@ public sealed class InProcessDriver : IGameDriver
 
     public async Task<SubmitResult> SubmitAsync(Guid participantId, Command command, CancellationToken ct)
     {
-        var client = _players.FirstOrDefault(c => c.ParticipantId == participantId)
+        var client = _players.FirstOrDefault(c => c.ParticipantId == _scenario.ConnectionFor(participantId))
             ?? throw new ArgumentException($"no connected client for participant {participantId}", nameof(participantId));
         var head = _applier.Projection.LastSeq;
         await Session.ReceiveAsync(client, new CommandMessage(Guid.CreateVersion7(), command));

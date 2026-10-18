@@ -256,7 +256,8 @@ this: adding an event type must not be a migration.
 
 **`participant.army_snapshot`** — because it **must not** be reasoned about. It is written when
 setup ends — the moment the armies freeze, per [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)
-— and read only to rebuild that game. It is **nullable**, as is `participant.team_id`: a
+— or, for a team that had no army then, when one is picked while deployment waits for players (game
+flow → *Waiting for players*), and read only to rebuild that game. It is **nullable**, as is `participant.team_id`: a
 participant who joins after deployment has no army, and one who has not yet picked a team in the
 lobby has no team (ruled 09-04, [the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)). Normalised, a later schema change would migrate
 historical snapshots and silently alter what a past game was played with. Being opaque is the
@@ -382,8 +383,10 @@ socket frame (`GameInfo.RngSeed` is not serialized); the game server reads it fr
 ### `participant` links to its game, and holds the army it picked
 
 `team_id` is nullable, because a participant with no team is what a spectator is, so the link to
-the game cannot travel through the team. `participant.game_id` is its own column, and
-`unique (game_id, account_id)` is what stops an account joining twice. `army_id` is the lobby's
+the game cannot travel through the team. `participant.game_id` is its own column. A row is one
+seat: an account holds one row per team it plays (self-play: one account on both teams, each row
+with its own army), and `unique nulls not distinct (game_id, account_id, team_id)` (migration 018)
+stops it holding a team twice or joining twice without one. `army_id` is the lobby's
 pick, nullable and `on delete set null`. It stands until `army_snapshot` is written at the start of
 setup, after which the snapshot is what plays, and the army may then change or be deleted without
 touching the game.

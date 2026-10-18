@@ -16,12 +16,14 @@ public partial class DecisionBox : PanelContainer
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly VBoxContainer _controls = new();
+    /// <summary>"Playing as Team 2" over the Ask, for a client that holds several teams (Seats.PlayingAs).</summary>
+    readonly Label _seat = new() { ThemeTypeVariation = Variation.Accent };
     readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart },
         _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _revealLabel = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart };
     MoveRegionNode? _region;
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
-    Guid? _renderedAsk, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly SealedReveals _reveals = new();
+    Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly SealedReveals _reveals = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
     Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit;
@@ -47,7 +49,7 @@ public partial class DecisionBox : PanelContainer
         // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
         _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; inset.AddChild(_controls); _scroll.AddChild(inset);
-        foreach (var c in new Control[] { _title, _revealLabel, _note, _scroll, _refusalLabel, _hint }) box.AddChild(c);
+        foreach (var c in new Control[] { _seat, _title, _revealLabel, _note, _scroll, _refusalLabel, _hint }) box.AddChild(c);
         _controls.MinimumSizeChanged += QueueFit;                                  // a ScrollContainer reports no content height
         view.AddChild(_region = new MoveRegionNode());
         _onEvents = Reveal; _onFrame = _ => Render();   // the batch for the sealed reveal; the render once per frame, on every cause
@@ -94,6 +96,8 @@ public partial class DecisionBox : PanelContainer
         RenderAsk();
         _refusalLabel.Text = _refusal ?? ""; _refusalLabel.Visible = _refusal is not null;
         _hint.Visible = _hint.Text != ""; _title.Visible = _title.Text != ""; _note.Visible = _note.Text != "";   // an empty label still takes a line
+        _seat.Text = _title.Text != "" && _renderedAsk is not null || _deployUnit is not null ? Seats.PlayingAs(_s.Game!, _s.MyTeamIds, _s.MyTeamId) ?? "" : "";
+        _seat.Visible = _seat.Text != "";
         _revealLabel.Text = _revealed ?? ""; _revealLabel.Visible = _revealed is not null;
         Visible = _title.Text != "" || _note.Text != "" || _refusal is not null || _revealed is not null;
     }
@@ -117,12 +121,13 @@ public partial class DecisionBox : PanelContainer
             var mid = DeployView.MidDeploy(p, _s.Log, _s.MyTeamId);
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; }
             _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
-            if (mid is null) { _title.Text = HeaderView.Waiting(p, names) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
+            if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) { _title.Text = string.Join("\n", waiting.Select(w => w.Text)); _hint.Text = ""; }
+            else if (mid is null) { _title.Text = HeaderView.Waiting(p, names) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
             else if (_deployUnit is null) StartDeploy(mid, names);
             return;
         }
         if (_renderedAsk == mine.Ask.Id) return;
-        Reset(); _renderedAsk = mine.Ask.Id; _note.Text = "";
+        Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
         if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
         _title.Text = model.Title; _hint.Text = model.Hint; _numbered = model.Numbered;
         Glow(mine.Highlights);
@@ -291,7 +296,7 @@ public partial class DecisionBox : PanelContainer
     {
         SetButtons(true); Unhook();                                             // one answer per Ask: no second click or key can double-send
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
-        await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer), _lastCommand.Value);
+        await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer, _answering), _lastCommand.Value);   // for the team the Ask was rendered for
     }
 
     /// <summary>The open Ask's handlers and table state, dropped whenever it ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>

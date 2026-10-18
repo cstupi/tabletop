@@ -12,7 +12,11 @@ public static class EventFilter
     /// that opened and the seq that closed each one: an Undone discards every event with Seq &gt; ToSeq (EventApplier.EffectiveLog),
     /// which drops the opens and closes it reaches. The seeded ids opened before this batch, so nothing in it undoes them.
     /// </summary>
-    public static IReadOnlyList<GameEvent> ForViewer(IReadOnlyList<GameEvent> events, Guid? viewerTeamId, IReadOnlySet<Guid> sealedOpenBefore)
+    public static IReadOnlyList<GameEvent> ForViewer(IReadOnlyList<GameEvent> events, Guid? viewerTeamId, IReadOnlySet<Guid> sealedOpenBefore) =>
+        ForViewer(events, viewerTeamId is { } t ? new HashSet<Guid> { t } : new HashSet<Guid>(), sealedOpenBefore);
+
+    /// <summary>A viewer holding several teams (self-play) sees each of its teams' sealed answers.</summary>
+    public static IReadOnlyList<GameEvent> ForViewer(IReadOnlyList<GameEvent> events, IReadOnlySet<Guid> viewerTeams, IReadOnlySet<Guid> sealedOpenBefore)
     {
         var openedAt = sealedOpenBefore.ToDictionary(id => id, _ => long.MinValue);
         var closedAt = new Dictionary<Guid, long>();
@@ -27,7 +31,7 @@ public static class EventFilter
                     foreach (var id in openedAt.Where(x => x.Value > u.ToSeq).Select(x => x.Key).ToList()) openedAt.Remove(id);
                     foreach (var id in closedAt.Where(x => x.Value > u.ToSeq).Select(x => x.Key).ToList()) closedAt.Remove(id);
                     break;
-                case AskAnswered a when a.TeamId != viewerTeamId && openedAt.ContainsKey(a.AskId) && !closedAt.ContainsKey(a.AskId):
+                case AskAnswered a when !viewerTeams.Contains(a.TeamId) && openedAt.ContainsKey(a.AskId) && !closedAt.ContainsKey(a.AskId):
                     result.Add(e with { Payload = a with { Answer = null } });
                     continue;
             }
