@@ -49,7 +49,7 @@ public class BuiltinContentTests
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
         // Every piece names one of the thirteen group meshes, so the art set is thirteen files and not 35.
         Assert.Equal(13, BuiltinContent.TerrainMeshGroups.Count);
-        Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(t.MeshFile, BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
+        Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(BuiltinContent.TerrainMeshFile(t.Name), BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
         Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
         Assert.Equal("res://content/builtin/terrain/water.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
         Assert.Null(BuiltinContent.TerrainMeshFile("no-such-piece"));
@@ -64,6 +64,18 @@ public class BuiltinContentTests
         Assert.Equal(BuiltinContent.Terrain["forest"].Volume, a.Volumes[0].Volume);
         Assert.Equal("forest", a.Mesh.Builtin);
         Assert.Single(BuiltinContent.VolumesOf("forest"));
+    }
+
+    /// <summary>The packed catalog names exactly the files the build ships, and the generator writes every mesh it names.</summary>
+    [Fact]
+    public void The_packed_catalog_names_the_shipped_files()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client/content/builtin"));
+        Assert.Equal(BuiltinContent.Packed.Meshes.Order(), Directory.GetFiles(Path.Combine(root, "terrain"), "*.glb").Select(Path.GetFileNameWithoutExtension).Order());
+        Assert.Equal(BuiltinContent.Packed.Textures.Order(), Directory.GetFiles(Path.Combine(root, "textures"), "*.png").Select(Path.GetFileNameWithoutExtension).Order());
+        Assert.Null(BuiltinContent.Packed.Version);
+        Assert.Empty(BuiltinContent.Packed.Files);
+        Assert.Equal(35, BuiltinContent.Packed.Terrain.Count);
     }
 
     /// <summary>Each shipped mesh's POSITION bounds, read under BuiltinContent.MeshOrientation in the Orientation convention

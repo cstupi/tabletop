@@ -10,6 +10,8 @@ namespace Tabletop.Client.Core;
 public sealed class ManagementClient(HttpClient http, Uri baseUrl)
 {
     public string? Jwt { get; set; }
+    /// <summary>A response's <c>Tabletop-Builtin-Version</c>: the built-in catalog the server publishes. Raised on the thread the response arrived on.</summary>
+    public event Action<string>? BuiltinVersionSeen;
 
     // Auth — anonymous (the bearer is not sent).
     public Task<OtpSentResponse> SendOtp(string email) => Post<OtpSentResponse>("/v1/auth/otp", new { email }, anonymous: true);
@@ -41,18 +43,25 @@ public sealed class ManagementClient(HttpClient http, Uri baseUrl)
     public Task<Page<AssetDto>> ListAssets(AssetKind kind, Guid? after) => Get<Page<AssetDto>>($"/v1/assets?limit=200&kind={kind.ToString().ToLowerInvariant()}" + (after is null ? "" : $"&after={after}"));
     public Task<IReadOnlyList<TerrainVolume>> GetAssetVolumes(Guid assetId) => Get<IReadOnlyList<TerrainVolume>>($"/v1/assets/{assetId}/volumes");
     public Task<DownloadResponse> GetDownload(Guid assetId) => Get<DownloadResponse>($"/v1/assets/{assetId}/download");
+    /// <summary><c>GET /v1/builtin</c> as JSON (BuiltinCatalog.Parse reads it); null when nothing is published.</summary>
+    public async Task<string?> GetBuiltin(CancellationToken ct = default)
+    {
+        try { return await Send(HttpMethod.Get, "/v1/builtin", null, false, ct); }
+        catch (ManagementException e) when (e.Status == 404) { return null; }
+    }
 
     async Task<T> Get<T>(string path) => Read<T>(await Send(HttpMethod.Get, path, null, false));
     async Task<T> Post<T>(string path, object body, bool anonymous = false) => Read<T>(await Send(HttpMethod.Post, path, body, anonymous));
 
-    async Task<string> Send(HttpMethod method, string path, object? body, bool anonymous)
+    async Task<string> Send(HttpMethod method, string path, object? body, bool anonymous, CancellationToken ct = default)
     {
         using var request = new HttpRequestMessage(method, new Uri(baseUrl, path));
         request.Headers.Add(ProtocolVersion.Header, ProtocolVersion.Current.ToString());
         if (!anonymous && Jwt is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Jwt);
         if (body is not null) request.Content = new StringContent(JsonSerializer.Serialize(body, body.GetType(), ContentJson.Options), Encoding.UTF8, "application/json");
-        using var response = await http.SendAsync(request);
-        var text = await response.Content.ReadAsStringAsync();
+        using var response = await http.SendAsync(request, ct);
+        if (response.Headers.TryGetValues(ProtocolVersion.BuiltinHeader, out var builtin) && builtin.FirstOrDefault() is { Length: > 0 } version) BuiltinVersionSeen?.Invoke(version);
+        var text = await response.Content.ReadAsStringAsync(ct);
         if (response.IsSuccessStatusCode) return text;
         var (title, detail) = Problem(text, response.ReasonPhrase ?? response.StatusCode.ToString());
         if ((int)response.StatusCode == ProtocolVersion.UpgradeRequiredStatusCode) throw new UpdateRequiredException(title, detail);

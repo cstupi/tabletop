@@ -17,6 +17,8 @@ public sealed class FakeManagement : HttpMessageHandler
         return this;
     }
 
+    public FakeManagement Respond(HttpResponseMessage response) { _answers.Enqueue(response); return this; }
+
     readonly Queue<Exception?> _failures = new();
     /// <summary>When set, every request waits for it after being recorded and before it is answered.</summary>
     public TaskCompletionSource? Gate { get; set; }

@@ -40,4 +40,17 @@ public class TerrainGeneratorTests
     public void The_same_seed_gives_the_same_batch() =>
         Assert.Equal(TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin),
                      TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin));
+
+    [Fact]
+    public void A_piece_the_catalog_does_not_list_is_skipped()
+    {
+        var hillsOnly = BuiltinCatalog.Parse(System.Text.Json.JsonSerializer.Serialize(new
+        {
+            meshes = new[] { "hill" }, textures = new[] { "grass" },
+            terrain = new[] { new { id = "hill", label = "Hill", mesh = "hill", kind = "solid", footprint = new { kind = "circle", a = 3.0 }, top = 2.0, declarations = new[] { "cover" } } },
+        }));
+        var batch = TerrainGenerators.Generate(Planet.Hospitable, Opr, new Random(1), hillsOnly);
+        Assert.NotEmpty(batch);
+        Assert.All(batch, a => Assert.Equal("hill", a.Placement.Mesh.Builtin));
+    }
 }

@@ -8,6 +8,8 @@ public sealed record UserData(string Dir)
     public string Settings => Path.Combine(Dir, "settings.json");
     public string Session => Path.Combine(Dir, "session.bin");
     public string Cache => Path.Combine(Dir, "cache");
+    /// <summary>The server's built-in catalog, last complete sync (<see cref="BuiltinSync"/>); its files are in <see cref="Cache"/>.</summary>
+    public string Builtin => Path.Combine(Dir, "builtin.json");
 
     /// <summary>A release build that finds server addresses in its settings.json is reading a file a development build (or a
     /// release before this rule) wrote, so the session beside it was issued by some other server: it clears that session and

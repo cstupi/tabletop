@@ -13,7 +13,7 @@ public partial class SetupToolbar : VBoxContainer
 {
     readonly GameScreen _screen;
     Session _session = null!; VBoxContainer _selected = null!; Label _selectedHead = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
-    Action? _onSelection, _onBoard; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
+    Action? _onSelection, _onBoard, _onBuiltins; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
     public SetupToolbar(GameScreen screen) => _screen = screen;
 
     public override void _ExitTree()
@@ -21,6 +21,7 @@ public partial class SetupToolbar : VBoxContainer
         if (_session is null) return;
         _screen.Input.SelectionChanged -= _onSelection; _session.BoardChanged -= _onBoard;
         _screen.Input.PieceRightClicked -= _onRight; _screen.Input.IntentPressed -= _onIntent;
+        BuiltinContent.Changed -= _onBuiltins;
     }
 
     public override void _Ready()
@@ -38,12 +39,20 @@ public partial class SetupToolbar : VBoxContainer
         var width = _width = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Length, Suffix = "\"" };
         size.AddChild(width); size.AddChild(length);
         size.AddChild(Btn("Set size", () => Guarded.Send(s, new SetTableSize(new TableSize(width.Value, length.Value)))));
-        var texture = new OptionButton(); foreach (var t in BuiltinContent.Textures) texture.AddItem(t); table.AddChild(texture);
-        texture.ItemSelected += i => Guarded.Send(s, new SetTexture(VisualRef.OfBuiltin(BuiltinContent.Textures[(int)i])));
+        // The lists follow the built-in catalog in use, refilled when a release brings a new one.
+        List<string> textures = [], terrainNames = [];
+        var texture = new OptionButton(); table.AddChild(texture);
+        texture.ItemSelected += i => Guarded.Send(s, new SetTexture(VisualRef.OfBuiltin(textures[(int)i])));
 
         var terrainSection = Section(SetupLimits.TerrainHeading);
-        var terrain = new OptionButton(); foreach (var t in BuiltinContent.Terrain.Values.OrderBy(t => t.Label)) terrain.AddItem(t.Label, 0); terrainSection.AddChild(terrain);
-        var terrainNames = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).Select(t => t.Name).ToList();
+        var terrain = new OptionButton(); terrainSection.AddChild(terrain);
+        void Fill()
+        {
+            textures = [.. BuiltinContent.Textures]; texture.Clear(); foreach (var t in textures) texture.AddItem(t);
+            var pieces = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).ToList();
+            terrainNames = pieces.Select(t => t.Name).ToList(); terrain.Clear(); foreach (var t in pieces) terrain.AddItem(t.Label, 0);
+        }
+        Fill(); _onBuiltins = Fill; BuiltinContent.Changed += _onBuiltins;
         terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))), d => SetupLimits.CannotAddTerrain(d)));
         terrainSection.AddChild(Gated(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
         var generators = new HFlowContainer(); terrainSection.AddChild(generators);

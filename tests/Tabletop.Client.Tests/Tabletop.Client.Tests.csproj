@@ -16,6 +16,7 @@
   <ItemGroup>
     <!-- Core is compiled here from source: if it needs Godot, this project does not build. That is the test. -->
     <Compile Include="../../client/src/Core/**/*.cs" LinkBase="Core" />
+    <EmbeddedResource Include="../../client/content/builtin/catalog.json" LogicalName="builtin-catalog.json" />
     <ProjectReference Include="../../libs/Tabletop.Geometry/Tabletop.Geometry.csproj" />
     <ProjectReference Include="../../libs/Tabletop.Content/Tabletop.Content.csproj" />
     <ProjectReference Include="../../libs/Tabletop.Protocol/Tabletop.Protocol.csproj" />
