@@ -41,7 +41,7 @@ public partial class LobbyPanel : VBoxContainer
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         AddChild(Seats(s, game));
-        // One army picker per team I hold (an army a side when I play both), or one for my teamless row.
+        // My own army: one picker per team I hold (an army a side when I play both), or one for my teamless row. Teammates pick theirs.
         var pickers = LobbyView.Armies(game, s.ParticipantId).Select(seat => (Seat: seat, Box: new OptionButton())).ToList();
         foreach (var (seat, box) in pickers) { box.AddItem("No army"); AddChild(Named(seat.Label, box)); }
         AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
@@ -99,7 +99,8 @@ public partial class LobbyPanel : VBoxContainer
         {
             // One line: the name takes what the picker leaves and clips (a wrapping label in a flow row measures one letter a line).
             var row = new HBoxContainer(); list.AddChild(row);
-            row.AddChild(new Label { Text = seat.Name + (seat.HasArmy ? " ⚔" : ""), SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = seat.Name, MouseFilter = MouseFilterEnum.Pass });
+            var text = seat.Army is { } army ? $"{seat.Name} ⚔ {army}" : seat.Name;
+            row.AddChild(new Label { Text = text, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = text, MouseFilter = MouseFilterEnum.Pass });
             if (!s.IsCreator) { row.AddChild(new Label { Text = seat.Seat }); continue; }
             var picker = new OptionButton(); foreach (var c in LobbyView.SeatChoices(game)) picker.AddItem(c.Label);
             picker.Select(seat.Selected);

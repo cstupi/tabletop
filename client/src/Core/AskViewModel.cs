@@ -30,14 +30,18 @@ public static class AskViewModel
             ? game.Participants.FirstOrDefault(x => x.Id == unit.ParticipantId)?.TeamId
             : null;
 
-    /// <summary>The first open Ask addressed to my team that my team has not answered. Null for a watcher: a participant with no team is never Asked. `myTeam` comes from the participant's row by way of `Welcome`, so a player who reconnects mid-Ask is addressed by it again (game flow → Teams are frozen at the flip); callers pass null only for a real watcher, never for a client that is mid-reconnect.</summary>
-    public static AskView? Mine(Projection p, GameInfo game, Guid? myTeam, IReadOnlySet<string> muted)
+    /// <summary>The first open Ask addressed to my team that my team has not answered and that is mine to answer (SeatPicks: another player's
+    /// Seat, or an own-units pick offering only their units, is skipped), its own-units set narrowed to my units. Null for a watcher: a participant
+    /// with no team is never Asked. `myTeam` comes from the participant's row by way of `Welcome`, so a player who reconnects mid-Ask is addressed by
+    /// it again (game flow → Teams are frozen at the flip); callers pass null only for a real watcher, never for a client that is mid-reconnect.
+    /// `me` is Welcome's row; null narrows nothing.</summary>
+    public static AskView? Mine(Projection p, GameInfo game, Guid? myTeam, IReadOnlySet<string> muted, Guid? me = null)
     {
         if (myTeam is not { } team) return null;
-        var open = p.OpenAsks.Values.OrderBy(a => a.Ask.Id).FirstOrDefault(a => a.Ask.Teams.Contains(team) && !a.Answers.ContainsKey(team));
-        if (open is null) return null;
+        var (open, ask) = p.OpenAsks.Values.OrderBy(a => a.Ask.Id).Where(a => a.Ask.Teams.Contains(team) && !a.Answers.ContainsKey(team))
+            .Select(a => (Open: a, Ask: SeatPicks.For(a.Ask, p, game, me))).FirstOrDefault(x => x.Ask is not null);
+        if (open is null || ask is null) return null;
         var names = new Names(game, p);
-        var ask = open.Ask;
         var highlights = ask.Legal switch
         {
             Options o => o.Choices.SelectMany(c => c.Pieces).Distinct().ToList(),
