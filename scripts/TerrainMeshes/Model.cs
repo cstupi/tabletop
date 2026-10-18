@@ -77,11 +77,17 @@ public sealed class Part(Material material, Func<Vector3, Vector3> clamp)
 }
 
 /// <summary>A built-in terrain mesh in the unit box: footprint on x and z in [−0.5, 0.5] (inside the unit circle's r = 0.5 when
-/// <see cref="Round"/>), height on y in [0, 1], glTF Y-up. Every vertex is clamped into it.</summary>
-public sealed class Model(string name, bool round)
+/// <see cref="Round"/>), height on y in [0, 1], glTF Y-up. Every vertex is clamped into it. A model built with <paramref name="inches"/>
+/// is authored in inches, centred on its footprint (x across a, z along b, y up to the top), and each vertex is divided by them
+/// before the clamp; a round one's inches are its diameter, its diameter and its top.</summary>
+public sealed class Model(string name, bool round, Vector3? inches = null)
 {
     public string Name { get; } = name;
     public bool Round { get; } = round;
+    public Vector3 Inches { get; } = inches ?? Vector3.One;
+
+    /// <summary>A point of the unit box (as a Grid's colour function sees it) back in the authored inches.</summary>
+    public Vector3 Inch(Vector3 unit) => unit * Inches;
     readonly Dictionary<Material, Part> _parts = new();
     public IEnumerable<Part> Parts => _parts.Values.Where(p => p.Triangles > 0);
     public int Triangles => Parts.Sum(p => p.Triangles);
@@ -90,6 +96,7 @@ public sealed class Model(string name, bool round)
 
     public Vector3 Clamp(Vector3 v)
     {
+        v /= Inches;
         v = new Vector3(Math.Clamp(v.X, -0.5f, 0.5f), Math.Clamp(v.Y, 0f, 1f), Math.Clamp(v.Z, -0.5f, 0.5f));
         if (!Round) return v;
         var r = MathF.Sqrt(v.X * v.X + v.Z * v.Z);

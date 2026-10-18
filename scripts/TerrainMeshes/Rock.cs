@@ -3,7 +3,7 @@ using static Tabletop.TerrainMeshes.Paint;
 
 namespace Tabletop.TerrainMeshes;
 
-/// <summary>A faceted outcrop: one big boulder whose top is cut flat at y = 1 (the crumbly rock is climbed and stood on), two
+/// <summary>A large rock (Solid, impassable): one big boulder whose top is cut flat at y = 1, the volume's top, two
 /// smaller ones against it and scattered stones, banded in grey-brown strata with lichen on the faces that look up.</summary>
 public static class Rock
 {

@@ -9,10 +9,58 @@ public class TerrainMeshTests
     static Model Build(string name) => Catalog.All.Single(m => m.Name == name).Build();
     static IEnumerable<Vector3> Points(Model m) => m.Parts.SelectMany(p => p.Positions);
 
-    [Fact]
-    public void The_catalog_writes_the_clients_thirteen_mesh_groups()
+    static readonly string Root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client/content/builtin"));
+
+    /// <summary>The client's catalog: its mesh list and, per terrain entry, the mesh, the footprint (kind, a, b), top and kind.</summary>
+    static (List<string> Meshes, List<(string Id, string Mesh, bool Circle, float A, float B, float Top, bool Solid)> Terrain) Client()
     {
-        Assert.Equal(["hill", "hill-rect", "woods", "ruins", "building", "wall", "rock", "field", "water", "lake", "pad", "crater", "haze"], Catalog.All.Select(m => m.Name));
+        using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root, "catalog.json")));
+        var meshes = json.RootElement.GetProperty("meshes").EnumerateArray().Select(m => m.GetString()!).ToList();
+        var terrain = json.RootElement.GetProperty("terrain").EnumerateArray().Select(t =>
+        {
+            var f = t.GetProperty("footprint");
+            var circle = f.GetProperty("kind").GetString() == "circle";
+            var a = f.GetProperty("a").GetSingle();
+            return (t.GetProperty("id").GetString()!, t.GetProperty("mesh").GetString()!, circle, a, circle ? a : f.GetProperty("b").GetSingle(),
+                t.GetProperty("top").GetSingle(), t.GetProperty("kind").GetString() == "solid");
+        }).ToList();
+        return (meshes, terrain);
+    }
+
+    [Fact]
+    public void The_catalog_writes_every_mesh_the_client_lists_and_each_is_drawn_by_an_entry()
+    {
+        var (meshes, terrain) = Client();
+        Assert.Equal(meshes, Catalog.All.Select(m => m.Name));
+        Assert.Equal(meshes.Order(), terrain.Select(t => t.Mesh).Distinct().Order());
+    }
+
+    /// <summary>A mesh is shared only by entries that are the same thing at another size; every other entry has its own.</summary>
+    [Fact]
+    public void Only_the_same_terrain_at_other_sizes_shares_a_mesh()
+    {
+        var shared = Client().Terrain.GroupBy(t => t.Mesh).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.Select(t => t.Id).Order().ToList());
+        Assert.Equal(new Dictionary<string, List<string>>
+        {
+            ["hill"] = ["hill", "large-hill", "steep-hill"],
+            ["woods"] = ["forest", "large-forest"],
+            ["ruins"] = ["large-ruins", "ruin", "ruins"],
+        }, shared);
+    }
+
+    /// <summary>Each entry's mesh fills that entry's footprint: round meshes for circles, and a mesh authored in inches is authored
+    /// at its entry's footprint and top, so it is fitted without distortion.</summary>
+    [Fact]
+    public void Each_entry_draws_a_mesh_shaped_for_its_footprint_and_height()
+    {
+        foreach (var t in Client().Terrain)
+        {
+            var m = Build(t.Mesh);
+            Assert.True(m.Round == t.Circle, $"{t.Id}: {t.Mesh} round = {m.Round}");
+            if (m.Inches == Vector3.One) continue;
+            var span = t.Circle ? new Vector3(2 * t.A, t.Top, 2 * t.A) : new Vector3(t.A, t.Top, t.B);
+            Assert.True(Vector3.Distance(span, m.Inches) < 1e-4f, $"{t.Id}: {t.Mesh} is authored at {m.Inches}, the entry is {span}");
+        }
     }
 
     [Theory, MemberData(nameof(Names))]
@@ -32,8 +80,12 @@ public class TerrainMeshTests
 
     /// <summary>The Solid built-ins' tops are their volume's top: a model rests on the volume (Collision.RestHeight), so the
     /// drawn surface reaches the unit box's top.</summary>
-    [Theory, InlineData("hill"), InlineData("hill-rect"), InlineData("building"), InlineData("wall"), InlineData("rock")]
-    public void A_solid_piece_reaches_its_volumes_top(string name) => Assert.Equal(1f, Points(Build(name)).Max(p => p.Y), 3);
+    [Fact]
+    public void A_solid_piece_reaches_its_volumes_top()
+    {
+        foreach (var name in Client().Terrain.Where(t => t.Solid).Select(t => t.Mesh).Distinct())
+            Assert.True(MathF.Abs(1 - Points(Build(name)).Max(p => p.Y)) < 1e-3f, $"{name} stops short of its volume's top");
+    }
 
     [Theory, MemberData(nameof(Names))]
     public void Stays_within_the_triangle_budget_with_coloured_unit_normals(string name)
@@ -50,20 +102,26 @@ public class TerrainMeshTests
         }
     }
 
-    /// <summary>Front faces are counter-clockwise (glTF): every triangle faces the way its vertices' normals, summed, point.</summary>
+    /// <summary>Front faces are counter-clockwise (glTF): every triangle faces the way its vertices' normals, summed, point. Judged
+    /// where the mesh is drawn, scaled back to its authored inches (a 6" marsh 0.2" high is 30 times steeper in the unit box):
+    /// under that scale a face normal and a vertex normal both divide by the inches, so the dot product weighs each axis by 1 / inches².</summary>
     [Fact]
     public void Triangles_face_their_normals()
     {
         foreach (var (name, build) in Catalog.All)
-            foreach (var part in build().Parts)
+        {
+            var model = build();
+            var weight = Vector3.One / (model.Inches * model.Inches);
+            foreach (var part in model.Parts)
                 for (var i = 0; i < part.Indices.Count; i += 3)
                 {
                     var (a, b, c) = (part.Positions[part.Indices[i]], part.Positions[part.Indices[i + 1]], part.Positions[part.Indices[i + 2]]);
                     var cross = Vector3.Cross(b - a, c - a);
                     if (cross.Length() < 1e-6f) continue;
                     var normal = part.Normals[part.Indices[i]] + part.Normals[part.Indices[i + 1]] + part.Normals[part.Indices[i + 2]];
-                    Assert.True(Vector3.Dot(cross, normal) > 0, $"{name}/{part.Material.Name} triangle {i / 3} is wound against its normals");
+                    Assert.True(Vector3.Dot(cross * weight, normal) > 0, $"{name}/{part.Material.Name} triangle {i / 3} is wound against its normals");
                 }
+        }
     }
 
     [Fact]
@@ -132,7 +190,8 @@ public class TerrainMeshTests
     [Fact]
     public void The_shipped_meshes_are_the_generators_output()
     {
-        var dir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client/content/builtin/terrain"));
+        var dir = Path.Combine(Root, "terrain");
+        Assert.Equal(Catalog.All.Select(m => m.Name).Order(), Directory.GetFiles(dir, "*.glb").Select(Path.GetFileNameWithoutExtension).Order());
         foreach (var (name, build) in Catalog.All)
             Assert.True(Glb.Of(build()).AsSpan().SequenceEqual(File.ReadAllBytes(Path.Combine(dir, $"{name}.glb"))), $"{name}.glb is stale: run scripts/terrain-meshes");
     }

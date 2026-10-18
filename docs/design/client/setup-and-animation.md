@@ -48,10 +48,10 @@ meshes and textures, and the server publishes it with each release, which the cl
 packed one (spec `2026-10-18-builtin-content-from-server-design.md`). `BuiltinContent` adds two marker visuals and the
 zone style ids. A minimal art set ships with it, so that a generated table looks like a table.
 
-The art is eighteen files, not fifty. The 35 pieces group into thirteen meshes that differ only by
-footprint, height, scale and yaw: `hill` (4 pieces, round), `hill-rect` (2, square), `woods` (5), `ruins` (4), `building` (3),
-`wall` (2), `rock` (2), `field` (2), `water` (4, the rivers and streams), `lake` (1, round), `pad` (4, the flat ground
-hazards), `crater` (1, round), `haze` (1, the toxic smog). `scripts/terrain-meshes` generates all thirteen
+The art is 35 files: 30 meshes and five textures. Each piece draws a mesh that looks like what it is; a mesh is shared only by
+the same terrain at another size: `hill` (hill, large hill, steep hill), `woods` (forest, large forest), `ruins` (ruins or
+debris, large ruins, ruin). Every other piece has its own (`client/content/builtin/catalog.json`, `meshes`), authored at that
+piece's footprint and height, and round for a circle footprint. `scripts/terrain-meshes` generates all 30
 (`scripts/TerrainMeshes/AGENTS.md`): glTF 2.0 binary, at most 20 000 triangles and 2 MB each, vertex-coloured PBR materials
 (translucent ones, the smog and water surfaces, in a second node), authored glTF Y-up in a unit box: the footprint on x and z in [−0.5, 0.5] (within r = 0.5 for a round one), the height on
 y in [0, 1], base at y = 0. `BuiltinContent.MeshOrientation` (pitch 90) reads it into the table frame, z up, the value
