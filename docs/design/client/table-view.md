@@ -57,7 +57,8 @@ frame conversion, and draws nothing plus a warning for an unknown shape id. `Orb
 on the right button, pans on the middle, zooms on the wheel, snaps top-down on `Home` and drops to
 table level on `End`, giving the placement and line-of-sight views the spec asks for. It orbits a moving focus
 (`CameraFocus`): W A S D pan the way the camera faces and Q/E orbit, read held each frame (`CameraFocus.Steer`) and
-ignored while a text field has focus in the Hud or any dialog; with a unit in hand Q/E turn the unit instead. Pan speed
+ignored while a text field has focus in the Hud or any dialog; with a unit or a setup terrain piece in hand Q/E turn it instead
+(15°, Shift 5°). Pan speed
 scales with the camera's distance and the focus stays within the table plus 12" (`CameraFocus.Clamp`). `Centre` glides
 the focus to a point over 0.3 s (`CameraFocus.Glide`); `Follow` glides only when `CameraFocus.Follows`: follow on, no
 unit in hand, and no player camera move in the last 2 s. Any player move stops a glide. A player's focus (Space, Tab, a
@@ -65,8 +66,9 @@ roster click: `TableInput.Focus`, `Centre(…, byPlayer: true)`) counts as a cam
 
 Godot physics is not used. Picking is a ray tested against `TableView.Pieces` AABBs and the slab
 plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `Stationary`, `Walls`, `Models`, `Piece`) through
-`Collision.Separate`, which slides each model along the walls and other bases and rests it; Alt places freely, and
-the server judges the landing. Distance is
+`Collision.Separate`, which slides each model along the walls and other bases and rests it; a setup terrain piece goes
+through `Collision.Clear` (out of what a turn swung it into) and `Collision.Follow` (straight to a free cursor, else a slide
+from where it is held). Alt places freely, and the server judges the landing. Distance is
 `Distance.ClosestPoints`. The engine is never asked a question the rules depend on, so there is no
 second geometry implementation to diverge from the server's and no collision layer to configure.
 `WorldFrame` is the only place the two coordinate systems meet: `x = X`, `y = Z`, `z = −Y`,

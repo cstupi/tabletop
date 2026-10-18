@@ -239,7 +239,7 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
   `Settling.SurfaceHeightAt` at every caller.
 - `Slide(moving, from, to, obstacles)`: the farthest point toward `to` the moving outline reaches without its interior
   entering an obstacle's outline at an overlapping height, then the remainder of the drag projected along the contact
-  edge. Obstacles are other models' bases and the sides of the Solid volumes the caller names as walls: during a
+  edge, again at each new contact (up to four). Obstacles are other models' bases and the sides of the Solid volumes the caller names as walls: during a
   move Ask the Ask's impassable volumes, otherwise every Solid declared `Impassable`. Every other Solid is climbed.
 - `Separate(bodies)`: for a group drag, each dragged body slides against the stationary ones and against the dragged
   bodies already placed, in drag order, so a formation compresses against an obstacle instead of overlapping.
@@ -249,7 +249,12 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 - Every drag of a model (a unit's move, deployment, a hand move) slides and rests through `Collision`. Holding **Alt**
   while dragging places freely, for corrections; the dropped position still rests on what is under it.
 - Every drag of a terrain piece during setup rests the piece on the Solid tops under its footprint (`TerrainTransform`
-  Z) and slides it against Solid pieces it cannot rest on. Alt places it freely. Models are not on the table in setup.
+  Z) and stops at the pieces declared `Impassable`. The piece is lifted: it goes straight to the cursor whenever its
+  footprint there is free (`Collision.Follow`), and otherwise slides from where it is held toward the cursor, so it is
+  never left behind an obstacle the cursor has passed. Q/E turn a held piece 15° (Shift: 5°); a turn that swings it
+  into an `Impassable` piece moves it to the nearest free spot (`Collision.Clear`). A selected piece turns from its
+  right-click menu (Turn left/right 15°, Set facing…) and the toolbar's Facing field. Alt places it freely. Models are
+  not on the table in setup.
 - The move-range circle (`Movement.Region`) takes other models' bases as obstacles, as it takes impassable volumes, so
   the reach drawn goes around models.
 

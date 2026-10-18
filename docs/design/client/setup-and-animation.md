@@ -27,7 +27,9 @@ end-setup command deletes those rows before flipping.
 
 `SetupToolbar` covers the fourteen setup edits: table size and texture; add built-in terrain, add
 library terrain (`ListAssets(Terrain)` → `GetAssetVolumes` → `AddTerrain` with `VisualRef.OfAsset`),
-move, scale, remove, swap mesh, override volumes and reset volumes; add and remove markers; set the
+move, turn (a held piece's Q/E, the right-click menu's Turn left/right 15° and Set facing…, the
+selected piece's Facing field and ±15° buttons: `MoveTerrain` with the new yaw, moved clear of `Impassable` pieces by
+`MenuModel.TurnInDraft`), scale, remove, swap mesh, override volumes and reset volumes; add and remove markers; set the
 zone style (sending `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`) and swap two ordinals'
 zones; load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one
 (`POST /v1/layouts` from the client's own copy of the draft). Layouts stay management's. The game
@@ -68,7 +70,7 @@ are always written on add, and "reset" re-copies the shipped ones.
 `TerrainGenerators` implements the rulebook's four planet tables (GF p.18–19) as
 `Generate(Planet, TableSize, Random)`: nine fixed pieces plus 4D3 rolled on 2D6. They are returned
 as a batch of `AddTerrain` edits placed off the slab beside the long edge at `x = width + 4`, in
-rows 8" apart, for players to drag on. The client rolls, because nothing in setup is logged and no
+rows 8" apart, each facing a random 15° step, for players to drag on. The client rolls, because nothing in setup is logged and no
 seeded RNG is owed. An entry naming alternatives ("Hill, Forest, or Field") is resolved by that
 same RNG, so rolling a table produces a finished board in one action; a player
 who dislikes a piece swaps its mesh or deletes it, which the toolbar already offers. The tables ship with the client and the server never reads them, which keeps
