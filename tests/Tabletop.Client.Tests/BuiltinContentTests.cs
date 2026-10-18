@@ -47,11 +47,12 @@ public class BuiltinContentTests
         Assert.Contains("objective-ring", BuiltinContent.MarkerVisuals); Assert.Contains("chip", BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
-        // Every piece names one of the thirteen group meshes, so the art set is thirteen files and not 35.
-        Assert.Equal(13, BuiltinContent.TerrainMeshGroups.Count);
+        // Every piece names one of the catalog's meshes: 30 files for 35 pieces, shared only by the same terrain at other sizes.
+        Assert.Equal(30, BuiltinContent.TerrainMeshGroups.Count);
         Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(BuiltinContent.TerrainMeshFile(t.Name), BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
         Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
-        Assert.Equal("res://content/builtin/terrain/water.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
+        Assert.Equal("res://content/builtin/terrain/sludge-canal.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
+        Assert.Equal("res://content/builtin/terrain/death-marsh.glb", BuiltinContent.TerrainMeshFile("death-marsh"));
         Assert.Null(BuiltinContent.TerrainMeshFile("no-such-piece"));
     }
 
@@ -142,7 +143,7 @@ public class BuiltinContentTests
     public void Rect_hills_draw_the_square_plateau()
     {
         Assert.EndsWith("hill-rect.glb", BuiltinContent.TerrainMeshFile("hill-small"));
-        Assert.EndsWith("hill-rect.glb", BuiltinContent.TerrainMeshFile("small-dunes"));
+        Assert.EndsWith("dunes.glb", BuiltinContent.TerrainMeshFile("small-dunes"));
         Assert.Contains("hill-rect", BuiltinContent.TerrainMeshGroups);
     }
 }

@@ -4,7 +4,7 @@ using static Tabletop.TerrainMeshes.Paint;
 namespace Tabletop.TerrainMeshes;
 
 /// <summary>A wood on a mossy base disc: conifers of stacked cones and broadleaf trees of lumpy canopies on branching trunks,
-/// spaced so models stand between them, with bushes, ferns, a fallen log and stones. Round; the rect forests share it.</summary>
+/// spaced so models stand between them, with bushes, ferns, a fallen log and stones. Round.</summary>
 public static class Woods
 {
     public static readonly Material Floor = new("forest-floor", 0.95f), Bark = new("bark", 0.9f), Leaves = new("leaves", 0.8f),

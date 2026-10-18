@@ -150,6 +150,7 @@ public static class Shapes
             }
             return;
         }
+        p = p.Select(part.Clamp).ToArray();
         var normals = new Vector3[p.Length];
         for (var i = 0; i < faces.Length; i += 3)
         {
@@ -157,7 +158,7 @@ public static class Shapes
             var n = Vector3.Cross(p[b] - p[a], p[c] - p[a]);
             normals[a] += n; normals[b] += n; normals[c] += n;
         }
-        var index = p.Select((q, i) => { var n = normals[i].LengthSquared() > 0 ? Vector3.Normalize(normals[i]) : Vector3.UnitY; q = part.Clamp(q); return part.Vertex(q, n, colour(q, n)); }).ToArray();
+        var index = p.Select((q, i) => { var n = normals[i].LengthSquared() > 0 ? Vector3.Normalize(normals[i]) : Vector3.UnitY; return part.Vertex(q, n, colour(q, n)); }).ToArray();
         for (var i = 0; i < faces.Length; i += 3) part.Indices.AddRange([index[faces[i]], index[faces[i + 1]], index[faces[i + 2]]]);
     }
 
@@ -175,5 +176,69 @@ public static class Shapes
             var top = o + dir * lean * h + Vector3.UnitY * h;
             part.Tri(o - side, o + side, top, @base, @base, tip);
         }
+    }
+
+    /// <summary>A prism from <paramref name="a"/> to <paramref name="b"/>: radius <paramref name="r"/> at a, r × <paramref name="taper"/> at b.</summary>
+    public static void Limb(Part part, Vector3 a, Vector3 b, float r, float taper, int sides, Func<Vector3, Vector4> colour)
+    {
+        var d = b - a; var y = Vector3.Normalize(d);
+        var x = Vector3.Normalize(Vector3.Cross(MathF.Abs(y.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX, y)); var z = Vector3.Cross(x, y);
+        Prism(part, new Matrix4x4(x.X * r, x.Y * r, x.Z * r, 0, d.X, d.Y, d.Z, 0, z.X * r, z.Y * r, z.Z * r, 0, a.X, a.Y, a.Z, 1), sides, taper, colour);
+    }
+
+    public static void Limb(Part part, Vector3 a, Vector3 b, float r, float taper, int sides, Vector4 colour) => Limb(part, a, b, r, taper, sides, _ => colour);
+
+    /// <summary>A chain of limbs through <paramref name="points"/>, the radius falling linearly from <paramref name="r0"/> to <paramref name="r1"/>.</summary>
+    public static void Chain(Part part, IReadOnlyList<Vector3> points, float r0, float r1, int sides, Func<Vector3, Vector4> colour)
+    {
+        for (var i = 0; i < points.Count - 1; i++)
+        {
+            float ra = r0 + (r1 - r0) * i / (points.Count - 1), rb = r0 + (r1 - r0) * (i + 1) / (points.Count - 1);
+            Limb(part, points[i], points[i + 1], ra, rb / ra, sides, colour);
+        }
+    }
+
+    public static void Chain(Part part, IReadOnlyList<Vector3> points, float r0, float r1, int sides, Vector4 colour) => Chain(part, points, r0, r1, sides, _ => colour);
+
+    /// <summary>A flat-topped solid between <paramref name="y0"/> and <paramref name="y1"/> over a star-shaped outline (counter-clockwise
+    /// seen from above or not), the top a fan from the outline's centroid, the sides one quad per edge.</summary>
+    public static void Slab(Part part, IReadOnlyList<Vector2> outline, float y0, float y1, Func<Vector3, Vector3, Vector4> colour, float topScale = 1)
+    {
+        var c = outline.Aggregate(Vector2.Zero, (s, v) => s + v) / outline.Count;
+        Vector2 Top(Vector2 v) => c + (v - c) * topScale;
+        for (var i = 0; i < outline.Count; i++)
+        {
+            var (a, b) = (outline[i], outline[(i + 1) % outline.Count]);
+            var (ta, tb) = (Top(a), Top(b));
+            var mid = (a + b) / 2 - c;
+            var q = new[] { new Vector3(a.X, y0, a.Y), new Vector3(b.X, y0, b.Y), new Vector3(tb.X, y1, tb.Y), new Vector3(ta.X, y1, ta.Y) };
+            var side = new Vector3(mid.X, 0, mid.Y);
+            Oriented(part, q, side, p => colour(p, Vector3.Normalize(side)));
+            Oriented(part, [new Vector3(c.X, y1, c.Y), new Vector3(ta.X, y1, ta.Y), new Vector3(tb.X, y1, tb.Y)], Vector3.UnitY, p => colour(p, Vector3.UnitY));
+            if (y0 > 1e-4f) Oriented(part, [new Vector3(c.X, y0, c.Y), new Vector3(a.X, y0, a.Y), new Vector3(b.X, y0, b.Y)], -Vector3.UnitY, p => colour(p, -Vector3.UnitY));
+        }
+    }
+
+    /// <summary>A height field over a rect footprint authored in inches (x in ±a/2, z in ±b/2), n × m cells, the border at y = 0.</summary>
+    public static void Ground(Model model, Material m, int n, int k, Func<float, float, float> height, Func<Vector3, Vector3, Vector4> colour)
+    {
+        var (a, b) = (model.Inches.X, model.Inches.Z);
+        model[m].Grid(k + 1, n + 1, wrap: false, (i, j) =>
+        {
+            var x = a * (-0.5f + (float)j / n); var z = b * (-0.5f + (float)i / k);
+            return new Vector3(x, i == 0 || j == 0 || i == k || j == n ? 0 : height(x, z), z);
+        }, (p, nrm) => colour(model.Inch(p), nrm), flipped: true);
+    }
+
+    /// <summary>A height field over a round footprint authored in inches (radius a/2), the rim at y = 0.</summary>
+    public static void Disc(Model model, Material m, int rings, int segments, Func<float, float, float> height, Func<Vector3, Vector3, Vector4> colour)
+    {
+        var radius = model.Inches.X / 2;
+        model[m].Grid(rings + 1, segments, wrap: true, (i, j) =>
+        {
+            var t = 2 * MathF.PI * j / segments; var r = radius * i / rings;
+            var (x, z) = (r * MathF.Cos(t), r * MathF.Sin(t));
+            return new Vector3(x, i == rings ? 0 : height(x, z), z);
+        }, (p, nrm) => colour(model.Inch(p), nrm));
     }
 }

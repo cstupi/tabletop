@@ -3,7 +3,7 @@ using static Tabletop.TerrainMeshes.Paint;
 
 namespace Tabletop.TerrainMeshes;
 
-/// <summary>A crop field: ploughed soil in ridges along x, and on each ridge a row of wheat, tufts of stalks green at the foot and
+/// <summary>A low crop field: ploughed soil in ridges along x, and on each ridge a row of knee-high wheat, tufts of stalks green at the foot and
 /// gold at the ear, leaning a little with the wind. Area terrain: models stand in it.</summary>
 public static class Field
 {
@@ -36,10 +36,10 @@ public static class Field
                 {
                     var a = (float)(rng.NextDouble() * 2 * MathF.PI);
                     var spread = new Vector3(MathF.Cos(a), 0, MathF.Sin(a)) * 0.012f;
-                    var h = 0.68f + 0.3f * (float)rng.NextDouble();
+                    var h = 0.4f + 0.16f * (float)rng.NextDouble();
                     var tip = root + spread * 2 + wind * h * (0.6f + 0.4f * (float)rng.NextDouble()) + Vector3.UnitY * (h - root.Y);
                     var side = Vector3.Normalize(new Vector3(-(tip - root).Z, 0, (tip - root).X) + new Vector3(0.001f, 0, 0)) * 0.005f;
-                    var neck = Vector3.Lerp(root + spread, tip, 0.78f);
+                    var neck = Vector3.Lerp(root + spread, tip, 0.72f);
                     model[Crop].Tri(root + spread - side, root + spread + side, neck, stalk, stalk, Mix(stalk, ripe, 0.7f));
                     var ear = (tip - neck) * 1.1f; var earSide = side * 2.2f;
                     model[Crop].Quad(neck, neck + ear * 0.45f + earSide, neck + ear, neck + ear * 0.45f - earSide, ripe);
