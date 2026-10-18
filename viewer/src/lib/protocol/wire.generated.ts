@@ -46,6 +46,8 @@ export interface Ask {
   readonly sealed: boolean;
   readonly windowKind?: string;
   readonly frameId?: string;
+  readonly seat?: string;
+  readonly ownUnitsOnly: boolean;
 }
 
 export type AskAnswer = Chosen | SelectedPieces | Allocated | Assigned | Destinations | TokensSpent | Confirmed | Passed;
@@ -372,6 +374,7 @@ export interface Participant {
   readonly name: string;
   readonly teamId?: string;
   readonly armyId?: string;
+  readonly armyName?: string;
 }
 
 export interface Passed {

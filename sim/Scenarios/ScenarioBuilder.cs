@@ -39,14 +39,14 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null,
         IReadOnlyList<int>? setAside = null, IReadOnlyList<ScenarioModel>? models = null, IReadOnlyDictionary<int, int>? passengers = null,
         IReadOnlyDictionary<int, int>? sizes = null, IReadOnlyDictionary<int, Point2>? anchors = null, IReadOnlyList<(int Unit, string Condition)>? conditions = null,
-        IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyList<int>? setAsideAtLastAsk = null)
+        IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyList<int>? setAsideAtLastAsk = null, int? team = null)
     {
         _armies.Add(new ScenarioArmy(armyName, units, modelsPerUnit, unitRules ?? [], modelRules ?? [],
             weapons ?? [new ScenarioWeapon("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, [])],
             unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook)
         { SetAside = setAside ?? [], Models = models ?? [], Passengers = passengers ?? new Dictionary<int, int>(),
           Sizes = sizes ?? new Dictionary<int, int>(), Anchors = anchors ?? new Dictionary<int, Point2>(), Conditions = conditions ?? [], Reserves = reserves ?? [],
-          SetAsideAtLastAsk = setAsideAtLastAsk ?? [] });
+          SetAsideAtLastAsk = setAsideAtLastAsk ?? [], Team = team });
         return this;
     }
 
@@ -63,7 +63,9 @@ public sealed class ScenarioBuilder(string name, ulong seed)
 
     public Scenario Build()
     {
-        if (_armies.Count < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two armies; it has {_armies.Count}");
+        var teams = _armies.Select((a, i) => a.Team ?? i + 1).Distinct().Count();
+        if (teams < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two teams; it has {teams}");
+        if (_selfPlay && teams != _armies.Count) throw new InvalidOperationException($"scenario '{name}': self-play holds one seat per team");
         foreach (var a in _armies)
         {
             if (a.SetAside.Concat(a.SetAsideAtLastAsk).Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } bad)
@@ -75,8 +77,8 @@ public sealed class ScenarioBuilder(string name, ulong seed)
             if (a.Models.FirstOrDefault(m => m.Unit < 1 || m.Unit > a.Units || m.Model < 1 || m.Model > a.SizeOf(m.Unit)) is { } model)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' has no model {model.Unit}.{model.Model}");
         }
-        var style = _zoneStyle ?? (_armies.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
-        var shapes = ZoneStyles.ShapesOf(style).Take(_armies.Count).ToList();
+        var style = _zoneStyle ?? (teams > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
+        var shapes = ZoneStyles.ShapesOf(style).Take(teams).ToList();
         return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations) { Goal = _goal, OptionalRules = _optionalRules, SelfPlay = _selfPlay };
     }
 }

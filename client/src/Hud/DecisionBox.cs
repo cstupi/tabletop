@@ -112,17 +112,17 @@ public partial class DecisionBox : PanelContainer
         }
         var fresh = _reveals.Drain();                                           // every reveal since the last render, in order
         if (fresh.Count > 0) _revealed = string.Join("\n", fresh);
-        var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
+        var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds, _s.ParticipantId);
         if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         var names = new Names(game, p);
-        var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds);
+        var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds, _s.ParticipantId);
         if (mine is null)
         {
-            var mid = DeployView.MidDeploy(p, _s.Log, _s.MyTeamId);
+            var mid = DeployView.MidDeploy(p, _s.Log, _s.MyTeamId, game, _s.ParticipantId);
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; }
             _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
             if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) { _title.Text = string.Join("\n", waiting.Select(w => w.Text)); _hint.Text = ""; }
-            else if (mid is null) { _title.Text = HeaderView.Waiting(p, names) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
+            else if (mid is null) { _title.Text = HeaderView.Waiting(p, names, _s.MyTeamIds, _s.ParticipantId, game) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
             else if (_deployUnit is null) StartDeploy(mid, names);
             return;
         }

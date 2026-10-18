@@ -44,6 +44,9 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `Scenario.SelfPlay` (builder `SelfPlay()`): one account holds every team, a participant row each, and the driver connects once
   (`CompiledScenario.Connected`, `ConnectionFor`, `CredentialOf`); every answer names its team (`IGameDriver.AnswerAsync` sends
   `AnswerAsk.TeamId`). `core-self-play` plays it through deployment and four rounds.
+- `ScenarioArmy.Team` (builder `team:`) seats an army on a team ordinal, so a team holds several (rulebook p.50 Team Games). `RunLoop`
+  answers an Ask as its `Seat`, an `OwnUnitsOnly` pick as the picked unit's owner, and places a deploy pick as its owner.
+  `core-team-game` plays two a side through deployment and four rounds.
 - `ScenarioArmy.SetAside` (builder `setAside:`) lists unit ordinals the run sets aside before the first answer: one `SetCondition`
   of the ruleset's set-aside condition per unit, as the unit menu does. A Scout or Ambush unit plays only when set aside.
   `ScenarioArmy.SetAsideAtLastAsk` (builder `setAsideAtLastAsk:`) sets a unit aside instead of answering when its team's deploy Ask
@@ -103,7 +106,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `grimdark-future-army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
   they passed and its base is covered and fired.
 - Socket games play on a fixed account pool: participant i of any game is `sim-player-<i>` (`SocketCredentials.NameFor`,
-  `PoolSize` 4: three armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
+  `PoolSize` 5: four armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
   Every run and every concurrent game (the CLI suite beside `sim-runner`) shares them; the dev mint gives a name the same account
   every time, and a 409 from two first mints at once is asked again.
 - A socket run holds its lock (`ISocketRows.HoldAsync`; Postgres: an advisory lock), sweeps games an interrupted run left (named `suite-run <run id> <game>`, `SuiteRows`), seeds and deletes each

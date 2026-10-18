@@ -27,7 +27,7 @@ public class PassengersTests
         return (h, units, h.P.Units[units[1]].Definition.Models[0].Id);
     }
 
-    static Actor TeamOf(SchedulerHarness h, int team) => new(Guid.CreateVersion7(), h.Teams[team]);
+    static Actor TeamOf(SchedulerHarness h, int team) => new(h.State.Info.Participants.First(p => p.TeamId == h.Teams[team]).Id, h.Teams[team]);
 
     static MoveModels PutIn(SchedulerHarness h, Guid unit, Guid container) =>
         new(h.P.Units[unit].Definition.Models.Select(m => new ModelRelocation(m.Id, h.P.Models[m.Id].Location, new Inside(container))).ToList());

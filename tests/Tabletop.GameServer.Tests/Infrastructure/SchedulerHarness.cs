@@ -29,10 +29,10 @@ public sealed class SchedulerHarness
     Sim _sim;
 
     public SchedulerHarness(IReadOnlyList<Army?> armies, Func<PropertySet, IScheduler>? scheduler = null, Enforcement enforcement = Enforcement.Warn,
-        bool waits = false, int spectators = 0, IGameRules? rules = null, SchedulerShape shape = SchedulerShape.AlternatingActivation)
+        bool waits = false, int spectators = 0, IGameRules? rules = null, SchedulerShape shape = SchedulerShape.AlternatingActivation, IReadOnlyList<int>? teamOf = null)
     {
         _rules = rules ?? FakeRules.Gf();
-        _game = TestGames.Build(armies, shape, enforcement, waits, spectators, _rules);
+        _game = TestGames.Build(armies, shape, enforcement, waits, spectators, _rules, teamOf: teamOf);
         _scheduler = scheduler ?? (p => new AlternatingActivationScheduler(p));
         _sim = new Sim(_game.State, _rules, TestProperties.Core, Source, _scheduler(TestProperties.Core));
     }
@@ -55,13 +55,34 @@ public sealed class SchedulerHarness
 
     public IReadOnlyList<EventPayload> Dispatch(Command command, int? team = null)
     {
-        var participant = team is { } t ? _game.Participants[t] : _game.Participants[^1];
+        var participant = team is { } t ? State.Info.Participants.First(p => p.TeamId == Teams[t]).Id : _game.Participants[^1];
         var outcome = _sim.Dispatch(command, participant, team is { } tt ? Teams[tt] : TeamUnits.TeamOf(State, participant));   // Dispatch.Applied / Dispatch.Refused: qualified, because Tabletop.Protocol has a Refused of its own
         if (outcome is Dispatch.Refused r) throw new InvalidOperationException($"{r.Reason}: {r.Detail}");
         return [.. ((Dispatch.Applied)outcome).Events, .. Run()];
     }
 
     public IReadOnlyList<EventPayload> Answer(int team, AskAnswer answer) => Dispatch(new AnswerAsk(OpenAsk(team)!.Id, answer), team);
+
+    /// <summary>Every participant id, in the order the armies were given.</summary>
+    public IReadOnlyList<Guid> Participants => _game.Participants;
+
+    /// <summary>One command as one seat, the outcome returned (a refusal included); applied and run when applied.</summary>
+    public (Dispatch.DispatchOutcome Outcome, IReadOnlyList<EventPayload> Events) As(Guid participant, Command command)
+    {
+        var outcome = _sim.Dispatch(command, participant, TeamUnits.TeamOf(State, participant));
+        return (outcome, outcome is Dispatch.Applied ? Run() : []);
+    }
+
+    /// <summary>Answers the open Ask of the seat's team as that seat; fails on a refusal.</summary>
+    public IReadOnlyList<EventPayload> AnswerAs(Guid participant, AskAnswer answer)
+    {
+        var team = TeamUnits.TeamOf(State, participant)!.Value;
+        var (outcome, events) = As(participant, new AnswerAsk(OpenAsk(Teams.ToList().IndexOf(team))!.Id, answer));
+        if (outcome is Dispatch.Refused r) throw new InvalidOperationException($"{r.Reason}: {r.Detail}");
+        return events;
+    }
+
+    public Guid OwnerOf(Guid unitId) => P.Units[unitId].ParticipantId;
 
     /// <summary>Ends the round: the boundary Ask is addressed to every team that has a participant, and any one of them may confirm it.</summary>
     public IReadOnlyList<EventPayload> EndRound(int team = 0) => Answer(team, new Confirmed());
@@ -71,8 +92,9 @@ public sealed class SchedulerHarness
 
     public IReadOnlyList<EventPayload> Deploy(Guid unitId)
     {
-        var team = Teams.ToList().IndexOf(TeamUnits.TeamOf(State, P.Units[unitId].ParticipantId)!.Value);
-        return Dispatch(TestGames.Move(State, unitId), team);
+        var (outcome, events) = As(OwnerOf(unitId), TestGames.Move(State, unitId));
+        if (outcome is Dispatch.Refused r) throw new InvalidOperationException($"{r.Reason}: {r.Detail}");
+        return events;
     }
 
     /// <summary>Answers every deploy Ask with its first eligible unit and places it, until round one starts — releasing any roll-off gate it meets on the way, since deployment's roll-off and a free-for-all's round-one roll-off both wait at one.</summary>
@@ -84,7 +106,7 @@ public sealed class SchedulerHarness
             var ask = Open;
             if (ask.FrameId is not null) { ConfirmRollOff(); continue; }          // the interpreter's gate, not a deploy Ask
             var unit = ((PieceSelection)ask.Legal).Eligible[0];
-            Answer(Teams.ToList().IndexOf(ask.Teams[0]), new SelectedPieces([unit]));
+            AnswerAs(OwnerOf(unit), new SelectedPieces([unit]));
             Deploy(unit);
         }
     }

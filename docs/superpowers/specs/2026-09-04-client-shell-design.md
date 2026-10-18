@@ -201,7 +201,8 @@ player's team: activate, deploy, target, strike back, remove casualties, react o
 confirm. The legal set from the server becomes the panel's choices and the table's highlights;
 nothing outside the set is offered, and under `warn` or `silent` enforcement a menu edit is how
 a player steps outside it; under `strict` the server refuses an out-of-set answer and the panel
-says so. Any team member may answer, and the panel shows who did. Asks addressed to other
+says so. A team member answers what is theirs (game flow → *Participants*: their own units, an Ask
+about one of them), and the panel shows who did. Asks addressed to other
 teams show as a waiting indicator naming the team, never as controls.
 
 **Windows** render in the same panel as react or pass. A **mute list per player**, in local

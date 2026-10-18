@@ -76,7 +76,7 @@ public static class GfActivationEnd
                 return new Complete([.. GrimdarkFutureRules.ActivationChanges(ctx.State, picked, action), .. resets]);
             }
             if (options.Count == 0) return new Finish([]);
-            return new OpenAsks([ctx.Ask("coordinate", "Coordinate: activate another unit", ctx.ActorTeam!.Value, new Options(options), allowPass: true)]);
+            return new OpenAsks([ctx.Ask("coordinate", "Coordinate: activate another unit", ctx.ActorTeam!.Value, new Options(options), allowPass: true) with { OwnUnitsOnly = true }]);
         }
     }
 

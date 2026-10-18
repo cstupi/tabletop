@@ -93,7 +93,7 @@ public static class GfReserves
             var models = TeamUnits.ModelsOf(ctx.State, ctx.Projection.Units[reserve]).Where(m => m.Location is OnShelf).Select(m => m.Id).ToList();
             if (ctx.History.LastClosed("place") is not { } closed)
                 return new OpenAsks([ctx.Ask("place", $"{rule}: place {ctx.Projection.Units[reserve].Definition.Name} fully within {Within:0.#}\" of {ctx.Projection.Models[at].Slot.Name}",
-                    ctx.TeamOf(reserve)!.Value, new MoveRegion(models, 0, [], [], null, new MoveContainment([], at, Within), Separation: GfNames.Separation, PassesModels: true), allowPass: true)]);
+                    ctx.TeamOf(reserve)!.Value, new MoveRegion(models, 0, [], [], null, new MoveContainment([], at, Within), Separation: GfNames.Separation, PassesModels: true), allowPass: true, unit: reserve)]);
             var moves = GfAnswers.Moves(ctx.State, closed).Where(m => m.From is OnShelf && m.To is OnTable)
                 .Select(m => GfMoves.ExitPlacement(ctx.State, m.ModelId, at, ((OnTable)m.To).Placement, Within) is { } p ? new ModelRelocation(m.ModelId, m.From, new OnTable(p)) : null)
                 .OfType<ModelRelocation>().ToList();

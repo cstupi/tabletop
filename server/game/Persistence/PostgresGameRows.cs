@@ -24,9 +24,9 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
             while (await tr.ReadAsync(ct)) teams.Add(new Team(tr.GetGuid(0), tr.GetInt32(1)));
 
         var participants = new List<Participant>();
-        await using (var cmd = new NpgsqlCommand("select p.id, p.account_id, a.name, p.team_id, p.army_id from management.participant p join management.account a on a.id = p.account_id where p.game_id = $1 order by p.id", conn) { Parameters = { new NpgsqlParameter { Value = gameId } } })
+        await using (var cmd = new NpgsqlCommand("select p.id, p.account_id, a.name, p.team_id, p.army_id, coalesce(ar.name, p.army_snapshot->>'name') from management.participant p join management.account a on a.id = p.account_id left join management.army ar on ar.id = p.army_id where p.game_id = $1 order by p.id", conn) { Parameters = { new NpgsqlParameter { Value = gameId } } })
         await using (var pr = await cmd.ExecuteReaderAsync(ct))
-            while (await pr.ReadAsync(ct)) participants.Add(new Participant(pr.GetGuid(0), pr.GetGuid(1), pr.GetString(2), NullableGuid(pr, 3), NullableGuid(pr, 4)));
+            while (await pr.ReadAsync(ct)) participants.Add(new Participant(pr.GetGuid(0), pr.GetGuid(1), pr.GetString(2), NullableGuid(pr, 3), NullableGuid(pr, 4), pr.IsDBNull(5) ? null : pr.GetString(5)));
 
         return new GameInfo(gameId, name, status, createdBy, rules, hash, shape, enforcement, waits, rngSeed, teams, participants) { OptionalRules = optional };
     }

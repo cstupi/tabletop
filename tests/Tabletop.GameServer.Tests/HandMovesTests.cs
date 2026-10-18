@@ -22,7 +22,7 @@ public class HandMovesTests
         return h;
     }
 
-    static Actor TeamOf(SchedulerHarness h, int team) => new(Guid.CreateVersion7(), h.Teams[team]);
+    static Actor TeamOf(SchedulerHarness h, int team) => new(h.State.Info.Participants.First(p => p.TeamId == h.Teams[team]).Id, h.Teams[team]);
 
     static MoveModels Nudge(SchedulerHarness h, Guid unit) => new(h.P.Units[unit].Definition.Models.Select(m =>
     {

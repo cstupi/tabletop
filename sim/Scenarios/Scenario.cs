@@ -18,7 +18,8 @@ public sealed record ScenarioMarker(MarkerKind Kind, Point3 Position, double Dia
 public sealed record ScenarioModel(int Unit, int Model, IReadOnlyList<ScenarioRule>? Rules = null,
     IReadOnlyDictionary<string, string>? Stats = null, IReadOnlyList<ScenarioWeapon>? Weapons = null);
 
-/// <summary>One army per team, in team-ordinal order. Rules go on the side their catalog entry is declared for.</summary>
+/// <summary>One army per participant, in order; each on its own team in that order unless Team names its team ordinal (a team game, rulebook
+/// p.50: several players a side, each with their own army). Rules go on the side their catalog entry is declared for.</summary>
 public sealed record ScenarioArmy(
     string Name,
     int Units,
@@ -35,6 +36,8 @@ public sealed record ScenarioArmy(
     /// <summary>Unit ordinals the run sets aside from the menu when its team's deploy Ask offers that unit alone, in place of answering the Ask
     /// (a player setting aside an Ambusher, their last unit, during their own deploy turn).</summary>
     public IReadOnlyList<int> SetAsideAtLastAsk { get; init; } = [];
+    /// <summary>The team ordinal (1-based) this army's player sits on; null is its own team, the army's position in the list.</summary>
+    public int? Team { get; init; }
 
     /// <summary>Unit ordinals and a condition the run sets on each before the first answer, as the unit menu does (a unit Shaken from the start).</summary>
     public IReadOnlyList<(int Unit, string Condition)> Conditions { get; init; } = [];
