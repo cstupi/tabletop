@@ -13,7 +13,7 @@ public partial class TableInput : Node
 {
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
-    bool _presenceDirty; Cursor? _cursor; readonly TapeMeasure _tape = new();
+    bool _presenceDirty; Cursor? _cursor; readonly TapeMeasure _tape = new(); Vector2 _measureDown;
     Drag? _drag; readonly PendingDrops _drops = new(); Guid? _hovered;
     IReadOnlySet<Guid> _eligible = new HashSet<Guid>();
     public TableTool Tool { get; set; } = TableTool.Select;
@@ -250,7 +250,7 @@ public partial class TableInput : Node
         if (_pickPoint is { } wantPoint) { _pickPoint = null; wantPoint(OnPlane(screen, 0) ?? point); return; }   // a point pick is the table surface, never a box top
         if (_pickPiece is { } wantPiece && piece is not null) { _pickPiece = null; wantPiece(IdOf(piece)); return; }
         if (PlacementPoint is { } place) { place(OnPlane(screen, 0) ?? point); return; }
-        if (Measuring) { Measure(point, piece); return; }
+        if (Measuring) { _measureDown = screen; Measure(point, piece); return; }
         if (piece is null) { ClearSelection(); return; }
         if (piece is PieceNode target && (Eligible.Contains(target.ModelId) || Eligible.Contains(target.UnitId)))
         {
@@ -343,8 +343,8 @@ public partial class TableInput : Node
     {
         if (Measuring)                                                   // the M tool: "two clicks or a drag" (client shell -> Input and presence)
         {
-            var (to, hit) = Pick(GetViewport().GetMousePosition());
-            if (!_measureHeld && _tape is { Following: true, Anchor: { } from } && from.Placement.Position.Horizontal.DistanceTo(to.Horizontal) > 0.25) Measure(to, hit);
+            var screen = GetViewport().GetMousePosition(); var (to, hit) = Pick(screen);
+            if (!_measureHeld && _tape.Following && screen.DistanceTo(_measureDown) >= DragThreshold) Measure(to, hit);   // a press that travelled is a drag
             return;
         }
         if (_drag is null) return;
