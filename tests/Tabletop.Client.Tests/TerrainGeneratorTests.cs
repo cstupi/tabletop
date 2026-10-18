@@ -42,6 +42,14 @@ public class TerrainGeneratorTests
                      TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin));
 
     [Fact]
+    public void Each_piece_faces_a_random_15_degree_step()
+    {
+        var yaws = Enumerable.Range(0, 10).SelectMany(seed => TerrainGenerators.Generate(Planet.Generic, Opr, new Random(seed))).Select(a => a.Placement.Yaw.Degrees).ToList();
+        Assert.All(yaws, y => { Assert.InRange(y, 0, 345); Assert.Equal(0, y % 15); });
+        Assert.True(yaws.Distinct().Count() > 4);
+    }
+
+    [Fact]
     public void A_piece_the_catalog_does_not_list_is_skipped()
     {
         var hillsOnly = BuiltinCatalog.Parse(System.Text.Json.JsonSerializer.Serialize(new
