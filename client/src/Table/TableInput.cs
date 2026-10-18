@@ -13,12 +13,12 @@ public partial class TableInput : Node
 {
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
-    bool _presenceDirty; Cursor? _cursor; Measurement? _measurement; Point3? _measureFrom;
+    bool _presenceDirty; Cursor? _cursor; readonly TapeMeasure _tape = new();
     Drag? _drag; readonly PendingDrops _drops = new(); Guid? _hovered;
     IReadOnlySet<Guid> _eligible = new HashSet<Guid>();
     public TableTool Tool { get; set; } = TableTool.Select;
     bool _measureHeld;
-    /// <summary>Clicks measure: the M tool, or Ctrl held.</summary>
+    /// <summary>Clicks measure: the M tool, or Ctrl held (a click there anchors the ruler again).</summary>
     bool Measuring => Tool == TableTool.Measure || _measureHeld;
     public Selection? Selected { get; private set; }
     /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
@@ -94,6 +94,7 @@ public partial class TableInput : Node
         _view = view; _session = session;
         view.Camera.Holding = () => HoldingTurnable;
         view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
+        _tape.Mode = session.Settings.MeasureMode;
         view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a proposed placement
         session.RefusedReceived += OnRefused;
         _presenceTimer.Timeout += OnPresenceTick;
@@ -117,7 +118,7 @@ public partial class TableInput : Node
     }
 
     Presence Snapshot() => new(_session.ParticipantId ?? Guid.Empty, _cursor, Selected,
-        _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaws[kv.Key], Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _measurement);
+        _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaws[kv.Key], Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _tape.Line);
 
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
@@ -199,7 +200,7 @@ public partial class TableInput : Node
         Hover(_drag is { Armed: true } ? null : piece);
         if (_drag is not null) { piece = null; point = OnPlane(screen, _drag.Start.Z) ?? point; }   // a drag follows the plane it started on: pieces and terrain never take the point
         _cursor = new Cursor(point, piece is null ? null : IdOf(piece)); _presenceDirty = true;
-        if (Measuring && _measureFrom is not null) { Stretch(AnchorAt(point, piece)); return; }   // the line follows the cursor until the second click or the release
+        if (_tape.Following) { _tape.Follow(AnchorAt(point, piece)); ShowTape(); return; }   // the line follows the cursor until the second click or Ctrl's release
         if (_drag is null) return;
         if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
         if (!_drag.Armed) { _drag.Armed = true; PickedUp?.Invoke(_drag.ModelIds); }
@@ -340,10 +341,10 @@ public partial class TableInput : Node
 
     async Task OnLeftUp()
     {
-        if (Measuring)                                                   // "two clicks or a drag" (client shell -> Input and presence)
+        if (Measuring)                                                   // the M tool: "two clicks or a drag" (client shell -> Input and presence)
         {
             var (to, hit) = Pick(GetViewport().GetMousePosition());
-            if (_measureFrom is { } from && from.Horizontal.DistanceTo(to.Horizontal) > 0.25) Measure(to, hit);
+            if (!_measureHeld && _tape is { Following: true, Anchor: { } from } && from.Placement.Position.Horizontal.DistanceTo(to.Horizontal) > 0.25) Measure(to, hit);
             return;
         }
         if (_drag is null) return;
@@ -378,23 +379,35 @@ public partial class TableInput : Node
         if (!freeMove && IsInstanceValid(this) && IsInstanceValid(_view)) _view.Redraw();   // an edit or a marker move still snaps back until its event lands; a free move waits for its event or a refusal
     }
 
+    /// <summary>A click while measuring. Ctrl held: the ruler starts again here. The M tool: the first click anchors, the second fixes the line.</summary>
     void Measure(Point3 point, Node3D? piece)
     {
-        var anchor = AnchorAt(point, piece);
-        if (_measureFrom is null) { _measureFrom = point; _pendingAnchor = anchor; return; }
-        Stretch(anchor); _measureFrom = null;
+        var at = AnchorAt(point, piece);
+        if (!_measureHeld && _tape.Following) _tape.Finish(at); else _tape.Start(at);
+        ShowTape();
     }
 
-    /// <summary>A model measures from its base, anything else from the point.</summary>
+    /// <summary>Ctrl down: the ruler is anchored at the point under the cursor now, and follows it until Ctrl comes up.</summary>
+    void StartTapeAtCursor() { var (point, piece) = Pick(GetViewport().GetMousePosition()); _tape.Start(AnchorAt(point, piece)); ShowTape(); }
+
+    /// <summary>A model measures from its base (p.5), a terrain piece from its top under the point, anything else from the point.</summary>
     PlacedModel AnchorAt(Point3 point, Node3D? piece) =>
         piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { Location: OnTable on } m
-            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement) : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(point, new Yaw(0)));
+            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement)
+            : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(piece is TerrainNode ? TapeMeasure.OnSurface(point, _view.Volumes) : point, new Yaw(0)));
 
-    void Stretch(PlacedModel to)
+    /// <summary>The ruler as the tape has it, here and in presence.</summary>
+    void ShowTape()
     {
-        var (a, b) = Distance.ClosestPoints(_pendingAnchor!.Value, to);
-        _measurement = new Measurement(a, b); _presenceDirty = true;
-        _ruler.Show(a, b, MoveRuler.Read(a.Horizontal, b.Horizontal, null), Colors.Yellow);
+        if (_tape.Line is { } m && _tape.Reading is { } reading) _ruler.Show(m.From, m.To, reading, Colors.Yellow); else _ruler.Hide();
+        _presenceDirty = true;
     }
-    PlacedModel? _pendingAnchor;
+
+    /// <summary>H: the other mode, remembered in the settings; a line already drawn reads again.</summary>
+    void ToggleMeasureMode()
+    {
+        _tape.Mode = _tape.Mode.Toggled();
+        _session.UpdateSettings(s => s with { MeasureMode = _tape.Mode });
+        ShowTape();
+    }
 }

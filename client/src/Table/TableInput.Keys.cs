@@ -28,12 +28,13 @@ public partial class TableInput
 
     void SetSight(bool held) { if (SightHeld == held) return; SightHeld = held; SightHeldChanged?.Invoke(); }
 
-    /// <summary>Ctrl held measures as the M tool does; letting go takes the line away, here and for everyone else. Not mid-drag: the drag owns the release.</summary>
+    /// <summary>Ctrl down anchors the ruler under the cursor and it follows the cursor; letting go takes the line away, here and for
+    /// everyone else. Not mid-drag: the drag owns the release.</summary>
     void SetMeasureHeld(bool held)
     {
         if (_measureHeld == held || (held && _drag is not null)) return;
-        _measureHeld = held; _measureFrom = null;
-        if (!held) { _measurement = null; _ruler.Hide(); _presenceDirty = true; }
+        _measureHeld = held;
+        if (held) StartTapeAtCursor(); else { _tape.Clear(); ShowTape(); }
     }
 
     /// <summary>L or Ctrl released while the window was elsewhere never arrives: losing focus lets go of it.</summary>
@@ -52,7 +53,8 @@ public partial class TableInput
             case Intent.TurnRight when HoldingTurnable: Turn(-TurnStep); return true;
             case Intent.TurnLeft or Intent.TurnRight: return false;
             case Intent.Cancel: Cancel(); return true;
-            case Intent.Measure: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; _measureFrom = null; return true;
+            case Intent.Measure: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; if (!_measureHeld) { _tape.Clear(); ShowTape(); } return true;
+            case Intent.MeasureMode: ToggleMeasureMode(); return true;
             case Intent.Ping:
                 var (at, target) = Pick(GetViewport().GetMousePosition());
                 Observe(_session.SendPingAsync(new Ping(_session.ParticipantId ?? Guid.Empty, at, target is null ? null : IdOf(target))));
@@ -75,7 +77,7 @@ public partial class TableInput
             return;
         }
         IntentPressed?.Invoke(Intent.Cancel);
-        _measurement = null; _measureFrom = null; _ruler.Hide();
+        _tape.Clear(); ShowTape();
         ClearSelection();
     }
 
