@@ -24,6 +24,7 @@ export const api = {
     get: (id: T.Guid) => http.get<T.AssetDto>(`/v1/assets/${id}`),
     patch: (id: T.Guid, r: T.PatchAssetRequest) => http.patch<T.AssetDto>(`/v1/assets/${id}`, r),
     delete: (id: T.Guid) => http.del(`/v1/assets/${id}`),
+    deleteMany: (assetIds: T.Guid[]) => http.post<T.BulkAssetsResponse>('/v1/assets/delete', { assetIds }),
     confirm: (id: T.Guid) => http.post<T.ConfirmResponse>(`/v1/assets/${id}/confirm`),
     download: (id: T.Guid) => http.get<T.DownloadResponse>(`/v1/assets/${id}/download`),
     getVolumes: (id: T.Guid) => http.get<T.TerrainVolume[]>(`/v1/assets/${id}/volumes`),
@@ -36,6 +37,8 @@ export const api = {
     delete: (id: T.Guid) => http.del(`/v1/folders/${id}`),
     addAsset: (id: T.Guid, assetId: T.Guid) => http.put<void>(`/v1/folders/${id}/assets/${assetId}`),
     removeAsset: (id: T.Guid, assetId: T.Guid) => http.del(`/v1/folders/${id}/assets/${assetId}`),
+    addAssets: (id: T.Guid, assetIds: T.Guid[]) => http.post<T.BulkAssetsResponse>(`/v1/folders/${id}/assets`, { assetIds }),
+    removeAssets: (id: T.Guid, assetIds: T.Guid[]) => http.post<T.BulkAssetsResponse>(`/v1/folders/${id}/assets/remove`, { assetIds }),
   },
   armies: {
     import: (source: string, bases: T.BaseSet = 'round') => http.post<T.Army>('/v1/armies/import', { source, bases } satisfies T.ImportRequest),

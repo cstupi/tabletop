@@ -1,5 +1,8 @@
 <script lang="ts">
-  import type { AssetKind, Base, Orientation } from '$lib/api/types';
+  import type { AssetKind, Base, FolderDto, Guid, Orientation } from '$lib/api/types';
+  import { api } from '$lib/api/client';
+  import { errorMessage } from '$lib/api/errors';
+  import { folderOptions } from '$lib/library/bulk';
   import MeshPreview from './MeshPreview.svelte';
   import BasePicker from './BasePicker.svelte';
   import Icon from './Icon.svelte';
@@ -12,10 +15,11 @@
   import { classifyFiles, type Intake } from '$lib/upload/intake';
   import { STAGE_LABELS, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
   import { circle } from '$lib/units/bases';
-    import { GLB_DEFAULTS } from '$lib/mesh/size';
+  import { GLB_DEFAULTS } from '$lib/mesh/size';
   import { formatBytes, MAX_NAME, nameProblem, sizeProblem } from '$lib/validation';
 
-  let { open, onclose, onuploaded }: { open: boolean; onclose: () => void; onuploaded: (o: UploadOutcome) => void } = $props();
+  /** `folderId`: the folder selected in the Library when the dialog opens; each upload is filed there unless the user picks another or none. */
+  let { open, onclose, onuploaded, folders = [], folderId = null }: { open: boolean; onclose: () => void; onuploaded: (o: UploadOutcome) => void; folders?: FolderDto[]; folderId?: Guid | null } = $props();
 
   type Stage = 'drop' | 'converting' | 'preview' | 'uploading' | 'done';
   let stage = $state<Stage>('drop');
@@ -33,10 +37,12 @@
   let previewed = $state(false); let outcome = $state<UploadOutcome | null>(null);
   let convToken = 0; let seeded = $state(false);
   let forcedAxis = $state<UpAxis | null>(null);   // set by Stand up / lay flat on an STL, so the re-conversion re-centres on the axis the user chose
+  let target = $state<Guid | ''>(''); let filed = $state<string | null>(null); let fileError = $state<string | null>(null);
+  const targets = $derived(folderOptions(folders));
   let dialog = $state<HTMLDialogElement>(); let heading = $state<HTMLHeadingElement>(); let dragOver = $state(false);
 
   // A real modal: focus stays inside, Escape closes, the page behind is inert.
-  $effect(() => { if (open && dialog && !dialog.open) { dialog.showModal(); heading?.focus(); } });
+  $effect(() => { if (open && dialog && !dialog.open) { target = folderId ?? ''; dialog.showModal(); heading?.focus(); } });
 
   const stepIndex = $derived(step ? STEPS.findIndex((s) => s.step === step) + 1 : 0);
   const stepLabel = $derived(step ? STEPS.find((s) => s.step === step)!.label : 'Starting');
@@ -103,10 +109,17 @@
       const volume = kind === 'terrain' && meshBounds ? terrainVolume(meshBounds, { scale, orientation }) : undefined;
       outcome = await upload({ name: name.trim(), kind, contentType, bytes, scale, orientation, modelledBase: kind === 'miniature' ? base : null, volume },
         (s: UploadStage) => (uploadStage = s), (a, total) => (sent = { sent: a, total }));
+      filed = null; fileError = null;
+      const into = target ? targets.find((t) => t.id === target) : undefined;
+      if (into) {
+        // The asset is kept whether or not filing works; a failure says so and leaves it unfiled.
+        try { await api.folders.addAsset(into.id, outcome.asset.id); filed = into.label; }
+        catch (err) { fileError = `It was uploaded but could not be added to ${into.label}: ${errorMessage(err)} Add it from the asset's page.`; }
+      }
       stage = 'done'; onuploaded(outcome);
     } catch (err) { error = err instanceof Error ? err.message : String(err); stage = 'preview'; }
   }
-  function reset() { ++convToken; stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; step = null; uploadStage = null; sent = null; }
+  function reset() { ++convToken; stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; filed = null; fileError = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; step = null; uploadStage = null; sent = null; }
   /** Every way out (Close, Done, Escape, Open it) closes the element; its close event resets and tells the page. */
   const close = () => dialog?.close();
   function onDialogClose() { reset(); onclose(); }
@@ -139,6 +152,10 @@
       <form class="stack" onsubmit={confirm}>
         <label>Name <input bind:value={name} maxlength={MAX_NAME} disabled={stage === 'uploading'} aria-invalid={!!nameError} aria-describedby={nameError ? 'upload-name-error' : undefined} /></label>
         {#if nameError}<p id="upload-name-error"><small>{nameError}</small></p>{/if}
+        <label>Adds to <select bind:value={target} disabled={stage === 'uploading'}>
+          <option value="">No folder</option>
+          {#each targets as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
+        </select></label>
         <!-- the kinds this file can be: a mesh is a miniature or terrain, an image is a board texture. Management answers 415 for any other pairing. -->
         <label>Kind <select value={kind} onchange={(e) => setKind(e.currentTarget.value as 'miniature' | 'terrain')} disabled={intake?.kind === 'image' || stage === 'uploading'}>
           {#if intake?.kind === 'image'}<option value="texture">Board texture</option>
@@ -172,7 +189,8 @@
       </form>
     </div>
   {:else if stage === 'done' && outcome}
-    <p class="notice" role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if outcome.deduplicated}{' '}(these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
+    <p class="notice" role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if filed}{' '}in <strong>{filed}</strong>{/if}{#if outcome.deduplicated}{' '}(these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
+    {#if fileError}<p role="alert">{fileError}</p>{/if}
     {#if outcome.warning}<p role="alert">{outcome.warning}</p>{/if}
     <div class="actions"><button onclick={reset}>Add another</button><a class="button" href="/library/{outcome.asset.id}" onclick={close}>Open it</a><button class="primary" onclick={close}>Done</button></div>
   {/if}

@@ -60,6 +60,8 @@ export interface ClientRelease { version: string; date: string; notes: string; p
 // Folders
 export interface FolderDto { id: Guid; parentId?: Guid; name: string; assetIds: Guid[] }
 export interface FolderRequest { name: string; parentId: Guid | null }
+/** Bulk filing and deleting: 1 to 200 ids a request; `notFound` lists ids that are not the caller's assets. */
+export interface BulkAssetsResponse { done: Guid[]; notFound: Guid[] }
 
 // Armies
 export interface ArmySummary { id: Guid; name: string; gameSystem: string; source: string; units: number; models: number }
