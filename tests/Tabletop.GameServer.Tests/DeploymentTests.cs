@@ -17,7 +17,7 @@ public class DeploymentTests
         h.Run(); h.ConfirmRollOff();                                             // the roll-off's gate, released with the dice as rolled
         var a = h.Units(0); var b = h.Units(1);
         h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true)); h.Dispatch(new SetCondition(TestGames.UnitSubject(b[0]), SetAside, true));   // set aside from the menu
-        Assert.Equal([b[0], b[1]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);                 // B's Ask opened before the set-aside and stands as logged; B picks b[1]
+        Assert.Equal([b[1]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);                       // B's Ask opened before the set-aside and is asked again without b[0]
         h.Answer(1, new SelectedPieces([b[1]])); h.Deploy(b[1]);
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());
         Assert.Equal([a[0]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);                       // A's Ask opened after: the set-aside Scout is not offered

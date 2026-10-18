@@ -30,6 +30,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
 
         var stale = StaleAsks(state, log);
         if (stale.Count > 0) return stale;
+        if (s.Round == 0 && s.ActiveTeamId is { } deploying && Withdrawn(state, log, deploying) is { Count: > 0 } withdrawn) return withdrawn;
         if (state.Projection.OpenAsks.Count > 0) return [];                                       // an unframed Ask of ours (or a boundary hook's) is live: wait for its answer
         if (s.Round >= 1 && s.Phase is { } phase && state.Rules.PhasesBeforeRounds.Contains(phase)) return [new PhaseStarted(RoundsPhase)];   // set_round from the menu mid-deployment: the pre-round phases are over
         if (s.ActiveTeamId is { } active) return InTurn(state, log, active, starter);
@@ -91,6 +92,37 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
             .Where(e => e.Seq < cutoff && e.Payload is AskOpened o && SchedulerLog.IsSchedulerAsk(o.Ask) && state.Projection.OpenAsks.ContainsKey(o.Ask.Id))
             .Select(e => (EventPayload)new AskClosed(((AskOpened)e.Payload).Ask.Id, [])).ToList();
     }
+
+    /// <summary>
+    /// Before round one, a menu edit since the turn's Ask (a unit set aside, or returned to deployment) is read at once rather than by the
+    /// next Ask: an open deploy Ask whose legal set is no longer the team's closes with no answers, and TurnCycle asks again over the shelf as
+    /// it is now (or ends the turn when nothing is left); a pick the ruleset withdraws (IGameRules.ActivationWithdrawn) is asked again the same way.
+    /// Read from the log and the projection, so a game whose log stopped on such an Ask recovers on its next Advance, hydration included.
+    /// </summary>
+    private IReadOnlyList<EventPayload> Withdrawn(GameState state, SchedulerLog log, Guid team)
+    {
+        switch (Cycle.Read(state, team, log))
+        {
+            case AskOpen o when state.Projection.OpenAsks.ContainsKey(o.Ask.Id) && !StillLegal(o.Ask, state.Rules.LegalTurn(state, Properties, team)):
+                return [new AskClosed(o.Ask.Id, [])];
+            case WaitingCompletion w when state.Rules.ActivationWithdrawn(state, w.Activation, w.AnsweredAt):
+                return state.Rules.LegalTurn(state, Properties, team) is { } fresh
+                    ? [new AskOpened(TurnCycle.AskFor(team, fresh))]
+                    : EndTurn(state, new TurnContext(team, null, log.TurnStartedAt, log.TurnStartedAt), passed: false);
+            default:
+                return [];
+        }
+    }
+
+    /// <summary>The open Ask offers what the ruleset would ask now. Only a piece selection (the deploy Asks) is compared; any other legal set stands as logged.</summary>
+    private static bool StillLegal(Ask open, TurnAsk? now) =>
+        now is not null && open.Question == now.Question && open.Prompt == now.Prompt && open.AllowPass == now.AllowPass
+        && (open.Legal, now.Legal) switch
+        {
+            (PieceSelection a, PieceSelection b) => a.Min == b.Min && a.Max == b.Max && a.Eligible.SequenceEqual(b.Eligible),
+            (PieceSelection, _) or (_, PieceSelection) => false,
+            _ => true,
+        };
 
     /// <summary>What a round start carries: the shape's changes, then the ruleset's (scheduler → Round start). BeginRound writes them, and so does a menu set_round.</summary>
     public IReadOnlyList<StateChange> RoundStartChanges(GameState state, int round)

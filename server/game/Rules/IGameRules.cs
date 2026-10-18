@@ -61,6 +61,10 @@ public interface IGameRules
     Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer);
     /// <summary>For an activation with no sequence: is its work done (deploy: every model placed).</summary>
     bool ActivationComplete(GameState state, Activation activation);
+    /// <summary>Before round one, for an activation still waiting on its work: does the pick no longer stand, because a menu edit since
+    /// <paramref name="answeredAt"/> took the unit out of the phase (OPR: set aside, or returned to deployment, before any model left the shelf)?
+    /// The scheduler then asks the turn again. Wrapping rulesets must forward it.</summary>
+    bool ActivationWithdrawn(GameState state, Activation activation, long answeredAt) => false;
     /// <summary>The interactive round-boundary step, called each Advance after round_started until HookDone (OPR: Ambushers).</summary>
     HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order);
 

@@ -154,6 +154,7 @@ public sealed partial class RunLoop(
         // The whole state: an answer may read anything the engine exposes. AnswerPolicy, the
         // default, reads only the geometry; a named state-reading IAnswerSource would read the rest.
         var view = new PolicyView(projection, driver.Board, volumes: null, driver.Info, scenario.Properties);
+        if (await SetAsideAtLastAskAsync(open.Ask, ct) is { } setAside) return setAside.Refused;
         foreach (var teamId in open.Ask.Teams.Where(t => !open.Answers.ContainsKey(t)))
         {
             var answer = answers.Answer(open.Ask, view);
@@ -177,8 +178,8 @@ public sealed partial class RunLoop(
 
     /// <summary>
     /// The scenario's set-aside units get the condition a player sets from the menu, before the first answer: the roll-off's confirm gate is
-    /// what is open then, so the first deploy Ask has not opened and already leaves them out (a deploy Ask open before the change stands as
-    /// logged). Sent by the owning participant.
+    /// what is open then, so the first deploy Ask has not opened and already leaves them out (a deploy Ask open before the change would be
+    /// asked again). Sent by the owning participant.
     /// </summary>
     private async Task<RunOutcome?> SetAsideAsync(CancellationToken ct)
     {
@@ -202,6 +203,25 @@ public sealed partial class RunLoop(
                 if (result is SubmitResult.Rejected rejected)
                     return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting {condition} on {unit.Name}: {rejected.Reason} {rejected.Detail}");
             }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// A deploy Ask offering one unit the scenario sets aside there (ScenarioArmy.SetAsideAtLastAsk): the owning participant sets it aside from the
+    /// menu instead of answering, and the server asks again or moves on. Null when the Ask is to be answered as usual.
+    /// </summary>
+    private async Task<(RunOutcome? Refused, bool Sent)?> SetAsideAtLastAskAsync(Ask ask, CancellationToken ct)
+    {
+        if (ask.Question != AskQuestions.Deploy || ask.Legal is not PieceSelection { Eligible: [var only] }) return null;
+        for (var i = 0; i < scenario.Scenario.Armies.Count; i++)
+        {
+            var army = driver.Board.Armies[i];
+            if (army.Snapshot.Units.FirstOrDefault(u => u.Id == only) is not { } unit || !scenario.Scenario.Armies[i].SetAsideAtLastAsk.Contains(unit.Ordinal)) continue;
+            var result = await driver.SubmitAsync(army.ParticipantId, new SetCondition(new Subject(SubjectKind.Unit, unit.Id), scenario.SetAsideCondition, true), ct);
+            Absorb(await driver.DrainEventsAsync(ct));
+            return (result is SubmitResult.Rejected rejected
+                ? new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting aside {unit.Name} at its deploy Ask: {rejected.Reason} {rejected.Detail}") : null, true);
         }
         return null;
     }

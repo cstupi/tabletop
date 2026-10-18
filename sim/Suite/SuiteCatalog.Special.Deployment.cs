@@ -96,6 +96,60 @@ static partial class SpecialGames
             });
     }
 
+    /// <summary>
+    /// Ambush set aside during deployment: Red's last undeployed unit, Red unit 2 (Ambush), is set aside from the menu when Red's deploy Ask
+    /// offers it alone, instead of being deployed. Red has then finished deploying; Blue deploys its remaining units, rounds begin, and Red
+    /// unit 2 arrives as an Ambusher from round two.
+    /// </summary>
+    static TestGame AmbushSetAsideAtLastAsk()
+    {
+        const string name = "special-ambush-set-aside-at-last-ask";
+        return Game(name, new ScenarioBuilder(name, 5).RoundCap(2).Table(36, 36).Scripted(RedUnitOneDeploysFirst)
+                .Army("Red", 2, 2, unitRules: [new(2, "Ambush")], unitStats: Stats(4, 4), setAsideAtLastAsk: [2])
+                .Army("Blue", 3, 2, unitStats: Stats(4, 4))
+                .Build(),
+            [],   // covers nothing (special games cover three to five rules each): the check names Ambush
+            [
+                Exact("p.13 Ambush: \"may be set aside before deployment\" (set aside at the team's last deploy Ask; the rest deploy and rounds begin)", ["Ambush"], run =>
+                {
+                    var payloads = Payloads(run).ToList();
+                    var red2 = run.Final.Units.Values.Single(u => u.Definition.Name == "Red unit 2").Id;
+                    var offered = payloads.OfType<AskOpened>().Where(a => a.Ask.Question == AskQuestions.Deploy && a.Ask.Legal is PieceSelection { Eligible: [var only] } && only == red2)
+                        .Select(a => a.Ask.Id).ToList();
+                    if (offered.Count == 0) return "Red unit 2 was never offered alone at a deploy Ask";
+                    if (!payloads.OfType<AskClosed>().Any(c => offered.Contains(c.AskId) && c.Answers.Count == 0)) return "the deploy Ask over the set-aside unit was not withdrawn";
+                    var deployed = payloads.OfType<AskClosed>().SelectMany(c => c.Answers.Select(a => a.Answer)).OfType<SelectedPieces>()
+                        .SelectMany(s => s.PieceIds).Where(run.Final.Units.ContainsKey).Select(id => run.Final.Units[id].Definition.Name).ToList();
+                    if (new[] { "Blue unit 1", "Blue unit 2", "Blue unit 3" }.FirstOrDefault(u => !deployed.Contains(u)) is { } missing) return $"{missing} never deployed";
+                    if (!payloads.OfType<RoundStarted>().Any(r => r.Round == 1)) return "deployment never ended";
+                    var round = 0;
+                    var ambushRounds = new List<int>();
+                    foreach (var p in payloads)
+                    {
+                        if (p is RoundStarted r) round = r.Round;
+                        if (p is AskOpened { Ask.Question: AskQuestions.DeployAmbusher }) ambushRounds.Add(round);
+                    }
+                    if (ambushRounds.Count == 0) return "Red unit 2 was never offered as an Ambusher";
+                    return ambushRounds.Any(r => r < 2) ? $"Ambushers offered in rounds {string.Join(",", ambushRounds)}" : null;
+                }),
+            ],
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>>
+            {
+                ["Ambush"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployAmbusher }),
+            });
+    }
+
+    /// <summary>ShootAndStrike, and Red's first deploy pick is Red unit 1, so Red unit 2 is the last unit Red's deploy Ask offers.</summary>
+    static AnswerScript RedUnitOneDeploysFirst
+    {
+        get
+        {
+            var script = AnswerScript.Build();
+            for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
+            return script.Match(AskQuestions.Deploy, (ask, p) => AskPicks.Pieces(ask, p, "Red unit 1")).Build();
+        }
+    }
+
     /// <summary>An arriving model's closest base-to-base gap to the other army's models on the table just before it; p.13's "over 9”".</summary>
     static string? OverNine(SuiteGameRun run, (Guid Model, Point2 At, long Seq) a)
     {

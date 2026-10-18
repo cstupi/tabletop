@@ -504,7 +504,7 @@ units = phase == Deployment
 (`GfNames.SetAside`), written from the menu with `SetCondition` like any other property. There is
 no *set aside or deploy* Ask and no phase for it. Game flow's *Nothing is an invariant* makes
 every property editable at any time through the same path automation writes. The players set it
-whenever they like, and the next deploy Ask's legal set excludes it. A set-aside unit that is
+whenever they like, and the deploy Ask reads it at once (*Before round one, a menu edit is read at once* below). A set-aside unit that is
 neither a Scout nor an Ambusher is never offered at all. It stays on the shelf until somebody
 clears the condition and hand-moves it. An Ambusher's arrival logs its `set-aside` condition
 cleared, so a destroyed Ambusher is never offered again (W-I3). A Scout's deploy turn logs it cleared on its
@@ -726,9 +726,23 @@ var cutoff = Math.Max(log.TurnStartedAt, log.RoundStartedAt);
 
 An empty answer list is what makes it not an answer. Scheduler → The turn is an Ask (*a
 superseded scheduler Ask closes with no answers*) and the skeleton plan both state this exception.
-An Ask is never withdrawn. It stands
-as logged until something closes it. Its legal set was computed when it opened, so a menu edit
-after that is read by the *next* Ask rather than mutating this one.
+From round one on an Ask stands as logged until something closes it. Its legal set was computed
+when it opened, so a menu edit after that is read by the *next* Ask rather than mutating this one.
+
+**Before round one, a menu edit is read at once** (`SchedulerBase.Withdrawn`). A unit set aside, or
+returned to deployment, or put in a Transport, while its team's deploy Ask is open changes what that
+team may deploy now (p.13 Ambush: *"may be set aside before deployment"*; p.6: one unit a turn). Each
+`Advance` with the active team's deploy Ask open compares its `PieceSelection` with a fresh
+`LegalTurn`; when they differ the Ask closes with an empty answer list, and `TurnCycle.Read` takes a
+turn Ask closed with no answers as no Ask, so the same turn asks again over the shelf as it is, or
+ends unpassed (`turn_ended`, `Passed: false`) when the team has nothing left. That team is then
+finished (`LegalTurn` null), the rotation skips it, and the phase ends when no team has a unit to
+deploy. A pick already answered whose unit is set aside before any model leaves the shelf
+(`IGameRules.ActivationWithdrawn`; Grimdark Future: a `Deploy` activation whose unit gained
+`set-aside` in Deployment, or lost it in Scouts, after the answer) is asked again the same way;
+that `turn_ended` carries no activation, so the unit stays set aside. Both are read from the log and
+the projection, so a game whose log stopped on such an Ask recovers on its next `Advance`,
+hydration included.
 
 **Enforcement is enumeration, not validation**, in three positions (whole-design review → ruling
 1). Under `strict` the *dispatcher* refuses an out-of-set answer, so the scheduler
@@ -786,7 +800,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window and the hook are the interpreter's | an `IReactionOrdering` type in `Scheduler/` | scheduler → Windows; interpreter plan Task 9 |
 | Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement; whole-design review → ruling 1 |
 | An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | scheduler → Enforcement; the plan's ruling 3 |
-| A superseded scheduler Ask closes with an **empty** answer list, the engine's only `ask_closed` | the dispatcher only closes Asks with a `FrameId`; an Ask is never withdrawn | leaving it open, or having the dispatcher close unframed Asks | scheduler → The turn is an Ask; skeleton plan (`CommandDispatcher` closes only framed Asks) |
+| A superseded scheduler Ask closes with an **empty** answer list, the engine's only `ask_closed` | the dispatcher only closes Asks with a `FrameId`; from round one on an Ask is never withdrawn (before round one, a deploy Ask whose legal set a menu edit changed is) | leaving it open, or having the dispatcher close unframed Asks | scheduler → The turn is an Ask; skeleton plan (`CommandDispatcher` closes only framed Asks) |
 | The option id is `"{unitId:N}/{action}"` | an out-of-set `Chosen` must still name a unit and an action | an opaque id resolved server-side | scheduler → Enforcement |
 | `ActivationOption.Idle` is not an action row and runs no sequence | p.10's Shaken activation is an activation with no action | a real `Idle` action row in `Properties` | p.10 |
 | `Aircraft` is tested before `Shaken` in `ActionsFor` | p.13: "may only use Advance actions … even if Shaken", and the mandatory move does not break idling | Shaken first, which would offer a Shaken Aircraft only `Idle` | p.13 |

@@ -43,7 +43,9 @@ public class PassengersTests
         Assert.Null(HandMoves.Judge(h.State, PutIn(h, a[0], transport), TeamOf(h, 0)));
         h.Dispatch(PutIn(h, a[0], transport), team: 0);
         Assert.All(h.P.Units[a[0]].Definition.Models, m => Assert.Equal(new Inside(transport), h.P.Models[m.Id].Location));
-        Assert.Equal(ask, h.Open.Id);                                                           // no turn spent: the same Ask stands
+        Assert.NotEqual(ask, h.Open.Id);                                                        // no turn spent: A is asked again, without the passenger
+        Assert.Equal(h.Teams[0], h.Open.Teams.Single());
+        Assert.DoesNotContain(a[0], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);
         h.Answer(0, new SelectedPieces([a[1]])); h.Deploy(a[1]);
         Assert.All(h.P.Units[a[0]].Definition.Models, m => Assert.Equal(new Inside(transport), h.P.Models[m.Id].Location));
         h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
