@@ -54,6 +54,8 @@ public class InboundTextTests
         Assert.False(PresenceLimits.Holds(P(placements: 65)));
         Assert.False(PresenceLimits.Holds(P(models: 65)));
         Assert.False(PresenceLimits.Holds(P(x: double.NaN)));
+        Assert.True(PresenceLimits.Holds(P() with { Measurement = new Measurement(new(0, 0, 0), new(6, 0, 3), MeasureMode.Straight) }));
+        Assert.False(PresenceLimits.Holds(P() with { Measurement = new Measurement(new(0, 0, 0), new(6, 0, 3), (MeasureMode)7) }));
         Assert.False(PresenceLimits.Holds(new Ping(Guid.Empty, new(double.PositiveInfinity, 0, 0), null)));
     }
 }

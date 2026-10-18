@@ -214,7 +214,8 @@ The answer is the same `Sight` the rules use, so the check tests the server.
 | Shift (held) | one model: click selects, drag moves |
 | L (held) | sight check on the hovered unit |
 | M | measure tool (existing) |
-| Ctrl (held) | measure, as the M tool, shown live to everyone; letting go removes the line |
+| Ctrl (held) | ruler from the point under the cursor as Ctrl goes down (a model's base edge, a terrain piece's top) to the cursor, no click; shown live to everyone; letting go removes the line |
+| H | measure 2D (across the table, the default) or 3D (through the height, label adds Δh); remembered per client |
 | P | ping (existing) |
 | Tab / Shift+Tab | next / previous of my units not yet activated: select it, camera to it |
 | Space | camera to the active unit, else the selected one |

@@ -15,7 +15,7 @@ public static class PresenceLimits
     public static bool Holds(Presence p) =>
         p.Placements is not null && p.Placements.Count <= Placements && (p.Selection is null || p.Selection.ModelIds is not null && p.Selection.ModelIds.Count <= SelectedModels)
         && (p.Cursor is null || Finite(p.Cursor.Point))
-        && (p.Measurement is null || Finite(p.Measurement.From) && Finite(p.Measurement.To))
+        && (p.Measurement is null || Finite(p.Measurement.From) && Finite(p.Measurement.To) && (p.Measurement.Mode is not { } mode || Enum.IsDefined(mode)))
         && p.Placements.All(x => Finite(x.Position) && double.IsFinite(x.Yaw.Degrees) && Enum.IsDefined(x.Kind));
 
     public static bool Holds(Ping p) => Finite(p.Point);
