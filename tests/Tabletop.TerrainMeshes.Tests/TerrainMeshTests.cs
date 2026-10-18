@@ -193,6 +193,40 @@ public class TerrainMeshTests
         var dir = Path.Combine(Root, "terrain");
         Assert.Equal(Catalog.All.Select(m => m.Name).Order(), Directory.GetFiles(dir, "*.glb").Select(Path.GetFileNameWithoutExtension).Order());
         foreach (var (name, build) in Catalog.All)
-            Assert.True(Glb.Of(build()).AsSpan().SequenceEqual(File.ReadAllBytes(Path.Combine(dir, $"{name}.glb"))), $"{name}.glb is stale: run scripts/terrain-meshes");
+            Assert.True(SameGlb(Glb.Of(build()), File.ReadAllBytes(Path.Combine(dir, $"{name}.glb"))), $"{name}.glb is stale: run scripts/terrain-meshes");
     }
+
+    /// <summary>Byte-identical, or the same file but for float rounding: MathF's results differ in the last bits between CPUs,
+    /// so a mesh generated on one machine is checked on another. The same JSON but for numbers within a relative 1e-4 (its length may differ),
+    /// and every 4-byte word of BIN equal or two normal floats within a relative 1e-4 (indices and other integers stay exact:
+    /// as floats they are denormal or zero).</summary>
+    static bool SameGlb(byte[] a, byte[] b)
+    {
+        if (a.AsSpan().SequenceEqual(b)) return true;
+        if (a.Length < 28 || b.Length < 28) return false;
+        int la = BitConverter.ToInt32(a, 12), lb = BitConverter.ToInt32(b, 12);   // the JSON chunk's length can differ with a float's printed digits
+        using var ja = JsonDocument.Parse(a.AsMemory(20, la)); using var jb = JsonDocument.Parse(b.AsMemory(20, lb));
+        if (!SameJson(ja.RootElement, jb.RootElement)) return false;
+        var binA = a.AsSpan(20 + la + 8); var binB = b.AsSpan(20 + lb + 8);
+        if (binA.Length != binB.Length) return false;
+        for (var i = 0; i + 4 <= binA.Length; i += 4)
+        {
+            if (binA.Slice(i, 4).SequenceEqual(binB.Slice(i, 4))) continue;
+            float x = BitConverter.ToSingle(binA.Slice(i, 4)), y = BitConverter.ToSingle(binB.Slice(i, 4));
+            if (!float.IsNormal(x) || !float.IsNormal(y) || !Near(x, y)) return false;
+        }
+        return true;
+    }
+
+    static bool Near(double x, double y) => Math.Abs(x - y) <= 1e-4 * Math.Max(1e-3, Math.Max(Math.Abs(x), Math.Abs(y)));
+
+    static bool SameJson(JsonElement x, JsonElement y) => (x.ValueKind, y.ValueKind) switch
+    {
+        (JsonValueKind.Number, JsonValueKind.Number) => x.GetRawText() == y.GetRawText() || Near(x.GetDouble(), y.GetDouble()),
+        (JsonValueKind.Object, JsonValueKind.Object) => x.EnumerateObject().Count() == y.EnumerateObject().Count()
+            && x.EnumerateObject().All(p => y.TryGetProperty(p.Name, out var q) && SameJson(p.Value, q)),
+        (JsonValueKind.Array, JsonValueKind.Array) => x.GetArrayLength() == y.GetArrayLength() && x.EnumerateArray().Zip(y.EnumerateArray()).All(t => SameJson(t.First, t.Second)),
+        var (k, l) when k == l => x.GetRawText() == y.GetRawText(),
+        _ => false,
+    };
 }
