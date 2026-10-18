@@ -32,6 +32,10 @@ public sealed record ScenarioArmy(
     /// <summary>Unit ordinals the run sets aside before deployment (the menu's set-aside condition): a Scout or Ambush unit's way in.</summary>
     public IReadOnlyList<int> SetAside { get; init; } = [];
 
+    /// <summary>Unit ordinals the run sets aside from the menu when its team's deploy Ask offers that unit alone, in place of answering the Ask
+    /// (a player setting aside an Ambusher, their last unit, during their own deploy turn).</summary>
+    public IReadOnlyList<int> SetAsideAtLastAsk { get; init; } = [];
+
     /// <summary>Unit ordinals and a condition the run sets on each before the first answer, as the unit menu does (a unit Shaken from the start).</summary>
     public IReadOnlyList<(int Unit, string Condition)> Conditions { get; init; } = [];
 

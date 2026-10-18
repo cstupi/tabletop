@@ -61,6 +61,7 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public Scheduler.TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => inner.LegalTurn(state, properties, teamId);
     public Scheduler.Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => inner.ReadAnswer(state, teamId, answer);
     public bool ActivationComplete(GameState state, Scheduler.Activation activation) => inner.ActivationComplete(state, activation);
+    public bool ActivationWithdrawn(GameState state, Scheduler.Activation activation, long answeredAt) => inner.ActivationWithdrawn(state, activation, answeredAt);
     public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => inner.RoundBoundaryStep(state, properties, round, order);
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => inner.JudgeAdvance(state, properties, proposed);
     public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => inner.OnRoundEnded(state, properties, round);

@@ -22,7 +22,7 @@ static partial class SpecialGames
     [
         Regrowth(), BlastDeadly(), Gunline(), Artillery(), Charge(), Swift(), Command(), Deployment(),
         Aircraft(), CastMidMove(), AmbushCloseQuarters(), TakedownPicksOne(),
-        StealthAtNineAndAHalf(),
+        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk(),
     ];
 
     // ---- Building blocks ---------------------------------------------------------------------------------------------------------------

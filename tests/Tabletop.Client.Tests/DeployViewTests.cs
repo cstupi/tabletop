@@ -55,6 +55,14 @@ public class DeployViewTests
         Assert.Null(DeployView.MidDeploy(later.Projection, later.Log, Samples.Team1));
     }
 
+    [Fact]
+    public void Nothing_is_mid_deploy_once_the_server_ends_the_turn_on_a_withdrawn_pick()
+    {
+        var ask = DeployAsk();
+        var a = Applier(new AskOpened(ask), Closed(ask, new SelectedPieces([Samples.Unit])), new TurnEnded(Samples.Team1, false, []));   // the unit was set aside before any model left the shelf
+        Assert.Null(DeployView.MidDeploy(a.Projection, a.Log, Samples.Team1));
+    }
+
     static ModelInPlay Model(int ordinal, Base b) => new(Guid.CreateVersion7(), Samples.Unit, new ModelSlot(Guid.CreateVersion7(), ordinal, $"m{ordinal}", new Dictionary<string, string>(), [], b, 1, null, []));
 
     [Fact]
