@@ -59,9 +59,9 @@ A reconnecting player rejoins their team. `MyTeamId` is derived, never picked or
 `Game.Participants` for `ParticipantId`, and the server fills that from the participant's row,
 which outlives the socket. So the `Welcome` that ends a reconnect names the team the previous one
 named, and no client code re-picks a team or asks the player to (game flow → Teams are frozen at
-the flip, and a team is a slot). `LobbyPanel`,
-the only control that sends `PickTeam`, exists at `lobby` and `setup` only, which is where the
-server accepts the edit. `MyTeamId` is
+the flip, and a team is a slot). `LobbyPanel`
+sends `PickTeam` at `lobby` and `setup`, and `WaitingPanel` only while deployment waits for players,
+which is where the server accepts the edit. `MyTeamId` is
 null in two unrelated states, and nothing may treat them alike: a spectator has a `Game` whose
 participant row carries no team, while a client mid-reconnect has no `Game` at all. Both readers
 return early on a null `Game`. `GameScreen.Rebuild` tears the team panels down and rebuilds them

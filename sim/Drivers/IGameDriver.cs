@@ -57,6 +57,7 @@ public interface IGameDriver : IAsyncDisposable
     /// <summary>Let the server rest, then report what it produced.</summary>
     Task<StepResult> StepAsync(CancellationToken ct);
 
+    /// <summary>Names the team answering, so an account holding several teams (self-play) answers for the one meant.</summary>
     Task<SubmitResult> AnswerAsync(Guid teamId, Guid askId, AskAnswer answer, CancellationToken ct) =>
-        SubmitAsync(ParticipantFor(teamId), new AnswerAsk(askId, answer), ct);
+        SubmitAsync(ParticipantFor(teamId), new AnswerAsk(askId, answer, teamId), ct);
 }

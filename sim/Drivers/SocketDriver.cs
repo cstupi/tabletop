@@ -96,9 +96,9 @@ public sealed class SocketDriver : IGameDriver
         var recorderIndex = _scenario.Info.Participants.Count - 1;
         _recorder = await OpenAsync(_scenario.RecorderParticipantId, recorderIndex, ct);
         await AwaitConnectRestAsync(ct);
-        for (var i = 0; i < _scenario.ParticipantIds.Count; i++)
+        for (var i = 0; i < _scenario.Connected.Count; i++)
         {
-            var player = await OpenAsync(_scenario.ParticipantIds[i], i, ct);
+            var player = await OpenAsync(_scenario.Connected[i], i, ct);
             _players.Add(player);
             _knownHead = Math.Max(_knownHead, await ConnectRestAsync(player, ct));
         }
@@ -146,7 +146,7 @@ public sealed class SocketDriver : IGameDriver
 
     public async Task<SubmitResult> SubmitAsync(Guid participantId, Command command, CancellationToken ct)
     {
-        var peer = _players.FirstOrDefault(p => p.ParticipantId == participantId)
+        var peer = _players.FirstOrDefault(p => p.ParticipantId == _scenario.ConnectionFor(participantId))
             ?? throw new ArgumentException($"no socket for participant {participantId}", nameof(participantId));
         var commandId = Guid.CreateVersion7();
         var head = _knownHead;

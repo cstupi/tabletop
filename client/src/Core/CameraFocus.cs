@@ -38,6 +38,21 @@ public static class CameraFocus
         return at.Count == 0 ? null : new Point3(at.Average(q => q.X), at.Average(q => q.Y), at.Average(q => q.Z));
     }
 
+    /// <summary>Where the camera goes when a client holding several teams starts acting for another (Seats.Acting): that team's units on the
+    /// table, else the middle of its deployment zone, else nowhere.</summary>
+    public static Point3? TeamSide(Projection p, GameInfo game, Guid team)
+    {
+        var seats = game.Participants.Where(x => x.TeamId == team).Select(x => x.Id).ToHashSet();
+        var at = p.Models.Values.Where(m => p.Units.TryGetValue(m.UnitId, out var u) && seats.Contains(u.ParticipantId))
+            .Select(m => m.Location).OfType<OnTable>().Select(o => o.Placement.Position).ToList();
+        if (at.Count > 0) return new Point3(at.Average(q => q.X), at.Average(q => q.Y), at.Average(q => q.Z));
+        if (game.Teams.FirstOrDefault(t => t.Id == team) is not { } t || p.Board.Table.Zones.FirstOrDefault(z => z.TeamOrdinal == t.Ordinal) is not { } zone) return null;
+        IReadOnlyList<Polygon> shapes;
+        try { shapes = ZoneStyles.Resolve(zone.Shape, p.Board.Table.Size); } catch (ArgumentException) { return null; }
+        var corners = shapes.SelectMany(s => s.Vertices).ToList();
+        return corners.Count == 0 ? null : new Point3(corners.Average(c => c.X), corners.Average(c => c.Y), 0);
+    }
+
     /// <summary>Where follow glides: the actor of the last action frame (SequenceStarted with an action) the batch starts.</summary>
     public static Point3? FollowTarget(IReadOnlyList<GameEvent> batch, Projection p) =>
         batch.Select(e => e.Payload).OfType<SequenceStarted>().LastOrDefault(s => s.Context is { Action: not null, ActorUnitId: not null }) is { } s ? Centroid(p, s.Context.ActorUnitId!.Value) : null;

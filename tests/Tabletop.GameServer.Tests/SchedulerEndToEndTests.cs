@@ -68,6 +68,8 @@ public class SchedulerEndToEndTests
         GameServerFactory Factory() => new(db) { ConfigureTestServices = s => s.AddSingleton<IDiceSource>(new ScriptedDice(6, 1)) };
         var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
         var army = await db.SeedArmyAsync(seeded.CreatorAccountId);
+        var theirs = await db.SeedArmyAsync(seeded.Participants[1].AccountId);
+        await db.GameRows.SetParticipantArmyAsync(seeded.Participants[1].ParticipantId, theirs.Id, CancellationToken.None);   // an army a side: deployment waits for no one
         using (var first = Factory())
         {
             await using var c = await TestClient.OpenAsync(first);

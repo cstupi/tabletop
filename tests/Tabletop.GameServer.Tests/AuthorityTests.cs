@@ -48,7 +48,8 @@ public class AuthorityTests
         await creator.SendAsync(Edit(new CreateTeam()));
         var empty = (await third.ExpectAsync<GameInfoMessage>()).Game.Teams[2].Id;
         await third.SendAsync(Edit(new PickTeam(empty)));
-        Assert.Equal(empty, (await third.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == spectator).TeamId);
+        var account = g.Participants[2].AccountId;   // an empty team is one more team: the placed row keeps team 1, a new row takes the empty one
+        Assert.Equal([g.TeamIds[0], empty], (await third.ExpectAsync<GameInfoMessage>()).Game.Participants.Where(p => p.AccountId == account).Select(p => p.TeamId));
     }
 
     [Fact]

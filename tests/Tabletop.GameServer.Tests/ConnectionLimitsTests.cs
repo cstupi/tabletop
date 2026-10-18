@@ -43,20 +43,26 @@ public class ConnectionLimitsTests
     }
 
     [Fact]
-    public async Task A_replaced_socket_is_read_no_further()
+    public async Task A_socket_closed_over_its_accounts_cap_is_read_no_further()
     {
         using var factory = GameServerFactory.WithoutScheduler(db);
         var seeded = await PlayingWithLog();
         await using var old = await TestClient.OpenAsync(factory);
         await old.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await old.ExpectAsync<AtRest>();
-        await using var fresh = await TestClient.OpenAsync(factory);
-        await fresh.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
-        await fresh.ExpectAsync<AtRest>();
+        var newer = new List<TestClient>();
+        for (var i = 0; i < 4; i++)                                                          // one game, one account: the fifth socket closes the oldest
+        {
+            var c = await TestClient.OpenAsync(factory); newer.Add(c);
+            await c.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+            await c.ExpectAsync<AtRest>();
+        }
+        var fresh = newer[^1];
         Assert.Equal(WebSocketCloseStatus.NormalClosure, await old.WaitClosedAsync());
         try { await old.SendAsync(new CommandMessage(Guid.NewGuid(), new SetScore(seeded.TeamIds[0], 7))); } catch (WebSocketException) { }
         await fresh.AssertSilentAsync(TimeSpan.FromMilliseconds(400));
         Assert.Equal(1, db.EventCount(seeded.GameId));
+        foreach (var c in newer) await c.DisposeAsync();
     }
 
     [Fact]

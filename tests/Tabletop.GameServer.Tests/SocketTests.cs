@@ -120,11 +120,12 @@ public class SocketTests
     }
 
     [Fact]
-    public async Task Reconnecting_rebuilds_from_the_log_and_replaces_the_older_socket()
+    public async Task Reconnecting_rebuilds_from_the_log_and_the_older_socket_still_plays()
     {
         using var factory = GameServerFactory.WithoutScheduler(db);
         var seeded = await db.SeedGameAsync(GameStatus.Playing);
         await db.SeedTableStateAsync(seeded.GameId);
+        db.SeedArmiesInPlay(seeded);
         await using var first = await TestClient.OpenAsync(factory);
         await first.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await first.ExpectAsync<EventsMessage>();
@@ -136,7 +137,9 @@ public class SocketTests
         Assert.Equal(seeded.TeamIds[0], back.Game.Participants.Single(p => p.Id == back.ParticipantId).TeamId);   // the rejoin returns the slot; nothing re-picks
         await second.ExpectAsync<BoardMessage>();
         Assert.Equal([1L], (await second.ExpectAsync<EventsMessage>()).Events.Select(e => e.Seq));
-        Assert.Equal(WebSocketCloseStatus.NormalClosure, await first.WaitClosedAsync());
+        // Two windows of one account both play (self-play); AccountSockets closes the oldest only over its cap.
+        await second.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetScore(seeded.TeamIds[1], 3)));
+        Assert.Equal([2L], (await first.ExpectAsync<EventsMessage>()).Events.Select(e => e.Seq));
     }
 
     [Fact]
@@ -145,6 +148,7 @@ public class SocketTests
         using var factory = GameServerFactory.WithoutScheduler(db);
         var seeded = await db.SeedGameAsync(GameStatus.Playing);
         await db.SeedTableStateAsync(seeded.GameId);
+        db.SeedArmiesInPlay(seeded);
         var registry = factory.Services.GetRequiredService<Tabletop.GameServer.Session.SessionRegistry>();
         await using (var client = await TestClient.OpenAsync(factory))
         {

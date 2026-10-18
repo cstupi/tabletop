@@ -74,7 +74,9 @@ public partial class EndMessage : Control
         var m = HeaderView.Of(p, game, names);
         _result.Text = model.Result ?? "End or continue?";
         _reason.Text = model.Reason;
-        _note.Text = model.Note ?? ""; _note.Visible = model.Note is not null;
+        // A player holding both teams answers for each in turn, the team named over the buttons.
+        var note = model.Stage == GameOverStage.Choose ? Seats.PlayingAs(game, _s.MyTeamIds, _s.MyTeamId) : model.Note;
+        _note.Text = note ?? ""; _note.Visible = note is not null;
         foreach (var c in _scores.GetChildren()) { _scores.RemoveChild(c); c.QueueFree(); }
         foreach (var team in game.Teams.OrderBy(t => t.Ordinal))
         {
@@ -89,8 +91,9 @@ public partial class EndMessage : Control
             AddButton("Stay", Close);
             AddButton("Leave", () => LeaveRequested?.Invoke());
         }
+        var acting = _s.MyTeamId;
         foreach (var choice in model.Choices)
-            AddButton(choice.Label, () => Answer(model.AskId!.Value, choice.Id));
+            AddButton(choice.Label, () => Answer(model.AskId!.Value, choice.Id, acting));
         return true;
     }
 
@@ -100,10 +103,10 @@ public partial class EndMessage : Control
     }
 
     /// <summary>One answer per Ask: the buttons go at once, and the next render shows the waiting line or the end.</summary>
-    void Answer(Guid askId, string optionId)
+    void Answer(Guid askId, string optionId, Guid? team)
     {
         foreach (var c in _buttons.GetChildren()) if (c is Button b) b.Disabled = true;
-        Guarded.Run(() => _s.SendCommandAsync(new AnswerAsk(askId, new Chosen(optionId))), message => { GD.PushWarning($"Answer failed: {message}"); if (IsInstanceValid(this)) Fill(); });
+        Guarded.Run(() => _s.SendCommandAsync(new AnswerAsk(askId, new Chosen(optionId), team)), message => { GD.PushWarning($"Answer failed: {message}"); if (IsInstanceValid(this)) Fill(); });
     }
 
     public override void _Input(InputEvent e)

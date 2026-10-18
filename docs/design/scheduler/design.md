@@ -432,8 +432,11 @@ Three distinct mechanisms.
 
 **An empty legal set is a skip.** `LegalTurn` returning null means no Ask and no turn events.
 `NextTeam` walks the order and passes over the team, so nothing is logged about it at all. This is
-how OPR's *"continues until all units have activated"* works when one side has more units. It is
-also the only mechanism needed for a team that brought no army.
+how OPR's *"continues until all units have activated"* works when one side has more units, and how
+a side with every unit destroyed is passed over. A team that brought no army never reaches the
+scheduler: the session runs no `Advance` while the log is empty and a team has no participant or
+no army (`WaitingForPlayers`; [game flow](../../superpowers/specs/2026-08-28-game-flow-design.md) →
+*Waiting for players*), so the roll-off and deployment start only once every team can deploy.
 
 **A participant with no team is never addressed.** Every Ask the scheduler builds names teams,
 and the `end_round` Ask is addressed to `teams.Where(t => Info.Participants.Any(p => p.TeamId == t))`.
@@ -475,8 +478,10 @@ and `[]` for a ruleset that starts at round one. The sequence of logged facts is
 `turn_ended` → `phase_started("scouts")` → the same again → `round_started(1, order, changes)` →
 `phase_started("rounds")`.
 
-The confirm gate inside the roll-off is the one place that list pauses for a player before
-deployment. `round_started(0, …)` and `phase_started("deployment")` are still one batch, emitted
+Before the roll-off the session holds the whole list back while any team has no participant or
+no army (`WaitingForPlayers`, game flow → *Waiting for players*): the log stays empty and the
+scheduler is not called. The confirm gate inside the roll-off is the one place that list pauses for
+a player once it has begun. `round_started(0, …)` and `phase_started("deployment")` are still one batch, emitted
 by the `Advance` that reads the resolved order; the gate moves when that `Advance` happens, not
 what it emits.
 

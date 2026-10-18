@@ -75,8 +75,9 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
             if (!_games.ContainsKey(participant.GameId)) throw MissingKey("game", participant.GameId);
             if (!_accounts.ContainsKey(participant.AccountId)) throw MissingKey("account", participant.AccountId);
             if (participant.TeamId is { } t && !_teams.ContainsKey(t)) throw MissingKey("team", t);
-            if (_participants.Values.Any(p => p.GameId == participant.GameId && p.AccountId == participant.AccountId))
-                throw new InvalidOperationException($"account {participant.AccountId} is already in game {participant.GameId}");
+            // unique nulls not distinct (game_id, account_id, team_id): an account holds one row per team, and at most one with none.
+            if (_participants.Values.Any(p => p.GameId == participant.GameId && p.AccountId == participant.AccountId && p.TeamId == participant.TeamId))
+                throw new InvalidOperationException($"account {participant.AccountId} already holds that seat in game {participant.GameId}");
             _participants[participant.Id] = participant;
         }
     }
@@ -101,6 +102,12 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
             CheckChildKeys(row.Table);
             _tables[row.Table.Id] = row;
         }
+    }
+
+    /// <summary>An army already in play on a participant row, as EndSetupAsync writes it: for a test that seeds a playing game directly.</summary>
+    public void SetSnapshot(Guid participantId, ArmySnapshot snapshot)
+    {
+        lock (_gate) _participants[participantId] = _participants[participantId] with { ArmySnapshot = snapshot };
     }
 
     /// <summary>Management's leave: the account's participant row in the game goes.</summary>
@@ -150,7 +157,7 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
 
     public Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct)
     {
-        lock (_gate) return Task.FromResult(_participants.Values.FirstOrDefault(p => p.GameId == gameId && p.AccountId == accountId)?.Id);
+        lock (_gate) return Task.FromResult(_participants.Values.Where(p => p.GameId == gameId && p.AccountId == accountId).OrderBy(p => p.Id).FirstOrDefault()?.Id);
     }
 
     public Task<TableState?> ReadDraftAsync(Guid gameId, CancellationToken ct)
@@ -212,6 +219,30 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
         {
             if (armyId is { } a && !_armies.ContainsKey(a)) throw MissingKey("army", a);
             if (_participants.TryGetValue(participantId, out var p)) _participants[participantId] = p with { ArmyId = armyId };
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task AddSeatAsync(Guid id, Guid gameId, Guid accountId, Guid teamId, CancellationToken ct)
+    {
+        InsertParticipant(new ParticipantRow(id, gameId, teamId, accountId, null, null));
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveSeatAsync(Guid participantId, CancellationToken ct)
+    {
+        lock (_gate) _participants.Remove(participantId);
+        return Task.CompletedTask;
+    }
+
+    public Task JoinArmyAsync(Guid gameId, Guid participantId, Guid armyId, ArmySnapshot snapshot, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            if (!_armies.ContainsKey(armyId)) throw MissingKey("army", armyId);
+            if (!_games.TryGetValue(gameId, out var g) || g.Status != GameStatus.Playing || !_participants.TryGetValue(participantId, out var p) || p.GameId != gameId || p.ArmySnapshot is not null)
+                throw new InvalidOperationException("the participant already brought an army, or the game is not playing");
+            _participants[participantId] = p with { ArmyId = armyId, ArmySnapshot = snapshot };
         }
         return Task.CompletedTask;
     }

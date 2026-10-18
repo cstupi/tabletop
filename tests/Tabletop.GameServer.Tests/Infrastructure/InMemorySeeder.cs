@@ -64,6 +64,14 @@ public sealed class InMemorySeeder : IRowSeeder
         return Task.FromResult(new SeededParticipant(id, accountId, teamId));
     }
 
+    /// <summary>A sample army in play for every participant with a team, as the end of setup snapshots them: a game seeded straight into
+    /// playing then waits for no team (WaitingForPlayers).</summary>
+    public void SeedArmiesInPlay(SeededGame game)
+    {
+        foreach (var p in game.Participants.Where(p => p.TeamId is not null))
+            GameRows.SetSnapshot(p.ParticipantId, ArmySnapshot.Of(Tabletop.Content.Tests.ArmyTests.Sample(), Guid.CreateVersion7()));
+    }
+
     public Task<Army> SeedArmyAsync(Guid ownerId, Army? given = null)
     {
         var army = given ?? Tabletop.Content.Tests.ArmyTests.Sample();

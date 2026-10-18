@@ -48,13 +48,20 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public long? PendingUndoTo { get; private set; }
     /// <summary>Why the last game closed without the player asking, in the player's words (Feedback); Home prints it.</summary>
     public string? LastCloseReason { get; private set; }
-    public Guid? MyTeamId => Game?.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.TeamId;
+    /// <summary>Every team this account plays, by ordinal: one, or several in self-play (Seats).</summary>
+    public IReadOnlyList<Guid> MyTeamIds => Game is { } g ? Seats.Teams(g, ParticipantId) : [];
+    /// <summary>The team this client acts for now (Seats.Acting): with several, the team of the first Ask that waits on one of them.</summary>
+    public Guid? MyTeamId => Seats.Acting(Projection, MyTeamIds);
+    /// <summary>The teams deployment waits on (WaitingForPlayers): from the end of setup until every team has a player and an army; empty otherwise.</summary>
+    public IReadOnlyList<TeamWaiting> WaitingTeams => Game is { Status: GameStatus.Playing } g && Applier is { } a && WaitingForPlayers.Holds(g, a.Projection.Board, a.Projection.LastSeq)
+        ? WaitingForPlayers.Teams(g, a.Projection.Board) : [];
     /// <summary>The server answers this client as a watcher: an admin watcher (participant id empty), or from playing on a participant
-    /// with no team. False without a game, so a client mid-reconnect is never taken for one.</summary>
-    public bool IsWatching => Game is { } g && (ParticipantId == Guid.Empty || g.Status is GameStatus.Playing or GameStatus.Ended && MyTeamId is null);
+    /// with no team, except while deployment waits for players, when it may still take an empty team. False without a game, so a client
+    /// mid-reconnect is never taken for one.</summary>
+    public bool IsWatching => Game is { } g && (ParticipantId == Guid.Empty || g.Status is GameStatus.Playing or GameStatus.Ended && MyTeamIds.Count == 0 && WaitingTeams.Count == 0);
     /// <summary>Reconnects tried since the last Welcome; 0 while connected or on a first connect.</summary>
     public int ReconnectAttempt => _attempt;
-    public bool IsCreator => Game is not null && Game.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.AccountId == Game.CreatedBy;
+    public bool IsCreator => Game is not null && Seats.Mine(Game, ParticipantId).FirstOrDefault()?.AccountId == Game.CreatedBy;
     /// <summary>The pinned catalog of the game's property set; Empty until fetched (in-game UX spec → Rule text).</summary>
     public RuleTexts Rules => Game?.PropertiesHash is { } hash && _ruleTexts.TryGetValue(hash, out var rules) ? rules : RuleTexts.Empty;
     /// <summary>The pinned set's grantable effects, for the menu's Add a grant; empty until fetched with the rule texts.</summary>

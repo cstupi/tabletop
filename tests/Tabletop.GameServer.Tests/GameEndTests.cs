@@ -36,6 +36,7 @@ public class GameEndTests
     {
         var seeded = await db.SeedGameAsync(status);
         await db.SeedTableStateAsync(seeded.GameId);
+        db.SeedArmiesInPlay(seeded);
         var log = new InMemoryEventLog();
         if (history.Length > 0)
             await log.AppendAsync(seeded.GameId, history.Select((p, i) => new GameEvent(i + 1, null, p, null)).ToList(), CancellationToken.None);

@@ -16,7 +16,7 @@ public class EditTests
     {
         var all = StateChangeTests.ConcreteSubclasses(typeof(Edit)).ToList();
         Assert.All(all, t => Assert.True(t.IsSubclassOf(typeof(LobbyEdit)) ^ t.IsSubclassOf(typeof(SetupEdit))));
-        Assert.Equal(6, all.Count(t => t.IsSubclassOf(typeof(LobbyEdit))));
+        Assert.Equal(7, all.Count(t => t.IsSubclassOf(typeof(LobbyEdit))));
     }
 
     [Fact]

@@ -21,9 +21,10 @@ public sealed partial class GameSession
 
     private const string NotAClientFrame = "not a client frame";
 
-    /// <summary>An admin watcher, or from playing on a participant with no team (game flow: that is what a spectator is). Before playing a
-    /// teamless participant is choosing a team and may edit and point.</summary>
-    private bool Watches(ISessionClient from) => _watchers.Contains(from) || (Info.Status is GameStatus.Playing or GameStatus.Ended && TeamOf(from.ParticipantId) is null);
+    /// <summary>An admin watcher, or from playing on a participant with no team (game flow: that is what a spectator is). Before playing, and
+    /// while deployment waits for players, a teamless participant is choosing a team and may edit and point.</summary>
+    private bool Watches(ISessionClient from) => _watchers.Contains(from) || (Info.Status is GameStatus.Playing or GameStatus.Ended && TeamsOf(from).Count == 0
+        && !(Play is not null && WaitingForPlayers.Holds(Info, Play.Board, Play.Projection.LastSeq)));
 
     /// <summary>A watcher, admin or teamless participant from playing on, changes nothing (admin watch spec; security review H3): a sight query is answered; a command (answers and undo included), an edit,
     /// presence or a ping is refused with reason watcher and nothing else follows, no rest frame included.</summary>
@@ -48,12 +49,15 @@ public sealed partial class GameSession
             await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.WrongStatus, $"commands are not accepted while the game is {Info.Status}"));
         else if (Play.Projection.LastSeq >= _services.Options.MaxEventsPerGame)
             await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.NotPermitted, "this game's log is full"));
-        else
-            switch (Dispatcher.Dispatch(Play, message.Command, ActorOf(from)))
+        else if (WaitingForPlayers.Holds(Info, Play.Board, Play.Projection.LastSeq))
+            await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.WrongStatus,
+                $"deployment has not begun: {string.Join("; ", WaitingForPlayers.Teams(Info, Play.Board).Select(w => w.Text))}"));
+        else if (ActorFor(from, message.Command) is var actor)
+            switch (Dispatcher.Dispatch(Play, message.Command, actor))
             {
                 case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
                 case Applied a:
-                    if (!await RunToRestAsync(a.Events, from.ParticipantId, a.Warning))
+                    if (!await RunToRestAsync(a.Events, actor.ParticipantId, a.Warning))
                         await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.Unknown, "the rules engine failed on this command; nothing was applied"));
                     break;
             }

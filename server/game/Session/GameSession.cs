@@ -86,16 +86,49 @@ public sealed partial class GameSession
     private Task RunAsync(Func<Task> work) => RunAsync(async () => { await work(); return 0; });
 
     public Guid? TeamOf(Guid participantId) => Info.Participants.FirstOrDefault(p => p.Id == participantId)?.TeamId;
-    public Actor ActorOf(ISessionClient client) => new(client.ParticipantId, TeamOf(client.ParticipantId));
+
+    /// <summary>Every participant row of the connection's account: one per team it plays (self-play), or its one teamless row. The connection
+    /// carries the account's oldest row, which the lobby edits never delete while the account keeps another (DropSeatAsync).</summary>
+    public IReadOnlyList<Participant> SeatsOf(ISessionClient client) =>
+        Info.Participants.FirstOrDefault(p => p.Id == client.ParticipantId) is { } me ? Info.Participants.Where(p => p.AccountId == me.AccountId).ToList() : [];
+    public IReadOnlySet<Guid> TeamsOf(ISessionClient client) => SeatsOf(client).Where(p => p.TeamId is not null).Select(p => p.TeamId!.Value).ToHashSet();
+
+    /// <summary>
+    /// Who a command acts as: one of the account's seats. An answer acts for the team it names, else for the first of the account's teams the Ask
+    /// addresses that has not answered; a hand move for the team whose model it moves first; anything else for the account's first team.
+    /// No seat the command can use leaves the actor's team null, which the dispatcher refuses (a watcher; an Ask for no team of mine).
+    /// </summary>
+    public Actor ActorFor(ISessionClient client, Command command)
+    {
+        var seats = SeatsOf(client).Where(p => p.TeamId is not null).ToList();
+        Participant? seat = null;
+        switch (command)
+        {
+            case AnswerAsk { TeamId: { } named }:
+                seat = seats.FirstOrDefault(p => p.TeamId == named);
+                if (seat is null) return new Actor(client.ParticipantId, null);
+                break;
+            case AnswerAsk a when Play?.Projection.OpenAsks.TryGetValue(a.AskId, out var open) is true:
+                var addressed = open.Ask.Teams.Select(t => seats.FirstOrDefault(p => p.TeamId == t)).OfType<Participant>().ToList();
+                seat = addressed.FirstOrDefault(p => !open.Answers.ContainsKey(p.TeamId!.Value)) ?? addressed.FirstOrDefault();
+                break;
+            case MoveModels m when Play is { } play:
+                var team = m.Moves.Select(x => play.Projection.Models.TryGetValue(x.ModelId, out var model) ? TeamOf(play.Projection.Units[model.UnitId].ParticipantId) : null)
+                    .FirstOrDefault(t => t is not null);
+                seat = seats.FirstOrDefault(p => p.TeamId == team);
+                break;
+        }
+        seat ??= seats.FirstOrDefault();
+        return seat is null ? new Actor(client.ParticipantId, null) : new Actor(seat.Id, seat.TeamId);
+    }
 
     public Task AttachAsync(ISessionClient client) => RunAsync(() => AttachCoreAsync(client));
 
-    /// <summary>One connection per participant: a newer socket replaces the older one. The newcomer gets everyone else's current presence.</summary>
+    /// <summary>An account may hold several sockets on one game (two windows playing both sides); AccountSockets caps them, closing the oldest.
+    /// The newcomer gets everyone else's current presence.</summary>
     private async Task AttachCoreAsync(ISessionClient client)
     {
         if (Faulted) { await client.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted"); return; }
-        var replaced = _clients.FirstOrDefault(c => c.ParticipantId == client.ParticipantId);
-        if (replaced is not null) { _clients.Remove(replaced); await replaced.CloseAsync(WebSocketCloseStatus.NormalClosure, "replaced by a newer connection"); }
         _clients.Add(client);
         foreach (var value in _presence.All.Where(v => v.ParticipantId != client.ParticipantId)) await client.SendAsync(new PresenceMessage(value));
     }
@@ -159,8 +192,8 @@ public sealed partial class GameSession
         }
         foreach (var (batch, sealedBefore) in staged)
         {
-            foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
-            foreach (var w in _watchers.ToList()) await w.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, null, sealedBefore)));
+            foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamsOf(c), sealedBefore)));
+            foreach (var w in _watchers.ToList()) await w.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, (Guid?)null, sealedBefore)));
         }
         if (staged.Count == 0) return true;
         await BroadcastFactsIfChangedAsync();
@@ -189,6 +222,7 @@ public sealed partial class GameSession
     private string? Advance()
     {
         if (Play is null || Engine is null) return null;
+        if (WaitingForPlayers.Holds(Info, Play.Board, Play.Projection.LastSeq)) return null;   // deployment waits until every team has a player and an army
         for (var i = 0; i < 10_000; i++)
         {
             Emit emit;

@@ -32,7 +32,9 @@ public class EventFilterTests
         var forTeam1 = EventFilter.ForViewer(Log[..5], Samples.Team1, new HashSet<Guid>());
         Assert.NotNull(((AskAnswered)forTeam1[2].Payload).Answer);
         Assert.Null(((AskAnswered)forTeam1[4].Payload).Answer);
-        var spectator = EventFilter.ForViewer(Log[..5], null, new HashSet<Guid>());
+        var spectator = EventFilter.ForViewer(Log[..5], (Guid?)null, new HashSet<Guid>());
+        var bothSides = EventFilter.ForViewer(Log[..5], new HashSet<Guid> { Samples.Team1, Samples.Team2 }, new HashSet<Guid>());   // one account on both teams
+        Assert.All(bothSides.Select(e => e.Payload).OfType<AskAnswered>(), a => Assert.NotNull(a.Answer));
         Assert.Null(((AskAnswered)spectator[2].Payload).Answer);
         Assert.Null(((AskAnswered)spectator[4].Payload).Answer);
     }
@@ -92,7 +94,7 @@ public class EventFilterTests
         ];
         Assert.Null(((AskAnswered)EventFilter.ForViewer(log, Samples.Team1, new HashSet<Guid>())[4].Payload).Answer);      // team 2's spend, still sealed from team 1
         Assert.NotNull(((AskAnswered)EventFilter.ForViewer(log, Samples.Team2, new HashSet<Guid>())[4].Payload).Answer);   // the answering team always sees its own
-        Assert.Null(((AskAnswered)EventFilter.ForViewer(log, null, new HashSet<Guid>())[4].Payload).Answer);               // and a spectator sees none of it
+        Assert.Null(((AskAnswered)EventFilter.ForViewer(log, (Guid?)null, new HashSet<Guid>())[4].Payload).Answer);               // and a spectator sees none of it
     }
 
     /// <summary>The mirror: an undone sealed ask_opened is not open any more, so nothing it would have sealed is withheld.</summary>

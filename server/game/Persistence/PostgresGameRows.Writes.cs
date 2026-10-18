@@ -37,6 +37,31 @@ public sealed partial class PostgresGameRows
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task AddSeatAsync(Guid id, Guid gameId, Guid accountId, Guid teamId, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("insert into management.participant (id, game_id, account_id, team_id) values ($1, $2, $3, $4)");
+        cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(accountId); cmd.Parameters.AddWithValue(teamId);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task RemoveSeatAsync(Guid participantId, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("delete from management.participant where id = $1");
+        cmd.Parameters.AddWithValue(participantId);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task JoinArmyAsync(Guid gameId, Guid participantId, Guid armyId, ArmySnapshot snapshot, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("""
+            update management.participant p set army_id = $3, army_snapshot = $4 from management.game g
+            where p.id = $1 and p.game_id = $2 and g.id = p.game_id and g.status = 'playing' and p.army_snapshot is null
+            """);
+        cmd.Parameters.AddWithValue(participantId); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(armyId);
+        cmd.Parameters.Add(new NpgsqlParameter { Value = ContentJson.Serialize(snapshot), NpgsqlDbType = NpgsqlDbType.Jsonb });
+        if (await cmd.ExecuteNonQueryAsync(ct) != 1) throw new InvalidOperationException("the participant already brought an army, or the game is not playing");
+    }
+
     public async Task SetConfigurationAsync(Guid gameId, SetConfiguration c, CancellationToken ct)
     {
         // game_rules follows the chosen properties row, as management copies it on create (management plan → Rows by writer: both are rewritten on set_configuration).

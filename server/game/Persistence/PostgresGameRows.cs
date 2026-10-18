@@ -33,7 +33,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
 
     public async Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct)
     {
-        await using var cmd = db.CreateCommand("select id from management.participant where game_id = $1 and account_id = $2");
+        await using var cmd = db.CreateCommand("select id from management.participant where game_id = $1 and account_id = $2 order by id limit 1");
         cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(accountId);
         return await cmd.ExecuteScalarAsync(ct) is Guid id ? id : null;
     }

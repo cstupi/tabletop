@@ -47,6 +47,28 @@ public class SessionFeedbackTests : IDisposable
     }
 
     [Fact]
+    public async Task While_deployment_waits_for_players_a_teamless_participant_may_still_take_the_empty_team()
+    {
+        var sock = await Joined(Teamless(GameStatus.Playing));
+        sock.Deliver(new BoardMessage(Samples.Board));
+        sock.Deliver(new EventsMessage([]));                                                   // the end of setup: the log is open and empty
+        Assert.Equal(["Waiting for a player on Team 1", "Waiting for a player on Team 2"], _s.WaitingTeams.Select(w => w.Text));
+        Assert.False(_s.IsWatching);
+        sock.Deliver(new EventsMessage([new GameEvent(1, null, new ScoreSet(Samples.Team1, 1), null)]));
+        Assert.Empty(_s.WaitingTeams);                                                         // a log that has begun waits for no one
+        Assert.True(_s.IsWatching);
+    }
+
+    [Fact]
+    public async Task One_account_on_both_teams_holds_both_and_is_no_watcher()
+    {
+        var game = Game with { Participants = [.. Game.Participants, new Participant(Guid.CreateVersion7(), Game.Participants[0].AccountId, "Clay", Samples.Team2, null)] };
+        await Joined(game);
+        Assert.Equal([Samples.Team1, Samples.Team2], _s.MyTeamIds);
+        Assert.False(_s.IsWatching);
+    }
+
+    [Fact]
     public async Task Before_play_a_teamless_participant_is_choosing_a_team_not_watching()
     {
         var sock = await Joined(Teamless(GameStatus.Lobby));
