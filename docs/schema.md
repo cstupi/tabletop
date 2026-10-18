@@ -256,7 +256,8 @@ this: adding an event type must not be a migration.
 
 **`participant.army_snapshot`** — because it **must not** be reasoned about. It is written when
 setup ends — the moment the armies freeze, per [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)
-— and read only to rebuild that game. It is **nullable**, as is `participant.team_id`: a
+— or, for a team that had no army then, when one is picked while deployment waits for players (game
+flow → *Waiting for players*), and read only to rebuild that game. It is **nullable**, as is `participant.team_id`: a
 participant who joins after deployment has no army, and one who has not yet picked a team in the
 lobby has no team (ruled 09-04, [the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)). Normalised, a later schema change would migrate
 historical snapshots and silently alter what a past game was played with. Being opaque is the

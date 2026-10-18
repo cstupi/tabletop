@@ -875,8 +875,9 @@ deleted the game under it.
 
 `participant` carries two columns this module's SQL depends on (`docs/schema.md` → *`participant`
 links to its game, and holds the army it picked*): `game_id uuid not null references game(id) on
-delete cascade` with `unique (game_id, account_id)`, because `team_id` is nullable and a team-less
-participant would otherwise be attached to nothing; and `army_id uuid references army(id) on delete
+delete cascade` with `unique nulls not distinct (game_id, account_id, team_id)` (migration 018), because
+`team_id` is nullable and a team-less participant would otherwise be attached to nothing, and an
+account holds one row per team it plays (self-play) and at most one row with no team; and `army_id uuid references army(id) on delete
 set null`, the lobby's pick, which the manifest reads before a snapshot exists.
 
 Endpoint behaviour:
@@ -893,9 +894,10 @@ Endpoint behaviour:
   which is a filter set for finding something recent, and ascending puts every finished game ahead
   of tonight's (the plan's ruling 7).
   `id < @after order by id desc`; `Page<T>.Next` still holds the last id. Each `GameSummary` carries
-  `ParticipantNames`, the participants' account names in join order, which the viewer's game list shows.
-- `POST /v1/games/{id}/join` is `insert ... on conflict (game_id, account_id) do nothing` guarded by
-  `where exists (select 1 from game ...)`, so joining twice is the same row and joining a
+  `ParticipantNames`, the participants' account names in join order, which the viewer's game list shows; an account holding
+  several teams (several rows) counts and is named once.
+- `POST /v1/games/{id}/join` is `insert ... on conflict do nothing` guarded by `where exists (select 1
+  from game ...)` and by the account having no row in the game yet, so joining twice is the same row and joining a
   nonexistent game is `404`. Joining is allowed at every status, including `ended`. The arriving
   client hydrates from the log like any reconnect (setup phase → *Joining is allowed at any status*).
   This endpoint joins the game. It does not take a team, and the row it inserts has `team_id null`.
@@ -1594,7 +1596,7 @@ erDiagram
 
 *Games and the table state. `TABLE_STATE` has two nullable owners with a check constraint that
 exactly one is set: management writes the `owner_id` rows, the game server the `game_id` row.
-`PARTICIPANT.game_id`, `unique (game_id, account_id)` and `army_id` are the contracts plan's
+`PARTICIPANT.game_id`, `unique nulls not distinct (game_id, account_id, team_id)` and `army_id` are the contracts plan's
 proposed corrections to `schema.md`, and this module's SQL requires them. `PROPERTIES` and the
 seven tables beneath it are read here and written by nothing that exists.*
 

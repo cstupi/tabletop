@@ -692,9 +692,10 @@ log and runs the engine.
 
 There is no way back from `playing` to `setup`. An account joining the game after the flip has no
 `army_snapshot` and no team, because `CreateTeam` and `PickTeam` are refused with `WrongStatus`
-from `playing` on. A participant on a team with no army picked freezes with `army_snapshot` null
-and contributes nothing to any legal set, and the scheduler skips a team whose legal set is
-empty. A participant with no team at all is never addressed by an Ask, **and that is what a
+from `playing` on, except `PickTeam` onto a team no one holds while deployment waits for players (game flow → *Waiting for players*).
+A team with no participant or no army holds the game at that wait, with the log empty, until one
+joins and brings an army (`PickArmy`, snapshotted then); the scheduler skips a team whose legal set is
+empty only once play has begun. A participant with no team at all is never addressed by an Ask, **and that is what a
 spectator is**. There is no second identity for one.
 
 Freezing the team list is about the list, not about who is holding a socket: a participant's team
@@ -754,9 +755,10 @@ joining it.
   cap) is dropped.
 
 Lobby edits that change who plays: `SetConfiguration` is the creator's. Teams are shared by design (game
-flow: two players on a side), and `PickTeam(TeamId, ParticipantId?)` takes an empty team freely; a team
-another participant holds is joined only by the creator's placing (`ParticipantId` names whom the
-creator places; a non-creator naming anyone but themselves, or a held team, is `NotPermitted`). A lobby
+flow: two players on a side), and `PickTeam(TeamId, ParticipantId?)` takes an empty team freely, as one
+more team for an account that plays one (self-play: a participant row per team; `LeaveTeam` gives one
+up); a team another account holds is joined only by the creator's placing (`ParticipantId` names the row
+the creator places; a non-creator naming anyone but themselves, or a held team, is `NotPermitted`). A lobby
 edit from a participant whose row has gone is refused.
 
 ### Presence and the drain
@@ -845,7 +847,7 @@ Decisions this module settles itself:
 | The table frame is corner-origin | `0 <= x <= width`, `0 <= y <= length`, Z up | End-setup's off-slab rule and the client's rendering both need an origin; the geometry plan's ruling 1 states the frame |
 | `deployment_zone` rows exist per shape, keyed by ordinal, with no stored style | "Re-derive on team change" becomes a render-time join | The server keeps no style state; `docs/schema.md` → A deployment zone names a team ordinal, not a team |
 | The draft starts at 72 × 48 with texture `grass` | `StartSetup` carries no fields and the columns are non-null | 72 × 48 is the size every deployment style assumes, and the creator has a legal table to edit without a round trip. The plan's ruling 2 |
-| A newer socket replaces an older one for the same participant | `AttachCoreAsync` closes the old one with `1000` | A reconnection after a blip works and a second window kills the first. The plan's ruling 3; presence → Deliberately not decided |
+| An account may hold several sockets on one game | `AttachCoreAsync` adds each; `AccountSockets` closes the account's oldest with `1000` past its cap (4) | Two windows of one account both play (self-play); a reconnection after a blip works, and the stale socket goes when its transport does or the cap is reached. Ruling 3 |
 | `presence_ended` is an explicit frame, not a timeout | Sent when the participant's last socket closes | No client owns a presence timeout. Presence → Deliberately not decided |
 | A game leaves memory with its last socket; nothing keeps it warm | `ReleaseIfEmptyAsync` on every detach | Accounts makes hydrate-from-the-log the one path, so a warm cache would be a second one |
 | 20 Hz presence relay | `GameServerOptions.PresenceRelayHz` | Presence sets no rate; `architecture.md`'s "four players at 20Hz" is the figure |
@@ -1255,7 +1257,8 @@ game server, when a strict round-4 end appends `game_ended`.
 
 What freezes at the flip is the scheduler shape, the team list, the armies and the layout.
 Freezing the team list means `CreateTeam` and `PickTeam` are refused with `WrongStatus` from
-`playing` on, so no `team` row and no `participant.team_id` changes for the rest of the game. It
+`playing` on, so no `team` row changes for the rest of the game and no `participant.team_id` changes
+once the log has begun; before it begins, a team no one holds may be taken (game flow → *Waiting for players*). It
 does not mean a participant loses their team by disconnecting. Their slot is on their
 `participant` row, so a socket arriving during play is returned to it, and only an account that
 never joined before the flip has no slot and watches (the plan's ruling 1; the model is
@@ -1269,7 +1272,7 @@ stateDiagram-v2
     absent --> hydrating : first socket for this game
     hydrating --> live : rows + draft/snapshot + log, then StartAsync (+ Advance)
     hydrating --> absent : GameNotFound / GameRowsInconsistent / UnknownGameRules / ProjectionDesync, close 1011
-    live --> live : sockets attach and detach, a newer socket replaces an older one per participant
+    live --> live : sockets attach and detach, several per account up to its cap
     live --> faulted : any append failure, or a draft write failure
     live --> absent : ReleaseIfEmptyAsync when the last socket goes
     faulted --> absent : released, or replaced on the next GetOrHydrateAsync
@@ -1295,7 +1298,7 @@ edge back to `absent` is recovered by hydrating again.
 | A crash between an append and `Advance` | `StartAsync` runs `RunToRestAsync` after hydrating a `playing` game | `Starting_advances_the_engine_and_a_sealed_answer_is_withheld_per_viewer` |
 | An event the server's own projection cannot apply, or an `Advance` that throws | The run is rolled back: nothing stored or sent, the projection rebuilt from the log, the command refused; the session stays live | `An_event_the_servers_own_projection_cannot_apply_rolls_the_command_back`, `An_engine_that_throws_in_advance_refuses_the_command_and_stays_usable` |
 | An engine that never rests | `RunToRestAsync` caps at 10 000 iterations and logs an error | — |
-| Two sockets for one participant | The newer replaces the older, closed with `1000`; the older's read loop stops and any frame it still delivers is dropped; presence stays one value | `A_second_connection_for_the_same_participant_replaces_the_first`, `A_replaced_socket_is_read_no_further` |
+| Two sockets for one participant | Both stay and both hear the game; presence stays one value; past the account's cap the oldest is closed with `1000`, its read loop stops and any frame it still delivers is dropped | `A_second_connection_for_the_same_participant_joins_the_first_and_both_hear_the_game`, `A_socket_closed_over_its_accounts_cap_is_read_no_further` |
 
 ### Lifecycle
 
@@ -1395,7 +1398,8 @@ The plan's three rulings:
 1. **Teams are not created or picked after `playing`, and a returning player rejoins their
    slot.** Teams are created only while the game is `lobby` or `setup`, and the team list freezes
    at the flip with the scheduler shape, the armies and the layout, so `CreateTeam` and
-   `PickTeam` are refused with `WrongStatus` from `playing` on. A participant's team is their
+   `PickTeam` are refused with `WrongStatus` from `playing` on, except `PickTeam` onto a team no
+   one holds while deployment waits for players. A participant's team is their
    slot, recorded on their `participant` row; a socket arriving during play is returned to it,
    with no re-pick and nothing re-derived. Only an account that never joined before the flip has
    no slot, and that account is a spectator: no team, never Asked, watching. The canonical
@@ -1408,12 +1412,11 @@ The plan's three rulings:
    without a round trip. Rejected: the creator's client choosing, which gives `StartSetup`
    fields, a `Tabletop.Protocol` change the contracts plan owns; a layout as the default, which
    needs a way to read one that this server has not got.
-3. **One connection per participant: a newer socket replaces the older**
-   ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)).
-   A reconnection after a blip works; a second window kills the first. Rejected: two connections,
-   under which presence stays one value per participant (both sockets write the same slot, latest
-   wins), and `AttachCoreAsync`/`DetachAsync` stop replacing and stop sending `PresenceEnded`
-   until the last socket closes.
+3. **Several connections per account** (owner ruling, self-play: [game flow](../../superpowers/specs/2026-08-28-game-flow-design.md)
+   → *One account, several teams*). Two windows of one account both play, each seeing every team the
+   account holds; whoever answers an Ask first answers it. Presence stays one value per participant
+   (both sockets write the same slot, latest wins), and `DetachAsync` sends `PresenceEnded` only when
+   the last socket closes. `AccountSockets` caps an account at 4 sockets and closes the oldest.
 
 Rulings the plan takes from the specs: commands while `ended` (accepted, because `ended` is a
 flag and there is no un-end endpoint), the presence relay rate (20 Hz), session eviction (a game

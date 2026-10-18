@@ -9,14 +9,14 @@ no turn. Two people dragging the same piece is settled by whoever drops last, an
 other's drag through presence. The server answers every setup edit with a `BoardMessage` carrying
 the whole draft, and every lobby edit with a `GameInfoMessage`. The client has no local merge to do.
 
-`LobbyPanel` covers the six lobby edits: `CreateTeam`, `PickTeam` (with `null` meaning watch),
-`PickArmy`, `SetConfiguration` pre-filled with the current values, and, for the creator only,
+`LobbyPanel` covers the seven lobby edits: `CreateTeam`, `PickTeam` (one more team; `null` meaning watch),
+`LeaveTeam`, `PickArmy` (one picker per team held), `SetConfiguration` pre-filled with the current values, and, for the creator only,
 `StartSetup` and `EndSetup`. The creator's two buttons are absent for anyone else, who reads what
 they wait for (`LobbyView.WaitingForCreator`). The configuration is shown to everyone and editable by
 the creator alone; for anyone else its controls are disabled with `LobbyView.CreatorOnly` as label and
 tooltip. A seat line (`LobbyView.Seat`) says which team I am on, or that I have none and will watch
-once play starts. `LobbyView.Teams` makes the team buttons: `Join team N` on an empty team, `On team N`
-(disabled) on mine, and a team another participant holds named `Team N: {holders}`, disabled with
+once play starts. `LobbyView.Teams` makes the team buttons: `Join team N` on an empty team (one more team when I play
+one: self-play), `Leave team N` on mine, and a team another participant holds named `Team N: {holders}`, disabled with
 "ask the creator to place you on it", except for the creator, who may join it. The game name is held
 to 64 characters (`TextLimits`). The Players list (`LobbyView.Players`) shows every participant, teamless
 ones included, with their team or "No team"; for the creator each row is a team picker (No team, then

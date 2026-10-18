@@ -34,8 +34,9 @@ Deferred, with where it is recorded:
   `PresenceEnded` when a participant's last socket closes, and no client owns a presence timeout
   (contracts plan ruling 1). Were a timeout chosen instead, `PresenceEnded` would leave
   `SocketMessage` and the client would own the timeout.
-- Whether a participant can have two connections at once: no. The newer socket closes the older
-  with `1000` (game server plan ruling 3), which is what the reconnect rule keys on.
+- Whether a participant can have two connections at once: yes. Two windows of one account both play
+  (self-play: each sees every team the account holds); the game server closes the account's oldest
+  socket with `1000` only past its socket cap (4), which is what the reconnect rule keys on.
 - A cache eviction policy. `user://cache/` grows without bound, and nothing in the spec or plan
   caps it.
 - Hosting. Local only: management at `http://localhost:5100`, the game server at
