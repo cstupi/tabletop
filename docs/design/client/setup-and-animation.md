@@ -28,7 +28,7 @@ end-setup command deletes those rows before flipping.
 `SetupToolbar` covers the fourteen setup edits: table size and texture; add built-in terrain, add
 library terrain (`ListAssets(Terrain)` → `GetAssetVolumes` → `AddTerrain` with `VisualRef.OfAsset`),
 move, turn (a held piece's Q/E, the right-click menu's Turn left/right 15° and Set facing…, the
-selected piece's Facing field and ±15° buttons: `MoveTerrain` with the new yaw, moved clear of `Impassable` pieces by
+terrain card's Facing field and ⟲/⟳ 15° buttons: `MoveTerrain` with the new yaw, moved clear of `Impassable` pieces by
 `MenuModel.TurnInDraft`), scale, remove, swap mesh, override volumes and reset volumes; add and remove markers; set the
 zone style (sending `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`) and swap two ordinals'
 zones; load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one

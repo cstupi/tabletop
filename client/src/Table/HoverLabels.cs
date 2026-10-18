@@ -6,7 +6,7 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the one-model tag at the cursor. A hovered locked objective says how to unlock it. In play a hovered terrain piece shows its TerrainLabel; a click pins it until the selection moves elsewhere.</summary>
+/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the one-model tag at the cursor. A hovered locked objective says how to unlock it. In play a hovered terrain piece shows its TerrainLabel, except the selected one, whose details are the terrain card's.</summary>
 public partial class HoverLabels : Node3D
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
@@ -16,7 +16,7 @@ public partial class HoverLabels : Node3D
     readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
     readonly Node3D _terrainLabels = new();
     readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: one model", Visible = false };
-    Guid? _hovered, _marker, _terrain, _pinned;
+    Guid? _hovered, _marker, _terrain;
     Action<Guid?>? _onHover, _onMarker, _onTerrain; Action? _onChanged, _onSelection; Action<RenderCause>? _onFrame;
 
     public void Bind(Session session, TableView view, TableInput input)
@@ -24,7 +24,7 @@ public partial class HoverLabels : Node3D
         _s = session; _view = view; _input = input;
         AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_lock); AddChild(_terrainLabels); AddChild(_layer); _layer.AddChild(_shift);
         _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onTerrain = id => { _terrain = id; DrawTerrain(); };
-        _onSelection = () => { _pinned = _input.Selected?.PieceId is { } id && _view.TerrainAt(id) is not null ? id : null; Draw(); };
+        _onSelection = Draw;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Facts)) != 0) Draw(); };
         input.HoveredUnitChanged += _onHover; input.HoveredMarkerChanged += _onMarker; input.SelectionChanged += _onSelection; input.EligibleChanged += _onChanged;
         input.HoveredTerrainChanged += _onTerrain;
@@ -84,14 +84,14 @@ public partial class HoverLabels : Node3D
         _lock.Visible = true;
     }
 
-    /// <summary>The pinned piece's label and the hovered one's, in play only: terrain is the setup toolbar's before then.</summary>
+    /// <summary>The hovered piece's label, in play only (setup has the terrain card), and not for the selected piece, which the terrain card shows.</summary>
     void DrawTerrain()
     {
         foreach (var c in _terrainLabels.GetChildren()) c.QueueFree();
         if (_s.Game?.Status is not (GameStatus.Playing or GameStatus.Ended) || _s.Projection is not { } p) return;
-        foreach (var id in new[] { _pinned, _terrain }.OfType<Guid>().Distinct())
+        if (_terrain is { } id && id != _input.Selected?.PieceId)
         {
-            if (p.Board.Table.Terrain.FirstOrDefault(t => t.Id == id) is not { } piece || _view.TerrainAt(id) is not { } node) continue;
+            if (p.Board.Table.Terrain.FirstOrDefault(t => t.Id == id) is not { } piece || _view.TerrainAt(id) is not { } node) return;
             var box = node.Bounds;
             _terrainLabels.AddChild(new Label3D { Text = TerrainLabel.Of(piece), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true,
                 Position = new Vector3(box.GetCenter().X, box.End.Y + 0.8f, box.GetCenter().Z) });

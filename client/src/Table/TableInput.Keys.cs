@@ -13,11 +13,15 @@ public partial class TableInput
 {
     void OnKey(InputEventKey k)
     {
-        if (k.Echo || Translate(k.Keycode) is not { } key || Hotkeys.Of(key, k.ShiftPressed, k.CtrlPressed) is not { } intent) return;
+        if (k.Echo || (k.Pressed && TextFocused()) || Translate(k.Keycode) is not { } key || Hotkeys.Of(key, k.ShiftPressed, k.CtrlPressed) is not { } intent) return;
         if (intent == Intent.Sight) { SetSight(k.Pressed); return; }
         if (intent == Intent.MeasureHeld) { SetMeasureHeld(k.Pressed); return; }
         if (k.Pressed && Act(intent)) GetViewport().SetInputAsHandled();
     }
+
+    /// <summary>A text field in the window's own viewport (the terrain card's notes, the setup toolbar's fields) has the key: the
+    /// table's viewport hears it too, so a typed space, letter or Enter never reaches a hotkey. Releases still pass.</summary>
+    bool TextFocused() => GetTree().Root.GuiGetFocusOwner() is LineEdit or TextEdit or SpinBox;
 
     /// <summary>HotKey's members carry Godot's names. A key Hotkeys does not name is no key; IsDefined stops a numeric name parsing.</summary>
     static HotKey? Translate(Key key) => Enum.TryParse<HotKey>(key.ToString(), out var k) && Enum.IsDefined(k) ? k : null;

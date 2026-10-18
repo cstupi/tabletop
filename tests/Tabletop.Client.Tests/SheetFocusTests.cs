@@ -50,8 +50,15 @@ public class SheetFocusTests
     }
 
     [Fact]
-    public void A_selected_piece_that_is_not_a_unit_falls_back() =>
-        Assert.Equal(Blue.Id, SheetFocus.Of(Activating(Blue.Id), Game, TeamA, Guid.CreateVersion7()));   // a terrain piece or a marker
+    public void A_selected_marker_falls_back() =>
+        Assert.Equal(Blue.Id, SheetFocus.Of(Activating(Blue.Id), Game, TeamA, Activating(null).Board.Table.Markers[0].Id));
+
+    [Fact]
+    public void A_selected_terrain_piece_takes_the_card_s_slot()
+    {
+        var p = Activating(Blue.Id);
+        Assert.Null(SheetFocus.Of(p, Game, TeamA, p.Board.Table.Terrain[0].Id));   // the terrain card shows it instead
+    }
 
     [Fact]
     public void Team_of_a_unit_comes_from_its_participant() => Assert.Equal(2, SheetFocus.TeamOf(Activating(null), Game, Red.Id)?.Ordinal);
