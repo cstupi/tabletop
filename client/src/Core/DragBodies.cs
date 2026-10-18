@@ -34,10 +34,26 @@ public static class DragBodies
         return held.Select((h, i) => (h.Id, End: ends[i])).ToDictionary(x => x.Id, x => x.End);
     }
 
-    /// <summary>A setup terrain drag: slides against the other pieces declared Impassable, rests on the Solid tops under its footprints.</summary>
-    public static Point3 Piece(IReadOnlyList<TerrainPlacement> terrain, Guid pieceId, Point2 to, bool free)
+    /// <summary>
+    /// A setup terrain drag from where the piece is held (at, its yaw included): first moved clear of any piece declared Impassable its
+    /// footprint enters (a turn in hand), then straight to the cursor when that spot is free, else slid toward it along what it meets
+    /// (Collision.Follow). Rests on the Solid tops under its footprints. Alt places freely; the drop still rests.
+    /// </summary>
+    public static Point3 Piece(IReadOnlyList<TerrainPlacement> terrain, Guid pieceId, Placement at, Point2 to, bool free)
     {
         var others = terrain.Where(t => t.Id != pieceId).SelectMany(t => t.WorldVolumes()).ToList();
-        return Collision.Slide(terrain.Single(t => t.Id == pieceId).WorldVolumes(), to, free ? [] : Walls(others, null), others).Position;
+        var held = terrain.Single(t => t.Id == pieceId) with { Position = at.Position, Yaw = at.Yaw };
+        if (free) return Collision.Slide(held.WorldVolumes(), to, [], others).Position;
+        var walls = Walls(others, null);
+        var clear = held with { Position = Collision.Clear(held.WorldVolumes(), walls, others).Position };
+        return Collision.Follow(clear.WorldVolumes(), to, walls, others).Position;
+    }
+
+    /// <summary>A piece turned in place to the yaw: where it stands, or the nearest spot clear of the pieces declared Impassable, rested.</summary>
+    public static Point3 Turn(IReadOnlyList<TerrainPlacement> terrain, Guid pieceId, Yaw yaw)
+    {
+        var others = terrain.Where(t => t.Id != pieceId).SelectMany(t => t.WorldVolumes()).ToList();
+        var turned = terrain.Single(t => t.Id == pieceId) with { Yaw = yaw };
+        return Collision.Clear(turned.WorldVolumes(), Walls(others, null), others).Position;
     }
 }

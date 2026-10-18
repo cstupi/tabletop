@@ -54,8 +54,36 @@ public class DragBodiesTests
         var hill = Piece(20, VolumeKind.Solid, Footprint.Rect(6, 6), 2, TerrainDeclarations.None);
         var building = Piece(40, VolumeKind.Solid, Footprint.Rect(6, 6), 8, TerrainDeclarations.Impassable);
         var wood = Piece(2, VolumeKind.Area, Footprint.Circle(3), 6, TerrainDeclarations.None);
-        Assert.Equal(new Point3(20, 30, 2), DragBodies.Piece([hill, building, wood], wood.Id, new(20, 30), free: false));
-        Assert.True(DragBodies.Piece([hill, building, wood], wood.Id, new(40, 30), free: false).X <= 34 + 1e-3);
+        Assert.Equal(new Point3(20, 30, 2), DragBodies.Piece([hill, building, wood], wood.Id, At(wood), new(20, 30), free: false));
+        Assert.True(DragBodies.Piece([hill, building, wood], wood.Id, At(wood), new(40, 30), free: false).X <= 34 + 1e-3);
+    }
+
+    static Placement At(TerrainPlacement t, double yaw = 0) => new(t.Position, new Yaw(yaw));
+
+    [Fact]
+    public void A_held_piece_slides_from_where_it_is_held_and_jumps_to_a_free_cursor()
+    {
+        var building = Piece(40, VolumeKind.Solid, Footprint.Rect(6, 6), 8, TerrainDeclarations.Impassable);    // x 37..43, y 27..33
+        var wall = Piece(30, VolumeKind.Solid, Footprint.Rect(1, 4), 2, TerrainDeclarations.None);             // x 29.5..30.5, y 28..32
+        // Held against the building's left side, the cursor moves up along it: the wall follows, never stuck at the contact.
+        var held = new Placement(new Point3(36.4, 30, 0), new Yaw(0));
+        var up = DragBodies.Piece([building, wall], wall.Id, held, new(38, 32), free: false);
+        Assert.Equal(32, up.Y, 3);
+        Assert.True(up.X <= 36.5 + 1e-3, $"at {up}");
+        // The cursor past the building: the spot is free, the piece goes there.
+        Assert.Equal(new Point3(50, 30, 0), DragBodies.Piece([building, wall], wall.Id, held, new(50, 30), free: false));
+    }
+
+    [Fact]
+    public void A_turn_into_another_piece_moves_the_turned_piece_clear()
+    {
+        var building = Piece(40, VolumeKind.Solid, Footprint.Rect(6, 6), 8, TerrainDeclarations.Impassable);    // x 37..43
+        var wall = Piece(35.5, VolumeKind.Solid, Footprint.Rect(1, 6), 2, TerrainDeclarations.None);           // x 35..36: turned 90° it spans x 32.5..38.5
+        var at = DragBodies.Turn([building, wall], wall.Id, new Yaw(90));
+        Assert.True(at.X <= 34 + 1e-3, $"at {at}");
+        Assert.Equal(new Point3(35.5, 30, 0), DragBodies.Turn([building, wall], wall.Id, new Yaw(0)));
+        var held = DragBodies.Piece([building, wall], wall.Id, At(wall, 90), new(35.5, 30), free: false);
+        Assert.True(held.X <= 34 + 1e-3, $"held at {held}");                                                       // a turn in hand clears the same way
     }
 
     [Fact]

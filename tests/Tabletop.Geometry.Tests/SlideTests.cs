@@ -57,4 +57,39 @@ public class SlideTests
         Assert.Equal(new Point3(12, 12, 2), Collision.Slide([wood], new(12, 12), [], [Hill]).Position);
         Assert.True(Collision.Slide([Fx.Cylinder(2, 10, 3, 0, 6, VolumeKind.Area)], new(16, 10), [Wall], [Wall]).Position.X < 9.75 - 2.99);
     }
+
+    [Fact]
+    public void A_slide_turns_along_a_second_wall_it_meets()
+    {
+        var slant = Fx.Box(8, 22, 0.5, 12, 0, 6, yaw: 45);                                  // the line x + y = 30, from (3.8, 26.2) to (12.2, 17.8)
+        var end = Collision.Slide(Fx.Model(8, 10), new(12, 30), [], [Wall, slant], [Wall, slant]);
+        Assert.True(end.X < 8 && end.Y > 21, $"stopped at {end}");                          // a single projection stops at (9.12, 19.6) under the slant
+        Assert.False(Overlap.WithSolid(At(Fx.Model(0, 0), end), slant) || Overlap.WithSolid(At(Fx.Model(0, 0), end), Wall));
+    }
+
+    [Fact]
+    public void A_turned_wall_stops_a_body_where_its_turned_footprint_stands()
+    {
+        var across = Fx.Box(10, 10, 0.5, 20, 0, 6, yaw: 90);                                 // x 0..20, y 9.75..10.25
+        Assert.Equal(9.12, Collision.Slide(Fx.Model(5, 8), new(5, 12), [], [across], [across]).Y, 2);
+        Assert.Equal(12, Collision.Slide(Fx.Model(5, 8), new(5, 12), [], [Wall], [Wall]).Y, 6);          // unturned it stands at x 9.75..10.25, clear of x 5
+    }
+
+    [Fact]
+    public void A_terrain_piece_follows_a_free_cursor_past_an_obstacle()
+    {
+        var wood = Fx.Cylinder(5, 10, 2, 0, 6, VolumeKind.Area);
+        Assert.Equal(new Point3(15, 10, 0), Collision.Follow([wood], new(15, 10), [Wall], [Wall]).Position);   // lifted over: the spot is free
+        Assert.True(Collision.Follow([wood], new(10, 10), [Wall], [Wall]).Position.X < 9.75 - 1.99);       // the spot is the wall: the nearest free spot on the way
+    }
+
+    [Fact]
+    public void A_turned_piece_is_cleared_out_of_what_it_turned_into()
+    {
+        var bar = Fx.Box(8.5, 10, 0.5, 6, 0, 2, VolumeKind.Area, yaw: 90);                   // x 5.5..11.5 once turned: through the wall
+        var cleared = Collision.Clear([bar], [Wall], [Wall]);
+        Assert.False(Collision.Blocked([bar with { Transform = cleared }], [Wall]));
+        Assert.True(cleared.Position.Horizontal.DistanceTo(new Point2(8.5, 10)) < 3.5);
+        Assert.Equal(new Yaw(90), cleared.Yaw);
+    }
 }

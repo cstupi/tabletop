@@ -28,12 +28,68 @@ public static partial class Collision
         var origin = piece[0].Transform;
         var from = origin.Position.Horizontal;
         var shape = piece.Select(v => v.WorldOutline()).ToList();
-        var own = piece.Select(v => v.Id).ToHashSet();
-        var sides = Sides(walls.Where(w => !own.Contains(w.Id)).ToList(), shape);
+        var sides = Sides(Others(piece, walls), shape);
         var end = Move(shape, from, to, at => sides.FirstOrDefault(s => at.Any(o => Outline.InteriorsIntersect(o, s))));
-        var moved = piece.Select(v => v with { Transform = origin with { Position = new Point3(end.X, end.Y, 0) } }).ToList();
-        return origin with { Position = new Point3(end.X, end.Y, RestHeight(moved, volumes)) };
+        return Rested(piece, end, volumes);
     }
+
+    /// <summary>
+    /// A terrain piece in hand: lifted, it goes straight to the cursor when its footprint there enters no wall; otherwise it slides
+    /// from where it is toward it (<see cref="Slide(IReadOnlyList{WorldVolume}, Point2, IReadOnlyList{WorldVolume}, IReadOnlyList{WorldVolume})"/>),
+    /// so it never stays trapped behind a wall the cursor has passed. Rests either way.
+    /// </summary>
+    public static TerrainTransform Follow(IReadOnlyList<WorldVolume> piece, Point2 to, IReadOnlyList<WorldVolume> walls, IReadOnlyList<WorldVolume> volumes)
+    {
+        var at = Moved(piece, to);
+        return Blocked(at, walls) ? Slide(piece, to, walls, volumes) : Rested(piece, to, volumes);
+    }
+
+    /// <summary>The piece's footprints share area with a Solid wall that is not its own.</summary>
+    public static bool Blocked(IReadOnlyList<WorldVolume> piece, IReadOnlyList<WorldVolume> walls)
+    {
+        var shape = piece.Select(v => v.WorldOutline()).ToList();
+        return Others(piece, walls).Where(w => w.Volume.Kind == VolumeKind.Solid).Any(w => { var s = w.WorldOutline(); return shape.Any(o => Outline.InteriorsIntersect(o, s)); });
+    }
+
+    /// <summary>Rings this far apart, searched outward for a free spot; and how far out the search goes.</summary>
+    const double ClearStep = 0.25, ClearReach = 144;
+
+    /// <summary>
+    /// A piece where it stands if that enters no wall, else at the nearest spot that does (rings <see cref="ClearStep"/> apart,
+    /// searched outward): how a turn that swings a piece into another is undone by moving it, not by refusing the turn. Rests.
+    /// The piece unmoved when nothing within <see cref="ClearReach"/> is free.
+    /// </summary>
+    public static TerrainTransform Clear(IReadOnlyList<WorldVolume> piece, IReadOnlyList<WorldVolume> walls, IReadOnlyList<WorldVolume> volumes)
+    {
+        var from = piece[0].Transform.Position.Horizontal;
+        var solid = Others(piece, walls).Where(w => w.Volume.Kind == VolumeKind.Solid).Select(w => w.WorldOutline()).ToList();
+        var shape = piece.Select(v => v.WorldOutline()).ToList();
+        bool Free(Point2 by) => !solid.Any(s => shape.Any(o => Outline.InteriorsIntersect(o.Shift(by), s)));
+        if (Free(new Point2(0, 0))) return Rested(piece, from, volumes);
+        for (var r = ClearStep; r <= ClearReach; r += ClearStep)
+        {
+            var n = Math.Max(16, (int)Math.Ceiling(2 * Math.PI * r / ClearStep));
+            for (var i = 0; i < n; i++)
+            {
+                var t = 2 * Math.PI * i / n;
+                var by = new Point2(Math.Cos(t), Math.Sin(t)) * r;
+                if (Free(by)) return Rested(piece, from + by, volumes);
+            }
+        }
+        return Rested(piece, from, volumes);
+    }
+
+    static List<WorldVolume> Others(IReadOnlyList<WorldVolume> piece, IReadOnlyList<WorldVolume> walls)
+    {
+        var own = piece.Select(v => v.Id).ToHashSet();
+        return walls.Where(w => !own.Contains(w.Id)).ToList();
+    }
+
+    static List<WorldVolume> Moved(IReadOnlyList<WorldVolume> piece, Point2 to) =>
+        piece.Select(v => v with { Transform = v.Transform with { Position = new Point3(to.X, to.Y, 0) } }).ToList();
+
+    static TerrainTransform Rested(IReadOnlyList<WorldVolume> piece, Point2 at, IReadOnlyList<WorldVolume> volumes) =>
+        piece[0].Transform with { Position = new Point3(at.X, at.Y, RestHeight(Moved(piece, at), volumes)) };
 
     /// <summary>Each held body slides against the stationary ones and the held bodies already placed, in drag order.</summary>
     public static IReadOnlyList<Point3> Separate(IReadOnlyList<(PlacedModel Moving, Point2 To)> held, IReadOnlyList<PlacedModel> stationary, IReadOnlyList<WorldVolume> walls, IReadOnlyList<WorldVolume> volumes)
@@ -54,19 +110,29 @@ public static partial class Collision
 
     static IReadOnlyList<Outline> Shifted(IReadOnlyList<Outline> shape, Point2 by) => shape.Select(o => o.Shift(by)).ToList();
 
-    /// <summary>To the first contact, then the rest of the drag projected on the contact's tangent, once.</summary>
+    /// <summary>A slide turns along at most this many contacts before it stops where it is.</summary>
+    const int Contacts = 4;
+
+    /// <summary>To the first contact, then what is left of the drag projected on the contact's tangent, again at each contact up to <see cref="Contacts"/>.</summary>
     static Point2 Move(IReadOnlyList<Outline> shape, Point2 from, Point2 to, Func<IReadOnlyList<Outline>, Outline?> obstacle)
     {
         Outline? Hit(Point2 at) => obstacle(Shifted(shape, at - from));
-        var (contact, by) = Advance(from, to, Hit);
-        if (by is null) return to;
-        var (_, onMe, onIt) = shape.Select(o => Outline.Separation(o.Shift(contact - from), by)).MinBy(s => s.Distance);
-        var n = onMe - onIt;
-        if (n.Length < Tolerance.Distance) return contact;
-        n *= 1 / n.Length;
-        var rest = to - contact;
-        var along = rest - n * rest.Dot(n);
-        return along.Length <= Contact ? contact : Advance(contact, contact + along, Hit).At;
+        var (at, target) = (from, to);
+        for (var i = 0; i < Contacts; i++)
+        {
+            var (contact, by) = Advance(at, target, Hit);
+            if (by is null) return target;
+            var (_, onMe, onIt) = shape.Select(o => Outline.Separation(o.Shift(contact - from), by)).MinBy(s => s.Distance);
+            var n = onMe - onIt;
+            if (n.Length < Tolerance.Distance) n = contact - by.ClosestPointTo(contact);   // a grazing contact too close to measure: away from the obstacle's nearest point
+            if (n.Length < Tolerance.Distance) return contact;
+            n *= 1 / n.Length;
+            var rest = target - contact;
+            var along = rest - n * rest.Dot(n);
+            if (along.Length <= Contact) return contact;
+            (at, target) = (contact, contact + along);
+        }
+        return at;
     }
 
     static (Point2 At, Outline? By) Advance(Point2 from, Point2 to, Func<Point2, Outline?> hit)
@@ -80,7 +146,7 @@ public static partial class Collision
             if (hit(from + d * t) is not { } by) { free = t; continue; }
             double lo = free, hi = t;
             while ((hi - lo) * d.Length > Contact) { var mid = (lo + hi) / 2; if (hit(from + d * mid) is null) lo = mid; else hi = mid; }
-            return (from + d * lo, by);
+            return (from + d * Math.Max(free, lo - Contact / d.Length), by);   // backed off by Contact, so the gap is wide enough to measure the contact's normal
         }
         return (to, null);
     }
