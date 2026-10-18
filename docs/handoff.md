@@ -63,9 +63,29 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
+### 2026-10-18
+
+**Live v0.1.11** on docker1 (release: tag `vX.Y.Z` on main, push, then on docker1 `git fetch --tags && git checkout vX.Y.Z &&
+scripts/release --deploy home --version vX.Y.Z`; it tests, builds the client in a container, publishes `releases/` and
+`builtin/`, and deploys). The owner's other sessions `docker1-logical-curry` (server) and `syn01-piped-castle` (NAS)
+take instructions over Remote Control. Since v0.1.1:
+- Client: release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". The export
+  ships the built-in terrain meshes raw (Keep File imports; `scripts/pck-files` + `check_pack` guard the pack).
+- Built-in content (catalog `client/content/builtin/catalog.json`, meshes, textures) is published to MinIO `builtin/` by
+  each release and served by `GET /v1/builtin`; clients cache it and switch when `Tabletop-Builtin-Version` changes.
+- Setup: terrain turns (Q/E while held, Shift for 5°; card/menu when selected); drags slide along contacts and follow
+  the cursor; terrain details and controls live in the unit card's slot (`TerrainCard`).
+- Deployment waits until every team has a participant and an army (`WaitingForPlayers`); one account may hold several
+  teams (participant row = seat, migration 018) and play both sides from one client.
+- Web: GLBs default to glTF metres/Y-up with a size readout; the mesh preview orbits over the table with fill/rim light;
+  the asset page has the same scale/orientation tools; uploads land in the open folder; Library multi-select with bulk
+  file/unfile/delete endpoints (≤ 200 ids).
+- Logs: home stack logs to journald (docker1 caps the journal at 500M); servers log one line per message.
+- Owner rulings: Caddy routes on docker1 are fine, Caddy config stays out of the repo; never touch Pi-hole.
+
 ### 2026-10-17
 
-**Live:** v0.1.1 runs on the owner's home server `docker1` (`/opt/docker/tabletop`, compose project `tabletop-home`,
+**Live:** v0.1.11 runs on the owner's home server `docker1` (`/opt/docker/tabletop`, compose project `tabletop-home`,
 `deploy/docker-compose.home.yml`, `scripts/release --deploy home`), behind the owner's Caddy on `gateway_default`:
 `https://tabletop.cstupi.com` (web, `/v1`, `/ws`) and `https://files.tabletop.cstupi.com` (MinIO, data on the NAS share
 `/mnt/tabletop/minio`; nightly Postgres dumps to `/mnt/tabletop/pg-backups`). Stytch live project with custom domain
