@@ -463,6 +463,13 @@ millimetres or centimetres bring it inside, it names the unit nearest a 32 mm mi
 inches and m buttons (`UNIT_SCALES`), and `describeSize` reads out the confirmed size under it from `worldExtent`:
 "32 mm tall, 25 × 25 mm footprint (1.26 in tall, 0.98 × 0.98 in)".
 
+The Scale and Orientation fieldsets are one component, `ScaleOrientation`, used by the upload dialog and by the asset page's
+edit form: unit buttons (the current one pressed), the size readout, the *Use mm* / *Use cm* suggestion and *Stand up / lay
+flat*. The asset page reads the mesh bounds with `describeGlb` from the GLB it already downloads for the preview, and always
+checks the unit (its meshes are glTF). *Stand up / lay flat* is `toggleUpright`: pitch 90 ↔ 0; for a glTF, standing up from
+yaw 0 also sets yaw 180. An STL upload instead re-converts on the chosen axis. An asset stored before the GLB defaults
+(scale 1, pitch 0, yaw 0, from a metres Y-up GLB) is fixed with *m*, *Stand up*, *Save*.
+
 #### 6.7 Coordinate frames
 
 Three coordinate frames are in play and the design keeps them separate.

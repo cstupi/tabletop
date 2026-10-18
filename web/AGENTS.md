@@ -8,13 +8,13 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/api/` typed client: `client.ts` (`api`, one function per endpoint), `http.ts` (`http`, `ApiError` with `retryAfter`, `API_BASE`, `setTokenProvider`), `types.ts` (DTOs), `errors.ts` (`errorMessage(e, context)`: every failure as one sentence).
 - `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry and refresh delay), `messages.ts` (`loginErrorMessage`), `redirect.ts` (`safeNext`, `loginHref`).
 - `src/lib/validation.ts` `nameProblem`, `sizeProblem`, `MAX_NAME`, `MAX_BYTES`, `ASSET_QUOTA`, `libraryUsage`, `formatBytes`: management's limits, checked before sending.
-- `src/lib/mesh/` STL to GLB: `stl.ts` (parse, `mergeSoups`), `weld.ts`, `decimate.ts` (`BUDGETS`), `normals.ts` (creased), `glb.ts`, `supports.ts`, `bounds.ts` (`terrainVolume`), `guess.ts`, `size.ts` (`GLB_DEFAULTS`, `suggestUnit`, `describeSize`), `three-frame.ts` (`eulerFor`), `convert.ts` (`convert`, `convertInWorker`, `describeGlb`), `convert.worker.ts`.
+- `src/lib/mesh/` STL to GLB: `stl.ts` (parse, `mergeSoups`), `weld.ts`, `decimate.ts` (`BUDGETS`), `normals.ts` (creased), `glb.ts`, `supports.ts`, `bounds.ts` (`terrainVolume`), `guess.ts`, `size.ts` (`GLB_DEFAULTS`, `suggestUnit`, `describeSize`, `toggleUpright`), `three-frame.ts` (`eulerFor`), `convert.ts` (`convert`, `convertInWorker`, `describeGlb`), `convert.worker.ts`.
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`, `UNIT_SCALES`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (six declarations, `defaultVolume`).
 - `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
 - `src/lib/library/` `folders.ts` (`moveTargets`), `volume-edit.ts` (`toDraft`, `fromDraft`).
 - `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
 - `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport` with a `BaseSet`), `patches.ts` (`PatchArmyRequest` builders).
-- `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `Icon`
+- `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `Icon`
   (paths in `icons.ts`), `ThemeSwitch`.
 - `src/lib/theme/theme.ts` `THEMES`, `resolveTheme`, `loadTheme`, `saveTheme`, `applyTheme` (`tabletop.theme` in `localStorage`).
 - `src/themes.css` the client's two themes as tokens and `@font-face`; `src/app.css` base, shell, panels, controls, states.

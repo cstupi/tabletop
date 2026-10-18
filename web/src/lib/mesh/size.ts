@@ -32,3 +32,9 @@ export function describeSize(b: Bounds, p: { scale: number; orientation: Orienta
   const e = worldExtent(b, p);
   return `${mm(e.height)} mm tall, ${mm(e.width)} × ${mm(e.length)} mm footprint (${inch(e.height)} in tall, ${inch(e.width)} × ${inch(e.length)} in)`;
 }
+
+/** Stand up / lay flat: pitch 90 <-> 0. For a glTF, standing up from yaw 0 also takes the glTF yaw (180) so the front faces the arrow. */
+export function toggleUpright(o: Orientation, gltf: boolean): Orientation {
+  if (o.pitch === 90) return { ...o, pitch: 0 };
+  return { ...o, pitch: 90, yaw: gltf && o.yaw === 0 ? GLB_DEFAULTS.orientation.yaw : o.yaw };
+}

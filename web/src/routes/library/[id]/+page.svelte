@@ -7,17 +7,20 @@
   import MeshPreview from '$lib/components/MeshPreview.svelte';
   import BasePicker from '$lib/components/BasePicker.svelte';
   import VolumeEditor from '$lib/components/VolumeEditor.svelte';
+  import ScaleOrientation from '$lib/components/ScaleOrientation.svelte';
+  import { describeGlb } from '$lib/mesh/convert';
+  import type { Bounds } from '$lib/mesh/types';
   import Icon from '$lib/components/Icon.svelte';
   import { formatBytes, MAX_NAME, nameProblem } from '$lib/validation';
 
   const id = $derived(page.params.id!);
-  let asset = $state<AssetDto | null>(null); let folders = $state<FolderDto[]>([]); let glb = $state<Uint8Array | null>(null); let error = $state<string | null>(null);
+  let asset = $state<AssetDto | null>(null); let folders = $state<FolderDto[]>([]); let glb = $state<Uint8Array | null>(null); let error = $state<string | null>(null); let bounds = $state<Bounds | null>(null);
   let name = $state(''); let scale = $state(1); let orientation = $state({ pitch: 0, yaw: 0, roll: 0 }); let base = $state<Base | null>(null);   // never undefined: MeshPreview and BasePicker take Base | null
   let loadFailed = $state(false); let downloading = $state(false); let busy = $state(false); let saved = $state(false);
   let loadToken = 0;
 
   async function load() {
-    glb = null; error = null; loadFailed = false;
+    glb = null; bounds = null; error = null; loadFailed = false;
     const t = ++loadToken;
     try {
       const a = await api.assets.get(id); if (t !== loadToken) return;
@@ -28,7 +31,8 @@
         downloading = true;
         const response = await fetch((await api.assets.download(id)).url); if (t !== loadToken) return;
         if (!response.ok) { error = `The mesh could not be downloaded (${response.status}). Reload to try again.`; return; }
-        glb = new Uint8Array(await response.arrayBuffer()); if (t !== loadToken) return;
+        const bytes = new Uint8Array(await response.arrayBuffer()); if (t !== loadToken) return;
+        glb = bytes; bounds = (await describeGlb(bytes)).bounds;
       }
     } catch (e) { if (t === loadToken) { error = errorMessage(e); if (!asset) loadFailed = true; } }
     finally { if (t === loadToken) downloading = false; }
@@ -67,10 +71,7 @@
         <label>Name <input bind:value={name} maxlength={MAX_NAME} aria-invalid={!!nameError} aria-describedby={nameError ? 'name-error' : undefined} oninput={() => (saved = false)} /></label>
         {#if nameError}<p id="name-error"><small>{nameError}</small></p>{/if}
         {#if asset.kind !== 'texture'}
-          <label>Scale (inches per model unit) <input type="number" step="any" min="0" bind:value={scale} /></label>
-          <fieldset><legend>Orientation (degrees)</legend>
-            <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} /></label><label>Roll <input type="number" step="15" bind:value={orientation.roll} /></label><label>Yaw (facing) <input type="number" step="15" bind:value={orientation.yaw} /></label>
-          </fieldset>
+          <ScaleOrientation bind:scale bind:orientation {bounds} checkUnit gltf disabled={busy} />
         {/if}
         {#if asset.kind === 'miniature'}<label>Modelled base <BasePicker bind:value={base} label="Modelled base" /></label>{/if}
         {#if !numbersOk}<p role="alert">Scale must be a number above zero, and the orientation numbers.</p>{/if}
@@ -98,6 +99,5 @@
   :global([data-theme='fantasy']) .view { background: var(--view-bg) }
   .check { display: flex; align-items: center; gap: var(--s1); margin: var(--s1) 0 }
   aside h2 { margin-top: var(--s5) }
-  fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0 }
   .meta { margin: var(--s4) 0 var(--s3); overflow-wrap: anywhere }
 </style>
