@@ -28,7 +28,7 @@ public static class TerrainGenerators
     public static IReadOnlyList<string> Fixed(Planet planet) => FixedPieces[planet];
     public static IReadOnlyList<string> Rolled(Planet planet, int twoD6) => Table[planet][Math.Clamp(twoD6, 2, 12) - 2];
 
-    /// <summary>The pieces land beside the long edge, off the slab, in rows 8" apart, four to a row; players drag them on.</summary>
+    /// <summary>The pieces land beside the long edge, off the slab, in rows 8" apart, four to a row, each facing a random 15° step; players drag them on.</summary>
     public static IReadOnlyList<AddTerrain> Generate(Planet planet, TableSize table, Random rng)
     {
         var names = new List<string>(Fixed(planet));
@@ -38,6 +38,7 @@ public static class TerrainGenerators
             var alternatives = Rolled(planet, rng.Next(1, 7) + rng.Next(1, 7));            // 2D6
             names.Add(alternatives[rng.Next(alternatives.Count)]);
         }
-        return names.Select((name, i) => new AddTerrain(BuiltinContent.Place(name, new Point3(table.Width + 4 + (i % 4) * 8, 4 + (i / 4) * 8, 0), new Yaw(0)))).ToList();
+        var yaws = names.Select(_ => new Yaw(rng.Next(0, 24) * 15)).ToList();
+        return names.Select((name, i) => new AddTerrain(BuiltinContent.Place(name, new Point3(table.Width + 4 + (i % 4) * 8, 4 + (i / 4) * 8, 0), yaws[i]))).ToList();
     }
 }

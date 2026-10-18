@@ -146,9 +146,32 @@ public static class MenuModel
     public static SetupEdit? RemoveFromDraft(TableState draft, Guid id) =>
         draft.Terrain.Any(t => t.Id == id) ? new RemoveTerrain(id) : draft.Markers.Any(m => m.Id == id) ? new RemoveSetupMarker(id) : null;
 
-    /// <summary>Setup's right-click on a terrain piece or setup marker.</summary>
-    public static IReadOnlyList<MenuItem> ForSetupPiece(TableState draft, Guid id) =>
-        RemoveFromDraft(draft, id) is { } remove ? [MenuItem.OfEdit("Remove", MenuInput.None, _ => remove)] : [];
+    /// <summary>Setup's right-click on a terrain piece or setup marker: a terrain piece turns 15° either way or to a facing typed in degrees, then Remove.</summary>
+    public static IReadOnlyList<MenuItem> ForSetupPiece(TableState draft, Guid id)
+    {
+        if (RemoveFromDraft(draft, id) is not { } remove) return [];
+        var items = new List<MenuItem>();
+        if (draft.Terrain.FirstOrDefault(t => t.Id == id) is { } piece)
+        {
+            items.Add(MenuItem.OfEdit("Turn left 15°", MenuInput.None, _ => TurnInDraft(draft, id, piece.Yaw.Degrees + TerrainTurn)));
+            items.Add(MenuItem.OfEdit("Turn right 15°", MenuInput.None, _ => TurnInDraft(draft, id, piece.Yaw.Degrees - TerrainTurn)));
+            items.Add(MenuItem.OfEdit("Set facing…", MenuInput.Integer, s => Int(s) is { } d ? TurnInDraft(draft, id, d) : null));
+        }
+        items.Add(MenuItem.OfEdit("Remove", MenuInput.None, _ => remove));
+        return items;
+    }
+
+    /// <summary>A terrain piece's turn step, as a held model's (Q/E).</summary>
+    public const double TerrainTurn = 15;
+
+    /// <summary>A terrain piece turned in place to the facing (degrees, counter-clockwise from above, kept in 0–360): where it stands, or the
+    /// nearest spot clear of the pieces declared Impassable it would swing into. Null for no such piece.</summary>
+    public static MoveTerrain? TurnInDraft(TableState draft, Guid id, double degrees)
+    {
+        if (!draft.Terrain.Any(t => t.Id == id) || !double.IsFinite(degrees)) return null;
+        var yaw = new Yaw((degrees % 360 + 360) % 360);
+        return new MoveTerrain(id, DragBodies.Turn(draft.Terrain, id, yaw), yaw);
+    }
 
     /// <summary>Abandon the top frame: pops it and everything above; applied effects stay applied.</summary>
     public static IReadOnlyList<MenuItem> ForFrame(Projection p) =>

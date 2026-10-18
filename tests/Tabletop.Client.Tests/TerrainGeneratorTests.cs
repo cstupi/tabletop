@@ -40,4 +40,12 @@ public class TerrainGeneratorTests
     public void The_same_seed_gives_the_same_batch() =>
         Assert.Equal(TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin),
                      TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin));
+
+    [Fact]
+    public void Each_piece_faces_a_random_15_degree_step()
+    {
+        var yaws = Enumerable.Range(0, 10).SelectMany(seed => TerrainGenerators.Generate(Planet.Generic, Opr, new Random(seed))).Select(a => a.Placement.Yaw.Degrees).ToList();
+        Assert.All(yaws, y => { Assert.InRange(y, 0, 345); Assert.Equal(0, y % 15); });
+        Assert.True(yaws.Distinct().Count() > 4);
+    }
 }

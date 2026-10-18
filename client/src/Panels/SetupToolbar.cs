@@ -199,6 +199,14 @@ public partial class SetupToolbar : VBoxContainer
         var t = draft.Terrain.FirstOrDefault(x => x.Id == sel.PieceId); if (t is null) return;
         box.AddChild(new Label { Text = t.Mesh.IsBuiltin ? BuiltinContent.Terrain.GetValueOrDefault(t.Mesh.Builtin!)?.Label ?? t.Mesh.Builtin : $"asset {Names.Short(t.Mesh.AssetId!.Value)}" });
         var scale = new SpinBox { MinValue = 0.25, MaxValue = 4, Step = 0.25, Value = t.Scale }; box.AddChild(scale); scale.ValueChanged += v => Guarded.Send(s, new ScaleTerrain(t.Id, v));
+        // Facing: a turn in place, moved clear of an Impassable piece it would swing into (MenuModel.TurnInDraft). Q/E turn a held piece.
+        var facing = new HFlowContainer(); box.AddChild(facing);
+        void TurnTo(double degrees) { if (s.Draft is { } now && MenuModel.TurnInDraft(now, t.Id, degrees) is { } turn) Guarded.Send(s, turn); }
+        facing.AddChild(new Label { Text = "Facing" });
+        var yaw = new SpinBox { MinValue = 0, MaxValue = 359, Step = 1, Value = Math.Round(t.Yaw.Degrees), Suffix = "°", CustomMinimumSize = new Vector2(70, 0), TooltipText = "Degrees counter-clockwise from above" };
+        yaw.ValueChanged += TurnTo; facing.AddChild(yaw);
+        facing.AddChild(Btn($"⟲ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees + MenuModel.TerrainTurn)));
+        facing.AddChild(Btn($"⟳ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees - MenuModel.TerrainTurn)));
         box.AddChild(Wide("Remove", () => Guarded.Send(s, new RemoveTerrain(t.Id))));
         var swap = new OptionButton(); var names = BuiltinContent.Terrain.Keys.Order().ToList(); foreach (var n in names) swap.AddItem(n); box.AddChild(swap);
         box.AddChild(Wide("Swap mesh for this built-in (keeps volumes)", () => Guarded.Send(s, new SwapTerrainMesh(t.Id, VisualRef.OfBuiltin(names[swap.Selected])))));

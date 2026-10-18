@@ -43,6 +43,7 @@ public static class DragBodies
     {
         var others = terrain.Where(t => t.Id != pieceId).SelectMany(t => t.WorldVolumes()).ToList();
         var held = terrain.Single(t => t.Id == pieceId) with { Position = at.Position, Yaw = at.Yaw };
+        if (held.Volumes.Count == 0) return new Point3(to.X, to.Y, 0);                    // nothing to collide or rest
         if (free) return Collision.Slide(held.WorldVolumes(), to, [], others).Position;
         var walls = Walls(others, null);
         var clear = held with { Position = Collision.Clear(held.WorldVolumes(), walls, others).Position };
@@ -54,6 +55,7 @@ public static class DragBodies
     {
         var others = terrain.Where(t => t.Id != pieceId).SelectMany(t => t.WorldVolumes()).ToList();
         var turned = terrain.Single(t => t.Id == pieceId) with { Yaw = yaw };
+        if (turned.Volumes.Count == 0) return turned.Position;
         return Collision.Clear(turned.WorldVolumes(), Walls(others, null), others).Position;
     }
 }

@@ -14,6 +14,12 @@ public partial class TableInput
     /// <summary>Holding models of the projection: a terrain piece or a marker in hand takes no formation.</summary>
     bool HoldingModels => _drag is { Armed: true } d && _session.Projection is { } p && d.ModelIds.All(p.Models.ContainsKey);
 
+    /// <summary>Holding a setup terrain piece: Q/E turn it about its origin, and it moves clear of what the turn swings it into.</summary>
+    bool HoldingTerrain => _drag is { Armed: true } d && _session.Draft is { } draft && draft.Terrain.Any(t => t.Id == d.PieceId);
+
+    /// <summary>Something in hand that Q/E turn: the camera does not orbit and follow waits.</summary>
+    bool HoldingTurnable => HoldingModels || HoldingTerrain;
+
     /// <summary>One ruler per held piece, from where it stands in the projection to where it is now; kept and reused.</summary>
     readonly List<RulerNode> _rulers = [];
 
@@ -45,7 +51,10 @@ public partial class TableInput
         return Math.Atan2(-x, y) * 180 / Math.PI;
     }
 
-    void Face(Guid id, Yaw yaw) { if (_view.PieceAt(id) is { } piece) piece.Rotation = new Vector3(0, WorldFrame.Radians(yaw), 0); }
+    void Face(Guid id, Yaw yaw)
+    {
+        if (((Node3D?)_view.PieceAt(id) ?? _view.TerrainAt(id)) is { } node) node.Rotation = new Vector3(0, WorldFrame.Radians(yaw), 0);
+    }
 
     /// <summary>
     /// The held pieces toward these points, each facing its own yaw, and a ruler on each. Inside a move step each model's target is
@@ -64,7 +73,7 @@ public partial class TableInput
             ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height),
                 new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free)
             : targets.ToDictionary(kv => kv.Key, kv => _session.Draft is { } d && d.Terrain.Any(t => t.Id == kv.Key)
-                ? DragBodies.Piece(d.Terrain, kv.Key, kv.Value.Horizontal, free)
+                ? DragBodies.Piece(d.Terrain, kv.Key, new Placement(drag.Current[kv.Key], drag.Yaws[kv.Key]), kv.Value.Horizontal, free)
                 : new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst)));   // a marker rests on the Solid under its point
         var lines = new List<(Point3 From, Point3 To, RulerReadout Readout)>();
         foreach (var id in targets.Keys)
