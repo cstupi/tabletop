@@ -98,4 +98,23 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>Deploying ends when the last model of the unit has a placement (scheduler → Deployment). Idle runs its own sequence (p.10, p.11 "or is activated in it").</summary>
     public bool ActivationComplete(GameState state, Activation activation) =>
         activation.Action != Deploy || !TeamUnits.ModelsOf(state, state.Projection.Units[activation.UnitId]).Any(m => m.Location is OnShelf);
+
+    /// <summary>
+    /// A deploy pick whose unit, every model still on the shelf, was set aside since (Deployment: p.13 Ambush "may be set aside before
+    /// deployment") or returned to deployment since (Scouts: no longer a set-aside Scout). Re-Deployment's units are not set aside and stand.
+    /// </summary>
+    public bool ActivationWithdrawn(GameState state, Activation activation, long answeredAt)
+    {
+        var p = state.Projection;
+        if (activation.Action != Deploy || p.Scheduler.Round != 0 || !p.Units.TryGetValue(activation.UnitId, out var unit) || !TeamUnits.AllShelved(state, unit)) return false;
+        var aside = unit.Conditions.Contains(SetAside);
+        var outOfPhase = p.Scheduler.Phase switch
+        {
+            Deployment => aside,
+            Scouts => !aside && !unit.Conditions.Contains(GfAmbush.ReDeployed),
+            _ => false,
+        };
+        return outOfPhase && EventApplier.EffectiveLog(state.Applier.Log).Any(e => e.Seq > answeredAt && e.Payload is ConditionSet c
+            && c.Subject.Id == unit.Id && c.Condition == SetAside);
+    }
 }

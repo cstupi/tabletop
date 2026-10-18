@@ -203,11 +203,17 @@ neither selects nor drags. Under an Options Ask only a piece exactly one choice 
 selects it as any click does, and the decision box narrows to its options renumbered from 1 (`DecisionView.ChoicesOf`,
 `Number`) until another unit is clicked or Esc widens it. Tab and Shift+Tab select my next unit with no action this round and centre the camera on
 it; Space centres the active unit. Both glide the camera (`TableInput.Focus`). Keys go through `Hotkeys.Of`; the table acts on its own and raises
-`IntentPressed` for the rest. `M` toggles the measure
-tool: two clicks on pieces, or one press-and-drag, resolved through `Distance.ClosestPoints` and
-relayed as a `Measurement`; Ctrl held does the same while held, and letting go clears the measurement here and in presence.
-Between the first point and the second the line follows the cursor and is relayed as it moves. A base of diameter zero stands in for a bare table point, so
-piece-to-point is the same edge-to-edge call. `P` pings at the cursor. `PickNextPiece` and
+`IntentPressed` for the rest. Measuring is `TapeMeasure` (Core): an anchor and a current end, each a body, resolved
+through `Distance.ClosestPoints` and relayed as a `Measurement` with its mode. Ctrl going down anchors it at the point
+under the cursor at that moment, with no click; the line follows the cursor until Ctrl comes up, which clears it here and
+in presence, and a click while Ctrl is held anchors it again. `M` toggles the measure tool: two clicks on pieces, or one
+press-and-drag, and the line stays until the next click, Esc or M. Between the anchor and the far end the line follows the
+cursor and is relayed as it moves; until the cursor leaves the anchor there is no line (`TapeMeasure.Line` is null under
+0.05"), so Ctrl+Z draws nothing. A model's end is its base (p.5); a terrain piece's end rests on the piece's top under the
+point (`TapeMeasure.OnSurface`, `Collision.RestHeight`); anything else is a base of diameter zero at the point, so
+piece-to-point is the same edge-to-edge call. H (with or without Ctrl) switches the mode, kept in `ClientSettings.MeasureMode`:
+`Horizontal` (2D, the default) reads the distance across the table plane, `Straight` (3D) the line through the height
+difference. The label is `MeasureReading.Label`: `12.4" (2D)`, or `13.0" (3D)  Δh 3.0"`. `P` pings at the cursor. `PickNextPiece` and
 `PickNextPoint` let the menu borrow the next click for a `PieceId` or `TablePoint` item. Deployment placement has its
 own standing slot, `PlacementPoint`, which the decision box sets and clears; a menu pick armed meanwhile takes the next
 click first, and the placement keeps waiting for the one after.

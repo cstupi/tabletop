@@ -1,4 +1,5 @@
 using Tabletop.Client.Core;
+using Tabletop.Protocol;
 
 namespace Tabletop.Client.Tests;
 
@@ -89,10 +90,10 @@ public class SettingsTests : IDisposable
     {
         var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;
         Assert.Equal(("scifi", true, true, false), (d.Theme, d.CameraFollow, d.TurnBanner, d.RangeRings));
-        Assert.NotEqual(d, d with { Theme = "fantasy" }); Assert.NotEqual(d, d with { CameraFollow = false }); Assert.NotEqual(d, d with { TurnBanner = false }); Assert.NotEqual(d, d with { RangeRings = true });
-        var s = d with { Theme = "fantasy", CameraFollow = false, TurnBanner = false, RangeRings = true }; s.Save(path);
+        Assert.NotEqual(d, d with { Theme = "fantasy" }); Assert.NotEqual(d, d with { CameraFollow = false }); Assert.NotEqual(d, d with { TurnBanner = false }); Assert.NotEqual(d, d with { RangeRings = true }); Assert.NotEqual(d, d with { MeasureMode = MeasureMode.Straight });
+        var s = d with { Theme = "fantasy", CameraFollow = false, TurnBanner = false, RangeRings = true, MeasureMode = MeasureMode.Straight }; s.Save(path);
         var back = ClientSettings.Load(path);
-        Assert.Equal(("fantasy", false, false, true), (back.Theme, back.CameraFollow, back.TurnBanner, back.RangeRings)); Assert.Equal(s, back);
+        Assert.Equal(("fantasy", false, false, true, MeasureMode.Straight), (back.Theme, back.CameraFollow, back.TurnBanner, back.RangeRings, back.MeasureMode)); Assert.Equal(s, back);
     }
 
     [Theory, InlineData("""{ "theme": "steampunk" }"""), InlineData("""{ "animate": false }""")]

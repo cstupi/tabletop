@@ -41,6 +41,7 @@ public sealed class TurnCycle(PropertySet properties)
         if (found is null) return new NoAsk();
         var (opened, _, closed, closedAt) = found.Value;
         if (closed is null) return new AskOpen(opened.Ask);
+        if (closed.Answers.Count == 0) return new NoAsk();                                              // withdrawn by the scheduler (SchedulerBase.Withdrawn): asked again
         var answer = (closed.Answers.FirstOrDefault(a => a.TeamId == teamId) ?? closed.Answers.FirstOrDefault())?.Answer;
         if (answer is null or Passed) return new PassAnswered(closedAt);
         var act = state.Rules.ReadAnswer(state, teamId, answer);

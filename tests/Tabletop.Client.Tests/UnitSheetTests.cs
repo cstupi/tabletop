@@ -125,3 +125,49 @@ public class UnitSheetTests
         Assert.Contains(("Fearless", (string?)"Gets +1 to morale tests.", true), s.Rules.Select(r => (r.Label, r.Text, r.NotAutomated)));
     }
 }
+
+public class UnitSheetLoadoutTests
+{
+    static readonly GameInfo Game = Samples.Game;
+    static Weapon W(string name) => new(Guid.CreateVersion7(), name, new Dictionary<string, string> { ["Range"] = "12\"", ["Attacks"] = "1" }, []);
+    static ModelSlot Slot(int ordinal, string name, IReadOnlyDictionary<string, string>? stats, PropertyInstance[] rules, params Weapon[] weapons) =>
+        new(Guid.CreateVersion7(), ordinal, name, stats ?? new Dictionary<string, string>(), rules, Base.Circle(1), 1.5, null, weapons);
+
+    // As Army Forge imports: numbered slot names, an upgraded model, a joined hero with its own Quality and Defense.
+    static readonly Unit Mixed = new(Guid.CreateVersion7(), 1, "Specialists", new Dictionary<string, string> { ["Quality"] = "5+", ["Defense"] = "5+" }, [],
+    [
+        Slot(1, "Specialists 1", null, [], W("CCW"), W("Railgun"), W("Bomb Drone")),
+        Slot(2, "Specialists 2", null, [], W("CCW"), W("Railgun")),
+        Slot(3, "Specialists 3.1", null, [], W("CCW"), W("Railgun")),
+        Slot(4, "Orc Leader 1", new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "5+" },
+            [new PropertyInstance("Hero", null), new PropertyInstance("Tough", 3)], W("CCW"), W("Rocket Launcher"), W("Rocket Launcher")),
+    ]);
+
+    static UnitSheetModel Sheet()
+    {
+        var board = new Board(TableStateTests.Sample(), [new ArmyInPlay(Samples.P1, ArmySnapshot.Of(
+            new Army(Guid.CreateVersion7(), "Mixed", "grimdark-future", "test", [Mixed]), Guid.CreateVersion7()))]);
+        var a = new EventApplier(board, Game);
+        return UnitSheet.Of(a.Projection, new Names(Game, a.Projection), Mixed.Id, RuleTexts.Empty, new Dictionary<Guid, int> { [Mixed.Models[3].Id] = 3 });
+    }
+
+    [Fact]
+    public void A_model_carries_its_name_without_the_number_and_its_loadout()
+    {
+        var m = Sheet().Models;
+        Assert.Equal(["Specialists", "Specialists", "Specialists", "Orc Leader"], m.Select(x => x.Label));
+        Assert.Equal(["CCW", "Railgun", "Bomb Drone"], m[0].Loadout);
+        // Hero marks the model rather than listing; a slot stat shows only where it differs from the card's badge.
+        Assert.Equal(["CCW", "Rocket Launcher ×2", "Tough(3)", "Quality 4+"], m[3].Loadout);
+        Assert.Equal([false, false, false, true], m.Select(x => x.Hero));
+    }
+
+    [Fact]
+    public void Models_alike_in_name_weapons_rules_and_stats_share_a_kind()
+    {
+        var m = Sheet().Models;
+        Assert.Equal(m[1].Kind, m[2].Kind);
+        Assert.NotEqual(m[0].Kind, m[1].Kind);
+        Assert.NotEqual(m[1].Kind, m[3].Kind);
+    }
+}

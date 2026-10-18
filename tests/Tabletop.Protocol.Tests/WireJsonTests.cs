@@ -1,3 +1,5 @@
+using Tabletop.Geometry;
+
 namespace Tabletop.Protocol.Tests;
 
 public class WireJsonTests
@@ -21,6 +23,18 @@ public class WireJsonTests
     [Fact]
     public void An_enum_given_as_an_integer_is_unreadable() =>
         Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<Edit>("""{"kind":"set_configuration","name":"x","propertiesHash":"h","schedulerShape":7,"enforcement":"warn","waitsBetweenSteps":false}"""));
+
+    /// <summary>A measurement's mode is optional: a client that sends none measures horizontally, and one that does names it.</summary>
+    [Fact]
+    public void A_measurement_s_mode_is_optional()
+    {
+        var plain = WireJson.Serialize(new PresenceMessage(new Presence(Guid.Empty, null, null, [], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0)))));
+        Assert.DoesNotContain("mode", plain);
+        Assert.Null(((PresenceMessage)WireJson.Deserialize(plain)).Presence.Measurement!.Mode);
+        var straight = WireJson.Serialize(new PresenceMessage(new Presence(Guid.Empty, null, null, [], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 3), MeasureMode.Straight))));
+        Assert.Contains("\"mode\":\"straight\"", straight);
+        Assert.Equal(MeasureMode.Straight, ((PresenceMessage)WireJson.Deserialize(straight)).Presence.Measurement!.Mode);
+    }
 
     [Fact]
     public void Every_concrete_kind_has_a_sample()

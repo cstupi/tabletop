@@ -59,7 +59,7 @@ public partial class PresenceOverlay : Node3D
         }
         if (value.Measurement is { } m)
         {
-            var ruler = new RulerNode(); AddChild(ruler); ruler.Show(m.From, m.To, MoveRuler.Read(m.From.Horizontal, m.To.Horizontal, null), colour); _measures[participantId] = ruler;
+            var ruler = new RulerNode(); AddChild(ruler); ruler.Show(m.From, m.To, MeasureReading.Of(m.From, m.To, m.Mode ?? MeasureMode.Horizontal), colour); _measures[participantId] = ruler;   // the sender's mode, so both read one number
         }
         foreach (var placement in value.Placements)
         {

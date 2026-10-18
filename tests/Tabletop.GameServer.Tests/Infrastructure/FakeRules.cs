@@ -43,6 +43,7 @@ public sealed class FakeRules : IGameRules
     public TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => LegalTurnHook is { } h ? h(state, properties, teamId) : _inner.LegalTurn(state, properties, teamId);
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => _inner.ReadAnswer(state, teamId, answer);
     public bool ActivationComplete(GameState state, Activation activation) => _inner.ActivationComplete(state, activation);
+    public bool ActivationWithdrawn(GameState state, Activation activation, long answeredAt) => _inner.ActivationWithdrawn(state, activation, answeredAt);
     public HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => RoundBoundaryHook?.Invoke(state, properties, round, order) ?? new HookDone();
     public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeamId, IReadOnlyList<Guid> reactingTeams) => OrderReactionsHook?.Invoke(state, actorTeamId, reactingTeams);
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => JudgeAdvanceHook?.Invoke(state, properties, proposed);

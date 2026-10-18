@@ -39,13 +39,14 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null,
         IReadOnlyList<int>? setAside = null, IReadOnlyList<ScenarioModel>? models = null, IReadOnlyDictionary<int, int>? passengers = null,
         IReadOnlyDictionary<int, int>? sizes = null, IReadOnlyDictionary<int, Point2>? anchors = null, IReadOnlyList<(int Unit, string Condition)>? conditions = null,
-        IReadOnlyList<ScenarioReserve>? reserves = null)
+        IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyList<int>? setAsideAtLastAsk = null)
     {
         _armies.Add(new ScenarioArmy(armyName, units, modelsPerUnit, unitRules ?? [], modelRules ?? [],
             weapons ?? [new ScenarioWeapon("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, [])],
             unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook)
         { SetAside = setAside ?? [], Models = models ?? [], Passengers = passengers ?? new Dictionary<int, int>(),
-          Sizes = sizes ?? new Dictionary<int, int>(), Anchors = anchors ?? new Dictionary<int, Point2>(), Conditions = conditions ?? [], Reserves = reserves ?? [] });
+          Sizes = sizes ?? new Dictionary<int, int>(), Anchors = anchors ?? new Dictionary<int, Point2>(), Conditions = conditions ?? [], Reserves = reserves ?? [],
+          SetAsideAtLastAsk = setAsideAtLastAsk ?? [] });
         return this;
     }
 
@@ -65,7 +66,7 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         if (_armies.Count < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two armies; it has {_armies.Count}");
         foreach (var a in _armies)
         {
-            if (a.SetAside.Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } bad)
+            if (a.SetAside.Concat(a.SetAsideAtLastAsk).Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } bad)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' sets aside unit {bad}; its units are 1..{a.Units}");
             if (a.Passengers.SelectMany(kv => new[] { kv.Key, kv.Value }).Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } stray)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' names passenger unit {stray}; its units are 1..{a.Units}");

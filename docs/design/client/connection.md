@@ -225,7 +225,8 @@ optionally the models within it. A ping is a separate one-shot `PingMessage` rat
 because presence is state and a ping is an instant.
 
 `PresenceOverlay` draws others' values in their team's colour: a cone at the cursor point with the
-hovered piece highlighted, a line with a length for a measurement, a `held` placement by moving
+hovered piece highlighted, a line with a length for a measurement (read in the sender's `Measurement.Mode`,
+Horizontal when it sends none, so both players see one number), a `held` placement by moving
 that piece's own node, a `proposed` placement as a standalone translucent copy, a ruler for
 another player's held placement, and a ping ring that fades over two seconds. The ruler is drawn
 from the start position already in the local projection, so nothing new goes on the wire for it.
