@@ -23,12 +23,27 @@ public class LobbyViewTests
     }
 
     [Fact]
-    public void The_creator_may_join_a_held_team_and_my_own_team_is_not_offered()
+    public void The_creator_may_join_a_held_team_and_my_own_team_is_left()
     {
         var teams = LobbyView.Teams(Lobby(Samples.Team1, Samples.Team2), Me, isCreator: true);
-        Assert.Equal((false, "On team 1"), (teams[0].Enabled, teams[0].Text));
-        Assert.Equal((true, "Join team 2"), (teams[1].Enabled, teams[1].Text));
-        Assert.Equal("Held by Ana; as the creator you may join it.", teams[1].Why);
+        Assert.Equal((true, "Leave team 1", (LobbyEdit)new LeaveTeam(Samples.Team1)), (teams[0].Enabled, teams[0].Text, teams[0].Edit));
+        Assert.Equal((true, "Join team 2", (LobbyEdit)new PickTeam(Samples.Team2)), (teams[1].Enabled, teams[1].Text, teams[1].Edit));
+        Assert.Equal("Held by Ana; as the creator you may join it. You keep your other team and play both sides.", teams[1].Why);
+    }
+
+    /// <summary>Self-play: one account on both teams, a row per team, an army picker per team.</summary>
+    [Fact]
+    public void One_account_on_both_teams_leaves_either_and_picks_an_army_for_each()
+    {
+        var account = Guid.CreateVersion7(); var second = Guid.CreateVersion7(); var army = Guid.CreateVersion7();
+        var game = Samples.Game with { Status = GameStatus.Lobby, Participants =
+            [new Participant(Me, account, "Clay", Samples.Team1, army), new Participant(second, account, "Clay", Samples.Team2, null)] };
+        Assert.Equal(["Leave team 1", "Leave team 2"], LobbyView.Teams(game, Me, isCreator: true).Select(t => t.Text));
+        Assert.Equal("You are on Team 1 and Team 2. Pick an army below. You play every side you hold, one Ask at a time.", LobbyView.Seat(game, Me));
+        var armies = LobbyView.Armies(game, Me);
+        Assert.Equal([("Army for Team 1", (Guid?)army), ("Army for Team 2", null)], armies.Select(a => (a.Label, a.ArmyId)));
+        Assert.Equal(new PickArmy(army, Samples.Team2), armies[1].Pick(army));
+        Assert.Equal([new ArmySeat(null, "Army", null)], LobbyView.Armies(Lobby(null, null), Me));
     }
 
     [Fact]

@@ -98,7 +98,7 @@ public partial class HeaderBar : PanelContainer
         }
 
         // Whom the game waits on, my team's move first; a watcher is told they watch.
-        var waitingText = _s.IsWatching ? HeaderView.Watching : HeaderView.Waiting(p!, names, _s.MyTeamId);
+        var waitingText = HeaderView.WaitingForPlayers(_s.WaitingTeams) ?? (_s.IsWatching ? HeaderView.Watching : HeaderView.Waiting(p!, names, _s.MyTeamIds));
         _waiting.Text = waitingText ?? "";
         _waiting.Visible = waitingText is not null;
     }

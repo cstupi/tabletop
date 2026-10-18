@@ -34,23 +34,27 @@ public partial class LobbyPanel : VBoxContainer
         // An empty team is joined; a held one names its holder and, for anyone but the creator, says to ask the creator.
         foreach (var choice in LobbyView.Teams(game, s.ParticipantId, s.IsCreator))
         {
-            var b = Btn(choice.Text, () => Guarded.Send(s, new PickTeam(choice.TeamId)));
+            var b = Btn(choice.Text, () => Guarded.Send(s, choice.Edit));
             b.Disabled = !choice.Enabled; b.TooltipText = choice.Why;
             teams.AddChild(b);
         }
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         AddChild(Seats(s, game));
-        var armies = new OptionButton(); armies.AddItem("No army"); AddChild(Named("Army", armies));
+        // One army picker per team I hold (an army a side when I play both), or one for my teamless row.
+        var pickers = LobbyView.Armies(game, s.ParticipantId).Select(seat => (Seat: seat, Box: new OptionButton())).ToList();
+        foreach (var (seat, box) in pickers) { box.AddItem("No army"); AddChild(Named(seat.Label, box)); }
         AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
             if (!IsInstanceValid(this)) return;
-            foreach (var a in list) armies.AddItem(a.Name);
-            var mine = game.Participants.FirstOrDefault(p => p.Id == s.ParticipantId)?.ArmyId;
-            if (mine is not null) { var at = list.ToList().FindIndex(a => a.Id == mine); if (at >= 0) armies.Select(at + 1); }
-            armies.ItemSelected += i => Guarded.Send(s, new PickArmy(i == 0 ? null : list[(int)i - 1].Id));
+            foreach (var (seat, box) in pickers)
+            {
+                foreach (var a in list) box.AddItem(a.Name);
+                if (seat.ArmyId is { } picked) { var at = list.ToList().FindIndex(a => a.Id == picked); if (at >= 0) box.Select(at + 1); }
+                box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : list[(int)i - 1].Id));
+            }
         }, Problem);
         var config = new VBoxContainer(); AddChild(config);
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
