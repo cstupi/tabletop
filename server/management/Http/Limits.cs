@@ -11,6 +11,12 @@ public static class Limits
     public const int Source = 512;
     /// <summary>Armies, layouts and folders per account, each.</summary>
     public const int PerAccount = 200;
+    /// <summary>Assets one bulk request names (file, unfile, delete).</summary>
+    public const int Bulk = 200;
+
+    /// <summary>Null when a bulk request names 1 to <see cref="Bulk"/> assets, else the problem detail.</summary>
+    public static string? BulkIds(IReadOnlyList<Guid>? ids) =>
+        ids is null || ids.Count == 0 ? "assetIds is required." : ids.Count > Bulk ? $"A request names at most {Bulk} assets." : null;
 
     /// <summary>Null when the text is acceptable, else the problem detail. Control characters (Cc) and bidirectional
     /// formatting characters are refused everywhere; free text (multiline) admits line feeds and tabs.</summary>
