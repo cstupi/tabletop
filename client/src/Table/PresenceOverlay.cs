@@ -33,8 +33,18 @@ public partial class PresenceOverlay : Node3D
 
     void Draw(Guid participantId)
     {
+        // Presence arrives 20 times a second: a proposed model's ghost is kept and moved, not built again with its mesh each time.
+        var kept = new Dictionary<Guid, Node3D>();
+        foreach (var placement in _drawn.GetValueOrDefault(participantId)?.Placements ?? [])
+            if (_ghosts.Remove(placement.PieceId, out var g)) kept[placement.PieceId] = g;
         Remove(participantId);
         var value = _session.Others.Of(participantId);
+        try { DrawPresence(participantId, value, kept); }
+        finally { foreach (var g in kept.Values) g.QueueFree(); }
+    }
+
+    void DrawPresence(Guid participantId, Presence? value, Dictionary<Guid, Node3D> kept)
+    {
         if (value is null) { _view.Redraw(); return; }                     // a held piece returns to where the projection has it
         _drawn[participantId] = value;
         var colour = ColourOf(participantId);
@@ -62,9 +72,17 @@ public partial class PresenceOverlay : Node3D
                 var start = StartOf(placement.PieceId);
                 if (start is { } s) { var ruler = new RulerNode(); AddChild(ruler); ruler.Show(s, placement.Position, MoveRuler.Read(s.Horizontal, placement.Position.Horizontal, null), colour); _rulers[placement.PieceId] = ruler; }
             }
+            else if (kept.Remove(placement.PieceId, out var ghost))
+            {
+                if (ghost is PieceNode) { ghost.Position = WorldFrame.ToGodot(placement.Position); ghost.Rotation = new Vector3(0, WorldFrame.Radians(placement.Yaw), 0); }
+                else ghost.Position = WorldFrame.ToGodot(placement.Position) + Vector3.Up * 0.75f;
+                _ghosts[placement.PieceId] = ghost;
+            }
             else
             {
-                var ghost = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.6f, BottomRadius = 0.6f, Height = 1.5f }, Position = WorldFrame.ToGodot(placement.Position) + Vector3.Up * 0.75f, MaterialOverride = Palette.Translucent(Palette.Ghost) };
+                // The model's own ghost, mesh and all, where and as they turned it; a piece the projection lacks keeps the plain marker.
+                ghost = GhostLooks.Proposed(_session.Projection, placement) is { } look ? (Node3D)_view.Ghost(look, Palette.Ghost)
+                    : new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.6f, BottomRadius = 0.6f, Height = 1.5f }, Position = WorldFrame.ToGodot(placement.Position) + Vector3.Up * 0.75f, MaterialOverride = Palette.Translucent(Palette.Ghost) };
                 AddChild(ghost); _ghosts[placement.PieceId] = ghost;
             }
         }

@@ -50,6 +50,17 @@ has something to drag out. `Redraw` never touches that child. `ClearExitGhosts` 
 the answer is sent. The ghosts are a control surface, not state, and are not part of the
 projection.
 
+Every placement ghost — a deployment's and a Spawn or Split reserve's (`ShowGhosts`), a disembark's
+(`ShowExitGhosts`), another player's proposed placement (`PresenceOverlay`) — draws what
+`GhostLooks` (`GhostLook`: the slot's base, height and asset, the placement and facing) names:
+`TableView.Ghost` builds the hitbox at once and `PieceNode.SetGhost` adds a ring on the base's
+outline; the slot's mesh comes from the same `MeshLoader` template as the placed model's, with the
+asset's scale and orientation, and swaps in when it loads. The mesh is drawn see-through
+(`GeometryInstance3D.Transparency`) under one shared overlay material, casting no shadow, so a ghost
+costs no material or mesh of its own. `MeshLoader` keeps each resolved asset, so a ghost drawn again
+gets its mesh in the same frame. Q/E turn the node and the mesh with it. `PresenceOverlay` keeps a
+proposed ghost's node across presence updates and only moves it.
+
 The other nodes: `SlabNode` draws the table at its real size, 1" thick, with its texture or a flat
 colour. `MarkerNode` is a disc of the marker's diameter with a label. `ZoneNode` resolves
 `ZoneStyles.Resolve(zone.Shape, size)` into flat `ArrayMesh` fans 0.02" above the slab, with no

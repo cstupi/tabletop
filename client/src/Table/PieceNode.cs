@@ -15,11 +15,13 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     MeshInstance3D _proxy = null!;
     Node3D? _mesh;
     Color _base = Palette.Proxy, _tint = Palette.Proxy;
-    bool _highlighted;
+    bool _highlighted, _ghost;
+    Base _footprint = Base.Circle(1);
 
     public void SetBody(Base b, double height)
     {
         _proxy?.QueueFree();
+        _footprint = b;
         var h = (float)height;
         Mesh mesh = b.Shape switch
         {
@@ -35,7 +37,30 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     public void SetMesh(Node3D? scene)
     {
         _mesh?.QueueFree(); _mesh = scene;
-        if (scene is not null) { AddChild(scene); _proxy.MaterialOverride = Palette.Translucent(_base with { A = 0.12f }); }
+        if (scene is null) return;
+        if (_ghost) Ghostly(scene);
+        AddChild(scene); Apply();
+    }
+
+    /// <summary>
+    /// A placement ghost (a deployment, a reserve or a disembark being placed, another player's proposal): the model's own mesh, once
+    /// loaded, drawn see-through under the ghost colour and casting no shadow, the hitbox faint beneath, and a ring on the base's
+    /// outline, so it reads as the model that will stand there and not as one that does. Until the mesh loads, the hitbox alone.
+    /// </summary>
+    public void SetGhost(Color colour)
+    {
+        _ghost = true; _tint = new Color(colour, 0.6f);
+        if (!_highlighted) _base = _tint;
+        AddChild(Palette.BaseRing(_footprint));
+        if (_mesh is not null) Ghostly(_mesh);
+        Apply();
+    }
+
+    /// <summary>Every surface under the mesh: see-through per instance and tinted by one shared overlay, so the mesh resources stay the template's.</summary>
+    static void Ghostly(Node node)
+    {
+        if (node is GeometryInstance3D g) { g.Transparency = Palette.GhostTransparency; g.MaterialOverlay = Palette.GhostOverlay; g.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off; }
+        foreach (var child in node.GetChildren()) Ghostly(child);
     }
 
     /// <summary>A highlight (selection, glow, eligibility, ghost) over the team tint; null goes back to the tint.</summary>
@@ -46,10 +71,10 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         Apply();
     }
 
-    /// <summary>The unhighlighted colour: Palette.Tinted for the model's team. A highlight keeps precedence until it is cleared.</summary>
+    /// <summary>The unhighlighted colour: Palette.Tinted for the model's team. A highlight keeps precedence until it is cleared. A ghost keeps its colour.</summary>
     public void SetTint(Color tint)
     {
-        if (tint == _tint) return;
+        if (tint == _tint || _ghost) return;
         _tint = tint;
         if (!_highlighted) { _base = tint; Apply(); }
     }
