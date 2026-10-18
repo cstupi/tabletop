@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# scripts/pck-files <pck>: the paths in a Godot 4 pack's directory, one per line, without res://.
+# Reads pack format 3 and later (Godot 4.4+: the header names the directory's offset); refuses an encrypted directory.
+# scripts/release-client runs it on each export to check that the built-in content shipped.
+set -euo pipefail
+die() { echo "pck-files: $*" >&2; exit 1; }
+[[ $# -eq 1 && -f "$1" ]] || die "usage: scripts/pck-files <pck>"
+f=$1
+# Header, u32 each: magic "GDPC", format, Godot major, minor, patch, flags; then u64 file base and u64 directory offset.
+read -r -d '' -a h < <(od -An -v -t u4 -N 40 "$f") || true
+[[ "${h[0]:-}" == 1129333831 ]] || die "$f is not a Godot pack"
+(( h[1] >= 3 )) || die "$f: pack format ${h[1]} has no directory offset"
+(( (h[5] & 1) == 0 )) || die "$f: the pack's directory is encrypted"
+dir=$(( h[8] + h[9] * 4294967296 ))
+read -r -d '' -a b < <(od -An -v -t u1 -j "$dir" "$f") || true
+n=$(( b[0] | b[1]<<8 | b[2]<<16 | b[3]<<24 )); i=4
+for ((k = 0; k < n; k++)); do   # each entry: u32 length, the path (zero-padded to it), u64 offset, u64 size, md5, u32 flags
+  len=$(( b[i] | b[i+1]<<8 | b[i+2]<<16 | b[i+3]<<24 ))
+  (( len > 0 && i + 4 + len + 36 <= ${#b[@]} )) || die "$f: entry $k runs past the directory"
+  tail -c +$(( dir + i + 5 )) "$f" | head -c "$len" | tr -d '\0'; echo
+  i=$(( i + 4 + len + 36 ))
+done

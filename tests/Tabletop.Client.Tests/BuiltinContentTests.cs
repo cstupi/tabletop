@@ -98,6 +98,20 @@ public class BuiltinContentTests
         }
     }
 
+    /// <summary>MeshLoader reads a built-in mesh raw (FileAccess, GltfDocument.AppendFromFile), not through ResourceLoader. An
+    /// export ships an imported file only as its import, so each mesh must be imported as Keep File to reach the .pck as-is.</summary>
+    [Fact]
+    public void Every_built_in_mesh_ships_raw_in_the_export()
+    {
+        var client = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client"));
+        foreach (var file in BuiltinContent.Terrain.Values.Select(t => t.MeshFile!).Distinct())
+        {
+            var path = Path.Combine(client, file["res://".Length..]);
+            Assert.True(File.Exists(path), $"{file} is missing");
+            Assert.True(File.ReadAllText(path + ".import").Contains("importer=\"keep\""), $"{file}.import is not Keep File");
+        }
+    }
+
     static (double X, double Y, double Z) Rotate(double x, double y, double z, Orientation o)
     {
         double R(double d) => d * Math.PI / 180;

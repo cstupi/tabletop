@@ -18,6 +18,7 @@
 # RELEASE_S3_NETWORK when set (e.g. tabletop-home_backend, whose MinIO is http://tabletop-s3:9000). The export container
 # resolves through TABLETOP_DNS_1/TABLETOP_DNS_2 (default 1.1.1.1, 9.9.9.9) for NuGet. The host needs docker and git only.
 #
+# export checks each pack (scripts/pck-files) for the built-in terrain meshes and texture imports, and fails without them.
 # export needs GODOT (default: godot on PATH, Godot 4.7.2 .NET with its export templates), dotnet, and TABLETOP_WEB_URL (the web
 # app's public origin, which the build reaches management and the game socket through). upload needs aws and RELEASE_S3_ENDPOINT,
 # RELEASE_S3_BUCKET, RELEASE_S3_ACCESS_KEY, RELEASE_S3_SECRET_KEY; RELEASE_S3_REGION (default us-east-1; R2 takes auto) and
@@ -70,7 +71,24 @@ export_builds() {   # <version> <out>
                || die "the macOS export has no .NET assemblies; see the Godot output above" ;;
       *) compgen -G "$out/$p/data_Tabletop_*/Tabletop.dll" >/dev/null || die "the $p export has no .NET assemblies; see the Godot output above" ;;
     esac
+    check_pack "$p" "$out"
   done
+}
+
+check_pack() {   # <platform> <out>: the export's pack holds the built-in content the client reads at run time
+  local p=$1 out=$2 pck listing f want missing=()
+  if [[ $p == macos ]]; then
+    pck="$out/macos/Tabletop.pck"
+    unzip -p "$out/macos/Tabletop.zip" 'Tabletop.app/Contents/Resources/Tabletop.pck' > "$pck" || die "the macOS export has no Tabletop.pck"
+  else pck="$out/$p/Tabletop.pck"; fi
+  listing=$("$root/scripts/pck-files" "$pck") || die "cannot read $pck"
+  [[ $p == macos ]] && rm -f "$pck"
+  # MeshLoader reads the terrain meshes raw (Keep File imports); SlabNode loads the textures through ResourceLoader (their .import).
+  for f in "$root"/client/content/builtin/terrain/*.glb "$root"/client/content/builtin/textures/*.png; do
+    want=${f#"$root/client/"}; [[ $want == *.png ]] && want+=.import
+    grep -qxF "$want" <<< "$listing" || missing+=("$want")
+  done
+  (( ${#missing[@]} == 0 )) || die "the $p export's pack is missing built-in content: ${missing[*]}"
 }
 
 release_notes() {   # <version> <out>: <out>/notes.txt from the tag's annotation, else CHANGELOG.md's section, else empty
