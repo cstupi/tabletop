@@ -9,7 +9,7 @@ namespace Tabletop.Client.Core;
 /// Entries hold RollEntry, LineEntry and nested ActivationBlock, in log order. ChainParts: its live rolls and changes, nested ones
 /// included, for the folded header.</summary>
 public sealed record ActivationBlock(long Seq, GameEvent Event, bool Undone, string Header, Guid? Actor, IReadOnlyList<Guid> Targets,
-    IReadOnlyList<LogEntry> Entries, IReadOnlyList<string> ChainParts, bool Nested = false) : LogEntry(Seq, Event, Undone)
+    IReadOnlyList<LogEntry> Entries, IReadOnlyList<string> ChainParts, bool Nested = false, string? Spell = null, int? SpellCost = null) : LogEntry(Seq, Event, Undone)
 {
     public string Chain => string.Join(" → ", ChainParts);
 }

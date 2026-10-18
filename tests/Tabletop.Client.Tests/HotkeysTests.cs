@@ -21,7 +21,7 @@ public class HotkeysTests
             (HotKey.Ctrl, false, true, Intent.MeasureHeld), (HotKey.Ctrl, false, false, Intent.MeasureHeld),
             (HotKey.Z, false, false, null), (HotKey.Slash, false, false, null), (HotKey.G, false, true, null), (HotKey.Key1, false, true, null),
             (HotKey.W, false, false, Intent.CameraForward), (HotKey.S, false, false, Intent.CameraBack), (HotKey.A, false, false, Intent.CameraLeft), (HotKey.D, false, false, Intent.CameraRight), (HotKey.R, false, false, Intent.ToggleRoster), (HotKey.V, false, false, Intent.ToggleRangeRings), (HotKey.S, false, true, null),
-            (HotKey.Delete, false, false, Intent.Remove), (HotKey.Backspace, false, false, Intent.Remove), (HotKey.Delete, false, true, null),
+            (HotKey.Delete, false, false, Intent.Remove), (HotKey.H, false, false, Intent.MeasureMode), (HotKey.H, false, true, Intent.MeasureMode), (HotKey.H, true, false, Intent.MeasureMode), (HotKey.Backspace, false, false, Intent.Remove), (HotKey.Delete, false, true, null),
         };
         foreach (var (key, shift, ctrl, intent) in table) Assert.True(intent == Hotkeys.Of(key, shift, ctrl), $"{key} shift={shift} ctrl={ctrl}");
     }
@@ -31,7 +31,7 @@ public class HotkeysTests
     {
         // The Godot side maps with Enum.TryParse(keycode.ToString()); these are Godot.Key members as Godot 4.7 spells them.
         string[] godot = ["Key1", "Key2", "Key3", "Key4", "Key5", "Key6", "Key7", "Key8", "Key9", "Enter", "KpEnter", "Escape", "Shift",
-            "Q", "E", "C", "L", "M", "P", "G", "Z", "Tab", "Backtab", "Space", "Home", "End", "F1", "Slash", "Question", "Ctrl", "W", "A", "S", "D", "R", "V", "Delete", "Backspace"];
+            "Q", "E", "C", "L", "M", "P", "G", "Z", "Tab", "Backtab", "Space", "Home", "End", "F1", "Slash", "Question", "Ctrl", "W", "A", "S", "D", "R", "V", "Delete", "Backspace", "H"];
         Assert.Equal(godot.Order(), Enum.GetNames<HotKey>().Order());
     }
 }

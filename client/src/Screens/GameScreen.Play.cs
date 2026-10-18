@@ -239,7 +239,7 @@ public partial class GameScreen
             _menu?.Open(MenuModel.ForTeam(game, p, teamId).Concat(MenuModel.OffTable(p, teamId, new Names(game, p))).ToList(), at);
     }
 
-    /// <summary>A model clicked in the unit card's wound rows selects that one model on the table (spec → Unit card).</summary>
+    /// <summary>A unit card group row's click (ModelGroup.Next) selects that one model on the table (spec → Unit card).</summary>
     void SelectModel(Guid modelId)
     {
         if (_session.Projection?.Models.GetValueOrDefault(modelId) is { } model) Input.Select(model.UnitId, modelId);

@@ -178,6 +178,7 @@ public partial class DecisionBox : PanelContainer
                 }
                 var key = _numbered.FirstOrDefault(n => n.OptionId == c.Id).Key;
                 var b = Btn(key > 0 ? $"{key}. {c.Label}" : c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
+                if (mine.Ask.Question == "cast" && SpellText.OfOption(_s.Rules, c.Id, c.Label) is { } tip) b.TooltipText = tip;
                 var pieces = c.Pieces;
                 b.MouseEntered += () => Light(pieces, Palette.Selected);
                 b.MouseExited += () => Light(pieces, null);

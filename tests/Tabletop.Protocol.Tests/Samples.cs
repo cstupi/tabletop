@@ -88,7 +88,7 @@ public static class Samples
         new Connect("jwt", Guid.CreateVersion7(), ProtocolVersion.Current), new CommandMessage(Guid.CreateVersion7(), Commands[0]),
         new EditMessage(Guid.CreateVersion7(), Edits[0]), new Welcome(P1, Game), new GameInfoMessage(Game), new BoardMessage(Board),
         new EventsMessage([new GameEvent(1, P1, Events[0], null), new GameEvent(2, null, Events[5], "outside the legal set")]),
-        new PresenceMessage(new Presence(P1, new Cursor(new Point3(1, 2, 3), Model), new Selection(Unit, []), [new PresencePlacement(Model, new Point3(1, 1, 0), new Yaw(0), PlacementKind.Held)], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0)))),
+        new PresenceMessage(new Presence(P1, new Cursor(new Point3(1, 2, 3), Model), new Selection(Unit, []), [new PresencePlacement(Model, new Point3(1, 1, 0), new Yaw(0), PlacementKind.Held)], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0), MeasureMode.Straight))),
         new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1), new AtRest(2),
         new Refused(Guid.CreateVersion7(), RefusalReason.OutsideLegalSet, "unit already activated"), new Rejected(RejectReason.UpgradeRequired),
         new SightQuery(Guid.CreateVersion7(), Unit, Guid.CreateVersion7()), new Reauth(Guid.CreateVersion7(), "jwt"),

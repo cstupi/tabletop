@@ -80,7 +80,7 @@ public class CombatLogBlockTests
         var cast = Guid.CreateVersion7();
         var casting = One("casting", 4, 5, true);
         var ask = new Ask(Guid.CreateVersion7(), "cast", "Cast which spell?", [Samples.Team1],
-            new Options([new AskOption("hex|m", "Hex", []), new AskOption("bolt|m", "Bolt", [])]), false, false, null, cast);
+            new Options([new AskOption("hex|m", "Hex (3)", []), new AskOption("bolt|m", "Bolt", [])]), false, false, null, cast);
         var (entries, log, n) = Build(Round1, Hold(Samples.Frame),
             new SequenceStarted(cast, "casting", new SequenceContext(Samples.Unit, [], [], "Hold")),
             new AskOpened(ask), new AskAnswered(ask.Id, Samples.Team1, new Chosen("hex|m"), false), new AskClosed(ask.Id, [new TeamAnswer(Samples.Team1, new Chosen("hex|m"))]),
@@ -92,7 +92,8 @@ public class CombatLogBlockTests
         Assert.Equal("R1 · Team 1 · Battle Brothers · Hold", block.Header);
         var nested = Assert.IsType<ActivationBlock>(Assert.Single(block.Entries));
         Assert.True(nested.Nested);
-        Assert.Equal($"Cast Hex → {Foe}", nested.Header);
+        Assert.Equal($"Cast Hex (3) → {Foe}", nested.Header);
+        Assert.Equal(("hex", (int?)3), (nested.Spell, nested.SpellCost));
         Assert.Equal("Casting · 4+ · ⚄ · cast", Assert.IsType<RollEntry>(Assert.Single(nested.Entries)).Collapsed(CombatLog.Pip));
         Assert.Equal("Casting cast", block.Chain);
         Assert.Equal(casting.Id, CombatLog.Latest(log, n)!.Record.Id);

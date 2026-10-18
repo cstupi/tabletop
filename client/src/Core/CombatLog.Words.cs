@@ -179,6 +179,6 @@ public static partial class CombatLog
             return BaseHeader + targets + (moved > 0 ? $" · moved {moved.ToString("0.#", CultureInfo.InvariantCulture)}\"" : "");
         }
 
-        public ActivationBlock Close(bool undone) => new(Start.Seq, Start, undone, Header(), Actor, _targets, Entries, Chain, nested);
+        public ActivationBlock Close(bool undone) => new(Start.Seq, Start, undone, Header(), Actor, _targets, Entries, Chain, nested, nested && _chosen is { } c ? SpellText.NameOfOption(c) : null, nested && _chosen is { } k && _labels.GetValueOrDefault(k) is { } l ? SpellText.Split(l).Cost : null);
     }
 }
