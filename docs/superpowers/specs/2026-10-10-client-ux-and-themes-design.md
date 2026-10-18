@@ -44,14 +44,18 @@ never changes a selection, and an enemy activation never takes the card: the hea
 
 **Contents**, top to bottom:
 
-1. Team colour bar, unit name, `alive/size models`.
+1. Team colour bar, unit name, `alive/size models`, `Wounds left/max` summed over every model (`ModelFacts.MaxWounds`).
 2. Quality and Defense as two badges, printed values from the snapshot (`UnitSheet.Stat`). The card prints the army
    list's values; what a rule does to them shows on the roll that uses them (*Target number basis*).
 3. State chips: activated and the action, every condition on the unit (Shaken, Fatigued and any other by name), spell
    tokens, each grant with its caster and uses left. A condition's chip carries the theme's icon for that name when the
    theme has one, else the name alone.
-4. Wounds: one row per model, pips for wounds left out of `ModelFacts.MaxWounds`; a removed model dimmed. A one-wound
-   model is one pip. Clicking a model selects it, as today.
+4. Models: one row per group of like models (same name less Army Forge's trailing number, weapons, rules, stats and max
+   wounds), in the order of their first model: `alive/size Name — loadout`, where the loadout is what the group has that
+   the unit's main group (the most models) lacks, empty for the main group; `Wounds left/max` beside it when a model of
+   the group has more than one wound (else the alive count is the wound total). Removed models are counted, not listed; a
+   group with none standing is dimmed. A model carrying `Hero` (a joined hero) has its own group, marked with a Hero badge.
+   Clicking a row selects the group's next standing model after the selected one, so repeated clicks cycle through it.
 5. Weapons table: Weapon (×count), Range, Attacks, AP, Rules. AP is the `AP` property's parameter taken out of the rules
    column; `-` when absent. Hovering a rule shows its catalog text; *not automated* stays as today.
 6. Special rules as chips with hover text.
@@ -332,7 +336,7 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 
 | Core (tested) | Godot |
 | --- | --- |
-| `SheetFocus` (changed), `UnitSheet` (AP column, wound pips) | `Hud/UnitCard`, replacing `StatSheet` |
+| `SheetFocus` (changed), `UnitSheet` (AP column, model groups) | `Hud/UnitCard`, replacing `StatSheet` |
 | `CombatLog`, `RollEntry`, `ActivationBlock` | `Hud/CombatLogPanel` in `LogDrawer` |
 | `UndoPlan` | `Hud/UndoButton`, replacing `Table/UndoMoveButton` and `HandMoveUndo` |
 | `RosterView` | `Hud/Roster` |

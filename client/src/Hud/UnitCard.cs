@@ -85,7 +85,7 @@ public partial class UnitCard : VBoxContainer
             // The same unit's card keeps its place in the scroll; another unit's starts at the top.
             var scroll = _content?.Sheet.UnitId == u ? _card.ScrollVertical : 0;
             _content = content;
-            RenderCard(content.Sheet, content.Team, content.Note);
+            RenderCard(content);
             if (scroll > 0) RestoreScroll(scroll);
         }
         RenderStrip(p!, game!, names, sheet);
@@ -103,28 +103,38 @@ public partial class UnitCard : VBoxContainer
     }
 
     /// <summary>Note: why my open choice limits this unit (AskOption.Note), under its chips; null shows nothing.</summary>
-    void RenderCard(UnitSheetModel m, int team, string? note)
+    void RenderCard(UnitCardContent c)
     {
+        var m = c.Sheet; var note = c.Note;
         Clear(_body);
-        _body.AddChild(new ColorRect { Color = Palette.Team(team), CustomMinimumSize = new Vector2(0, 4) });
-        _body.AddChild(Wrap($"{m.Name} · {m.Alive}/{m.Size} models"));
+        _body.AddChild(new ColorRect { Color = Palette.Team(c.Team), CustomMinimumSize = new Vector2(0, 4) });
+        _body.AddChild(Wrap($"{m.Name} · {m.Alive}/{m.Size} models · Wounds {c.WoundsLeft}/{c.WoundsMax}"));
         var badges = new HBoxContainer(); _body.AddChild(badges);
         badges.AddChild(Badge($"Quality {m.Quality ?? "-"}")); badges.AddChild(Badge($"Defense {m.Defense ?? "-"}"));
         _body.AddChild(Flow(m.Chips.Select(StatusChip)));
         if (note is not null) _body.AddChild(Wrap(note, Variation.Warning));
-        foreach (var model in m.Models) _body.AddChild(WoundRow(model));
+        foreach (var group in c.Groups) _body.AddChild(GroupRow(group));
         if (m.Weapons.Count > 0) _body.AddChild(WeaponTable(m.Weapons));
         _body.AddChild(Flow(m.Rules.Select(RuleChip)));
     }
 
-    /// <summary>One row per model: a pip per wound left out of ModelFacts' max, a removed model dimmed; a click selects the model.</summary>
-    Button WoundRow(SheetModel model)
+    /// <summary>One row per group of like models (ModelGroup.Line), a joined hero's marked; a group with none standing dimmed.
+    /// A click selects the group's next standing model after the selected one, so repeated clicks cycle through it.</summary>
+    Control GroupRow(ModelGroup group)
     {
-        var b = new Button { Text = $"{model.Label}  {new string('●', model.Left)}{new string('○', model.Max - model.Left)}", Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true,
-            Disabled = model.Removed, Alignment = HorizontalAlignment.Left };
-        if (model.Removed) b.Modulate = Ui.Faded;
-        var id = model.Id; b.Pressed += () => ModelPicked?.Invoke(id);
-        return b;
+        var row = new HBoxContainer();
+        if (group.Hero) row.AddChild(Badge("Hero"));
+        var b = new Button { Text = group.Title, TooltipText = group.Line, Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true,
+            Disabled = group.Standing.Count == 0, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        if (group.Standing.Count == 0) row.Modulate = Ui.Faded;
+        b.Pressed += () =>
+        {
+            var selected = _input.Selected is { ModelIds.Count: 1 } sel ? sel.ModelIds[0] : (Guid?)null;
+            if (group.Next(selected) is { } id) ModelPicked?.Invoke(id);
+        };
+        row.AddChild(b);
+        if (group.Wounds is { } wounds) row.AddChild(new Label { Text = wounds });
+        return row;
     }
 
     static GridContainer WeaponTable(IReadOnlyList<SheetWeapon> weapons)
