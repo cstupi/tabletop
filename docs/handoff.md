@@ -1,12 +1,12 @@
-# Handoff — 2026-10-17
+# Handoff — 2026-10-18
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
 `sim/` plays whole games headless; `viewer/` draws them. On 2026-10-15 the owner played in the client and reported setup,
 movement, log, marker and game-end problems; *2026-10-15* below was built in response, and *2026-10-16* settled the
 combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items; *2026-10-17*
-finished the army-book rules, built optional rules and the production path, and hardened both servers for public hosting.
-All on `main`. An undone roll's dice stay spent: an undo always draws fresh
+finished the army-book rules, built optional rules and the production path, and hardened both servers for public hosting;
+*2026-10-18* is the live home deployment and the owner's play-testing fixes. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -65,27 +65,53 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ### 2026-10-18
 
-**Live v0.1.11** on docker1 (release: tag `vX.Y.Z` on main, push, then on docker1 `git fetch --tags && git checkout vX.Y.Z &&
-scripts/release --deploy home --version vX.Y.Z`; it tests, builds the client in a container, publishes `releases/` and
-`builtin/`, and deploys). The owner's other sessions `docker1-logical-curry` (server) and `syn01-piped-castle` (NAS)
-take instructions over Remote Control. Since v0.1.1:
-- Client: release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". The export
-  ships the built-in terrain meshes raw (Keep File imports; `scripts/pck-files` + `check_pack` guard the pack).
-- Built-in content (catalog `client/content/builtin/catalog.json`, meshes, textures) is published to MinIO `builtin/` by
-  each release and served by `GET /v1/builtin`; clients cache it and switch when `Tabletop-Builtin-Version` changes.
-- Setup: terrain turns (Q/E while held, Shift for 5°; card/menu when selected); drags slide along contacts and follow
-  the cursor; terrain details and controls live in the unit card's slot (`TerrainCard`).
-- Deployment waits until every team has a participant and an army (`WaitingForPlayers`); one account may hold several
-  teams (participant row = seat, migration 018) and play both sides from one client.
-- Web: GLBs default to glTF metres/Y-up with a size readout; the mesh preview orbits over the table with fill/rim light;
-  the asset page has the same scale/orientation tools; uploads land in the open folder; Library multi-select with bulk
-  file/unfile/delete endpoints (≤ 200 ids).
-- Logs: home stack logs to journald (docker1 caps the journal at 500M); servers log one line per message.
-- Owner rulings: Caddy routes on docker1 are fine, Caddy config stays out of the repo; never touch Pi-hole.
+**Live: v0.1.15** on the owner's home server `docker1` at `https://tabletop.cstupi.com` (files at
+`https://files.tabletop.cstupi.com`). **Unreleased on `main`:** the Show hitboxes setting (B; `HitboxLook`) — ship it in
+the next batch. Release flow (owner ruling: batch work, one tag per batch, run the release's own tests before tagging):
+tag `vX.Y.Z` on main and push; on docker1 `git fetch --tags && git checkout vX.Y.Z && scripts/release --deploy home
+--version vX.Y.Z` (tests in containers, client built in the Godot builder container, publishes `releases/` and `builtin/`,
+deploys). The owner's other Claude sessions take instructions over Remote Control: `docker1-logical-curry` (server; it
+cannot run superuser DB queries without the owner's approval) and `syn01-piped-castle` (NAS; no root). The owner's local
+Docker is stopped; start it (`docker compose up -d`) before anything needs the dev stack.
+
+Built since v0.1.1 (details in the design docs and module AGENTS.md):
+- **Client:** release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". Built-in
+  content (catalog `client/content/builtin/catalog.json`, 30 terrain meshes from `scripts/TerrainMeshes`, 5 textures) is
+  packed as the fallback and published to MinIO `builtin/` by each release; `GET /v1/builtin` serves it and clients switch
+  when `Tabletop-Builtin-Version` changes. Placement ghosts draw the model's mesh. Unit card groups like models with wound
+  totals; terrain details/controls live in the unit card's slot (`TerrainCard`). Ruler: hold Ctrl (starts under the
+  cursor), H toggles 2D/3D (`TapeMeasure`, `Measurement` mode on the wire), M click-click. Spell hover text on cast options
+  and log rows. Terrain turns in setup (Q/E while held, Shift 5°, card/menu when selected); drags slide along contacts.
+- **Game flow:** deployment waits until every seat has an army (`WaitingForPlayers`); a participant row is a seat (one
+  team, one army, migration 018); one account may hold several seats (self-play); team games per p.50: turns alternate by
+  team, each seat commands only its own units (`Ask.Seat`, `OwnUnitsOnly`, `SeatAuthority`). Under strict a team may not
+  pass while a unit can activate (p.7). A unit set aside during deployment withdraws the stale deploy Ask
+  (`SchedulerBase.Withdrawn`), including on hydration.
+- **Web:** Sci-fi/Fantasy themes; GLBs default to glTF metres/Y-up with a size readout; the mesh preview orbits over the
+  table with fill/rim light; asset page has the same scale/orientation tools; uploads land in the open folder; Library
+  multi-select with bulk endpoints (≤ 200 ids); `/download` page.
+- **Ops:** home stack logs to journald (docker1 caps the journal at 500M); servers log one line per message.
+- **Owner rulings:** Caddy routes on docker1 are fine, Caddy config stays out of the repo; never touch Pi-hole; dice are
+  never set by hand (`SetDice` is suite-only); behaviour decided in code is verified by unit tests, screen checks are for
+  layout and look.
+
+**Open / next:**
+- Ship the hitbox setting (next batch). Owner hasn't confirmed the new default that terrain volumes show faintly under a
+  mesh while the setting is on (previously always hidden); revert to hidden if they object.
+- Replay: nothing deployed can replay a game. Owner asked; options offered: a Replay mode in the client (the client
+  already projects any log prefix) or the developer viewer behind an admin login. Not chosen yet.
+- Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an
+  Information line per `GET /v1/games/{id}/assets` (game id, asset count).
+- Team games leave team-wide: spell-token spending, hand-move overrides, and passing the team's activation.
+- The waiting panel's army choice is one button per army (its dropdown would not open there; cause not found).
+- Base set at import (round/square) — owner questioned it; offered to drop the choice (always round, vehicles keep the
+  hull rectangle). No decision.
+- Miniatures generated for the owner (power-armour gunner, Soul-Snatcher Cults, Orc BOOM) live outside the repo in the
+  owner's Downloads; their generator scripts are in the session scratchpad only.
 
 ### 2026-10-17
 
-**Live:** v0.1.11 runs on the owner's home server `docker1` (`/opt/docker/tabletop`, compose project `tabletop-home`,
+**Home deployment:** the owner's home server `docker1` runs the stack (`/opt/docker/tabletop`, compose project `tabletop-home`,
 `deploy/docker-compose.home.yml`, `scripts/release --deploy home`), behind the owner's Caddy on `gateway_default`:
 `https://tabletop.cstupi.com` (web, `/v1`, `/ws`) and `https://files.tabletop.cstupi.com` (MinIO, data on the NAS share
 `/mnt/tabletop/minio`; nightly Postgres dumps to `/mnt/tabletop/pg-backups`). Stytch live project with custom domain
