@@ -11,6 +11,9 @@ namespace Tabletop.GameServer.Setup;
 /// </summary>
 public sealed partial record DraftLimits(int Terrain = 64, int VolumesPerPiece = 8, int Markers = 32, int Label = 64, int Notes = 500)
 {
+    /// <summary>Every declaration a volume may carry: a bit outside them is refused.</summary>
+    static readonly TerrainDeclarations AllDeclarations = Enum.GetValues<TerrainDeclarations>().Aggregate(TerrainDeclarations.None, (a, d) => a | d);
+
     public static DraftLimits Default { get; } = new();
     public const double MinMarker = 0.5, MaxMarker = 6, MaxVolumeHeight = 24, MaxScale = 10;
     /// <summary>A built-in visual names a file in the client (setup phase: the server never reads the built-in catalog), so the server
@@ -33,7 +36,7 @@ public sealed partial record DraftLimits(int Terrain = 64, int VolumesPerPiece =
             if (!(double.IsFinite(p.Scale) && p.Scale > 0 && p.Scale <= MaxScale)) return $"terrain {p.Id}'s scale is out of range";
             foreach (var v in p.Volumes.Select(x => x.Volume))
             {
-                if (!Enum.IsDefined(v.Kind) || ((int)v.Declarations & ~63) != 0) return $"terrain {p.Id} has an unknown volume kind or declaration";
+                if (!Enum.IsDefined(v.Kind) || (v.Declarations & ~AllDeclarations) != 0) return $"terrain {p.Id} has an unknown volume kind or declaration";
                 if (!(v.Bottom >= 0 && v.Bottom < v.Top && v.Top <= MaxVolumeHeight)) return $"terrain {p.Id} has a volume outside 0–{MaxVolumeHeight}\" or upside down";
                 if (!(Finite(v.Offset.X) && Finite(v.Offset.Y) && Finite(v.Yaw.Degrees)) || v.Footprint.A * p.Scale > Table.MaxEdge || v.Footprint.B * p.Scale > Table.MaxEdge)
                     return $"terrain {p.Id} has a volume out of range";

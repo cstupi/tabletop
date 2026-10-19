@@ -16,6 +16,18 @@ public class DraftLimitsTests
         new(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(2, 2), new Point2(0, 0), new Yaw(0), bottom, top, TerrainDeclarations.None, notes));
     static string? Refusal(TableState d, SetupEdit e) { var next = DraftEditor.Apply(d, e, out var missing); Assert.True(next is null == missing is not null); return missing; }
 
+    /// <summary>Every declaration the catalog may give a volume is accepted (the built-in ruins and quicksand are dangerous on Rush and
+    /// Charge); a bit no declaration names is refused.</summary>
+    [Fact]
+    public void Every_named_declaration_is_accepted_and_an_unnamed_bit_refused()
+    {
+        var all = Enum.GetValues<TerrainDeclarations>().Aggregate(TerrainDeclarations.None, (a, d) => a | d);
+        TerrainPlacement With(TerrainDeclarations d) => Hill() with { Volumes = [new TerrainVolume(Guid.CreateVersion7(), Volume().Volume with { Declarations = d })] };
+        Assert.Null(Refusal(Empty, new AddTerrain(With(all))));
+        Assert.Null(Refusal(Empty, new AddTerrain(With(TerrainDeclarations.DangerousOnRushCharge | TerrainDeclarations.Cover))));
+        Assert.NotNull(Refusal(Empty, new AddTerrain(With((TerrainDeclarations)((int)all + 1)))));
+    }
+
     [Fact]
     public void Terrain_volumes_and_markers_are_capped()
     {
