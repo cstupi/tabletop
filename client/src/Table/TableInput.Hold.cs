@@ -58,7 +58,8 @@ public partial class TableInput
 
     /// <summary>
     /// The held pieces toward these points, each facing its own yaw, and a ruler on each. Inside a move step each model's target is
-    /// held to its reach from its origin: the allowance, and the difficult cap on a line through difficult terrain (MoveRegions.Clamp). Held models slide along walls and other models and rest on the Solid
+    /// held to its reach from its origin: the allowance, and the difficult cap on a line through difficult terrain (MoveRegions.Clamp), and every one
+    /// to the cap once any of the move's models goes in or through difficult terrain (MoveRegions.Allowance, p.11). Held models slide along walls and other models and rest on the Solid
     /// tops under them (DragBodies.Models); a setup terrain piece slides and rests the same way (DragBodies.Piece); a marker rests
     /// on the Solid under its point. Alt places freely, past the allowance too; the drop still rests. Inside a move step a model past
     /// the allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
@@ -68,7 +69,13 @@ public partial class TableInput
         var drag = _drag!;
         var free = Input.IsKeyPressed(Key.Alt);                                          // Alt places freely, for corrections; the drop still rests
         var p = _session.Projection;
-        Point2 To(Guid id) => !free && Reach is { } reach && Proposing.Contains(id) ? reach.Clamp(id, targets[id].Horizontal) : targets[id].Horizontal;
+        Point2 Held(Guid id, double? cap) => !free && Reach is { } reach && Proposing.Contains(id) ? reach.Clamp(id, targets[id].Horizontal, cap) : targets[id].Horizontal;
+        // p.11: the unit's allowance, read from where every model of the move is going (the held ones to their targets, the rest where their ghosts stand).
+        double? Unit(Func<Guid, Point2> heldAt) => Reach is { } r && Allowance is not null
+            ? r.Allowance((Proposed ?? new Dictionary<Guid, Point3>()).Where(kv => Proposing.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => targets.ContainsKey(kv.Key) ? heldAt(kv.Key) : kv.Value.Horizontal))
+            : Allowance;
+        var capped = Unit(id => Held(id, null)) is { } unit && unit < Allowance ? unit : (double?)null;
+        Point2 To(Guid id) => Held(id, capped);
         var ends = p is not null && drag.ModelIds.All(p.Models.ContainsKey)
             ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height),
                 new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free)
@@ -83,7 +90,7 @@ public partial class TableInput
             MoveNode(id, drag.Current[id]);
             Face(id, drag.Yaws[id]);
             ModelDragged?.Invoke(id, drag.Current[id]);
-            var readout = MoveRuler.Read(drag.Origins[id].Horizontal, drag.Current[id].Horizontal, Proposing.Contains(id) ? Allowance : null, Proposing.Contains(id) ? Minimum?.GetValueOrDefault(id) : null);
+            var readout = MoveRuler.Read(drag.Origins[id].Horizontal, drag.Current[id].Horizontal, Proposing.Contains(id) ? capped ?? Allowance : null, Proposing.Contains(id) ? Reach?.Minimum(id, drag.Current[id].Horizontal) : null);
             if (Allowance is not null && Proposing.Contains(id) && _view.PieceAt(id) is { } piece) piece.SetHighlight(readout.OutOfRange ? Colors.Red : Palette.Selected);
             lines.Add((drag.Origins[id], drag.Current[id], readout));
         }

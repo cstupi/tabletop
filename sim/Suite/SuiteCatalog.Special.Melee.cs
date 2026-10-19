@@ -105,6 +105,40 @@ static partial class SpecialGames
             ]);
     }
 
+    /// <summary>
+    /// p.36 Banner of Eternal Flame (Relic Wargear): Blue unit 1's Hero carries it for its whole unit; both sides cross a swamp that is difficult and
+    /// dangerous. Blue unit 2, without it, is held to the 6" cap.
+    /// </summary>
+    static TestGame EternalFlame()
+    {
+        const string name = "special-banner-of-eternal-flame";
+        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(36, 30).Scripted(ShootAndStrike).Seeking(NearestEnemy)
+                .Army("Red", 2, 2, unitStats: Stats(4, 4))
+                .Army("Blue", 2, 3, unitStats: Stats(4, 4),
+                    models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Banner of Eternal Flame")])])
+                .Terrain("swamp", new Point3(18, 15, 0), volumes:
+                    [new Volume(VolumeKind.Area, Footprint.Rect(36, 14), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Difficult | TerrainDeclarations.Dangerous, null)])
+                .Build(),
+            ["Banner of Eternal Flame"],
+            [
+                Exact("p.36 Banner of Eternal Flame: \"The Hero and its unit may ignore all terrain effects\"; p.11: others are capped at 6\" in difficult terrain", ["Banner of Eternal Flame"], run =>
+                {
+                    var into = Moves(run).Where(m => m.Region.DifficultVolumeIds.Count > 0 && m.Unit is "Blue unit 1" or "Blue unit 2").ToList();
+                    return Each(into, "a Blue move into the swamp", m => (m.Unit == "Blue unit 1") == (m.Region.DifficultCap is null) ? null
+                            : $"{m.Unit} {m.Action}: difficult cap {m.Region.DifficultCap?.ToString() ?? "none"}")
+                        ?? new[] { "Blue unit 1", "Blue unit 2" }.Select(u => into.Any(m => m.Unit == u) ? null : $"{u} never moved into the swamp").FirstOrDefault(f => f is not null);
+                }),
+                Exact("p.36 Banner of Eternal Flame: \"may ignore all terrain effects\"; p.11: \"If a model moves in or through dangerous terrain, or is activated in it, then it must take a dangerous terrain test\"", ["Banner of Eternal Flame"], run =>
+                {
+                    var owed = Steps(run).Where(s => s.Step.Step is "move" or "activation-terrain" && s.Frame?.Context.ActorUnitId is not null && Value(s.Step, "dangerous_dice") > 0)
+                        .Select(s => UnitName(run, s.Frame!.Context.ActorUnitId!.Value)).ToList();
+                    var skipped = Steps(run).Count(s => s.Step.Applied?.Contains("Banner of Eternal Flame") == true);
+                    return owed.Contains("Blue unit 1") ? "the banner's unit owed a dangerous terrain test"
+                        : skipped == 0 ? "the banner never skipped a terrain effect" : null;
+                }),
+            ]);
+    }
+
     /// <summary>Caster, Transport, Fearless: casters who ride in a Transport, and a Fearless squad on each side, in a firefight that closes to melee.</summary>
     static TestGame Command()
     {

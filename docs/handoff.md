@@ -306,11 +306,18 @@ thread, template copies of rigged or animated models.
   live for the activation-start test, every leg of a split move and the landing, and `GfHooks.OnTurnEnded` removes it when that
   activation ends (`GfMoves.ConsumeKeepingFlying`, a name check in one place); a spell's forced move of the unit flies with it but
   neither spends nor holds it, since that is not the unit's activation. On a table without 30" of room an Aircraft moves as
-  far as it can in the direction taken (`GfMoves.Minimum`, `Movement.RoomAlong`).
-- **Movement leftovers:** D8 suite evidence is weak; the client has no per-model cap region and no landing volumes for Flying; the
-  client's Aircraft minimum ring (`MoveRuler.Minimum`) and the sim's `AnswerPolicy` still use the farthest-corner reach on a small table,
-  stricter than the server's direction-taken minimum; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
-  effects" is unbuilt.
+  far as it can in the direction taken (`GfMoves.Minimum`, `Movement.RoomAlong`); the client's ring and readout
+  (`MoveRuler.Minimum`, `MoveRegions.Inner`) and the sim's `AnswerPolicy` read it the same way.
+- **Movement rulings from the rulebook:** a model a hand move left in impassable terrain may head out of the volume, not move along it
+  or deeper in (p.11 *"Units may not move through impassable terrain"*; the book is silent on leaving; `Movement.Blocking`, used by
+  `GfMoves.PathBreach`, `ApplyForcedMove`, the client's region and the sim). p.36 Banner of Eternal Flame (*"The Hero and its unit
+  may ignore all terrain effects"*) ignores difficult terrain's cap and the dangerous terrain test, moving or activated, but is no leave
+  to move through impassable terrain and keeps cover (`GfMoves.TerrainFor`; `Content/grimdark-future-relic-wargear.part.json`). The
+  client holds every model of a move to the 6" cap once any ghost enters difficult terrain (`MoveRegions.Allowance`, p.11) and marks a
+  landing in impassable terrain, a Flying one included, unless the Ask `IgnoresTerrain` (`ContactCheck`, `ContactKind.InImpassable`).
+- **Relic Wargear (p.35):** only the Banner of Eternal Flame is built, and p.35's *"Before the game begins, each hero may equip one
+  relic item"* has no setup step: a hero gets the banner from the unit menu's Add a grant (it lasts the game) or as an imported
+  model rule.
 
 ### 2. The client
 
@@ -340,8 +347,6 @@ drawn through round 0.
 **Deferred minors:**
 - The card does not mark which model a Shift-click or wound-row click selected; Home has a text "Settings" button where
   the spec has a gear.
-- The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s
-  zone-centre fallback after 40 rejected anchors is unchecked against occupied bases.
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
 rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's

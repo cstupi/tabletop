@@ -285,13 +285,20 @@ move, the close-in, consolidation and an Aircraft's move or placement (move step
 
 How a unit treats terrain is read once, from its live set, by `GfMoves.TerrainFor`: Aircraft (no volume listed or swept, no
 cap, no dangerous terrain test), Flying (p.13 *"may move through units and terrain, and ignore terrain effects whilst moving"*:
-no impassable volume, no cap, no dangerous terrain test) and Strider (p.14 *"May ignore the effects of difficult terrain when
-moving"*: no cap). The same reading builds the move step's region, `ApplyMove`, `activation-terrain`'s skip, a rule's
+no impassable volume, no cap, no dangerous terrain test), Strider (p.14 *"May ignore the effects of difficult terrain when
+moving"*: no cap) and the Banner of Eternal Flame (p.36 Relic Wargear, *"The Hero and its unit may ignore all terrain
+effects"*: no cap and no dangerous terrain test, moving or activated, as Flying's *"ignore terrain effects"* reads them; moving
+through impassable terrain is no terrain effect, since Flying names it apart, and cover, a benefit the banner *"may"* ignore, is
+kept). The banner is `Banner of Eternal Flame` in `Content/grimdark-future-relic-wargear.part.json`, a model entry with `any`
+aggregation (the Hero carries it for its unit) whose one row is a `marker` grant of itself, so the menu's Add a grant gives it
+to a unit for the game; reading it spends nothing. The same reading builds the move step's region, `ApplyMove`, `activation-terrain`'s skip, a rule's
 reposition, and a spell's forced move: the owner's ruling is *"Spells move as however that unit moves"*, so `take_test`'s
 `move` child opens `GfMoves.ForcedMoveRegion` and applies through `GfMoves.ApplyForcedMove`, both from the target's own rules.
 A target whose base already touches an impassable volume (only a hand move puts it there: p.7 *"never ... be placed in
 physically impossible locations"*; the book says nothing of moving out) is moved out of it: as `GfMoves.PathBreach` judges it,
-the volume it stands in does not block its path, and its landing is judged as any other.
+the volume it stands in does not block a path that heads out of it (its base centre's signed distance from the footprint grows
+from the first step, `Movement.Blocking`), but does block one along it or deeper in (p.11 *"Units may not move through
+impassable terrain"*), and its landing is judged as any other.
 
 A granted Flying lasts the whole activation (owner ruling: *"Granted flying applies to the whole move - its per activation"*).
 It applies when `activation-terrain` skips a test for it or a move of the unit is applied, and from then it stays on the unit:

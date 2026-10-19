@@ -13,24 +13,36 @@ public static partial class GfMoves
     /// reposition, a spell's forced move: owner ruling, "Spells move as however that unit moves") and for the activation's dangerous terrain test.
     /// p.13 Aircraft: "Aircraft ignore all units and terrain when moving and stopping". p.13 Flying: "Models with this special rule may move through
     /// units and terrain, and ignore terrain effects whilst moving". p.14 Strider: "May ignore the effects of difficult terrain when moving". p.11:
-    /// "Units may not move through impassable terrain, unless they have any rules that allow them to ignore it".
+    /// "Units may not move through impassable terrain, unless they have any rules that allow them to ignore it". p.36 Banner of Eternal Flame: "The
+    /// Hero and its unit may ignore all terrain effects": difficult terrain's cap and the dangerous terrain test, moving or activated, as Flying's
+    /// "ignore terrain effects" reads them; moving through impassable terrain is no terrain effect (Flying names it apart: "may move through units
+    /// and terrain, and ignore terrain effects"), and cover, a benefit the banner "may" ignore, is kept.
     /// </summary>
-    public sealed record TerrainRules(bool Aircraft, bool Flying, bool Strider)
+    public sealed record TerrainRules(bool Aircraft, bool Flying, bool Strider, bool EternalFlame = false)
     {
         /// <summary>No volume is swept or listed at all: Aircraft.</summary>
         public bool IgnoresAllTerrain => Aircraft;
         /// <summary>No impassable volume is swept: Aircraft and Flying. Where a Flying model ends is still judged (LandsInImpassable).</summary>
         public bool PassesImpassable => Aircraft || Flying;
-        /// <summary>p.11's 6" cap does not bind: Aircraft, Flying and Strider.</summary>
-        public bool IgnoresDifficult => Aircraft || Flying || Strider;
-        /// <summary>No dangerous terrain test, moving through it or activated in it: Aircraft and Flying (Strider still tests).</summary>
-        public bool IgnoresDangerous => Aircraft || Flying;
+        /// <summary>p.11's 6" cap does not bind: Aircraft, Flying, Strider and the Banner of Eternal Flame.</summary>
+        public bool IgnoresDifficult => Aircraft || Flying || Strider || EternalFlame;
+        /// <summary>No dangerous terrain test, moving through it or activated in it: Aircraft, Flying and the Banner of Eternal Flame (Strider still tests).</summary>
+        public bool IgnoresDangerous => Aircraft || Flying || EternalFlame;
         public double? DifficultCap => IgnoresDifficult ? null : GfNames.DifficultCap;
     }
 
-    /// <summary>The unit's terrain rules, read from its live set (Flying and Strider can be granted) and its Aircraft.</summary>
+    /// <summary>The unit's terrain rules, read from its live set (Flying, Strider and the banner can be granted) and its Aircraft.</summary>
     public static TerrainRules TerrainFor(StepContext ctx, Guid unit, LiveSet live) =>
-        new(IsAircraft(ctx, unit), live.Has(Side.Attacker, GfNames.Flying), live.Has(Side.Attacker, GfNames.Strider));
+        new(IsAircraft(ctx, unit), live.Has(Side.Attacker, GfNames.Flying), live.Has(Side.Attacker, GfNames.Strider), live.Has(Side.Attacker, GfNames.EternalFlame));
+
+    /// <summary>A terrain effect the unit skipped was skipped by its banner when it carries one (a relic is the game's, so reading it spends nothing),
+    /// else by its Flying, which a move spends (ConsumeKeepingFlying keeps a granted one to the activation's end).</summary>
+    static void RecordSkipped(LiveSet live, TerrainRules rules, bool useFlying)
+    {
+        if (rules.EternalFlame) live.Record(Side.Attacker, GfNames.EternalFlame);
+        else if (useFlying) live.Use(Side.Attacker, GfNames.Flying);
+        else live.Record(Side.Attacker, GfNames.Flying);
+    }
 
     /// <summary>The volumes a move of this unit sweeps: none for an Aircraft.</summary>
     static IReadOnlyList<WorldVolume> SweptTerrain(GameState state, TerrainRules rules) => rules.IgnoresAllTerrain ? [] : Battlefield.Terrain(state);
@@ -58,7 +70,7 @@ public static partial class GfMoves
     /// measured against the allowance with the unit's own terrain rules (TerrainFor); a path through an impassable volume the unit may not pass is
     /// refused, and so is a landing touching one, unless the unit is an Aircraft (p.13 "when moving and stopping"). A model whose base already touches
     /// an impassable volume where it stands (only a hand move puts it there; p.7 "never ... be placed in physically impossible locations", and the book
-    /// says nothing of moving out) is not refused for sweeping that volume, as PathBreach judges it, so it can be moved out; one chosen by the opponent may not
+    /// says nothing of moving out) may be moved out of it, not along it or deeper in (Movement.Blocking), as PathBreach judges it; one chosen by the opponent may not
     /// carry a model off the table. Dangerous terrain crossed is not tested, since no rule asks it of a forced move. A granted Flying is read for the
     /// terrain but neither spent nor held (owner ruling: the forced move is not the target's activation, so the grant waits for its own); the Values
     /// stay empty and are returned for the step to write.
@@ -76,8 +88,7 @@ public static partial class GfMoves
         {
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement);
-            var swept = impassable.Where(v => !Movement.Check(start, start.Placement.Position.Horizontal, 0, [v], [], null, null).CrossesImpassable).ToList();
-            var check = Movement.Check(start, settled.Position.Horizontal, allowance, swept, difficult, rules.DifficultCap, ctx.State.Board.Table.Size);
+            var check = Movement.Check(start, settled.Position.Horizontal, allowance, Movement.Blocking(start, settled.Position.Horizontal, impassable), difficult, rules.DifficultCap, ctx.State.Board.Table.Size);
             if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable && !LandsInImpassable(ctx.State, m.ModelId, settled, landing))
                 moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }

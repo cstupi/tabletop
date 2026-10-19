@@ -50,10 +50,13 @@ public static class Movement
             startLimit = cap0;
             capped = true;
         }
+        // A base already touching an impassable volume (only a hand move puts it there) may head out of it on a ray, never along or into it (Blocking).
+        var standingIn = impassableNear.Where(v => Touches(origin, baseRadius, baseOutline, [v])).ToList();
         for (var r = 0; r < Rays; r++)
         {
             var angle = 2 * Math.PI * r / Rays;
             var dir = new Point2(Math.Cos(angle), Math.Sin(angle));
+            var walls = standingIn.Count == 0 ? impassableNear : impassableNear.Where(v => !standingIn.Contains(v) || !HeadsOut(origin, dir, v.Outline)).ToList();
             var limit = startLimit;
             var reached = 0.0;
             for (var k = 1; k <= Sampling.MaxSamples; k++)
@@ -61,7 +64,7 @@ public static class Movement
                 var d = Math.Min(k * Step, limit);
                 var at = origin + dir * d;
                 var atOutline = baseOutline.Shift(dir * d);
-                if (Touches(at, baseRadius, atOutline, impassableNear) || Meets(baseCentre + dir * d, baseRadius, atOutline, start.Body.Height, bodies, surfaces ?? [])
+                if (Touches(at, baseRadius, atOutline, walls) || Meets(baseCentre + dir * d, baseRadius, atOutline, start.Body.Height, bodies, surfaces ?? [])
                     || (slab is not null && !slab.ContainsOutline(atOutline))) break;
                 if (difficultCap is { } cap && cap < limit && Touches(at, baseRadius, atOutline, difficultNear))
                 {
@@ -102,6 +105,36 @@ public static class Movement
         }
         var effective = enters && difficultCap is { } cap ? Math.Min(allowance, cap) : allowance;
         return new MoveCheck(distance, effective, distance <= effective + Tolerance.Distance, crosses, enters, leaves);
+    }
+
+    /// <summary>
+    /// The impassable volumes a straight move from the start to the destination may not touch: all of them, less each one the base already
+    /// touches where it stands that the move heads out of — its centre's signed distance from the volume's footprint grows from the first step,
+    /// and on a straight line through a convex footprint it then grows all the way out. A base a hand move left in impassable terrain may so move
+    /// out of it, never along it or deeper in; a move with no direction leaves it where it is, touching.
+    /// </summary>
+    public static IReadOnlyList<WorldVolume> Blocking(PlacedModel start, Point2 destination, IReadOnlyList<WorldVolume> impassable)
+    {
+        var origin = start.Placement.Position.Horizontal;
+        var delta = destination - origin;
+        if (delta.Length <= Tolerance.Distance) return impassable;
+        var baseOutline = start.BaseOutline();
+        var (_, baseRadius) = baseOutline.BoundingCircle();
+        var dir = delta * (1 / delta.Length);
+        return impassable.Where(v =>
+        {
+            var outline = v.WorldOutline();
+            var (centre, radius) = outline.BoundingCircle();
+            return !Touches(origin, baseRadius, baseOutline, [new NearVolume(v.Id, outline, centre, radius)]) || !HeadsOut(origin, dir, outline);
+        }).ToList();
+    }
+
+    /// <summary>The base centre's signed distance from a footprint (negative inside) grows along `dir` from `origin`.</summary>
+    static bool HeadsOut(Point2 origin, Point2 dir, Outline footprint)
+    {
+        const double h = 1e-3;
+        static double Signed(Outline o, Point2 p) => o.Contains(p) ? -o.BoundaryDistance(p) : o.DistanceTo(p);
+        return Signed(footprint, origin + dir * h) - Signed(footprint, origin) > 1e-9;
     }
 
     /// <summary>

@@ -26,9 +26,13 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   The one Ask it does not draw is `game_over` (warn's End or Continue after round 4), which it answers End, so a `warn` run finishes.
 - `AnswerPolicy` reads a `MoveRegion` as the server judges it: once any model's sampled path enters a difficult volume, every model
   sampled further than `DifficultCap` is sampled again within it (p.11); a disembark is sampled until the base is fully within
-  `ExitWithin` of the container and fully on the table; a `MinDistance` is sampled above (or, where the table has no room for it, met at
-  `Movement.FarthestOnTable`'s corner).
-- `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, does not cross a model (`Collision.Crosses`, in three dimensions over the terrain) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`). A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases, within the zone, and an Ambusher anywhere over 9" from every enemy model (p.13), or the distance `GfAmbush` gives (Infiltrate 3", Repel Ambushers 12"), within 6" of a friendly Ambush Beacon first.
+  `ExitWithin` of the container and fully on the table; a path is swept against `Movement.Blocking` (a model a hand move left in
+  impassable terrain heads out of it); a `MinDistance` is sampled above where the table has room for it, and where it has none, on the
+  sampled bearing at `Movement.RoomAlong` (`GfMoves.Minimum`). When every sample misses under a minimum, the bearing to the farthest
+  corner and then each of `Movement.Rays` bearings is tried at its least, every check and `Clear` included; standing still comes only
+  when none passes.
+- `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, does not cross a model (`Collision.Crosses`, in three dimensions over the terrain) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`). A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases, within the zone (when 40 random draws miss, a 0.25" scan of the zone's
+  bounding box; the zone's centre only when nothing fits), and an Ambusher anywhere over 9" from every enemy model (p.13), or the distance `GfAmbush` gives (Infiltrate 3", Repel Ambushers 12"), within 6" of a friendly Ambush Beacon first.
 - `AnswerPolicy` reads only `PolicyView`'s geometry members. A policy that reads other state is a second `IAnswerSource`.
 - The one opt-in exception is a `MoveGoal` (`Scenario.Goal`, `ScenarioBuilder.Seeking`). It names a point per model and only ranks
   the destinations the uniform sampler already found legal: all `MoveSamples` are drawn and the passing one nearest the point wins.
