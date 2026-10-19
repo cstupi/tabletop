@@ -66,8 +66,8 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 ### 2026-10-18
 
 **Live: v0.1.15** on the owner's home server `docker1` at `https://tabletop.cstupi.com` (files at
-`https://files.tabletop.cstupi.com`). **Unreleased on `main`:** the Show hitboxes setting (B; `HitboxLook`) — ship it in
-the next batch. Release flow (owner ruling: batch work, one tag per batch, run the release's own tests before tagging):
+`https://files.tabletop.cstupi.com`). **Unreleased on `main`:** the Show hitboxes (B) and Show terrain hitboxes
+(Shift+B) settings (`HitboxLook`) — ship them in the next batch. Release flow (owner ruling: batch work, one tag per batch, run the release's own tests before tagging):
 tag `vX.Y.Z` on main and push; on docker1 `git fetch --tags && git checkout vX.Y.Z && scripts/release --deploy home
 --version vX.Y.Z` (tests in containers, client built in the Godot builder container, publishes `releases/` and `builtin/`,
 deploys). The owner's other Claude sessions take instructions over Remote Control: `docker1-logical-curry` (server; it
@@ -96,8 +96,7 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   layout and look.
 
 **Open / next:**
-- Ship the hitbox setting (next batch). Owner hasn't confirmed the new default that terrain volumes show faintly under a
-  mesh while the setting is on (previously always hidden); revert to hidden if they object.
+- Both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B) are unreleased on main; ship them in the next batch.
 - Replay: nothing deployed can replay a game. Owner asked; options offered: a Replay mode in the client (the client
   already projects any log prefix) or the developer viewer behind an admin login. Not chosen yet.
 - Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an

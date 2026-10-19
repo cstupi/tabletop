@@ -19,6 +19,7 @@ public partial class SettingsDialog : AcceptDialog
         Check(box, "Camera follows the action", session.Settings.CameraFollow, session, (s, on) => s with { CameraFollow = on });
         Check(box, "Turn banner", session.Settings.TurnBanner, session, (s, on) => s with { TurnBanner = on });
         Check(box, "Show hitboxes (B)", session.Settings.ShowHitboxes, session, (s, on) => s with { ShowHitboxes = on });
+        Check(box, "Show terrain hitboxes (Shift+B)", session.Settings.ShowTerrainHitboxes, session, (s, on) => s with { ShowTerrainHitboxes = on });
         Check(box, "Range rings on at start", session.Settings.RangeRings, session, (s, on) => s with { RangeRings = on });
     }
 

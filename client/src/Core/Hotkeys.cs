@@ -5,7 +5,7 @@ public enum Intent
 {
     Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Confirm, Cancel, SingleModel, Sight,
     Measure, MeasureHeld, Ping, NextUnit, PreviousUnit, FocusCamera, Undo, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight, StopHere,
-    CameraForward, CameraBack, CameraLeft, CameraRight, ToggleRoster, ToggleRangeRings, Remove, MeasureMode, ToggleHitboxes,
+    CameraForward, CameraBack, CameraLeft, CameraRight, ToggleRoster, ToggleRangeRings, Remove, MeasureMode, ToggleHitboxes, ToggleTerrainHitboxes,
 }
 
 /// <summary>The keys the game screen binds, named as Godot.Key names them so the Godot side maps by name. Not `Key`: that would
@@ -43,7 +43,8 @@ public static class Hotkeys
         (HotKey.D, _, _) => Intent.CameraRight,
         (HotKey.R, _, _) => Intent.ToggleRoster,
         (HotKey.V, _, _) => Intent.ToggleRangeRings,
-        (HotKey.B, _, _) => Intent.ToggleHitboxes,
+        (HotKey.B, true, _) => Intent.ToggleTerrainHitboxes,
+        (HotKey.B, false, _) => Intent.ToggleHitboxes,
         (HotKey.Delete or HotKey.Backspace, _, _) => Intent.Remove,
         _ => null,
     };
