@@ -37,13 +37,32 @@ public abstract partial class RepositoryContract
         ids.Sort();
         await Games.Join(ids[0], b);
 
-        var newest = await Games.List(new Keyset(2, null));
+        var newest = await Games.List(new Keyset(2, null), b);
         Assert.Equal([ids[2], ids[1]], newest.Select(g => g.Id));
-        var older = await Games.List(new Keyset(2, ids[1]));
+        Assert.All(newest, g => Assert.False(g.Joined));
+        var older = await Games.List(new Keyset(2, ids[1]), b);
         Assert.Equal(ids[0], older[0].Id);
-        var summary = (await Games.List(new Keyset(1, ids[1])))[0];
-        Assert.Equal((2, GameStatus.Lobby, a), (summary.Participants, summary.Status, summary.CreatedBy));
+        var summary = (await Games.List(new Keyset(1, ids[1]), b))[0];
+        Assert.Equal((2, GameStatus.Lobby, a, true), (summary.Participants, summary.Status, summary.CreatedBy, summary.Joined));
         Assert.Equal(["A", "B"], summary.ParticipantNames);
+    }
+
+    [Fact]
+    public async Task Game_list_joined_only_keeps_the_viewers_games_at_any_status()
+    {
+        var hash = await NewProperties();
+        var (a, b) = (await NewAccount("A"), await NewAccount("B"));
+        var mine = (await Games.Create(b, GameRequest(hash, "mine")))!.Id;
+        var joined = (await Games.Create(a, GameRequest(hash, "joined")))!.Id;
+        var other = (await Games.Create(a, GameRequest(hash, "other")))!.Id;
+        await Games.Join(joined, b);
+        Assert.True(await Games.End(joined));
+
+        var listed = await Games.List(new Keyset(50, null), b, joinedOnly: true);
+        Assert.Equal(new[] { joined, mine }.Order().Reverse(), listed.Select(g => g.Id).Where(id => id == mine || id == joined || id == other));
+        Assert.All(listed, g => Assert.True(g.Joined));
+        Assert.Equal(GameStatus.Ended, listed.Single(g => g.Id == joined).Status);
+        Assert.Contains(await Games.List(new Keyset(50, null), b), g => g.Id == other && !g.Joined);
     }
 
     [Fact]

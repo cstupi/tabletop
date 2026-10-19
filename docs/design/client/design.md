@@ -2,7 +2,7 @@
 
 The Godot 4.7 / C# client in `client/` is the only Godot dependency and the only non-headless
 deliverable. It is a renderer, an input surface and a geometry engine over one session object. It
-owns login, the game list, joining, and one game screen serving `lobby`, `setup`, `playing` and
+owns login, the game list, joining, replay, and one game screen serving `lobby`, `setup`, `playing` and
 `ended`, since all four are one socket and one hydrate path. The table is drawn from a projection
 that `Tabletop.Protocol.EventApplier` builds by applying every event. No ruleset code, no dice, no
 turn order and no legality check runs on the player's machine.
@@ -24,4 +24,5 @@ by running the game.
 | [decisions-and-interfaces.md](decisions-and-interfaces.md) | Key decisions, Interfaces (produced for and consumed from other modules) |
 | [sequences.md](sequences.md) | Connect and hydrate, Undo to here, A desync and its resync, A setup edit, Embark then disembark |
 | [state-failures-testing.md](state-failures-testing.md) | State and data, Failure modes, Testing |
+| [replay.md](replay.md) | Replay: entry and exit, the timeline, the session, the replay bar |
 | [rulings-and-references.md](rulings-and-references.md) | Rulings and deferred work, References |

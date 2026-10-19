@@ -8,10 +8,10 @@ public static class GameEndpoints
     public static void MapGames(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/v1/games").RequireAuthorization();
-        g.MapGet("", async (IGameRepository games, int? limit, Guid? after) =>
+        g.MapGet("", async (ClaimsPrincipal u, IGameRepository games, int? limit, Guid? after, bool? joined) =>
         {
             var page = Keyset.Parse(limit, after);
-            return Results.Ok(Page<GameSummary>.Of(await games.List(page), page.Limit, x => x.Id));
+            return Results.Ok(Page<GameSummary>.Of(await games.List(page, CurrentAccount.Id(u), joined ?? false), page.Limit, x => x.Id));
         });
         g.MapPost("", async (ClaimsPrincipal u, CreateGameRequest r, IGameRepository games) =>
             Limits.Text(r.Name, "name", Limits.Name) is { } problem ? Problems.Unprocessable(problem)

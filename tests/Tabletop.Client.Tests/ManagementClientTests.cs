@@ -56,6 +56,17 @@ public class ManagementClientTests
     }
 
     [Fact]
+    public async Task The_joined_list_asks_for_this_accounts_games_and_reads_joined()
+    {
+        var (c, f) = Make();
+        var id = Guid.CreateVersion7();
+        f.Answer(HttpStatusCode.OK, new Page<GameSummary>([new GameSummary(id, "Friday", GameStatus.Ended, id, DateTimeOffset.UnixEpoch, 2, Joined: true)], null));
+        var page = await c.ListGames(id, 50, joined: true);
+        Assert.Equal($"http://localhost:5100/v1/games?limit=50&after={id}&joined=true", f.Requests[0].RequestUri!.ToString());
+        Assert.True(page.Items.Single() is { Joined: true, Status: GameStatus.Ended });
+    }
+
+    [Fact]
     public async Task Games_layouts_and_the_manifest_round_trip_contract_types()
     {
         var (c, f) = Make();
@@ -66,6 +77,7 @@ public class ManagementClientTests
          .Answer(HttpStatusCode.Created, layout).Answer(HttpStatusCode.OK, new Manifest([new ManifestEntry(Guid.CreateVersion7(), AssetKind.Miniature, new string('a', 64), new Uri("http://localhost:9000/b/k"), 2.5, new Tabletop.Geometry.Orientation { Pitch = 90, Yaw = 0, Roll = 0 })], DateTimeOffset.UnixEpoch));
         var page = await c.ListGames(null, 25);
         Assert.Equal("http://localhost:5100/v1/games?limit=25", f.Requests[0].RequestUri!.ToString());
+        Assert.False(page.Items.Single().Joined);
         Assert.Equal(game.Id, page.Next);
         Assert.Equal(ContentJson.Serialize(game), ContentJson.Serialize(await c.CreateGame(new CreateGameRequest("Friday", "sha256:abc", SchedulerShape.AlternatingActivation, Enforcement.Warn, false))));
         Assert.Contains("\"schedulerShape\":\"alternating-activation\"", f.Bodies[1]);

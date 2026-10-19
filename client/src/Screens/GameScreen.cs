@@ -108,7 +108,7 @@ public partial class GameScreen : Control
     /// <summary>The corner's line (CornerLine): the name, clipped to the corner's slot with its whole text as the tooltip, then the tail.</summary>
     void ShowStatus()
     {
-        var (name, tail) = CornerLine.Of(_session.Phase, _session.ReconnectAttempt, _session.Game, _session.IsWatching);
+        var (name, tail) = CornerLine.Of(_session.Phase, _session.ReconnectAttempt, _session.Game, _session.IsWatching, _session.Replaying);
         _status.Text = name; _status.TooltipText = name; _statusTail.Text = tail;
         QueueLayout();   // a clipped label's minimum does not follow its text
     }

@@ -895,7 +895,9 @@ Endpoint behaviour:
   of tonight's (the plan's ruling 7).
   `id < @after order by id desc`; `Page<T>.Next` still holds the last id. Each `GameSummary` carries
   `ParticipantNames`, the participants' account names in join order, which the viewer's game list shows; an account holding
-  several teams (several rows) counts and is named once.
+  several teams (several rows) counts and is named once. `Joined` is true when the caller holds a participant row in the game
+  (the client offers Replay on it). `joined=true` keeps only those games, at every status, so a player's own games page apart
+  from everyone else's.
 - `POST /v1/games/{id}/join` is `insert ... on conflict do nothing` guarded by `where exists (select 1
   from game ...)` and by the account having no row in the game yet, so joining twice is the same row and joining a
   nonexistent game is `404`. Joining is allowed at every status, including `ended`. The arriving
@@ -1186,7 +1188,7 @@ writes `builtin/`.
 | `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules)[]`, one per `(GameRules, Name)`, the latest seeded | bearer |
 | `GET /v1/properties/{hash}/rules` | → `CatalogRuleText(Name, Kind, TakesParameter, RuleText, Played)[]` by name; `404` for an unknown hash | bearer |
 | `GET /v1/properties/{hash}/grants` | → `GrantableEffect(EntryName, EffectId, Duration)[]`: the set's top-level `once`, `marker` and `spent_marker` effect rows by entry then ordinal, what the client's Add a grant names in an `AddGrant`; `404` for an unknown hash | bearer |
-| `GET /v1/games?limit&after` | → `Page<GameSummary>` | bearer, public |
+| `GET /v1/games?limit&after&joined` | → `Page<GameSummary>` | bearer, public |
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer, public |
 | `POST /v1/games/{id}/join` | → `GameInfo`. Joins the game, no team | bearer |

@@ -8,7 +8,8 @@ public sealed record AccountRow(Guid Id, string Name);
 public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 public sealed record Page<T>(IReadOnlyList<T> Items, Guid? Next);
-public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid CreatedBy, DateTimeOffset CreatedAt, int Participants);
+/// <summary>Joined: this account holds a participant row in the game.</summary>
+public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid CreatedBy, DateTimeOffset CreatedAt, int Participants, bool Joined = false);
 public sealed record CreateGameRequest(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps);
 public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules);
 

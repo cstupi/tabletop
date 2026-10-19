@@ -96,11 +96,15 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   layout and look.
 
 **Open / next:**
-- Both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B) are unreleased on main; ship them in the next batch.
-- Replay: the viewer's hosted build is the admin-only Replays tool at `https://tabletop.cstupi.com/viewer/` (web image,
-  no Caddy change): the website shows a Replays link to accounts with the `admin` role, the viewer reuses the website's
-  session, lists every game including ended ones, and replays a game's log on its timeline over `wss://…/ws`. Replaying
-  an ended game needs the game server to admit an admin watcher to an ended game. Not yet in a release.
+- Unreleased on main, ship in the next batch: both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B);
+  client Replay; the hosted viewer; the army-wide base choice removed (import takes Army Forge's round base, else square).
+- Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
+  "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
+  watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
+  plays at 0.5–8×, scrubs, and the combat log follows the position.
+- Admin Replays: the viewer's hosted build at `https://tabletop.cstupi.com/viewer/` (web image, no Caddy change). The
+  website shows a Replays link to accounts with the `admin` role; the viewer reuses the website's session, lists every
+  game including ended ones, and replays a game's log on its timeline over `wss://…/ws` (an admin watches any game).
 - Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an
   Information line per `GET /v1/games/{id}/assets` (game id, asset count).
 - Team games leave team-wide: spell-token spending, hand-move overrides, and passing the team's activation.

@@ -20,7 +20,7 @@ public sealed class GameRepository(Database db) : IGameRepository
     // CreatedAt comes back as DateTime (Npgsql's CLR type for timestamptz), not DateTimeOffset: Dapper picks a
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
     // is built afterwards.
-    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames);   // Array: the reader reports text[] as System.Array
+    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames, bool Joined);   // Array: the reader reports text[] as System.Array
     private static readonly IReadOnlyDictionary<string, SchedulerShape> Shapes = new Dictionary<string, SchedulerShape> { ["player-turn"] = SchedulerShape.PlayerTurn, ["alternating-activation"] = SchedulerShape.AlternatingActivation };
     private static string Wire(SchedulerShape s) => Shapes.First(kv => kv.Value == s).Key;
 
@@ -72,16 +72,19 @@ public sealed class GameRepository(Database db) : IGameRepository
         return await Get(id);
     }
 
-    public async Task<IReadOnlyList<GameSummary>> List(Http.Keyset page)
+    public async Task<IReadOnlyList<GameSummary>> List(Http.Keyset page, Guid viewer, bool joinedOnly = false)
     {
         await using var c = await db.Open();
         // A named record, not a ValueTuple: Dapper maps to constructor parameters by column name and cannot map tuple element names.
         var rows = await c.QueryAsync<SummaryRow>(@"select g.id as Id, g.name as Name, g.status as Status, g.created_by as CreatedBy, g.created_at as CreatedAt,
             (select count(distinct p.account_id) from participant p where p.game_id = g.id)::int as Participants,
             array(select a.name from (select distinct on (p.account_id) p.account_id, p.id from participant p where p.game_id = g.id order by p.account_id, p.id) p
-                  join account a on a.id = p.account_id order by p.id) as ParticipantNames
-            from game g where (@after::uuid is null or g.id < @after::uuid) order by g.id desc limit @limit", new { after = page.After, limit = page.Limit });
-        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList())).ToList();
+                  join account a on a.id = p.account_id order by p.id) as ParticipantNames,
+            exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer) as Joined
+            from game g where (@after::uuid is null or g.id < @after::uuid)
+              and (not @joinedOnly or exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer))
+            order by g.id desc limit @limit", new { after = page.After, limit = page.Limit, viewer, joinedOnly });
+        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList(), r.Joined)).ToList();
     }
 
     public async Task<GameInfo?> Get(Guid id)

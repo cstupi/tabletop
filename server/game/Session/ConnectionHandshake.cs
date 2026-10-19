@@ -7,11 +7,14 @@ using Tabletop.Protocol;
 namespace Tabletop.GameServer.Session;
 
 /// <summary>Connect → Welcome | Rejected. Then the read loop, until the peer closes, breaks the protocol, is replaced or its session expires.
-/// Close reasons sent to the peer are fixed phrases; what went wrong is in the server log.</summary>
+/// Close reasons sent to the peer are fixed phrases; what went wrong is in the server log. A socket opened as `/ws?watch=1` is read-only:
+/// whoever it authorizes (a participant, or an admin) joins as a watcher.</summary>
 public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerifier verifier, IGameRows rows, SessionRegistry registry, AccountSockets accounts,
     TimeProvider time, ILogger<ConnectionHandshake> log)
 {
-    public async Task RunAsync(WebSocket socket, CancellationToken aborted)
+    public Task RunAsync(WebSocket socket, CancellationToken aborted) => RunAsync(socket, watchOnly: false, aborted);
+
+    public async Task RunAsync(WebSocket socket, bool watchOnly, CancellationToken aborted)
     {
         SocketMessage? first;
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(aborted))
@@ -33,18 +36,19 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         { log.LogError(ex, "cannot verify the session for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
         if (session is null) { await RejectAsync(socket, RejectReason.InvalidSession); return; }
 
-        // A participant connects as itself. An admin who is not one watches (admin watch spec); a game that does not exist is
-        // refused to the admin exactly as to anyone else.
+        // A participant connects as itself, or watches on a read-only socket (a replay). An admin who is not one watches (admin
+        // watch spec); a game that does not exist is refused to the admin exactly as to anyone else.
         Guid? participantId;
-        bool watcher;
+        bool admitted;
         try
         {
             participantId = await rows.FindParticipantAsync(connect.GameId, session.AccountId, aborted);
-            watcher = participantId is null && session.IsAdmin && await rows.ReadGameAsync(connect.GameId, aborted) is not null;
+            admitted = participantId is not null || session.IsAdmin && await rows.ReadGameAsync(connect.GameId, aborted) is not null;
         }
         catch (Exception ex)
         { log.LogError(ex, "cannot look up the participant for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
-        if (participantId is null && !watcher) { await RejectAsync(socket, RejectReason.NotAParticipant); return; }
+        if (!admitted) { await RejectAsync(socket, RejectReason.NotAParticipant); return; }
+        var watcher = watchOnly || participantId is null;
 
         if (registry.Draining) { await CloseAsync(socket, WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
 
@@ -87,7 +91,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
                     if (!inbound.CleanText) { await RefuseTextAsync(connection, frame); continue; }
                     if (frame is Reauth reauth)
                     {
-                        var (renewed, revoked) = await RenewAsync(reauth.SessionJwt, session, connect.GameId, participantId, watcher, reading.Token);
+                        var (renewed, revoked) = await RenewAsync(reauth.SessionJwt, session, connect.GameId, participantId, reading.Token);
                         if (renewed is not null) { session = renewed; expiry.Change(Clamp(renewed.ExpiresAt - time.GetUtcNow()), Timeout.InfiniteTimeSpan); continue; }
                         await connection.SendAsync(new Refused(reauth.ReauthId, RefusalReason.NotPermitted, "the session does not renew this socket"));
                         if (revoked) { await connection.CloseAsync(WebSocketCloseStatus.PolicyViolation, "no longer in this game"); break; }
@@ -115,17 +119,17 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
     }
 
     /// <summary>
-    /// The refreshed session when it verifies, names the socket's account and passes connect's authorization again: a participant is still
-    /// this participant of the game, a watcher is still an admin and the game still exists. A token that does not verify or names another
+    /// The refreshed session when it verifies, names the socket's account and passes connect's authorization again: a participant (playing
+    /// or watching read-only) is still this participant of the game, an admin watcher is still an admin and the game still exists. A token that does not verify or names another
     /// account renews nothing (the old expiry stands); a session that no longer authorizes this socket is `revoked`, and the socket closes.
     /// </summary>
     private async Task<(VerifiedSession? Renewed, bool Revoked)> RenewAsync(string jwt, VerifiedSession current, Guid gameId, Guid? participantId,
-        bool watcher, CancellationToken ct)
+        CancellationToken ct)
     {
         try
         {
             if (await verifier.VerifyAsync(jwt, ct) is not { } renewed || renewed.AccountId != current.AccountId) return (null, false);
-            var authorized = watcher
+            var authorized = participantId is null
                 ? renewed.IsAdmin && await rows.ReadGameAsync(gameId, ct) is not null
                 : await rows.FindParticipantAsync(gameId, renewed.AccountId, ct) == participantId;
             return authorized ? (renewed, false) : (null, true);
