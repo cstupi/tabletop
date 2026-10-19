@@ -152,7 +152,7 @@ id. There is no rollback machinery and no reconciliation. On either answer the c
 `Applier.Projection`, which is by then the server's truth.
 
 The server wins in every case. A `models_moved` event snaps the piece to where the event says. The
-client never withholds an answer on its own geometry, and never edits the log.
+client never edits the log; under `strict` it holds a commit only on what it measures (table view → Contact marks).
 
 ## Desync and resync
 

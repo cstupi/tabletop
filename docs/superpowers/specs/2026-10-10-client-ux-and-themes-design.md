@@ -261,6 +261,11 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
   not on the table in setup.
 - The move-range circle (`Movement.Region`) takes other models' bases as obstacles, as it takes impassable volumes, so
   the reach drawn goes around models.
+- What the server would refuse is marked before the drop (owner: "We need to warn and not just undo, let the user fix it
+  or make it clear its in violation"): a model on a base, with a straight path through a model, or within the Ask's
+  separation of another unit is tinted in the warning colour with a short reason label. Under `strict` the commit waits
+  and the ghosts stay for the player to fix; a commit the server still refuses stays where it was dropped, marked with
+  the server's reason (`docs/design/client/table-view.md` → Contact marks).
 
 **Server.**
 

@@ -76,6 +76,7 @@ public partial class TableInput
                 ? DragBodies.Piece(d.Terrain, kv.Key, new Placement(drag.Current[kv.Key], drag.Yaws[kv.Key]), kv.Value.Horizontal, free)
                 : new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst)));   // a marker rests on the Solid under its point
         var lines = new List<(Point3 From, Point3 To, RulerReadout Readout)>();
+        Violations.Moved(targets.Keys);                                                  // a refused commit's reason lapses once its models move
         foreach (var id in targets.Keys)
         {
             drag.Current[id] = ends[id];
@@ -87,6 +88,10 @@ public partial class TableInput
             lines.Add((drag.Origins[id], drag.Current[id], readout));
         }
         ShowRulers(lines);
+        // A hand move is held to overlap (the server's placement judge); a move's or a deployment's ghosts are the decision box's to measure.
+        if (p is not null && _session.Game is { } game && drag.ModelIds.All(p.Models.ContainsKey) && !drag.ModelIds.Any(Proposing.Contains))
+            Violations.Measure(drag.ModelIds, ContactCheck.Words(ContactCheck.Placement(p, drag.ModelIds.ToDictionary(id => id, id => new Placement(drag.Current[id], drag.Yaws[id])), _view.Volumes),
+                null, new Names(game, p).Unit));
     }
 
     void ShowRulers(IReadOnlyList<(Point3 From, Point3 To, RulerReadout Readout)> lines)

@@ -23,6 +23,11 @@ public partial class TableInput : Node
     public Selection? Selected { get; private set; }
     /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
     public HashSet<Guid> Proposing { get; } = new();
+    /// <summary>The models in breach and why (ViolationMarks draws them): a hand move's are measured here as it drags, a move's or a deployment's
+    /// ghosts by the decision box, which also puts a refused commit's reason on them.</summary>
+    public Violations Violations { get; } = new();
+    /// <summary>The models in hand now, first in a label's order.</summary>
+    public IReadOnlyList<Guid> HeldModels => _drag is { Armed: true } d ? d.ModelIds : [];
     public double? Allowance { get; set; }
     /// <summary>The open move Ask's region: its walls and whether it passes models. Null outside one.</summary>
     public MoveRegion? Region { get; set; }
@@ -242,7 +247,10 @@ public partial class TableInput : Node
     public Action<Point3>? PlacementPoint { get; set; }
 
     /// <summary>Abandon the drag in progress and send nothing. The decision box calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
-    public void CancelDrag() { _drag = null; HideRulers(); _presenceDirty = true; _view.Redraw(); }
+    public void CancelDrag() { var held = _drag?.ModelIds ?? []; _drag = null; ForgetHandMarks(held); HideRulers(); _presenceDirty = true; _view.Redraw(); }
+
+    /// <summary>A hand move's marks end with its drag: the server judges the drop (and warns under warn).</summary>
+    void ForgetHandMarks(IReadOnlyList<Guid> held) => Violations.Measure(held.Where(id => !Proposing.Contains(id)), new Dictionary<Guid, string>());
 
     void OnLeftDown(Vector2 screen, bool shift)
     {
@@ -348,7 +356,7 @@ public partial class TableInput : Node
             return;
         }
         if (_drag is null) return;
-        var drag = _drag; _drag = null; HideRulers(); _presenceDirty = true;
+        var drag = _drag; _drag = null; HideRulers(); _presenceDirty = true; ForgetHandMarks(drag.ModelIds);
         var moved = drag.Armed && drag.Current.Any(kv => kv.Value != drag.Grabs[kv.Key].Position || drag.Yaws[kv.Key] != drag.Grabs[kv.Key].Yaw);
         if (!moved) return;
         var status = _session.Game?.Status;

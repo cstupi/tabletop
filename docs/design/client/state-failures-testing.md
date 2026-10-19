@@ -79,7 +79,7 @@ its own would mean the event spine had been broken.
 | A frame over 4 MiB | the server treats it as a protocol violation; a very large `ReplaceDraft` is the only realistic candidate | not guarded on the client |
 | Two players drag the same piece | last drop wins; each saw the other's drag through presence | yes |
 | An unknown zone shape id | `ZoneNode` draws nothing and logs a warning | yes; the game server's `DraftEditor` tests use shape ids `ZoneStyles` does not resolve |
-| A model placed outside the drawn region | committed as sent; the server re-decides (`LegalSetMembership.Contains` under `strict`, `GfMoves.ExitPlacement` for a disembark) | yes; the client never withholds an answer on its own geometry |
+| A model placed outside the drawn region | committed as sent; the server re-decides (`LegalSetMembership.Contains` under `strict`, `GfMoves.ExitPlacement` for a disembark) | yes; under `strict` the client holds a commit only for what `MoveRuler.Gate` measures (allowance, minimum, contact marks) |
 
 Concurrency, ordering and lifecycle hazards:
 

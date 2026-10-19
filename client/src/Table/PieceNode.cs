@@ -17,6 +17,7 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     Node3D? _mesh;
     Color _base = Palette.Proxy, _tint = Palette.Proxy;
     bool _highlighted, _ghost, _showHitboxes = true;
+    Color? _warning;
     Node3D? _ring;
     readonly StandardMaterial3D _ringMaterial = new() { Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
     Base _footprint = Base.Circle(1);
@@ -85,8 +86,20 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     /// <summary>Show hitboxes (ClientSettings.ShowHitboxes), live. Off, a model with a mesh draws the mesh and a thin base ring in its team colour or highlight.</summary>
     public void SetShowHitboxes(bool on) { if (on == _showHitboxes) return; _showHitboxes = on; Apply(); }
 
+    /// <summary>A contact breach (Violations): the whole body drawn in the warning colour over whatever it shows, until cleared with null.</summary>
+    public void SetWarning(Color? colour)
+    {
+        if (colour == _warning) return;
+        _warning = colour; Apply();
+    }
+
     void Apply()
     {
+        if (_warning is { } w)
+        {
+            _proxy.Visible = true; _proxy.MaterialOverride = Palette.Translucent(w with { A = 0.55f });
+            _ring?.QueueFree(); _ring = null; return;
+        }
         var look = HitboxLook.Piece(_showHitboxes, _mesh is not null, _ghost);
         _proxy.Visible = look != PieceProxy.RingOnly;
         _proxy.MaterialOverride = Palette.Translucent(look == PieceProxy.Solid ? _base : _base with { A = 0.12f });

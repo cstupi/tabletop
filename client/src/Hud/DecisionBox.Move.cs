@@ -20,6 +20,8 @@ public partial class DecisionBox
     MoveRegions? _regions; Color _regionColour;
     /// <summary>The move's commit against where its ghosts stand, read again on every drag and reset.</summary>
     Action? _regate; MoveGate _gate = new(true, null);
+    /// <summary>The last commit, until the server answers it; a refusal turns it into the stash and the verdict the re-render puts back.</summary>
+    readonly CommitHold _sent = new(); (IReadOnlyList<Guid> Models, string Reason)? _verdict;
 
     void RenderMove(Ask ask, MoveRegion legal, Projection p, Names names)
     {
@@ -53,7 +55,7 @@ public partial class DecisionBox
                 _view.ShowExitGhosts(legal.ModelIds, containerId); _proposed = legal.ModelIds.ToDictionary(id => id, _ => at.Placement.Position);
             }
             StartExit();
-            _onCancel = () => { StartExit(); return true; };
+            _onCancel = () => { StartExit(); _input.Violations.Clear(); _regate?.Invoke(); return true; };
         }
         else
         {
@@ -74,14 +76,16 @@ public partial class DecisionBox
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _view.Snap(legal.ModelIds); }
             StartMove();
-            _onCancel = () => { StartMove(); _regate?.Invoke(); return true; };
+            _onCancel = () => { StartMove(); _input.Violations.Clear(); _regate?.Invoke(); return true; };
             OfferEmbark(ask, legal, p, names);
         }
         // A stop (p.13 Caster(X) "at any point before attacking") sends the ghosts as they stand: with no drag, that is a stop before moving.
         void Relocate(bool continues)
         {
             if (_proposed is not { } proposed || !_gate.Allowed) return;
-            Send(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(proposed[id], YawOf(p, id))))).ToList(), continues));
+            var moves = legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(proposed[id], YawOf(p, id))))).ToList();
+            _sent.Remember(ask.Id, moves);
+            Send(ask, new Destinations(moves, continues));
         }
         void Commit() => Relocate(false);
         _onEnter = Commit;
@@ -93,7 +97,7 @@ public partial class DecisionBox
             _onStop = Stop;
             Add(stop = Btn($"{DecisionView.StopLabel(p, legal)} (C)", Stop));
         }
-        // Any ghost out of range names how many; under strict the commit and the stop wait until none is.
+        // Any ghost out of range is counted and each contact named; under strict the commit and the stop wait until none is.
         var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
         _regate = () =>
         {
@@ -101,7 +105,8 @@ public partial class DecisionBox
             var readouts = allowance is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
                 .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, allowance, _input.Minimum?.GetValueOrDefault(id))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
-            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MoveRuler.TooClose(p, legal, placed), legal.Separation);
+            _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes), legal.Separation, names.Unit));
+            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
         };
@@ -148,10 +153,31 @@ public partial class DecisionBox
 
     static ModelBody BodyOf(Projection p, Guid modelId) { var m = p.Models[modelId]; return new ModelBody(m.Slot.Base, m.Slot.Height); }
 
+    /// <summary>These models' marks (Violations), for the gate.</summary>
+    IReadOnlyDictionary<Guid, string> MarkedOf(IEnumerable<Guid> ids) =>
+        ids.Where(_input.Violations.Marked.ContainsKey).ToDictionary(id => id, id => _input.Violations.Marked[id]);
+
+    /// <summary>The server refused a commit: its ghosts are kept for the re-render, which puts them back and marks them (ApplyVerdict).</summary>
+    void KeepRefused(Refused r)
+    {
+        if (_sent.Refused(r.MessageId) is not { } held) return;
+        _stash.Keep(held.Key, held.At, held.Yaws);
+        _verdict = (held.Moved, r.Detail);
+    }
+
+    /// <summary>After the ghosts are back where the refused commit put them: the models it moved marked with the server's reason, the gate read again.</summary>
+    void ApplyVerdict()
+    {
+        if (_verdict is not { } v) return;
+        _verdict = null;
+        _input.Violations.Refused(v.Models, v.Reason);
+        _regate?.Invoke();
+    }
+
     void OnDragged(Guid modelId, Point3 position)
     {
         if (_proposed is not null && _proposed.ContainsKey(modelId)) { _proposed[modelId] = position; _regate?.Invoke(); }
-        if (_deployAt is not null && _deployAt.ContainsKey(modelId)) _deployAt[modelId] = position;
+        if (_deployAt is not null && _deployAt.ContainsKey(modelId)) { _deployAt[modelId] = position; _regate?.Invoke(); }
         if ((_proposed?.ContainsKey(modelId) == true || _deployAt?.ContainsKey(modelId) == true) && NodeYaw(modelId) is { } yaw) _turned[modelId] = yaw;
     }
 
@@ -212,16 +238,31 @@ public partial class DecisionBox
         _hint.Text = "Drag to place · Shift: one model · 1–5 while holding: rows · Enter: place · Esc: clear";
         _onEnter = PlaceDeploy;
         _onCancel = () => { Reset(); Render(); return true; };                    // Reset drops _deployUnit, so Render arms a fresh click
-        Add(Btn("Place (Enter)", PlaceDeploy));
+        var place = Btn("Place (Enter)", PlaceDeploy); Add(place);
+        // A ghost on another model's base is named; under strict Place waits until none is.
+        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
+        _regate = () =>
+        {
+            if (_deployAt is not { } at || _s.Projection is not { } p || _s.Game is not { } game || !IsInstanceValid(place)) return;
+            var placed = at.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
+            _input.Violations.Measure(at.Keys, ContactCheck.Words(ContactCheck.Placement(p, placed, _view.Volumes), null, new Names(game, p).Unit));
+            _gate = MoveRuler.Gate([], game.Enforcement, MarkedOf(at.Keys));
+            place.Disabled = !_gate.Allowed;
+            reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
+        };
+        _regate();
+        ApplyVerdict();
         Render();
     }
 
     void PlaceDeploy()
     {
-        if (_deployAt is null || _s.Projection is not { } p) return;
+        if (_deployAt is null || _s.Projection is not { } p || _deployUnit is not { } unit || !_gate.Allowed) return;
         var moves = _deployAt.Select(kv => new ModelRelocation(kv.Key, p.Models[kv.Key].Location, new OnTable(new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0))))).ToList();
+        _sent.Remember(unit, moves);
         _onEnter = null; _onCancel = null; SetButtons(true);
         var id = Guid.CreateVersion7(); _lastCommand = id;                          // a Refused for it lands in _onRefused, which rebuilds the placement
+        _sent.Sent(id);
         Guarded.Run(() => _s.SendCommandAsync(new MoveModels(moves), id), message => { _refusal = $"Could not place the models: {message}"; _refusalAsk = null; Reset(); Render(); });
     }
 }

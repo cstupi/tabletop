@@ -57,6 +57,7 @@ public partial class DecisionBox : PanelContainer
         {
             if (r.MessageId != _lastCommand) return;
             _refusal = $"The server refused: {r.Detail}"; _refusalAsk = _renderedAsk;
+            KeepRefused(r);                                              // a refused move or placement comes back where it was dropped, marked
             Reset(); _renderedAsk = null; Render();
         };
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
@@ -140,7 +141,7 @@ public partial class DecisionBox : PanelContainer
         switch (mine.Mode)
         {
             case AskMode.Choose: RenderChoose(mine); break;
-            case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); RestoreMove(mine.Ask.Id); break;
+            case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); RestoreMove(mine.Ask.Id); ApplyVerdict(); break;
             case AskMode.TokenSpend: RenderSpend(mine, p, names); break;
             case AskMode.Confirm:                                               // "Continue" for a step gate, "End the round" at the round boundary
                 _onEnter = () => Send(mine.Ask, new Confirmed());
@@ -297,6 +298,7 @@ public partial class DecisionBox : PanelContainer
     {
         SetButtons(true); Unhook();                                             // one answer per Ask: no second click or key can double-send
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
+        _sent.Sent(_lastCommand.Value);                                         // a move commit's ghosts go with it, else none are held
         await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer, _answering), _lastCommand.Value);   // for the team the Ask was rendered for
     }
 
@@ -305,6 +307,7 @@ public partial class DecisionBox : PanelContainer
     {
         _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
         _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
+        if (_input is not null && IsInstanceValid(_input)) _input.Violations.Clear();   // a refused commit's marks come back with its ghosts (ApplyVerdict)
         if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click
         UnhookPicks();
         if (_input is not null && IsInstanceValid(_input)) _input.DropProposed();   // before Proposing clears: a held ghost would otherwise drop as a hand move
