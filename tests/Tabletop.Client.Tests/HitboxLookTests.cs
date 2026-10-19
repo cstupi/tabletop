@@ -44,5 +44,23 @@ public class HitboxLookTests
         finally { File.Delete(path); }
     }
 
+    [Fact]
+    public void Show_terrain_hitboxes_defaults_on_persists_independently_and_reads_missing_as_on()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            Assert.True(ClientSettings.Default.ShowTerrainHitboxes);
+            (ClientSettings.Default with { ShowTerrainHitboxes = false }).Save(path);
+            var loaded = ClientSettings.Load(path);
+            Assert.False(loaded.ShowTerrainHitboxes); Assert.True(loaded.ShowHitboxes);
+            File.WriteAllText(path, """{ "animate": false }""");
+            Assert.True(ClientSettings.Load(path).ShowTerrainHitboxes);
+            Assert.NotEqual(ClientSettings.Default, ClientSettings.Default with { ShowTerrainHitboxes = false });
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact] public void B_toggles_hitboxes() => Assert.Equal(Intent.ToggleHitboxes, Hotkeys.Of(HotKey.B, false, false));
+    [Fact] public void Shift_B_toggles_terrain_hitboxes() => Assert.Equal(Intent.ToggleTerrainHitboxes, Hotkeys.Of(HotKey.B, true, false));
 }

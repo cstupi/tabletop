@@ -40,7 +40,7 @@ public partial class TerrainNode : Node3D, IDrawn<TerrainPlacement>
 
     public void SetMesh(Node3D? scene) { _mesh?.QueueFree(); _mesh = scene; if (scene is not null) AddChild(scene); Apply(); }
 
-    /// <summary>Show hitboxes (ClientSettings.ShowHitboxes) and whether setup is editing this piece, live: see <see cref="HitboxLook.Terrain"/>.</summary>
+    /// <summary>Show terrain hitboxes (ClientSettings.ShowTerrainHitboxes) and whether setup is editing this piece, live: see <see cref="HitboxLook.Terrain"/>.</summary>
     public void SetLook(bool showHitboxes, bool editing) { if (showHitboxes == _show && editing == _editing) return; _show = showHitboxes; _editing = editing; Apply(); }
 
     void Apply()

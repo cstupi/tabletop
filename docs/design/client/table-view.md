@@ -37,10 +37,11 @@ thing the mesh was always only decorating". The base and height are what distanc
 sight are measured against. A missing, deleted, still-downloading or hash-mismatched mesh costs
 appearance and nothing else.
 
-Show hitboxes (`ClientSettings.ShowHitboxes`, default on; the Settings dialog, or B) decides what draws over a mesh,
-through `HitboxLook`. On, a model with a mesh keeps its faint volume and terrain with a mesh shows its volumes faintly.
-Off, such a model draws the mesh and a thin base ring in its team colour (the highlight colour while highlighted), and
-such terrain draws the mesh alone, except the piece selected in setup, which shows its volumes in full. A model or piece
+Two settings, each default on and each in the Settings dialog, decide what draws over a mesh, through `HitboxLook`. Show
+hitboxes (`ClientSettings.ShowHitboxes`; B) governs models: on, a model with a mesh keeps its faint volume; off, it draws
+the mesh and a thin base ring in its team colour (the highlight colour while highlighted). Show terrain hitboxes
+(`ClientSettings.ShowTerrainHitboxes`; Shift+B) governs terrain: on, terrain with a mesh shows its volumes faintly; off, it
+draws the mesh alone, except the piece selected in setup, which shows its volumes in full. A model or piece
 without a mesh always draws its volume; a placement ghost keeps its look. `TableView.RefreshLooks` applies a setting or
 selection change at once.
 
