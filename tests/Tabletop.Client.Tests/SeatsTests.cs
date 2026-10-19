@@ -78,4 +78,24 @@ public class SeatsTests
         Assert.Equal("Team 1 has no army", line.Text);
         Assert.NotNull(line.Army);
     }
+
+    /// <summary>Clay picks his army while Bob's team still waits: the game info naming the army arrives before the board that holds it. The panel
+    /// keeps its controls (an open dropdown stays open) until the lines change, and rebuilds when the board takes Team 1 off the list.</summary>
+    [Fact]
+    public void The_waiting_panel_rebuilds_only_when_its_lines_change()
+    {
+        var game = Samples.Game with { Participants = [.. Samples.Game.Participants, new Participant(Second, Guid.CreateVersion7(), "Bob", Samples.Team2, null)] };
+        var empty = Samples.Board with { Armies = [] };
+        var shown = WaitingView.Of(game, WaitingForPlayers.Teams(game, empty), Samples.P1);
+        Assert.Equal(["Team 1 has no army", "Team 2 has no army"], shown.Select(l => l.Text));
+        Assert.True(WaitingView.Changed(null, shown));                                          // a new panel builds
+        Assert.False(WaitingView.Changed(shown, WaitingView.Of(game, WaitingForPlayers.Teams(game, empty), Samples.P1)));
+
+        var picked = game with { Participants = [game.Participants[0] with { ArmyId = Samples.Army.Id }, game.Participants[1]] };
+        Assert.False(WaitingView.Changed(shown, WaitingView.Of(picked, WaitingForPlayers.Teams(picked, empty), Samples.P1)));
+
+        var now = WaitingView.Of(picked, WaitingForPlayers.Teams(picked, Samples.Board), Samples.P1);
+        Assert.Equal("Team 2 has no army", Assert.Single(now).Text);
+        Assert.True(WaitingView.Changed(shown, now));
+    }
 }

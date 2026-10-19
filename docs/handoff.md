@@ -124,7 +124,6 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   game including ended ones, and replays a game's log on its timeline over `wss://…/ws` (an admin watches any game).
 - Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an
   Information line per `GET /v1/games/{id}/assets` (game id, asset count).
-- The waiting panel's army choice is one button per army (its dropdown would not open there; cause not found).
 - Miniatures generated for the owner (power-armour gunner, Soul-Snatcher Cults, Orc BOOM) live outside the repo in the
   owner's Downloads; their generator scripts are in the session scratchpad only.
 
