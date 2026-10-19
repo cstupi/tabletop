@@ -63,17 +63,18 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
         }
     }
 
-    public Task<IReadOnlyList<GameSummary>> List(Keyset page)
+    public Task<IReadOnlyList<GameSummary>> List(Keyset page, Guid viewer, bool joinedOnly = false)
     {
         lock (rows.Gate)
             return Task.FromResult<IReadOnlyList<GameSummary>>(rows.Games
                 .Where(g => page.After is null || g.Key.CompareTo(page.After.Value) < 0)
+                .Where(g => !joinedOnly || Seated(g.Key).Any(p => p.AccountId == viewer))
                 .OrderByDescending(g => g.Key).Take(page.Limit)
                 .Select(g =>
                 {
                     var seated = Seated(g.Key);
                     var accounts = seated.Select(p => p.AccountId).Distinct().ToList();   // an account holding several teams is one participant to the browser
-                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList());
+                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList(), accounts.Contains(viewer));
                 }).ToList());
     }
 

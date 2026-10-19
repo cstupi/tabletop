@@ -59,9 +59,11 @@ public class GameTests : IClassFixture<ManagementFactory>
         var a = await _f.AuthenticatedClient(Guid.CreateVersion7(), "A");
         var b = await _f.AuthenticatedClient(Guid.CreateVersion7(), "B");
         var game = await a.PostJson<GameInfo>("/v1/games", Friday());
-        Assert.Contains((await b.GetJson<Page<GameSummary>>("/v1/games?limit=200")).Items, g => g.Id == game.Id && g.Participants == 1 && g.ParticipantNames.SequenceEqual(["A"]));
+        Assert.Contains((await b.GetJson<Page<GameSummary>>("/v1/games?limit=200")).Items, g => g.Id == game.Id && g.Participants == 1 && g.ParticipantNames.SequenceEqual(["A"]) && !g.Joined);
+        Assert.DoesNotContain((await b.GetJson<Page<GameSummary>>("/v1/games?joined=true")).Items, g => g.Id == game.Id);
         Assert.Equal(HttpStatusCode.NoContent, (await a.PostAsync($"/v1/games/{game.Id}/end", null)).StatusCode);
         var joined = await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { });
+        Assert.Contains((await b.GetJson<Page<GameSummary>>("/v1/games?joined=true")).Items, g => g.Id == game.Id && g.Joined && g.Status == GameStatus.Ended);
         Assert.Equal(GameStatus.Ended, joined.Status);
         Assert.Equal(2, joined.Participants.Count);
         Assert.Equal(2, (await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { })).Participants.Count);   // idempotent

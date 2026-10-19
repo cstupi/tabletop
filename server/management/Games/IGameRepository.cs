@@ -14,7 +14,8 @@ public interface IGameRepository
     /// <summary>A lobby game with the creator as its only participant and a fresh dice seed; null for an unknown properties hash.</summary>
     Task<GameInfo?> Create(Guid creator, CreateGameRequest r);
     /// <summary>Every game, descending by id, before the cursor.</summary>
-    Task<IReadOnlyList<GameSummary>> List(Http.Keyset page);
+    /// <summary>Every game, newest first, each marked Joined for the viewer; joinedOnly keeps the games the viewer holds a participant row in.</summary>
+    Task<IReadOnlyList<GameSummary>> List(Http.Keyset page, Guid viewer, bool joinedOnly = false);
     Task<GameInfo?> Get(Guid id);
     Task<bool> IsParticipant(Guid id, Guid accountId);
     /// <summary>Stays true after the creator leaves.</summary>
