@@ -7,7 +7,7 @@ public class HudLayoutTests
     public static TheoryData<int, int> Sizes => new() { { 1280, 720 }, { 1920, 1080 }, { 2560, 1440 } };
 
     static IEnumerable<HudVisible> All() =>
-        Enumerable.Range(0, 32).Select(i => new HudVisible((i & 1) != 0, (i & 2) != 0, (i & 4) != 0, (i & 8) != 0, (i & 16) != 0));
+        Enumerable.Range(0, 64).Select(i => new HudVisible((i & 1) != 0, (i & 2) != 0, (i & 4) != 0, (i & 8) != 0, (i & 16) != 0, (i & 32) != 0));
 
     [Theory, MemberData(nameof(Sizes))]
     public void No_two_parts_overlap_at_any_visibility(int w, int h)
@@ -21,6 +21,8 @@ public class HudLayoutTests
                 foreach (var b in parts)
                     Assert.True(a.Key == b.Key || !a.Value.Overlaps(b.Value), $"{w}x{h} {v}: {a.Key} overlaps {b.Key}");
             Assert.Equal(v.LogOpen, r.ContainsKey(HudPart.LogPanel));
+            Assert.Equal(v.Replay, r.ContainsKey(HudPart.Replay));
+            if (v.Replay) Assert.True(r[HudPart.Replay] is { X: 8, W: 420, H: 112 } bar && bar.Bottom == h - 8, $"{v}: replay {r[HudPart.Replay]}");
             if (r.TryGetValue(HudPart.LogPanel, out var log)) Assert.True(log.W == 640 && log.H >= 240, $"{v}: log {log}");
             if (v.Decision && v.Dice && !v.LogOpen)
                 Assert.True(r[HudPart.Dice].Bottom + 8 == r[HudPart.Decision].Y && r[HudPart.Dice].X == r[HudPart.Decision].X);

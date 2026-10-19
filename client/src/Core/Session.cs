@@ -9,7 +9,7 @@ public enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnect
 /// The one object that outlives every screen: the management client with the JWT, the socket while one is open, the
 /// projection (EventApplier), the draft during setup, and others' presence. Screens read it and hold no truth of their own.
 /// </summary>
-public sealed class Session(ManagementClient management, IGameSocketFactory sockets, SessionStore store, ClientSettings settings,
+public sealed partial class Session(ManagementClient management, IGameSocketFactory sockets, SessionStore store, ClientSettings settings,
     Action<ClientSettings> persistSettings, IDispatcher dispatcher, Func<int, TimeSpan>? backoff = null, TimeProvider? time = null)
 {
     static readonly TimeSpan RefreshBackoff = TimeSpan.FromMinutes(1);
@@ -42,8 +42,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public RulesOptionCatalog Options { get; private set; } = RulesOptionCatalog.Empty;
     public TableState? Draft { get; private set; }
     public EventApplier? Applier { get; private set; }
-    public Projection? Projection => _predicted ?? Applier?.Projection;
-    public IReadOnlyList<GameEvent> Log => Applier?.Log ?? [];
+    /// <summary>What the table shows: an undo's prediction, else the replay's position (Session.Replay), else the live projection.</summary>
+    public Projection? Projection => _predicted ?? Replay?.Projection ?? Applier?.Projection;
+    /// <summary>The log the combat log reads: the replay's shown events while replaying, else the live log.</summary>
+    public IReadOnlyList<GameEvent> Log => Replay?.Shown ?? Applier?.Log ?? [];
     public PresenceTable Others { get; } = new();
     public long? PendingUndoTo { get; private set; }
     /// <summary>Why the last game closed without the player asking, in the player's words (Feedback); Home prints it.</summary>
@@ -55,10 +57,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>The teams deployment waits on (WaitingForPlayers): from the end of setup until every team has a player and an army; empty otherwise.</summary>
     public IReadOnlyList<TeamWaiting> WaitingTeams => Game is { Status: GameStatus.Playing } g && Applier is { } a && WaitingForPlayers.Holds(g, a.Projection.Board, a.Projection.LastSeq)
         ? WaitingForPlayers.Teams(g, a.Projection.Board) : [];
-    /// <summary>The server answers this client as a watcher: an admin watcher (participant id empty), or from playing on a participant
+    /// <summary>The server answers this client as a watcher: a replay or an admin watcher (participant id empty), or from playing on a participant
     /// with no team, except while deployment waits for players, when it may still take an empty team. False without a game, so a client
     /// mid-reconnect is never taken for one.</summary>
-    public bool IsWatching => Game is { } g && (ParticipantId == Guid.Empty || g.Status is GameStatus.Playing or GameStatus.Ended && MyTeamIds.Count == 0 && WaitingTeams.Count == 0);
+    public bool IsWatching => Game is { } g && (Replaying || ParticipantId == Guid.Empty || g.Status is GameStatus.Playing or GameStatus.Ended && MyTeamIds.Count == 0 && WaitingTeams.Count == 0);
     /// <summary>Reconnects tried since the last Welcome; 0 while connected or on a first connect.</summary>
     public int ReconnectAttempt => _attempt;
     public bool IsCreator => Game is not null && Seats.Mine(Game, ParticipantId).FirstOrDefault()?.AccountId == Game.CreatedBy;
@@ -226,7 +228,8 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     }
 
     // ---- the game ----------------------------------------------------------------------------------------------------
-    public Task ConnectAsync(Guid gameId) => ConnectAsync(gameId, resync: false);
+    /// <summary>Plays the game: Home's Join. ReplayAsync opens it read-only instead.</summary>
+    public Task ConnectAsync(Guid gameId) { _replay = false; _resumeAt = 0; return ConnectAsync(gameId, resync: false); }
 
     /// <summary>A resync keeps the desync floor and shows as Reconnecting; a player-initiated connect starts clean.</summary>
     async Task ConnectAsync(Guid gameId, bool resync)
@@ -243,7 +246,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         _socket = socket;
         try
         {
-            await socket.ConnectAsync(new Uri(Settings.GameServerUrl), CancellationToken.None);
+            await socket.ConnectAsync(SocketUri(), CancellationToken.None);
             await socket.SendAsync(new Connect(management.Jwt, gameId, ProtocolVersion.Current));
         }
         catch (Exception e) when (e is System.Net.WebSockets.WebSocketException or System.Net.Sockets.SocketException or IOException)
@@ -256,7 +259,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         _userClosed = true;
         LastCloseReason = null;             // the player asked to leave: Home has nothing to explain
         await TearDownSocket();
-        GameId = null; Reset();
+        GameId = null; Reset(); _replay = false; _resumeAt = 0;
         if (Phase is not (SessionPhase.LoggedOut or SessionPhase.UpdateRequired)) SetPhase(SessionPhase.LoggedIn);
     }
 
@@ -291,6 +294,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>Welcomed: sent now. Reconnecting: queued, and the task completes once it is sent, or fails if the session goes home first.</summary>
     Task SendOrQueue(SocketMessage frame)
     {
+        if (Replaying) throw new InvalidOperationException("A replay changes nothing.");
         if (Welcomed() is { } socket) return socket.SendAsync(frame);
         if (!Queueing) throw NotConnected();
         if (_queued.Count >= MaxQueued) throw new InvalidOperationException("Reconnecting to the game; too many actions are already waiting.");
@@ -318,7 +322,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>Undo is local first: the prediction shows until the server's undone or refused arrives.</summary>
     public async Task UndoToAsync(long seq)
     {
-        if (Applier is null) return;
+        if (Applier is null || Replaying) return;
         // ProjectTo replays a prefix of a log this applier already applied in order, so it cannot fault where
         // ApplyAll did not. The catch holds the invariant rather than a known case.
         try { _predicted = Applier.ProjectTo(seq); }
@@ -340,8 +344,12 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
 
     /// <summary>Asks the server what the observer's models see of the target's (in-game UX spec → Sight check). Returns the query id.</summary>
     /// <summary>The caller names the query, so it knows which answer is its newest before the send returns.</summary>
-    public async Task QuerySightAsync(Guid queryId, Guid observerUnitId, Guid targetUnitId) =>
+    /// <summary>Not while replaying: the server answers for the live table, not the replay's position.</summary>
+    public async Task QuerySightAsync(Guid queryId, Guid observerUnitId, Guid targetUnitId)
+    {
+        if (Replaying) return;
         await (Welcomed() ?? throw NotConnected()).SendAsync(new SightQuery(queryId, observerUnitId, targetUnitId));
+    }
 
     /// <summary>The socket once the server has welcomed it; nothing but Connect goes out before that.</summary>
     IGameSocket? Welcomed() => _welcomed ? _socket : null;
@@ -368,6 +376,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             case BoardMessage b when Game is { Status: GameStatus.Playing or GameStatus.Ended }:
                 Draft = null; _predicted = null; PendingUndoTo = null;
                 Applier = new EventApplier(b.Board, Game);
+                StartReplay(b.Board, Game);
                 CatchingUp = true;
                 RaiseBoard();
                 break;
@@ -376,6 +385,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 CatchingUp = true;
                 RaiseBoard();
                 break;
+            case EventsMessage e when Applier is not null && Replay is not null: OnReplayEvents(e.Events); break;
             case EventsMessage e when Applier is not null:
                 var shots = new List<Shot>();
                 try
@@ -494,7 +504,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     async Task Retry(Guid gameId, bool refresh)
     {
         if (refresh) await RefreshAsync();
-        if (GameId == gameId && _socket is null && !_userClosed) await ConnectAsync(gameId);
+        if (GameId == gameId && _socket is null && !_userClosed) await ConnectAsync(gameId, resync: false);
     }
 
     async Task TearDownSocket()
@@ -507,7 +517,8 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>Reconnect is connect: the projection, the draft and presence are rebuilt from what the server sends.</summary>
     void Reset()
     {
-        Applier = null; Draft = null; Game = null; ParticipantId = null;
+        if (Replay is { } replay) _resumeAt = CatchingUp ? Math.Max(_resumeAt, replay.Position) : replay.Position;   // a reconnect returns the replay to where it was
+        Applier = null; Draft = null; Game = null; ParticipantId = null; Replay = null;
         ClearPrediction(); Others.Clear();
         _maxWounds = new Dictionary<Guid, int>();
         _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();

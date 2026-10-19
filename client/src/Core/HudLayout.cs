@@ -1,6 +1,6 @@
 namespace Tabletop.Client.Core;
 
-public enum HudPart { Corner, Toasts, Header, Roster, UnitCard, Decision, Dice, LogButton, UndoButton, LogPanel, Banner, EndMessage }
+public enum HudPart { Corner, Toasts, Header, Roster, UnitCard, Decision, Dice, LogButton, UndoButton, LogPanel, Banner, EndMessage, Replay }
 
 public readonly record struct HudRect(float X, float Y, float W, float H)
 {
@@ -10,14 +10,15 @@ public readonly record struct HudRect(float X, float Y, float W, float H)
     public bool Overlaps(HudRect o) => SpansX(o) && Y < o.Bottom && o.Y < Bottom;
 }
 
-public sealed record HudVisible(bool Roster, bool UnitCard, bool Decision, bool Dice, bool LogOpen);
+/// <summary>Replay: the replay bar takes the left column's foot.</summary>
+public sealed record HudVisible(bool Roster, bool UnitCard, bool Decision, bool Dice, bool LogOpen, bool Replay = false);
 
 /// <summary>Spec → HUD frame: an 8 px margin, each part anchored to its edge, no two overlapping from 1280×720 up. Every slot is whole
 /// pixels: a box container sums its children's minimums as integers, so a part fitted to a fractional slot never settles.</summary>
 public static class HudLayout
 {
     public const float M = 8, Column = 420, CornerH = 40, HeaderW = 760, HeaderH = 96, ToastW = 360, ToastH = 120, DecisionW = 480,
-        DiceH = 96, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, BannerH = 96, EndW = 480, EndH = 360;
+        DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, BannerH = 96, EndW = 480, EndH = 360;
 
     public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
 
@@ -32,7 +33,8 @@ public static class HudLayout
         var toasts = r[HudPart.Toasts] = new(w - M - ToastW, M, ToastW, ToastH);
         float bandL = M + Column + M, bandR = toasts.X - M, hw = Math.Min(HeaderW, bandR - bandL);
         var header = r[HudPart.Header] = new(Math.Max(bandL, Math.Min(MathF.Floor(w / 2 - hw / 2), bandR - hw)), M, hw, HeaderH);
-        float top = corner.Bottom + M, colH = h - M - top, half = MathF.Floor((colH - M) / 2);
+        float top = corner.Bottom + M, colH = h - M - top - (v.Replay ? ReplayH + M : 0), half = MathF.Floor((colH - M) / 2);
+        if (v.Replay) r[HudPart.Replay] = new(M, h - M - ReplayH, Column, ReplayH);
         if (v.Roster) r[HudPart.Roster] = new(M, top, Column, v.UnitCard ? half : colH);
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
         var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - bh, LogButtonW, bh);

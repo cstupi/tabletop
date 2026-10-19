@@ -14,6 +14,7 @@ public class CornerLineTests
         Assert.Equal(("suite 01a147e31cf1734f93dd8d2859d33687 special-aircraft-overhead", "— playing — watching"), CornerLine.Of(SessionPhase.Connected, 0, game, watching: true));
         Assert.Equal(("suite 01a147e31cf1734f93dd8d2859d33687 special-aircraft-overhead", "— playing (reconnecting…)"), CornerLine.Of(SessionPhase.Reconnecting, 1, game, watching: false));
         Assert.Equal(("Friday", "— playing (reconnecting, attempt 3; Home stops it…)"), CornerLine.Of(SessionPhase.Reconnecting, 3, Samples.Game, watching: false));
+        Assert.Equal(("Friday", "— playing — replay"), CornerLine.Of(SessionPhase.Connected, 0, Samples.Game, watching: true, replaying: true));
     }
 
     [Fact]
