@@ -233,51 +233,66 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         return null;
     }
 
-    /// <summary>
-    /// A uniform bearing and a uniform distance inside the allowance (and over its minimum), retried until Movement.Check likes it. The reach is
-    /// the whole allowance: the difficult cap binds only a path that enters difficult ground, and Movement.Check, given
-    /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still, except under a minimum, which answers
-    /// the point at the minimum toward the farthest corner instead.
-    /// With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins. A sample whose base, where it
-    /// lands, touches a <paramref name="landing"/> volume is rejected too.
-    /// </summary>
+    /// <summary>Whether the base, landed at the point, touches one of the volumes.</summary>
     private static bool Lands(PlacedModel start, Point2 at, IReadOnlyList<WorldVolume> volumes)
     {
         var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, start.Placement.Position.Z) } };
         return Movement.Check(there, at, 0, volumes, [], null, null).CrossesImpassable;
     }
 
+    /// <summary>
+    /// A uniform bearing and a uniform distance inside the allowance (and over its minimum), retried until it passes: Movement.Check with the
+    /// server-stated cap (the difficult cap binds only a path that enters difficult ground) over the impassable volumes the path may not touch
+    /// (Movement.Blocking: a model a hand move left in one may head out of it), the landing clear of every <paramref name="landing"/> volume, and
+    /// <paramref name="clear"/>. With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins. Null when no
+    /// sample passes: the caller stands still, except under a minimum, which tries every bearing at its least first.
+    /// </summary>
     private Point2? Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null, IReadOnlyList<WorldVolume>? landing = null,
         Func<Point2, bool>? clear = null)
     {
         var origin = start.Placement.Position.Horizontal;
-        // A minimum (MoveRegion.MinDistance) the table has room for is sampled above; one it has no room for is met only at the farthest corner.
-        var least = 0.0;
-        Point2? fallback = null;
-        if (m.MinDistance is { } minimum)
+        // A minimum (MoveRegion.MinDistance) as the server reads it (GfMoves.Minimum): where the table has room for it in some direction, the
+        // minimum on every bearing; where it has none, as far as the table lets the base go on the bearing taken (Movement.RoomAlong), held
+        // just inside the edge, so that bearing's landing is exactly there.
+        var room = m.MinDistance is not { } min || Movement.FarthestOnTable(start, view.Table).Distance >= min;
+        (double Least, double Most) Span(Point2 dir) => m.MinDistance is not { } minimum ? (0, m.Allowance)
+            : room ? (minimum, m.Allowance) : (Math.Max(0, Movement.RoomAlong(start, origin + dir, view.Table) - 1e-7), Math.Max(0, Movement.RoomAlong(start, origin + dir, view.Table) - 1e-7));
+        bool Passes(Point2 candidate)
         {
-            var (reach, corner) = Movement.FarthestOnTable(start, view.Table);
-            if (reach < minimum) return reach <= m.Allowance ? corner : null;
-            least = minimum;
-            // When every sample misses, standing still is not legal: the point at the minimum on the ray to the farthest corner is, since the
-            // table inset by the base is convex and holds both the start and the corner.
-            fallback = least > m.Allowance ? null : reach > 0 ? origin + (corner - origin) * (least / reach) : origin;
+            var check = Movement.Check(start, candidate, m.Allowance, Movement.Blocking(start, candidate, impassable), difficult, m.DifficultCap, view.Table);
+            if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return false;
+            if (landing is { Count: > 0 } && Lands(start, candidate, landing)) return false;
+            return clear is null || clear(candidate);
         }
         Point2? best = null;
-        for (var i = 0; i < _o.MoveSamples; i++)
+        void Consider(Point2 candidate)
+        {
+            if (!Passes(candidate)) return;
+            if (best is null || target is { } goal && candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
+        }
+        for (var i = 0; i < _o.MoveSamples && (best is null || target is not null); i++)
         {
             var bearing = chooser.Double() * Math.Tau;
-            var distance = least + chooser.Double() * (m.Allowance - least);
-            var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
-            var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
-            if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) continue;
-            if (landing is { Count: > 0 } && Lands(start, candidate, landing)) continue;
-            if (clear is not null && !clear(candidate)) continue;
-            if (target is not { } goal) return candidate;
-            if (best is null || candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
+            var dir = new Point2(Math.Cos(bearing), Math.Sin(bearing));
+            var (least, most) = Span(dir);
+            if (least > m.Allowance) { chooser.Double(); continue; }
+            Consider(origin + dir * (least + chooser.Double() * (Math.Min(most, m.Allowance) - least)));
         }
-        return best ?? fallback;
+        if (best is not null || m.MinDistance is null) return best;
+        // Under a minimum standing still is not legal, so when every sample missed, the bearing to the farthest corner (the inset table is convex, so
+        // that ray has the most room) and then each of Movement.Rays bearings is tried at its least, every check above included; null when none
+        // passes (nowhere legal to go).
+        var corner = Movement.FarthestOnTable(start, view.Table).To - origin;
+        var bearings = (corner.Length > 1e-9 ? [corner * (1 / corner.Length)] : Array.Empty<Point2>())
+            .Concat(Enumerable.Range(0, Movement.Rays).Select(r => new Point2(Math.Cos(Math.Tau * r / Movement.Rays), Math.Sin(Math.Tau * r / Movement.Rays))));
+        foreach (var dir in bearings)
+        {
+            var (least, _) = Span(dir);
+            if (least <= m.Allowance) Consider(origin + dir * least);
+            if (best is not null && target is null) break;
+        }
+        return best;
     }
 
     /// <summary>The model's body landed at a point: its start's yaw, rested on what is under its base, as the server settles it.</summary>

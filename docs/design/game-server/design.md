@@ -531,7 +531,8 @@ functions read it:
   *"physically impossible locations"*, except an Aircraft's move, its own or a forced one (`MoveRegion.IgnoresTerrain`, p.13 *"when
   moving and stopping"*); a
   model answered where it stands is not judged, one already standing off the table is not judged for the
-  edge, and one whose base already touches an impassable volume is not judged for sweeping that volume);
+  edge, and one whose base already touches an impassable volume may head out of it but not move along it or deeper in,
+  `Movement.Blocking`);
   `aircraft_minimum`; and
   `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`
   is held to it once any model's straight path enters a listed difficult volume, or an earlier

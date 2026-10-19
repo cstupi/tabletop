@@ -1,0 +1,5 @@
+{ "name": "Grimdark Future relic wargear", "gameRules": "grimdark-future",
+  "entries": [
+    {"name": "Banner of Eternal Flame", "kind": "model", "aggregation": "any", "ruleText": "The Hero and its unit may ignore all terrain effects.", "effects": [{"subject": "self", "ordinal": 10, "kind": "grant_property", "targetEntry": "Banner of Eternal Flame", "duration": "marker"}]}
+  ]
+}

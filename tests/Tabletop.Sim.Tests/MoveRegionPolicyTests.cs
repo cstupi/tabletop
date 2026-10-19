@@ -9,18 +9,22 @@ public class MoveRegionPolicyTests
 {
     static readonly Guid Model = Guid.CreateVersion7(), Unit = Guid.CreateVersion7(), Part = Guid.CreateVersion7(), Team = Guid.CreateVersion7();
 
-    static (PolicyView View, Guid ModelId) Standing(Point3 at, TableSize? size = null)
+    static readonly Guid Other = Guid.CreateVersion7();
+
+    /// <summary>The mover at `at`; with `blocker`, a model of another unit standing there.</summary>
+    static (PolicyView View, Guid ModelId) Standing(Point3 at, TableSize? size = null, Point3? blocker = null)
     {
         var slot = new ModelSlot(Model, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
         var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [slot]);
+        var other = new Unit(Guid.CreateVersion7(), 2, "o", new Dictionary<string, string>(), [], [new ModelSlot(Other, 1, "o", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, [])]);
         var table = new TableState(Guid.CreateVersion7(), null, size ?? new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
         var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
             SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
             [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
-        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
-        var projection = Projection.Initial(board, info);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", blocker is null ? [unit] : [unit, other]))]);
         var applier = new EventApplier(board, info);
-        applier.Apply(new GameEvent(1, null, new ModelsMoved([new ModelRelocation(Model, new OnShelf(), new OnTable(new Placement(at, new Yaw(0))))]), null));
+        applier.Apply(new GameEvent(1, null, new ModelsMoved([new ModelRelocation(Model, new OnShelf(), new OnTable(new Placement(at, new Yaw(0)))),
+            .. blocker is { } b ? [new ModelRelocation(Other, new OnShelf(), new OnTable(new Placement(b, new Yaw(0))))] : Array.Empty<ModelRelocation>()]), null));
         return (new PolicyView(applier.Projection, board), Model);
     }
 
@@ -55,6 +59,59 @@ public class MoveRegionPolicyTests
             var check = Movement.Check(start, to, 36, [], [], null, view.Table);
             Assert.True(check.Distance >= 30 - 1e-6, $"seed {seed} moved {check.Distance}");
             Assert.False(check.LeavesTable, $"seed {seed} left the table");
+        }
+    }
+
+    [Fact]
+    public void A_minimum_the_table_has_no_room_for_is_met_as_far_as_the_table_allows_in_the_direction_taken()
+    {
+        // Owner ruling: on a table without 30" of room an Aircraft moves as far as it can in the direction taken (GfMoves.Minimum, Movement.RoomAlong).
+        var (view, model) = Standing(new Point3(12, 12, 0), new TableSize(24, 24));
+        var start = view.PlacedOf(model)!.Value;
+        Assert.True(Movement.FarthestOnTable(start, view.Table).Distance < 30);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 36, [], [], null, null, 30), false, false, null, Guid.CreateVersion7());
+        var bearings = new HashSet<int>();
+        for (var seed = 0ul; seed < 40; seed++)
+        {
+            var to = Assert.IsType<OnTable>(Assert.Single(Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view)).Moves).To).Placement.Position.Horizontal;
+            var check = Movement.Check(start, to, 36, [], [], null, view.Table);
+            Assert.False(check.LeavesTable, $"seed {seed} left the table");
+            Assert.True(check.Distance >= Movement.RoomAlong(start, to, view.Table) - 1e-6, $"seed {seed} moved {check.Distance}");
+            bearings.Add((int)Math.Round(Math.Atan2(to.Y - 12, to.X - 12) * 180 / Math.PI));
+        }
+        Assert.True(bearings.Count > 4, "every answer went the one way");   // not only toward the farthest corner
+    }
+
+    [Fact]
+    public void A_minimum_is_met_clear_of_other_bases_when_no_sample_finds_a_landing()
+    {
+        // With no random sample to draw, the fallback still meets the 30" (p.13) clear of every base: a model stands on the point at 30" toward the
+        // farthest corner, so standing still (refused under strict) or landing on it would stall the game.
+        var (view, model) = Standing(new Point3(2, 2, 0), new TableSize(36, 36), blocker: new Point3(2 + 30 / Math.Sqrt(2), 2 + 30 / Math.Sqrt(2), 0));
+        var start = view.PlacedOf(model)!.Value;
+        var other = view.PlacedOf(Other)!.Value;
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 36, [], [], null, null, 30), false, false, null, Guid.CreateVersion7());
+        var to = Assert.IsType<OnTable>(Assert.Single(Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(1), new PolicyOptions(MoveSamples: 0)).Answer(ask, view)).Moves).To).Placement;
+        Assert.False(Overlap.Bases(start with { Placement = to }, other), "landed on the other base");
+        Assert.True(start.Placement.Position.Horizontal.DistanceTo(to.Position.Horizontal) >= 30 - 1e-6, "short of the minimum");
+    }
+
+    [Fact]
+    public void A_model_standing_in_an_impassable_volume_moves_out_of_it()
+    {
+        // Only a hand move puts a model there; it may head out of the volume, never along it (Movement.Blocking), as the server judges it.
+        var (view, model) = Standing(new Point3(14, 24, 0));
+        var wall = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(2, 40), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(14, 24, 0), new Yaw(0), 1));
+        var walled = new PolicyView(view.Projection, view.Board, [wall]);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 12, [wall.Id], [], null, null), false, false, null, Guid.CreateVersion7());
+        var start = walled.PlacedOf(model)!.Value;
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var to = Assert.IsType<OnTable>(Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled)).Moves[0].To).Placement.Position.Horizontal;
+            Assert.NotEqual(start.Placement.Position.Horizontal, to);
+            Assert.False(Movement.Check(start, to, 12, Movement.Blocking(start, to, [wall]), [], null, walled.Table).CrossesImpassable, $"seed {seed}");
         }
     }
 

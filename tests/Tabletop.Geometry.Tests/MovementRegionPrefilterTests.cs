@@ -5,13 +5,12 @@ public class MovementRegionPrefilterTests
 {
     static readonly TableSize Opr = new(72, 48);
 
-    /// <summary>Region as it was before the prefilter: every other base and every volume tested exactly at every step.</summary>
+    /// <summary>Region as it was before the prefilter: every other base and every volume tested exactly at every step, a volume the base stands in only on a ray heading out of it (Movement.Blocking).</summary>
     static MovementRegion BruteForce(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel> models)
     {
         var origin = start.Placement.Position.Horizontal;
         var baseOutline = start.BaseOutline();
-        var impassableOutlines = impassable.Select(v => v.WorldOutline()).ToList();
         var difficultOutlines = difficult.Select(v => v.WorldOutline()).ToList();
         bool Touches(Outline at, List<Outline> outlines) => outlines.Any(o => Outline.InteriorsIntersect(at, o));
         var slab = table is { } t ? Table.Outline(t) : null;
@@ -28,13 +27,14 @@ public class MovementRegionPrefilterTests
         {
             var angle = 2 * Math.PI * r / Movement.Rays;
             var dir = new Point2(Math.Cos(angle), Math.Sin(angle));
+            var walls = Movement.Blocking(start, origin + dir, impassable).Select(v => v.WorldOutline()).ToList();   // a volume it stands in, only while heading out
             var limit = startLimit;
             var reached = 0.0;
             for (var k = 1; ; k++)
             {
                 var d = Math.Min(k * Movement.Step, limit);
                 var atOutline = baseOutline.Shift(dir * d);
-                if (Touches(atOutline, impassableOutlines) || Touches(atOutline, bodies) || (slab is not null && !slab.ContainsOutline(atOutline))) break;
+                if (Touches(atOutline, walls) || Touches(atOutline, bodies) || (slab is not null && !slab.ContainsOutline(atOutline))) break;
                 if (difficultCap is { } cap && cap < limit && Touches(atOutline, difficultOutlines))
                 {
                     limit = cap;

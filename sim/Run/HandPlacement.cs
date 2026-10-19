@@ -63,25 +63,35 @@ public static class HandPlacement
             new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();
     }
 
+    /// <summary>Scan step of the anchor search once the random draws miss.</summary>
+    private const double ScanStep = 0.25;
+
     /// <summary>
-    /// A random anchor at which every base of the grid is fully inside the zone and touches no model on the table (2D: the server rests
-    /// the new base on what is under it); the zone-centre-ish fallback otherwise.
+    /// A random anchor at which every base of the grid is on the table, fully inside the zone and touches no model on the table (2D: the server
+    /// rests the new base on what is under it); when every draw misses, the first such anchor of a 0.25" scan of the zone's bounding box; the
+    /// zone's centre only when nothing fits (a placement the server then judges).
     /// </summary>
-    private static Point2 ChooseAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table,
+    public static Point2 ChooseAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table,
         IReadOnlyList<PlacedModel> occupied, Chooser chooser)
     {
         // Candidates are drawn from the zone's bounding box, so a thin zone is not missed 39 times in 40.
         var vertices = shape is null ? [] : ZoneStyles.Resolve(shape, table).SelectMany(p => p.Vertices).ToList();
         var (minX, maxX) = vertices.Count == 0 ? (0, table.Width) : (vertices.Min(v => v.X), vertices.Max(v => v.X));
         var (minY, maxY) = vertices.Count == 0 ? (0, table.Length) : (vertices.Min(v => v.Y), vertices.Max(v => v.Y));
+        bool Fits(Point2 candidate)
+        {
+            var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
+            return placed.All(pm => Geometry.Table.ContainsBase(table, pm)) && !placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))
+                && (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm)));
+        }
         for (var attempt = 0; attempt < Attempts; attempt++)
         {
             var candidate = new Point2(minX + chooser.Double() * (maxX - minX), minY + chooser.Double() * (maxY - minY));
-            var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
-            if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
-            if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
-            if (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm))) return candidate;
+            if (Fits(candidate)) return candidate;
         }
+        for (var y = minY; y <= maxY; y += ScanStep)
+            for (var x = minX; x <= maxX; x += ScanStep)
+                if (Fits(new Point2(x, y))) return new Point2(x, y);
         return new Point2((minX + maxX) / 2, (minY + maxY) / 2);
     }
 

@@ -33,9 +33,9 @@ public partial class TableInput : Node
     public MoveRegion? Region { get; set; }
     /// <summary>The open move Ask's per-model regions: each Proposing model's drag is clamped to its reach. Null outside one, and for a disembark.</summary>
     public MoveRegions? Reach { get; set; }
-    /// <summary>The least each of the move step's models must move (MoveRegion.MinDistance, an Aircraft's 30"), each held to the table from where it
-    /// stands (MoveRuler.Minimum): shorter shows red. Null when the Ask sets no minimum.</summary>
-    public IReadOnlyDictionary<Guid, double>? Minimum { get; set; }
+    /// <summary>Where the decision box's move ghosts stand (its proposal), so a drag reads the unit's allowance from every model of the move
+    /// (MoveRegions.Allowance). The least each must move is Reach's (MoveRegions.Minimum, in the direction it goes). Null outside a move.</summary>
+    public IReadOnlyDictionary<Guid, Point3>? Proposed { get; set; }
     /// <summary>What a click picks while a decision wants a unit or a model: unit ids, model ids, or both. Empty when nothing is being picked.</summary>
     public IReadOnlySet<Guid> Eligible { get => _eligible; set { _eligible = value; EligibleChanged?.Invoke(); } }
     public bool SightHeld { get; private set; }

@@ -56,10 +56,17 @@ public static class MoveRuler
         return new MoveGate(enforcement != Enforcement.Strict, string.Join(" · ", parts) + ".");
     }
 
-    /// <summary>The least this model must move: the Ask's MinDistance, or as far as the table lets its whole base go when that is less
-    /// (the server's own reading, Movement.FarthestOnTable). Null when the Ask sets no minimum.</summary>
-    public static double? Minimum(PlacedModel start, MoveRegion legal, TableSize size) =>
-        legal.MinDistance is { } m ? Math.Min(m, Movement.FarthestOnTable(start, size).Distance) : null;
+    /// <summary>The least this model must move, as the server's GfMoves.Minimum reads it: the Ask's MinDistance where the table has room for it in
+    /// some direction (p.13 "Aircraft can't move into the table edges to move less than 30""); where it has none, as far as the table lets its whole
+    /// base go in the direction taken, towards `toward` (Movement.RoomAlong; owner ruling), or, with no direction taken yet, the farthest any way
+    /// (Movement.FarthestOnTable). Null when the Ask sets no minimum.</summary>
+    public static double? Minimum(PlacedModel start, MoveRegion legal, TableSize size, Point2? toward = null)
+    {
+        if (legal.MinDistance is not { } m) return null;
+        var farthest = Movement.FarthestOnTable(start, size).Distance;
+        if (farthest >= m) return m;
+        return toward is { } t && t.DistanceTo(start.Placement.Position.Horizontal) > 1e-6 ? Movement.RoomAlong(start, t, size) : farthest;
+    }
 
     /// <summary>The inner edge of the annulus a minimum cuts from the region: each boundary vertex pulled in to the minimum along its own ray, or
     /// left where it is when the ray stops short of it. Paired with the boundary vertex for vertex.</summary>

@@ -29,6 +29,28 @@ public class MovementTests
         Assert.Equal(0, Movement.RoomAlong(model, new Point2(18, 18), table));                                 // no direction taken
     }
 
+    [Fact] public void A_base_standing_in_an_impassable_volume_may_head_out_of_it_but_never_along_or_deeper_into_it()
+    {
+        var inside = Fx.Model(4, 0);                                                         // centred in the 1" x 10" wall
+        Assert.Empty(Movement.Blocking(inside, new Point2(6, 0), [Wall]));                   // straight out, east
+        Assert.Empty(Movement.Blocking(inside, new Point2(2, 1), [Wall]));                   // out, west and a little north
+        Assert.Equal([Wall], Movement.Blocking(inside, new Point2(4, 3), [Wall]));           // along it
+        var touching = Fx.Model(3.2, 0);                                                     // its west face under the base
+        Assert.Empty(Movement.Blocking(touching, new Point2(0, 0), [Wall]));                 // back off it
+        Assert.Equal([Wall], Movement.Blocking(touching, new Point2(6, 0), [Wall]));         // through it
+        Assert.True(Movement.Check(touching, new Point2(6, 0), 12, Movement.Blocking(touching, new Point2(6, 0), [Wall]), [], null, null).CrossesImpassable);
+        Assert.Equal([Wall], Movement.Blocking(Start, new Point2(6, 0), [Wall]));            // a base clear of it is held to it as ever
+        Assert.Equal([Wall], Movement.Blocking(inside, new Point2(4, 0), [Wall]));           // no direction taken: still in it
+    }
+
+    [Fact] public void A_region_from_inside_an_impassable_volume_opens_only_the_rays_heading_out_of_it()
+    {
+        var r = Movement.Region(Fx.Model(4, 0), 6, [Wall], [], null, null);
+        Assert.Equal(10, r.Boundary[0].X, 6);                                                // east, out and on
+        Assert.Equal(-2, r.Boundary[Movement.Rays / 2].X, 6);                                // west, out and on
+        Assert.Equal(0, r.Boundary[Movement.Rays / 4].DistanceTo(r.Origin), 6);              // north, along the wall
+    }
+
     [Fact] public void Open_ground_is_a_full_circle()
     {
         var r = Movement.Region(Start, 6, [], [], null, null);

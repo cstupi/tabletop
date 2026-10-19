@@ -78,6 +78,22 @@ public class GfMovesTerrainTests
     }
 
     [Fact]
+    public void Under_strict_a_model_standing_in_impassable_terrain_may_move_out_of_it_but_not_along_or_through_it()
+    {
+        // p.11: "Units may not move through impassable terrain". Only a hand move puts a model there (p.7 "never ... be placed in physically
+        // impossible locations"); it may head out of the volume, never along it or deeper in (Movement.Blocking).
+        var wall = Wall(24, 24);                                                                             // x 23.5..24.5, y 19..29
+        var sim = Advancing([], wall, out var unit);
+        var a = unit.Models[0].Id;
+        Place(sim, a, 24, 24);
+        RefusedFor(sim, Samples.Team1, GfNames.MoveImpassableRule, At(sim, a, 24, 30.5));                   // along the wall and out of its end
+        Assert.Null(GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations([At(sim, a, 26, 25)])));   // out, east
+        Place(sim, a, 23.2, 24);                                                                             // its base over the west face
+        RefusedFor(sim, Samples.Team1, GfNames.MoveImpassableRule, At(sim, a, 26, 24));                     // on through it
+        Assert.Null(GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations([At(sim, a, 20, 24)])));   // back off it
+    }
+
+    [Fact]
     public void Under_strict_a_flying_charger_reaches_and_charges_over_a_wall_and_a_flying_defender_closes_in_over_one()
     {
         var charger = Unit("C", "4+", "4+", [P("Flying")], 1, [], Melee("Fist", 1));

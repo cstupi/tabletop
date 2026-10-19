@@ -70,6 +70,21 @@ public class ContactCheckTests
     }
 
     [Fact]
+    public void A_landing_in_impassable_terrain_is_marked_even_when_the_region_lists_no_wall_to_sweep()
+    {
+        // p.13 Flying "may move through units and terrain"; p.11 "may not end their move partially overhanging gaps or terrain" (the server's
+        // LandsInImpassable, against every impassable volume, whatever the Ask lists), except for an Aircraft (p.13 "when moving and stopping").
+        var wall = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(1, 10), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(20, 10, 0), new Yaw(0), 1));
+        var flying = Region(null, S0) with { PassesModels = true };
+        Assert.Equal(new Contact(ContactKind.InImpassable, null), ContactCheck.Move(Deployed, flying, To((S0, At(20, 10))), [wall])[S0]);
+        Assert.Empty(ContactCheck.Move(Deployed, flying, To((S0, At(22, 10))), [wall]));                           // over it
+        Assert.Empty(ContactCheck.Move(Deployed, flying with { IgnoresTerrain = true }, To((S0, At(20, 10))), [wall]));
+        Assert.Empty(ContactCheck.Placement(Deployed, To((R0, At(20, 10))), [wall]));                              // a hand placement: overlap only
+        Assert.Equal("ends in impassable terrain", ContactCheck.Words(new Contact(ContactKind.InImpassable, null), null, _ => ""));
+    }
+
+    [Fact]
     public void A_landing_rests_on_the_terrain_before_it_is_measured()
     {
         // A 3" box under the Orc's spot: the landing stands on its top, above the Orc's 1.5" body, so no base overlaps.

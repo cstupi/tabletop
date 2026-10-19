@@ -261,8 +261,16 @@ participants: `PresenceOverlay.StartOf` returns null for an occupant.
 Every input to the region comes from the server. The Ask's `MoveRegion` carries the allowance, the
 impassable and difficult volume ids and the difficult cap. The client renders the consequence and
 the server re-decides every answer. Drawing a region the server offered is not a legality check. A `MinDistance` (an
-Aircraft's 30", held to `Movement.FarthestOnTable`, `MoveRuler.Minimum`) cuts the drawn region to the ring beyond it
-(`MoveRuler.Inner`), and a model dragged short of it shows red like one past the allowance.
+Aircraft's 30") cuts the drawn region to the ring beyond it (`MoveRegions.Inner`), and a model dragged short of it shows red
+like one past the allowance. The least is the server's `GfMoves.Minimum` (`MoveRuler.Minimum`): the 30" where the table has
+room for it in some direction; where it has none, as far as the table lets the base go in the direction the model is dragged
+(`Movement.RoomAlong`), so the ring follows the table edge on each ray. p.11's cap is the unit's: once any model of the move
+goes in or through a listed difficult volume, every model is held to `DifficultCap` (`MoveRegions.Allowance`, read from every
+ghost of the move; a drag clamps each held model to it, and the readouts and the gate read it). A landing whose base touches
+an impassable volume on the table is marked `ends in impassable terrain` (`ContactCheck.Move`, `ContactKind.InImpassable`)
+unless the Ask `IgnoresTerrain`, whatever volumes the Ask lists: a Flying unit's lists none and the server still judges
+its landing. A model a hand move left in impassable terrain gets its region on the rays that head out of that volume
+(`Movement.Blocking`).
 Under `strict` the server checks `LegalSetMembership.Contains` and `IGameRules.AnswerBreach` (p.11's cap holds every
 model once any one enters difficult ground; an Aircraft moves at least `MinDistance`), and for a disembark `GfMoves.ExitPlacement` re-checks every model. A ghost dropped outside the drawn region still commits.
 

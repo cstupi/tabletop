@@ -73,6 +73,42 @@ public class MoveRulerTests
     }
 
     [Fact]
+    public void Once_any_models_path_enters_difficult_terrain_every_model_is_held_to_the_cap()
+    {
+        // p.11: "If any model in a unit moves in or through difficult terrain at any point of its move, then all models in the unit may not move
+        // more than 6" for that movement." A's path east enters the forest; B's, well south of it, is held to 6" with it.
+        var forest = Forest(39, 24);
+        var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [forest.Id], 6),
+            [forest], new TableSize(72, 48), []);
+        Assert.Equal(6, regions.Allowance(new Dictionary<Guid, Point2> { [A] = new(40, 24), [B] = new(45, 10) }));
+        Assert.Equal(12, regions.Allowance(new Dictionary<Guid, Point2> { [A] = new(30, 24), [B] = new(45, 10) }));
+        Assert.Equal(12, regions.Allowance(new Dictionary<Guid, Point2> { [A] = new(36, 24), [B] = new(45, 10) }));   // A not moved yet
+        Assert.Equal(42, regions.Clamp(B, new Point2(50, 10), 6).X, 6);
+        Assert.Equal(48, regions.Clamp(B, new Point2(50, 10)).X, 6);
+        var capless = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24) }, new MoveRegion([A], 12, [], [forest.Id], null), [forest], new TableSize(72, 48), []);
+        Assert.Equal(12, capless.Allowance(new Dictionary<Guid, Point2> { [A] = new(40, 24) }));                      // Strider, Flying: no cap
+    }
+
+    [Fact]
+    public void A_minimum_the_table_has_no_room_for_is_as_far_as_the_table_allows_in_the_direction_taken()
+    {
+        // Owner ruling: on a table without 30" of room an Aircraft moves as far as it can in the direction taken (the server's GfMoves.Minimum).
+        var start = At(15, 15);
+        var size = new TableSize(30, 30);
+        var legal = new MoveRegion([A], 36, [], [], null, MinDistance: 30);
+        var east = Movement.RoomAlong(start, new Point2(20, 15), size);
+        Assert.Equal(east, MoveRuler.Minimum(start, legal, size, new Point2(20, 15))!.Value, 6);
+        Assert.Equal(Movement.FarthestOnTable(start, size).Distance, MoveRuler.Minimum(start, legal, size)!.Value, 6);   // no direction taken yet
+        Assert.Equal(30, MoveRuler.Minimum(At(36, 24), legal, new TableSize(72, 48), new Point2(37, 24)));               // room for 30" somewhere: 30" every way
+        Assert.False(MoveRuler.Read(new Point2(15, 15), new Point2(15 + east, 15), 36, MoveRuler.Minimum(start, legal, size, new Point2(15 + east, 15))).UnderMinimum);
+        Assert.True(MoveRuler.Read(new Point2(15, 15), new Point2(20, 15), 36, MoveRuler.Minimum(start, legal, size, new Point2(20, 15))).UnderMinimum);
+        var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = start }, legal, [], size, []);
+        Assert.Equal(east, regions.Minimum(A, new Point2(20, 15))!.Value, 6);
+        Assert.All(regions.Inner(A)!.Zip(regions.Outline(A)), x =>
+            Assert.Equal(Math.Min(x.Second.DistanceTo(new Point2(15, 15)), Movement.RoomAlong(start, x.Second, size)), x.First.DistanceTo(new Point2(15, 15)), 6));
+    }
+
+    [Fact]
     public void Gate_allows_a_commit_with_every_model_in_range()
     {
         var gate = MoveRuler.Gate([MoveRuler.Read(new Point2(0, 0), new Point2(3, 4), 6)], Enforcement.Strict);

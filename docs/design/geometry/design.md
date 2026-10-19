@@ -883,7 +883,7 @@ plan.
 | `Footprint` | *added:* `bool IsValid(double scale)` |
 | `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Boundary)` *added* | |
 | `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable)` *added* | |
-| `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)` |
+| `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)`; `IRL<WorldVolume> Blocking(PlacedModel start, Point2 destination, IRL<WorldVolume> impassable)`: the volumes a straight move may not touch, less each one the base already touches that the move heads out of (the base centre's signed distance from the footprint grows from the first step), which `Region` applies per ray |
 | `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches)` |
 
 Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
@@ -1164,7 +1164,7 @@ What the tests are for, by class:
 | `CoverTests` | fully inside, a low wall as a sight blocker while sight is clear, a transparent wall is not one, another unit is one |
 | `CoherencyTests` | a straggler, equal groups keeping the earliest, a long chain breaking the spread, exactly one inch counting |
 | `TableTests` | the corner frame's bounds, edge inclusivity, a base wholly on the slab, **a rect base rotated 45° off it** |
-| `MovementTests` | a full circle on open ground, an impassable volume stopping short, the difficult cap, no cap changing nothing, the table edge, a non-multiple allowance, displacement versus allowance, `VolumesCrossed` naming what containment cannot |
+| `MovementTests` | a full circle on open ground, an impassable volume stopping short, a base standing in one heading out but not along or through (`Blocking`, and the region's rays), the difficult cap, no cap changing nothing, the table edge, a non-multiple allowance, displacement versus allowance, `VolumesCrossed` naming what containment cannot |
 | `ZoneStyleTests` | every style resolving, each style's diagram dimensions, Side Battle's legs scaling to a 60×44 table, the long-edge rule on a portrait table, `fully within` needing the whole base, malformed ids throwing |
 
 Coverage gaps:

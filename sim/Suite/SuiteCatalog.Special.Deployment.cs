@@ -186,11 +186,27 @@ static partial class SpecialGames
                     return Each(Moves(run).Where(m => m.Unit == "Blue unit 1"), "an Aircraft move", m =>
                         m.Region.Allowance == 36 ? null : $"the Aircraft's Advance allowance is {m.Region.Allowance}, expected 36 (6 + 30)");
                 }),
-                Exact("p.13 Aircraft: \"can't be charged\"", ["Aircraft"], run =>
+                Exact("p.13 Aircraft: \"can't be charged\" (p.7: \"Charge - Moves 12\"\"; Fast +4\", Slow -4\")", ["Aircraft"], run =>
                 {
+                    // The evidence is a charge whose charger stood within its charge distance of the Aircraft: everywhere else it was out of reach anyway.
                     var aircraft = run.Final.Units.Values.Single(u => u.Definition.Name == "Blue unit 1").Id;
-                    var targets = Payloads(run).OfType<AskOpened>().Where(a => a.Ask.Question == "charge_target").Select(a => a.Ask.Legal).OfType<PieceSelection>().ToList();
-                    return targets.Count == 0 ? "nobody charged" : targets.Any(t => t.Eligible.Contains(aircraft)) ? "the Aircraft was offered as a charge target" : null;
+                    var q = LogQueries.Of(run);
+                    var asks = q.Asks.Where(a => a.Ask.Question == "charge_target" && a.Ask.Legal is PieceSelection && a.Frame?.Context.ActorUnitId is not null).ToList();
+                    if (asks.Count == 0) return "nobody charged";
+                    if (asks.FirstOrDefault(a => ((PieceSelection)a.Ask.Legal).Eligible.Contains(aircraft)) is { } offered)
+                        return $"the Aircraft was offered as a charge target to {UnitName(run, offered.Frame!.Context.ActorUnitId!.Value)}";
+                    PlacedModel? At(IReadOnlyDictionary<Guid, Location> where, Guid model) => where[model] is OnTable t
+                        ? new PlacedModel(new ModelBody(run.Final.Models[model].Slot.Base, run.Final.Models[model].Slot.Height), t.Placement) : null;
+                    double Reach(string charger) => charger switch { "Red unit 3" => 16, "Red unit 2" => 8, _ => 12 };
+                    var inReach = asks.Count(a =>
+                    {
+                        var where = q.LocationsBefore(a.Seq);
+                        var charger = a.Frame!.Context.ActorUnitId!.Value;
+                        var mine = run.Final.Models.Values.Where(m => m.UnitId == charger).Select(m => At(where, m.Id)).OfType<PlacedModel>().ToList();
+                        var theirs = run.Final.Models.Values.Where(m => m.UnitId == aircraft).Select(m => At(where, m.Id)).OfType<PlacedModel>().ToList();
+                        return mine.Any(m => theirs.Any(t => Distance.EdgeToEdge(m, t) <= Reach(UnitName(run, charger))));
+                    });
+                    return inReach == 0 ? "no charger ever stood within its charge distance of the Aircraft" : null;
                 }),
             ],
             new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") });

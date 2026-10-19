@@ -9,7 +9,7 @@ using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
 
 namespace Tabletop.Sim.Tests.Suite;
 
-/// <summary>The special group (rules suite plan, Task 5): every core special rule, three to five a game, on both drivers.</summary>
+/// <summary>The special group (rules suite plan, Task 5): every core special rule, three to five a game, and the relic wargear (p.36), on both drivers.</summary>
 public class SpecialGamesTests
 {
     public static IReadOnlyList<TestGame> Games { get; } = SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.SpecialGroup).ToList();
@@ -23,12 +23,14 @@ public class SpecialGamesTests
     ];
 
     [Fact]
-    public void The_special_games_cover_the_thirty_three_core_rules_three_to_five_a_game()
+    public void The_special_games_cover_the_thirty_three_core_rules_three_to_five_a_game_and_the_relic_wargear()
     {
         var rules = TestProperties.RulebookDocument.Entries.Select(e => e.Name).Order().ToList();
         Assert.Equal(33, rules.Count);
-        Assert.Equal(rules, Games.SelectMany(g => g.Covers).Distinct().Order().ToList());
-        Assert.All(Games.Where(g => g.Known.Count == 0 && g.Covers.Count > 0), g => Assert.InRange(g.Covers.Count, 3, 5));   // a defect exhibit covers nothing
+        var relics = PropertiesSeeder.EmbeddedPart("grimdark-future-relic-wargear.part.json")!.Entries.Select(e => e.Name).ToHashSet();
+        Assert.Equal(rules.Concat(relics).Order(), Games.SelectMany(g => g.Covers).Distinct().Order().ToList());
+        // A defect exhibit covers nothing; a relic game (p.36) covers its relics alone.
+        Assert.All(Games.Where(g => g.Known.Count == 0 && g.Covers.Count > 0 && !g.Covers.All(relics.Contains)), g => Assert.InRange(g.Covers.Count, 3, 5));
     }
 
     [Fact]

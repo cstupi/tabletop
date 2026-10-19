@@ -42,7 +42,7 @@ public partial class DecisionBox
             var fromShelf = MoveRuler.IsShelfPlacement(legal, p);                   // a Spawn or Split reserve: placed around its anchor model, the Ask's prompt says what
             _note.Text = fromShelf ? "Drag them into place, then commit."   // the title is the Ask's prompt
                 : $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
-            _input.Allowance = null; _input.Minimum = null; _input.Region = null;
+            _input.Allowance = null; _input.Proposed = null; _input.Region = null;
             void StartExit()
             {
                 if (fromShelf)
@@ -68,13 +68,15 @@ public partial class DecisionBox
             var regions = MoveRegions.Of(p, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
             _regions = regions; _regionColour = Palette.Team(ordinal);
             ShowRegions([lead.Id]);
-            // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red.
+            // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red. Where the table
+            // has no room for it, the least is as far as the table allows in the direction the model goes (MoveRegions.Minimum).
             var minimum = regions.Minimum(lead.Id);
-            _note.Text = minimum is { } must ? $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely." : $"Move up to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely.";
+            _note.Text = minimum is not { } must ? $"Move up to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely."
+                : must < legal.MinDistance ? $"Move as far as the table allows, up to {remaining:0.0}\", in a straight line · Alt: place freely."
+                : $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely.";
             _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
-            _input.Minimum = legal.MinDistance is null ? null : legal.ModelIds.Where(regions.Has).ToDictionary(id => id, id => regions.Minimum(id)!.Value);
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
-            void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _view.Snap(legal.ModelIds); }
+            void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _input.Proposed = _proposed; _view.Snap(legal.ModelIds); }
             StartMove();
             _onCancel = () => { StartMove(); _input.Violations.Clear(); _regate?.Invoke(); return true; };
             OfferEmbark(ask, legal, p, names);
@@ -102,8 +104,10 @@ public partial class DecisionBox
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
-            var readouts = allowance is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
-                .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, allowance, _input.Minimum?.GetValueOrDefault(id))).ToList();
+            // p.11: once any model goes in or through difficult terrain, every model is held to the cap (MoveRegions.Allowance).
+            var unit = allowance is null || _regions is null ? allowance : _regions.Allowance(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal));
+            var readouts = unit is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
+                .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes), legal.Separation, names.Unit));
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));

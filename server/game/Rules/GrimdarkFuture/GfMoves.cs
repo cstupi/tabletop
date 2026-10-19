@@ -176,8 +176,9 @@ public static partial class GfMoves
     /// <summary>
     /// The geometry of each move on the table, against the Ask's own parameters, read as the steps apply it (GfAnswers.Moves). In order:
     /// p.7 "models may also never move outside of the battlefield (no part of them, at any point)" (a model already standing off the table, which only a
-    /// hand move can do, is not judged for it); p.11 "Units may not move through impassable terrain" (the volumes the Ask lists, less any the model's
-    /// base already touches where it stands, which again only a hand move can do, so that it can move out); p.7 "as long as no part of their bases
+    /// hand move can do, is not judged for it); p.11 "Units may not move through impassable terrain" (the volumes the Ask lists; one the model's
+    /// base already touches where it stands, which again only a hand move can do, it may head out of but not move along or deeper into:
+    /// Movement.Blocking); p.7 "as long as no part of their bases
     /// move further than the total movement distance" (the Ask's Allowance); and p.11 "may not end their move partially overhanging gaps or terrain"
     /// with p.7 "physically impossible locations" (LandsInImpassable, against every impassable volume on the table, whether or not the Ask lists it:
     /// a Flying unit's Ask lists none, p.13). An Aircraft's move, its action's or another team's (the region's IgnoresTerrain), is exempt from the
@@ -211,8 +212,7 @@ public static partial class GfMoves
             if (Battlefield.Placed(state, m.ModelId) is not { } start) continue;
             var destination = to.Placement.Position.Horizontal;
             if (start.Placement.Position.Horizontal.DistanceTo(destination) <= 1e-6) continue;
-            var swept = impassable.Where(v => !Movement.Check(start, start.Placement.Position.Horizontal, 0, [v], [], null, null).CrossesImpassable).ToList();
-            var check = Movement.Check(start, destination, region.Allowance, swept, [], null, size);
+            var check = Movement.Check(start, destination, region.Allowance, Movement.Blocking(start, destination, impassable), [], null, size);
             if (check.LeavesTable && Table.ContainsBase(size, start))
                 return new(GfNames.MoveOffTableRule, $"{name} would leave the table: models may never move outside of the battlefield (p.7)");
             if (check.CrossesImpassable)
@@ -279,11 +279,11 @@ public static partial class GfMoves
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             var rules = TerrainFor(ctx, unit, live);
             if (rules.Aircraft) return new Complete([]);                                                 // p.13: Aircraft "ignore all units and terrain when moving and stopping"
-            // p.13: Flying ignores terrain effects. A granted Flying applies when there was a test to skip, and is kept to the activation's end (ConsumeKeepingFlying).
+            // p.13: Flying ignores terrain effects, p.36: so does the Banner of Eternal Flame. A granted Flying applies when there was a test to skip, and is kept to the activation's end (ConsumeKeepingFlying).
             if (rules.IgnoresDangerous)
             {
                 var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx)).Count > 0;
-                if (tested) live.Use(Side.Attacker, GfNames.Flying);
+                if (tested) RecordSkipped(live, rules, useFlying: true);
                 var (spent, held) = ConsumeKeepingFlying(live);
                 return new Complete(spent, held);
             }
@@ -328,8 +328,8 @@ public static partial class GfMoves
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
         var dangerous = DangerousFor(terrain, RushOrCharge(action));
-        var strider = rules.IgnoresDifficult;   // p.14: Strider ignores difficult terrain, Flying all terrain effects
-        var flying = rules.Flying;              // Strider does *not* skip a dangerous terrain test; only Flying does
+        var strider = rules.IgnoresDifficult;   // p.14: Strider ignores difficult terrain, Flying and the Banner of Eternal Flame all terrain effects
+        var flying = rules.Flying;              // Strider does *not* skip a dangerous terrain test; Flying and the banner do
         foreach (var m in proposed)
         {
             // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
@@ -361,7 +361,7 @@ public static partial class GfMoves
         // Applied, recorded without spending: Flying when it skipped a dangerous test (p.13) or a difficult cap that would have bound, Strider when it
         // skipped that cap (p.14). The cap binds only when the allowance is over it, so an Advance across difficult ground lists neither.
         var capSkipped = crossedDifficult && allowance > GfNames.DifficultCap;
-        if (flying && (capSkipped || exposed.Count > 0)) live.Record(Side.Attacker, GfNames.Flying);
+        if ((flying || rules.EternalFlame) && (capSkipped || exposed.Count > 0)) RecordSkipped(live, rules, useFlying: false);
         if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true));
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.MovedThisRound)) changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.MovedThisRound, true)); }
