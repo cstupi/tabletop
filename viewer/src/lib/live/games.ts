@@ -15,7 +15,8 @@ export type GameSummary = {
   readonly participantNames: readonly string[];
 };
 
-type Page = { readonly items: readonly GameSummary[]; readonly next: string | null };
+/** Management leaves `next` out of the last page. */
+type Page = { readonly items: readonly GameSummary[]; readonly next?: string | null };
 
 /** One row of the list as the picker shows it. */
 export type GameRow = { readonly id: string; readonly name: string; readonly status: string; readonly players: string; readonly created: string };
@@ -35,7 +36,7 @@ export async function listGames(sessionJwt: string, base: string = defaultBase()
     }
     const page = (await response.json()) as Page;
     games.push(...page.items);
-    after = page.next;
+    after = page.next ?? null;
   } while (after !== null);
   return games;
 }

@@ -28,6 +28,13 @@ describe('the game list', () => {
     expect(calls.map((c) => c.auth)).toEqual(['Bearer jwt-1', 'Bearer jwt-1']);
   });
 
+  it('stops at a last page that leaves next out', async () => {
+    const calls: Call[] = [];
+    const games = await listGames('jwt-1', '', fakeFetch({ '/v1/games?limit=200': { items: [summary('a')] } }, calls));
+    expect(games.map((g) => g.id)).toEqual(['a']);
+    expect(calls.map((c) => c.url)).toEqual(['/v1/games?limit=200']);
+  });
+
   it('reports the problem detail when management refuses', async () => {
     await expect(listGames('bad', '', fakeFetch({}, [], 401))).rejects.toThrow('unauthorized_credentials');
   });
