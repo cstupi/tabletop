@@ -81,7 +81,7 @@ public class GfMovesTerrainTests
     public void Under_strict_a_model_standing_in_impassable_terrain_may_move_out_of_it_but_not_along_or_through_it()
     {
         // p.11: "Units may not move through impassable terrain". Only a hand move puts a model there (p.7 "never ... be placed in physically
-        // impossible locations"); it may head out of the volume, never along it or deeper in (Movement.Blocking).
+        // impossible locations"); it may head out of the volume, never along it or deeper in (Movement.Check).
         var wall = Wall(24, 24);                                                                             // x 23.5..24.5, y 19..29
         var sim = Advancing([], wall, out var unit);
         var a = unit.Models[0].Id;

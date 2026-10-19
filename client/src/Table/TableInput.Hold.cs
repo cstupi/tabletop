@@ -82,7 +82,7 @@ public partial class TableInput
             : targets.ToDictionary(kv => kv.Key, kv => _session.Draft is { } d && d.Terrain.Any(t => t.Id == kv.Key)
                 ? DragBodies.Piece(d.Terrain, kv.Key, new Placement(drag.Current[kv.Key], drag.Yaws[kv.Key]), kv.Value.Horizontal, free)
                 : new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst)));   // a marker rests on the Solid under its point
-        var lines = new List<(Point3 From, Point3 To, RulerReadout Readout)>();
+        var lines = new List<(IReadOnlyList<Point3> Path, RulerReadout Readout)>();
         Violations.Moved(targets.Keys);                                                  // a refused commit's reason lapses once its models move
         foreach (var id in targets.Keys)
         {
@@ -90,9 +90,13 @@ public partial class TableInput
             MoveNode(id, drag.Current[id]);
             Face(id, drag.Yaws[id]);
             ModelDragged?.Invoke(id, drag.Current[id]);
-            var readout = MoveRuler.Read(drag.Origins[id].Horizontal, drag.Current[id].Horizontal, Proposing.Contains(id) ? capped ?? Allowance : null, Proposing.Contains(id) ? Reach?.Minimum(id, drag.Current[id].Horizontal) : null);
+            // In a move the ruler follows the path the base takes round what it may not pass (MoveRegions.Route, p.5) and reads its length.
+            var route = Proposing.Contains(id) ? Reach?.Route(id, drag.Current[id].Horizontal, capped is not null) : null;
+            var readout = route is { } r
+                ? MoveRuler.Read(r.Distance, capped ?? Allowance, Reach?.Minimum(id, drag.Current[id].Horizontal))
+                : MoveRuler.Read(drag.Origins[id].Horizontal, drag.Current[id].Horizontal, Proposing.Contains(id) ? capped ?? Allowance : null, Proposing.Contains(id) ? Reach?.Minimum(id, drag.Current[id].Horizontal) : null);
             if (Allowance is not null && Proposing.Contains(id) && _view.PieceAt(id) is { } piece) piece.SetHighlight(readout.OutOfRange ? Colors.Red : Palette.Selected);
-            lines.Add((drag.Origins[id], drag.Current[id], readout));
+            lines.Add((route is { } way ? RulerPath.Lift(way.Points, drag.Origins[id], drag.Current[id]) : [drag.Origins[id], drag.Current[id]], readout));
         }
         ShowRulers(lines);
         // A hand move is held to overlap (the server's placement judge); a move's or a deployment's ghosts are the decision box's to measure.
@@ -101,11 +105,11 @@ public partial class TableInput
                 null, new Names(game, p).Unit));
     }
 
-    void ShowRulers(IReadOnlyList<(Point3 From, Point3 To, RulerReadout Readout)> lines)
+    void ShowRulers(IReadOnlyList<(IReadOnlyList<Point3> Path, RulerReadout Readout)> lines)
     {
         while (_rulers.Count < lines.Count) { var r = new RulerNode(); _view.AddChild(r); _rulers.Add(r); }
         for (var i = 0; i < _rulers.Count; i++)
-            if (i < lines.Count) _rulers[i].Show(lines[i].From, lines[i].To, lines[i].Readout, Colors.White); else _rulers[i].Hide();
+            if (i < lines.Count) _rulers[i].Show(lines[i].Path, lines[i].Readout, Colors.White); else _rulers[i].Hide();
     }
 
     void HideRulers() { foreach (var r in _rulers) r.Hide(); }

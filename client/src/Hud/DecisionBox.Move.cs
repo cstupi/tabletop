@@ -107,7 +107,7 @@ public partial class DecisionBox
             // p.11: once any model goes in or through difficult terrain, every model is held to the cap (MoveRegions.Allowance).
             var unit = allowance is null || _regions is null ? allowance : _regions.Allowance(proposed.ToDictionary(kv => kv.Key, kv => kv.Value.Horizontal));
             var readouts = unit is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
-                .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
+                .Select(id => MoveRuler.Read(Moved(p, id, proposed[id].Horizontal, unit < allowance), unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes), legal.Separation, names.Unit));
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
@@ -151,8 +151,15 @@ public partial class DecisionBox
     void ShowRegions(IReadOnlyList<Guid> modelIds)
     {
         if (_regions is not { } regions || _region is null || !IsInstanceValid(_region)) return;
-        var shown = modelIds.Where(regions.Has).Select(id => (regions.Outline(id), regions.Inner(id))).ToList();
-        if (shown.Count > 0) _region.Show(shown, _regionColour);
+        var shown = modelIds.Where(regions.Has).Select(regions.Outline).ToList();
+        if (shown.Count > 0) _region.ShowTriangles(shown, _regionColour);
+    }
+
+    /// <summary>How far a ghost has moved: along its path round what it may not pass (MoveRegions.Route), else in a straight line.</summary>
+    double Moved(Projection p, Guid id, Point2 to, bool capped)
+    {
+        var from = ((OnTable)p.Models[id].Location).Placement.Position.Horizontal;
+        return _regions?.Route(id, to, capped)?.Distance ?? from.DistanceTo(to);
     }
 
     static ModelBody BodyOf(Projection p, Guid modelId) { var m = p.Models[modelId]; return new ModelBody(m.Slot.Base, m.Slot.Height); }

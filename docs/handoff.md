@@ -44,13 +44,13 @@ each game's rows, never the accounts.
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 303 of 303 games pass in process with no pin (`core-ruins` not yet run over the socket; the other 302 pass there), 544 of 544 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 305 of 305 games pass in process with no pin (`core-ruins` and `core-round-the-terrain` not yet run over the socket), 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 40 s. Geometry 214, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 669,
-  GameServer 1375, Management 272, Sim 282.
+  defect). About 40 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 691,
+  GameServer 1401, Management 272, Sim 286.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
   GameServer 38, Sim 325; about 7 min.
@@ -98,6 +98,13 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   layout and look.
 
 **Open / next:**
+- Movement along the path (geometry `docs/design/geometry/movement.md`): a move is measured along the shortest path its base can
+  take (p.5), round impassable terrain, other models and the table edge, and round difficult and dangerous terrain when that fits;
+  a 12" Rush round a wood is not capped, a model reaches behind an impassable block, a charge goes round to base contact (p.9). The
+  client draws one area (owner ruling: *"the visible feedback to users should just show the furthest they could move accounting for
+  both if they cross or go around the difficult"*), holds a drag to it, and the ruler follows the bent path with its length. The wire
+  is unchanged: each side computes the same path. Suite game `core-round-the-terrain`. Not yet run: the socket suite on it, and a
+  look at the area and the bent ruler in the client.
 - Released: v0.1.18 (team rulings, Replays fix) is tagged; the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
   viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the
@@ -184,7 +191,7 @@ Claude checks the client on screen itself (WSLg + Godot movie frames + xdotool);
 - **Movement:** `MoveRegion.IgnoresTerrain` (wire) keys the Aircraft landing exemption on Aircraft (p.13), not on
   `MinDistance`; a forced move out of a wall applies, one that stays in it is refused under strict.
 - **Client:** every model of a move glides; `UnitCard` rebuilds only when `UnitCardContent` changes and keeps its scroll;
-  a held model shows its own move region (`MoveRegions`); the drag clamp follows `Movement.Region` (difficult cap); the
+  a held model shows its own move region (`MoveRegions`); the drag clamp follows its reach (`MoveRegions.Clamp`); the
   re-grab rule is in Core (`DragBodies.Grabs`).
 - **Base shape at import** (spec `2026-10-16-base-shape-at-import-design.md`): import takes `bases.round`, falling back
   to `bases.square` as a `Base.Rect`; there is no choice on the import form.
@@ -212,7 +219,7 @@ new face's triggers (`RollRecord.FaceTriggers`); rolls, rerolls and modifiers ar
 `AddModifier` and the log's Reroll / Set die / +1 buttons are gone (protocol 3); `SetDice` is accepted only with `GameServerOptions.AcceptsSetDice` (Development, and the sim's
 in-process driver), for the rules suite's fixed dice.
 Model against model is 3D (`libs/Tabletop.Geometry`: `Collision.Crosses`, `Slide`, `Separate`, `Distance.BodyToBody`,
-`Movement.Region`): a model's volume is its base times 1.5 × the larger base dimension, so a model crossing above a lower
+movement paths): a model's volume is its base times 1.5 × the larger base dimension, so a model crossing above a lower
 one passes it, and the 1" separation is measured in 3D. An Aircraft's placement ignores units and terrain (p.13): no 1"
 separation, no impassable landing check; overlap still applies. Limit: `Collision.RestHeight` puts a model touching a
 Solid on top of it, so no model stands under a roof or floor.
@@ -225,9 +232,8 @@ right-click on one opens `MenuModel.ForSetupPiece` (Remove). Objectives were alw
 
 **B. Move step** (`TableInput`, `.Hold`, `MoveRuler`). A drag picks a ghost up where it stands (`Drag.Grabs`; distance
 from `Origins`), so Shift-adjusting one model keeps the unit's move. Q/E with no rows turn each held model 15° (p.7), each
-with its own facing. One ruler per held model; without Alt a model is held to its allowance (`MoveRuler.Clamp`);
-`MoveRuler.Gate` counts models out of range — under strict Enter and C wait, under warn and silent they send (its count is
-still straight-line).
+with its own facing. One ruler per held model, along its path; without Alt a model is held to its reach (`MoveRegions.Clamp`);
+`MoveRuler.Gate` counts models out of range by path length — under strict Enter and C wait, under warn and silent they send.
 
 **C. Combat log** (spec `2026-10-13-combat-log-design.md`, plan `docs/superpowers/plans/2026-10-15-combat-log.md`).
 One line per roll, faces against the target its modifiers make; question/answer/close, empty steps, sequence and turn
@@ -307,10 +313,10 @@ thread, template copies of rigged or animated models.
   activation ends (`GfMoves.ConsumeKeepingFlying`, a name check in one place); a spell's forced move of the unit flies with it but
   neither spends nor holds it, since that is not the unit's activation. On a table without 30" of room an Aircraft moves as
   far as it can in the direction taken (`GfMoves.Minimum`, `Movement.RoomAlong`); the client's ring and readout
-  (`MoveRuler.Minimum`, `MoveRegions.Inner`) and the sim's `AnswerPolicy` read it the same way.
+  (`MoveRuler.Minimum`, `MoveRegions.Outline`) and the sim's `AnswerPolicy` read it the same way.
 - **Movement rulings from the rulebook:** a model a hand move left in impassable terrain may head out of the volume, not move along it
-  or deeper in (p.11 *"Units may not move through impassable terrain"*; the book is silent on leaving; `Movement.Blocking`, used by
-  `GfMoves.PathBreach`, `ApplyForcedMove`, the client's region and the sim). p.36 Banner of Eternal Flame (*"The Hero and its unit
+  or deeper in (p.11 *"Units may not move through impassable terrain"*; the book is silent on leaving; `Movement.Check`: a path's
+  first leg may head out of it, used by `GfMoves.PathBreach`, `ApplyForcedMove`, the client's reach and the sim). p.36 Banner of Eternal Flame (*"The Hero and its unit
   may ignore all terrain effects"*) ignores difficult terrain's cap and the dangerous terrain test, moving or activated, but is no leave
   to move through impassable terrain and keeps cover (`GfMoves.TerrainFor`; `Content/grimdark-future-relic-wargear.part.json`). The
   client holds every model of a move to the 6" cap once any ghost enters difficult terrain (`MoveRegions.Allowance`, p.11) and marks a
@@ -328,7 +334,7 @@ drawn through round 0.
 - **Collision.** A drag slides along Impassable Solids, stops at other models' bases and rests on the highest Solid under the
   base (`Collision.Slide`, `Separate`, `RestHeight`); Alt places freely. The server rests every placement (`Battlefield.Settle`)
   and judges a move answer's p.7 contact clauses under the enforcement setting (`GfMoves.ContactBreach`: `move_overlap`,
-  `move_through_models` by `Collision.Crosses`, `move_separation`) and a hand placement's overlap (`PlacementBreach`). The
+  `move_through_models` when only a path through models fits, `move_separation`) and a hand placement's overlap (`PlacementBreach`). The
   built-in `ruin` is a walk-in Area; `large-sight-blocker` is Impassable.
 - **Combat log.** One line per roll (Today → C); the drawer, filters, dice tray and Undo are as the client UX spec says.
 - **Unit card.** `UnitCard` replaces `StatSheet`: weapons with AP, wound rows, rule chips with text, and the hovered-enemy

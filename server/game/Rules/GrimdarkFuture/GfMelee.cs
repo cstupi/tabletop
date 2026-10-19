@@ -137,12 +137,14 @@ public static class GfMelee
         {
             var enemies = Lookup.LivingModels(state, t);
             var distance = ChargeDistance(state, props, unit, t);
-            // The distance test is cheap and the path walk is not: walk only the pairs already within charge distance.
+            // p.9: "within charge distance of one model from the target unit, and has a clear path to reach it", and "charge moves don't have to be in a
+            // straight line": a path to base contact round every impassable volume (Movement.ContactDistance). The straight distance is a floor on the
+            // path, and cheap: search only the pairs already within it.
             return inside is { } container
                 ? enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
                 : own.Any(m => enemies.Any(e => Battlefield.Placed(state, m) is { } from && Battlefield.Placed(state, e) is { } to
                     && Battlefield.Distance(state, m, e) <= distance
-                    && !Movement.Check(from, to.Placement.Position.Horizontal, distance, impassable, [], null, state.Board.Table.Size).CrossesImpassable));
+                    && Movement.ContactDistance(from, to, distance, impassable, state.Board.Table.Size) is not null));
         }).ToList();
     }
 

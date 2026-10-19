@@ -189,10 +189,9 @@ public class ViewModelTests
         Assert.Equal(30, MoveRuler.Minimum(start, legal, new TableSize(72, 48)));
         Assert.True(MoveRuler.Minimum(start with { Placement = new Placement(new Point3(15, 15, 0), new Yaw(0)) }, legal, new TableSize(30, 30)) < 30);
         Assert.Null(MoveRuler.Minimum(start, legal with { MinDistance = null }, new TableSize(72, 48)));
-        var boundary = MoveRuler.Region(start, legal, [], new TableSize(72, 48));
-        var inner = MoveRuler.Inner(new Point2(36, 24), boundary, 30);
-        Assert.Equal(boundary.Count, inner.Count);
-        Assert.All(inner.Zip(boundary), x => Assert.Equal(Math.Min(30, x.Second.DistanceTo(new Point2(36, 24))), x.First.DistanceTo(new Point2(36, 24)), 6));
+        var ring = new MoveRegions(new Dictionary<Guid, PlacedModel> { [Samples.Model] = start }, legal, [], new TableSize(72, 48), []).Outline(Samples.Model);
+        Assert.False(Areas.Inside(ring, new Point2(40, 24)));
+        Assert.True(Areas.Inside(ring, new Point2(67, 24)));
     }
 
     [Fact]
@@ -205,15 +204,16 @@ public class ViewModelTests
             new StepCompleted(Samples.Frame, "move", null, [], [new ModelsMoved([new ModelRelocation(Samples.Model, new OnTable(new Placement(new Point3(0, 0, 0), new Yaw(0))), new OnTable(new Placement(new Point3(2, 0, 0), new Yaw(0))))])]));
         Assert.Equal(2, MoveRuler.UsedInFrame(a.Projection.Stack[0], Samples.Model), 6);
         var start = new PlacedModel(new ModelBody(Base.Circle(1.26), 1.5), new Placement(new Point3(36, 24, 0), new Yaw(0)));
-        var region = MoveRuler.Region(start, new MoveRegion([Samples.Model], 6, [], [], null), [], new TableSize(72, 48));
-        Assert.Equal(Movement.Rays, region.Count);
-        Assert.All(region, p => Assert.Equal(6, p.DistanceTo(new Point2(36, 24)), 6));
-        var edge = MoveRuler.Region(start with { Placement = new Placement(new Point3(71, 24, 0), new Yaw(0)) }, new MoveRegion([Samples.Model], 6, [], [], null), [], new TableSize(72, 48));
-        Assert.True(edge.Max(p => p.X) <= 72);
-        var forest = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Circle(1), new Point2(0, 0), new Yaw(0), 0, 8, TerrainDeclarations.Difficult, null), new TerrainTransform(new Point3(39, 24, 0), new Yaw(0), 1));
-        var capped = MoveRuler.Region(start, new MoveRegion([Samples.Model], 12, [], [forest.Id], 6), [forest], new TableSize(72, 48));
-        Assert.Equal(42, capped[0].X, 6);                                                        // the ray into the forest stops at the 6" cap
-        Assert.Equal(24, capped[Movement.Rays / 2].X, 6);                                        // the ray away from it reaches the full 12"
+        IReadOnlyList<Point2> Area(PlacedModel at, MoveRegion legal, IReadOnlyList<WorldVolume> volumes) =>
+            new MoveRegions(new Dictionary<Guid, PlacedModel> { [Samples.Model] = at }, legal, volumes, new TableSize(72, 48), []).Outline(Samples.Model);
+        var region = Area(start, new MoveRegion([Samples.Model], 6, [], [], null), []);
+        Assert.True(Areas.Inside(region, new Point2(41.9, 24)) && !Areas.Inside(region, new Point2(42.1, 24)));
+        var edge = Area(start with { Placement = new Placement(new Point3(71, 24, 0), new Yaw(0)) }, new MoveRegion([Samples.Model], 6, [], [], null), []);
+        Assert.True(edge.Max(p => p.X) <= 72 - 0.63 + 1e-3);
+        var forest = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Circle(4), new Point2(0, 0), new Yaw(0), 0, 8, TerrainDeclarations.Difficult, null), new TerrainTransform(new Point3(44, 24, 0), new Yaw(0), 1));
+        var capped = Area(start, new MoveRegion([Samples.Model], 12, [], [forest.Id], 6), [forest]);
+        Assert.False(Areas.Inside(capped, new Point2(43, 24)));                                  // deep in the wood: past the 6" cap
+        Assert.True(Areas.Inside(capped, new Point2(24.1, 24)));                                 // away from it: the full 12"
     }
 
     /// <summary>

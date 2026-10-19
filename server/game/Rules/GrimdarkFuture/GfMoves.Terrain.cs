@@ -68,9 +68,10 @@ public static partial class GfMoves
     /// <summary>
     /// A move another team makes for this unit (a spell's move kind), judged as ForcedMoveRegion offered it: the same settling as an action's move,
     /// measured against the allowance with the unit's own terrain rules (TerrainFor); a path through an impassable volume the unit may not pass is
-    /// refused, and so is a landing touching one, unless the unit is an Aircraft (p.13 "when moving and stopping"). A model whose base already touches
+    /// refused, and so is a landing touching one, unless the unit is an Aircraft (p.13 "when moving and stopping"); the move is measured along the path
+    /// its base takes round them (Movement.Check). A model whose base already touches
     /// an impassable volume where it stands (only a hand move puts it there; p.7 "never ... be placed in physically impossible locations", and the book
-    /// says nothing of moving out) may be moved out of it, not along it or deeper in (Movement.Blocking), as PathBreach judges it; one chosen by the opponent may not
+    /// says nothing of moving out) may be moved out of it, not along it or deeper in, as PathBreach judges it; one chosen by the opponent may not
     /// carry a model off the table. Dangerous terrain crossed is not tested, since no rule asks it of a forced move. A granted Flying is read for the
     /// terrain but neither spent nor held (owner ruling: the forced move is not the target's activation, so the grant waits for its own); the Values
     /// stay empty and are returned for the step to write.
@@ -88,7 +89,7 @@ public static partial class GfMoves
         {
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement);
-            var check = Movement.Check(start, settled.Position.Horizontal, allowance, Movement.Blocking(start, settled.Position.Horizontal, impassable), difficult, rules.DifficultCap, ctx.State.Board.Table.Size);
+            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, rules.DifficultCap, ctx.State.Board.Table.Size);
             if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable && !LandsInImpassable(ctx.State, m.ModelId, settled, landing))
                 moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }

@@ -205,10 +205,10 @@ with `Destinations.Continues`: the move goes on after the before-attacking windo
 the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E turn them 15°.
 
 **Contact marks.** While a model is dragged the client measures the contacts the server would refuse, with the same geometry
-(`ContactCheck`, Core: each landing rested by `Collision.RestHeight`, then `Overlap.Bases`, `Collision.Crosses` on the straight
-line from where the model stands, `Distance.BodyToBody`), from the open Ask's own parameters. A move answer's ghosts are
-measured for a landing on a base (`overlaps a base`), a straight path through a model unless the Ask `PassesModels`
-(`path crosses a model`) and a landing within the Ask's `Separation` of another unit's model (`within 1" of Orc Boyz`); a unit a
+(`ContactCheck`, Core: each landing rested by `Collision.RestHeight`, then `Overlap.Bases`, `Movement.Check`'s `CrossesModels`
+along the path from where the model stands, `Distance.BodyToBody`), from the open Ask's own parameters. A move answer's ghosts are
+measured for a landing on a base (`overlaps a base`), a landing no path round the standing models reaches within the allowance,
+though one through them does, unless the Ask `PassesModels` (`path crosses a model`) and a landing within the Ask's `Separation` of another unit's model (`within 1" of Orc Boyz`); a unit a
 mover already stood that close to is left to the server. A deployment's ghosts and a hand move are measured for a landing on a
 base only (the server's placement judge). The decision box measures its ghosts on every drag, turn and render; `TableInput`
 measures a hand move while it is in hand and forgets it on the drop. Each marked model is drawn in the theme's warning colour
@@ -249,44 +249,48 @@ participants: `PresenceOverlay.StartOf` returns null for an occupant.
 
 ## The ruler and the movement region
 
-`MoveRuler` is Godot-free and holds the client's cosmetic geometry. Four functions:
+A move is measured along the path its base takes (p.5: *"always measure so that no part of its base moves further than the
+total distance"*): round impassable terrain and the other models, and round difficult and dangerous terrain when that fits
+(`docs/design/geometry/movement.md`). `MoveRegions` holds one `MoveReach` per model of the Ask, built from the Ask's parameters
+the first time it is asked for:
 
 | Member | What it answers |
 | --- | --- |
-| `Read(start, current, allowance)` | `RulerReadout(Distance, Remaining, OverAllowance)`: the base's displacement from where it started, which is how page 7 measures: *"no part of their bases move further than the total movement distance"* |
-| `UsedInFrame(Frame, modelId)` | distance already spent this activation, read out of the frame, so the readout and the region shrink after a mid-move checkpoint such as a cast |
-| `Region(PlacedModel start, MoveRegion, volumes, TableSize)` | the boundary from `Movement.Region`, resolving `ImpassableVolumeIds` and `DifficultVolumeIds` against the board's volumes and passing `DifficultCap` through |
-| `ExitRegion(ModelBody, PlacedModel container, MoveRegion, volumes, TableSize)` | the disembark boundary: every placement `Containment.BaseFullyWithin(candidate, container, ExitWithin)` admits |
+| `MoveRegions.Outline(id)` | the area the model can reach, as triangles `MoveRegionNode.ShowTriangles` draws: owner ruling, *"the visible feedback to users should just show the furthest they could move accounting for both if they cross or go around the difficult"*, so it is one area, wherever the model gets round difficult terrain within the allowance or through it within the cap |
+| `MoveRegions.Route(id, to, capped)` | the path a move there is measured along (`MoveReach.Route`); the ruler (`RulerNode`, `RulerPath.Lift`) draws it as a polyline and reads its length; the shortest once the unit is capped |
+| `MoveRegions.Clamp(id, target, cap)` | without Alt, the target, or the nearest point a path within the limit reaches (round walls and models too) |
+| `MoveRuler.Read(distance, allowance, minimum)` | `RulerReadout(Distance, Remaining, OverAllowance, UnderMinimum)` for a path's length |
+| `MoveRuler.UsedInFrame(Frame, modelId)` | distance already spent this activation, read out of the frame, so the readout and the region shrink after a mid-move checkpoint such as a cast |
+| `MoveRuler.ExitRegion(ModelBody, PlacedModel container, MoveRegion, volumes, TableSize)` | the disembark boundary: every placement `Containment.BaseFullyWithin(candidate, container, ExitWithin)` admits |
 
 Every input to the region comes from the server. The Ask's `MoveRegion` carries the allowance, the
 impassable and difficult volume ids and the difficult cap. The client renders the consequence and
 the server re-decides every answer. Drawing a region the server offered is not a legality check. A `MinDistance` (an
-Aircraft's 30") cuts the drawn region to the ring beyond it (`MoveRegions.Inner`), and a model dragged short of it shows red
+Aircraft's 30") cuts the drawn region to the ring beyond it (`MoveReach.Triangles` with the least), and a model dragged short of it shows red
 like one past the allowance. The least is the server's `GfMoves.Minimum` (`MoveRuler.Minimum`): the 30" where the table has
 room for it in some direction; where it has none, as far as the table lets the base go in the direction the model is dragged
 (`Movement.RoomAlong`), so the ring follows the table edge on each ray. p.11's cap is the unit's: once any model of the move
-goes in or through a listed difficult volume, every model is held to `DifficultCap` (`MoveRegions.Allowance`, read from every
+goes in or through a listed difficult volume along its path, every model is held to `DifficultCap` (`MoveRegions.Allowance`, read from every
 ghost of the move; a drag clamps each held model to it, and the readouts and the gate read it). A landing whose base touches
 an impassable volume on the table is marked `ends in impassable terrain` (`ContactCheck.Move`, `ContactKind.InImpassable`)
 unless the Ask `IgnoresTerrain`, whatever volumes the Ask lists: a Flying unit's lists none and the server still judges
-its landing. A model a hand move left in impassable terrain gets its region on the rays that head out of that volume
-(`Movement.Blocking`).
+its landing. A model a hand move left in impassable terrain reaches only what a path heading straight out of that volume first
+gets to.
 Under `strict` the server checks `LegalSetMembership.Contains` and `IGameRules.AnswerBreach` (p.11's cap holds every
 model once any one enters difficult ground; an Aircraft moves at least `MinDistance`), and for a disembark `GfMoves.ExitPlacement` re-checks every model. A ghost dropped outside the drawn region still commits.
 
-`Region` cannot serve a disembark, so there are two functions. When `Containment.ExitingId` is
+`MoveRegions` cannot serve a disembark, so the region has two sources. When `Containment.ExitingId` is
 non-null the unit is inside the container and its models have no `Placement`. There is no start to
-sweep rays from, so `Movement.Region` is meaningless. `Allowance` on such an Ask is the action's
+measure a path from, so `MoveReach` is meaningless. `Allowance` on such an Ask is the action's
 remaining distance and says nothing about where an occupant may be placed. `IsDisembark(legal)` is
 that test. `ExitRegion` answers instead, as a boundary rather than a predicate, so
 `MoveRegionNode` draws it unchanged: `Movement.Rays` rays out of the container's base centre, each
-marched outward in `Movement.Step` increments and bisected eight times at the first refusal. That
-is the loop shape `Movement.Region` uses, and it stops a ring of impassable terrain from
+marched outward in `Movement.Step` increments and bisected eight times at the first refusal, which
+stops a ring of impassable terrain from
 re-admitting placements beyond it. A candidate is also refused for leaving the slab or touching an
 impassable volume by asking `Movement.Check(candidate, its own centre, 0, impassable, [], null,
 size)`. Distance zero makes `Check` sample exactly that placement. No new geometry primitive is
-added. The cost is that the client reimplements a march-and-bisect loop the library already
-contains for the non-containment case.
+added.
 
 The region is drawn for one body, the lead model's `ModelIds[0]`. A unit with mixed base sizes
 sees the lead's boundary, and the server refuses outliers individually. **A disembarking model

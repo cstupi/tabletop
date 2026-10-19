@@ -29,70 +29,69 @@ public class MovementTests
         Assert.Equal(0, Movement.RoomAlong(model, new Point2(18, 18), table));                                 // no direction taken
     }
 
-    [Fact] public void A_base_standing_in_an_impassable_volume_may_head_out_of_it_but_never_along_or_deeper_into_it()
-    {
-        var inside = Fx.Model(4, 0);                                                         // centred in the 1" x 10" wall
-        Assert.Empty(Movement.Blocking(inside, new Point2(6, 0), [Wall]));                   // straight out, east
-        Assert.Empty(Movement.Blocking(inside, new Point2(2, 1), [Wall]));                   // out, west and a little north
-        Assert.Equal([Wall], Movement.Blocking(inside, new Point2(4, 3), [Wall]));           // along it
-        var touching = Fx.Model(3.2, 0);                                                     // its west face under the base
-        Assert.Empty(Movement.Blocking(touching, new Point2(0, 0), [Wall]));                 // back off it
-        Assert.Equal([Wall], Movement.Blocking(touching, new Point2(6, 0), [Wall]));         // through it
-        Assert.True(Movement.Check(touching, new Point2(6, 0), 12, Movement.Blocking(touching, new Point2(6, 0), [Wall]), [], null, null).CrossesImpassable);
-        Assert.Equal([Wall], Movement.Blocking(Start, new Point2(6, 0), [Wall]));            // a base clear of it is held to it as ever
-        Assert.Equal([Wall], Movement.Blocking(inside, new Point2(4, 0), [Wall]));           // no direction taken: still in it
-    }
-
-    [Fact] public void A_region_from_inside_an_impassable_volume_opens_only_the_rays_heading_out_of_it()
+    [Fact] public void A_region_from_inside_an_impassable_volume_opens_only_the_ways_out_of_it()
     {
         var r = Movement.Region(Fx.Model(4, 0), 6, [Wall], [], null, null);
-        Assert.Equal(10, r.Boundary[0].X, 6);                                                // east, out and on
-        Assert.Equal(-2, r.Boundary[Movement.Rays / 2].X, 6);                                // west, out and on
-        Assert.Equal(0, r.Boundary[Movement.Rays / 4].DistanceTo(r.Origin), 6);              // north, along the wall
+        Assert.True(Inside(r, new(9.5, 0)));                                                 // east, out and on
+        Assert.True(Inside(r, new(-1.5, 0)));                                                // west, out and on
+        Assert.False(Inside(r, new(4, 3)));                                                  // north, along the wall
     }
 
-    [Fact] public void Open_ground_is_a_full_circle()
+    [Fact] public void Open_ground_is_a_full_disc()
     {
         var r = Movement.Region(Start, 6, [], [], null, null);
-        Assert.Equal(Movement.Rays, r.Boundary.Count);
-        Assert.All(r.Boundary, p => Assert.Equal(6, p.DistanceTo(r.Origin), 6));
+        Assert.True(Inside(r, new(5.9, 0)) && Inside(r, new(0, -5.9)) && Inside(r, new(-4.2, 4.2)));
+        Assert.False(Inside(r, new(6.1, 0)));
         Assert.False(r.CappedByDifficultTerrain);
     }
-    [Fact] public void An_impassable_volume_stops_the_base_short()
+
+    [Fact] public void An_impassable_volume_is_gone_round()
     {
         var r = Movement.Region(Start, 6, [Wall], [], null, null);
-        Assert.InRange(r.Boundary[0].X, 2.5, 2.87);
-        Assert.Equal(-6, r.Boundary[Movement.Rays / 2].X, 6);
+        Assert.True(Inside(r, new(2.8, 0)));
+        Assert.False(Inside(r, new(3, 0)));                                                  // the base would touch it
+        Assert.False(Inside(r, new(5.5, 0)));                                                // round its end is far over 6"
+        Assert.True(Inside(r, new(-5.9, 0)));
     }
-    [Fact] public void Difficult_terrain_caps_the_rays_that_enter_it()
+
+    [Fact] public void Difficult_terrain_caps_what_is_only_reached_through_it()
     {
-        var r = Movement.Region(Start, 12, [], [Forest], 6, null);
-        Assert.Equal(6, r.Boundary[0].X, 6);
-        Assert.Equal(-12, r.Boundary[Movement.Rays / 2].X, 6);
+        var wood = Fx.Cylinder(8, 0, 4, 0, 8, VolumeKind.Area, TerrainDeclarations.Difficult);
+        var r = Movement.Region(Start, 12, [], [wood], 6, null);
+        Assert.True(Inside(r, new(5.9, 0)));                                                 // in the wood, under 6"
+        Assert.False(Inside(r, new(7, 0)));                                                  // in it, over 6"
+        Assert.True(Inside(r, new(-11.9, 0)));
+        Assert.True(Inside(r, new(3, 5.5)));                                                 // beside it, within 12"
+        Assert.True(Inside(Movement.Region(Start, 12, [], [Forest], 6, null), new(6.2, 0)));  // round a small one, within 12"
         Assert.True(r.CappedByDifficultTerrain);
     }
+
     [Fact] public void Without_a_cap_difficult_terrain_changes_nothing() =>
-        Assert.Equal(12, Movement.Region(Start, 12, [], [Forest], null, null).Boundary[0].X, 6);
+        Assert.True(Inside(Movement.Region(Start, 12, [], [Forest], null, null), new(11.9, 0)));
+
     [Fact] public void The_table_edge_stops_the_base()
     {
         var r = Movement.Region(Fx.Model(71, 24), 6, [], [], null, Opr);
-        Assert.InRange(r.Boundary[0].X, 71, 71.37);
+        Assert.True(Inside(r, new(71.3, 24)));
+        Assert.False(Inside(r, new(71.5, 24)));
     }
-    [Fact] public void A_non_multiple_allowance_reaches_its_end() =>
-        Assert.Equal(7.3, Movement.Region(Start, 7.3, [], [], null, null).Boundary[0].X, 6);
-    [Fact] public void Check_measures_displacement_against_the_allowance()
+
+    [Fact] public void Check_measures_the_path_against_the_allowance()
     {
         var ok = Movement.Check(Start, new(5, 0), 6, [], [], null, null);
         Assert.Equal(5, ok.Distance, 6);
         Assert.True(ok.WithinAllowance);
+        Assert.Equal([new(0, 0), new(5, 0)], ok.Path);
         Assert.False(Movement.Check(Start, new(7, 0), 6, [], [], null, null).WithinAllowance);
     }
+
     [Fact] public void Check_flags_impassable_and_the_table_edge()
     {
-        Assert.True(Movement.Check(Start, new(6, 0), 6, [Wall], [], null, null).CrossesImpassable);
+        Assert.True(Movement.Check(Start, new(6, 0), 6, [Wall], [], null, null).CrossesImpassable);   // through it, and round it is over 6"
         Assert.False(Movement.Check(Start, new(2, 0), 6, [Wall], [], null, null).CrossesImpassable);
         Assert.True(Movement.Check(Fx.Model(71, 24), new(72, 24), 6, [], [], null, Opr).LeavesTable);
     }
+
     [Fact] public void Volumes_crossed_names_what_the_path_touched()
     {
         var pit = Fx.Cylinder(3, 0, 1, 0, 1, VolumeKind.Area, TerrainDeclarations.Dangerous);
@@ -100,22 +99,25 @@ public class MovementTests
         Assert.Empty(Containment.VolumesContaining(Fx.Model(8, 0), [pit]));                 // which the landing position alone does not say
         Assert.Empty(Movement.VolumesCrossed(Start, new(0, 8), [pit]));
     }
-    [Fact] public void A_start_already_touching_difficult_terrain_is_capped_from_the_first_ray()
+
+    [Fact] public void A_start_already_touching_difficult_terrain_is_capped_everywhere()
     {
         var overlapping = Fx.Cylinder(1.5, 0, 1, 0, 8, VolumeKind.Area, TerrainDeclarations.Difficult);
         var r = Movement.Region(Start, 12, [], [overlapping], 6, null);
         Assert.True(r.CappedByDifficultTerrain);
-        Assert.All(r.Boundary, p => Assert.True(p.DistanceTo(r.Origin) <= 6 + 1e-6));
+        Assert.All(r.Triangles, p => Assert.True(p.DistanceTo(r.Origin) <= 6 + 0.05));
         var check = Movement.Check(Start, new(-12, 0), 12, [], [overlapping], 6, null);
         Assert.True(check.EntersDifficult);
         Assert.False(check.WithinAllowance);
     }
+
     [Fact] public void Check_applies_the_difficult_cap()
     {
-        var r = Movement.Check(Start, new(8, 0), 12, [], [Forest], 6, null);
+        var r = Movement.Check(Start, new(4, 0), 12, [], [Forest], 6, null);                // in the forest
         Assert.True(r.EntersDifficult);
         Assert.Equal(6, r.EffectiveAllowance);
-        Assert.False(r.WithinAllowance);
+        Assert.True(r.WithinAllowance);
+        Assert.False(Movement.Check(Start, new(6.5, 0), 6.6, [], [Forest], 6, null).WithinAllowance);   // round it over 6.6", through it over 6"
         Assert.True(Movement.Check(Start, new(-8, 0), 12, [], [Forest], 6, null).WithinAllowance);
     }
 
@@ -123,11 +125,10 @@ public class MovementTests
     public void The_region_goes_around_other_models()
     {
         var start = Fx.Model(10, 10);
-        var open = Movement.Region(start, 6, [], [], null, null);
         var blocked = Movement.Region(start, 6, [], [], null, null, [Fx.Model(13, 10), Fx.Model(10.5, 10)]);   // the second overlaps the start: ignored
-        Assert.Equal(16, open.Boundary[0].X, 6);                                          // ray 0 is +X
-        Assert.True(blocked.Boundary[0].X <= 13 - 1.26 + 1e-6);                          // stops short of contact, centres 1.26 apart
-        Assert.Equal(open.Boundary[45], blocked.Boundary[45]);                           // ray 45 is +Y, clear
+        Assert.False(Inside(blocked, new(13, 10)));
+        Assert.True(Inside(blocked, new(15, 10)));                                         // behind it, round it: about 5.7"
+        Assert.True(Inside(blocked, new(10, 15.9)));
     }
 
     [Fact]
@@ -136,7 +137,18 @@ public class MovementTests
         var roof = Fx.Box(10, 10, 4, 20, 0, 4);                                           // x 8..12, y 0..20, top 4
         var start = Fx.Model(11, 3, z: 4, diameter: 3);                                   // on the roof, its edge out to x 12.5
         PlacedModel[] below = [Fx.Model(12.8, 10)];                                       // on the ground at the roof's foot
-        Assert.Equal(13, Movement.Region(start, 10, [], [], null, null, below, [roof]).Boundary[45].Y, 6);
-        Assert.True(Movement.Region(start, 10, [], [], null, null, below).Boundary[45].Y < 10);    // rested on nothing, it meets the model
+        Assert.True(Inside(Movement.Region(start, 10, [], [], null, null, below, [roof]), new(11, 10)));
+        Assert.False(Inside(Movement.Region(start, 10, [], [], null, null, below), new(11, 10)));    // rested on nothing, it meets the model
+    }
+
+    internal static bool Inside(MovementRegion region, Point2 p)
+    {
+        var t = region.Triangles;
+        for (var i = 0; i + 2 < t.Count; i += 3)
+        {
+            double d1 = (t[i + 1] - t[i]).Cross(p - t[i]), d2 = (t[i + 2] - t[i + 1]).Cross(p - t[i + 1]), d3 = (t[i] - t[i + 2]).Cross(p - t[i + 2]);
+            if (Math.Abs(d1) + Math.Abs(d2) + Math.Abs(d3) > 0 && ((d1 >= 0 && d2 >= 0 && d3 >= 0) || (d1 <= 0 && d2 <= 0 && d3 <= 0))) return true;
+        }
+        return false;
     }
 }

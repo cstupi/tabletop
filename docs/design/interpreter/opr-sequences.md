@@ -279,7 +279,7 @@ impassable volume; p.11 *"may not end their move partially overhanging gaps or t
 locations"* still hold its landing (`GfMoves.LandsInImpassable`). An Aircraft's region, its own move, a forced one or a placement
 (`GfMoves.PlacementRegion`), sets `IgnoresTerrain` (p.13 *"ignore all units and terrain when moving and stopping"*), so its landing is not judged. p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
 `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`, both between bodies in
-three dimensions (`Collision.Crosses`, `Distance.BodyToBody`), so a model passing above another does not move through it; 1 except the Charge
+three dimensions (`Movement.Check`'s `CrossesModels` along the path, `Distance.BodyToBody`), so a model passing above another does not move through it; 1 except the Charge
 move, the close-in, consolidation and an Aircraft's move or placement (move step, forced move, reposition); a disembark keeps it). Coherency is not judged, per
 `architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
 
@@ -296,8 +296,8 @@ reposition, and a spell's forced move: the owner's ruling is *"Spells move as ho
 `move` child opens `GfMoves.ForcedMoveRegion` and applies through `GfMoves.ApplyForcedMove`, both from the target's own rules.
 A target whose base already touches an impassable volume (only a hand move puts it there: p.7 *"never ... be placed in
 physically impossible locations"*; the book says nothing of moving out) is moved out of it: as `GfMoves.PathBreach` judges it,
-the volume it stands in does not block a path that heads out of it (its base centre's signed distance from the footprint grows
-from the first step, `Movement.Blocking`), but does block one along it or deeper in (p.11 *"Units may not move through
+the volume it stands in does not block a path's first leg that heads out of it (its base centre's signed distance from the
+footprint grows from the first step, `Movement.Check`), but does block one along it or deeper in (p.11 *"Units may not move through
 impassable terrain"*), and its landing is judged as any other.
 
 A granted Flying lasts the whole activation (owner ruling: *"Granted flying applies to the whole move - its per activation"*).
@@ -406,9 +406,9 @@ each `deal-wounds`. `Counter` resolves before `Impact`; the book leaves the orde
 anything strikes, because `compare` subtracts that baseline. A step inserted before `melee-start`
 that causes a wound would be counted twice.
 
-`charge-target` offers enemy units with a model within `StatReader.ActionDistance(Charge)` of a
-charger model whose straight path crosses no impassable volume
-(`Movement.Check(...).CrossesImpassable`); a Flying charger's path is not blocked (p.13). Two containment consequences fall out:
+`charge-target` offers enemy units with a model a charger model reaches in base contact within `StatReader.ActionDistance(Charge)`
+along a path round every impassable volume (`Movement.ContactDistance`; p.9 *"has a clear path to reach it"*, *"charge moves
+don't have to be in a straight line"*); a Flying charger's path is not blocked (p.13). Two containment consequences fall out:
 
 - **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is

@@ -99,7 +99,7 @@ public class MoveRegionPolicyTests
     [Fact]
     public void A_model_standing_in_an_impassable_volume_moves_out_of_it()
     {
-        // Only a hand move puts a model there; it may head out of the volume, never along it (Movement.Blocking), as the server judges it.
+        // Only a hand move puts a model there; it may head out of the volume, never along it, as the server judges it (Movement.Check).
         var (view, model) = Standing(new Point3(14, 24, 0));
         var wall = new WorldVolume(Guid.CreateVersion7(),
             new Volume(VolumeKind.Solid, Footprint.Rect(2, 40), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
@@ -111,7 +111,7 @@ public class MoveRegionPolicyTests
         {
             var to = Assert.IsType<OnTable>(Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled)).Moves[0].To).Placement.Position.Horizontal;
             Assert.NotEqual(start.Placement.Position.Horizontal, to);
-            Assert.False(Movement.Check(start, to, 12, Movement.Blocking(start, to, [wall]), [], null, walled.Table).CrossesImpassable, $"seed {seed}");
+            Assert.True(Movement.Check(start, to, 12, [wall], [], null, walled.Table) is { CrossesImpassable: false, WithinAllowance: true }, $"seed {seed}");
         }
     }
 

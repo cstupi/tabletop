@@ -162,15 +162,15 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
                 ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view), landing, clear)
                 : SampleExit(id, m, view, clear), start);
         }
-        // The cap holds every model once any one's path enters difficult ground (MoveRegion.DifficultCap): a model sampled
-        // further than it is sampled again within the cap. Nothing is redrawn when no path enters.
+        // The cap holds every model once any one's path enters difficult ground (MoveRegion.DifficultCap): a model whose shortest path is
+        // further than it is sampled again within the cap. Nothing is redrawn when no path enters. Paths are the server's (Route).
         var reach = m;
         if (m.DifficultCap is { } cap && cap < m.Allowance && m.ModelIds.Any(id => view.PlacedOf(id) is { } p && destinations[id] is { } d
-                && Movement.Check(p, d, m.Allowance, impassable, difficult, cap, view.Table).EntersDifficult))
+                && Route(p, d, m, view, m.Allowance, difficult, cap, Standing(m, view)).EntersDifficult))
         {
             reach = m with { Allowance = cap };
             foreach (var id in m.ModelIds)
-                if (view.PlacedOf(id) is { } p && destinations[id] is { } d && p.Placement.Position.Horizontal.DistanceTo(d) > cap)
+                if (view.PlacedOf(id) is { } p && destinations[id] is { } d && Route(p, d, m, view, cap, [], null, Standing(m, view)).Distance > cap + 1e-6)
                 {
                     taken.Remove(id);
                     Record(id, Sample(p, reach, impassable, difficult, view, goal?.Invoke(id, view), landing, at => Clear(id, p, at, m, view, taken)), p);
@@ -241,9 +241,9 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     }
 
     /// <summary>
-    /// A uniform bearing and a uniform distance inside the allowance (and over its minimum), retried until it passes: Movement.Check with the
-    /// server-stated cap (the difficult cap binds only a path that enters difficult ground) over the impassable volumes the path may not touch
-    /// (Movement.Blocking: a model a hand move left in one may head out of it), the landing clear of every <paramref name="landing"/> volume, and
+    /// A uniform bearing and a uniform distance inside the allowance (and over its minimum), retried until it passes: Movement.Check along the path
+    /// the base takes round what it may not pass, as the server judges it, with the server-stated cap (the difficult cap binds only a path that enters
+    /// difficult ground; a model a hand move left in an impassable volume may head out of it), the landing clear of every <paramref name="landing"/> volume, and
     /// <paramref name="clear"/>. With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins. Null when no
     /// sample passes: the caller stands still, except under a minimum, which tries every bearing at its least first.
     /// </summary>
@@ -260,7 +260,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             : room ? (minimum, m.Allowance) : (Math.Max(0, Movement.RoomAlong(start, origin + dir, view.Table) - 1e-7), Math.Max(0, Movement.RoomAlong(start, origin + dir, view.Table) - 1e-7));
         bool Passes(Point2 candidate)
         {
-            var check = Movement.Check(start, candidate, m.Allowance, Movement.Blocking(start, candidate, impassable), difficult, m.DifficultCap, view.Table);
+            var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
             if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return false;
             if (landing is { Count: > 0 } && Lands(start, candidate, landing)) return false;
             return clear is null || clear(candidate);
@@ -295,6 +295,16 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         return best;
     }
 
+    /// <summary>A move along the path its base takes (Movement.Check), as GfMoves.Route judges it: the region's impassable volumes, these difficult
+    /// volumes and cap, the table, and the standing models in plan and height over the board's volumes.</summary>
+    private static MoveCheck Route(PlacedModel start, Point2 to, MoveRegion m, PolicyView view, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap,
+        IReadOnlyList<PlacedModel>? standing = null) =>
+        Movement.Check(start, to, allowance, view.VolumesById(m.ImpassableVolumeIds), difficult, cap, view.Table, standing, view.Volumes);
+
+    /// <summary>The models on the table the region does not move, which a path goes round (none when it PassesModels).</summary>
+    private static IReadOnlyList<PlacedModel> Standing(MoveRegion m, PolicyView view) => m.PassesModels ? []
+        : view.Projection.Models.Keys.Where(x => !m.ModelIds.Contains(x)).Select(view.PlacedOf).OfType<PlacedModel>().ToList();
+
     /// <summary>The model's body landed at a point: its start's yaw, rested on what is under its base, as the server settles it.</summary>
     private static PlacedModel Landing(Guid id, PlacedModel? start, Point2 at, PolicyView view)
     {
@@ -303,9 +313,10 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     }
 
     /// <summary>
-    /// The region's own contact fields, as the server reads them (p.7, GfMoves.ContactBreach): the landing on no base, the swept path across
-    /// no model standing (unless PassesModels; one it already overlaps is left, Collision.Crosses), and Separation (Distance.BodyToBody) from every other unit's
-    /// model, all in three dimensions. A geometry test, as Lands is.
+    /// The region's own contact fields, as the server reads them (p.7, GfMoves.ContactBreach): the landing on no base, a path round every model
+    /// standing within the allowance (unless PassesModels; one it already overlaps is left: Route's CrossesModels), and Separation (Distance.BodyToBody) from every other unit's
+    /// model, all in three dimensions. A sampled landing is a straight-line sample, and its straight line is also kept clear of the standing models
+    /// (Collision.Crosses), so the seeded games play as the sampler draws them; a move round a model is a scripted one. A geometry test, as Lands is.
     /// </summary>
     private static bool Clear(Guid id, PlacedModel? start, Point2 at, MoveRegion m, PolicyView view, IReadOnlyDictionary<Guid, PlacedModel> taken)
     {
@@ -314,7 +325,8 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             .Where(x => x.At is not null).Select(x => (x.Id, At: x.At!.Value)).ToList();
         var everyone = standing.Concat(taken.Where(kv => kv.Key != id).Select(kv => (Id: kv.Key, At: kv.Value))).ToList();
         if (everyone.Any(o => Overlap.Bases(landing, o.At))) return false;
-        if (start is { } s && !m.PassesModels && Collision.Crosses(s, at, standing.Select(o => o.At).ToList(), view.Volumes)) return false;
+        if (start is { } s && !m.PassesModels && (Collision.Crosses(s, at, standing.Select(o => o.At).ToList(), view.Volumes)
+            || Route(s, at, m, view, m.Allowance, view.VolumesById(m.DifficultVolumeIds), m.DifficultCap, standing.Select(o => o.At).ToList()).CrossesModels)) return false;
         var unit = view.ModelOf(id).UnitId;
         return m.Separation is not { } gap || everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.BodyToBody(landing, o.At) >= gap + 1e-6);
     }
