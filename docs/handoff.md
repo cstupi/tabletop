@@ -44,16 +44,16 @@ each game's rows, never the accounts.
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 194 of 194 games pass in process with no pin (193 last run over the socket), 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 302 of 302 games pass in process and over the socket with no pin, 544 of 544 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 20 s. Geometry 193, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 53, Viewer 9, Client 357,
-  GameServer 1113, Management 130, Sim 276. Five consecutive full runs clean.
+  defect). About 40 s. Geometry 214, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 668,
+  GameServer 1371, Management 272, Sim 282.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
-  tests run against fake and real), migrations, and the suite games in process and over the socket. Management 33,
-  GameServer 34, Sim 212; about 15 min.
+  tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
+  GameServer 38, Sim 325; about 7 min.
 
 `cd viewer && npm run check && npm test` passes (125); `cd web && npm test` passes 123 (1 skipped).
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
@@ -358,7 +358,7 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 
 ## Defects the rules suite found
 
-D1-D16 are fixed; the suite passes 193/193 on both drivers with no pin. What stays open is in *Next* 1.
+D1-D16 are fixed; the suite passes 302/302 on both drivers with no pin. What stays open is in *Next* 1.
 
 ## Rules-suite gaps
 
