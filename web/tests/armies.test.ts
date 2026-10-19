@@ -17,16 +17,16 @@ describe('normaliseSource', () => {
 describe('reimport', () => {
   it('imports the same source as a new army and then deletes the old one', async () => {
     const calls: string[] = [];
-    vi.spyOn(api.armies, 'import').mockImplementation(async (s, b) => { calls.push(`import ${s} ${b}`); return { id: 'new', name: 'N', gameSystem: 'grimdark-future', source: s, units: [] }; });
+    vi.spyOn(api.armies, 'import').mockImplementation(async (s) => { calls.push(`import ${s}`); return { id: 'new', name: 'N', gameSystem: 'grimdark-future', source: s, units: [] }; });
     vi.spyOn(api.armies, 'delete').mockImplementation(async (id) => { calls.push(`delete ${id}`); });
-    const army = await reimport({ id: 'old', source: 'c2-6YsWRH3py' }, 'square');
+    const army = await reimport({ id: 'old', source: 'c2-6YsWRH3py' });
     expect(army.id).toBe('new');
-    expect(calls).toEqual(['import c2-6YsWRH3py square', 'delete old']);
+    expect(calls).toEqual(['import c2-6YsWRH3py', 'delete old']);
   });
   it('leaves the old army alone when the import fails', async () => {
     vi.spyOn(api.armies, 'import').mockRejectedValue(new ApiError(502, 'Upstream failure', 'Army Forge answered 404'));
     const del = vi.spyOn(api.armies, 'delete');
-    await expect(reimport({ id: 'old', source: 'x' }, 'round')).rejects.toBeInstanceOf(ApiError);
+    await expect(reimport({ id: 'old', source: 'x' })).rejects.toBeInstanceOf(ApiError);
     expect(del).not.toHaveBeenCalled();
     expect(importErrorMessage(new ApiError(502, 'Upstream failure', 'Army Forge answered 404'))).toBe('Army Forge answered 404 Check the link is a public share link and try again.');
     expect(importErrorMessage(new ApiError(422, 'Unprocessable', "Only Grimdark Future and Age of Fantasy lists import; this list is 'aofs'."))).toMatch(/Age of Fantasy/);

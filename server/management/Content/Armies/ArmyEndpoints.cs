@@ -29,7 +29,7 @@ public static class ArmyEndpoints
             {
                 var list = await forge.Fetch(listId);
                 if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{Printable(list.GameSystem)}'.");
-                army = ArmyForgeImport.ToArmy(list, r.Source, await kinds.For(gameRules), r.Bases);
+                army = ArmyForgeImport.ToArmy(list, r.Source, await kinds.For(gameRules));
             }
             catch (ArmyForgeException e)
             {

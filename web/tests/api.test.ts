@@ -53,11 +53,10 @@ describe('client', () => {
     expect((f.mock.calls[2] as unknown as [string, RequestInit])[1].method).toBe('PUT');
   });
 
-  it('sends the chosen base set with an import, round when none is given', async () => {
+  it('sends only the source with an import', async () => {
     const f = fakeFetch(201, { id: 'a', name: 'A', gameSystem: 'grimdark-future', source: 's', units: [] });
-    await api.armies.import('c2-6YsWRH3py', 'square');
     await api.armies.import('c2-6YsWRH3py');
     const bodies = f.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string));
-    expect(bodies).toEqual([{ source: 'c2-6YsWRH3py', bases: 'square' }, { source: 'c2-6YsWRH3py', bases: 'round' }]);
+    expect(bodies).toEqual([{ source: 'c2-6YsWRH3py' }]);
   });
 });

@@ -1,6 +1,6 @@
 import { api } from '$lib/api/client';
 import { errorMessage } from '$lib/api/errors';
-import type { Army, BaseSet } from '$lib/api/types';
+import type { Army } from '$lib/api/types';
 
 const ID = /^[A-Za-z0-9_-]{4,64}$/;
 
@@ -16,9 +16,9 @@ export function normaliseSource(text: string): string | null {
 
 export const importErrorMessage = (e: unknown): string => errorMessage(e, 'import');
 
-/** A changed list means a re-import: a new army from the same source and the chosen base set, then the old one goes. Nothing is reconciled. */
-export async function reimport(army: { id: string; source: string }, bases: BaseSet): Promise<Army> {
-  const fresh = await api.armies.import(army.source, bases);
+/** A changed list means a re-import: a new army from the same source, then the old one goes. Nothing is reconciled. */
+export async function reimport(army: { id: string; source: string }): Promise<Army> {
+  const fresh = await api.armies.import(army.source);
   await api.armies.delete(army.id);
   return fresh;
 }
