@@ -25,6 +25,16 @@ public class AnimationQueueTests
     }
 
     [Fact]
+    public void Clear_drops_everything_queued()
+    {
+        var q = new AnimationQueue();
+        q.Enqueue([new GameEvent(1, null, new ScoreSet(Guid.CreateVersion7(), 1), null), new GameEvent(2, null, new ScoreSet(Guid.CreateVersion7(), 2), null)]);
+        q.Clear();
+        Assert.Equal(0, q.Count);
+        Assert.Empty(q.Take(animate: true));
+    }
+
+    [Fact]
     public void Other_events_relocate_nothing() =>
         Assert.Empty(AnimationQueue.Relocations(new GameEvent(1, null, new ScoreSet(Guid.CreateVersion7(), 1), null)));
 }

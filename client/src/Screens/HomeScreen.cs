@@ -6,16 +6,16 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Screens;
 
 /// <summary>
-/// The game list: filters, Join (or double-click / Enter on a row), More, Refresh, Create game, the player's name with Rename, Settings
-/// and Sign out. The line under the list says what is loading, why the list is empty, why the last game closed, or what went wrong.
+/// The game list: filters, Join (or double-click / Enter on a row), Replay (a game the player is in, running or ended), More, Refresh,
+/// Create game, the player's name with Rename, Settings and Sign out. The line under the list says what is loading, why the list is empty, why the last game closed, or what went wrong.
 /// </summary>
 public partial class HomeScreen : Control
 {
     readonly List<GameSummary> _games = new();
     Guid? _next;
     bool _loaded, _busy;
-    ItemList _list = null!; OptionButton _status = null!; LineEdit _search = null!; CheckBox _mine = null!; Label _error = null!, _name = null!, _hint = null!;
-    Button _join = null!, _more = null!, _end = null!, _delete = null!;
+    ItemList _list = null!; OptionButton _status = null!; LineEdit _search = null!; CheckBox _mine = null!, _joined = null!; Label _error = null!, _name = null!, _hint = null!;
+    Button _join = null!, _replay = null!, _more = null!, _end = null!, _delete = null!;
     Action? _onAccount;
 
     public override void _Ready()
@@ -39,15 +39,18 @@ public partial class HomeScreen : Control
         _status.ItemSelected += _ => Render();
         filters.AddChild(_search = new LineEdit { PlaceholderText = "name", CustomMinimumSize = new Vector2(200, 0) }); _search.TextChanged += _ => Render();
         filters.AddChild(_mine = new CheckBox { Text = "Created by me" }); _mine.Toggled += _ => Render();
+        // The server keeps only this account's games, so every page of them is reachable: the list reloads.
+        filters.AddChild(_joined = new CheckBox { Text = "Games I'm in" }); _joined.Toggled += _ => Reload();
         root.AddChild(_list = new ItemList { SizeFlagsVertical = SizeFlags.ExpandFill });
         _list.ItemActivated += i => JoinRow((int)i);                    // double-click or Enter
         _list.ItemSelected += _ => ShowButtons();
         var bottom = new HBoxContainer(); root.AddChild(bottom);
         bottom.AddChild(_join = Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) JoinRow(sel[0]); }));
+        bottom.AddChild(_replay = Btn("Replay", ReplaySelected));
         bottom.AddChild(_end = Btn("End game", () => ConfirmOnSelected(false)));
         bottom.AddChild(_delete = Btn("Delete game", () => ConfirmOnSelected(true)));
         bottom.AddChild(_more = Btn("More", () => Run(LoadPage)));
-        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; _loaded = false; Render(); Run(LoadPage); }));
+        bottom.AddChild(Btn("Refresh", Reload));
         root.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
         // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
@@ -114,7 +117,7 @@ public partial class HomeScreen : Control
     {
         _list.Clear();
         var shown = Filtered();
-        foreach (var g in shown) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
+        foreach (var g in shown) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in{(g.Joined ? " (you)" : "")}, {g.CreatedAt.LocalDateTime:g}");
         // The empty list says why: still loading, no games at all, or none passing the filters.
         // A placeholder row only on an empty list, so row indices still match Filtered().
         if (shown.Count == 0)
@@ -130,7 +133,8 @@ public partial class HomeScreen : Control
         _join.Disabled = _busy || _list.GetSelectedItems().Length == 0;
         _join.TooltipText = _busy ? "Joining…" : _join.Disabled ? "Select a game first" : "Join the selected game (or double-click it)";
         var actions = GameRowActions.Of(Selected(), Main.Instance.Session.Account?.Id);
-        _end.Disabled = _busy || !actions.CanEnd; _delete.Disabled = _busy || !actions.CanDelete;
+        _end.Disabled = _busy || !actions.CanEnd; _delete.Disabled = _busy || !actions.CanDelete; _replay.Disabled = _busy || !actions.CanReplay;
+        _replay.TooltipText = actions.CanReplay ? "Replay the selected game from its start; nothing you do there changes it" : "Replay a game you are in once it is playing or ended";
         _end.TooltipText = actions.CanEnd ? "End the selected game for everyone" : "Only the game's creator ends a game that has not ended";
         _delete.TooltipText = actions.CanDelete ? "Delete the selected game and its log" : "Only the game's creator deletes it";
         _more.Disabled = _busy || _loaded && _next is null;
@@ -160,9 +164,11 @@ public partial class HomeScreen : Control
         AddChild(d); d.PopupCentered(new Vector2I(DialogWidth, 0));
     }
 
+    void Reload() { _games.Clear(); _next = null; _loaded = false; Render(); Run(LoadPage); }
+
     async Task LoadPage()
     {
-        var page = await Main.Instance.Session.Management.ListGames(_next, 50);
+        var page = await Main.Instance.Session.Management.ListGames(_next, 50, _joined.ButtonPressed);
         if (!IsInstanceValid(this)) return;
         _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next; _loaded = true;
         Render();
@@ -176,6 +182,17 @@ public partial class HomeScreen : Control
         Run(async () =>
         {
             try { await Join(game.Id); }
+            finally { if (IsInstanceValid(this)) { _busy = false; ShowButtons(); } }
+        });
+    }
+
+    void ReplaySelected()
+    {
+        if (_busy || Selected() is not { } game || !GameRowActions.Of(game, Main.Instance.Session.Account?.Id).CanReplay) return;
+        _busy = true; ShowButtons(); Show($"Opening the replay of {game.Name}…", "");
+        Run(async () =>
+        {
+            try { await Main.Instance.Session.ReplayAsync(game.Id); }
             finally { if (IsInstanceValid(this)) { _busy = false; ShowButtons(); } }
         });
     }

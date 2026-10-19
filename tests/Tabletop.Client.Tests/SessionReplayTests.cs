@@ -98,6 +98,17 @@ public class SessionReplayTests : IDisposable
     }
 
     [Fact]
+    public async Task Live_presence_and_pings_are_not_shown_over_the_past()
+    {
+        var sock = await Replaying();
+        var pinged = false; _s.Pinged += _ => pinged = true;
+        sock.Deliver(new PresenceMessage(new Presence(Samples.P1, new Cursor(new(1, 2, 0), null), null, [], null)));
+        sock.Deliver(new PingMessage(new Ping(Samples.P1, new(1, 1, 0), null)));
+        Assert.Empty(_s.Others.All);
+        Assert.False(pinged);
+    }
+
+    [Fact]
     public async Task A_reconnect_returns_the_replay_to_where_it_was()
     {
         var sock = await Replaying();

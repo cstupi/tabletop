@@ -8,6 +8,7 @@ public sealed class AnimationQueue
     readonly Queue<GameEvent> _pending = new();
     public int Count => _pending.Count;
     public void Enqueue(IReadOnlyList<GameEvent> events) { foreach (var e in events) _pending.Enqueue(e); }
+    public void Clear() => _pending.Clear();
 
     /// <summary>Not animating: everything, at once. Animating: one event per call, so the table plays them out in order.</summary>
     public IReadOnlyList<GameEvent> Take(bool animate)

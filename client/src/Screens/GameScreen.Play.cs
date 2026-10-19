@@ -19,6 +19,7 @@ public partial class GameScreen
     HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
     Guid? _acting;
+    ReplayBar? _replay;
     Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; ModelMarkNodes? _modelMarks; Action<IReadOnlyList<GameEvent>>? _onFollow;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
     Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
@@ -37,6 +38,7 @@ public partial class GameScreen
         _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input);
         _hud.AddChild(_logDrawer = new LogDrawer()); _logDrawer.Bind(_session, Table, Input);
         _hud.AddChild(_undo = new UndoButton()); _undo.Bind(_session, Input);
+        if (_session.Replaying) { _hud.AddChild(_replay = new ReplayBar()); _replay.Bind(_session); }
         _dice.RollClicked += _logDrawer.OpenAt;
         _card.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
         _logDrawer.CombatLog.FocusUnit = _card.UnitId;
@@ -66,9 +68,9 @@ public partial class GameScreen
             else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
         };
         _menu.ItemChosen += _onItem;
-        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu, and the table's menu offers only Leave.
+        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu, and the table's menu offers only Leave; a replay offers none.
         _onPieceRight = (id, at) => { if (!_session.IsWatching) _menu?.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
-        _onTableRight = at => _menu?.Open(_session.IsWatching ? [_leave] : [Token(at), _leave], GetViewport().GetMousePosition());
+        _onTableRight = at => { if (!_session.Replaying) _menu?.Open(_session.IsWatching ? [_leave] : [Token(at), _leave], GetViewport().GetMousePosition()); };
         Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
 
         // The parts die with the screen, so their own events need no unsubscribing.
@@ -96,7 +98,7 @@ public partial class GameScreen
             _acting = acting;
         };
         _session.EventsApplied += _onFollow;
-        foreach (var part in new Control[] { _header, _roster, _card, _decision, _dice }) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
+        foreach (var part in new Control?[] { _header, _roster, _card, _decision, _dice, _replay }) if (part is not null) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
         _logDrawer.OpenChanged += QueueLayout;
         foreach (var button in new Control[] { _undo, _logDrawer.Toggle }) button.MinimumSizeChanged += QueueLayout;   // a theme's taller button face moves the column's foot
         QueueLayout();
@@ -124,7 +126,7 @@ public partial class GameScreen
     {
         var changed = new List<string>();
         foreach (var (name, part) in new (string, Control?)[] { ("corner", _corner), ("toasts", _toasts), ("header", _header), ("roster", _roster), ("card", _card), ("terrain", _terrainCard),
-            ("decision", _decision), ("dice", _dice), ("log", _logDrawer), ("undo", _undo) })
+            ("decision", _decision), ("dice", _dice), ("log", _logDrawer), ("undo", _undo), ("replay", _replay) })
         {
             if (part is null || !IsInstanceValid(part)) continue;
             var now = $"min {part.GetCombinedMinimumSize()} size {part.Size} at {part.Position} visible {part.Visible}";
@@ -145,7 +147,7 @@ public partial class GameScreen
         var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
         var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
         // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
-        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision), Shows(_dice), logOpen), buttonH);
+        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision), Shows(_dice), logOpen, Shows(_replay)), buttonH);
         if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
         PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
@@ -158,6 +160,7 @@ public partial class GameScreen
             if (Shows(_terrainCard)) _terrainCard!.Place(cardSlot);
         }
         if (Shows(_decision)) _decision!.Place(r[HudPart.Decision]);
+        if (Shows(_replay)) _replay!.Place(r[HudPart.Replay]);
         if (Shows(_dice))
         {
             var slot = r[HudPart.Dice];
@@ -211,11 +214,11 @@ public partial class GameScreen
         if (_onFollow is not null) _session.EventsApplied -= _onFollow;
         _onFollow = null;
         _animator?.Dispose(); _animator = null;
-        foreach (var node in new Node?[] { _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _modelMarks, _markers, _floating, _tableLayer, _menu })
+        foreach (var node in new Node?[] { _replay, _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _modelMarks, _markers, _floating, _tableLayer, _menu })
             if (node is not null && IsInstanceValid(node)) node.QueueFree();
         _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
         _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;
-        _roster = null; _banner = null; _markers = null; _floating = null; _rings = null; _modelMarks = null;
+        _replay = null; _roster = null; _banner = null; _markers = null; _floating = null; _rings = null; _modelMarks = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
     }
 

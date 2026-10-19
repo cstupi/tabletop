@@ -399,13 +399,13 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
                 RaiseEvents(e.Events);
                 if (shots.Count > 0) Fired?.Invoke(shots);
                 break;
-            case PresenceMessage p:
+            case PresenceMessage p when !Replaying:            // a replay shows the past: no one's live cursor
                 Others.Set(p.Presence); PresenceChanged?.Invoke(p.Presence.ParticipantId);
                 break;
             case PresenceEnded p:
                 Others.Remove(p.ParticipantId); PresenceChanged?.Invoke(p.ParticipantId);
                 break;
-            case PingMessage p: Pinged?.Invoke(p.Ping); break;
+            case PingMessage p when !Replaying: Pinged?.Invoke(p.Ping); break;
             case ModelFacts f:
                 _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
                 _deployInside = f.DeployInside is { } inside ? new Dictionary<Guid, IReadOnlyList<Guid>>(inside) : new Dictionary<Guid, IReadOnlyList<Guid>>();
