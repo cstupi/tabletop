@@ -315,9 +315,6 @@ thread, template copies of rigged or animated models.
   to move through impassable terrain and keeps cover (`GfMoves.TerrainFor`; `Content/grimdark-future-relic-wargear.part.json`). The
   client holds every model of a move to the 6" cap once any ghost enters difficult terrain (`MoveRegions.Allowance`, p.11) and marks a
   landing in impassable terrain, a Flying one included, unless the Ask `IgnoresTerrain` (`ContactCheck`, `ContactKind.InImpassable`).
-- **Relic Wargear (p.35):** only the Banner of Eternal Flame is built, and p.35's *"Before the game begins, each hero may equip one
-  relic item"* has no setup step: a hero gets the banner from the unit menu's Add a grant (it lasts the game) or as an imported
-  model rule.
 
 ### 2. The client
 
