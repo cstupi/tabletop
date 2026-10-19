@@ -218,7 +218,7 @@ static partial class SpecialGames
     static TestGame Artillery()
     {
         const string name = "special-artillery-emplacement";
-        return Game(name, new ScenarioBuilder(name, 108).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 219).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
                 .Army("Red", 2, 2, modelRules: [new(1, "Artillery"), new(1, "Tough", 3), new(2, "Immobile"), new(2, "Tough", 3)],
                     weapons: [Gun("Missile Pod", 48, 2, Rule("Limited")), Gun("Autocannon", 48, 1)], unitStats: Stats(4, 4))
                 .Army("Blue", 3, 2, weapons: [Gun("Rail Rifle", 48, 1, Rule("Unstoppable")), Gun("Mortar", 48, 1, Rule("Indirect"))], unitStats: Stats(4, 5))

@@ -315,8 +315,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     /// <summary>
     /// The region's own contact fields, as the server reads them (p.7, GfMoves.ContactBreach): the landing on no base, a path round every model
     /// standing within the allowance (unless PassesModels; one it already overlaps is left: Route's CrossesModels), and Separation (Distance.BodyToBody) from every other unit's
-    /// model, all in three dimensions. A sampled landing is a straight-line sample, and its straight line is also kept clear of the standing models
-    /// (Collision.Crosses), so the seeded games play as the sampler draws them; a move round a model is a scripted one. A geometry test, as Lands is.
+    /// model, all in three dimensions: a sampled landing whose straight line crosses a model passes when a path round it fits. A geometry test, as Lands is.
     /// </summary>
     private static bool Clear(Guid id, PlacedModel? start, Point2 at, MoveRegion m, PolicyView view, IReadOnlyDictionary<Guid, PlacedModel> taken)
     {
@@ -325,8 +324,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             .Where(x => x.At is not null).Select(x => (x.Id, At: x.At!.Value)).ToList();
         var everyone = standing.Concat(taken.Where(kv => kv.Key != id).Select(kv => (Id: kv.Key, At: kv.Value))).ToList();
         if (everyone.Any(o => Overlap.Bases(landing, o.At))) return false;
-        if (start is { } s && !m.PassesModels && (Collision.Crosses(s, at, standing.Select(o => o.At).ToList(), view.Volumes)
-            || Route(s, at, m, view, m.Allowance, view.VolumesById(m.DifficultVolumeIds), m.DifficultCap, standing.Select(o => o.At).ToList()).CrossesModels)) return false;
+        if (start is { } s && !m.PassesModels && Route(s, at, m, view, m.Allowance, view.VolumesById(m.DifficultVolumeIds), m.DifficultCap, standing.Select(o => o.At).ToList()).CrossesModels) return false;
         var unit = view.ModelOf(id).UnitId;
         return m.Separation is not { } gap || everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.BodyToBody(landing, o.At) >= gap + 1e-6);
     }

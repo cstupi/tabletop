@@ -50,7 +50,7 @@ Today: 305 of 305 games pass in process with no pin (`core-ruins` and `core-roun
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
   defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 103, TableTextures 29, Protocol 62, Viewer 9,
-  Client 714, GameServer 1402, Management 272, Sim 286.
+  Client 716, GameServer 1402, Management 272, Sim 286.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
   GameServer 38, Sim 325; about 7 min.
@@ -103,8 +103,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   a 12" Rush round a wood is not capped, a model reaches behind an impassable block, a charge goes round to base contact (p.9). The
   client draws one area (owner ruling: *"the visible feedback to users should just show the furthest they could move accounting for
   both if they cross or go around the difficult"*), holds a drag to it, and the ruler follows the bent path with its length. The wire
-  is unchanged: each side computes the same path. Suite game `core-round-the-terrain`. Not yet run: the socket suite on it, and a
-  look at the area and the bent ruler in the client.
+  is unchanged: each side computes the same path. The client's through-model mark keeps its path on the table and, once the unit
+  is capped, within the cap. The sim's random moves go round models as the server allows; eight suite games were given new seeds
+  for it. Suite game `core-round-the-terrain`. Not yet seen: the area and the bent ruler in the client.
 - **Tabletop look** (spec `docs/superpowers/specs/2026-10-19-tabletop-look-design.md`): seven gaming-mat boards (grass, desert, urban, snow, ash, wasteland,
   alien) from `scripts/table-textures`, drawn through `board.gdshader` with derived normals and anti-tiling on a wooden
   table; `TableLighting` (warm shadowed key, cool fill, sky ambient, SSAO, AgX); all 30 built-in meshes rebuilt with their

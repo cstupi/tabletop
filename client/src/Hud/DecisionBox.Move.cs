@@ -109,7 +109,7 @@ public partial class DecisionBox
             var readouts = unit is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
                 .Select(id => MoveRuler.Read(Moved(p, id, proposed[id].Horizontal, unit < allowance), unit, _regions?.Minimum(id, proposed[id].Horizontal))).ToList();
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
-            _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes), legal.Separation, names.Unit));
+            _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit));
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
