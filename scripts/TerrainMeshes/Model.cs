@@ -76,6 +76,15 @@ public sealed class Part(Material material, Func<Vector3, Vector3> clamp)
     }
 }
 
+/// <summary>What one built-in mesh may cost, and all of them together (the built-in content ships in every client and is
+/// fetched by every player): spec 2026-10-19-tabletop-look-design.md → Budgets.</summary>
+public static class Budget
+{
+    public const int Triangles = 50_000;
+    public const int Bytes = 3 << 20;
+    public const long TotalBytes = 36L << 20;
+}
+
 /// <summary>A built-in terrain mesh in the unit box: footprint on x and z in [−0.5, 0.5] (inside the unit circle's r = 0.5 when
 /// <see cref="Round"/>), height on y in [0, 1], glTF Y-up. Every vertex is clamped into it. A model built with <paramref name="inches"/>
 /// is authored in inches, centred on its footprint (x across a, z along b, y up to the top), and each vertex is divided by them

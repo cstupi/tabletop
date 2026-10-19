@@ -91,7 +91,7 @@ public class TerrainMeshTests
     public void Stays_within_the_triangle_budget_with_coloured_unit_normals(string name)
     {
         var m = Build(name);
-        Assert.InRange(m.Triangles, 500, 20_000);
+        Assert.InRange(m.Triangles, 500, Budget.Triangles);
         foreach (var part in m.Parts)
         {
             Assert.Equal(part.Positions.Count, part.Normals.Count); Assert.Equal(part.Positions.Count, part.Colours.Count);
@@ -151,7 +151,7 @@ public class TerrainMeshTests
     {
         var model = Build(name);
         var glb = Glb.Of(model);
-        Assert.True(glb.Length < 2 << 20);
+        Assert.True(glb.Length < Budget.Bytes, $"{name}.glb is {glb.Length} bytes");
         Assert.Equal((0x46546C67u, 2u, (uint)glb.Length), (BitConverter.ToUInt32(glb, 0), BitConverter.ToUInt32(glb, 4), BitConverter.ToUInt32(glb, 8)));
         var jsonLength = (int)BitConverter.ToUInt32(glb, 12);
         Assert.Equal(0x4E4F534Au, BitConverter.ToUInt32(glb, 16));
@@ -185,7 +185,11 @@ public class TerrainMeshTests
     }
 
     [Theory, MemberData(nameof(Names))]
-    public void Is_deterministic(string name) => Assert.Equal(Glb.Of(Build(name)), Glb.Of(Build(name)));
+    public void Is_deterministic(string name) => Assert.Equal(Glb.Of(Build(name)), Glb.Of(Catalog.Generate(name)));
+
+    [Fact]
+    public void The_shipped_meshes_fit_the_built_in_budget() =>
+        Assert.InRange(Directory.GetFiles(Path.Combine(Root, "terrain"), "*.glb").Sum(f => new FileInfo(f).Length), 1, Budget.TotalBytes);
 
     [Fact]
     public void The_shipped_meshes_are_the_generators_output()
