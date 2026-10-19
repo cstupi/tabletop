@@ -111,7 +111,7 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         await using var tx = await c.BeginTransactionAsync();
         await c.ExecuteAsync("delete from asset_volume where asset_id = @assetId", new { assetId }, tx);
         foreach (var r in rows)
-            await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})", new { AssetId = assetId, r.Id, r.Kind, r.Footprint, r.DimA, r.DimB, r.OffsetX, r.OffsetY, r.Yaw, r.Bottom, r.Top, r.Impassable, r.BlocksLos, r.SeeInOut, r.Cover, r.Difficult, r.Dangerous, r.Notes }, tx);
+            await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})", new { AssetId = assetId, r.Id, r.Kind, r.Footprint, r.DimA, r.DimB, r.OffsetX, r.OffsetY, r.Yaw, r.Bottom, r.Top, r.Impassable, r.BlocksLos, r.SeeInOut, r.Cover, r.Difficult, r.Dangerous, r.DangerousRushCharge, r.Notes }, tx);
         await tx.CommitAsync();
         return rows.Select(r => new TerrainVolume(r.Id, r.ToVolume())).ToList();
     }

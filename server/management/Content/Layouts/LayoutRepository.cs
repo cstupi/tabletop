@@ -40,7 +40,7 @@ public sealed class LayoutRepository(Database db) : ILayoutRepository
             {
                 var r = VolumeRow.From(Guid.CreateVersion7(), v.Volume);
                 await c.ExecuteAsync($"insert into terrain_volume (terrain_placement_id, {VolumeRow.InsertColumns}) values (@Pid, {VolumeRow.InsertValues})",
-                    new { Pid = pid, r.Id, r.Kind, r.Footprint, r.DimA, r.DimB, r.OffsetX, r.OffsetY, r.Yaw, r.Bottom, r.Top, r.Impassable, r.BlocksLos, r.SeeInOut, r.Cover, r.Difficult, r.Dangerous, r.Notes }, tx);
+                    new { Pid = pid, r.Id, r.Kind, r.Footprint, r.DimA, r.DimB, r.OffsetX, r.OffsetY, r.Yaw, r.Bottom, r.Top, r.Impassable, r.BlocksLos, r.SeeInOut, r.Cover, r.Difficult, r.Dangerous, r.DangerousRushCharge, r.Notes }, tx);
             }
         }
         foreach (var m in s.Markers)
