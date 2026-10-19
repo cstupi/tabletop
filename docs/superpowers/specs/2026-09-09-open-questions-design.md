@@ -217,8 +217,8 @@ helper (now `rect()`), its shape picker and its labels; the simulator's and view
 `RecordedModel.BaseShape` strings and the viewer's ported `baseOutline`; and the geometry values,
 identity-and-enumerations and asset library specs.
 
-Army Forge's `bases.square` field is their data, not this project's shape; an import on the square set maps it to
-`Rect` (base shape at import spec).
+Army Forge's `bases.square` field is their data, not this project's shape; an import maps it to
+`Rect` for a unit with no round base (base shape at import spec).
 
 ## Buildings stay manual
 

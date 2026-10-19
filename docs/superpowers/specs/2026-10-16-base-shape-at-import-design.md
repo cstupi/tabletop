@@ -1,50 +1,43 @@
 # Base shape at import
 
 Army Forge publishes two bases per unit entry, `bases.round` and `bases.square`: a tank `120x92` or `100x60`, bikers
-`60x35` or `50x25`, infantry `32` or `30`. Nothing in the export says which units are vehicles. Owner ruling: the player
-picks the base set when the army is imported, round or square, for the whole army. Model height is scaled from the
-base the import writes.
+`60x35` or `50x25`, infantry `32` or `30`. Nothing in the export says which units are vehicles. Owner ruling: import
+takes `bases.round`; only a unit with no round value uses its square one, so hull-shaped vehicles keep a rectangle.
+Model height is scaled from the base the import writes.
 
 ## Request
 
-`ImportRequest(Source, Bases = BaseSet.Round)`; `BaseSet { Round, Square }`, on the wire `"round"` / `"square"`
-(`ContentJson`'s snake-case enum converter). An omitted `bases` is `round`, so existing callers import as before.
-
-`POST /v1/armies/import { source, bases? }` → `201 Army`. The set is not stored on the army; it only decides the slot
-bases the import writes, and every slot base stays editable through `SlotPatch.Base`.
+`ImportRequest(Source)`. `POST /v1/armies/import { source }` → `201 Army`. Unknown JSON fields are ignored, so an old
+client that still sends `bases` imports as everyone does. Every slot base stays editable through `SlotPatch.Base`.
 
 ## Mapping
 
-`ArmyForgeImport.ToArmy(list, source, catalog, set = BaseSet.Round)` reads the chosen field of each entry, joined entries
-included:
+`ArmyForgeImport.ToArmy(list, source, catalog)` reads each entry's bases, joined entries included:
 
 | Field | Value | Base |
 | --- | --- | --- |
 | `bases.round` | `"32"` | `Base.Circle(32 mm)` |
 | `bases.round` | `"60x35"` | `Base.Oval(60 mm, 35 mm)` |
-| `bases.square` | `"30"` | `Base.Rect(30 mm, 30 mm)` |
-| `bases.square` | `"50x25"` | `Base.Rect(50 mm, 25 mm)` |
+| `bases.square` (no round value) | `"30"` | `Base.Rect(30 mm, 30 mm)` |
+| `bases.square` (no round value) | `"50x25"` | `Base.Rect(50 mm, 25 mm)` |
 
-`ParseBase(text, set)` does the mapping; millimetres in, inches out. `BaseShape.Rect` already exists in
+`ParseBase(AfBases?)` does the mapping; millimetres in, inches out. `BaseShape.Rect` already exists in
 `Tabletop.Geometry` (a square is `Rect(s, s)`, open questions → *`Square` becomes `Rect`*), so no shape is added.
 
-An entry whose chosen field is absent or unparseable gets `DefaultBody`, the 221 × 119 × 113 mm hull, as a missing
-`bases.round` does today. The other set is not consulted.
+An entry with neither base, or none parseable, gets `DefaultBody`, the 221 × 119 × 113 mm hull.
 
-**Height.** `HeightFromBase` of the base the import writes: `1.5 ×` its larger dimension, round or square (owner
-ruling 2026-10-16: height follows the base actually imported, so a vehicle's long hull sets it). An entry with neither
-base gets `DefaultBody`'s height.
+**Height.** `HeightFromBase` of the base the import writes: `1.5 ×` its larger dimension (owner ruling 2026-10-16:
+height follows the base actually imported, so a vehicle's long hull sets it). An entry with neither base gets
+`DefaultBody`'s height.
 
 ## Web app
 
-The import form on `/armies` has a Round / Square choice beside the source field, default Round. `api.armies.import(source,
-bases)` sends it. Re-import uses the form's current choice, since the army does not record the set it was imported with;
-the confirm dialog names the set.
+The import form on `/armies` has no base choice. `api.armies.import(source)` sends only the source, and Re-import is the
+same call followed by the delete.
 
 ## Tests
 
-- `ArmyForgeImportTests`: the fixture imported square gives `Rect(50, 25)` Beast Riders and Blood Hounds and
-  `Rect(30, 30)` Blood Warriors, each height `HeightFromBase` of its own base; a square-only and a neither entry;
-  `ParseBase` per set; `HeightFromBase` takes the larger dimension.
-- `ArmyTests`: `POST /v1/armies/import` with `bases: "square"` writes rect bases; without `bases` writes round ones.
-- `web/tests/armies.test.ts`: `api.armies.import` sends `bases`; `reimport` passes the chosen set.
+- `ArmyForgeImportTests`: the fixture imports round bases with `HeightFromBase` heights; a round-only, a square-only and
+  a neither entry; `ParseBase` prefers round and falls back to square; `HeightFromBase` takes the larger dimension.
+- `ArmyTests`: `POST /v1/armies/import` writes round bases and ignores a `bases` field.
+- `web/tests/api.test.ts`, `web/tests/armies.test.ts`: `import` sends only `source`; `reimport` takes no base set.

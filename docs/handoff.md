@@ -103,8 +103,6 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   Information line per `GET /v1/games/{id}/assets` (game id, asset count).
 - Team games leave team-wide: spell-token spending, hand-move overrides, and passing the team's activation.
 - The waiting panel's army choice is one button per army (its dropdown would not open there; cause not found).
-- Base set at import (round/square) — owner questioned it; offered to drop the choice (always round, vehicles keep the
-  hull rectangle). No decision.
 - Miniatures generated for the owner (power-armour gunner, Soul-Snatcher Cults, Orc BOOM) live outside the repo in the
   owner's Downloads; their generator scripts are in the session scratchpad only.
 
@@ -175,8 +173,8 @@ Claude checks the client on screen itself (WSLg + Godot movie frames + xdotool);
 - **Client:** every model of a move glides; `UnitCard` rebuilds only when `UnitCardContent` changes and keeps its scroll;
   a held model shows its own move region (`MoveRegions`); the drag clamp follows `Movement.Region` (difficult cap); the
   re-grab rule is in Core (`DragBodies.Grabs`).
-- **Base shape at import** (spec `2026-10-16-base-shape-at-import-design.md`): the web import form's Round / Square sets
-  `bases`; square gives `Base.Rect`.
+- **Base shape at import** (spec `2026-10-16-base-shape-at-import-design.md`): import takes `bases.round`, falling back
+  to `bases.square` as a `Base.Rect`; there is no choice on the import form.
 - **Management:** starter seeding's blob writes share a 5 s budget, so a MinIO outage holds a login at most that.
   Repositories sit behind interfaces (`IAccountRepository` …, `IMigrator`).
 - **Viewer:** the live log labels a breached answer.
@@ -186,7 +184,7 @@ Claude checks the client on screen itself (WSLg + Godot movie frames + xdotool);
 
 **Owner rulings, 2026-10-16 (built):** account deletion deletes the games the account hosted and leaves the games it
 joined (`IGameRepository.Leave`; accounts are normally locked, not deleted — locking is not built); base height is 1.5 ×
-the larger dimension of the chosen base set.
+the larger dimension of the imported base.
 
 **Passengers** (spec `2026-10-16-passengers-design.md`). During deployment a roster right-click on my shelved unit
 offers **Put in transport: [Transport]** / **Take out of transport**: a hand move placing it `Inside` the still-shelved

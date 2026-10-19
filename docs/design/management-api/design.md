@@ -740,7 +740,7 @@ Nothing had to be added to hold the hero. `ModelSlot` already carries `Stats` an
 `slot_stat` and `slot_property` are already among the ten tables the repository writes in one
 transaction and reads back, and the content values spec declares stats at unit, model and weapon
 level. A joining entry's own quality and defence become slot stats on the slots it contributes. Its
-base comes from its own entry in the chosen base set, and its height is scaled from that base.
+base comes from its own entry, and its height is scaled from that base.
 
 Every rule on a joining entry becomes a slot property on that entry's slots, whatever level
 `CatalogKinds` gives the name. The unit's stats and properties stay the host's. A stat read for the unit reads the
@@ -757,15 +757,15 @@ surviving entry answers leaves the entry as its own unit. A `joinToUnit` naming 
 itself joins does the same, so joins are never chained
 and a cycle needs no walk.
 
-**The base set is the player's, per import.** Army Forge publishes two bases per entry, `bases.round`
-and `bases.square`, and nothing says which units are vehicles. `ImportRequest.Bases` (`BaseSet { Round,
-Square }`, default `Round`) picks one for the whole army. `ParseBase(text, set)` maps round `"32"` to
-`Base.Circle`, round `"60x35"` to `Base.Oval`, square `"30"` to `Base.Rect(30, 30)` and square `"50x25"` to
-`Base.Rect(50, 25)`, millimetres to inches. The height is `HeightFromBase` of the base the
-import writes, round or square. The set is not stored on the army (base shape at import spec).
+**An entry's base is its round base, else its square one.** Army Forge publishes two bases per entry, `bases.round`
+and `bases.square`, and nothing says which units are vehicles. `ParseBase(AfBases)` maps round `"32"` to
+`Base.Circle` and round `"60x35"` to `Base.Oval`; where an entry has no parseable round base, square `"30"` maps to
+`Base.Rect(30, 30)` and square `"50x25"` to `Base.Rect(50, 25)`, millimetres to inches. The height is
+`HeightFromBase` of the base the import writes. `ImportRequest` is `{ source }`; an old client's extra `bases` field
+is ignored (base shape at import spec).
 
 Defaults where nothing supplies one: `DefaultBody`, a 221 × 119 × 113 mm vehicle hull, when
-the chosen set's field is absent (the other set is not consulted), not a 32 mm infantry circle: Army Forge publishes `bases.round` reliably
+the entry has neither base, not a 32 mm infantry circle: Army Forge publishes `bases.round` reliably
 for infantry, so a missing base means a vehicle or monster in practice, and a 32 mm circle would put
 a tank's whole 6" disembark region — and its movement, cover and line of sight — inside its own
 hull (open questions → *The default base for a model that publishes none*). The default carries its
@@ -1227,7 +1227,7 @@ and a build whose environment is unset serves `404` for it.
 | `Content.Assets.IAssetRepository`, `AssetRepository` | `Create(owner, r, AssetQuota?)` (throws `AssetQuotaExceeded`), `Get`, `List`, `Patch`, `MarkUploaded` (false when the row is gone), `UploadedKinds`, `DeleteAbandoned(cutoff)`, `Delete`, `GetVolumes`, `PutVolumes`, `StarterSeeded`, `AddStarter` |
 | `Content.Assets.IFolderRepository`, `FolderRepository` | `List`, `Count`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
 | `Content.Armies.ArmyForgeClient` | `static ListId(source)`, `static Parse(json)`, `Fetch(listId)`, `HttpClientName = "army-forge"`, `BaseUrl`; `ArmyForgeException(Status)` |
-| `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog, set = Round)`, `ParseBase(text, set)`, `HeightFromBase(base)`, `GameRules`, `DefaultBody`, `HeightScale`; `PropertyLevel { Unit, Model }`; `BaseSet { Round, Square }`; `UnsupportedGameSystemException` |
+| `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog)`, `ParseBase(AfBases?)`, `HeightFromBase(base)`, `GameRules`, `DefaultBody`, `HeightScale`; `PropertyLevel { Unit, Model }`; `UnsupportedGameSystemException` |
 | `Content.Armies.ICatalogKinds`, `CatalogKinds` | `For(string gameRules) : IReadOnlyDictionary<string, PropertyLevel>` |
 | `Content.Armies.IArmyRepository`, `ArmyRepository` | `Insert`, `Get`, `List`, `Patch`, `Delete`; `ArmySummary`, `ImportRequest`, `UnitPatch`, `SlotPatch`, `PatchArmyRequest` |
 | `Content.Layouts.ILayoutRepository`, `LayoutRepository` | `Save`, `Get`, `List`, `Patch`, `Delete`; `LayoutRepository.ReadTree` is `static`; `LayoutSummary`, `PatchLayoutRequest` |

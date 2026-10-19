@@ -14,7 +14,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/library/` `folders.ts` (`moveTargets`), `selection.ts` (multi-select: `click`, `selectAll`, `keepOnly`), `bulk.ts` (`uploadTarget`,
   `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`).
 - `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
-- `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport` with a `BaseSet`), `patches.ts` (`PatchArmyRequest` builders).
+- `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport`), `patches.ts` (`PatchArmyRequest` builders).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `Icon`
   (paths in `icons.ts`), `ThemeSwitch`.
 - `src/lib/theme/theme.ts` `THEMES`, `resolveTheme`, `loadTheme`, `saveTheme`, `applyTheme` (`tabletop.theme` in `localStorage`).

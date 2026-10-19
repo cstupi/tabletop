@@ -1,11 +1,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client';
-  import type { ArmySummary, BaseSet } from '$lib/api/types';
+  import type { ArmySummary } from '$lib/api/types';
   import { importErrorMessage, normaliseSource, reimport } from '$lib/armies/import';
   import Icon from '$lib/components/Icon.svelte';
 
-  let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state(''); let bases = $state<BaseSet>('round');
+  let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state('');
   let busy = $state<string | null>(null); let loading = $state(true); let loadingMore = $state(false);
   let error = $state<string | null>(null); let notice = $state<string | null>(null);
   const normalised = $derived(normaliseSource(source));
@@ -25,13 +25,13 @@
     e.preventDefault();
     if (!normalised || busy) return;
     busy = 'Importing from Army Forge…'; error = null; notice = null;
-    try { const army = await api.armies.import(normalised, bases); await goto(`/armies/${army.id}`); }
+    try { const army = await api.armies.import(normalised); await goto(`/armies/${army.id}`); }
     catch (err) { error = importErrorMessage(err); } finally { busy = null; }
   }
   async function doReimport(a: ArmySummary) {
-    if (!confirm(`Re-import "${a.name}" from Army Forge on ${bases} bases?\n\nThis replaces the army with the list as it is now. Every per-slot mesh, base and height you set is lost; unit defaults are quick to set again.`)) return;
+    if (!confirm(`Re-import "${a.name}" from Army Forge?\n\nThis replaces the army with the list as it is now. Every per-slot mesh, base and height you set is lost; unit defaults are quick to set again.`)) return;
     busy = `Re-importing ${a.name}…`; error = null; notice = null;
-    try { const fresh = await reimport(a, bases); await goto(`/armies/${fresh.id}`); } catch (e) { error = importErrorMessage(e); } finally { busy = null; }
+    try { const fresh = await reimport(a); await goto(`/armies/${fresh.id}`); } catch (e) { error = importErrorMessage(e); } finally { busy = null; }
   }
   async function remove(a: ArmySummary) {
     if (busy || loadingMore) return;
@@ -56,12 +56,8 @@
         aria-invalid={!!source.trim() && !normalised} aria-describedby="source-help" />
     </label>
     <p id="source-help"><small>{source.trim() && !normalised ? 'That is not a share link or list id. In Army Forge, use Share and copy the link.' : 'In Army Forge, open the list, choose Share and paste the link here.'}</small></p>
-    <fieldset><legend>Bases</legend>
-      <label><input type="radio" bind:group={bases} value="round" /> Round</label>
-      <label><input type="radio" bind:group={bases} value="square" /> Square</label>
-    </fieldset>
     <div class="actions"><button type="submit" class="primary" disabled={!!busy || !normalised}><Icon name="import" />Import</button></div>
-    <p><small>Grimdark Future and Age of Fantasy lists import; the skirmish and regiment variants do not. The army keeps its own copy of every value. Army Forge publishes a round and a square base for every unit; the choice applies to the whole army, and to Re-import.</small></p>
+    <p><small>Grimdark Future and Age of Fantasy lists import; the skirmish and regiment variants do not. The army keeps its own copy of every value. Bases come from Army Forge's round base, or its square base where a unit has no round one; each slot's base is editable on the army page.</small></p>
   </form>
 </section>
 

@@ -8,10 +8,6 @@ namespace Tabletop.Management.Content.Armies;
 
 public enum PropertyLevel { Unit, Model }
 
-/// <summary>Which of Army Forge's two published bases an import writes, for the whole army: `bases.round` (circle or oval)
-/// or `bases.square` (square or rectangle).</summary>
-public enum BaseSet { Round, Square }
-
 public sealed class UnsupportedGameSystemException(string gameSystem) : Exception($"Only Grimdark Future and Age of Fantasy lists import; this list is '{gameSystem}'.")
 {
     public string GameSystem { get; } = gameSystem;
@@ -33,19 +29,19 @@ public static class ArmyForgeImport
     /// 1.5" for a 25.4 mm circle, 3.54" for a 60x35 mm oval. The player corrects it per slot.</summary>
     public static double HeightFromBase(Base b) => HeightScale * Math.Max(b.A, b.B);
 
-    public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set = BaseSet.Round)
+    public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog)
     {
         if (!GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem ?? "");
-        Validate(list, source, set);
+        Validate(list, source);
         var merged = Merge(list.Units);
         if (merged.Count > ArmyLimits.MaxUnits) throw new InvalidArmyException($"The list has {merged.Count} units; at most {ArmyLimits.MaxUnits} import.");
-        var units = merged.Select((m, i) => Unit(m, i + 1, catalog, set)).ToList();
-        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog, set));
+        var units = merged.Select((m, i) => Unit(m, i + 1, catalog)).ToList();
+        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog));
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units);
     }
 
     /// <summary>Every entry against ArmyLimits, before anything is built. A name is checked before a message quotes it.</summary>
-    private static void Validate(AfList list, string source, BaseSet set)
+    private static void Validate(AfList list, string source)
     {
         static void Check(string? problem) { if (problem is not null) throw new InvalidArmyException(problem); }
         Check(Limits.Text(source, "source", Limits.Source));
@@ -89,7 +85,7 @@ public static class ArmyForgeImport
                     Rules(item.Content);
                 }
             }
-            if (ParseBase(set == BaseSet.Round ? u.Bases?.Round : u.Bases?.Square, set) is { } b && ArmyLimits.Base(b) is not null)
+            if (ParseBase(u.Bases) is { } b && ArmyLimits.Base(b) is not null)
                 throw new InvalidArmyException($"{unit}base {Mm(b)} mm is outside {ArmyLimits.MinBase}–{ArmyLimits.MaxBase} inches.");
         }
         var models = list.Units.Sum(u => u.Size);
@@ -139,21 +135,21 @@ public static class ArmyForgeImport
         return result;
     }
 
-    private static Unit Unit(Merged m, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set)
+    private static Unit Unit(Merged m, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog)
     {
         var host = m.Host;
         var stats = new Dictionary<string, string> { ["Quality"] = Target(host.Quality), ["Defense"] = Target(host.Defense) };
         var unitProps = new List<PropertyInstance>();
         var models = new List<ModelSlot>();
-        Section(host, catalog, set, unitProps, models);
-        foreach (var joined in m.Joined) Section(joined, catalog, set, null, models);
+        Section(host, catalog, unitProps, models);
+        foreach (var joined in m.Joined) Section(joined, catalog, null, models);
         return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, unitProps, models);
     }
 
     /// <summary>One entry's slots, appended to the unit being built. `unitProps` is null for a joined entry: every rule of it goes on
     /// its own slots whatever level the catalog gives the name, and its Quality and Defense become slot stats, because the unit's own
     /// stats and properties stay the host's. The cursor is per section, so a joined hero's loadout never reaches a host slot.</summary>
-    private static void Section(AfUnit u, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set, List<PropertyInstance>? unitProps, List<ModelSlot> into)
+    private static void Section(AfUnit u, IReadOnlyDictionary<string, PropertyLevel> catalog, List<PropertyInstance>? unitProps, List<ModelSlot> into)
     {
         var slotProps = Enumerable.Range(0, u.Size).Select(_ => new List<PropertyInstance>()).ToList();
         var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
@@ -188,7 +184,7 @@ public static class ArmyForgeImport
                 foreach (var rule in item.Content ?? []) Place(new PropertyInstance(rule.Name, Rating(rule.Rating)), item.Count);
         }
 
-        var body = Body(u.Bases, set);
+        var body = Body(u.Bases);
         var slotStats = unitProps is null
             ? new Dictionary<string, string> { ["Quality"] = Target(u.Quality), ["Defense"] = Target(u.Defense) }
             : new Dictionary<string, string>();
@@ -200,23 +196,22 @@ public static class ArmyForgeImport
         }
     }
 
-    /// <summary>The chosen set's base with HeightFromBase of that base, or DefaultBody when that field is absent.</summary>
-    private static ModelBody Body(AfBases? bases, BaseSet set)
-    {
-        if (ParseBase(set == BaseSet.Round ? bases?.Round : bases?.Square, set) is not { } chosen) return DefaultBody;
-        return new ModelBody(chosen, HeightFromBase(chosen));
-    }
+    /// <summary>The published base with HeightFromBase of that base, or DefaultBody when the entry publishes none.</summary>
+    private static ModelBody Body(AfBases? bases) =>
+        ParseBase(bases) is { } chosen ? new ModelBody(chosen, HeightFromBase(chosen)) : DefaultBody;
 
-    /// <summary>Round: "32" → circle 32 mm, "60x35" → oval 60×35 mm. Square: "30" → rect 30×30 mm, "50x25" → rect 50×25 mm.
-    /// Anything else → null. Inches out.</summary>
-    public static Base? ParseBase(string? text, BaseSet set)
+    /// <summary>`bases.round` when present: "32" → circle 32 mm, "60x35" → oval 60×35 mm. Otherwise `bases.square`:
+    /// "30" → rect 30×30 mm, "50x25" → rect 50×25 mm. Unparseable or absent → null. Inches out.</summary>
+    public static Base? ParseBase(AfBases? bases) => Parse(bases?.Round, round: true) ?? Parse(bases?.Square, round: false);
+
+    private static Base? Parse(string? text, bool round)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
         var parts = text.ToLowerInvariant().Split('x');
         if (parts.Length == 1 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
-            return set == BaseSet.Round ? Base.Circle(d / 25.4) : Base.Rect(d / 25.4, d / 25.4);
+            return round ? Base.Circle(d / 25.4) : Base.Rect(d / 25.4, d / 25.4);
         if (parts.Length == 2 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var l) && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var w))
-            return set == BaseSet.Round ? Base.Oval(l / 25.4, w / 25.4) : Base.Rect(l / 25.4, w / 25.4);
+            return round ? Base.Oval(l / 25.4, w / 25.4) : Base.Rect(l / 25.4, w / 25.4);
         return null;
     }
 

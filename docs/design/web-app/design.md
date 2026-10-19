@@ -799,13 +799,12 @@ never calls Army Forge, so the parser lives in one place, there is no CORS probl
 to Army Forge's format is a server deploy rather than a client release. The web app's only
 contribution is `normaliseSource`. A share link is passed through whole (management reads its
 `id=` and keeps the link as `source`), any other URL carrying `id=` collapses to the bare id, a
-bare id passes, and anything else is rejected locally before a request is made. A Round / Square choice beside the
-source field (default Round) sends `bases`: Army Forge publishes a round and a square base for every unit, and the
-choice applies to the whole army.
+bare id passes, and anything else is rejected locally before a request is made. The request carries only `source`;
+management picks each unit's base from Army Forge's export.
 
 **A changed list means a re-import.** There is no copy operation, so nothing carries bindings
 across a list change by construction. `reimport` imports the same source as a new
-army, on the form's current base set, and then deletes the old one, in that order, so a failed import leaves the original
+army and then deletes the old one, in that order, so a failed import leaves the original
 untouched. The confirm dialog states the cost: every per-slot mesh, base and height override is
 lost. Unit defaults are quick to set again, per-slot meshes are not. The trade is accepted
 because an army is cheap to rebuild and list changes are rare.
@@ -818,7 +817,7 @@ asset reference is a plain field on the model slot (`MODEL_SLOT.asset_id`).
 plus a per-slot override. A unit-level picker sets every slot's mesh. A per-slot picker
 overrides one, and overriding is **expected rather than exceptional**, because the models in a
 unit are often made from different meshes. Base shape and height are per slot too, defaulting
-from the import. The base is Army Forge's round or square base, by the set chosen at import; height has no source and
+from the import. The base is Army Forge's round base, or its square base where a unit has no round one; height has no source and
 import writes 1.5 × the larger dimension of that base.
 
 `armies/patches.ts` is one function per edit, each returning a whole `PatchArmyRequest`:
@@ -1116,7 +1115,7 @@ sequenceDiagram
     participant F as Army Forge
 
     U->>P: Re-import, then confirm the warning about lost overrides
-    P->>M: POST /v1/armies/import with a source and a base set
+    P->>M: POST /v1/armies/import with a source
     M->>F: GET /api/tts?id=...
     alt Army Forge answers with a Grimdark Future list
         F-->>M: the list

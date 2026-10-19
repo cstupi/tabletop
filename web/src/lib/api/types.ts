@@ -66,8 +66,7 @@ export interface BulkAssetsResponse { done: Guid[]; notFound: Guid[] }
 // Armies
 export interface ArmySummary { id: Guid; name: string; gameSystem: string; source: string; units: number; models: number }
 /** Which of Army Forge's two published bases the import writes for the whole army: `round` (circle or oval) or `square` (square or rectangle). */
-export type BaseSet = 'round' | 'square';
-export interface ImportRequest { source: string; bases: BaseSet }
+export interface ImportRequest { source: string }
 export interface UnitPatch { unitId: Guid; assetId: Guid | null }
 export interface SlotPatch { slotId: Guid; assetId: Guid | null; clearAsset: boolean; base: Base | null; height: number | null }
 export interface PatchArmyRequest { name?: string; units?: UnitPatch[]; slots?: SlotPatch[] }
