@@ -16,7 +16,7 @@ Six things ship. Four go to players; two go to developers.
 | Management API | `server/management/` | Linux (container) | Players |
 | Web app | `web/` | Static (Svelte SPA) | Players |
 | Simulator | `sim/` | .NET console + library | Developers |
-| Developer viewer | `viewer/` | Static page | Developers |
+| Viewer | `viewer/` | Static page; hosted build at `/viewer/` in the web image | Developers; admins (Replays) |
 
 `sim/` and `viewer/` are deliverables rather than tests
 ([simulation](superpowers/specs/2026-09-06-simulation-design.md)): a simulator that only xUnit can
@@ -615,7 +615,7 @@ server/game/             live sessions, rules engine, event log
 server/management/       ASP.NET Core CRUD API
 web/                     Svelte SPA
 sim/                     headless full-game simulator (developers)
-viewer/                  recording viewer, a static page (developers)
+viewer/                  recording viewer, a static page (developers; admin Replays at /viewer/)
 libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
 tests/                   xUnit projects: one per library, per server, and for the client's Godot-free core
 docs/  scripts/          repo-level support

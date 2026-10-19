@@ -172,7 +172,8 @@ services:
     networks: [backend, gateway]
     dns: *dns
 
-  # The static web app on :8080 (web/Dockerfile). The blob origin is fixed into its CSP at build time.
+  # The static web app on :8080 (web/Dockerfile), with the viewer's hosted build (admin Replays) under /viewer/. The blob
+  # origin is fixed into the web app's CSP at build time.
   web:
     <<: *hardened
     build:

@@ -17,6 +17,7 @@ export const ICONS = {
   upload: ['M16 21 V6 M10 12 L16 6 L22 12', 'M6 20 V26 H26 V20'],
   import: ['M16 5 V20 M10 14 L16 20 L22 14', 'M6 20 V26 H26 V20'],
   download: ['M16 4 V19 M10 13 L16 19 L22 13', 'M5 23 H27 M8 28 H24'],
+  replay: ['M7 11 A11 11 0 1 1 5 17', 'M4 6 V11 H9', 'M13 11 L21 16 L13 21 Z'],
   chevron:['M12 8 L20 16 L12 24'],
   back: ['M20 8 L12 16 L20 24'],
   folder: ['M4 8 H12 L15 11 H28 V25 H4 Z'],

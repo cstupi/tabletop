@@ -55,7 +55,7 @@ Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tes
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 33,
   GameServer 34, Sim 212; about 15 min.
 
-`cd viewer && npm run check && npm test` passes (112); `cd web && npm test` passes 63 (1 skipped).
+`cd viewer && npm run check && npm test` passes (125); `cd web && npm test` passes 123 (1 skipped).
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
@@ -97,8 +97,10 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 
 **Open / next:**
 - Both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B) are unreleased on main; ship them in the next batch.
-- Replay: nothing deployed can replay a game. Owner asked; options offered: a Replay mode in the client (the client
-  already projects any log prefix) or the developer viewer behind an admin login. Not chosen yet.
+- Replay: the viewer's hosted build is the admin-only Replays tool at `https://tabletop.cstupi.com/viewer/` (web image,
+  no Caddy change): the website shows a Replays link to accounts with the `admin` role, the viewer reuses the website's
+  session, lists every game including ended ones, and replays a game's log on its timeline over `wss://…/ws`. Replaying
+  an ended game needs the game server to admit an admin watcher to an ended game. Not yet in a release.
 - Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an
   Information line per `GET /v1/games/{id}/assets` (game id, asset count).
 - Team games leave team-wide: spell-token spending, hand-move overrides, and passing the team's activation.

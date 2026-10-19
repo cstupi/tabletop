@@ -14,6 +14,29 @@
   import { recordingFeed } from './lib/feed/recordingFeed';
   import { fromUrl, recordingUrlFrom } from './lib/recording/source';
   import { EMPTY, frameOf, reduce, type Timeline as TimelineState, type TimelineAction } from './lib/timeline/timeline';
+  import { configOf, hostedSession, signInHref, type Access } from './lib/hosted/hosted';
+  import { refreshSession } from './lib/live/management';
+
+  const config = configOf(import.meta.env, window.location);
+  // Hosted: the website's session decides what the page shows; the developer build is always open.
+  let access: Access | 'checking' = $state(config.hosted ? 'checking' : 'admin');
+
+  // Lazy, so a blocked localStorage throws inside hostedSession's own try/catch.
+  const storage = {
+    getItem: (key: string) => window.localStorage.getItem(key),
+    setItem: (key: string, value: string) => window.localStorage.setItem(key, value),
+  };
+
+  async function hostedJwt(): Promise<string> {
+    const result = await hostedSession(storage, (jwt) => refreshSession(jwt));
+    access = result.access;
+    if (result.sessionJwt === null || result.access !== 'admin') throw new Error('signed out of Tabletop');
+    return result.sessionJwt;
+  }
+
+  $effect(() => {
+    if (config.hosted) hostedJwt().catch((e: Error) => { if (access === 'checking') error = e.message; });
+  });
 
   let feed: Feed | null = $state.raw(null);
   let unsubscribe: (() => void) | null = null;
@@ -64,13 +87,35 @@
   }
 </script>
 
+{#if access === 'checking'}
+<main class="gate">
+  <h1>Replays</h1>
+  {#if error === null}<p class="muted">Checking your Tabletop session…</p>{:else}<p class="error">{error}</p>{/if}
+</main>
+{:else if access === 'signed-out'}
+<main class="gate">
+  <h1>Signed out</h1>
+  <p>Sign in to Tabletop to open Replays.</p>
+  <p><a href={signInHref(window.location.pathname)}>Sign in</a></p>
+</main>
+{:else if access === 'not-admin'}
+<main class="gate">
+  <h1>Not authorised</h1>
+  <p>Replays are open to admin accounts only.</p>
+  <p><a href="/">Back to Tabletop</a></p>
+</main>
+{:else}
 <header>
-  <strong>Tabletop viewer</strong>
-  <nav class="views">
-    <button class:active={view === 'viewer'} onclick={() => (view = 'viewer')}>Viewer</button>
-    <button class:active={view === 'tests'} onclick={() => (view = 'tests')}>Tests</button>
-  </nav>
-  <SourcePicker onFeed={attach} onError={(m) => (error = m)} />
+  <strong>{config.hosted ? 'Tabletop replays' : 'Tabletop viewer'}</strong>
+  {#if config.hosted}<a href="/">Back to Tabletop</a>{/if}
+  {#if config.runner}
+    <nav class="views">
+      <button class:active={view === 'viewer'} onclick={() => (view = 'viewer')}>Viewer</button>
+      <button class:active={view === 'tests'} onclick={() => (view = 'tests')}>Tests</button>
+    </nav>
+  {/if}
+  <SourcePicker onFeed={attach} onError={(m) => (error = m)} socketUrl={config.socketUrl}
+    hostedJwt={config.hosted ? hostedJwt : null} />
   <span class="muted">
     {feedState.status === 'idle' ? 'no recording loaded' : `${feedState.label} · ${feedState.status} · ${feedState.frames.length} frames`}
   </span>
@@ -133,10 +178,13 @@
   </aside>
 </div>
 
+{#if config.runner}
 <div class="tests-view" hidden={view !== 'tests'}>
-  <TestsPage onFeed={attach} onError={(m) => (error = m)} />
+  <TestsPage onFeed={attach} onError={(m) => (error = m)} socketUrl={config.socketUrl} />
 </div>
+{/if}
 
 <div hidden={view !== 'viewer'}>
   <Timeline {timeline} {dispatch} seq={frame?.seq ?? null} line={frame?.line ?? ''} />
 </div>
+{/if}

@@ -16,7 +16,7 @@ specifics.
 | `server/management/` | The HTTP API (`/v1`): login through Stytch, accounts, armies, assets in MinIO, layouts, games, migrations. |
 | `web/` | The SvelteKit web app: accounts, army import, mesh upload (STL to GLB). |
 | `sim/` | A headless simulator that plays whole games against the server and writes recordings. Developer-only. |
-| `viewer/` | A 2D web viewer for sim recordings and live games. Developer-only. |
+| `viewer/` | A 2D web viewer for sim recordings and live games. Its hosted build is production's admin-only Replays at `/viewer/`. |
 | `libs/` | Shared, Godot-free, persistence-free: `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol`. |
 | `tests/` | One xUnit project per library, per server, for the client's core, the sim, the viewer and the army books. |
 | `scripts/` | Launch scripts, the Postgres init schema, `ArmyBooks/` (the army-book generator), `release` and `release-client` (`deploy/README.md` → Releases). |
@@ -25,8 +25,8 @@ specifics.
 | `deploy/` | The production path: `docker-compose.prod.yml`, systemd units, `prod.env.example`. |
 | `Tabletop.sln`, `Directory.Build.props`, `global.json`, `docker-compose.yml` | Root build and the development stack. |
 
-`client/`, `server/` and `web/` ship to players. `sim/` and `viewer/` ship to developers: neither is in the client's
-export or referenced by a server.
+`client/`, `server/` and `web/` ship to players. `viewer/` ships to admins, inside the web image at `/viewer/`. `sim/`
+ships to developers. Neither is in the client's export or referenced by a server.
 
 ## Get running
 

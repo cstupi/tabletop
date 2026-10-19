@@ -10,12 +10,11 @@
     type Page,
   } from '../suite/model';
 
-  let { onFeed, onError }: { onFeed: (feed: Feed) => void; onError: (message: string) => void } = $props();
+  let { onFeed, onError, socketUrl }: { onFeed: (feed: Feed) => void; onError: (message: string) => void; socketUrl: string } = $props();
 
   let page: Page = $state.raw(initial([]));
   let loaded = $state(false);
   let loadError: string | null = $state(null);
-  const socketUrl = import.meta.env.VITE_GAME_SOCKET ?? 'ws://localhost:5200/ws';
 
   const groups = $derived(groupsOf(page.games));
   const tally = $derived(counts(page));

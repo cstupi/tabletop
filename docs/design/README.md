@@ -27,14 +27,14 @@ order. Per-module detail is in the ten documents indexed at the bottom.
 | Web app | `web/` | Static SPA, Svelte 5 | Army import, mesh conversion and binding, the asset library, the account |
 | Shared libraries | `libs/` | Consumed, never shipped alone | `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content` |
 | Simulator | `sim/` | Developer tool | Playing whole games with no client, and recording them |
-| Viewer | `viewer/` | Developer tool, static | Drawing a recording or a live game top-down |
+| Viewer | `viewer/` | Developer tool and admin Replays (`/viewer/`), static | Drawing a recording or a live game top-down |
 
 The division of labour between the browser and the client is **preparation versus play**. The
 browser owns everything a player builds between games. The client owns everything that happens
 during one. The client cannot edit an army; it picks one.
 
-`sim/` and `viewer/` ship to developers rather than to players: neither is in the client's
-export, neither is referenced by a server, and a release omitting both is complete. A simulator
+`sim/` ships to developers and `viewer/` to developers and admins (its hosted build in the web image at `/viewer/`),
+not to players: neither is in the client's export and neither is referenced by a server. A simulator
 only xUnit can start is not something you can point at a problem.
 
 The rules engine lives only in `server/game/`. It is not in `libs/`, so there is one

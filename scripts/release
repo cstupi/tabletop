@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cut a release from a clone on the server host (or any machine with the tools): check, test, publish the client builds,
-# build and install the web app, deploy the servers, publish the built-in content. The client steps are scripts/release-client, which the GitHub release
+# build and install the web app and the viewer (/viewer/), deploy the servers, publish the built-in content. The client steps are scripts/release-client, which the GitHub release
 # workflow runs too. Spec: docs/superpowers/specs/2026-10-17-client-releases-design.md; operator guide: deploy/README.md.
 #
 #   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-builtin]
@@ -143,7 +143,9 @@ echo "release v$version at ${head:0:12}, deploy $deploy, output $out"
 owner=$(stat -c %u:%g "$root")
 in_sdk() { run docker run --rm -u "$owner" -v "$root:/src" -w /src -e HOME=/tmp -e DOTNET_CLI_TELEMETRY_OPTOUT=1 \
   -e NUGET_PACKAGES=/src/build/nuget mcr.microsoft.com/dotnet/sdk:10.0 "$@"; }
-in_node() { run docker run --rm -u "$owner" -v "$root/web:/web" -w /web -e HOME=/tmp -e npm_config_cache=/tmp/npm node:24-alpine "$@"; }
+# in_node DIR CMD...: CMD in the Node image over the clone's DIR (web or viewer).
+in_node() { local dir=$1; shift
+  run docker run --rm -u "$owner" -v "$root/$dir:/$dir" -w "/$dir" -e HOME=/tmp -e npm_config_cache=/tmp/npm node:24-alpine "$@"; }
 
 if [[ $skip_tests == 0 ]]; then
   step "Build and test"
@@ -161,21 +163,30 @@ fi
 
 if [[ $deploy == home ]]; then
   if [[ $skip_tests == 0 ]]; then
-    step "Web app checks (the build is in web/Dockerfile)"
-    in_node npm ci --no-audit --no-fund; in_node npm run check; in_node npm test
+    step "Web app and viewer checks (the builds are in web/Dockerfile)"
+    for dir in web viewer; do
+      in_node "$dir" npm ci --no-audit --no-fund; in_node "$dir" npm run check; in_node "$dir" npm test
+    done
   fi
 else
-step "Web app"
+step "Web app and viewer"
 run npm --prefix web ci --no-audit --no-fund
-if [[ $skip_tests == 0 ]]; then run npm --prefix web run check; run npm --prefix web test; fi
+run npm --prefix viewer ci --no-audit --no-fund
+if [[ $skip_tests == 0 ]]; then
+  run npm --prefix web run check; run npm --prefix web test
+  run npm --prefix viewer run check; run npm --prefix viewer test
+fi
 blob_origin=""
 if [[ -n "${TABLETOP_S3_PUBLIC_ENDPOINT:-}" ]]; then blob_origin=$(sed -E 's#^([a-z]+://[^/]+).*#\1#' <<< "$TABLETOP_S3_PUBLIC_ENDPOINT"); fi
 [[ $deploy == none || -n "$blob_origin" ]] || die "TABLETOP_S3_PUBLIC_ENDPOINT is not set (the web build's CSP names the blob origin)"
 run env ${blob_origin:+TABLETOP_BLOB_ORIGIN="$blob_origin"} npm --prefix web run build
+run npm --prefix viewer run build:hosted
 if [[ -n "${TABLETOP_WEB_ROOT:-}" ]]; then
-  run mkdir -p "$TABLETOP_WEB_ROOT"
-  run rsync -a --delete "$root/web/build/" "$TABLETOP_WEB_ROOT/"
-else echo "TABLETOP_WEB_ROOT unset: web/build is built, not installed"; fi
+  # The viewer's hosted build (admin Replays) goes under /viewer/ beside the web app.
+  run mkdir -p "$TABLETOP_WEB_ROOT/viewer"
+  run rsync -a --delete --exclude /viewer/ "$root/web/build/" "$TABLETOP_WEB_ROOT/"
+  run rsync -a --delete "$root/viewer/dist/" "$TABLETOP_WEB_ROOT/viewer/"
+else echo "TABLETOP_WEB_ROOT unset: web/build and viewer/dist are built, not installed"; fi
 fi
 
 if [[ $skip_client == 0 ]]; then
@@ -272,10 +283,10 @@ fi
 
 step "Done"
 echo "v$version (${head:0:12})"
-[[ $skip_tests == 1 ]] && echo "  tests:   skipped" || echo "  tests:   build, unit suite, rules suite, check-client, web check and tests"
+[[ $skip_tests == 1 ]] && echo "  tests:   skipped" || echo "  tests:   build, unit suite, rules suite, check-client, web and viewer checks and tests"
 [[ $skip_builtin == 1 ]] && echo "  builtin: skipped" || echo "  builtin: s3://${RELEASE_S3_BUCKET:-?}/builtin/catalog.json, version $version"
 [[ $skip_client == 1 ]] && echo "  client:  skipped" || echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"
-if [[ $deploy == home ]]; then echo "  web:     image tabletop-web:$version"
+if [[ $deploy == home ]]; then echo "  web:     image tabletop-web:$version (viewer under /viewer/)"
 else echo "  web:     ${TABLETOP_WEB_ROOT:-web/build (not installed)}"; fi
 echo "  servers: $deploy"
 [[ $dry == 1 ]] && echo "  (dry run: nothing changed)"

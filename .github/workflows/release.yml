@@ -54,8 +54,26 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  viewer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - run: npm run build:hosted
+
   client:
-    needs: [test, web]
+    needs: [test, web, viewer]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:

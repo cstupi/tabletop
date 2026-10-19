@@ -2,7 +2,10 @@
 // The session JWT for Connect and for the game list (games.ts): POST /v1/auth/password and
 // POST /v1/auth/session/refresh. The viewer never touches /v1/armies or /v1/assets.
 
-export class ManagementError extends Error {}
+/** A refusal from management; `status` is the HTTP status when there was an answer. */
+export class ManagementError extends Error {
+  constructor(message: string, readonly status: number | null = null) { super(message); }
+}
 
 export type Session = { readonly sessionJwt: string };
 
@@ -17,7 +20,7 @@ async function post(base: string, path: string, body: unknown): Promise<Session>
   if (!response.ok) {
     // Management answers application/problem+json (management plan Global Constraints).
     const problem = (await response.json().catch(() => ({}))) as { title?: string; detail?: string };
-    throw new ManagementError(problem.detail ?? problem.title ?? `${path} answered ${response.status}`);
+    throw new ManagementError(problem.detail ?? problem.title ?? `${path} answered ${response.status}`, response.status);
   }
   const session = (await response.json()) as { sessionJwt?: string };
   if (typeof session.sessionJwt !== 'string') throw new ManagementError(`${path} returned no sessionJwt`);
