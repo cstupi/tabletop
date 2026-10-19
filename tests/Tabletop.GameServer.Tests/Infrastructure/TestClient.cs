@@ -12,19 +12,20 @@ namespace Tabletop.GameServer.Tests.Infrastructure;
 public sealed class TestClient : IAsyncDisposable
 {
     readonly GameServerFactory _factory;
+    readonly string _url;
     WebSocket? _socket;
 
-    TestClient(GameServerFactory factory) => _factory = factory;
+    TestClient(GameServerFactory factory, string url) { _factory = factory; _url = url; }
 
-    /// <summary>Starts the server; the socket itself opens at the first frame.</summary>
-    public static Task<TestClient> OpenAsync(GameServerFactory factory)
+    /// <summary>Starts the server; the socket itself opens at the first frame. `watch` opens it read-only (`/ws?watch=1`).</summary>
+    public static Task<TestClient> OpenAsync(GameServerFactory factory, bool watch = false)
     {
         _ = factory.Server;
-        return Task.FromResult(new TestClient(factory));
+        return Task.FromResult(new TestClient(factory, watch ? "ws://localhost/ws?watch=1" : "ws://localhost/ws"));
     }
 
     async Task<WebSocket> SocketAsync() =>
-        _socket ??= await _factory.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), CancellationToken.None);
+        _socket ??= await _factory.Server.CreateWebSocketClient().ConnectAsync(new Uri(_url), CancellationToken.None);
 
     WebSocket Opened => _socket ?? throw new InvalidOperationException("nothing sent yet: the socket opens at the first frame");
 

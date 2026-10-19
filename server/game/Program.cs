@@ -53,7 +53,8 @@ app.Map("/ws", async context =>
 {
     if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = StatusCodes.Status400BadRequest; return; }
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
-    await context.RequestServices.GetRequiredService<ConnectionHandshake>().RunAsync(socket, context.RequestAborted);
+    var watchOnly = context.Request.Query["watch"] == "1";       // a read-only socket: a replay, or an admin's watch
+    await context.RequestServices.GetRequiredService<ConnectionHandshake>().RunAsync(socket, watchOnly, context.RequestAborted);
 });
 
 app.Run();
