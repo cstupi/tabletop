@@ -28,6 +28,18 @@ public class PropertySetTests
     }
 
     [Fact]
+    public void An_effect_row_is_found_by_id_children_included()
+    {
+        var child = ModifyRoll("hit", 1); var parent = ModifyRoll("defense", -1) with { Children = [child] };
+        var set = new PropertySet("sha256:t", "T", "grimdark-future", [], [], [new RollDefinition("hit"), new RollDefinition("defense")],
+            [new CatalogEntry("Rule", CatalogKind.Unit, false, null, null, null, "", null, [parent])]);
+        Assert.Same(parent, set.EffectById(parent.Id));
+        Assert.Same(child, set.EffectById(child.Id));
+        Assert.Null(set.EffectById(Guid.NewGuid()));
+        Assert.Equal(set.AllEffects().Select(e => e.Id), set.AllEffects().Select(e => set.EffectById(e.Id)!.Id));
+    }
+
+    [Fact]
     public void Comparison_covers_the_six_operators_and_neq_tests_absence()
     {
         EffectCondition C(Comparison c) => new(Guid.CreateVersion7(), ConditionKind.Range, null, c, 9, []);

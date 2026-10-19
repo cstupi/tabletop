@@ -13,7 +13,7 @@ public class CombatLogFixtureTests(ITestOutputHelper output)
     static readonly Guid Team1 = Guid.Parse("01a126db-2140-7d0e-a608-24364b5444d4"), Team2 = Guid.Parse("01a126db-22e7-7ef0-8aa1-0c74483c322c");
     static readonly Guid Charger = Guid.Parse("01a126db-1b48-70ac-ac26-3195d4181a43"), Target = Guid.Parse("01a126db-18ba-702b-b0e9-9d9843265edf");
 
-    static readonly GameInfo Game = Samples.Game with
+    internal static readonly GameInfo Game = Samples.Game with
     {
         Teams = [new Team(Team1, 1), new Team(Team2, 2)],
         Participants =
@@ -23,7 +23,7 @@ public class CombatLogFixtureTests(ITestOutputHelper output)
         ],
     };
 
-    static IReadOnlyList<GameEvent> Log()
+    internal static IReadOnlyList<GameEvent> Log()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "game-01a126db-charge.json")));
         return doc.RootElement.EnumerateArray().Select(e => WireJson.Deserialize<GameEvent>(e.GetRawText())).ToList();

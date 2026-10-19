@@ -29,7 +29,10 @@ public static class Battlefield
         return to == container || state.Projection.Models[container].UnitId == toUnit;
     }
 
-    public static IReadOnlyList<WorldVolume> Terrain(GameState state) => state.Board.Table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
+    /// <summary>The table's terrain as world volumes, built once per table: a table is immutable, and an edit in setup makes a new one.</summary>
+    public static IReadOnlyList<WorldVolume> Terrain(GameState state) =>
+        Volumes.GetValue(state.Board.Table, t => t.Terrain.SelectMany(p => p.WorldVolumes()).ToList().AsReadOnly());
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Tabletop.Content.TableState, IReadOnlyList<WorldVolume>> Volumes = new();
 
     /// <summary>One pair, one sight line. A caller checking many pairs builds a <see cref="Sight"/> once and asks it instead.</summary>
     public static bool CanSee(GameState state, Guid fromModel, Guid toModel) =>
