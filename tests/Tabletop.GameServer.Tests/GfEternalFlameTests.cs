@@ -23,7 +23,7 @@ public class GfEternalFlameTests
 
     /// <summary>A 2" x 4" Area patch at (-17, -18.5): unit A's model starts at (-20, -20) and crosses it moving 5" or more along X.</summary>
     static TerrainPlacement Patch(TerrainDeclarations kind) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("patch"), new Point3(-17, -18.5, 0), new Yaw(0), 1,
-        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 4), new Point2(0, 0), new Yaw(0), 0, 1, kind, null))]);
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 30), new Point2(0, 0), new Yaw(0), 0, 1, kind, null))]);   // long: a path cannot go round it
 
     static Sim Activated(string sequence, string action, bool banner, TerrainPlacement terrain, double x1 = -20, bool granted = false, Tabletop.Content.Unit? withUnit = null)
     {

@@ -16,7 +16,7 @@ namespace Tabletop.GameServer.Tests;
 public class AppliedHooksTests
 {
     static TerrainPlacement Patch(TerrainDeclarations kind) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("patch"), new Point3(-17, -18.5, 0), new Yaw(0), 1,
-        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 4), new Point2(0, 0), new Yaw(0), 0, 1, kind, null))]);
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 30), new Point2(0, 0), new Yaw(0), 0, 1, kind, null))]);   // long: a path cannot go round it
 
     static Sim Advance(PropertyInstance[] props, TerrainPlacement? terrain, double dx) => Moved(GfNames.AdvanceSeq, GfNames.Advance, props, terrain, dx);
     static Sim Rush(PropertyInstance[] props, TerrainPlacement? terrain, double dx, PropertySet? set = null, string? grant = null) => Moved(GfNames.RushSeq, GfNames.Rush, props, terrain, dx, set, grant);

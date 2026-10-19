@@ -31,9 +31,10 @@ public class ContactCheckTests
     }
 
     [Fact]
-    public void A_straight_path_through_a_standing_model_crosses_it_unless_the_region_passes_models()
+    public void A_move_that_fits_only_through_standing_models_crosses_them_unless_the_region_passes_models()
     {
-        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), [])[S0]);   // through S1 and S2
+        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(Deployed, Region(null, S0) with { Allowance = 6 }, To((S0, At(16, 10))), [])[S0]);   // 6" through S1 and S2, more round them
+        Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), []));                   // 30" lets it go round them
         Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0) with { PassesModels = true }, To((S0, At(16, 10))), []));
         Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(10, 16))), []));
     }

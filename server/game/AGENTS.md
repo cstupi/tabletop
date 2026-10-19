@@ -82,6 +82,11 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   move, enters difficult ground), `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13) and p.7's contact clauses
   (`GfMoves.ContactBreach`: `move_overlap` on a base, `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`). All read the
   answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.
+  Each move is judged along the shortest path its base can take (`Movement.Check`, `GfMoves.Route`; p.5): round the impassable volumes the Ask lists and
+  the models the answer does not move, and round difficult and dangerous ground when that fits the allowance, so a Rush round a wood is not capped;
+  `move_through_models` is a move that fits only through models. `ApplyMove` measures and tests dangerous and difficult terrain along the same path
+  (`Movement.VolumesOnPath`); `GfMelee.ChargeTargets` and `GfMoves.ContainersInReach` use the path to base contact (`Movement.ContactDistance`).
+  The answer carries destinations only (geometry `movement.md`).
 - `SightQuery` is answered to the asker alone from `Sight.Line` per model pair and `IGameRules.Shooters`: nothing appended or broadcast, no `AtRest`. `ModelFacts` (`IGameRules.MaxWounds`, `IGameRules.DeployInside`: each unit that may be put in a Transport now) goes to a client on connect once playing, and to everyone after a batch that changes a value. A deploy answer naming a unit already inside a Transport is `deploy_inside` (`GrimdarkFutureRules.AnswerBreach`). A model inside a container still on the shelf is out of play (`TeamUnits.InPlay`: not activated, not in `Lookup.AliveModels`). `Shooters` reads the game's `PropertySet` through `IRulesEngine.Properties`; Grimdark Future's calls `GfAttack.AttackInteraction`'s frame-optional core with no frame, the core the fire groups share.
 - `IStep.Label` puts a step in its sequence's outline; `SequenceStarted.Outline` carries the labelled steps in order.
 - `Windows` offers interrupting reactions as one Ask per eligible team, in reaction order (`GameRules.OrderReactions`, else turn order after the actor's team).

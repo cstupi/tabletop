@@ -45,7 +45,8 @@ public class DragBodiesTests
         var big = new PlacedModel(new ModelBody(Base.Circle(3), 4.5), new Placement(new Point3(11, 3, 4), new Yaw(0)));   // on the roof, edge out to x 12.5
         PlacedModel[] below = [M(12.8, 10)];                                                                   // on the ground at the roof's foot
         Assert.Equal(new Point3(11, 13, 4), Drag(big, new(11, 13), below, [roof]));
-        Assert.Equal(13, MoveRuler.Region(big, new MoveRegion([A], 10, [], [], null), [roof], new TableSize(72, 48), below)[45].Y, 6);
+        var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = big }, new MoveRegion([A], 10, [], [], null), [roof], new TableSize(72, 48), below);
+        Assert.True(Areas.Inside(regions.Outline(A), new Point2(11, 12.9)));
     }
 
     [Fact]
@@ -90,8 +91,10 @@ public class DragBodiesTests
     public void The_drawn_region_goes_around_models_unless_the_unit_passes_them()
     {
         var region = new MoveRegion([A], 6, [], [], null);
-        Assert.True(MoveRuler.Region(M(10, 10), region, [], new TableSize(72, 48), [M(13, 10)])[0].X <= 11.74 + 1e-6);
-        Assert.Equal(16, MoveRuler.Region(M(10, 10), region with { PassesModels = true }, [], new TableSize(72, 48), [M(13, 10)])[0].X, 6);
+        MoveRegions Of(MoveRegion legal) => new(new Dictionary<Guid, PlacedModel> { [A] = M(10, 10) }, legal, [], new TableSize(72, 48), [M(13, 10)]);
+        Assert.False(Areas.Inside(Of(region).Outline(A), new Point2(13, 10)));
+        Assert.True(Areas.Inside(Of(region).Outline(A), new Point2(15, 10)));                                       // behind it, round it
+        Assert.True(Areas.Inside(Of(region with { PassesModels = true }).Outline(A), new Point2(13, 10)));
     }
 
     static readonly Unit Squad = new(Guid.CreateVersion7(), 1, "Squad", new Dictionary<string, string>(), [],

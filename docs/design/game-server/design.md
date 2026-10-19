@@ -523,19 +523,21 @@ functions read it:
   `move_not_offered` (`GfMoves.NotOfferedBreach`: a relocation `GfAnswers.Moves` does not read, so
   strict never accepts an answer as a silent zero move); `move_exit` (a disembark not fully within
   `ExitWithin` of the container, on the table and clear of impassable terrain, p.15, p.7 and p.11, `GfMoves.ExitPlacement`);
-  `move_off_table`, `move_impassable` and `move_allowance` (`GfMoves.PathBreach`, each move's
-  straight path against the Ask's own parameters: p.7 *"never move outside of the battlefield (no part
+  `move_off_table`, `move_impassable` and `move_allowance` (`GfMoves.PathBreach`, each move along the
+  shortest path its base can take, `Movement.Check`, against the Ask's own parameters (p.5 *"always measure so that
+  no part of its base moves further than the total distance"*; geometry `movement.md`): p.7 *"never move outside of the battlefield (no part
   of them, at any point)"*, p.11 *"Units may not move through impassable terrain"*, p.7 *"no part of
   their bases move further than the total movement distance"*, and the landing against every impassable
   volume on the table, p.11 *"may not end their move partially overhanging gaps or terrain"* with p.7
   *"physically impossible locations"*, except an Aircraft's move, its own or a forced one (`MoveRegion.IgnoresTerrain`, p.13 *"when
   moving and stopping"*); a
   model answered where it stands is not judged, one already standing off the table is not judged for the
-  edge, and one whose base already touches an impassable volume may head out of it but not move along it or deeper in,
-  `Movement.Blocking`);
+  edge, and one whose base already touches an impassable volume may head out of it but not move along it or deeper in;
+  `move_impassable` when no path round the listed volumes fits and the straight line meets one);
   `aircraft_minimum`; and
   `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`
-  is held to it once any model's straight path enters a listed difficult volume, or an earlier
+  is held to it once any model's path enters a listed difficult volume (a path round every one, the standing models and
+  impassable volumes, that fits the allowance is taken first), or an earlier
   segment of the move did; p.11: *"all models in the unit may not move more than 6" for that
   movement"*), with `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least
   `MinDistance`, p.13) before it. They cover every Ask that applies a move answer: the action moves and
@@ -546,7 +548,7 @@ functions read it:
   them to ignore it"*; read from the live set), so only its landing is judged. A spell's forced move reads the target's
   own terrain rules (`GfMoves.TerrainFor`, owner ruling *"Spells move as however that unit moves"*). A relocation
   to where the model already is (an occupant answered `Inside` its own container) is standing still, not
-  `move_not_offered`. p.7's contact clauses are `GfMoves.ContactBreach`, chained last in `AnswerBreach`: `move_overlap` (a landing on another model's base), `move_through_models` (`Collision.Crosses` against the models the answer does not move, in three dimensions so a path above a lower model does not cross it, unless the region `PassesModels`: the Flying and Aircraft pass-impassable rule, including the terrain reposition Ask) and `move_separation` (`Distance.BodyToBody`, between the bodies in three dimensions, within the region's `Separation`: 1 except the Charge move, the close-in, consolidation and an Aircraft's move or placement (move step, forced move, reposition); a disembark keeps it). Coherency is not judged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
+  `move_not_offered`. p.7's contact clauses are `GfMoves.ContactBreach`, chained last in `AnswerBreach`: `move_overlap` (a landing on another model's base), `move_through_models` (no path round the models the answer does not move fits, but one through them does: `Movement.Check`'s `CrossesModels`, in three dimensions so a path above a lower model does not cross it, unless the region `PassesModels`: the Flying and Aircraft pass-impassable rule, including the terrain reposition Ask) and `move_separation` (`Distance.BodyToBody`, between the bodies in three dimensions, within the region's `Separation`: 1 except the Charge move, the close-in, consolidation and an Aircraft's move or placement (move step, forced move, reposition); a disembark keeps it). Coherency is not judged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
   that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
   `AskAnswered.Breach` (the rule name) under `warn`; `OutsideLegalSet` marks only an answer outside the set.
   A spend divides the same way: whether the answering team owns the models it paid with is state
@@ -820,7 +822,7 @@ or a record it holds (`DraftLimits`, `ArmyLimits`). The figures and why:
 | Override commands (`MenuLimits`) | an action or a grant's entry and effect must exist in the property set; a condition 1–64 characters (conditions are free names: game flow, "anything else the unit currently is"); positions finite within the table's diagonal of its centre (`GfAnswers.Moves`' bound); wounds, tokens 0–10 000; score ±10 000; round 0–100 | `Refused(Unknown)` | what the menu writes is read back by every later step |
 | Presence (`PresenceLimits`) | 64 placements, 64 selected models, finite coordinates; a ping's point finite | dropped | one unit's drag |
 | A roll | 1000 dice (`Roller.MaxDice`); a negative count throws | clamped, logged | the rulebook's largest pool is a few hundred |
-| A swept check | 4096 samples (`Sampling.MaxSamples`: `Movement`, `Collision.Slide`, `Collision.Crosses`) | samples spread further apart | a forged length costs a bounded loop |
+| A swept check | 4096 samples (`Sampling.MaxSamples`: `Collision.Slide`, `Collision.Crosses`, a path's height samples over a model) | samples spread further apart | a forged length costs a bounded loop |
 | Rule parameter sums | ±1 000 000 in 64-bit arithmetic (`ParameterSum`) | clamped | no overflow from user data |
 | Stat text | ASCII digits, at most six (`StatValue.Read`) | `FormatException` | `\d` matches other scripts' digits |
 | Enums on the wire | by name only (`WireJson`: `ContentJson.Configure(options, integerEnums: false)`) | unreadable frame, `1007` | an integer names no member |

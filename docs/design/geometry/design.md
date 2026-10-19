@@ -121,7 +121,7 @@ deliberately not for its precondition: whether the unit *can fit* is a ruleset j
 allowance is applied to every cross-elevation pair without it; see section 10.
 
 **Geometry to the client.** The client draws consequences, never answers. It resolves the id
-lists to `WorldVolume`s, calls `Movement.Region`, and draws `.Boundary` as a polygon. It calls
+lists to `WorldVolume`s, builds a `MoveReach` per model and draws its triangles, its ruler along `MoveReach.Route`. It calls
 `Collision.Slide` and `Collision.Separate` on every drag frame (the client's `DragBodies` names the walls and the other models). It builds
 a presence `Measurement(From, To)` from `Distance.ClosestPoints`. When a server event disagrees
 with any of it, the model snaps. That is the entire cost (`architecture.md` → Geometry).
@@ -353,17 +353,18 @@ a physics query, and names no rule: what a body may climb, and what it may not c
 - **Model against model is three-dimensional.** A model's body is its base outline extruded from its settled Z by its height
   (`ModelBody.Height`; the import writes 1.5 × the base's larger dimension). The moving body is rested at each sample on what is
   under it (`RestHeight`), and meets another model only where the outlines share area in plan *and* the height intervals
-  overlap, so a base passing above or below another model does not meet it. `Slide`, `Crosses`, `Movement.Region` and
+  overlap, so a base passing above or below another model does not meet it. `Slide`, `Crosses`, `MoveSpace` (movement paths) and
   `Overlap.Bases` all read it this way, and each leaves out a model whose body the mover already overlaps at the start.
 - `Separate(held, stationary, walls, volumes)` slides each held body in drag order against the stationary models and the held
   bodies already placed.
 - `Crosses(PlacedModel, to, models, volumes)` is the swept-body test against true base outlines and heights, the mover rested on
-  `volumes` at each sample (touching is not crossing). The server's `move_through_models` and the sim's `Clear` use it.
+  `volumes` at each sample (touching is not crossing). The rules suite's elevation game and the sim's `Clear` use it; the server's
+  `move_through_models` is `Movement.Check`'s `CrossesModels` (no path round the models fits).
   `Bodies.AsBlockingVolume` remains the line-of-sight body only.
 - `Distance.BodyToBody(a, b)` is the shortest distance between the two bodies: the horizontal edge-to-edge distance and the gap
   between their height intervals, combined. The server's `move_separation` and the sim's `Clear` use it.
-- `Movement.Region(…, models, surfaces)` leaves out the sectors where the base's body meets another model's, the mover rested
-  on `surfaces`, so the drawn boundary stops at the other models on its level.
+- `Movement.Region(…, models, surfaces)` and every movement path go round another model only where the bodies meet in plan and
+  height, the mover rested on `surfaces` (`movement.md`).
 
 **"What it is resting on" is not stored.** The table domain model listed it as part of a
 placement; geometry values does not carry it: `RestHeight` re-derives it on demand, and terrain is locked
@@ -608,70 +609,14 @@ agree. They are two implementations of the same predicate.
 `architecture.md` → How the client stays responsive is the brief for this class:
 *"The server sends parameters, not an answer: move allowance, terrain effects, and the ids of
 volumes that cannot be crossed. `Tabletop.Geometry` renders the region from those parameters."*
-The same section records *"Terrain multipliers" was an invention*. OPR's difficult terrain
-**caps a unit's whole move at 6"** rather than scaling it. The parameter is therefore
+OPR's difficult terrain **caps a unit's whole move at 6"** rather than scaling it, so the parameter is
 `double? difficultCap`, whatever `GameRules` computed, and `null` when the ruleset has none.
 
-`Movement.Region(start, allowance, impassable, difficult, difficultCap, table)` returns
-`MovementRegion(Origin, Allowance, CappedByDifficultTerrain, Boundary)`, one boundary vertex
-per ray at `Rays = 180`. The client draws it as a polygon.
-
-```mermaid
-flowchart TD
-    A["for each of 180 rays, dir = (cos, sin)"] --> B["limit = allowance, reached = 0"]
-    B --> C["k = 1, 2, 3 ...; d = min(k * Step, limit), Step = 0.25"]
-    C --> D["displace the base to origin + dir * d"]
-    D --> E{"base touches an impassable volume,<br/>or leaves the slab?"}
-    E -->|yes| STOP["stop; keep the last good d"]
-    E -->|no| F{"difficultCap set and below limit,<br/>and the base touches a difficult volume?"}
-    F -->|yes| G["limit = cap; CappedByDifficultTerrain = true"]
-    G --> H{"d beyond limit?"}
-    H -->|yes| STOP
-    F -->|no| I["reached = d"]
-    H -->|no| I
-    I --> J{"d has reached limit?"}
-    J -->|no| C
-    J -->|yes| STOP
-    STOP --> K["boundary vertex = origin + dir * reached"]
-```
-
-The region is a **star-shaped polygon** sampled at 2° intervals. The obstacle test displaces
-the *base outline*, not a point. `d` is clamped to `limit`, so a non-multiple allowance such as
-7.3" is reached exactly.
-
-**Star-shaped, not geodesic** (the plan's ruling 4). A geodesic region, true reach around a corner
-via a visibility graph over the footprint polygons, is a materially larger piece of work and
-buys nothing that survives. The region is a cosmetic prediction, the server judges the landed
-move, and the client shell's ruler readout is *"the base's displacement from where it started"*
-(client shell → Input and presence). The rulebook measures the same way: p.7 says *"no part of
-their bases move further than the total movement distance"*, not path length. Two visible
-compromises. A model cannot be shown as able to step around a wall it can in fact step around.
-And the region says nothing about whether the path taken to a reachable point was legal.
-
-**Marching cost.** There is no bisection or refinement pass. The boundary is quantised to
-`Step = 0.25`, and near an obstacle it under-reports reach by up to a quarter inch. The plan's
-test asserts a range (`Assert.InRange(r.Boundary[0].X, 2.5, 2.87)`) rather than a value.
-Bisecting the last interval would cost about five more samples per ray and take the error to
-1e-2. The march costs 180 rays × up to `allowance / 0.25` samples, but `Region` hoists each
-volume's world outline and bounding circle once before the ray loop (`Prefilter`) and drops any
-volume whose bounding circle is out of reach; each sample then rejects a volume by bounding
-circle before running the exact `InteriorsIntersect` test. On a 72×48 table with 30 pieces, one
-`Region` call at a 12" allowance measures about 15 ms. It runs once per move Ask rather than per
-frame.
-
-`Movement.Check(start, destination, …)` judges one straight move against the same parameters and
-returns `MoveCheck(Distance, EffectiveAllowance, WithinAllowance, CrossesImpassable,
-EntersDifficult, LeavesTable)`. `Distance` is the base's **displacement**, which is the ruler
-readout. `EffectiveAllowance` applies the cap when the path enters difficult terrain, so the
-client shows remaining allowance as `EffectiveAllowance - Distance`.
-
-`Movement.VolumesCrossed(start, destination, volumes)` is the **in or through** test, and the
-sixth declaration needs it. Rulebook p.11 fires a dangerous terrain test when a model *"moves
-in or through dangerous terrain"*. The landing position alone cannot answer that, because the
-model may have crossed the pit and ended past it. The plan's test states it: `VolumesCrossed`
-names the pit while `Containment.VolumesContaining` at the destination is empty. The same
-primitive answers *"moves in or through difficult terrain"*, and `Check.EntersDifficult` is its
-boolean form over the difficult list.
+A move is measured along the shortest path its base can take (p.5), round impassable terrain and other
+models, and round difficult and dangerous terrain when that fits. `movement.md` holds the design:
+configuration space (`MoveShape`, `MoveSpace`), shortest paths, which path a move takes
+(`Movement.Check`, `MoveCheck.Path`), the reach and the drawn area (`MoveReach`, `ReachMesh`,
+`Movement.Region`), why the wire carries destinations and not paths, and timings.
 
 ### 13. The disembark region
 
@@ -697,13 +642,13 @@ read here:
 
 | Declaration | Read by | Geometrically |
 | --- | --- | --- |
-| `Impassable` | `Movement.Region`, `Movement.Check` | the server names the volumes; a ray stops where the displaced base's interior would intersect a footprint |
+| `Impassable` | `Movement.Region`, `Movement.Check` | the server names the volumes; a path goes round them, the base's interior never meeting a footprint |
 | `BlocksLineOfSight` | `LineOfSight.Blockers` | the only filter on the volume list; a segment through the prism obstructs |
 | `SeeInAndOut` | `LineOfSight.Obstructions` | a modifier: skip this blocker if either endpoint is inside it |
 | `Cover` | `Cover.InsideCoverVolumes` | whole base inside the footprint and vertical range |
-| `Difficult` | `Movement.Region`/`Check`, `VolumesCrossed` | *in or through*, not the landing position |
-| `Dangerous` | `Movement.VolumesCrossed` | the same *in or through* primitive, over the dangerous list |
-| `DangerousOnRushCharge` | `Movement.VolumesCrossed` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only |
+| `Difficult` | `Movement.Region`/`Check`, `VolumesOnPath` | *in or through* along the path taken, which goes round when that fits the allowance |
+| `Dangerous` | `Movement.Check`, `VolumesOnPath` | the same, over the dangerous list; a path goes round when that fits |
+| `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only |
 
 Which classes read a flag at all: `LineOfSight` and `Cover` filter on declarations themselves.
 `Movement` does **not**. It is handed two pre-filtered lists, because the server already
@@ -849,11 +794,11 @@ Decisions the plan took because **no spec said anything**:
 | --- | --- | --- | --- |
 | Sight lines: eye at the centre of the shooter's body, half height; target sampled at its centre and 8 rim points at base, half height and top; clear if any line is clear | *"Center to any part of target"*; the mid-height ring bounds the vertical sampling error that two rings leave unbounded | One centre-to-centre line; two rings; sampling the shooter's rim, which the ruling's *center* excludes | The plan's ruling 2; Task 8 |
 | *Mostly inside* (single models) = base centre inside the volume | The whole-base test already serves *fully inside*; a centre test is exact and needs no new primitive | More-than-half-the-area, which needs polygon clipping and a `BaseCoverage` member | The plan's ruling 3; Task 6 |
-| The movement region is **star-shaped** about the start | It is a cosmetic prediction; the server judges the landed move, and the ruler measures displacement | Geodesic reach via a visibility graph; a plain disc | The plan's ruling 4; Task 12 |
+| A move is measured along its **shortest path** (p.5), found over the base's configuration space | p.5 measures what the base travels; p.9 "charge moves don't have to be in a straight line"; a model must be able to go round a wall or a wood | Straight-line reach (a model could not reach behind a wall, and a Rush past a wood was capped) | `movement.md` |
 | Ovals are convex 64-gons | Error under 0.2% of the radius, inside the tolerance the architecture allows | Exact ellipse-ellipse distance: no closed form, needs an iterative solver on both sides | The plan's ruling 7; Task 3 |
 | Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.50 gives no orientation | The other way round, a two-number change per corner | The plan's ruling 5; Task 13 |
 | Side Battle legs are `0.75` of the long edge and `0.625` of the short | The style is proportional to the table; those fractions are the p.22 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which overrun any table shorter than 54" or narrower than 30" | The plan's ruling 6; Task 13; geometry values → Deployment shapes |
-| `Rays = 180`, `Step = 0.25` | 2° angular resolution and a quarter-inch radial one, for a region redrawn once per Ask | Fewer rays with interpolation; a bisection refinement pass | Task 12 |
+| The drawn area is a quadtree of cells down to 0.25", cut by marching squares | Exact crossings (bisected at obstacles), few triangles in open ground, built once per model per Ask | 180 rays from the start (cannot show reach round a corner) | `movement.md` |
 | `RimSamples = 8`, `OvalVertices = 64` | On a circular base, eight rim points subtend 2.8° at 10", so the sliver between adjacent rays is under 0.24" at mid-range; a 64-gon oval samples every eighth vertex by index, even in parametric angle rather than arc length, so the figure holds only for the circle; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
 | `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand, and releases them the same way | A `WorldVolume` overload: five lines and one test, declined | The plan's ruling 8; Task 6 |
 
@@ -881,9 +826,11 @@ plan.
 | `static class Coherency` *added* | `CoherencyResult Check(IRL<PlacedModel> models, double chainDistance, double elevatedChainDistance, double maxSpread)` |
 | `static class Table` *added* | `Polygon Bounds(TableSize)`, `bool ContainsPoint(TableSize, Point2)`, `bool ContainsBase(TableSize, PlacedModel)`, `bool IsValid(TableSize)` |
 | `Footprint` | *added:* `bool IsValid(double scale)` |
-| `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Boundary)` *added* | |
-| `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable)` *added* | |
-| `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)`; `IRL<WorldVolume> Blocking(PlacedModel start, Point2 destination, IRL<WorldVolume> impassable)`: the volumes a straight move may not touch, less each one the base already touches that the move heads out of (the base centre's signed distance from the footprint grows from the first step), which `Region` applies per ray |
+| `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Triangles)` *added* | three points per triangle |
+| `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable, IRL<Point2> Path, bool CrossesModels = false)` *added* | `Distance` is `Path`'s length |
+| `sealed record MovePath(IRL<Point2> Points, double Distance, bool EntersDifficult)` *added* | |
+| `sealed class MoveReach` *added* | `static MoveReach Build(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MovePath Route(Point2 to, bool shortest = false)`; `Point2 Clamp(Point2 target, double? cap = null)`; `IRL<Point2> Triangles(Func<Point2, double>? least = null)`; `Origin`, `Allowance`, `CappedByDifficultTerrain` |
+| `static class Movement` *added* | `const int Rays = 180` (the disembark region's rays), `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null, Func<Point2, double>? least = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null, IRL<WorldVolume>? dangerous = null)`; `double? ContactDistance(PlacedModel start, PlacedModel target, double limit, IRL<WorldVolume> impassable, TableSize? table)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)`; `IRL<Guid> VolumesOnPath(PlacedModel start, IRL<Point2> path, IRL<WorldVolume>)`; `FarthestOnTable`, `RoomAlong` |
 | `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches)` |
 
 Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
@@ -906,8 +853,8 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 | Module | Obligation |
 | --- | --- |
 | Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
-| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer with `Collision.RestHeight`, ignoring the client's `To.Z` (`Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a path through a model with `Collision.Crosses`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
-| Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `Movement.Region(...).Boundary`; show `Movement.Check(...).Distance` as the readout and `EffectiveAllowance - Distance` as the remainder; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
+| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer with `Collision.RestHeight`, ignoring the client's `To.Z` (`Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
+| Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `MoveReach.Triangles`; hold a drag with `MoveReach.Clamp`; show `MoveReach.Route` as the ruler, its length as the readout; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
 
 ## Sequences
 
@@ -924,14 +871,14 @@ sequenceDiagram
     G-->>S: allowance, impassable ids, difficult ids, cap
     S->>C: Ask with MoveRegion(...)
     C->>C: resolve ids to WorldVolume via TerrainPlacement.WorldVolumes()
-    C->>C: Movement.Region(start, allowance, impassable, difficult, cap, size)
-    C-->>P: draw Boundary as a polygon
+    C->>C: MoveReach.Build(start, allowance, impassable, difficult, cap, size, others, volumes)
+    C-->>P: draw Triangles: round difficult within the allowance, or through it within the cap
     P->>C: drag a model
     C->>C: DragBodies, Collision.Separate (slide, rest); Alt places freely
-    C->>C: Movement.Check(...) for the ruler and the remainder
+    C->>C: MoveReach.Clamp, MoveReach.Route for the ruler (a bent path) and the remainder
     C->>S: Destinations answer, To carries the client's rested Z
-    S->>S: Movement.Check + Collision.RestHeight + Table.ContainsBase, authoritatively
-    S->>S: Movement.VolumesCrossed for dangerous and difficult
+    S->>S: Movement.Check (the shortest legal path) + Collision.RestHeight + Table.ContainsBase, authoritatively
+    S->>S: Movement.VolumesOnPath along that path for dangerous and difficult
     S-->>C: ModelMoved events with the server's Z
     C->>C: apply events; the model snaps if it disagreed
 ```
@@ -1115,7 +1062,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.shape` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
 | Base overlap, a path through a model, a model off the slab, broken coherency | The client's drag slides a body clear of other bases and Impassable Solids (Alt overrides); the server judges a move answer's overlap, path, separation and slab (`move_overlap`, `move_through_models`, `move_separation`, `move_off_table`) under the enforcement setting, and a hand placement's overlap only (`PlacementBreach`); coherency is not judged (`Coherency.Check` has no production caller) | Yes |
-| A move whose *path* was illegal but whose endpoint is fine | `Movement.Check` samples the straight segment only. A bent path is judged at its endpoint | Yes, straight-line reach (the plan's ruling 4) |
+| A move whose straight line crosses something it may not, but which a path round it reaches | Judged along the shortest legal path (`Movement.Check`); the answer carries the destination only, and each side computes the same path (`movement.md`) | Yes |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
 | A model dragged into a wall by the client | The drag slides along Impassable Solids, and an Alt drop rests on the highest Solid top under the base, as the server rests every placement (`Battlefield.Settle`), so no stored model is inside a Solid. A move answer crossing or landing on an Impassable volume is `move_impassable` (`GfMoves.PathBreach`); a hand placement is not judged against terrain | Yes |
@@ -1131,7 +1078,7 @@ reentrant. The two remaining hazards are **ordering** and **cost**:
   situation. That matters if any of it is compared or hashed downstream.
 - **Cost.** There is **no broad phase anywhere.** `Outline.InteriorsIntersect` and `Separation`
   do full work on every pair, with no bounding-circle rejection. Three places this bites:
-  `Movement.Region` (180 rays × up to 24 samples × every volume), `Coherency.Check` (O(n²) full
+  `Coherency.Check` (O(n²) full
   separations, 64-gons for ovals) and `Cover` plus `LineOfSight` called back to back on the
   same pair, now at 27 rays each and multiplied again over every shooting and target model. No
   test would catch a performance regression here, because every test uses one or two volumes.
@@ -1164,13 +1111,12 @@ What the tests are for, by class:
 | `CoverTests` | fully inside, a low wall as a sight blocker while sight is clear, a transparent wall is not one, another unit is one |
 | `CoherencyTests` | a straggler, equal groups keeping the earliest, a long chain breaking the spread, exactly one inch counting |
 | `TableTests` | the corner frame's bounds, edge inclusivity, a base wholly on the slab, **a rect base rotated 45° off it** |
-| `MovementTests` | a full circle on open ground, an impassable volume stopping short, a base standing in one heading out but not along or through (`Blocking`, and the region's rays), the difficult cap, no cap changing nothing, the table edge, a non-multiple allowance, displacement versus allowance, `VolumesCrossed` naming what containment cannot |
+| `MovementTests`, `MovementPathTests` | a disc on open ground, going round an impassable volume, a base standing in one heading out but not along or through, a Rush round a wood not capped and one into a big wood capped, round other models and through a solid line of them (`CrossesModels`), above a lower model, round a pit, the table edge, a minimum's ring, `Clamp`, `Route` agreeing with `Check`, `ContactDistance` round a block, `VolumesCrossed` naming what containment cannot; distances against the exact geodesics |
 | `ZoneStyleTests` | every style resolving, each style's diagram dimensions, Side Battle's legs scaling to a 60×44 table, the long-edge rule on a portrait table, `fully within` needing the whole base, malformed ids throwing |
 
 Coverage gaps:
 
-- **No performance test.** Every test uses one or two volumes. The `Movement.Region` cost in
-  section 12 is unmeasured and unguarded.
+- **No performance test.** The movement timings in `movement.md` were measured by hand and are unguarded.
 - **No cross-platform comparison test.** Determinism is not a requirement, so this is by
   choice. A convention mismatch between the Windows client and the Linux server would not be
   caught here either. The frame is defended by prose and by `TableTests`, not by a differential
@@ -1179,11 +1125,6 @@ Coverage gaps:
   would benefit most are `Separation(a, b) == Separation(b, a)`,
   `Separation > 0 implies not InteriorsIntersect`, and `ContainsOutline implies Contains` of
   every boundary point.
-- **The 0.25" region quantisation is asserted as a range**, not a value
-  (`Assert.InRange(r.Boundary[0].X, 2.5, 2.87)`). A refinement pass could be added without the
-  test changing, and a regression in the marching would have to be large to fail it.
-- **`Movement.Region`'s difficult-cap interaction with an obstacle beyond the cap** is untested:
-  the only fixture puts the forest at 3", where the cap binds immediately.
 - **`AsBlockingVolume`'s bounding-rectangle inflation for oval bases** has no test asserting the
   size of the error.
 - **The zone styles are tested at three sizes only**: 72×48, the portrait 48×72 for the
@@ -1204,7 +1145,7 @@ the answer differs.
 | 1 | Where is the origin? | **The corner.** The game server plan's `DraftEditor.OnSlab` and the contracts plan's wire samples use it, and one frame everywhere removes a conversion layer | Nothing. The frame is settled on the wire, in the library, in both servers and in the client |
 | 2 | What is the sight-line policy? | ***"Center to any part of target."*** Eye at the centre of the shooter's body, half height; 27 target points, 15 for a square; clear if any line is clear | A denser sample changes only `TargetPoints`; a shooter-rim sample contradicts the ruling's *center* |
 | 3 | What does *mostly inside* mean for a single model? | **The base centre inside the volume.** A centre test is exact and needs no new primitive; the unit threshold is *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the sight half is `Check` with `SightBlockersBetween` per model |
-| 4 | Is straight-line reach enough? | **Yes**, on `architecture.md`'s own terms: the region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |
+| 4 | Is straight-line reach enough? | **No** (owner: a 12" Rush must be able to go round difficult terrain). A move is measured along its shortest path (p.5), and the client draws the area reachable round difficult terrain within the allowance or through it within the cap | `movement.md` |
 | 5 | Free-for-all's *2'x1'*, which way round? | **24" along the long edge, 12" along the short.** p.50 gives no orientation | Nothing |
 | 6 | Side Battle's anchoring | **Proportional to the table.** Legs are `0.75` of the long edge and `0.625` of the short, the p.22 diagram's 54" and 30" on 72×48; a diagonal has no table feature to anchor to. The diagram's own three labels are inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Anchored legs, `Leg(edge) = edge - 18`, invent a constant no page states and degenerate at 18". The other six styles stay anchored |
 | 6a | Should every style scale with the table, so the split is not inconsistent? | **No:** *"We don't need to support skirmish at all."* One proportional style and six anchored ones is the shipped set. The two conventions agree exactly at 72×48, because Side Battle's fractions are chosen to reproduce that diagram, and diverge only as the table leaves the standard size | Nothing about the split. The ruling is about scope: the small-table behaviour the split would hurt is an accepted limit under Failure modes, and the built-in styles assume a table near 72×48 (`architecture.md` → Table and layout) |

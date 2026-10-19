@@ -23,7 +23,7 @@ public class GfMovesTests
     static Sim Rush(Enforcement enforcement, PropertyInstance[] unitRules, out Unit unit)
     {
         unit = Unit("A", "4+", "4+", unitRules, 2, []);
-        var sim = Sim.Gf(State([unit], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, enforcement: enforcement, terrain: [Patch(TerrainDeclarations.Difficult)]), 4);
+        var sim = Sim.Gf(State([unit], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, enforcement: enforcement, terrain: [Patch(TerrainDeclarations.Difficult, length: 30)]), 4);   // long: no way round it
         sim.Start(GfNames.RushSeq, new SequenceContext(unit.Id, [], [], GfNames.Rush));
         return sim;
     }

@@ -15,8 +15,8 @@ namespace Tabletop.GameServer.Tests;
 public class GfRushChargeDangerousTests
 {
     /// <summary>A 4" x 4" ruin centred on (x, -20), across the row the first team's single model stands on.</summary>
-    static TerrainPlacement Ruin(double x) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), new Point3(x, -20, 0), new Yaw(0), 1,
-        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(4, 4), new Point2(0, 0), new Yaw(0), 0, 4,
+    static TerrainPlacement Ruin(double x, double length = 4) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), new Point3(x, -20, 0), new Yaw(0), 1,
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(4, length), new Point2(0, 0), new Yaw(0), 0, 4,
             TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge, null))]);
 
     static Destinations By(Sim sim, Tabletop.Content.Unit u, double dx) => new(u.Models.Select(m => sim.Model(m.Id)).Select(m => new ModelRelocation(m.Id, m.Location,
@@ -65,7 +65,7 @@ public class GfRushChargeDangerousTests
     {
         var charger = Unit("A", "4+", "4+", [], 1, [], Melee("CCW", 1));
         var target = Unit("B", "4+", "4+", [], 1, [], Melee("CCW", 1));
-        var sim = Sim.Gf(State([charger], [target], x1: -10, x2: 0, terrain: [Ruin(-5)]), Fours);
+        var sim = Sim.Gf(State([charger], [target], x1: -10, x2: 0, terrain: [Ruin(-5, 30)]), Fours);   // long: the charge cannot go round it
         sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
         sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
         Assert.Empty(sim.Steps("test"));

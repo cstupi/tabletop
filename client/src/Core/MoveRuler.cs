@@ -16,29 +16,11 @@ public sealed record MoveGate(bool Allowed, string? Reason);
 
 public static class MoveRuler
 {
-    public static RulerReadout Read(Point2 start, Point2 current, double? allowance, double? minimum = null)
-    {
-        var d = start.DistanceTo(current);
-        return new RulerReadout(d, allowance is { } a ? Math.Max(0, a - d) : null, allowance is { } b && d > b + 1e-6, minimum is { } m && d < m - 1e-6);
-    }
+    public static RulerReadout Read(Point2 start, Point2 current, double? allowance, double? minimum = null) => Read(start.DistanceTo(current), allowance, minimum);
 
-    /// <summary>How far a straight move may go along each of Movement.Rays rays: the Ask's allowance (p.7), and its difficult cap on a ray that
-    /// touches one of its difficult volumes (p.11). Walls, other models and the table edge are left out: the drag slides along those itself.</summary>
-    public static IReadOnlyList<Point2> Reach(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes) =>
-        Movement.Region(start, Math.Max(0, legal.Allowance), [], volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList(), legal.DifficultCap, null).Boundary;
-
-    /// <summary>Where a drag may put a model: the target pulled back along the line from the model's origin to the reach (Reach). Between two
-    /// rays the nearer of their two ends holds, so a cap never leaks past the ray beside it.</summary>
-    public static Point2 Clamp(Point2 origin, IReadOnlyList<Point2> reach, Point2 target)
-    {
-        var d = origin.DistanceTo(target);
-        if (reach.Count == 0 || d < 1e-9) return target;
-        var angle = Math.Atan2(target.Y - origin.Y, target.X - origin.X);
-        var at = (angle < 0 ? angle + 2 * Math.PI : angle) / (2 * Math.PI) * reach.Count;
-        var i = (int)Math.Floor(at) % reach.Count;
-        var r = Math.Min(origin.DistanceTo(reach[i]), origin.DistanceTo(reach[(i + 1) % reach.Count]));
-        return d <= r + 1e-9 ? target : origin + (target - origin) * (r / d);
-    }
+    /// <summary>A readout for a move measured along its path (MoveRegions.Route): `distance` is the path's length.</summary>
+    public static RulerReadout Read(double distance, double? allowance, double? minimum = null) =>
+        new(distance, allowance is { } a ? Math.Max(0, a - distance) : null, allowance is { } b && distance > b + 1e-6, minimum is { } m && distance < m - 1e-6);
 
     /// <summary>The commit against every held model's readout and its contact marks (Violations.Marked): the models out of range are counted,
     /// each contact reason named once with its count, and under strict any of them disables it; under warn and silent it goes and the server judges.</summary>
@@ -68,24 +50,11 @@ public static class MoveRuler
         return toward is { } t && t.DistanceTo(start.Placement.Position.Horizontal) > 1e-6 ? Movement.RoomAlong(start, t, size) : farthest;
     }
 
-    /// <summary>The inner edge of the annulus a minimum cuts from the region: each boundary vertex pulled in to the minimum along its own ray, or
-    /// left where it is when the ray stops short of it. Paired with the boundary vertex for vertex.</summary>
-    public static IReadOnlyList<Point2> Inner(Point2 origin, IReadOnlyList<Point2> boundary, double minimum) =>
-        boundary.Select(p => origin.DistanceTo(p) is var d && d > minimum ? origin + (p - origin) * (minimum / d) : p).ToList();
-
     /// <summary>Distance a model has already moved inside a frame: the sum of its logged table-to-table relocations in the frame's completed steps.</summary>
     public static double UsedInFrame(Frame frame, Guid modelId) =>
         frame.Steps.SelectMany(s => s.Changes).OfType<ModelsMoved>().SelectMany(m => m.Moves)
             .Where(r => r.ModelId == modelId && r.From is OnTable && r.To is OnTable)
             .Sum(r => ((OnTable)r.From).Placement.Position.Horizontal.DistanceTo(((OnTable)r.To).Placement.Position.Horizontal));
-
-    /// <summary>The reachable region: Movement.Region from the Ask's parameters — the allowance, the impassable and difficult volumes resolved by id from the board, and the cap GameRules computed; the other models stop it where the bodies meet in plan and height, the mover rested on the board's volumes. One frame, no conversion.</summary>
-    public static IReadOnlyList<Point2> Region(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size, IReadOnlyList<PlacedModel>? others = null)
-    {
-        var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
-        var difficult = volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList();
-        return Movement.Region(start, legal.Allowance, impassable, difficult, legal.DifficultCap, size, legal.PassesModels ? null : others, volumes).Boundary;
-    }
 
     /// <summary>The unit is inside a container, so this move is a disembark and <see cref="Region"/> cannot serve it: there is no start placement to sweep from and Allowance binds nothing (contracts plan Task 8).</summary>
     public static bool IsDisembark(MoveRegion legal) => legal.Containment?.ExitingId is not null;
@@ -99,7 +68,7 @@ public static class MoveRuler
     /// The disembark region: rulebook p.15, "must stay fully within 6\" of it when exiting", measured edge to edge from the
     /// container's base — so it is the container's footprint grown by the exit distance, not a circle about its centre. One
     /// vertex per ray out of the container's base centre, marched outward in Movement.Step increments and bisected at the
-    /// first refusal, which is the loop Movement.Region uses and is what stops a ring of impassable terrain re-admitting
+    /// first refusal, which is what stops a ring of impassable terrain re-admitting
     /// placements beyond it. The candidate takes the container's Z, because the drop settles the height locally while the
     /// server settles it for the log; its yaw is whatever fits, since p.7 lets a model take any facing.
     /// </summary>
@@ -146,7 +115,7 @@ public static class MoveRuler
     /// Is this position offered at any facing? Fully within the exit distance of the container's base, on the slab, and clear
     /// of the impassable volumes the Ask named. The last two are asked through Movement.Check with the candidate as both start
     /// and destination: the distance is zero, so Check samples exactly that placement and answers CrossesImpassable and
-    /// LeavesTable for it — no new geometry primitive, and the same predicates the straight-line region uses.
+    /// LeavesTable for it — no new geometry primitive.
     /// </summary>
     static bool Admits(ModelBody body, PlacedModel container, double within, Point2 at, IReadOnlyList<WorldVolume> impassable, TableSize size) =>
         ExitYawAt(body, container, within, at, impassable, size) is not null;
