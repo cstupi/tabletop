@@ -1,10 +1,10 @@
-// web/src/lib/units/volumes.ts — the six declarations and the flags wire format; the bounding-box default.
+// web/src/lib/units/volumes.ts — the seven declarations and the flags wire format; the bounding-box default.
 import type { Declaration, Volume } from '$lib/api/types';
 
-export const DECLARATIONS: Declaration[] = ['impassable', 'blocks_line_of_sight', 'see_in_and_out', 'cover', 'difficult', 'dangerous'];
+export const DECLARATIONS: Declaration[] = ['impassable', 'blocks_line_of_sight', 'see_in_and_out', 'cover', 'difficult', 'dangerous', 'dangerous_on_rush_charge'];
 export const DECLARATION_LABELS: Record<Declaration, string> = {
   impassable: 'Impassable', blocks_line_of_sight: 'Blocks line of sight', see_in_and_out: 'See in and out',
-  cover: 'Cover', difficult: 'Difficult', dangerous: 'Dangerous',
+  cover: 'Cover', difficult: 'Difficult', dangerous: 'Dangerous', dangerous_on_rush_charge: 'Dangerous when using Rush/Charge',
 };
 
 export function parseDeclarations(wire: string): Set<Declaration> {

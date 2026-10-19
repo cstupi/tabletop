@@ -30,6 +30,18 @@ public static partial class GfMoves
 
     static IReadOnlyList<WorldVolume> Declared(IReadOnlyList<WorldVolume> terrain, TerrainDeclarations flag) => terrain.Where(v => v.Volume.Declarations.HasFlag(flag)).ToList();
 
+    /// <summary>p.11's dangerous terrain for this move or activation: every Dangerous volume, and for a Rush or a Charge every DangerousOnRushCharge
+    /// volume too (p.12: "Rivers - Dangerous when using rush/charge", "Ruins - Cover + Dangerous when using rush/charge").</summary>
+    static IReadOnlyList<WorldVolume> DangerousFor(IReadOnlyList<WorldVolume> terrain, bool rushOrCharge) =>
+        terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Dangerous)
+            || (rushOrCharge && v.Volume.Declarations.HasFlag(TerrainDeclarations.DangerousOnRushCharge))).ToList();
+
+    /// <summary>Whether an action's move is a Rush or a Charge (p.7, p.9).</summary>
+    static bool RushOrCharge(string? action) => action is GfNames.Rush or GfNames.Charge;
+
+    /// <summary>Whether an activation's sequence is a Rush or a Charge.</summary>
+    static bool RushesOrCharges(StepContext ctx) => ctx.Frame.Frame.Sequence is GfNames.RushSeq or GfNames.ChargeSeq;
+
     /// <summary>
     /// p.13 Flying: "Models with this special rule may move through units and terrain"; p.11: "Units may not move through impassable terrain, unless they
     /// have any rules that allow them to ignore it". A Flying unit's move Ask lists no impassable volume to sweep; where it ends is still judged
@@ -236,10 +248,11 @@ public static partial class GfMoves
         return null;
     }
 
-    /// <summary>p.11 "is activated in it": the unit's living models whose base centre is inside a Dangerous volume right now.</summary>
-    public static IReadOnlyList<Guid> StandingInDangerous(GameState state, Guid unit)
+    /// <summary>p.11 "is activated in it": the unit's living models whose base centre is inside a Dangerous volume right now, or a
+    /// DangerousOnRushCharge one when the activation is a Rush or a Charge.</summary>
+    public static IReadOnlyList<Guid> StandingInDangerous(GameState state, Guid unit, bool rushOrCharge = false)
     {
-        var dangerous = Declared(Battlefield.Terrain(state), TerrainDeclarations.Dangerous);
+        var dangerous = DangerousFor(Battlefield.Terrain(state), rushOrCharge);
         return dangerous.Count == 0 ? [] : Lookup.LivingModels(state, unit)
             .Where(m => Containment.VolumesContaining(Battlefield.Placed(state, m)!.Value, dangerous).Count > 0).ToList();
     }
@@ -269,7 +282,7 @@ public static partial class GfMoves
             // p.13: Flying ignores terrain effects. A granted Flying applies when there was a test to skip, and is kept to the activation's end (ConsumeKeepingFlying).
             if (rules.IgnoresDangerous)
             {
-                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit).Count > 0;
+                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx)).Count > 0;
                 if (tested) live.Use(Side.Attacker, GfNames.Flying);
                 var (spent, held) = ConsumeKeepingFlying(live);
                 return new Complete(spent, held);
@@ -278,7 +291,7 @@ public static partial class GfMoves
             // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
             if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(GfNames.DangerousTerrain, ctx.Frame.Context);
             // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
-            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit);
+            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx));
             if (standing.Count == 0) return new Complete([]);
             return new Complete(RollEffects.Consume(live), new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) }, Repeat: true);
         }
@@ -303,8 +316,9 @@ public static partial class GfMoves
     public static bool IsAircraft(StepContext ctx, Guid unit) => Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Aircraft);
 
     /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, the dangerous-terrain dice the models that moved in or
-    /// through a Dangerous volume owe (p.11), and whether a model went in or through difficult ground with the cap binding the unit (p.11, not Strider or Flying).</summary>
-    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed)
+    /// through a Dangerous volume owe (p.11; a DangerousOnRushCharge volume too when the action is a Rush or a Charge, p.12), and whether a model went in or
+    /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying).</summary>
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
         var rules = TerrainFor(ctx, unit, live);
@@ -313,7 +327,7 @@ public static partial class GfMoves
         var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>(); var crossedDifficult = false;
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
-        var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
+        var dangerous = DangerousFor(terrain, RushOrCharge(action));
         var strider = rules.IgnoresDifficult;   // p.14: Strider ignores difficult terrain, Flying all terrain effects
         var flying = rules.Flying;              // Strider does *not* skip a dangerous terrain test; only Flying does
         foreach (var m in proposed)
@@ -423,7 +437,7 @@ public static partial class GfMoves
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
-            var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
+            var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed), null);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
             live.Read(source);
             var (spent, held) = ConsumeKeepingFlying(live);

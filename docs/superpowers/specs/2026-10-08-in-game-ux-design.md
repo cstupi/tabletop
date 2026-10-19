@@ -125,7 +125,7 @@ and a thin line joins those two bases. Each model with more than one wound shows
 
 **Hover a terrain piece.** In play (`Playing` or `Ended`, not setup) a label floats over it, one line per volume: the
 piece's name (the built-in's label; an asset piece reads `Terrain`, since the game's asset manifest carries no names),
-the volume's declarations in the order Cover, Difficult, Dangerous, Impassable, Blocks LOS, See in/out (`Open` with none)
+the volume's declarations in the order Cover, Difficult, Dangerous, Dangerous on Rush/Charge, Impassable, Blocks LOS, See in/out (`Open` with none)
 and its height range on the table: `Ruin · Cover, Difficult, Blocks LOS, See in/out · 0–4"`. A left-click selects the
 piece, and its details show in the terrain card in the unit card's slot (the unit card gives the slot up until a unit is selected). `TerrainLabel` (Core) builds the text;
 `TableInput.HoveredTerrain` names the piece under the cursor.

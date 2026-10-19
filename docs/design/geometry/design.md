@@ -688,9 +688,9 @@ The two are never both set: *a unit may not embark and disembark in one activati
 transport embarks the whole unit, so the answer is a `Destinations` whose `To` is
 `Inside(container)` for every model.
 
-### 14. The six declarations, read geometrically
+### 14. The seven declarations, read geometrically
 
-Six flags, and they are OPR's own terrain types, read from the Grimdark Future and Age of
+Seven flags, and they are OPR's own terrain types, read from the Grimdark Future and Age of
 Fantasy advanced rulebooks whose terrain sections are word-for-word identical. **No effects are
 stored.** A flag says *this is difficult*. The ruleset says what that costs. How each flag is
 read here:
@@ -703,6 +703,7 @@ read here:
 | `Cover` | `Cover.InsideCoverVolumes` | whole base inside the footprint and vertical range |
 | `Difficult` | `Movement.Region`/`Check`, `VolumesCrossed` | *in or through*, not the landing position |
 | `Dangerous` | `Movement.VolumesCrossed` | the same *in or through* primitive, over the dangerous list |
+| `DangerousOnRushCharge` | `Movement.VolumesCrossed` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only |
 
 Which classes read a flag at all: `LineOfSight` and `Cover` filter on declarations themselves.
 `Movement` does **not**. It is handed two pre-filtered lists, because the server already
@@ -1071,6 +1072,7 @@ erDiagram
         bool cover
         bool difficult
         bool dangerous
+        bool dangerous_rush_charge
     }
     DEPLOYMENT_ZONE {
         text shape

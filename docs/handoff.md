@@ -44,13 +44,13 @@ each game's rows, never the accounts.
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 302 of 302 games pass in process and over the socket with no pin, 544 of 544 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 303 of 303 games pass in process with no pin (`core-ruins` not yet run over the socket; the other 302 pass there), 544 of 544 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 40 s. Geometry 214, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 668,
-  GameServer 1371, Management 272, Sim 282.
+  defect). About 40 s. Geometry 214, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 669,
+  GameServer 1375, Management 272, Sim 282.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
   GameServer 38, Sim 325; about 7 min.
@@ -103,6 +103,10 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 - Unreleased on main: team games are team-wide (either player activates, deploys and answers for any unit of the team;
   `Ask.Seat`, `Ask.OwnUnitsOnly` and `SeatAuthority` removed), and deployment no longer waits for a seat with no army on a
   team that has one.
+- Unreleased on main: the seventh terrain declaration `dangerous_on_rush_charge` (`TerrainDeclarations.DangerousOnRushCharge`;
+  p.12 "Ruins - Cover + Dangerous when using rush/charge", p.19 Quicksand), enforced as p.11 Dangerous for a Rush or a
+  Charge only (`GfMoves.DangerousFor`), migration 019 (`dangerous_rush_charge` on `asset_volume` and `terrain_volume`).
+  The built-in `ruins` and `large-ruins` are walk-in Areas with Cover and it, `quicksand` has it; suite game `core-ruins`.
 - Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
   "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
   watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
@@ -343,8 +347,6 @@ drawn through round 0.
 **Deferred minors:**
 - The card does not mark which model a Shift-click or wound-row click selected; Home has a text "Settings" button where
   the spec has a gear.
-- The book-table ruins (`ruins`, `large-ruins`, `overgrown-ruins`) keep p.12's declarations; only the built-in `ruin` is
-  BlocksLineOfSight and SeeInAndOut, a walk-in Difficult Area with Cover.
 - Under `strict` the client shows no warning for a drag the server refuses: a landing within 1" of another unit, a path
   through a model, and a flyer's drag or a placement dropped on a base.
 - The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s

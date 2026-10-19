@@ -77,9 +77,10 @@ seeded RNG is owed. An entry naming alternatives ("Hill, Forest, or Field") is r
 same RNG, so rolling a table produces a finished board in one action; a player
 who dislikes a piece swaps its mesh or deletes it, which the toolbar already offers. The tables ship with the client and the server never reads them, which keeps
 the game server ruleset-blind during setup. 40k has no such tables. Declarations follow the tables
-literally. Conditional clauses ("dangerous when using Rush or Charge", "units on top may ignore one
-unit for line of sight") go in `Notes` and are never flags. The engine reads a closed set of six
-and carries the rest as text nobody interprets.
+literally. "Dangerous terrain when using Rush/Charge actions" (Ruins or Debris, Quicksand) is the
+`dangerous_on_rush_charge` flag; other conditional clauses ("units on top may ignore one unit for line of
+sight", "Difficult terrain for units moving up") go in `Notes` and are never flags. The engine reads a closed
+set of seven and carries the rest as text nobody interprets.
 
 Zones are drawn for every ordinal during setup, in the team's colour when a team with that ordinal
 exists and grey otherwise, so a group can see and swap zones before every team has formed. From

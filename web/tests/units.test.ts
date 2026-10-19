@@ -29,7 +29,7 @@ describe('declarations', () => {
     expect(parseDeclarations('blocks_line_of_sight, cover')).toEqual(new Set(['blocks_line_of_sight', 'cover']));
     expect(formatDeclarations(new Set())).toBe('none');
     expect(formatDeclarations(new Set(['cover', 'impassable']))).toBe('impassable, cover');   // flag order, not insertion order
-    expect(DECLARATIONS).toHaveLength(6);
+    expect(DECLARATIONS).toHaveLength(7);
   });
   it('builds the bounding-box default', () => {
     expect(defaultVolume(6, 4, 3)).toEqual({ kind: 'solid', footprint: { kind: 'rect', a: 6, b: 4 }, offset: { x: 0, y: 0 }, yaw: { degrees: 0 }, bottom: 0, top: 3, declarations: 'none' });

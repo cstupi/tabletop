@@ -16,7 +16,7 @@ public static class RowMapping
     public static Volume VolumeFrom(NpgsqlDataReader r, int start) => new(
         EnumFrom<VolumeKind>(r.GetString(start)), new Footprint(EnumFrom<FootprintKind>(r.GetString(start + 1)), r.GetDouble(start + 2), r.GetDouble(start + 3)),
         new Point2(r.GetDouble(start + 4), r.GetDouble(start + 5)), new Yaw(r.GetDouble(start + 6)), r.GetDouble(start + 7), r.GetDouble(start + 8),
-        Declarations(r, start + 9), r.IsDBNull(start + 15) ? null : r.GetString(start + 15));
+        Declarations(r, start + 9), r.IsDBNull(start + 16) ? null : r.GetString(start + 16));
 
     static TerrainDeclarations Declarations(NpgsqlDataReader r, int i)
     {
@@ -27,17 +27,18 @@ public static class RowMapping
         if (r.GetBoolean(i + 3)) d |= TerrainDeclarations.Cover;
         if (r.GetBoolean(i + 4)) d |= TerrainDeclarations.Difficult;
         if (r.GetBoolean(i + 5)) d |= TerrainDeclarations.Dangerous;
+        if (r.GetBoolean(i + 6)) d |= TerrainDeclarations.DangerousOnRushCharge;
         return d;
     }
 
-    public const string VolumeColumns = "kind, footprint, dim_a, dim_b, offset_x, offset_y, yaw, bottom, top, impassable, blocks_los, see_in_out, cover, difficult, dangerous, notes";
+    public const string VolumeColumns = "kind, footprint, dim_a, dim_b, offset_x, offset_y, yaw, bottom, top, impassable, blocks_los, see_in_out, cover, difficult, dangerous, dangerous_rush_charge, notes";
 
     public static object?[] VolumeValues(Volume v) =>
     [
         EnumText(v.Kind), EnumText(v.Footprint.Kind), v.Footprint.A, v.Footprint.B, v.Offset.X, v.Offset.Y, v.Yaw.Degrees,
         v.Bottom, v.Top, v.Declarations.HasFlag(TerrainDeclarations.Impassable), v.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight),
         v.Declarations.HasFlag(TerrainDeclarations.SeeInAndOut), v.Declarations.HasFlag(TerrainDeclarations.Cover), v.Declarations.HasFlag(TerrainDeclarations.Difficult),
-        v.Declarations.HasFlag(TerrainDeclarations.Dangerous), v.Notes,
+        v.Declarations.HasFlag(TerrainDeclarations.Dangerous), v.Declarations.HasFlag(TerrainDeclarations.DangerousOnRushCharge), v.Notes,
     ];
 
     /// <summary>game.optional_rules (jsonb, an object of strings) read as text.</summary>

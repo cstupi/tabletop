@@ -15,6 +15,13 @@ public class TerrainLabelTests
     }
 
     [Fact]
+    public void Book_ruins_read_cover_and_dangerous_on_rush_charge()
+    {
+        var ruins = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), new Point3(0, 0, 0), new Yaw(0), 1, [V(0, 4, TerrainDeclarations.Cover | DangerousOnRushCharge)]);
+        Assert.Equal("Ruins or Debris · Cover, Dangerous on Rush/Charge · 0–4\"", TerrainLabel.Of(ruins));
+    }
+
+    [Fact]
     public void Scale_and_elevation_raise_the_heights_and_each_volume_gets_its_own_line()
     {
         var piece = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(Guid.CreateVersion7()), new Point3(0, 0, 1), new Yaw(0), 0.5, [V(0, 3, Impassable), V(3, 5, None)]);

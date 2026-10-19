@@ -32,7 +32,8 @@ public readonly record struct Footprint(FootprintKind Kind, double A, double B)
 /// <summary>Solid: occupied, its top is what a model settles onto. Area: passed through, stood inside.</summary>
 public enum VolumeKind { Solid, Area }
 
-/// <summary>The six terrain declarations the engine reads. Everything else is <see cref="Volume.Notes"/>.</summary>
+/// <summary>The seven terrain declarations the engine reads. Everything else is <see cref="Volume.Notes"/>.
+/// DangerousOnRushCharge is rulebook p.12's "Dangerous when using rush/charge" (Rivers, Ruins): Dangerous for a unit that Rushes or Charges.</summary>
 [Flags]
 public enum TerrainDeclarations
 {
@@ -43,6 +44,7 @@ public enum TerrainDeclarations
     Cover = 8,
     Difficult = 16,
     Dangerous = 32,
+    DangerousOnRushCharge = 64,
 }
 
 /// <summary>An extruded prism relative to its piece's origin. Bottom and Top are heights above the piece's base.</summary>

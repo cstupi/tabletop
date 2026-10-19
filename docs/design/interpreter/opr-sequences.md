@@ -202,7 +202,8 @@ the string `Tough` appears is `GfAttack.cs`, and `InterfaceConstraintTests` asse
 ## The four actions
 
 `activation-terrain` is the first step of all four: p.11's third trigger, *is activated in it*.
-It writes `Values["dangerous_dice"]` for the models standing in a `Dangerous` volume when the
+It writes `Values["dangerous_dice"]` for the models standing in a `Dangerous` volume (or, in a `rush` or
+`charge`, a `DangerousOnRushCharge` one: p.12 *"Ruins - Cover + Dangerous when using rush/charge"*) when the
 activation begins and pushes `dangerous-terrain`, so the test itself is one step and only the
 affected models are rolled for.
 
@@ -308,7 +309,9 @@ left out. Where the table has no room for 30" in any direction (a small table: p
 base on the table), the owner's ruling is that it moves as far as it can in the direction taken: the minimum is the room
 towards where the model went (`GfMoves.Minimum`, `Movement.RoomAlong`).
 
-Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume.
+Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume, or a
+`DangerousOnRushCharge` volume when the step's action is Rush or Charge (`GfMoves.DangerousFor`). A rule's
+`reposition` move tests only `Dangerous`.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes
 passed in its `difficult` slot and `EntersDifficult` read back. It is the same swept test asked of
 a different set. That is the obligation the geometry module states of this one.

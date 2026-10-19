@@ -52,7 +52,7 @@ public sealed record RecordedTerrain(
 
 /// <param name="Kind">`solid` or `area`.</param>
 /// <param name="Footprint">`circle` (A = radius) or `rect` (A = width, B = length).</param>
-/// <param name="Declarations">The closed six, snake_case: impassable, blocks_line_of_sight, see_in_and_out, cover, difficult, dangerous.</param>
+/// <param name="Declarations">The closed seven, snake_case: impassable, blocks_line_of_sight, see_in_and_out, cover, difficult, dangerous, dangerous_on_rush_charge.</param>
 public sealed record RecordedVolume(
     Guid Id, string Kind, string Footprint, double A, double B,
     double OffsetX, double OffsetY, double Yaw, double Bottom, double Top,
