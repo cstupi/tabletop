@@ -47,9 +47,12 @@ public static class ScenarioCompiler
         var ordinals = s.Armies.Select((a, i) => a.Team ?? i + 1).ToList();
         var teams = Enumerable.Range(1, ordinals.Max()).Select(o => new Team(Guid.CreateVersion7(), o)).ToList();
         // Self-play: every team's row belongs to one account, the first's; the rows are still one per team, each with its army.
+        // The server binds a self-play socket to the account's lowest participant id (`order by id`); v7 ids made in the same
+        // millisecond are random past the timestamp, so they are sorted in uuid order to make the first army's row that one.
         var account = Guid.CreateVersion7();
+        var selfPlayIds = s.Armies.Select(_ => Guid.CreateVersion7()).OrderBy(g => g.ToString(), StringComparer.Ordinal).ToList();
         var participants = s.Armies.Select((a, i) => s.SelfPlay
-            ? new Participant(Guid.CreateVersion7(), account, "Sim 1", teams[ordinals[i] - 1].Id, null, a.Name)
+            ? new Participant(selfPlayIds[i], account, "Sim 1", teams[ordinals[i] - 1].Id, null, a.Name)
             : new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Sim {i + 1}", teams[ordinals[i] - 1].Id, null, a.Name)).ToList();
         // The recorder: a participant with no team, which is what a spectator is (whole-design review ruling 5).
         // It is never Asked, and its filtered event stream is what the driver's projection and the recording are built from.
