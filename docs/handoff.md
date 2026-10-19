@@ -297,9 +297,6 @@ thread, template copies of rigged or animated models.
 
 ### 1. Open items from the defect fixes
 
-- **Deploy caution:** games `playing` with an open sequence frame must be ended or abandoned before running this server. The step
-  lists of attack-sequence, casting, spell-hits and morale-test changed (`SequenceInterpreter` indexes steps by position), so a
-  parked frame can resolve hits twice. Nothing guards it; a guard needs a sequence version.
 - **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
   Impact, attack-start faces, dice-distance moves.
 - **Owner rulings on movement:** a spell's forced move moves the unit however that unit moves (*"Spells move as however that
@@ -313,7 +310,6 @@ thread, template copies of rigged or animated models.
   client's Aircraft minimum ring (`MoveRuler.Minimum`) and the sim's `AnswerPolicy` still use the farthest-corner reach on a small table,
   stricter than the server's direction-taken minimum; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
   effects" is unbuilt.
-- **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
 
 ### 2. The client
 
