@@ -102,7 +102,12 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
   viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the
   dice as they stand when used, with a Continue stop before a repeated first step in wait-mode games.
-- In flight 2026-10-19: Alien Hives miniatures to `C:\Users\clays\Downloads\alien-hives\` (scripts in `src\`).
+- Paused 2026-10-19. Not yet run: the socket rules suite on the face-decision merge (`ddc0673`); run
+  `dotnet run --project sim -- suite --driver socket` with the stack up before the next release.
+- Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): work in progress outside the repo at
+  `C:\Users\clays\Downloads\alien-hives\` — `src\` holds the generator (numpy SDF → marching cubes → painted GLB), the
+  list JSON, the owner's style reference and `README.txt` with the remaining models and the gaps the owner's style needs
+  fixed on the one draft (`draft\snatcher-lord-brood-leader.glb`).
 - Unreleased on main, ship in the next batch: both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B);
   client Replay; the hosted viewer; the army-wide base choice removed (import takes Army Forge's round base, else square).
 - Unreleased on main: team games are team-wide (either player activates, deploys and answers for any unit of the team;
