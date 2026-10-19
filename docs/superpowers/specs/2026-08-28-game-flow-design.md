@@ -23,28 +23,26 @@ the record keeps them apart.
 **A team groups players.** The scheduler only ever sees teams. Solo play is a team of
 one, so nothing in the flow branches on player count.
 
-**Turns are the team's; units are their player's.** Ruled by the owner 2026-10-17, following
-rulebook p.50 Team Games: "the turn order is on a team basis and not on a player basis, so for
-each team's turn only one of the players may activate a single unit", and "players from the same
-team must deploy their units in the same deployment zone, placing a single unit when it's their
-team's turn to deploy". The scheduler alternates teams exactly as with one player a side. On a
-team's turn any of its players may take the activation (or the deployment), but only with a unit
-of their own army; which player goes is the team's choice. Every Ask about a unit during an
-activation (targets, moves, casting, a reaction's pick) is that unit's player's, and a defender's
-Ask (casualties, strike back, the close-in) is the player whose unit is hit. Scoring, objectives
-and the game's end stay per team.
+**Turns and units are the team's.** Rulebook p.50 Team Games: "the turn order is on a team basis
+and not on a player basis, so for each team's turn only one of the players may activate a single
+unit", and "players from the same team must deploy their units in the same deployment zone, placing
+a single unit when it's their team's turn to deploy". Owner ruling: "Either player from the team can
+take the activation across any unit in their team." The scheduler alternates teams exactly as with
+one player a side. On a team's turn any of its players takes the activation (or the deployment) with
+any unit of the team, whichever player's army it came from, and any of them answers every later Ask
+of that activation (targets, moves, casting, a reaction's pick) and every Ask to the team as defender
+(casualties, strike back, the close-in); whoever starts an activation does not lock teammates out of
+it. Scoring, objectives and the game's end stay per team.
 
-- Every seat of a team brings its own army, so a team may hold several (p.50: "you must split
-  the amount of points that each team is allowed to take between its players"). In the lobby each
-  player picks "Your army"; the team card lists each member with their army.
-- `Ask.Seat` names the participant row an Ask about one unit belongs to (the frame's actor on the
-  addressed team, the unit hit, the unit moving); `Ask.OwnUnitsOnly` marks a pick of a unit to act
-  (activate, deploy, deploy an Ambusher or a Reinforcement, a reaction, Coordinate), where each seat
-  may pick only its own units. The game server refuses any other answer `NotPermitted` under every
-  enforcement setting, and under `strict` refuses a hand placement of a teammate's deploy pick.
-  One account answers for every seat it holds (self-play).
-- The client offers each player only their own units and shows a teammate's Ask as waiting on
-  them ("Team 1 (Cid): move").
+- A seat may bring its own army, so a team may hold several (p.50: "you must split the amount of
+  points that each team is allowed to take between its players"), and a seat may bring none: owner
+  ruling, "You need an army on your team." In the lobby each player picks "Your army"; the team card
+  lists each member with their army.
+- An Ask names teams only. The game server refuses `NotPermitted` an answer from a seat on a team
+  the Ask does not address and a second answer from the same team; any seat of an addressed team
+  may answer, and any of them places the team's deploy pick.
+- The client offers every player of the team every unit of the team, and shows the team's Asks as
+  each player's move.
 - Menu edits (the override path) stay open to every player of the game, as before.
 
 Joining a team that already has a player is the creator's to do: the creator places a participant
@@ -79,12 +77,13 @@ points at this statement rather than restating it.
 
 Ruled by the owner 2026-10-17. **Ending setup always opens the game** (`playing`, the board
 snapshotted, the log opened). **Deployment, and the roll-off before it, waits while any team has no
-participant, or a seat on it has no army in play** (`WaitingForPlayers`, `libs/Tabletop.Protocol`).
-A team with a participant but no army waits too: deployment needs units on every side, and a side
-with none would be skipped by every turn. A team of several players waits until each of them has
-brought an army. Each team it waits on reads "Waiting for a player on Team 2", "Team 2 has no army"
-or "Team 1 waits for Cid to pick an army", to every client, in the header, the decision box and the
-side panel.
+participant, or no army with a unit in play** (`WaitingForPlayers`, `libs/Tabletop.Protocol`; owner
+ruling: "You need an army on your team."). A team with a participant but no army waits: deployment
+needs units on every side, and a side with none would be skipped by every turn. A seat with no army
+on a team that has one is no wait, since any player of a team commands every unit of the team. Each
+team it waits on reads "Waiting for a player on Team 2" or "Team 2 has no army", to every client, in
+the header, the decision box and the side panel, and any player of a team with no army is offered
+the army picker.
 
 The wait holds only while the log is empty, so nothing has been rolled, deployed or edited. Two lobby
 edits stay open in it, and everything else is frozen (commands and every other edit are refused
@@ -94,7 +93,7 @@ edits stay open in it, and everything else is frozen (commands and every other e
   participant row with no team takes it; an account that already plays a team gets one more row),
   or the creator places a participant with no team on it. A team someone holds stays held, and
   nobody leaves a team.
-- **`PickArmy` for a seat of mine with no army on a team that waits.** The army is checked as at the end of setup,
+- **`PickArmy` for a seat of mine with no army on a team that waits** (a team with no army). The army is checked as at the end of setup,
   snapshotted, written to the participant row (`army_snapshot`) and added to the board the empty
   log opens on, so hydration reads the same board. The army is final once it joins.
 

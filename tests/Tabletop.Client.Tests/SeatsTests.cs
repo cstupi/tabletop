@@ -60,4 +60,22 @@ public class SeatsTests
         var army = Assert.Single(WaitingView.Of(mine, WaitingForPlayers.Teams(mine, Samples.Board), Samples.P1)).Army!;
         Assert.Equal(new PickArmy(Samples.Army.Id, Samples.Team2), army.Pick(Samples.Army.Id));
     }
+
+    /// <summary>Owner ruling: "You need an army on your team." Cid joins Clay's team with no army: Clay's army is the team's, so Cid is not
+    /// prompted; on a team with no army any of its players is offered the picker.</summary>
+    [Fact]
+    public void Only_a_team_with_no_army_is_offered_the_army_picker()
+    {
+        var cid = Guid.CreateVersion7();
+        var game = Samples.Game with { Participants = [.. Samples.Game.Participants, new Participant(cid, Guid.CreateVersion7(), "Cid", Samples.Team1, null),
+            new Participant(Second, Guid.CreateVersion7(), "Bob", Samples.Team2, null)] };
+        var bobs = new ArmyInPlay(Second, ArmySnapshot.Of(ArmyTests.Sample(), Guid.CreateVersion7()));
+        var armed = Samples.Board with { Armies = [.. Samples.Board.Armies, bobs] };
+        Assert.Empty(WaitingView.Of(game, WaitingForPlayers.Teams(game, armed), cid));
+
+        var unarmed = Samples.Board with { Armies = [bobs] };
+        var line = Assert.Single(WaitingView.Of(game, WaitingForPlayers.Teams(game, unarmed), cid));
+        Assert.Equal("Team 1 has no army", line.Text);
+        Assert.NotNull(line.Army);
+    }
 }

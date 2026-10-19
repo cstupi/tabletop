@@ -79,23 +79,9 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
         return result.Record;
     }
 
-    /// <summary>An Ask to one team, answered by the seat whose unit it is about (Ask.Seat; rulebook p.50 Team Games): `unit` when given, else the
-    /// frame's actor when it is on that team, else the frame's first target on it.</summary>
-    public Ask Ask(string question, string prompt, Guid team, LegalSet legal, bool allowPass = false, string? windowKind = null, Guid? unit = null) =>
-        new(Guid.CreateVersion7(), question, prompt, [team], legal, allowPass, false, windowKind, Frame.Id) { Seat = SeatOf(team, unit) };
-
-    /// <summary>An Ask to one team whose answer picks one of its units to act (a reaction): any seat of the team answers, each for its own units
-    /// only (Ask.OwnUnitsOnly).</summary>
-    public Ask UnitPickAsk(string question, string prompt, Guid team, LegalSet legal, bool allowPass = false, string? windowKind = null) =>
-        new(Guid.CreateVersion7(), question, prompt, [team], legal, allowPass, false, windowKind, Frame.Id) { OwnUnitsOnly = true };
-
-    Guid? SeatOf(Guid team, Guid? unit)
-    {
-        var about = unit
-            ?? (Frame.Context.ActorUnitId is { } actor && TeamOf(actor) == team ? actor : (Guid?)null)
-            ?? Frame.Context.TargetUnitIds.Where(t => TeamOf(t) == team).Select(t => (Guid?)t).FirstOrDefault();
-        return about is { } u && Projection.Units.TryGetValue(u, out var owned) && TeamOf(u) == team ? owned.ParticipantId : null;
-    }
+    /// <summary>An Ask to one team; any seat of the team answers it (rulebook p.50 Team Games).</summary>
+    public Ask Ask(string question, string prompt, Guid team, LegalSet legal, bool allowPass = false, string? windowKind = null) =>
+        new(Guid.CreateVersion7(), question, prompt, [team], legal, allowPass, false, windowKind, Frame.Id);
 
     public Ask SealedAsk(string question, string prompt, IReadOnlyList<Guid> teams, LegalSet legal, string windowKind) =>
         new(Guid.CreateVersion7(), question, prompt, teams, legal, true, true, windowKind, Frame.Id);

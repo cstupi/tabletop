@@ -45,7 +45,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   (`CompiledScenario.Connected`, `ConnectionFor`, `CredentialOf`); every answer names its team (`IGameDriver.AnswerAsync` sends
   `AnswerAsk.TeamId`). `core-self-play` plays it through deployment and four rounds.
 - `ScenarioArmy.Team` (builder `team:`) seats an army on a team ordinal, so a team holds several (rulebook p.50 Team Games). `RunLoop`
-  answers an Ask as its `Seat`, an `OwnUnitsOnly` pick as the picked unit's owner, and places a deploy pick as its owner.
+  has a team's seats take turns answering its Asks (`RunLoop.Seat`), whatever unit an answer picks, and the seat that picked a deploy
+  unit places it (owner ruling: either player of a team activates any unit of the team).
   `core-team-game` plays two a side through deployment and four rounds.
 - `ScenarioArmy.SetAside` (builder `setAside:`) lists unit ordinals the run sets aside before the first answer: one `SetCondition`
   of the ruleset's set-aside condition per unit, as the unit menu does. A Scout or Ambush unit plays only when set aside.

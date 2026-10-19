@@ -142,9 +142,8 @@ input path, not a second mechanism.
 
 An Ask is addressed to a **team** — turns are the team's, per
 [game flow](2026-08-28-game-flow-design.md) → *Participants* — and carries a question kind and the
-server-computed legal set. The client renders it as the thing to answer; the player whose unit it
-is about answers (`Ask.Seat`), or any team member for a pick among their own units
-(`Ask.OwnUnitsOnly`) or a team-wide Ask, and the log records who did.
+server-computed legal set. The client renders it as the thing to answer; any member of the team
+answers, for any unit of the team, and the log records who did.
 
 What the legal set *means* is the enforcement setting's business: under `strict` an
 out-of-set answer is refused; under `warn` it is accepted and logged with a warning; under

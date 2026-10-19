@@ -82,9 +82,11 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   totals; terrain details/controls live in the unit card's slot (`TerrainCard`). Ruler: hold Ctrl (starts under the
   cursor), H toggles 2D/3D (`TapeMeasure`, `Measurement` mode on the wire), M click-click. Spell hover text on cast options
   and log rows. Terrain turns in setup (Q/E while held, Shift 5°, card/menu when selected); drags slide along contacts.
-- **Game flow:** deployment waits until every seat has an army (`WaitingForPlayers`); a participant row is a seat (one
+- **Game flow:** deployment waits until every team has a player and an army (`WaitingForPlayers`; owner ruling: "You need
+  an army on your team.", so a seat with no army does not hold it); a participant row is a seat (one
   team, one army, migration 018); one account may hold several seats (self-play); team games per p.50: turns alternate by
-  team, each seat commands only its own units (`Ask.Seat`, `OwnUnitsOnly`, `SeatAuthority`). Under strict a team may not
+  team, and either player of the team takes the activation (and the deployment) with any unit of the team and answers every
+  Ask to the team (owner ruling: "Either player from the team can take the activation across any unit in their team."). Under strict a team may not
   pass while a unit can activate (p.7). A unit set aside during deployment withdraws the stale deploy Ask
   (`SchedulerBase.Withdrawn`), including on hydration.
 - **Web:** Sci-fi/Fantasy themes; GLBs default to glTF metres/Y-up with a size readout; the mesh preview orbits over the
@@ -98,6 +100,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 **Open / next:**
 - Unreleased on main, ship in the next batch: both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B);
   client Replay; the hosted viewer; the army-wide base choice removed (import takes Army Forge's round base, else square).
+- Unreleased on main: team games are team-wide (either player activates, deploys and answers for any unit of the team;
+  `Ask.Seat`, `Ask.OwnUnitsOnly` and `SeatAuthority` removed), and deployment no longer waits for a seat with no army on a
+  team that has one.
 - Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
   "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
   watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
@@ -107,7 +112,6 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   game including ended ones, and replays a game's log on its timeline over `wss://…/ws` (an admin watches any game).
 - Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an
   Information line per `GET /v1/games/{id}/assets` (game id, asset count).
-- Team games leave team-wide: spell-token spending, hand-move overrides, and passing the team's activation.
 - The waiting panel's army choice is one button per army (its dropdown would not open there; cause not found).
 - Miniatures generated for the owner (power-armour gunner, Soul-Snatcher Cults, Orc BOOM) live outside the repo in the
   owner's Downloads; their generator scripts are in the session scratchpad only.

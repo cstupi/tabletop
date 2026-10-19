@@ -37,7 +37,7 @@ public sealed partial class GrimdarkFutureRules
             next = eligible.FirstOrDefault(t => TeamUnits.IndexOf(order, t) > lastIndex, eligible[0]);
         }
         var ask = new Ask(Guid.CreateVersion7(), AskQuestions.DeployReinforcement, "Reinforcement: deploy a new copy of a unit, or pass", [next],
-            new PieceSelection(GfReserves.Reinforcements(state, next), 1, 1), AllowPass: true, Sealed: false, WindowKind: null, FrameId: null) { OwnUnitsOnly = true };
+            new PieceSelection(GfReserves.Reinforcements(state, next), 1, 1), AllowPass: true, Sealed: false, WindowKind: null, FrameId: null);
         return new HookEmit([new AskOpened(ask)]);
     }
 }

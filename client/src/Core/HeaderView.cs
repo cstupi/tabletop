@@ -70,21 +70,16 @@ public static class HeaderView
     /// <summary>As Waiting, with my team's entries first and named "Your move", so the player sees at once whether the game waits on them.</summary>
     public static string? Waiting(Projection p, Names n, Guid? myTeam) => Waiting(p, n, myTeam is { } t ? [t] : []);
 
-    /// <summary>As Waiting, for a client holding several teams (self-play): each of mine is "Your move (Team 2)". With `game` and `me` (Welcome's
-    /// row), an Ask only certain players of a team answer (SeatPicks.Answerers: a Seat, or own-unit picks) names them, "Team 1 (Cid)", and is
-    /// "Your move" only when one of them is mine (rulebook p.50 Team Games).</summary>
-    public static string? Waiting(Projection p, Names n, IReadOnlyCollection<Guid> mine, Guid? me = null, GameInfo? game = null)
+    /// <summary>As Waiting, for a client holding several teams (self-play): each of mine is "Your move (Team 2)". Any player of a team answers
+    /// its Asks (rulebook p.50 Team Games), so every Ask waiting on a team of mine is my move.</summary>
+    public static string? Waiting(Projection p, Names n, IReadOnlyCollection<Guid> mine)
     {
-        var seats = game is null ? [] : Seats.Mine(game, me).Select(s => s.Id).ToHashSet();
-        string Who(Guid t, bool myMove, IReadOnlyList<Guid> answerers) =>
-            myMove ? (mine.Count > 1 ? $"Your move ({n.Team(t)})" : "Your move")
-            : answerers.Count == 0 ? n.Team(t) : $"{n.Team(t)} ({string.Join(", ", answerers.Select(id => n.Participant(id)))})";
+        string Who(Guid t, bool myMove) => myMove ? (mine.Count > 1 ? $"Your move ({n.Team(t)})" : "Your move") : n.Team(t);
         var parts = p.OpenAsks.Values.OrderBy(a => a.Ask.Id)
             .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t =>
             {
-                var answerers = game is null ? [] : SeatPicks.Answerers(a.Ask, p).Where(id => game.Participants.Any(x => x.Id == id && x.TeamId == t)).ToList();
-                var myMove = mine.Contains(t) && (answerers.Count == 0 || seats.Count == 0 || answerers.Any(seats.Contains));
-                return (Mine: myMove, Text: $"{Who(t, myMove, answerers)}: {a.Ask.Question.Replace('_', ' ')}");
+                var myMove = mine.Contains(t);
+                return (Mine: myMove, Text: $"{Who(t, myMove)}: {a.Ask.Question.Replace('_', ' ')}");
             }))
             .Distinct().OrderByDescending(x => x.Mine).Select(x => x.Text).ToList();
         return parts.Count == 0 ? null : string.Join(" · ", parts);

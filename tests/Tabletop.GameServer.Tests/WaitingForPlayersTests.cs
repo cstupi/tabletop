@@ -89,10 +89,10 @@ public class WaitingForPlayersTests
         Assert.Equal(joined.Armies.Select(a => (a.ParticipantId, a.Snapshot.Id)), rehydrated.Armies.Select(a => (a.ParticipantId, a.Snapshot.Id)));
     }
 
-    /// <summary>Rulebook p.50 Team Games: every player on a side brings an army. The creator placed Cid on team 1 in the lobby; he picked none
-    /// before setup ended, so deployment waits for his army, and his own PickArmy ends the wait.</summary>
+    /// <summary>Owner ruling: "You need an army on your team." The creator placed Cid on team 1 in the lobby; he picked no army, and the team has
+    /// hers, so ending setup opens deployment at once: Cid commands the team's units with her.</summary>
     [Fact]
-    public async Task A_team_of_two_waits_for_the_second_players_army_and_the_lobby_names_each_army()
+    public async Task A_team_of_two_with_one_army_does_not_wait_and_the_lobby_names_each_army()
     {
         using var factory = Factory();
         var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2, participantsPerTeam: 0);
@@ -101,7 +101,7 @@ public class WaitingForPlayersTests
         var cidSeat = await db.SeedParticipantAsync(seeded.GameId, cid, null);
         var bob = await db.SeedAccountAsync("Bob");
         await db.SeedParticipantAsync(seeded.GameId, bob, seeded.TeamIds[1]);
-        var (mine, cids, bobs) = (await db.SeedArmyAsync(seeded.CreatorAccountId), await db.SeedArmyAsync(cid), await db.SeedArmyAsync(bob));
+        var (mine, bobs) = (await db.SeedArmyAsync(seeded.CreatorAccountId), await db.SeedArmyAsync(bob));
         await using var c = await TestClient.OpenAsync(factory);
         await c.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await using var b = await TestClient.OpenAsync(factory);
@@ -116,16 +116,8 @@ public class WaitingForPlayersTests
         await c.SendAsync(Edit(new EndSetup()));
         var info = (await c.ExpectAsync<GameInfoMessage>()).Game;
         var board = (await c.ExpectAsync<BoardMessage>()).Board;
-        Assert.Equal("Team 1 waits for Cid to pick an army", Assert.Single(WaitingForPlayers.Teams(info, board)).Text);
-        Assert.Empty((await c.ExpectAsync<EventsMessage>()).Events);
-        Assert.Equal(0L, (await c.ExpectAsync<AtRest>()).Seq);
-
-        await using var late = await TestClient.OpenAsync(factory);
-        await late.ConnectAsync(cid, seeded.GameId);
-        await late.SendAsync(Edit(new PickArmy(cids.Id)));
-        Assert.Equal(cids.Name, (await c.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == cid).ArmyName);
-        Assert.Equal(3, (await c.ExpectAsync<BoardMessage>()).Board.Armies.Count);
-        Assert.Empty((await c.ExpectAsync<EventsMessage>()).Events);
+        Assert.Empty(WaitingForPlayers.Teams(info, board));
+        Assert.Equal(2, board.Armies.Count);
         var opened = new List<GameEvent>();
         while (opened.Count < 3) opened.AddRange((await c.ExpectAsync<EventsMessage>()).Events);
         Assert.Equal(["sequence_started", "step_completed", "ask_opened"], opened.Select(e => e.Kind));   // the roll-off

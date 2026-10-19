@@ -18,9 +18,9 @@ public static class DecisionView
     const int Keyed = 9;
     static readonly string[] DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
 
-    public static DecisionModel Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyCollection<string> muted, Guid? me = null)
+    public static DecisionModel Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyCollection<string> muted)
     {
-        var mine = AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal), me);
+        var mine = AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal));
         if (mine is null) return new DecisionModel(null, null, "", [], "");
         var ask = mine.Ask;
         var numbered = Numbered(ask, n);
@@ -70,8 +70,8 @@ public static class DecisionView
 
     /// <summary>The note on a unit's choices in my open Options Ask (activate: why its actions are limited), for the unit card; null
     /// when no Ask is open for my team or none of the unit's choices carries one.</summary>
-    public static string? NoteOf(Projection p, GameInfo game, Guid? myTeam, IReadOnlyCollection<string> muted, Guid unitId, Guid? me = null) =>
-        AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal), me)?.Ask.Legal is Options o
+    public static string? NoteOf(Projection p, GameInfo game, Guid? myTeam, IReadOnlyCollection<string> muted, Guid unitId) =>
+        AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal))?.Ask.Legal is Options o
             ? ChoicesOf(o, p, unitId).Select(c => c.Note).FirstOrDefault(n => n is not null)
             : null;
 

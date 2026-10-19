@@ -347,13 +347,14 @@ construction:
 
 ```csharp
 new Ask(Guid.CreateVersion7(), ask.Question, ask.Prompt, [teamId], ask.Legal,
-        ask.AllowPass, Sealed: false, WindowKind: null, FrameId: null) { OwnUnitsOnly = true };
+        ask.AllowPass, Sealed: false, WindowKind: null, FrameId: null);
 ```
 
-The turn is the team's and the unit is its player's (rulebook p.50 Team Games; game flow →
-*Participants*): the legal set holds every unit of the team, whichever seat's army it is, and
-`OwnUnitsOnly` lets a seat pick only its own (`SeatAuthority` refuses the rest). The deploy Asks are
-turn Asks too, so teams alternate deploying one unit and the picking seat places it. With two players
+The turn is the team's (rulebook p.50 Team Games; game flow → *Participants*): the legal set holds
+every unit of the team, whichever seat's army it is, and any seat of the team picks any of them
+(owner ruling: "Either player from the team can take the activation across any unit in their
+team."). The deploy Asks are turn Asks too, so teams alternate deploying one unit and any seat of
+the team places it. With two players
 a side the alternation is unchanged: team A, team B, team A, whichever of A's players goes.
 
 The legal set is server-computed and is the activatable units paired with the actions each may

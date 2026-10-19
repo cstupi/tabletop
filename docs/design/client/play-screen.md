@@ -144,9 +144,9 @@ reaches `Mine` with a null team and a returning player is never rendered as a wa
 
 Behaviour the specs demand, and where it lives:
 
-- A team member answers what is theirs (`SeatPicks`: an Ask whose `Seat` is a teammate's is not mine, and an
-  `OwnUnitsOnly` pick offers only my units; one offering only a teammate's is theirs); the header names who a team's
-  Ask waits on ("Team 1 (Cid): move"), and the box shows who answered. `AnsweredBy` reads the effective log's last
+- Any team member answers any of the team's Asks, for any unit of the team (rulebook p.50 Team Games; owner ruling:
+  "Either player from the team can take the activation across any unit in their team."); the header reads
+  "Your move" for every player of the team, and the box shows who answered. `AnsweredBy` reads the effective log's last
   `AskAnswered` for that ask id and my team and names its actor, unless that is me; an answer an undo took back names no one.
 - Mutes auto-pass. A `WindowKind` in `ClientSettings.MutedWindowKinds` with `AllowPass` set sends
   `Passed` at once and shows "auto-passed (muted: {kind})" with an Unmute link. The pass is logged
