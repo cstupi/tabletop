@@ -56,4 +56,13 @@ public class TurnedTerrainTests
         var (turned, o1, _) = Table(90);
         Assert.Equal(3, Battlefield.Settle(turned, o1, new Placement(new Point3(40, 24, 0), new Yaw(0))).Position.Z);
     }
+    [Fact]
+    public void The_world_volumes_are_built_once_per_table()
+    {
+        var (state, _, _) = Table(90);
+        var volumes = Battlefield.Terrain(state);
+        Assert.Same(volumes, Battlefield.Terrain(state));
+        Assert.Equal(state.Board.Table.Terrain.SelectMany(t => t.WorldVolumes()), volumes);
+        Assert.NotSame(volumes, Battlefield.Terrain(Table(0).State));
+    }
 }

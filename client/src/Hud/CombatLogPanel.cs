@@ -18,6 +18,8 @@ public partial class CombatLogPanel : VBoxContainer
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly HashSet<string> _open = [], _folded = [];   // rolls opened, blocks folded
     Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
+    readonly List<LogEntry> _drawn = []; readonly List<int> _rowStarts = [];   // the top-level entries on screen and the index of each one's first row
+    (LogFilter, Guid?, long?, bool, RuleTexts)? _mode;                          // what every row was drawn under
     Action<RenderCause>? _onFrame; Action? _onTheme;
 
     /// <summary>The unit on the card, which the This unit filter keeps; set by the screen when the card changes.</summary>
@@ -68,16 +70,27 @@ public partial class CombatLogPanel : VBoxContainer
     /// <summary>Expand the block and the roll holding this RollRecord and scroll to it.</summary>
     public void Reveal(Guid rollId) { _reveal = rollId; Render(false); }
 
+    /// <summary>A render for new events (toEnd) keeps the rows of the leading top-level entries that draw as before (CombatLogRows.Kept) and
+    /// rebuilds from the first that differs: an append rebuilds the last block and adds the new ones, an undo rebuilds from the first entry it
+    /// strikes. A toggle, a reveal, the filter, the focus, the theme, a pending undo, watching or the rule texts rebuild every row.</summary>
     void Render(bool toEnd)
     {
         if (!_shown) { _stale = true; return; }
         _stale = false;
-        foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }
         _revealed = null; if (toEnd) _toEnd = true;
-        if (_s.Projection is null || _s.CombatLog is not { } log) return;
-        var n = log.Names;
-        foreach (var e in CombatLog.Filter(log.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus))
-            Add(_rows, e);
+        IReadOnlyList<LogEntry> next = [];
+        if (_s.Projection is not null && _s.CombatLog is { } log)
+        {
+            var n = log.Names;
+            next = CombatLog.Filter(log.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus);
+        }
+        var mode = (_s.Settings.LogFilter, _focus, _s.PendingUndoTo, _s.IsWatching, _s.Rules);
+        var kept = toEnd && _reveal is null && _mode == mode ? CombatLogRows.Kept(_drawn, next) : 0;
+        _mode = mode;
+        var from = kept < _rowStarts.Count ? _rowStarts[kept] : _rows.GetChildCount();
+        foreach (var c in _rows.GetChildren().Skip(from).ToList()) { _rows.RemoveChild(c); c.QueueFree(); }
+        _drawn.RemoveRange(kept, _drawn.Count - kept); _rowStarts.RemoveRange(kept, _rowStarts.Count - kept);
+        for (var i = kept; i < next.Count; i++) { _rowStarts.Add(_rows.GetChildCount()); _drawn.Add(next[i]); Add(_rows, next[i]); }
         _reveal = null;
         CallDeferred(nameof(Scroll));
     }

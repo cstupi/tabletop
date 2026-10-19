@@ -23,7 +23,7 @@ public static class MenuLimits
         RecordAction a when properties is not null && properties.Actions.All(x => x.Name != a.Action) => $"no action '{Clip(a.Action)}' in this game's rules",
         RecordAction a when a.Action.Length > Name => $"an action is at most {Name} characters",
         AddGrant g when properties is not null && properties.Entry(g.Grant.EntryName) is null => $"no rule '{Clip(g.Grant.EntryName)}' in this game's rules",
-        AddGrant g when properties is not null && !properties.AllEffects().Any(e => e.Id == g.Grant.EffectId) => $"no effect {g.Grant.EffectId} in this game's rules",
+        AddGrant g when properties is not null && properties.EffectById(g.Grant.EffectId) is null => $"no effect {g.Grant.EffectId} in this game's rules",
         AddGrant g when !state.Projection.Units.ContainsKey(g.Grant.CasterUnitId) => $"no unit {g.Grant.CasterUnitId}",
         AddGrant g when g.Grant.RemainingUses is < 0 or > Uses => $"a grant has 0–{Uses} uses",
         PlaceMarker m => Marker(state, m.Marker),

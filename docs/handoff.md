@@ -273,9 +273,20 @@ bases; sight lines reject by bounding box before the exact test (`SightBlockers`
 2,196 → 369, turn-boundary `Advance` 38–46 ms → 2–2.6 ms. The dev stack's `dotnet watch` (Debug, hot reload) is
 12.8× slower than Release; production builds Release.
 
-**Open from the review:** range rings (24 ms per redraw, ~1.5M distance calls), an incremental combat-log panel, a by-id
-index for grant rows. Risks to watch:
-GLB parsing off the main thread, template copies of rigged or animated models.
+Range rings (`RangeRings`) scan each carrier's ring once, skip carriers whose rings cannot reach it, decide inside or outside
+from each base's bounding circles (`Geometry.BaseEdge`: the base outline built once, `Inner`/`Outer`) and measure exactly only
+between them; a round base's ring is closed form, any other is found by regula falsi. `RangeRingNode` recomputes only when the
+selected unit or its models' slots or placements change (`RangeRingCache`) and rebuilds its mesh only when the rings or colour
+do. Measured, Release, 20 carriers of a 24" weapon packed in a 5 × 4 grid (`RangeRingsPackedTests`): 1" rounds 129 → 3.5 ms,
+2.5" × 1.5" ovals 8.0 s → 64 ms. The combat-log panel keeps the rows of the leading top-level entries that draw the same
+(`CombatLogRows.Kept`) and rebuilds from the first that differs: an append rebuilds the open block and adds the new rows, an
+undo rebuilds from the first entry it strikes; a fold, a reveal, the filter, the focus, the theme, a pending undo or new rule
+texts rebuild all. Grants find their effect row through `PropertySet.EffectById` (one dictionary per set), the menu's
+`AddGrant` check included; `Battlefield.Terrain` builds a table's world volumes once per `TableState`.
+
+**Open from the review:** the Release play profile for the dev stack and client (finding 1); `SightLines` re-asks every
+assigned target's sight query on each events render, changed positions or not. Risks to watch: GLB parsing off the main
+thread, template copies of rigged or animated models.
 
 ### 1. Open items from the defect fixes
 
@@ -331,7 +342,6 @@ drawn through round 0.
   through a model, and a flyer's drag or a placement dropped on a base.
 - The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s
   zone-centre fallback after 40 rejected anchors is unchecked against occupied bases.
-- Range rings make about 1.5M distance calls per redraw for 20 packed carriers.
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
 rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's
