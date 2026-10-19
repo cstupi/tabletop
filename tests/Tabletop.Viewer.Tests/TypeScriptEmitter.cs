@@ -63,6 +63,8 @@ public static class TypeScriptEmitter
         body.Append("// Regenerate: TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests\n");
         if (request.Module.StartsWith("recording", StringComparison.Ordinal))
             body.Append($"\nexport const SCHEMA_VERSION = {Tabletop.Sim.Recording.RecordingJson.SchemaVersion};\n");
+        if (request.Module.StartsWith("wire", StringComparison.Ordinal))
+            body.Append($"\nexport const PROTOCOL_VERSION = {Tabletop.Protocol.ProtocolVersion.Current};\n");
         foreach (var (_, text) in declarations) body.Append('\n').Append(text);
         return body.ToString();
     }

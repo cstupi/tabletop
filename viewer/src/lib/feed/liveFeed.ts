@@ -2,6 +2,7 @@
 import type {
   Board, Connect, GameEvent, GameInfo, SocketMessage,
 } from '../protocol/wire.generated';
+import { PROTOCOL_VERSION } from '../protocol/wire.generated';
 import type { RecordedTeam, RecordingMeta } from '../protocol/recording.generated';
 import { ProjectionDesyncError } from '../live/apply';
 import { FrameProjector } from '../live/project';
@@ -13,7 +14,8 @@ import { Emitter, IDLE, type ControlChannel, type Feed, type FeedState } from '.
  * it: adding a kind is additive, and a client that ignores it stays compatible. So the literal
  * is 1 and nothing about the handshake changes.
  */
-export const CLIENT_VERSION: Connect['clientVersion'] = 1;
+/** The game server rejects a Connect below its minimum (`upgrade_required`); the viewer speaks the protocol it was generated from. */
+export const CLIENT_VERSION: Connect['clientVersion'] = PROTOCOL_VERSION;
 const WELCOME_TIMEOUT_MS = 10_000;
 
 /** Just enough of WebSocket to be replaceable in a test. */

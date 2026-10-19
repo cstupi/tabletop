@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { liveFeed, type SocketLike } from '../src/lib/feed/liveFeed';
+import { PROTOCOL_VERSION } from '../src/lib/protocol/wire.generated';
 import { attachFeed, IDLE, type FeedState } from '../src/lib/feed/feed';
 import { recordingFeed } from '../src/lib/feed/recordingFeed';
 import { loadFixture } from './fixture';
@@ -27,7 +28,7 @@ describe('the live feed', () => {
   it('sends Connect as its first and only frame', () => {
     const { socket } = attach();
     socket.fire('open', {});
-    expect(JSON.parse(socket.sent[0]!)).toEqual({ kind: 'connect', sessionJwt: 'jwt', gameId: 'g1', clientVersion: 1 });
+    expect(JSON.parse(socket.sent[0]!)).toEqual({ kind: 'connect', sessionJwt: 'jwt', gameId: 'g1', clientVersion: PROTOCOL_VERSION });
     expect(socket.sent).toHaveLength(1);
   });
 
