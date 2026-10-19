@@ -126,8 +126,7 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 `deploy/docker-compose.home.yml`, `scripts/release --deploy home`), behind the owner's Caddy on `gateway_default`:
 `https://tabletop.cstupi.com` (web, `/v1`, `/ws`) and `https://files.tabletop.cstupi.com` (MinIO, data on the NAS share
 `/mnt/tabletop/minio`; nightly Postgres dumps to `/mnt/tabletop/pg-backups`). Stytch live project with custom domain
-`login.tabletop.cstupi.com`. DNS in Route 53 (CNAMEs to `dub.cstupi.com`, updated by the owner's dynamic DNS). Client
-releases still need the GitHub secrets `RELEASE_S3_*` and variable `TABLETOP_WEB_URL`. Not yet exercised live: `/ws`
+`login.tabletop.cstupi.com`. DNS in Route 53 (CNAMEs to `dub.cstupi.com`, updated by the owner's dynamic DNS). Not yet exercised live: `/ws`
 end to end, a real sign-up. A management crash exits 139 rather than a clean code (seen when the DB login failed).
 
 **Production path** (`deploy/README.md`): Release images (`server/*/Dockerfile`, non-root, Production) or systemd units,
