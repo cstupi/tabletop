@@ -1114,7 +1114,7 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `enum FootprintKind { Circle, Rect }` | |
 | `readonly record struct Footprint(FootprintKind Kind, double A, double B)` | `static Circle(double radius)`, `static Rect(double width, double length)` |
 | `enum VolumeKind { Solid, Area }` | |
-| `[Flags] enum TerrainDeclarations` | `None=0, Impassable=1, BlocksLineOfSight=2, SeeInAndOut=4, Cover=8, Difficult=16, Dangerous=32` |
+| `[Flags] enum TerrainDeclarations` | `None=0, Impassable=1, BlocksLineOfSight=2, SeeInAndOut=4, Cover=8, Difficult=16, Dangerous=32, DangerousOnRushCharge=64` |
 | `sealed record Volume(VolumeKind Kind, Footprint Footprint, Point2 Offset, Yaw Yaw, double Bottom, double Top, TerrainDeclarations Declarations, string? Notes)` | |
 | `readonly record struct Placement(Point3 Position, Yaw Yaw)` | |
 | `readonly record struct TerrainTransform(Point3 Position, Yaw Yaw, double Scale)` | |

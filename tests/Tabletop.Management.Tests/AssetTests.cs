@@ -162,7 +162,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
         var glb = TestGlb.Build((30, null, true));
         var terrain = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Ruin") with { Kind = AssetKind.Terrain, ModelledBase = null });
-        var volumes = new[] { new Volume(VolumeKind.Solid, Footprint.Rect(6, 4), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.Cover, "ruined wall") };
+        var volumes = new[] { new Volume(VolumeKind.Solid, Footprint.Rect(6, 4), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge, "ruined wall") };
         var saved = await c.PutJson<List<TerrainVolume>>($"/v1/assets/{terrain!.Asset.Id}/volumes", volumes);
         Assert.Single(saved!); Assert.Equal(volumes[0], saved[0].Volume);
         Assert.Equal(saved, await c.GetJson<List<TerrainVolume>>($"/v1/assets/{terrain.Asset.Id}/volumes"));

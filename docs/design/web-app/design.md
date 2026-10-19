@@ -311,8 +311,8 @@ An oval's `a` is its **length**, along the facing axis (yaw 0 faces +Y). Everyth
 an oval must put `a` along Y and `b` along X: the preview ring, the volume outlines. Getting
 that backwards is invisible on a circle and wrong on every oval.
 
-`volumes.ts` holds the six OPR declarations (`impassable`, `blocks_line_of_sight`,
-`see_in_and_out`, `cover`, `difficult`, `dangerous`), their labels, the flags wire codec, and
+`volumes.ts` holds the seven OPR declarations (`impassable`, `blocks_line_of_sight`,
+`see_in_and_out`, `cover`, `difficult`, `dangerous`, `dangerous_on_rush_charge`), their labels, the flags wire codec, and
 `defaultVolume(width, length, top)`. That last is the bounding-box prism every terrain asset
 gets at upload: `kind: 'solid'`, rect footprint, `bottom 0`, `top` the mesh height,
 `declarations: 'none'`.
@@ -1231,6 +1231,7 @@ erDiagram
         bool cover
         bool difficult
         bool dangerous
+        bool dangerous_rush_charge
         text notes
     }
     FOLDER {
@@ -1501,7 +1502,7 @@ the compose stack), `2026-09-05-geometry.md` (the table frame: Z up, yaw 0 faces
 **Data model.** `docs/data-model.md`, `docs/schema.md` (`BLOB`, `ASSET`, `ASSET_VOLUME`,
 `FOLDER`, `ASSET_FOLDER`, `ARMY`, `UNIT`, `MODEL_SLOT`).
 
-**Rulebook.** Reached only indirectly. The six terrain declarations are OPR's own terrain types,
+**Rulebook.** Reached only indirectly. The seven terrain declarations are OPR's own terrain types,
 read out of the Grimdark Future and Age of Fantasy advanced rulebooks, whose terrain sections are
 word-for-word identical (geometry values → Declarations). No rulebook page is read by this
 module's code. A weapon profile's printed form, `Heavy Rifle (24", A1, AP(1))`, is echoed by

@@ -17,14 +17,13 @@ update. A release busts the client's cache by carrying a new catalog version.
     { "id": "barricade", "label": "Barricade", "mesh": "wall", "kind": "solid",
       "footprint": { "kind": "rect", "a": 3, "b": 1 }, "top": 1, "declarations": ["difficult", "cover"] },
     { "id": "ruins", "label": "Ruins or Debris", "mesh": "ruins", "kind": "area",
-      "footprint": { "kind": "rect", "a": 6, "b": 6 }, "top": 4, "declarations": ["cover"],
-      "notes": "Dangerous terrain when using Rush/Charge actions" }
+      "footprint": { "kind": "rect", "a": 6, "b": 6 }, "top": 4, "declarations": ["cover", "dangerous_on_rush_charge"] }
   ]
 }
 ```
 
 - An entry is one volume: `kind` `solid` or `area`, `footprint` `circle` (`a` the radius) or `rect` (`a` width, `b`
-  length), base at 0, `top` its height, `declarations` from the six `TerrainDeclarations`, optional `notes`. `mesh` names
+  length), base at 0, `top` its height, `declarations` from the seven `TerrainDeclarations`, optional `notes`. `mesh` names
   one of `meshes`; `MeshLoader` fits that mesh to the entry's volume.
 - The client embeds the file (`BuiltinContent.Packed`), and the export packs the meshes and textures under
   `res://content/builtin/`. That is the catalog a client uses before its first fetch, offline, and against a server with

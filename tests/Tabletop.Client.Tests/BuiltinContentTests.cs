@@ -31,9 +31,15 @@ public class BuiltinContentTests
     {
         Assert.Equal(TerrainDeclarations.Difficult | TerrainDeclarations.Cover | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut, BuiltinContent.Terrain["forest"].Volume.Declarations);
         Assert.Equal(TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight, BuiltinContent.Terrain["large-building"].Volume.Declarations);
-        Assert.Equal(TerrainDeclarations.Cover, BuiltinContent.Terrain["ruins"].Volume.Declarations);            // "dangerous when using Rush/Charge" is a note
-        Assert.Contains("Rush/Charge", BuiltinContent.Terrain["ruins"].Volume.Notes);
-        Assert.Equal(TerrainDeclarations.None, BuiltinContent.Terrain["quicksand"].Volume.Declarations);
+        // p.18/p.19 "Ruins or Debris: Counts as Cover terrain, as well as Dangerous terrain when using Rush/Charge actions."
+        foreach (var ruins in new[] { "ruins", "large-ruins" })
+        {
+            Assert.Equal((VolumeKind.Area, TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge),
+                (BuiltinContent.Terrain[ruins].Volume.Kind, BuiltinContent.Terrain[ruins].Volume.Declarations));
+            Assert.Null(BuiltinContent.Terrain[ruins].Volume.Notes);
+        }
+        // p.19 "Quicksand: Counts as Dangerous terrain when using Rush/Charge actions."
+        Assert.Equal(TerrainDeclarations.DangerousOnRushCharge, BuiltinContent.Terrain["quicksand"].Volume.Declarations);
         Assert.Equal(TerrainDeclarations.Difficult | TerrainDeclarations.Cover, BuiltinContent.Terrain["wall-or-fence"].Volume.Declarations);   // "Difficult when moving through it" is what Difficult means
         Assert.Equal(VolumeKind.Area, BuiltinContent.Terrain["deep-river"].Volume.Kind);
         Assert.Equal(TerrainDeclarations.Impassable, BuiltinContent.Terrain["deep-river"].Volume.Declarations);

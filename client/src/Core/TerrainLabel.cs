@@ -12,10 +12,11 @@ public static class TerrainLabel
     static readonly (TerrainDeclarations Flag, string Text)[] Order =
     [
         (TerrainDeclarations.Cover, "Cover"), (TerrainDeclarations.Difficult, "Difficult"), (TerrainDeclarations.Dangerous, "Dangerous"),
+        (TerrainDeclarations.DangerousOnRushCharge, "Dangerous on Rush/Charge"),
         (TerrainDeclarations.Impassable, "Impassable"), (TerrainDeclarations.BlocksLineOfSight, "Blocks LOS"), (TerrainDeclarations.SeeInAndOut, "See in/out"),
     ];
 
-    /// <summary>The six declarations in the label's order, each with its words.</summary>
+    /// <summary>The seven declarations in the label's order, each with its words.</summary>
     public static IReadOnlyList<(TerrainDeclarations Flag, string Text)> Declarations => Order;
 
     public static string Of(TerrainPlacement t)

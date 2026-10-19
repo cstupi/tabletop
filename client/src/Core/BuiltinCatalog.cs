@@ -61,6 +61,7 @@ public sealed partial class BuiltinCatalog
         ["impassable"] = TerrainDeclarations.Impassable, ["blocks_line_of_sight"] = TerrainDeclarations.BlocksLineOfSight,
         ["see_in_and_out"] = TerrainDeclarations.SeeInAndOut, ["cover"] = TerrainDeclarations.Cover,
         ["difficult"] = TerrainDeclarations.Difficult, ["dangerous"] = TerrainDeclarations.Dangerous,
+        ["dangerous_on_rush_charge"] = TerrainDeclarations.DangerousOnRushCharge,
     };
 
     /// <summary>Reads and checks a catalog; <see cref="FormatException"/> names the first fault.</summary>

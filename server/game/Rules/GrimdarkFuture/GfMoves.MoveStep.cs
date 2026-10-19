@@ -66,7 +66,7 @@ public static partial class GfMoves
                     var continues = !aircraft && answered.Single is Destinations { Continues: true };
                     var proposed = GfAnswers.Moves(ctx.State, answered);
                     if (continues) proposed = proposed.Where(m => !Unmoved(ctx, m)).ToList();
-                    var (changes, segment, dangerousDice, entered) = ApplyMove(ctx, unit, live, allowance, proposed);
+                    var (changes, segment, dangerousDice, entered) = ApplyMove(ctx, unit, live, allowance, proposed, action);
                     var values = new Dictionary<string, int>
                     {
                         ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2,

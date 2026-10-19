@@ -101,6 +101,7 @@ erDiagram
         bool cover
         bool difficult
         bool dangerous
+        bool dangerous_rush_charge
         text notes
     }
     FOLDER {
@@ -212,6 +213,7 @@ erDiagram
         bool cover
         bool difficult
         bool dangerous
+        bool dangerous_rush_charge
         text notes
     }
     MARKER {

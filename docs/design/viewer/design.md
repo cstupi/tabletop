@@ -1003,7 +1003,7 @@ threshold for the same reason.
 | [`2026-10-09-admin-watch-design.md`](../../superpowers/specs/2026-10-09-admin-watch-design.md) | the viewer as an admin tool: one login, the game list, watching any game as an admin watcher |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | a participant with no team is a spectator |
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | a participant with no team is never addressed by an Ask, which is what a spectator is |
-| [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed six terrain declarations the palette colours |
+| [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed seven terrain declarations the palette colours |
 | [`2026-08-29-geometry-values-design.md`](../../superpowers/specs/2026-08-29-geometry-values-design.md) | the corner frame, yaw 0 facing `+y`, base shapes |
 | [`2026-08-29-web-app-design.md`](../../superpowers/specs/2026-08-29-web-app-design.md) | the Svelte, Vite and Vitest versions only; no code is shared |
 | [`docs/architecture.md`](../../architecture.md) | the command/event spine, the applier as rules-free and run on both sides, one world unit is one inch |
