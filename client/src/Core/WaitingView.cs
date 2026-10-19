@@ -21,4 +21,8 @@ public static class WaitingView
             !w.HasPlayer && seats.Count > 0 ? new TeamChoice(w.TeamId, $"Join Team {w.Ordinal}", true, "Take this team and bring an army to it.") : null,
             w.HasPlayer && seats.Any(s => s.TeamId == w.TeamId) ? new ArmySeat(w.TeamId, $"Army for Team {w.Ordinal}", null) : null)).ToList();
     }
+
+    /// <summary>Whether the panel showing <paramref name="shown"/> rebuilds for <paramref name="now"/>. A game or board update that leaves the lines
+    /// as they are keeps the panel's controls, so an open army dropdown stays open; a picked army that reaches the board changes them.</summary>
+    public static bool Changed(IReadOnlyList<WaitingLine>? shown, IReadOnlyList<WaitingLine> now) => shown is null || !shown.SequenceEqual(now);
 }

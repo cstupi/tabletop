@@ -6,20 +6,32 @@ namespace Tabletop.Client.Panels;
 
 /// <summary>
 /// The side panel while deployment waits for players (WaitingView): one line per team it waits on, for everyone; a Join button on a team no one
-/// holds, and one button per army of mine on a team of mine with no army (the army is final once it joins). The screen rebuilds it when the
-/// game or the board changes.
+/// holds, and a dropdown of my armies on a team of mine with no army, as in the lobby (the army is final once it joins, so picking sends it).
+/// The screen calls Refresh on every game or board change; the rows are rebuilt only when the lines change (WaitingView.Changed).
 /// </summary>
 public partial class WaitingPanel : VBoxContainer
 {
-    Label _error = null!;
+    IReadOnlyList<WaitingLine>? _shown;
 
-    public override void _Ready()
+    public override void _Ready() => Refresh();
+
+    public void Refresh()
     {
-        var s = Main.Instance.Session; var game = s.Game!;
+        var s = Main.Instance.Session;
+        if (s.Game is not { } game) return;
+        var lines = WaitingView.Of(game, s.WaitingTeams, s.ParticipantId);
+        if (!WaitingView.Changed(_shown, lines)) return;
+        _shown = lines;
+        foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
+        Build(s, lines);
+    }
+
+    void Build(Session s, IReadOnlyList<WaitingLine> lines)
+    {
         AddChild(new Label { Text = "Waiting for players", ThemeTypeVariation = Variation.Accent });
         AddChild(Wrapping(WaitingView.Title));
-        var pickers = new List<(ArmySeat Seat, VBoxContainer Box)>();
-        foreach (var line in WaitingView.Of(game, s.WaitingTeams, s.ParticipantId))
+        var pickers = new List<(ArmySeat Seat, OptionButton Box)>();
+        foreach (var line in lines)
         {
             AddChild(Wrapping(line.Text, Variation.Warning));
             if (line.Join is { } join)
@@ -28,28 +40,26 @@ public partial class WaitingPanel : VBoxContainer
             }
             if (line.Army is { } seat)
             {
-                var box = new VBoxContainer();
+                var box = new OptionButton { Disabled = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis }; box.AddItem("Pick an army");
                 AddChild(new Label { Text = seat.Label, ThemeTypeVariation = Variation.Dim }); AddChild(box);
                 pickers.Add((seat, box));
             }
         }
-        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
+        var error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false };
+        AddChild(error);
         if (pickers.Count == 0) return;
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
-            if (!IsInstanceValid(this)) return;
             foreach (var (seat, box) in pickers)
             {
-                if (list.Count == 0) box.AddChild(Wrapping("You have no armies: import one in the web app.", Variation.Dim));
-                foreach (var a in list)
-                {
-                    var b = new Button { Text = $"Bring {a.Name}", TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = a.Name };
-                    b.Pressed += () => { foreach (var c in box.GetChildren()) if (c is Button other) other.Disabled = true; Guarded.Send(s, seat.Pick(a.Id)); };
-                    box.AddChild(b);
-                }
+                if (!IsInstanceValid(box) || !box.IsInsideTree()) continue;   // the rows were rebuilt while the list loaded
+                if (list.Count == 0) { box.SetItemText(0, "No armies: import one in the web app"); continue; }
+                foreach (var a in list) box.AddItem(a.Name);
+                box.Disabled = false;
+                box.ItemSelected += i => { if (i > 0) Guarded.Send(s, seat.Pick(list[(int)i - 1].Id)); };
             }
-        }, text => { if (IsInstanceValid(_error)) { _error.Text = text; _error.Visible = true; } });
+        }, text => { if (IsInstanceValid(error)) { error.Text = text; error.Visible = true; } });
     }
 
     static Label Wrapping(string text, string? variation = null) => new() { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, ThemeTypeVariation = variation ?? "" };
