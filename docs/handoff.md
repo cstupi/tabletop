@@ -98,8 +98,11 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 **Open / next:**
 - Ship the hitbox setting (next batch). Owner hasn't confirmed the new default that terrain volumes show faintly under a
   mesh while the setting is on (previously always hidden); revert to hidden if they object.
-- Replay: nothing deployed can replay a game. Owner asked; options offered: a Replay mode in the client (the client
-  already projects any log prefix) or the developer viewer behind an admin login. Not chosen yet.
+- Replay is built, unreleased (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or
+  `ended`; "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server
+  holds as a watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and
+  step, plays at 0.5–8×, scrubs, and the combat log follows the position. Unit-tested and built; not yet run in the Godot
+  client or against the compose stack.
 - Management has no per-request log lines, so a manifest/asset fetch can't be traced in the journal; add an
   Information line per `GET /v1/games/{id}/assets` (game id, asset count).
 - Team games leave team-wide: spell-token spending, hand-move overrides, and passing the team's activation.

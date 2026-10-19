@@ -740,6 +740,13 @@ watcher (admin watch spec); anyone else is `Rejected(NotAParticipant)`, and so i
 that does not exist. A watcher is an admin tool: the viewer reads any game, finished or running, without
 joining it.
 
+A socket opened as `/ws?watch=1` is read-only: whoever connect admits on it, a participant or an admin,
+joins as a watcher, in any status, `ended` included. It admits no one new: a non-participant without the
+`admin` role is still `Rejected(NotAParticipant)`. The client's replay opens its game this way, so the
+server refuses anything it sends whatever the client does. A participant watching keeps its participant
+row and nothing else of play: `Welcome.ParticipantId` is `Guid.Empty` and the log is filtered as for no
+team. A reauth on such a socket checks the account is still that participant.
+
 - `GameSession.WatchAsync` runs the connect sequence a participant with no team gets: `Welcome` with
   `ParticipantId` `Guid.Empty`, the board, the log from the start filtered as for no team, `ModelFacts`
   once playing, every participant's presence value, `AtRest`. It writes no row: the watcher is in no
@@ -947,7 +954,7 @@ waits for `at_rest` instead of timing a quiet window.
 
 An admin watcher takes the same path: `FindParticipantAsync` answers null, the session `IsAdmin` and
 `ReadGameAsync` finds the game, so the handshake calls `WatchAsync` instead of `ConnectAsync` (see
-*Watchers*).
+*Watchers*). A socket opened as `/ws?watch=1` calls `WatchAsync` for a participant too.
 
 ```mermaid
 sequenceDiagram

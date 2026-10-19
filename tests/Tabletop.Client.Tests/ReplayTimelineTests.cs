@@ -106,6 +106,22 @@ public class ReplayTimelineTests
         Assert.Equal(12, t.Next(ReplayUnit.Round));
     }
 
+    /// <summary>The owner's game 01a126db (CombatLogFixtureTests): its round_started, then one charge with the strike-back and morale.</summary>
+    [Fact]
+    public void A_played_logs_stops_fall_on_its_round_its_action_and_each_players_input()
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "game-01a126db-charge.json")));
+        var log = doc.RootElement.EnumerateArray().Select(e => WireJson.Deserialize<GameEvent>(e.GetRawText())).ToList();
+        var round = ReplayTimeline.Stops(log, ReplayUnit.Round);
+        Assert.IsType<RoundStarted>(log[round[1] - 1].Payload);
+        var actions = ReplayTimeline.Stops(log, ReplayUnit.Action);
+        Assert.Equal("Charge", Assert.IsType<SequenceStarted>(log[actions[1]].Payload).Context.Action);
+        Assert.Equal(3, actions.Count);                                     // the board, the charge, the end: the strike-back and morale are inside it
+        var steps = ReplayTimeline.Stops(log, ReplayUnit.Step);
+        Assert.All(steps.Skip(1).SkipLast(1), s => Assert.NotNull(log[s].Actor));
+        Assert.True(steps.Count > 3, $"{steps.Count} steps");
+    }
+
     [Fact]
     public void The_caption_names_the_round_and_the_position()
     {
