@@ -40,6 +40,27 @@ public class ContactCheckTests
     }
 
     [Fact]
+    public void Once_the_unit_is_capped_the_way_round_is_held_to_the_cap()
+    {
+        // p.11: once any model goes in or through difficult terrain, every model may move no more than 6"; a way round the standing models
+        // that fits the Ask's 30" but not the unit's 6" leaves only the way through them.
+        Assert.Empty(ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), []));
+        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(Deployed, Region(null, S0), To((S0, At(16, 10))), [], unit: 6)[S0]);
+    }
+
+    [Fact]
+    public void A_way_round_a_model_off_the_table_is_no_way_round()
+    {
+        // p.7: "models may also never move outside of the battlefield (no part of them, at any point)". The Orc stands at the table's edge and
+        // a squad model above it closes the way over; the only way round passes off the table.
+        var p = TableUx.After(TableUx.Deploy, new ModelsMoved([new(S0, new OnTable(At(10, 10)), new OnTable(At(5, 0.6))), new(S1, new OnTable(At(12, 10)), new OnTable(At(7, 2.4))),
+            new(Orc, new OnTable(At(40, 30)), new OnTable(At(7, 0.6)))]));
+        var region = Region(null, S0) with { Allowance = 6 };
+        Assert.Empty(ContactCheck.Move(p, region, To((S0, At(9, 0.6))), []));                                  // no table given: round underneath
+        Assert.Equal(new Contact(ContactKind.Crosses, null), ContactCheck.Move(p, region, To((S0, At(9, 0.6))), [], new TableSize(72, 48))[S0]);
+    }
+
+    [Fact]
     public void A_landing_within_the_separation_of_another_units_model_is_too_close()
     {
         Assert.Equal(new Contact(ContactKind.TooClose, TableUx.Orcs.Id), ContactCheck.Move(Deployed, Region(1, S0), To((S0, At(38.2, 30))), [])[S0]);

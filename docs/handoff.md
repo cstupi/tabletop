@@ -49,7 +49,7 @@ Today: 305 of 305 games pass in process with no pin (`core-ruins` and `core-roun
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 40 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 691,
+  defect). About 40 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 693,
   GameServer 1401, Management 272, Sim 286.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
@@ -103,8 +103,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   a 12" Rush round a wood is not capped, a model reaches behind an impassable block, a charge goes round to base contact (p.9). The
   client draws one area (owner ruling: *"the visible feedback to users should just show the furthest they could move accounting for
   both if they cross or go around the difficult"*), holds a drag to it, and the ruler follows the bent path with its length. The wire
-  is unchanged: each side computes the same path. Suite game `core-round-the-terrain`. Not yet run: the socket suite on it, and a
-  look at the area and the bent ruler in the client.
+  is unchanged: each side computes the same path. The client's through-model mark keeps its path on the table and, once the unit
+  is capped, within the cap. The sim's random moves go round models as the server allows; eight suite games were given new seeds
+  for it. Suite game `core-round-the-terrain`. Not yet seen: the area and the bent ruler in the client.
 - Released: v0.1.18 (team rulings, Replays fix) is tagged; the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
   viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the

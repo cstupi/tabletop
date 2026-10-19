@@ -19,9 +19,11 @@ public static class ContactCheck
 {
     /// <summary>A move answer's landings: on a base, in impassable terrain unless the region ignores terrain (p.11, p.7; every impassable volume on
     /// the table, whatever the Ask lists, as the server's LandsInImpassable: a Flying unit's lists none; an Aircraft's IgnoresTerrain, p.13), through a
-    /// model unless the region passes models, within its Separation.</summary>
-    public static IReadOnlyDictionary<Guid, Contact> Move(Projection p, MoveRegion legal, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes) =>
-        Of(p, proposed, volumes, legal.Separation, legal.PassesModels, landing: !legal.IgnoresTerrain, legal);
+    /// model unless the region passes models, within its Separation. A path stays on the `size` table (p.7); `unit` is the unit's allowance when the
+    /// cap holds it (MoveRegions.Allowance, p.11), and then the way round the models is held to it.</summary>
+    public static IReadOnlyDictionary<Guid, Contact> Move(Projection p, MoveRegion legal, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes,
+        TableSize? size = null, double? unit = null) =>
+        Of(p, proposed, volumes, legal.Separation, legal.PassesModels, landing: !legal.IgnoresTerrain, legal, size, unit);
 
     /// <summary>A hand placement's landings (a deployment, a hand move): on a base only.</summary>
     public static IReadOnlyDictionary<Guid, Contact> Placement(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes) =>
@@ -39,7 +41,8 @@ public static class ContactCheck
     public static IReadOnlyDictionary<Guid, string> Words(IReadOnlyDictionary<Guid, Contact> found, double? separation, Func<Guid, string> unitName) =>
         found.ToDictionary(kv => kv.Key, kv => Words(kv.Value, separation, unitName));
 
-    static IReadOnlyDictionary<Guid, Contact> Of(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes, double? separation, bool passesModels, bool landing, MoveRegion? legal = null)
+    static IReadOnlyDictionary<Guid, Contact> Of(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes, double? separation, bool passesModels, bool landing, MoveRegion? legal = null,
+        TableSize? size = null, double? unit = null)
     {
         var impassable = landing ? volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList() : [];
         static PlacedModel Body(ModelInPlay m, Placement at) => new(new ModelBody(m.Slot.Base, m.Slot.Height), at);
@@ -61,9 +64,11 @@ public static class ContactCheck
             { found[id] = new Contact(ContactKind.OnBase, p.Models[hit].UnitId); continue; }
             if (impassable.Count > 0 && Movement.Check(at, at.Placement.Position.Horizontal, 0, impassable, [], null, null).CrossesImpassable)
             { found[id] = new Contact(ContactKind.InImpassable, null); continue; }
-            if (!passesModels && legal is not null && start is { } from && Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, legal.Allowance),
-                    volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList(), volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList(),
-                    legal.DifficultCap, null, bodies, volumes).CrossesModels)
+            // A unit the cap holds measures the shortest way, whatever it enters (the server's DifficultCapBreach); else round difficult ground first.
+            var capped = unit is { } u && u < legal?.Allowance;
+            if (!passesModels && legal is not null && start is { } from && Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, capped ? unit!.Value : legal.Allowance),
+                    volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList(), capped ? [] : volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList(),
+                    capped ? null : legal.DifficultCap, size, bodies, volumes).CrossesModels)
             { found[id] = new Contact(ContactKind.Crosses, null); continue; }
             if (separation is not { } gap) continue;
             var near = start is { } was ? p.Models.Values.Where(o => o.UnitId != m.UnitId && Standing(o) is { } there && Distance.BodyToBody(was, there) < gap - 1e-6).Select(o => o.UnitId).ToHashSet() : [];

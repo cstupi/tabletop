@@ -336,7 +336,7 @@ times, and accepts the first destination `Movement.Check` likes. With a `MoveGoa
 point for the model, it draws all the samples and takes the passing one nearest that point; with
 none, or a null point, the draws and the answer are the uniform ones. Every parameter of that check
 comes from the legal set itself. `AnswerPolicy.Clear` then mirrors `GfMoves.Contact`: the landing is on no other
-base, has a path round the standing models within the allowance (`Movement.Check`'s `CrossesModels`, in three dimensions over the terrain) with its sampled straight line clear of them too (`Collision.Crosses`) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`);
+base, has a path round the standing models within the allowance (`Movement.Check`'s `CrossesModels`, in three dimensions over the terrain) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`);
 a repair pass after the sample cap redraws any landing no longer Clear, so a sampled move does not breach under `strict`. Standing still is the fallback and is always legal, because it
 is where the model already is. The retry budget is per model rather than per Ask, so a unit of
 five gets five independent budgets and one model that cannot find a destination does not freeze

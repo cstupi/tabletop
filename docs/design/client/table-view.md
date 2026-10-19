@@ -207,8 +207,8 @@ the cursor (`Formation.Arrange`), the rows across the screen as the camera sees 
 **Contact marks.** While a model is dragged the client measures the contacts the server would refuse, with the same geometry
 (`ContactCheck`, Core: each landing rested by `Collision.RestHeight`, then `Overlap.Bases`, `Movement.Check`'s `CrossesModels`
 along the path from where the model stands, `Distance.BodyToBody`), from the open Ask's own parameters. A move answer's ghosts are
-measured for a landing on a base (`overlaps a base`), a landing no path round the standing models reaches within the allowance,
-though one through them does, unless the Ask `PassesModels` (`path crosses a model`) and a landing within the Ask's `Separation` of another unit's model (`within 1" of Orc Boyz`); a unit a
+measured for a landing on a base (`overlaps a base`), a landing no path round the standing models reaches within the allowance
+(the unit's capped allowance once the cap holds it, `MoveRegions.Allowance`), on the table, though one through them does, unless the Ask `PassesModels` (`path crosses a model`) and a landing within the Ask's `Separation` of another unit's model (`within 1" of Orc Boyz`); a unit a
 mover already stood that close to is left to the server. A deployment's ghosts and a hand move are measured for a landing on a
 base only (the server's placement judge). The decision box measures its ghosts on every drag, turn and render; `TableInput`
 measures a hand move while it is in hand and forgets it on the drop. Each marked model is drawn in the theme's warning colour

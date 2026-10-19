@@ -14,7 +14,7 @@ public static partial class SuiteCatalog
         public static IReadOnlyList<TestGame> Grants =>
         [
             Game(Hives, "alien-hives-bane-in-melee", Play.Charges, ["Bane in Melee"], All3("Bane in Melee"), [],
-                [Rerolls("Bane in Melee", By("Bane in Melee", when: When.Charging), [6], successOnly: false, "\"This model gets Bane in melee\": p.13 Bane, \"re-roll unmodified Defense results of 6\"")]),
+                [Rerolls("Bane in Melee", By("Bane in Melee", when: When.Charging), [6], successOnly: false, "\"This model gets Bane in melee\": p.13 Bane, \"re-roll unmodified Defense results of 6\"")], seed: 2),
             Game(Robots, "robot-legions-rending-in-melee", Play.Charges, ["Rending in Melee"], All3("Rending in Melee"), [],
                 [PerDieAp("Rending in Melee", By("Rending in Melee", when: When.Charging), 4, "\"This model gets Rending in melee\": p.14 Rending, \"on unmodified results of 6 to hit, those hits get AP(+4)\"")]),
             Game(Sisters, "blessed-sisters-shred-in-melee", Play.Charges, ["Shred in Melee"], All3("Shred in Melee"), [],
