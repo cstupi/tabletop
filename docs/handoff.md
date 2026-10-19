@@ -103,6 +103,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 - Unreleased on main: team games are team-wide (either player activates, deploys and answers for any unit of the team;
   `Ask.Seat`, `Ask.OwnUnitsOnly` and `SeatAuthority` removed), and deployment no longer waits for a seat with no army on a
   team that has one.
+- Unreleased on main: contact marks (`docs/design/client/table-view.md` → Contact marks): a dragged ghost or hand move on a base, with a
+  path through a model or within 1" of another unit is tinted with a reason label; under `strict` Commit and Place wait, and a refused
+  commit stays where it was dropped, marked with the server's reason.
 - Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
   "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
   watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
@@ -345,8 +348,6 @@ drawn through round 0.
   the spec has a gear.
 - The book-table ruins (`ruins`, `large-ruins`, `overgrown-ruins`) keep p.12's declarations; only the built-in `ruin` is
   BlocksLineOfSight and SeeInAndOut, a walk-in Difficult Area with Cover.
-- Under `strict` the client shows no warning for a drag the server refuses: a landing within 1" of another unit, a path
-  through a model, and a flyer's drag or a placement dropped on a base.
 - The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s
   zone-centre fallback after 40 rejected anchors is unchecked against occupied bases.
 

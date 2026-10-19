@@ -16,7 +16,7 @@ namespace Tabletop.Client.Screens;
 public partial class GameScreen
 {
     HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; UndoButton? _undo; EndMessage? _end; KeyOverlay? _keys;
-    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
+    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; ViolationMarks? _violations; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
     Guid? _acting;
     ReplayBar? _replay;
@@ -48,6 +48,7 @@ public partial class GameScreen
 
         // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
+        Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input);
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
         Table.AddChild(_lasers = new Lasers()); _lasers.Bind(_session, Table, Input);
@@ -214,10 +215,10 @@ public partial class GameScreen
         if (_onFollow is not null) _session.EventsApplied -= _onFollow;
         _onFollow = null;
         _animator?.Dispose(); _animator = null;
-        foreach (var node in new Node?[] { _replay, _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _modelMarks, _markers, _floating, _tableLayer, _menu })
+        foreach (var node in new Node?[] { _replay, _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _violations, _sight, _targets, _lasers, _rings, _modelMarks, _markers, _floating, _tableLayer, _menu })
             if (node is not null && IsInstanceValid(node)) node.QueueFree();
         _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
-        _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;
+        _hover = null; _violations = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;
         _replay = null; _roster = null; _banner = null; _markers = null; _floating = null; _rings = null; _modelMarks = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
     }

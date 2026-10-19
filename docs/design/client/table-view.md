@@ -204,6 +204,22 @@ ghosts, the release sends nothing, and Enter commits. On a `Stoppable` move Ask,
 with `Destinations.Continues`: the move goes on after the before-attacking window. While a unit is held, 1–5 arrange it in that many rows about
 the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E turn them 15°.
 
+**Contact marks.** While a model is dragged the client measures the contacts the server would refuse, with the same geometry
+(`ContactCheck`, Core: each landing rested by `Collision.RestHeight`, then `Overlap.Bases`, `Collision.Crosses` on the straight
+line from where the model stands, `Distance.BodyToBody`), from the open Ask's own parameters. A move answer's ghosts are
+measured for a landing on a base (`overlaps a base`), a straight path through a model unless the Ask `PassesModels`
+(`path crosses a model`) and a landing within the Ask's `Separation` of another unit's model (`within 1" of Orc Boyz`); a unit a
+mover already stood that close to is left to the server. A deployment's ghosts and a hand move are measured for a landing on a
+base only (the server's placement judge). The decision box measures its ghosts on every drag, turn and render; `TableInput`
+measures a hand move while it is in hand and forgets it on the drop. Each marked model is drawn in the theme's warning colour
+(`PieceNode.SetWarning`) and each reason shows once, in a label over its first model, the held ones first, so it rides the
+cursor (`ViolationMarks` over `TableInput.Violations`). The decision box's reason line names every reason with its count
+(`MoveRuler.Gate`). Under `strict` a mark disables Commit, the stop and Place, and the ghosts stay where they were dropped for
+the player to adjust; Esc puts them back as before. Under `warn` and `silent` the same marks show and the commit goes. A
+commit the server still refuses comes back where it was dropped (`CommitHold`, `GhostStash`): its moved models (every model
+when none moved) are marked with the server's reason until one of them is dragged again, and under `strict` the commit waits
+until then. A refused hand move snaps back.
+
 A click selects a unit and Shift+click one model; a click on empty table or Esc clears. While a decision wants a
 pick (`TableInput.Eligible`), a click on an eligible piece answers through `TargetClicked` or `ModelClicked` and
 neither selects nor drags. Under an Options Ask only a piece exactly one choice names is eligible
