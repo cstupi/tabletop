@@ -108,18 +108,6 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   `C:\Users\clays\Downloads\alien-hives\` — `src\` holds the generator (numpy SDF → marching cubes → painted GLB), the
   list JSON, the owner's style reference and `README.txt` with the remaining models and the gaps the owner's style needs
   fixed on the one draft (`draft\snatcher-lord-brood-leader.glb`).
-- Unreleased on main, ship in the next batch: both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B);
-  client Replay; the hosted viewer; the army-wide base choice removed (import takes Army Forge's round base, else square).
-- Unreleased on main: team games are team-wide (either player activates, deploys and answers for any unit of the team;
-  `Ask.Seat`, `Ask.OwnUnitsOnly` and `SeatAuthority` removed), and deployment no longer waits for a seat with no army on a
-  team that has one.
-- Unreleased on main: the seventh terrain declaration `dangerous_on_rush_charge` (`TerrainDeclarations.DangerousOnRushCharge`;
-  p.12 "Ruins - Cover + Dangerous when using rush/charge", p.19 Quicksand), enforced as p.11 Dangerous for a Rush or a
-  Charge only (`GfMoves.DangerousFor`), migration 019 (`dangerous_rush_charge` on `asset_volume` and `terrain_volume`).
-  The built-in `ruins` and `large-ruins` are walk-in Areas with Cover and it, `quicksand` has it; suite game `core-ruins`.
-- Unreleased on main: contact marks (`docs/design/client/table-view.md` → Contact marks): a dragged ghost or hand move on a base, with a
-  path through a model or within 1" of another unit is tinted with a reason label; under `strict` Commit and Place wait, and a refused
-  commit stays where it was dropped, marked with the server's reason.
 - Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
   "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
   watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
