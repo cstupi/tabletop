@@ -155,9 +155,9 @@ Upstream MinIO images are gone; both compose files use `pgsty/minio` pinned by d
 **Releases** (spec `2026-10-17-client-releases-design.md`, `deploy/README.md` → Releases): `client/export_presets.cfg`
 (Windows, Linux, macOS; unsigned); `scripts/release-client` exports and uploads to `releases/<version>/` plus
 `releases/latest.json`; `scripts/release` builds, tests, publishes the client, installs the web build and deploys
-(`--deploy docker|systemd|none`, `--dry-run`); `.github/workflows/release.yml` on `v*.*.*` tags and `ci.yml` on main.
+(`--deploy docker|systemd|none`, `--dry-run`); `ci.yml` builds and tests main.
 `GET /v1/client/latest` serves 15-minute links to signed-in users; the web app's `/download` page lists them; the
-client's update-required screen links to it. Operator: GitHub secrets `RELEASE_S3_*`, variable `TABLETOP_WEB_URL`.
+client's update-required screen links to it. The owner releases by hand on docker1.
 
 **Client and web:** feedback text for refusals, closes and HTTP errors (`Feedback`); watcher mode; rename; lobby Players
 list with the creator's team pickers; End/Delete/Leave; setup caps shown before sending; Reauth on the open socket;
