@@ -100,8 +100,8 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 **Open / next:**
 - Released: v0.1.18 (team rulings, Replays fix) is tagged; the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
-  viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge.
-- In flight 2026-10-19: waiting-panel army dropdown (root cause + restore), "on a 6" effects honouring rerolls (the six
+  viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates).
+- In flight 2026-10-19: "on a 6" effects honouring rerolls (the six
   rolling-step decisions), Alien Hives miniatures to `C:\Users\clays\Downloads\alien-hives\` (scripts in `src\`).
 - Unreleased on main, ship in the next batch: both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B);
   client Replay; the hosted viewer; the army-wide base choice removed (import takes Army Forge's round base, else square).
