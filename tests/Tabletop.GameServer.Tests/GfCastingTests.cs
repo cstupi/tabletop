@@ -197,7 +197,7 @@ public class GfCastingTests
         sim.Append([new SequenceStarted(parent, "test-parent", new SequenceContext(shooter.Id, [a.Id], [], GfNames.Hold)), new StepCompleted(parent, "w", null, [], []) { Values = new Dictionary<string, int> { ["wounds"] = 1 } }]);
         sim.Start(GfNames.DealWounds, new SequenceContext(shooter.Id, [a.Id], [], GfNames.Hold));
         sim.Answer(Samples.Team1, new Allocated(new Dictionary<Guid, int> { [a.Models[0].Id] = 1 }));
-        Assert.Equal("Regeneration", sim.Steps("assign").Single().Rolls.Single().Roll);
+        Assert.Equal("Regeneration", sim.Steps("assign").First().Rolls.Single().Roll);
         Assert.Equal(2, sim.Alive(a.Id));
         Assert.Empty(sim.Unit(a.Id).Grants); Assert.Single(sim.Unit(b.Id).Grants);
     }

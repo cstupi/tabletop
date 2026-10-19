@@ -63,7 +63,7 @@ public class ArmyRulesContentTests
         sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
         sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
         Assert.Equal(0, sim.Model(b.Models[0].Id).Wounds);                                             // hit, failed block, a 5 ignores the wound
-        Assert.Equal(5, sim.Steps("assign").Single().Rolls.Single().Threshold);
+        Assert.Equal(5, sim.Steps("assign").First().Rolls.Single().Threshold);
     }
 
     [Fact]

@@ -145,7 +145,7 @@ public class GfDealWoundsTests
         var troll = Unit("Troll", "4+", "4+", [], 1, [P("Regeneration"), P("Tough", 6)]);
         var plain = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
         var sim = Start(plain, troll, 2, [5, 2]);                                                              // one eligible model: no Ask
-        var regen = sim.Steps("assign").Single().Rolls.Single();
+        var regen = sim.Steps("assign").First().Rolls.Single();                                          // the rolling run; the next applies its dice
         Assert.Equal(("Regeneration", 5, 2), (regen.Roll, regen.Threshold, regen.Dice.Count));
         Assert.Equal(1, sim.Model(troll.Models[0].Id).Wounds);
         Assert.Equal(1, sim.Unit(troll.Id).WoundsThisActivation);

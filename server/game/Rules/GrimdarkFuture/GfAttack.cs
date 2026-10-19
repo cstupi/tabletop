@@ -36,13 +36,22 @@ public static partial class GfAttack
         return null;
     }
 
-    /// <summary>Failures of the parent's defense rolls as they now stand (a reroll between steps counts), or the parent's declared wounds.</summary>
+    /// <summary>
+    /// The wounds the parent dealt, read off its dice as they now stand (an edit between steps counts): the failures of its defense rolls and
+    /// the wounds each defense die's face adds (`extra_wounds_&lt;roll&gt;_&lt;face&gt;`, which roll-to-block maps for every face), or the failures of
+    /// a dangerous terrain test; else the parent's declared wounds.
+    /// </summary>
     public static int WoundsToDeal(FrameView frame)
     {
         var parent = frame.Parent ?? throw new InvalidOperationException("deal-wounds needs a parent frame");
         var defense = parent.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.DefenseRoll).ToList();
-        return defense.Count > 0 ? defense.Sum(Dice.RollOutcome.Failures) + parent.Value("extra_wounds") : parent.Value("wounds");
+        if (defense.Count > 0) return defense.Select((r, i) => Dice.RollOutcome.Failures(r) + r.Dice.Sum(d => parent.Value(ExtraWoundsKey(i, d.Raw)))).Sum();
+        if (parent.Frame.Sequence == GfNames.DangerousTerrain) return GfMoves.DangerousWounds(parent);
+        return parent.Value("wounds");
     }
+
+    /// <summary>The wounds a die showing `face` adds on the frame's `roll`-th defense roll, mapped when the roll is made and read when the wounds are dealt.</summary>
+    static string ExtraWoundsKey(int roll, int face) => $"extra_wounds_{roll}_{face}";
 
     /// <summary>
     /// The model a Takedown group named for its wound (p.14). Values holds ints only and SequenceContext has no model, so the choice is
@@ -115,6 +124,8 @@ public static partial class GfAttack
     /// has already taken its wound-ignoring roll (Regeneration p.14, Resistance, Self-Repair, Plaguebound: "roll one die for each"), so
     /// "wounds_carried" counts the wounds left that keep their result and roll no die again. With no model left to take a wound (an earlier
     /// weapon group destroyed the unit, p.8 "all weapons are fired simultaneously") the wounds are lost and nothing is asked.
+    /// A segment that rolls to ignore wounds takes two runs: the first rolls each model's dice and records the segment (`ignore_wounds` and
+    /// `allocated_&lt;i&gt;_&lt;model&gt;`), the second reads those dice as they then stand and applies the wounds, so an edit between the two counts.
     /// </summary>
     sealed class AssignStep : IStep
     {
@@ -122,6 +133,8 @@ public static partial class GfAttack
         public StepOutcome Run(StepContext ctx)
         {
             var target = ctx.Frame.Context.TargetUnitIds[0];
+            if (ctx.Frame.Frame.Steps is [.., { Step: "assign", Values: { } rolled } last] && rolled.TryGetValue(IgnoreWoundsKey, out var pending))
+                return Apply(ctx, target, pending, RecordedAllocation(rolled), TakedownModel(ctx.Frame) is { } t && Lookup.AliveModels(ctx.State, target).Contains(t) ? t : null, last.Rolls);
             var wounds = ctx.Frame.Values.ContainsKey("wounds_left") ? ctx.Frame.Value("wounds_left") : WoundsToDeal(ctx.Frame);
             if (wounds <= 0) return new Finish([]);
             var team = ctx.TeamOf(target) ?? throw new InvalidOperationException("target unit has no team");
@@ -146,10 +159,24 @@ public static partial class GfAttack
                     allocation = new Dictionary<Guid, int> { [first] = wounds };
             }
             else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
+            return Apply(ctx, target, wounds, allocation.Where(kv => kv.Value > 0).Select(kv => (kv.Key, kv.Value)).ToList(), takedown, null);
+        }
 
+        const string IgnoreWoundsKey = "ignore_wounds";
+
+        /// <summary>The allocation a rolling run recorded, in its order.</summary>
+        static IReadOnlyList<(Guid Model, int Count)> RecordedAllocation(IReadOnlyDictionary<string, int> values) =>
+            values.Where(kv => kv.Key.StartsWith("allocated_")).Select(kv => (Parts: kv.Key["allocated_".Length..].Split('_'), kv.Value))
+                .OrderBy(x => int.Parse(x.Parts[0])).Select(x => (Guid.ParseExact(x.Parts[1], "N"), x.Value)).ToList();
+
+        /// <summary>The segment's wounds on the allocated models. `ignoreRolls` null: roll to ignore wounds when a rule says so, and stop there with the
+        /// segment recorded; otherwise the rolling run's dice, one record per model that rolled, in the allocation's order, read as they now stand.</summary>
+        static StepOutcome Apply(StepContext ctx, Guid target, int wounds, IReadOnlyList<(Guid Model, int Count)> allocation, Guid? takedown, IReadOnlyList<RollRecord>? ignoreRolls)
+        {
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
-            var live = ctx.Settle(ix);
+            // The rolling run lists what acted on the segment; the run that reads its dice settles the same rules again only to spend them.
+            var live = ignoreRolls is null ? ctx.Settle(ix) : LiveProperties.Settle(ix);
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
@@ -163,20 +190,30 @@ public static partial class GfAttack
                 : RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
                     (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
 
+            // Carried wounds come first and keep the result they rolled; each of a model's other wounds rolls one die.
             var carried = ctx.Frame.Value("wounds_carried");
+            var segment = allocation.Select(a => { var incoming = a.Count * multiplier; var kept = Math.Min(carried, incoming); carried -= kept; return (a.Model, Incoming: incoming, Kept: kept); }).ToList();
+            if (ignoreRolls is null && regen.Roll is { } roll && segment.Any(m => m.Incoming > m.Kept))
+            {
+                foreach (var m in segment.Where(m => m.Incoming > m.Kept))
+                    ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), m.Incoming - m.Kept);
+                var recorded = new Dictionary<string, int> { [IgnoreWoundsKey] = wounds };
+                foreach (var (a, i) in allocation.Select((a, i) => (a, i))) recorded[$"allocated_{i}_{a.Model:N}"] = a.Count;
+                return new Complete([], recorded, Repeat: true);
+            }
+
             var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var dead = new HashSet<Guid>();
             var perModel = new Dictionary<string, int>();
-            foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
+            var next = 0;
+            foreach (var (modelId, rolledIncoming, kept) in segment)
             {
                 var model = ctx.Projection.Models[modelId];
                 var capacity = Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1;
                 if (capacity > 1) ctx.Applied.Add(GfNames.Tough);
-                var incoming = count * multiplier;
-                var kept = Math.Min(carried, incoming);   // carried wounds come first and keep the result they rolled
-                carried -= kept;
-                if (regen.Roll is { } roll && incoming > kept)
+                var incoming = rolledIncoming;
+                if (ignoreRolls is not null && incoming > kept)
                 {
-                    var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming - kept);
+                    var record = ignoreRolls[next++];
                     incoming = kept + Dice.RollOutcome.Failures(record);   // each success overrides one wound
                     // The wounds this model ignored in this step (Regenerative Strength: "Place one marker on this model when it ignores a wound").
                     if (Dice.RollOutcome.Successes(record) is > 0 and var ignored) perModel[$"ignored_{modelId:N}"] = ignored;
@@ -200,7 +237,7 @@ public static partial class GfAttack
             changes.AddRange(Consumed(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
-            var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
+            var left = takedown is null ? wounds - allocation.Sum(a => a.Count) + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
             var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = takedown is null ? spilled : 0 };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
@@ -420,7 +457,7 @@ public static partial class GfAttack
     public static int HitsFrom(FrameView parent)
     {
         var hitRolls = parent.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
-        if (hitRolls.Count == 0) return parent.Value("hits") * Math.Max(1, parent.Value("hit_multiplier", 1));
+        if (hitRolls.Count == 0) return (GfMelee.ImpactHits(parent) ?? parent.Value("hits")) * Math.Max(1, parent.Value("hit_multiplier", 1));
         return (hitRolls.Sum(Dice.RollOutcome.Successes) + parent.Value("extra_hits")) * Math.Max(1, parent.Value("hit_multiplier", 1));
     }
 
@@ -664,7 +701,16 @@ public static partial class GfAttack
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
             var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, defender).Count);
             var wounds = 0; var extraWounds = 0; var plain = hits;
+            var values = new Dictionary<string, int>();
             RollEffects.ReadPerDie(live, Side.Defender, GfNames.DefenseRoll);
+            // What each face of a roll adds, so WoundsToDeal reads the face a die shows when the wounds are dealt rather than the face it was rolled on.
+            var rolls = 0;
+            void MapFaces(LiveSet set, Dice.RollPlan plan)
+            {
+                var roll = rolls++;
+                foreach (var face in ctx.Faces(plan))
+                    if (RollEffects.ExtraWounds(set, Side.Defender, face, GfNames.DefenseRoll) is > 0 and var n) values[ExtraWoundsKey(roll, face.Raw)] = n;
+            }
             // One live set carries every whole-group rule (a weapon's, a spell's); the hits split only by the set of per-die grants each die carries.
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")).OrderBy(kv => kv.Key, StringComparer.Ordinal))
             {
@@ -672,6 +718,7 @@ public static partial class GfAttack
                 var group = count * multiplier; plain -= group;
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels, cover, picked);
                 var record = ctx.Roll(plan, group, d => RollEffects.Triggers(granted, Side.Defender, d, GfNames.DefenseRoll));
+                MapFaces(granted, plan);
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(granted, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
@@ -679,10 +726,12 @@ public static partial class GfAttack
             {
                 var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels, cover, picked);
                 var record = ctx.Roll(plan, plain, d => RollEffects.Triggers(live, Side.Defender, d, GfNames.DefenseRoll));
+                MapFaces(live, plan);
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(live, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
-            return new Complete(Consumed(live), new Dictionary<string, int> { ["wounds"] = wounds, ["extra_wounds"] = extraWounds });
+            values["wounds"] = wounds; values["extra_wounds"] = extraWounds;
+            return new Complete(Consumed(live), values);
         }
     }
 }

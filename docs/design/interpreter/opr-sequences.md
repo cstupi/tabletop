@@ -115,7 +115,8 @@ for a strike-back.
 
 `GfAttack.HitsFrom(parent)` is what `resolve-hits` reads back. It is the successes of the
 parent's `hit` rolls plus its `extra_hits`, times its `hit_multiplier`. When the parent rolled no
-hit roll at all it is `parent.Value("hits")`, which is how `Impact` enters.
+hit roll at all it is the successes of the parent's `impact` roll as it now stands (`GfMelee.ImpactHits`), which is how
+`Impact` enters, and otherwise `parent.Value("hits")`.
 
 `EligibleModels` is where containment short-circuits. `Battlefield.InsideReach` is asked
 **first**, before any measurement. Shooting then needs line of sight to a target model and a
@@ -139,7 +140,9 @@ in cover terrain, screened by a sight blocker, or unseen. `Battlefield` supplies
 model lists, `ModelsInCoverTerrain` and `ModelsBehindSightBlockers`, and the fraction is the size
 of their union, because the fraction is a ruleset number. Sight is measured from the whole
 eligible attacker set, not from one vantage model. Indirect drops the sight list. Each defense die carries what it set off on the
-defender's side as `Die.Triggered` (Shred's `+1 wound` on a 1). `deal` pushes `deal-wounds`.
+defender's side as `Die.Triggered` (Shred's `+1 wound` on a 1). For every face of each defense roll that adds wounds, `roll-to-block`
+writes `Values["extra_wounds_<roll>_<face>"]` (`RollEffects.ExtraWounds` judged under the roll's plan), so the wounds are read off the
+face a die shows when they are dealt; `Values["wounds"]` and `Values["extra_wounds"]` are the totals as rolled. `deal` pushes `deal-wounds`.
 
 `Impact` hits enter here directly, skipping the hit roll. Spell hits enter from `spell-hits`: after a hit roll
 that cannot fail when the spell prints *"Roll as many dice as hits"*, so *on rolls of 6* rules read a real die,
@@ -152,8 +155,9 @@ Frame context: `ActorUnitId` = the attacker (**null** when terrain wounds), `Tar
 suppression of `Regeneration`, are live), `Action` = the attacker's.
 
 `GfAttack.WoundsToDeal(frame)` is the failures of every `defense` roll in the parent frame's
-completed steps. When the parent rolled none it is the parent's `Values["wounds"]`, which is the
-dangerous-terrain path.
+completed steps plus each defense die's `extra_wounds_<roll>_<face>` for the face it shows, all as the dice now stand. Under a
+`dangerous-terrain` parent it is the failures of its test as they now stand (`GfMoves.DangerousWounds`). Otherwise it is the
+parent's `Values["wounds"]`.
 
 `assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds, MaxTargets)` to the
 target's team, and any member of that team may answer it. p.8 gives the defending player free
@@ -189,7 +193,9 @@ pick and the wound are two steps of one frame and the only wounds dealt in betwe
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
 ordinal 0, with no carry-over past the model's capacity. `Regeneration` live on the target unit, which 3.5.1 needs
 every model to carry, rolls one die at the effect row's threshold, recorded as a `RollRecord` named `Regeneration`, and a
-success ignores the wound. The model's `Wounds` rises. At
+success ignores the wound. A segment that rolls takes two runs of `assign`: the first rolls each model's dice and records the
+segment as `Values["ignore_wounds"]` and `Values["allocated_<i>_<model>"]` (Repeat), the second reads those dice as they then
+stand and applies the wounds. The model's `Wounds` rises. At
 `Lookup.ModelParameter(state, modelId, "Tough") ?? 1` it goes to the shelf.
 `WoundsThisActivation` on the target rises by the wounds that landed. It is a per-unit counter in
 game state, because the morale threshold needs it to outlive the frame that wrote it.
@@ -317,8 +323,8 @@ a different set. That is the obligation the geometry module states of this one.
 
 `test` rolls exactly `Frame.Parent?.Value("dangerous_dice")` dice, falling back to the models
 standing in it now. That is one die per affected model, or that model's `Tough` value in dice, at
-threshold 2. Each failure, meaning each 1, is a wound, written as `Values["wounds"]`. `deal`
-pushes `deal-wounds` with no attacker. Three invokers write `dangerous_dice` on their own frame
+threshold 2. Each failure, meaning each 1, is a wound; `Values["wounds"]` is the count as rolled. `deal`
+pushes `deal-wounds` with no attacker when the test's dice as they now stand hold a failure (`GfMoves.DangerousWounds`). Three invokers write `dangerous_dice` on their own frame
 and push: the activation, the move, and transport destruction.
 
 ## Shooting
@@ -375,7 +381,7 @@ sequenceDiagram
     C->>M: fight: Push melee, or Finish when no charger model is in reach
     M->>M: melee-start: record both units' WoundsThisActivation
     M->>A: counter: the defender's Counter weapons strike first
-    M->>M: impact: Impact(X) dice minus one per Counter model in reach, threshold 2
+    M->>M: impact: Impact(X) dice minus one per Counter model in reach, threshold 2; the repeat resolves the hits as the dice then stand
     M->>A: charger-attacks, then set fatigued on the charger
     M->>DT: strike-back: Options([strike, pass])
     DT-->>M: Chosen
@@ -647,10 +653,20 @@ nothing, so `test` names each grant it read and held back in a `Values["held_<un
 and `override` removes those on either path: a spell's morale modifier beside its Fearless is spent
 once whether or not the test passed.
 
-The other rolls still settle their consequence in the step that rolls them, and an edit to one
-changes only later readers: `roll-to-block`'s per-die `extra_wounds` (its failures are read as they
-stand by `GfAttack.WoundsToDeal`), `assign`'s wound-ignoring rolls, `dangerous-terrain`'s `test`,
-`impact`, the attack-start rolls' `face_` values and a dice-distance move's `distance_tenths`.
+The other rolls are read where their result is used, off the record as it then stands; the value the rolling step writes is
+the result as rolled:
+
+| Roll | Read by | As it now stands |
+| --- | --- | --- |
+| `roll-to-block`'s `defense` | `GfAttack.WoundsToDeal` (`assign`) | failures, and each die's `extra_wounds_<roll>_<face>` |
+| `assign`'s wound-ignoring roll | `assign`'s next run | the successes each ignore a wound |
+| `dangerous-terrain`'s `test` | `deal`, then `WoundsToDeal` | the failures |
+| `impact` | `impact`'s repeat, then `GfAttack.HitsFrom` | the successes (`GfMelee.ImpactHits`) |
+| `attack-start`, `melee-start` | `GfAttack.FacesFor` | the first die of the roll `Values["rolled_<unit>_<entry>"]` names |
+| a placement's distance dice | `reposition`'s next runs | p.4's D3 per die (`distance_tenths` is the same as rolled) |
+
+`assign`'s and `reposition`'s roll repeat a step at position 0, and the wait setting gates that repeat too (resolution → Confirm
+gates), so an edit lands between the roll and its reading.
 
 ## Roll specs
 

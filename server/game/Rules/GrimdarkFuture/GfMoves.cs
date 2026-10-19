@@ -16,7 +16,7 @@ public static partial class GfMoves
     public static Sequence Rush() => new(GfNames.RushSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Rush, false).Labelled("Move"), new GfRuleHits.CrossingStep(), new ShootOrNotStep()]);
     /// <summary>p.10's idle activation is an activation (p.11 "or is activated in it"): a Shaken unit idling in dangerous terrain, or counting as in it, still tests.</summary>
     public static Sequence Idle() => new(GfNames.IdleSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start")]);
-    public static Sequence DangerousTerrain() => new(GfNames.DangerousTerrain, [new DangerousTestStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.ActorUnitId!.Value], [], null))]);
+    public static Sequence DangerousTerrain() => new(GfNames.DangerousTerrain, [new DangerousTestStep(), new DangerousDealStep()]);
 
     static LiveSet Lone(StepContext ctx, Guid unit, string? action) => ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, action, null, Battlefield.TerrainUnder(ctx.State, unit)));
 
@@ -372,7 +372,8 @@ public static partial class GfMoves
         }
     }
 
-    /// <summary>p.11: one die per *affected* model (or that model's Tough value in dice); each 1 is a wound. The pushing step settled how many in Values["dangerous_dice"]; the fallback is the models standing in it now. Values["wounds"] feeds deal-wounds with no attacker.</summary>
+    /// <summary>p.11: one die per *affected* model (or that model's Tough value in dice); each 1 is a wound. The pushing step settled how many in Values["dangerous_dice"];
+    /// the fallback is the models standing in it now. Values["wounds"] is the failures as rolled; `deal` reads the dice as they then stand (DangerousWounds).</summary>
     public sealed class DangerousTestStep : IStep
     {
         public string Name => "test";
@@ -383,8 +384,22 @@ public static partial class GfMoves
             var dice = owed > 0 ? owed : DangerousDice(ctx.State, StandingInDangerous(ctx.State, unit));
             if (dice == 0) return new Finish([], new Dictionary<string, int> { ["wounds"] = 0 });
             var record = ctx.Roll(new Dice.RollPlan(GfNames.DangerousTerrain, 2, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice);
-            var wounds = Dice.RollOutcome.Failures(record);
-            return wounds == 0 ? new Finish([], new Dictionary<string, int> { ["wounds"] = 0 }) : new Complete([], new Dictionary<string, int> { ["wounds"] = wounds });
+            return new Complete([], new Dictionary<string, int> { ["wounds"] = Dice.RollOutcome.Failures(record) });
+        }
+    }
+
+    /// <summary>The failures of a dangerous-terrain frame's test as its dice now stand.</summary>
+    public static int DangerousWounds(FrameView frame) =>
+        frame.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.DangerousTerrain).Sum(Dice.RollOutcome.Failures);
+
+    /// <summary>The test's wounds, dealt to the unit with no attacker, when its dice as they now stand hold a failure.</summary>
+    sealed class DangerousDealStep : IStep
+    {
+        public string Name => "deal";
+        public StepOutcome Run(StepContext ctx)
+        {
+            if (ctx.History.Children.Any(ch => ch.Finished || ch.Abandoned) || DangerousWounds(ctx.Frame) == 0) return new Complete([]);
+            return new Push(GfNames.DealWounds, new SequenceContext(null, [ctx.Frame.Context.ActorUnitId!.Value], [], null));
         }
     }
 
@@ -440,11 +455,9 @@ public static partial class GfMoves
             {
                 // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
                 var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
-                // "D3+1" (Bounding, Dash): each die's D3 plus one.
-                var plus = row.AmountDice == "d3+1" ? record.Dice.Count : 0;
-                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (record.Dice.Sum(d => (d.Raw + 1) / 2) + plus) * 10 }, Repeat: true);
+                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (int)Math.Round(Inches(record, row) * 10) }, Repeat: true);
             }
-            var distance = row.AmountDice is null ? row.EffectiveAmount(null) : ctx.Frame.Value("distance_tenths") / 10.0;
+            var distance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
             var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();
             var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
             if (ctx.History.LastClosed("move") is not { } placed)
@@ -456,6 +469,14 @@ public static partial class GfMoves
             changes.AddRange(RollEffects.Consume(live));
             return new Complete(changes);
         }
+
+        /// <summary>p.4's D3, a D6 halved and rounded up, per die; "D3+1" (Bounding, Dash) adds one per die.</summary>
+        static double Inches(RollRecord record, Effect row) => record.Dice.Sum(d => (d.Raw + 1) / 2) + (row.AmountDice == "d3+1" ? record.Dice.Count : 0);
+
+        /// <summary>The distance the frame's roll for the entry gives as its dice now stand, so an edit after the roll moves the placement's reach.
+        /// `distance_tenths` is the same figure as rolled.</summary>
+        static double Distance(FrameView frame, string entry, Effect row) =>
+            Inches(frame.Frame.Steps.SelectMany(s => s.Rolls).Last(r => r.Roll == entry), row);
 
         /// <summary>A placement has no path (PassesModels); its landing is judged by move_overlap, by move_separation and against impassable terrain,
         /// except an Aircraft's, p.13: "Aircraft ignore all units and terrain when moving and stopping".</summary>

@@ -300,8 +300,6 @@ thread, template copies of rigged or animated models.
 - **Deploy caution:** games `playing` with an open sequence frame must be ended or abandoned before running this server. The step
   lists of attack-sequence, casting, spell-hits and morale-test changed (`SequenceInterpreter` indexes steps by position), so a
   parked frame can resolve hits twice. Nothing guards it; a guard needs a sequence version.
-- **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
-  Impact, attack-start faces, dice-distance moves.
 - **Owner rulings on movement:** a spell's forced move moves the unit however that unit moves (*"Spells move as however that
   unit moves"*): its region and its apply read the target's own Flying, Strider and Aircraft (`GfMoves.TerrainFor`). A granted
   Flying lasts the whole activation (*"Granted flying applies to the whole move - its per activation"*): once it applies it stays

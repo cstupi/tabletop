@@ -20,7 +20,10 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
         if (top.Position >= sequence.Steps.Count) return [new SequenceFinished(top.Id)];
         if (top.History.Waiting) return [];
         var actorTeam = top.Context.ActorUnitId is { } u ? Teams.Of(state, u) : null;
-        if (top.Position > 0 && top.History.Confirmed == 0 && GateTeams(state, top, actorTeam) is { } gate)
+        // A boundary is before every step but the first, and before a repeat of the first in a frame with an actor: a repeat at position 0
+        // (assign's segments, a placement's roll) settles what it rolled on the next run, so the wait setting stops there too.
+        var boundary = top.Position > 0 || (top.Frame.Steps.Count > 0 && actorTeam is not null);
+        if (boundary && top.History.Confirmed == 0 && GateTeams(state, top, actorTeam) is { } gate)
             return [new AskOpened(new Ask(Guid.CreateVersion7(), AskQuestions.Confirm, $"Continue: {sequence.Steps[top.Position].Name}", gate, new Confirmation(), false, false, null, top.Id))];
 
         var step = sequence.Steps[top.Position];

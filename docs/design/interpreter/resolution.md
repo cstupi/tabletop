@@ -226,7 +226,7 @@ step and runs it again.
 ```mermaid
 stateDiagram-v2
     [*] --> Ready: frame on top, no open Ask
-    Ready --> Gate: WaitsBetweenSteps, past position 0, actor team, no closed confirm
+    Ready --> Gate: WaitsBetweenSteps, past position 0 or a repeat of it, actor team, no closed confirm
     Ready --> Gate: no actor and no parent, past position 0, no closed confirm - every team
     Gate --> Ready: confirm answered
     Ready --> Running: IStep.Run(ctx)
@@ -270,7 +270,7 @@ hit multiplier, extra hits, a distance in tenths of an inch, a token spend, who 
 schema per step kind, one flat map (contracts → Event inventory). It buys two things. A later step or a nested frame reads a settled
 parameter without re-deriving it. A forced reroll or a `SetDice` between steps changes what the next step reads, which
 is the record, without changing what was settled, which is the value. A value a face decides is
-therefore settled by the step after the roll in the split sequences above. The cost is untyped string
+therefore settled by the step after the roll, or read off the record where it is used (opr-sequences → Dice edits). The cost is untyped string
 keys with no registry. `dangerous_dice`, `net_tokens`, `phase`, `hits`, `hit_multiplier`,
 `distance_used_tenths`, `place_1..place_n` and `loser` are conventions held in `GfNames`' vicinity
 and in prose, not in a type.
@@ -284,7 +284,8 @@ that observes an abandoned child treats it the same as a finished one. `ShootOrN
 `DisgorgeStep` both read `Finished || Abandoned`.
 
 **Confirm gates.** When `game.waits_between_steps` is on, every step boundary past position 0 is
-a gate. The interpreter opens its own `Ask` with question `AskQuestions.Confirm` and a
+a gate, and so is a repeat of the step at position 0 in a frame with an actor (`assign`'s segments, a placement's distance roll),
+since the repeat reads what the run before it rolled. The interpreter opens its own `Ask` with question `AskQuestions.Confirm` and a
 `Confirmation` legal set, addressed to the acting unit's team. Pausing is an Ask, so confirming
 is answering it, and there is one input path rather than two.
 
