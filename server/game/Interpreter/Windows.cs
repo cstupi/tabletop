@@ -35,7 +35,7 @@ public static class Windows
             if (mine.Count == 0) continue;
             var ask = asks.FirstOrDefault(a => a.Ask.Teams[0] == team);
             if (ask is null)
-                return new OpenAsks([ctx.UnitPickAsk(AskQuestions.React, Prompt(point), team, new Options(mine.Select(r => new AskOption(r.OptionId, r.Label, [r.Context.ActorUnitId ?? Guid.Empty])).ToList()), allowPass: true, windowKind: point)]);
+                return new OpenAsks([ctx.Ask(AskQuestions.React, Prompt(point), team, new Options(mine.Select(r => new AskOption(r.OptionId, r.Label, [r.Context.ActorUnitId ?? Guid.Empty])).ToList()), allowPass: true, windowKind: point)]);
             if (!ask.Closed) return new OpenAsks([]);   // unreachable: Advance returns before running a waiting step
             if (ask.Single is not Chosen chosen) continue;   // passed, or an out-of-set answer accepted under warn/silent
             if (mine.FirstOrDefault(r => r.OptionId == chosen.OptionId) is not { } reaction) continue;   // an option the Ask did not offer is a pass

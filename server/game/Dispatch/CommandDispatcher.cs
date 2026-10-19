@@ -78,7 +78,6 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         var ask = open.Ask;
         if (actor.TeamId is not { } team || !ask.Teams.Contains(team)) return new Refused(RefusalReason.NotPermitted, "this ask is not addressed to your team");
         if (open.Answers.ContainsKey(team)) return new Refused(RefusalReason.NotPermitted, "your team has already answered");
-        if (SeatAuthority.Breach(state, ask, command.Answer, actor) is { } notYours) return new Refused(RefusalReason.NotPermitted, notYours);
         var inSet = LegalSetMembership.Contains(ask, command.Answer);
         // An answer to a turn Ask that the ruleset cannot read (an option id that does not parse, a unit the log no longer has)
         // is outside the legal set as much as an unknown option is, so it takes the same three positions under the enforcement dial.

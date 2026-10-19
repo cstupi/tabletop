@@ -126,7 +126,7 @@ public sealed partial class GrimdarkFutureRules
             next = eligible.FirstOrDefault(t => TeamUnits.IndexOf(order, t) > lastIndex, eligible[0]);
         }
         var ask = new Ask(Guid.CreateVersion7(), AskQuestions.DeployAmbusher, "Deploy an Ambusher or pass", [next],
-            new PieceSelection(Ambushers(state, props, next), 1, 1), AllowPass: true, Sealed: false, WindowKind: null, FrameId: null) { OwnUnitsOnly = true };
+            new PieceSelection(Ambushers(state, props, next), 1, 1), AllowPass: true, Sealed: false, WindowKind: null, FrameId: null);
         return new HookEmit([new AskOpened(ask)]);
     }
 }

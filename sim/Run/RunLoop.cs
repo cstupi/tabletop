@@ -25,6 +25,7 @@ public sealed partial class RunLoop(
     private RunOutcome? _forced;     // an outcome decided outside DriveAsync, reported by the next RunAsync
     private int _absorbedThisCycle;     // every event absorbed since the last step's check
     private bool _setAsideSent;         // the scenario's set-aside units, sent once before the first answer
+    private readonly Dictionary<Guid, int> _answersByTeam = [];   // Seat's turn-about over a team's seats
 
     public FrameProjector Projector { get; } = new(scenario);
     public IReadOnlyList<GameEvent> Log => _log;
@@ -89,7 +90,8 @@ public sealed partial class RunLoop(
     {
         var open = (await driver.OpenAsksAsync(ct)).FirstOrDefault(a => a.Ask.Teams.Contains(teamId) && !a.Answers.ContainsKey(teamId))
             ?? throw new InvalidOperationException($"no ask is open for team {teamId:N}");
-        var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct, Seat(open.Ask, teamId, answer, await driver.ProjectionAsync(ct)));
+        var seat = Seat(teamId);
+        var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct, seat);
         if (result is SubmitResult.Rejected rejected)
             throw new InvalidOperationException($"'{open.Ask.Question}' refused: {rejected.Reason} {rejected.Detail}");
         answers.Record(open.Ask, answer);
@@ -98,7 +100,7 @@ public sealed partial class RunLoop(
         // A refused placement is the loop's own Stuck(SubmitRefused): the next RunAsync reports it instead of driving.
         if (DeployQuestions.Contains(open.Ask.Question) && answer is SelectedPieces selected)
             foreach (var unitId in selected.PieceIds)
-                if (await PlaceAsync(teamId, unitId, ct) is { } refusal) { _forced = refusal; break; }
+                if (await PlaceAsync(teamId, unitId, seat, ct) is { } refusal) { _forced = refusal; break; }
 
         return await RunAsync(ct);
     }
@@ -158,7 +160,8 @@ public sealed partial class RunLoop(
         foreach (var teamId in open.Ask.Teams.Where(t => !open.Answers.ContainsKey(t)))
         {
             var answer = answers.Answer(open.Ask, view);
-            var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct, Seat(open.Ask, teamId, answer, projection));
+            var seat = Seat(teamId);
+            var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct, seat);
             if (result is SubmitResult.Rejected rejected)
                 return new RunOutcome.Stuck(StuckReason.SubmitRefused,
                     $"'{open.Ask.Question}' answered with {answer.GetType().Name}: {rejected.Reason} {rejected.Detail}");
@@ -168,7 +171,7 @@ public sealed partial class RunLoop(
 
             if (DeployQuestions.Contains(open.Ask.Question) && answer is SelectedPieces selected)
                 foreach (var unitId in selected.PieceIds)
-                    if (await PlaceAsync(teamId, unitId, ct) is { } refusal) return refusal;
+                    if (await PlaceAsync(teamId, unitId, seat, ct) is { } refusal) return refusal;
 
             if (open.Ask.Sealed && (await driver.ProjectionAsync(ct)).OpenAsks.ContainsKey(open.Ask.Id)) continue;   // a sealed Ask the server closed early (game_over's End) takes no more answers
             break;
@@ -249,13 +252,13 @@ public sealed partial class RunLoop(
         return null;
     }
 
-    private async Task<RunOutcome?> PlaceAsync(Guid teamId, Guid unitId, CancellationToken ct)
+    private async Task<RunOutcome?> PlaceAsync(Guid teamId, Guid unitId, Guid? seat, CancellationToken ct)
     {
         var projection = await driver.ProjectionAsync(ct);
         if (!projection.Units.ContainsKey(unitId)) return null;
         var moves = HandPlacement.IntoZone(projection, scenario, teamId, unitId, chooser);
         if (moves.Count == 0) return null;
-        var result = await driver.SubmitAsync(projection.Units[unitId].ParticipantId, new MoveModels(moves), ct);   // the unit's own seat places it (p.50)
+        var result = await driver.SubmitAsync(seat ?? driver.ParticipantFor(teamId), new MoveModels(moves), ct);   // the seat that picked it places it
         Absorb(await driver.DrainEventsAsync(ct));
         return result is SubmitResult.Rejected rejected
             ? new RunOutcome.Stuck(StuckReason.SubmitRefused, $"hand placement of unit {unitId}: {rejected.Reason} {rejected.Detail}")
@@ -263,22 +266,16 @@ public sealed partial class RunLoop(
     }
 
     /// <summary>
-    /// Who of a team answers (rulebook p.50 Team Games, game-flow spec → Participants): the Ask's Seat; for an own-units pick, the owner of the unit
-    /// the answer picks; else the team's first seat. Nothing here judges the answer: the server refuses a wrong seat.
+    /// Who of a team answers (rulebook p.50 Team Games; owner ruling: "Either player from the team can take the activation across any unit in
+    /// their team."): the team's seats take turns, one answer each, whatever unit it is about; null (the team's first) for a team of one seat.
     /// </summary>
-    private Guid? Seat(Ask ask, Guid teamId, AskAnswer answer, Projection projection)
+    private Guid? Seat(Guid teamId)
     {
-        if (ask.Seat is { } seat && scenario.TeamOfParticipant.GetValueOrDefault(seat) == teamId) return seat;
-        if (!ask.OwnUnitsOnly) return null;
-        IEnumerable<Guid> pieces = answer switch
-        {
-            Chosen c when ask.Legal is Options o && o.Choices.FirstOrDefault(x => x.Id == c.OptionId) is { } option => option.Pieces,
-            SelectedPieces s => s.PieceIds,
-            _ => [],
-        };
-        return pieces.Select(id => projection.Models.TryGetValue(id, out var m) ? m.UnitId : id)
-            .Select(id => projection.Units.TryGetValue(id, out var u) ? u.ParticipantId : (Guid?)null)
-            .FirstOrDefault(p => p is { } owner && scenario.TeamOfParticipant.GetValueOrDefault(owner) == teamId);
+        var seats = scenario.TeamOfParticipant.Where(kv => kv.Value == teamId).Select(kv => kv.Key).Order().ToList();
+        if (seats.Count < 2) return null;
+        var n = _answersByTeam.GetValueOrDefault(teamId);
+        _answersByTeam[teamId] = n + 1;
+        return seats[n % seats.Count];
     }
 
     /// <summary>

@@ -11,8 +11,8 @@ internal static partial class CoreGames
     /// <summary>
     /// Four players, two a side, an army each. p.50: "players from the same team must deploy their units in the same deployment zone, placing a
     /// single unit when it's their team's turn to deploy"; "the turn order is on a team basis and not on a player basis, so for each team's turn
-    /// only one of the players may activate a single unit". Every seat deploys and activates its own units; every answer to an Ask about a unit
-    /// is that unit's player's.
+    /// only one of the players may activate a single unit". Owner ruling: "Either player from the team can take the activation across any unit in
+    /// their team." The run's seats take turns answering their team's Asks, so players deploy and activate their teammates' units.
     /// </summary>
     public static TestGame TeamGame()
     {
@@ -34,17 +34,19 @@ internal static partial class CoreGames
                     if (order[i] == order[i - 1]) return $"deployment {i + 1} was the same team's as the one before it";
                 return null;
             }),
-            Check("p.50: each player deploys and activates their own units, and answers for their own units", log =>
+            Check("owner ruling: either player of a team takes the activation, for any unit of the team", log =>
             {
                 var owner = log.Run.Final.Units.Values.ToDictionary(u => u.Id, u => u.ParticipantId);
+                var teamOf = new Dictionary<Guid, Guid>();                                          // seat → team, from the team each answered for
                 var asks = new Dictionary<Guid, Ask>();
                 var deployed = new HashSet<Guid>(); var activated = new HashSet<Guid>();
+                var activations = new List<(Guid Actor, Guid Owner)>();
                 foreach (var e in log.Events)
                 {
                     if (e.Payload is AskOpened o) asks[o.Ask.Id] = o.Ask;
                     if (e.Payload is not AskAnswered a || !asks.TryGetValue(a.AskId, out var ask) || e.Actor is not { } actor) continue;
-                    if (ask.Seat is { } seat && seat != actor) return $"seq {e.Seq}: '{ask.Question}' about another player's unit was answered by {actor}";
-                    if (!ask.OwnUnitsOnly) continue;
+                    teamOf[actor] = a.TeamId;
+                    if (ask.Question is not (AskQuestions.Deploy or AskQuestions.Activate)) continue;
                     IEnumerable<Guid> picked = a.Answer switch
                     {
                         Chosen c when ask.Legal is Options opts => opts.Choices.Where(x => x.Id == c.OptionId).SelectMany(x => x.Pieces),
@@ -53,12 +55,16 @@ internal static partial class CoreGames
                     };
                     foreach (var unit in picked.Where(owner.ContainsKey))
                     {
-                        if (owner[unit] != actor) return $"seq {e.Seq}: '{ask.Question}' picked another player's unit";
+                        if (ask.Question == AskQuestions.Activate) activations.Add((actor, owner[unit]));
                         (ask.Question == AskQuestions.Deploy ? deployed : activated).Add(actor);
                     }
                 }
+                if (activations.FirstOrDefault(x => teamOf.GetValueOrDefault(x.Owner) != teamOf[x.Actor]) is { Actor: var stranger } && stranger != Guid.Empty)
+                    return $"{stranger} activated another team's unit";
+                var teammates = activations.Count(x => x.Owner != x.Actor);
                 var seats = owner.Values.Distinct().Count();
-                return seats != 4 ? $"{seats} player(s) brought a unit" : deployed.Count != 4 ? $"{deployed.Count} player(s) deployed" : activated.Count != 4 ? $"{activated.Count} player(s) activated" : null;
+                return seats != 4 ? $"{seats} player(s) brought a unit" : deployed.Count != 4 ? $"{deployed.Count} player(s) deployed"
+                    : activated.Count != 4 ? $"{activated.Count} player(s) activated" : teammates == 0 ? "no player activated a teammate's unit" : null;
             }),
             FinalRound(Enforcement.Strict),
         ]);

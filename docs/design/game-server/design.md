@@ -706,15 +706,11 @@ plan's ruling 1).
 
 An Ask is addressed to a **team**, because turns are the team's (rulebook p.50 Team Games; game flow →
 *Participants*). `Ask.Teams` is a list and the log records which participant answered
-(`GameEvent.Actor`). Units are their player's: `Ask.Seat` names the one seat that may answer an Ask
-about one unit (`StepContext.Ask`: the `unit` it is given, else the frame's actor when on the
-addressed team, else the frame's first target on it), and `Ask.OwnUnitsOnly` marks a pick of a unit
-to act (`TurnCycle.AskFor`, the Ambusher and Reinforcement Asks, `StepContext.UnitPickAsk` for a
-reaction, Coordinate), where a seat picks only its own units. The dispatcher enforces: the actor's
-`TeamId` is in `Ask.Teams` (a participant with no team is refused `NotPermitted`); the team has not
-already answered, so two members racing produce one answer and one refusal; and `SeatAuthority`:
-another seat's Ask, or a pick of another seat's unit of the same team, is refused `NotPermitted`
-under every enforcement setting, unless one account holds both seats.
+(`GameEvent.Actor`). Any seat of an addressed team answers, for any unit of the team (owner ruling:
+"Either player from the team can take the activation across any unit in their team."). The
+dispatcher enforces: the actor's `TeamId` is in `Ask.Teams` (a participant with no team is refused
+`NotPermitted`), and the team has not already answered, so two members racing produce one answer
+and one refusal.
 
 The sealed variant is the one place the design uses per-viewer filtered streams. Casting's
 simultaneous token spend (p.13) has every eligible team answer concurrently, and online a

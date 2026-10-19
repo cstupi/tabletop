@@ -4,21 +4,13 @@ namespace Tabletop.Protocol;
 
 /// <summary>
 /// A question addressed to one team (several for a sealed window), with the server-computed legal set.
-/// Any seat of an addressed team may answer, unless Seat names one; the log records who. FrameId is null for the scheduler's Asks.
-/// WindowKind is the name a player mutes by; null when the Ask is not a window.
-/// Seat: the participant row (a player's army) whose unit the Ask is about, the only seat that may answer it for its team (rulebook p.50
-/// Team Games: each player commands their own army); null for an Ask any seat of the team answers (the round boundary, a roll-off).
-/// OwnUnitsOnly: the answer picks a unit to act (activate, deploy, a reaction), and a seat may pick only its own units; another seat's
-/// unit of the same team is refused (p.50: "for each team's turn only one of the players may activate a single unit").
+/// Any seat of an addressed team may answer it, for any unit of the team (rulebook p.50 Team Games: "the turn order is on a team basis and not
+/// on a player basis"; owner ruling: "Either player from the team can take the activation across any unit in their team."); the log records
+/// who. FrameId is null for the scheduler's Asks. WindowKind is the name a player mutes by; null when the Ask is not a window.
 /// </summary>
 public sealed record Ask(
     Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal,
-    bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)
-{
-    public Guid? Seat { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool OwnUnitsOnly { get; init; }
-}
+    bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId);
 
 /// <summary>
 /// A discrete choice. Pieces are the ids to highlight (for activate: the unit). Note, when set, is the ruleset's reason this

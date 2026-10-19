@@ -180,7 +180,7 @@ public static class GfMelee
             if (ctx.History.LastClosed() is { } closed) return Settled(ctx, closed);
             var free = Lookup.LivingModels(ctx.State, target).Where(t => Lookup.LivingModels(ctx.State, charger).All(m => Battlefield.Distance(ctx.State, m, t) > Touching)).ToList();
             if (free.Count == 0 || ctx.TeamOf(target) is not { } team) return new Complete([]);
-            return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, Impassable(ctx, target), [], null), allowPass: true, unit: target)]);   // a close-in: impassable terrain, no difficult cap
+            return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, Impassable(ctx, target), [], null), allowPass: true)]);   // a close-in: impassable terrain, no difficult cap
         }
     }
 
@@ -301,7 +301,7 @@ public static class GfMelee
             if (ctx.History.LastClosed("strike_back") is { } closed)
                 return closed.Single is Chosen { OptionId: "strike" } ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
-            return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]), unit: defender)]);
+            return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]))]);
         }
     }
 
@@ -342,7 +342,7 @@ public static class GfMelee
             // p.10: "players may agree not to separate units by 1"" (optional rule melee_separation off): both alive, nobody moves back.
             if (chargerAlive.Count > 0 && defenderAlive.Count > 0 && !GfOptions.Of(ctx.State).MeleeSeparation) return new Complete([]);
             var (mover, distance) = chargerAlive.Count == 0 ? (defender, GfNames.Consolidate) : defenderAlive.Count == 0 ? (charger, GfNames.Consolidate) : (charger, GfNames.FallBack);
-            return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, Impassable(ctx, mover), [], null), allowPass: true, unit: mover)]);   // fall back / consolidate: impassable terrain, no difficult cap
+            return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, Impassable(ctx, mover), [], null), allowPass: true)]);   // fall back / consolidate: impassable terrain, no difficult cap
         }
     }
 }

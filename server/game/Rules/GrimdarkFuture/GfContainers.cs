@@ -59,7 +59,7 @@ public static class GfContainers
                     // Allowance is unbound on a disembark (Task 14): ExitWithin is passed so the number is the exit distance. The client reads Containment.
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), GfNames.ExitWithin,
                         Battlefield.Terrain(ctx.State).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
-                        [], null, new MoveContainment([], container, GfNames.ExitWithin), Separation: GfNames.Separation), allowPass: false, unit: unit)]);
+                        [], null, new MoveContainment([], container, GfNames.ExitWithin), Separation: GfNames.Separation), allowPass: false)]);
             var proposed = GfAnswers.Moves(ctx.State, closed);
             var changes = new List<StateChange> { new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true) };
             var moves = new List<ModelRelocation>(); var destroyed = 0; var fatal = 0;

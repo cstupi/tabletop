@@ -15,10 +15,10 @@ public static class DeployView
     /// <summary>
     /// The unit my team picked at the latest Ask, when that Ask is a deploy question that has closed with a unit and some of its
     /// models are still shelved. Any later Ask — the next deploy, an activation — or a turn's end ends it, because the server moved on (a pick
-    /// withdrawn when its unit was set aside ends the turn when the team has nothing left to deploy). With `game` and
-    /// `me` (Welcome's row), only a unit of my own army: a teammate places their own pick (rulebook p.50 Team Games).
+    /// withdrawn when its unit was set aside ends the turn when the team has nothing left to deploy). Either player of
+    /// the team places it (rulebook p.50 Team Games).
     /// </summary>
-    public static MidDeploy? MidDeploy(Projection p, IReadOnlyList<GameEvent> log, Guid? myTeam, GameInfo? game = null, Guid? me = null)
+    public static MidDeploy? MidDeploy(Projection p, IReadOnlyList<GameEvent> log, Guid? myTeam)
     {
         if (myTeam is not { } team) return null;
         Ask? last = null;
@@ -31,7 +31,6 @@ public static class DeployView
         if (last is null || ended || !Questions.Contains(last.Question) || !last.Teams.Contains(team) || p.OpenAsks.ContainsKey(last.Id)) return null;
         var answer = log.Select(e => e.Payload).OfType<AskClosed>().LastOrDefault(c => c.AskId == last.Id)?.Answers.FirstOrDefault(a => a.TeamId == team)?.Answer;
         if (answer is not SelectedPieces { PieceIds: [var unit] }) return null;
-        if (game is not null && me is not null && p.Units.GetValueOrDefault(unit) is { } picked && Seats.Mine(game, me).All(s => s.Id != picked.ParticipantId)) return null;
         var shelved = p.Models.Values.Where(m => m.UnitId == unit && m.Location is OnShelf).OrderBy(m => m.Slot.Ordinal).Select(m => m.Id).ToList();
         return shelved.Count == 0 ? null : new MidDeploy(unit, last.Question, shelved);
     }
