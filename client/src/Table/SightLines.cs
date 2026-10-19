@@ -18,6 +18,7 @@ public partial class SightLines : Node3D
     (Guid Id, Guid Target)? _query; (SightAnswer Answer, Guid Target)? _shown;      // the hovered unit's newest query, and the answer drawn
     readonly Dictionary<Guid, Guid> _assignedQueries = new();                         // assigned target → its newest query
     readonly Dictionary<Guid, SightAnswer> _assignedAnswers = new();
+    readonly SightCache _assignedKeys = new();                                        // assigned target → the placements its newest query was sent for
     IReadOnlyList<AskOption> _groups = []; IReadOnlyDictionary<string, Guid> _assigned = new Dictionary<string, Guid>();
     Action<Guid?>? _onHover; Action? _onChanged; Action<RenderCause>? _onFrame; Action<SightAnswer>? _onAnswer;
 
@@ -25,7 +26,7 @@ public partial class SightLines : Node3D
     {
         _s = session; _view = view; _input = input;
         AddChild(_lines); AddChild(_marks); AddChild(_summary);
-        _onHover = id => { _hovered = id; Ask(); }; _onChanged = Ask; _onFrame = c => { if ((c & RenderCause.Events) == 0) return; Ask(); AskAssigned(refresh: true); }; _onAnswer = OnAnswer;
+        _onHover = id => { _hovered = id; Ask(); }; _onChanged = Ask; _onFrame = c => { if ((c & RenderCause.Events) == 0) return; Ask(); AskAssigned(); }; _onAnswer = OnAnswer;
         input.HoveredUnitChanged += _onHover; input.SightHeldChanged += _onChanged; input.SelectionChanged += _onChanged;
         session.Frame.Render += _onFrame; session.SightAnswered += _onAnswer;
     }
@@ -38,7 +39,7 @@ public partial class SightLines : Node3D
     }
 
     /// <summary>The decision box's target assignment: each assigned target is asked about, so the models that cannot shoot it dim. Empty clears it.</summary>
-    public void ShowAssigned(IReadOnlyList<AskOption> groups, IReadOnlyDictionary<string, Guid> assigned) { _groups = groups; _assigned = assigned; AskAssigned(refresh: false); Draw(); }
+    public void ShowAssigned(IReadOnlyList<AskOption> groups, IReadOnlyDictionary<string, Guid> assigned) { _groups = groups; _assigned = assigned; AskAssigned(); Draw(); }
 
     /// <summary>My open Ask, when it is a target assignment: the shooting unit is its frame's actor.</summary>
     Guid? Shooter(Projection p, GameInfo game) =>
@@ -55,25 +56,28 @@ public partial class SightLines : Node3D
         Send(id, from, to);
     }
 
-    /// <summary>Ask about each assigned target: every one after the table changed, else only a target not asked about yet.</summary>
-    void AskAssigned(bool refresh)
+    /// <summary>Ask about each assigned target that is new or whose pair's model placements or terrain changed since its last query; the other answers stand.</summary>
+    void AskAssigned()
     {
         var targets = _assigned.Values.Distinct().ToList();
         foreach (var gone in _assignedQueries.Keys.Where(t => !targets.Contains(t)).ToList()) { _assignedQueries.Remove(gone); _assignedAnswers.Remove(gone); }
+        _assignedKeys.Keep(targets);
         if (targets.Count == 0 || _s.Projection is not { } p || _s.Game is not { } game || Shooter(p, game) is not { } from) return;
         foreach (var target in targets)
         {
-            if (!refresh && _assignedQueries.ContainsKey(target)) continue;
+            var key = SightKey.Of(p, from, target);
+            if (!_assignedKeys.NeedsAsk(target, key)) continue;
             var id = Guid.CreateVersion7();
             _assignedQueries[target] = id;
-            Send(id, from, target);
+            _assignedKeys.Asked(target, key);
+            Send(id, from, target, () => _assignedKeys.Forget(target));
         }
     }
 
-    async void Send(Guid id, Guid from, Guid to)
+    async void Send(Guid id, Guid from, Guid to, Action? failed = null)
     {
         try { await _s.QuerySightAsync(id, from, to); }
-        catch (Exception ex) { GD.PushWarning($"Sight query failed: {ex.Message}"); }
+        catch (Exception ex) { GD.PushWarning($"Sight query failed: {ex.Message}"); failed?.Invoke(); }
     }
 
     void OnAnswer(SightAnswer answer)
