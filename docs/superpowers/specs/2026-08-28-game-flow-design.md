@@ -34,9 +34,10 @@ of that activation (targets, moves, casting, a reaction's pick) and every Ask to
 (casualties, strike back, the close-in); whoever starts an activation does not lock teammates out of
 it. Scoring, objectives and the game's end stay per team.
 
-- Every seat of a team brings its own army, so a team may hold several (p.50: "you must split
-  the amount of points that each team is allowed to take between its players"). In the lobby each
-  player picks "Your army"; the team card lists each member with their army.
+- A seat may bring its own army, so a team may hold several (p.50: "you must split the amount of
+  points that each team is allowed to take between its players"), and a seat may bring none: owner
+  ruling, "You need an army on your team." In the lobby each player picks "Your army"; the team card
+  lists each member with their army.
 - An Ask names teams only. The game server refuses `NotPermitted` an answer from a seat on a team
   the Ask does not address and a second answer from the same team; any seat of an addressed team
   may answer, and any of them places the team's deploy pick.
@@ -76,12 +77,13 @@ points at this statement rather than restating it.
 
 Ruled by the owner 2026-10-17. **Ending setup always opens the game** (`playing`, the board
 snapshotted, the log opened). **Deployment, and the roll-off before it, waits while any team has no
-participant, or a seat on it has no army in play** (`WaitingForPlayers`, `libs/Tabletop.Protocol`).
-A team with a participant but no army waits too: deployment needs units on every side, and a side
-with none would be skipped by every turn. A team of several players waits until each of them has
-brought an army. Each team it waits on reads "Waiting for a player on Team 2", "Team 2 has no army"
-or "Team 1 waits for Cid to pick an army", to every client, in the header, the decision box and the
-side panel.
+participant, or no army with a unit in play** (`WaitingForPlayers`, `libs/Tabletop.Protocol`; owner
+ruling: "You need an army on your team."). A team with a participant but no army waits: deployment
+needs units on every side, and a side with none would be skipped by every turn. A seat with no army
+on a team that has one is no wait, since any player of a team commands every unit of the team. Each
+team it waits on reads "Waiting for a player on Team 2" or "Team 2 has no army", to every client, in
+the header, the decision box and the side panel, and any player of a team with no army is offered
+the army picker.
 
 The wait holds only while the log is empty, so nothing has been rolled, deployed or edited. Two lobby
 edits stay open in it, and everything else is frozen (commands and every other edit are refused
@@ -91,7 +93,7 @@ edits stay open in it, and everything else is frozen (commands and every other e
   participant row with no team takes it; an account that already plays a team gets one more row),
   or the creator places a participant with no team on it. A team someone holds stays held, and
   nobody leaves a team.
-- **`PickArmy` for a seat of mine with no army on a team that waits.** The army is checked as at the end of setup,
+- **`PickArmy` for a seat of mine with no army on a team that waits** (a team with no army). The army is checked as at the end of setup,
   snapshotted, written to the participant row (`army_snapshot`) and added to the board the empty
   log opens on, so hydration reads the same board. The army is final once it joins.
 

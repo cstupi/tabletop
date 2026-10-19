@@ -693,8 +693,9 @@ log and runs the engine.
 There is no way back from `playing` to `setup`. An account joining the game after the flip has no
 `army_snapshot` and no team, because `CreateTeam` and `PickTeam` are refused with `WrongStatus`
 from `playing` on, except `PickTeam` onto a team no one holds while deployment waits for players (game flow → *Waiting for players*).
-A team with no participant, or with a seat that has no army, holds the game at that wait, with the log
-empty, until every seat of it has brought an army (`PickArmy`, snapshotted then); the scheduler skips a team whose legal set is
+A team with no participant, or with no army with a unit, holds the game at that wait, with the log
+empty, until one of its seats has brought an army (`PickArmy`, snapshotted then; owner ruling: "You need
+an army on your team."); the scheduler skips a team whose legal set is
 empty only once play has begun. A participant with no team at all is never addressed by an Ask, **and that is what a
 spectator is**. There is no second identity for one.
 
