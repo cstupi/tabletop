@@ -54,7 +54,7 @@ godot --headless --path client --import          # then refresh the .import file
   `Crumbly.Dunes` (`crumbly-rock`, `dunes`), `Field` (`field`, low wheat), `Crops.Tall` and `Crops.Plantation` (`tall-crops`,
   `plantation`), `Water.River` and `Water.Lake` (`water`, `lake`), `Rivers.Stream` and `Rivers.Toxic` (`stream`,
   `toxic-river`, both on `Water.River`'s styled form), `Sludge.Canal` and `Sludge.Field` (`sludge-canal`, `sludge-field`),
-  `Crater`, `Haze`, `Marsh` (`death-marsh`), `Mines` (`mine-field`), `Quicksand`, `Vegetation.Deadly` and `Vegetation.Jungle`
+  `Crater`, `Haze` (`haze`: an inches model at 8"×6", a stained base with sludge pools, crust plates, pipe stubs, a drum, rubble and dead tufts under translucent billows), `Marsh` (`death-marsh`), `Mines` (`mine-field`), `Quicksand`, `Vegetation.Deadly` and `Vegetation.Jungle`
   (`deadly-vegetation`, `jungle`), `Lair` (`beast-lair`).
 
 ## Rules the meshes keep

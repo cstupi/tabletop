@@ -69,8 +69,13 @@ costs no material or mesh of its own. `MeshLoader` keeps each resolved asset, so
 gets its mesh in the same frame. Q/E turn the node and the mesh with it. `PresenceOverlay` keeps a
 proposed ghost's node across presence updates and only moves it.
 
-The other nodes: `SlabNode` draws the table at its real size, 1" thick, with its texture or a flat
-colour. `MarkerNode` is a disc of the marker's diameter with a label. `ZoneNode` resolves
+The look (spec `docs/superpowers/specs/2026-10-19-tabletop-look-design.md`): `SlabNode` draws the board at its real size,
+1" thick, its top a gaming-mat print through `board.gdshader` (`PrintTextures`: the print's albedo, the normal map
+`HeightNormals` derives from its alpha height, two blended samples against tiling), its edge the print's mean colour darkened,
+over a wooden table that fades into the room; a served print is read from its PNG, a packed one through its lossless import,
+and an unknown one leaves a flat edge colour. `TableLighting` lights the scene (warm shadowed key, cool fill, sky ambient,
+SSAO, AgX). `MeshLoader` hands every built-in mesh to `TerrainLook`, which gives each surface its `SurfaceFamily`'s
+triplanar detail print and normal map over the baked vertex paint; asset meshes are drawn as uploaded. The other nodes: `MarkerNode` is a disc of the marker's diameter with a label. `ZoneNode` resolves
 `ZoneStyles.Resolve(zone.Shape, size)` into flat `ArrayMesh` fans 0.02" above the slab, with no
 frame conversion, and draws nothing plus a warning for an unknown shape id. `OrbitCamera` orbits
 on the right button, pans on the middle, zooms on the wheel, snaps top-down on `Home` and drops to

@@ -52,13 +52,13 @@ The art is 35 files: 30 meshes and five textures. Each piece draws a mesh that l
 the same terrain at another size: `hill` (hill, large hill, steep hill), `woods` (forest, large forest), `ruins` (ruins or
 debris, large ruins, ruin). Every other piece has its own (`client/content/builtin/catalog.json`, `meshes`), authored at that
 piece's footprint and height, and round for a circle footprint. `scripts/terrain-meshes` generates all 30
-(`scripts/TerrainMeshes/AGENTS.md`): glTF 2.0 binary, at most 20 000 triangles and 2 MB each, vertex-coloured PBR materials
+(`scripts/TerrainMeshes/AGENTS.md`): glTF 2.0 binary, at most 50 000 triangles and 3 MB each, vertex-coloured PBR materials
 (translucent ones, the smog and water surfaces, in a second node), authored glTF Y-up in a unit box: the footprint on x and z in [−0.5, 0.5] (within r = 0.5 for a round one), the height on
 y in [0, 1], base at y = 0. `BuiltinContent.MeshOrientation` (pitch 90) reads it into the table frame, z up, the value
 the web app writes for a Y-up asset, and `MeshLoader.LoadBuiltin` scales that box onto the placement's first
-volume, so `water` serves a 3"×12" river and a 2"×12" stream. The five table textures are
-seamless 1024×1024 PNGs, authored as a 12"×12" tile because `SlabNode.Set` derives `Uv1Scale` from
-`width/12`. Markers and zones need no art: `MarkerNode` builds a disc and a `Label3D`, `ZoneNode`
+volume, so `water` serves a 3"×12" river and a 2"×12" stream. The seven board prints
+(`scripts/TableTextures`) are seamless 1024×1024 PNGs, a 12"×12" repeat (`board.gdshader`'s `tile_inches`), with the
+height in alpha (spec `2026-10-19-tabletop-look-design.md`). Markers and zones need no art: `MarkerNode` builds a disc and a `Label3D`, `ZoneNode`
 builds `ArrayMesh` fans from `ZoneStyles.Resolve`.
 
 Every mesh file is still optional, and a missing one

@@ -13,7 +13,7 @@ public static class Catalog
     {
         ["hill"] = new(8, 2, 8), ["hill-rect"] = new(6, 2, 6), ["woods"] = new(6, 6, 6), ["ruins"] = new(6, 4, 6), ["overgrown-ruins"] = new(6, 4, 6),
         ["field"] = new(6, 1, 6), ["water"] = new(3, 0.5f, 12),
-        ["lake"] = new(8, 0.5f, 8), ["haze"] = new(8, 6, 8),
+        ["lake"] = new(8, 0.5f, 8),
     };
 
     static readonly IReadOnlyList<(string Name, Func<Model> Build)> Builders =

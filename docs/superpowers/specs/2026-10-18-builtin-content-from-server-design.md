@@ -12,7 +12,7 @@ update. A release busts the client's cache by carrying a new catalog version.
 ```json
 {
   "meshes": ["hill", "hill-rect", "woods", "..."],
-  "textures": ["grass", "desert", "urban", "snow", "ash"],
+  "textures": ["grass", "desert", "urban", "snow", "ash", "wasteland", "alien"],
   "terrain": [
     { "id": "barricade", "label": "Barricade", "mesh": "wall", "kind": "solid",
       "footprint": { "kind": "rect", "a": 3, "b": 1 }, "top": 1, "declarations": ["difficult", "cover"] },
