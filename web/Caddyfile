@@ -1,4 +1,4 @@
-# The web image's server (web/Dockerfile): static files, SPA fallback, response headers. TLS and the public hostname belong
+# The web image's server (web/Dockerfile): static files, SPA fallback, the viewer under /viewer/, response headers. TLS and the public hostname belong
 # to the fronting reverse proxy; this listens on plain :8080 on the container network.
 {
 	admin off
@@ -11,16 +11,27 @@
 	encode zstd gzip
 	header {
 		# frame-ancestors cannot travel in the build's CSP <meta> tag; a second policy holding only this directive adds it.
-		Content-Security-Policy "frame-ancestors 'none'"
+		# `?`: only when no policy is set yet, so /viewer/'s own policy (below) stands.
+		?Content-Security-Policy "frame-ancestors 'none'"
 		X-Frame-Options DENY
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
-	@immutable path /_app/immutable/*
+	@immutable path /_app/immutable/* /viewer/assets/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
-	@mutable not path /_app/immutable/*
+	@mutable not path /_app/immutable/* /viewer/assets/*
 	header @mutable Cache-Control "no-cache"
-	try_files {path} /index.html
-	file_server
+	redir /viewer /viewer/ 308
+	# The viewer's hosted build (the admin Replays tool): one page with no routes of its own. A plain Vite build carries no
+	# CSP, so its whole policy is this header, in place of the frame-ancestors-only one above.
+	handle /viewer/* {
+		header Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{host}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		try_files {path} /viewer/index.html
+		file_server
+	}
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
 }

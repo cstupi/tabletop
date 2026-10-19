@@ -94,6 +94,7 @@ describe('safeNext and loginHref', () => {
   it('keeps a path on this site', () => {
     expect(safeNext('/library/abc?folder=1')).toBe('/library/abc?folder=1');
     expect(safeNext('/armies/x#u')).toBe('/armies/x#u');
+    expect(safeNext('/viewer/')).toBe('/viewer/');   // the hosted viewer sends a signed-out reader here and back
   });
   it('refuses other origins, the sign-in pages and nothing', () => {
     for (const bad of [null, '', 'https://evil.example/', '//evil.example/x', '/\\evil.example', 'library', '/login?next=/x', '/reset-password'])

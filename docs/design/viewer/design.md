@@ -3,7 +3,8 @@
 `viewer/` is a static web page that draws a `sim/` recording top-down in inches, with a timeline
 under the board and the log beside it. It is a developer tool and the fifth deliverable, separate
 from `web/`: `web/` owns preparation for players, and a debugging surface for the person writing
-the engine does not belong in it. Two feeds reach it, a recording file and a
+the engine does not belong in it. Its hosted build also ships in production as the admin-only Replays
+tool at `/viewer/` on the website's origin (*Two builds*, under Context). Two feeds reach it, a recording file and a
 live socket, and the live feed manufactures the recording's own shape in the browser, so nothing
 below the feed abstraction knows which feed it is on.
 
@@ -85,6 +86,7 @@ flowchart TD
     game -->|"live feed: welcome, board, events"| viewer
     viewer -->|"Connect, once"| game
     mgmt -->|"sessionJwt"| viewer
+    webimg["web/ image (production): /viewer/, the website's session"] -->|"serves the hosted build"| viewer
     proto -->|"emitted as wire.generated.ts"| tests
     rec -->|"emitted as recording.generated.ts"| tests
     tests -->|"checked-in .ts and fixtures"| viewer
@@ -116,6 +118,25 @@ picker lists the games: name, status, players (`GameSummary.ParticipantNames`), 
 (`rowOf`). Clicking a row opens the live feed on that game: the log replays from the start on the
 timeline and a running game follows live. Recording files and URLs and the Tests page's Watch and
 Open live are unchanged.
+
+**Two builds.** `npm run build` (and the dev server) is the developer viewer: its own login,
+`VITE_GAME_SOCKET`, the Tests page. `npm run build:hosted` (Vite mode `hosted`, base `/viewer/`) is the
+production admin Replays tool, served by the web image at `/viewer/` on the website's origin
+(`web/Dockerfile`, `web/Caddyfile`). `configOf` (`src/lib/hosted/hosted.ts`) tells them apart:
+
+- Session: the website's own, read from `localStorage` `tabletop.session` (`{ sessionJwt, account }`,
+  written by `web/src/lib/session/session.svelte.ts`). `hostedSession` refreshes it through
+  `/v1/auth/session/refresh` before each use and writes the new JWT back. No stored session, or a refresh
+  refused with a 4xx other than 429, shows *Signed out* with a link to `/login?next=/viewer/`; a JWT whose
+  `roles` claim lacks `admin` shows *Not authorised*. The page gate is for the reader; the socket and `/v1`
+  enforce access.
+- Socket: `wss://<page host>/ws` (`ws://` on http), the same `/ws` the client reaches through
+  `TABLETOP_WEB_URL`.
+- No Tests tab and no `TestsPage`: production has no runner behind `/suite` and `/runs`.
+- The Games panel opens with the list loaded. `GET /v1/games` lists every status, so ended games
+  appear beside running ones and open on the timeline from the start of their log.
+- CSP: the web image's Caddy sends the viewer's whole policy as a header on `/viewer/*`
+  (`default-src 'self'`, `connect-src 'self' wss://{host}`, `frame-ancestors 'none'`).
 
 **Code generation, not a build step.** `tests/Tabletop.Viewer.Tests` holds the emitter and the
 fixture writer. `viewer/` stays a pure npm project with no .NET dependency, and `npm ci && npm run
@@ -602,7 +623,8 @@ The score is not geometry. `Scene` is unchanged by it.
 | `live/apply.ts` | `type UnitInPlay`, `type ModelInPlay`, `type SchedulerPosition`, `type OpenAsk`, `type Projection`, `class ProjectionDesyncError` with `kind` and `unknownId`, `initialProjection`, `applyChange`, `applyTo`, `effectiveLog`, `class Applier` |
 | `live/logLines.ts` | `lineOf(GameEvent, Projection, ReadonlyMap<string,number>): string`, `shortId` |
 | `live/project.ts` | `declarationsOf(string)`, `recordedBoardOf(Board, GameInfo): RecordedBoard`, `class FrameProjector` |
-| `live/management.ts` | `class ManagementError`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
+| `live/management.ts` | `class ManagementError` with `status`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
+| `hosted/hosted.ts` | `WEB_SESSION_KEY`, `type ViewerConfig`, `configOf(env, location)`, `readWebSession`, `writeWebSession`, `rolesOf`, `type Access`, `accessOf`, `signInHref`, `hostedSession(storage, refresh)` |
 | `components/` | `Board.svelte`, `Timeline.svelte`, `LogPanel.svelte`, `AskPanel.svelte`, `RollPanel.svelte`, `SourcePicker.svelte`, `Scoreboard.svelte` |
 
 ### Produced: `tests/Tabletop.Viewer.Tests`
@@ -905,6 +927,7 @@ needs a build of `sim/` and `libs/Tabletop.Protocol`.
 | --- | --- | --- |
 | Vitest, pure modules | `read.test.ts`, `transform.test.ts`, `frame.test.ts`, `pick.test.ts`, `timeline.test.ts`, `describe.test.ts` | the schema gate and every refusal; the single `y` flip, the zoom anchor and the grid step ladder; the ported base and volume outlines against hand-computed corners; boundary-inclusive containment and last-drawn-wins picking; the eleven timeline actions including `follow`; every legal kind and the note list |
 | Vitest, feeds | `feed.test.ts`, `live.test.ts` | one emission and a null control channel; the connect frame and that it is the only frame sent; events before the board, an empty events frame, a rejection, a refusal, ignored frames including `at_rest` and an invented kind, a desync going to error, any other fault applying events going to error, the first error kept, `closed` emitted once, a feed that cannot clobber its replacement and the 10-second timeout |
+| Vitest, hosted build | `hosted.test.ts` | the two configs (socket from the page origin, no runner); reading and writing back `tabletop.session`, a blocked store; roles as a list or one id; admin, not admin, signed out; the sign-in link; a refreshed token judged and stored, a refused refresh signed out, a 429, 5xx or network failure passed on |
 | Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the reroll, edit and modifier no-ops, undo by rebuild, `ProjectionDesyncError` on an unknown unit, model, marker or Ask id; then every frame of two real recordings, field for field, and the shared desync case |
 | xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order and the absence of `AtRest`; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces, and their events replayed through the C# `FrameProjector` reproduce the recorded board and every frame; the C# applier throws `ProjectionDesyncException` on the event the TypeScript one throws on |
 | By hand | the page | the board, the zones, the terrain declarations, the team colours, the facing ticks, the scoreboard, play, step, scrub, and a live game watched while `sim/` plays it |

@@ -31,7 +31,7 @@ export async function listGames(sessionJwt: string, base: string = defaultBase()
     const response = await fetchFn(`${base}${path}`, { headers: { authorization: `Bearer ${sessionJwt}` } });
     if (!response.ok) {
       const problem = (await response.json().catch(() => ({}))) as { title?: string; detail?: string };
-      throw new ManagementError(problem.detail ?? problem.title ?? `${path} answered ${response.status}`);
+      throw new ManagementError(problem.detail ?? problem.title ?? `${path} answered ${response.status}`, response.status);
     }
     const page = (await response.json()) as Page;
     games.push(...page.items);

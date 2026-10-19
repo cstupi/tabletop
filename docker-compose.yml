@@ -183,6 +183,9 @@ services:
   web:
     <<: *vite
     working_dir: ${PWD}/web
+    environment:
+      <<: *vite-env
+      PUBLIC_VIEWER_URL: http://127.0.0.1:5174/   # the admin Replays entry; production serves the viewer at /viewer/
     ports:
       - "127.0.0.1:5173:5173"
 

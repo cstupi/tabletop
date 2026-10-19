@@ -11,7 +11,7 @@ repo-root `docker-compose.yml` is development only.
 | `systemd/` | `tabletop-migrate`, `tabletop-management`, `tabletop-game` units for a host run |
 | `prod.env.example`, `home.env.example` | Every setting and secret for each stack |
 | `../server/*/Dockerfile` | The server images (`dotnet publish -c Release` on `aspnet:10.0`, user `app`) |
-| `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors` |
+| `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors`; the viewer's hosted build (admin Replays) at `/viewer/` |
 | `../scripts/postgres/roles.sh` | The database roles |
 | `../scripts/postgres/backup.sh` | `pg-backup`'s nightly `pg_dump`, keeping the newest 14 |
 | `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher (Put on `releases/*` and `builtin/*`) when `RELEASE_S3_ACCESS_KEY` is set |
@@ -90,9 +90,16 @@ sudo systemctl daemon-reload && sudo systemctl enable --now tabletop-management 
 
 ```bash
 cd web && npm ci && TABLETOP_BLOB_ORIGIN=https://blobs.tabletop.example.org npm run build   # static site in web/build
+cd viewer && npm ci && npm run build:hosted                                                  # Replays in viewer/dist, for /viewer/
 ```
 
-What the reverse proxy fronts, all on 127.0.0.1: the static `web/build` (SPA fallback to `index.html`), `/v1/*` →
+The viewer's hosted build is the admin-only Replays tool: same origin as the web app, so it reuses the website's session
+(`localStorage`) and `/v1`, and opens the socket at `wss://<host>/ws`. It goes under `/viewer/` beside `web/build`
+(`scripts/release` installs it to `$TABLETOP_WEB_ROOT/viewer/`); `/viewer/` falls back to `/viewer/index.html`, not the
+web app's. It has no Tests page and no runner proxy. Non-admins see *Not authorised*; the game server admits only an admin
+or a participant on the socket, and `/v1` requires a session.
+
+What the reverse proxy fronts, all on 127.0.0.1: the static `web/build` (SPA fallback to `index.html`) with the viewer under `/viewer/`, `/v1/*` →
 management 5100, `/ws` → game 5200, and the blob endpoint (`TABLETOP_S3_PUBLIC_ENDPOINT`) → MinIO 9000 or the provider.
 `/v1/dev/*` exists only in dev mode. The web build's CSP is in `web/svelte.config.js` (hash mode; `TABLETOP_BLOB_ORIGIN`
 names the blob origin it may connect to). Management reads client addresses from `X-Forwarded-For` only from
@@ -110,7 +117,7 @@ container name; nothing here publishes a host port.
 | `tabletop-migrate` | backend | one-shot `--migrate` as `tabletop_owner`, on every `up` |
 | `tabletop-minio`, `tabletop-minio-init` | backend, gateway | MinIO on `/mnt/tabletop/minio`; init makes the bucket, service user and release publisher |
 | `tabletop-management` :5100, `tabletop-game` :5200 | backend, gateway | the servers |
-| `tabletop-web` :8080 | gateway | the web app's static build (built in `web/Dockerfile` with the FILES origin in its CSP) |
+| `tabletop-web` :8080 | gateway | the web app's static build (built in `web/Dockerfile` with the FILES origin in its CSP) and the viewer's hosted build at `/viewer/` |
 | `tabletop-pg-backup` | backend | `pg_dump -Fc` daily at 03:30 UTC to `/mnt/tabletop/pg-backups`, newest 14 kept |
 
 `backend` is internal (no route out); `gateway` is the external `gateway_default`, which also gives the servers egress to
@@ -129,7 +136,7 @@ sudo install -m 0600 deploy/home.env.example home.env      # fill in every empty
 sudo -E scripts/release --deploy home --version v1.0.0     # reads ./home.env, else /etc/tabletop/home.env (--env-file)
 ```
 
-`--deploy home` runs the unit suite, the rules suite and the web checks in `mcr.microsoft.com/dotnet/sdk:10.0` and
+`--deploy home` runs the unit suite, the rules suite and the web and viewer checks in `mcr.microsoft.com/dotnet/sdk:10.0` and
 `node:24-alpine` containers over the clone (`--skip-tests` skips them), exports and packages the client in the builder
 container (Client releases, below), builds the images tagged with the version, runs `up -d`, waits on the containers' own
 states (`migrate` and `minio-init` exited 0; postgres, minio, management, game and web healthy), then uploads the client
@@ -147,7 +154,7 @@ compose` needs it in `home.env`. Every container on `gateway_default` can then s
 | --- | --- | --- |
 | APP `tabletop.cstupi.com` | `/v1/*` | `tabletop-management:5100` |
 | APP | `/ws` | `tabletop-game:5200` (WebSocket; Caddy's `reverse_proxy` upgrades it) |
-| APP | everything else | `tabletop-web:8080` |
+| APP | everything else (the web app, and Replays at `/viewer/`) | `tabletop-web:8080` |
 | FILES `files.tabletop.cstupi.com` | everything | `tabletop-minio:9000` |
 
 - Keep the `Host` header (Caddy's default): presigned URLs are signed for the FILES host. No request body limit on FILES
@@ -225,7 +232,7 @@ git tag -a v1.0.0 -m "What changed, as the Download page shows it" && git push o
 
 The tag annotation is the release notes; without one, the `## [v1.0.0]` (or `## 1.0.0`) section of `CHANGELOG.md`.
 
-**GitHub** (`.github/workflows/release.yml`): the pushed tag builds and tests, runs the rules suite and the web checks,
+**GitHub** (`.github/workflows/release.yml`): the pushed tag builds and tests, runs the rules suite and the web and viewer checks,
 then `scripts/release-client all`, which exports with Godot 4.7.2 .NET (templates cached), zips, hashes and uploads.
 It does not deploy. Repository settings:
 
@@ -247,10 +254,11 @@ scripts/release --dry-run --deploy docker              # print every step, chang
 ```
 
 It reads `/etc/tabletop/prod.env` (`--env-file`; the environment wins), checks the tree is clean and the tag names
-`HEAD`, builds and runs the unit suite, the rules suite, `check-client` and the web checks (`--skip-tests`), publishes
+`HEAD`, builds and runs the unit suite, the rules suite, `check-client` and the web and viewer checks (`--skip-tests`), publishes
 the client like the workflow (`--skip-client`; on the host with `godot` or `GODOT`, `dotnet`, `aws`, `zip`, `jq`, else in
 the builder container with `docker` only, as for home), builds the web
-app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and installs it to `TABLETOP_WEB_ROOT` (`rsync --delete`), then deploys:
+app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and the viewer's hosted build, installs them to `TABLETOP_WEB_ROOT` and
+`TABLETOP_WEB_ROOT/viewer` (`rsync --delete`), then deploys:
 
 - `docker`: `docker compose --env-file /etc/tabletop/prod.env -f deploy/docker-compose.prod.yml up -d --build`, images
   tagged with the version; `migrate` runs first. Set `COMPOSE_PROFILES=minio` in `prod.env` with self-hosted MinIO.

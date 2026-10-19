@@ -1,5 +1,6 @@
 <!-- viewer/src/lib/components/SourcePicker.svelte -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { fromFile, fromUrl } from '../recording/source';
   import type { Feed } from '../feed/feed';
   import { recordingFeed } from '../feed/recordingFeed';
@@ -7,7 +8,13 @@
   import { logIn, refreshSession } from '../live/management';
   import { listGames, rowOf, type GameRow } from '../live/games';
 
-  let { onFeed, onError }: { onFeed: (feed: Feed) => void; onError: (message: string) => void } = $props();
+  let { onFeed, onError, socketUrl, hostedJwt = null }: {
+    onFeed: (feed: Feed) => void;
+    onError: (message: string) => void;
+    socketUrl: string;
+    /** The hosted build: a fresh JWT from the website's session, in place of the login form. */
+    hostedJwt?: (() => Promise<string>) | null;
+  } = $props();
   let url = $state('');
 
   async function load(work: () => Promise<Feed>) {
@@ -20,9 +27,11 @@
   // The login, kept for the page's session. A JWT lasts five minutes, so each use refreshes it first.
   let session: string | null = $state(null);
   let games: GameRow[] = $state([]);
-  const socketUrl = import.meta.env.VITE_GAME_SOCKET ?? 'ws://localhost:5200/ws';
+  let open = $state(false);
+  let loaded = false;
 
   async function fresh(): Promise<string> {
+    if (hostedJwt !== null) return hostedJwt();
     if (session === null) throw new Error('not logged in');
     session = (await refreshSession(session)).sessionJwt;
     return session;
@@ -40,6 +49,11 @@
 
   const reload = () => run(async () => { games = (await listGames(await fresh())).map(rowOf); });
 
+  // Hosted: the website's session is already there, so the panel opens with the list loaded.
+  $effect(() => {
+    if (hostedJwt !== null && !loaded) { loaded = true; open = true; untrack(reload); }
+  });
+
   const watch = (game: GameRow) => run(async () => {
     onFeed(liveFeed({ url: socketUrl, gameId: game.id, sessionJwt: await fresh(), label: `${game.name} · ${game.status}` }));
   });
@@ -55,9 +69,9 @@
   </label>
   <input type="url" placeholder="or a URL to a recording" bind:value={url} style="width: 18rem" />
   <button disabled={url.length === 0} onclick={() => load(async () => recordingFeed(await fromUrl(url)))}>Load</button>
-  <details class="live">
+  <details class="live" bind:open>
     <summary>Games</summary>
-    {#if session === null}
+    {#if hostedJwt === null && session === null}
       <p class="muted">Log in as an admin to watch any game on {socketUrl}; the viewer only watches.</p>
       <input type="email" placeholder="email" bind:value={email} />
       <input type="password" placeholder="password" bind:value={password} />
@@ -65,7 +79,7 @@
       <button disabled={pasted.length === 0 && email.length === 0} onclick={login}>Log in</button>
     {:else}
       <button onclick={reload}>Refresh</button>
-      <button onclick={() => { session = null; games = []; }}>Log out</button>
+      {#if hostedJwt === null}<button onclick={() => { session = null; games = []; }}>Log out</button>{/if}
       <table>
         <thead><tr><th>Name</th><th>Status</th><th>Players</th><th>Created (UTC)</th></tr></thead>
         <tbody>
