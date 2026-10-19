@@ -65,6 +65,13 @@ public static class RollEffects
         return new DieEffects(extra, wounds, grants.Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList(), attacks);
     }
 
+    /// <summary>The wounds a die showing this face adds (a roll-result add_hit row on wounds, which acts whatever the die scored). Pure: PerDie reads
+    /// the sources of the dice rolled, and this maps every face, so a die an edit changes later is read on the face it then shows.</summary>
+    public static int ExtraWounds(LiveSet live, Side roller, Die die, string roll) =>
+        live.Effects(roller, EffectKind.AddHit, new DieContext(roll, die.Raw, die.Modified, die.Success))
+            .Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
+            .Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+
     /// <summary>
     /// What one die set off, for the log (combat-log spec → Die.Triggered): each roll-result add_hit row as `Rule +N hit(s)` (or attack(s),
     /// or wound(s), which act on any die), and each roll-result grant_property row as the granting rule's name. Pure: it records and spends

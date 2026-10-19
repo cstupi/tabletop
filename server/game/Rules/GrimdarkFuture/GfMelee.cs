@@ -228,7 +228,9 @@ public static class GfMelee
         }
     }
 
-    /// <summary>p.14's `Impact(X)` and p.13's `Counter`: X dice per Impact(X) model, unless fatigued, less one per defending model with Counter; hits at the effect's threshold. Two phases: roll (Repeat), then push resolve-hits.</summary>
+    /// <summary>p.14's `Impact(X)` and p.13's `Counter`: X dice per Impact(X) model, unless fatigued, less one per defending model with Counter; hits at the effect's threshold.
+    /// Two phases: roll (Repeat), then push resolve-hits when the dice as they then stand hold a hit (ImpactHits), so an edit between the two counts.
+    /// Values["hits"] is the hits as rolled.</summary>
     sealed class ImpactStep : IStep
     {
         public string Name => "impact";
@@ -236,7 +238,8 @@ public static class GfMelee
         {
             var (charger, defender) = (Charger(ctx), Defender(ctx));
             if (ctx.Frame.Value("impact_phase") == 1)
-                return AfterChild(ctx, () => new Push(GfNames.ResolveHits, new SequenceContext(charger, [defender], [], GfNames.Charge)));
+                return ctx.History.Children.Count == 0 && ImpactHits(ctx.Frame) == 0 ? new Complete([])
+                    : AfterChild(ctx, () => new Push(GfNames.ResolveHits, new SequenceContext(charger, [defender], [], GfNames.Charge)));
             var live = ctx.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
             var impacts = RollEffects.OwnRolls(live, Side.Attacker, c => c.Kind == EffectKind.AddHit);   // Impact's conditions (charging, not fatigued) were judged in pass one's read
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
@@ -244,9 +247,13 @@ public static class GfMelee
             var dice = Math.Max(0, impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter)) - counterModels);
             if (counterModels > 0) ctx.Applied.Add("Counter");
             var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
-            return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: hits > 0);
+            return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: dice > 0);
         }
     }
+
+    /// <summary>The successes of the frame's Impact roll as its dice now stand; null when the frame made none.</summary>
+    public static int? ImpactHits(FrameView frame) =>
+        frame.Frame.Steps.Where(s => s.Step == "impact").SelectMany(s => s.Rolls).ToList() is { Count: > 0 } rolls ? rolls.Sum(Dice.RollOutcome.Successes) : null;
 
     sealed class ChargerAttacksStep : IStep
     {

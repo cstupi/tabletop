@@ -51,6 +51,10 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
         return plan;
     }
 
+    /// <summary>Every face of the plan's convention judged under it, lowest first: what a die showing that face would be, for a decision read off the
+    /// face a die shows when the decision is used rather than when it was rolled.</summary>
+    public IReadOnlyList<Die> Faces(RollPlan plan) => Enumerable.Range(1, plan.Convention.Sides).Select(raw => roller.Judge(plan, raw)).ToList();
+
     /// <summary>A forced reroll acted when the roller redrew a die showing its face: its source is recorded then, and only then.</summary>
     /// <summary>`triggers`, when given, names what a die set off (Die.Triggered). It is asked once per face of the convention, each face
     /// judged under the plan, into the record's FaceTriggers; the record's dice and a forced reroll's carry their face's, and so does a die

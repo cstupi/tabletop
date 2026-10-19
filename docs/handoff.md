@@ -100,9 +100,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
 **Open / next:**
 - Released: v0.1.18 (team rulings, Replays fix) is tagged; the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
-  viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates).
-- In flight 2026-10-19: "on a 6" effects honouring rerolls (the six
-  rolling-step decisions), Alien Hives miniatures to `C:\Users\clays\Downloads\alien-hives\` (scripts in `src\`).
+  viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the
+  dice as they stand when used, with a Continue stop before a repeated first step in wait-mode games.
+- In flight 2026-10-19: Alien Hives miniatures to `C:\Users\clays\Downloads\alien-hives\` (scripts in `src\`).
 - Unreleased on main, ship in the next batch: both hitbox settings (Show hitboxes, B; Show terrain hitboxes, Shift+B);
   client Replay; the hosted viewer; the army-wide base choice removed (import takes Army Forge's round base, else square).
 - Unreleased on main: team games are team-wide (either player activates, deploys and answers for any unit of the team;
@@ -308,8 +308,6 @@ thread, template copies of rigged or animated models.
 
 ### 1. Open items from the defect fixes
 
-- **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
-  Impact, attack-start faces, dice-distance moves.
 - **Owner rulings on movement:** a spell's forced move moves the unit however that unit moves (*"Spells move as however that
   unit moves"*): its region and its apply read the target's own Flying, Strider and Aircraft (`GfMoves.TerrainFor`). A granted
   Flying lasts the whole activation (*"Granted flying applies to the whole move - its per activation"*): once it applies it stays
