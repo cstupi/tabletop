@@ -184,13 +184,12 @@ public class TerrainMeshTests
         Assert.All(root.GetProperty("nodes").EnumerateArray(), n => Assert.False(n.TryGetProperty("matrix", out _) || n.TryGetProperty("translation", out _) || n.TryGetProperty("scale", out _)));
     }
 
-    [Theory, MemberData(nameof(Names))]
-    public void Is_deterministic(string name) => Assert.Equal(Glb.Of(Build(name)), Glb.Of(Catalog.Generate(name)));
 
     [Fact]
     public void The_shipped_meshes_fit_the_built_in_budget() =>
         Assert.InRange(Directory.GetFiles(Path.Combine(Root, "terrain"), "*.glb").Sum(f => new FileInfo(f).Length), 1, Budget.TotalBytes);
 
+    /// <summary>Also the determinism check: the shipped files were written by another process.</summary>
     [Fact]
     public void The_shipped_meshes_are_the_generators_output()
     {

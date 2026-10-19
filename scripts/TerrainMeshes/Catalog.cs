@@ -12,8 +12,8 @@ public static class Catalog
     static readonly Dictionary<string, Vector3> Typical = new()
     {
         ["hill"] = new(8, 2, 8), ["hill-rect"] = new(6, 2, 6), ["woods"] = new(6, 6, 6), ["ruins"] = new(6, 4, 6), ["overgrown-ruins"] = new(6, 4, 6),
-        ["building"] = new(6, 8, 6), ["wall"] = new(6, 1.5f, 0.5f), ["rock"] = new(4, 4, 4), ["field"] = new(6, 1, 6), ["water"] = new(3, 0.5f, 12),
-        ["lake"] = new(8, 0.5f, 8), ["crater"] = new(6, 1, 6), ["haze"] = new(8, 6, 8),
+        ["field"] = new(6, 1, 6), ["water"] = new(3, 0.5f, 12),
+        ["lake"] = new(8, 0.5f, 8), ["haze"] = new(8, 6, 8),
     };
 
     static readonly IReadOnlyList<(string Name, Func<Model> Build)> Builders =

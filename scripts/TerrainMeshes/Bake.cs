@@ -12,7 +12,7 @@ public static class Bake
 {
     /// <summary>How far a ray looks for an occluder, in inches.</summary>
     public const float Reach = 1.6f;
-    const int Rays = 20;
+    const int Rays = 24;
     /// <summary>A drybrush stroke's width across an edge, in inches.</summary>
     const float Brush = 0.25f;
 
@@ -36,7 +36,16 @@ public static class Bake
             var unique = keys.Distinct().ToArray();
             var occlusion = new float[unique.Length];
             Parallel.For(0, unique.Length, k => occlusion[k] = Occlusion(bvh, unique[k].Item1, unique[k].Item2, directions));
-            for (var k = 0; k < unique.Length; k++) cache[unique[k]] = occlusion[k];
+            // A wash pools evenly: each point takes the mean of the samples at its welded position whose faces turn less than 60°
+            // from its own, so the ray noise of one sample does not streak a long, thin triangle.
+            var near = unique.Select((u, k) => (Weld(u.Item1), k)).GroupBy(x => x.Item1).ToDictionary(g => g.Key, g => g.Select(x => x.k).ToArray());
+            for (var k = 0; k < unique.Length; k++)
+            {
+                var (sum, count) = (0f, 0);
+                foreach (var j in near[Weld(unique[k].Item1)])
+                    if (Vector3.Dot(unique[j].Item2, unique[k].Item2) > 0.5f) { sum += occlusion[j]; count++; }
+                cache[unique[k]] = sum / count;
+            }
             // A drybrush catches an edge a brush-width wide: a vertex's highlight spreads over its triangles, so a large face's
             // corner is lifted only as much as a brush stroke would cover of it.
             var span = new float[p.Positions.Count];
@@ -57,11 +66,11 @@ public static class Bake
         return model;
     }
 
-    /// <summary>One vertex's paint: base colour washed darker and browner with occlusion, lifted toward a pale highlight on convex edges and up-facing faces.</summary>
+    /// <summary>One vertex's paint: base colour washed darker and browner with occlusion (foliage less, light passes through leaves), lifted toward a pale highlight on convex edges and up-facing faces.</summary>
     public static Vector4 Finish(Vector4 c, float occlusion, float edge, float up, bool foliage)
     {
         var light = Math.Clamp(1 - occlusion, 0, 1);
-        var wash = 0.32f + 0.68f * MathF.Pow(light, 1.4f);
+        var wash = (foliage ? 0.55f : 0.32f) + (foliage ? 0.45f : 0.68f) * MathF.Pow(light, 1.4f);   // light passes through leaves
         var tint = new Vector3(1f, 0.93f, 0.85f);                               // a brown wash darkens warm, not grey
         var washed = new Vector3(c.X, c.Y, c.Z) * Vector3.Lerp(tint * wash, Vector3.One, wash);
         var dry = Math.Clamp(edge * 1.6f, 0, 1) * (foliage ? 0.35f : 0.75f) + Math.Max(up, 0) * 0.08f;

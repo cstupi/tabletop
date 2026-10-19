@@ -3,10 +3,11 @@ using static Tabletop.TerrainMeshes.Paint;
 
 namespace Tabletop.TerrainMeshes;
 
-/// <summary>Crumbling and drifting ground. <see cref="Rock"/> (4" × 4", 2" high, Solid): a cracked, flaking sandstone outcrop of
-/// stacked uneven layers split by deep cracks, its top layer flat at 2" to stand on, with flakes slid off its sides and scree at
-/// its foot. <see cref="Dunes"/> (6" × 4", 1.5" high, Solid): three crescent dunes rising from a sand base, gentle windward
-/// slopes, steep slip faces, crests at 1.5", wind ripples.</summary>
+/// <summary>Crumbling and drifting ground. <see cref="Rock"/> (4" × 4", 2" high, Solid): three sandstone blocks split by gaps, each
+/// a stack of thin broken slabs shifted and set back on one another, jointed and chipped, the tallest flat at 2" to stand on;
+/// slabs slid off and leaning at the foot, gravel round it, on a sandy base. <see cref="Dunes"/> (6" × 4", 1.5" high, Solid):
+/// three crescent dunes, gentle windward slopes, steep slip faces, crests at 1.5", modelled wind ripples on the windward sides,
+/// weathered sandstone breaking through between them, stones and dry grass in the hollows.</summary>
 public static class Crumbly
 {
     public static readonly Material Stone = new("sandstone", 0.92f), Scree = new("scree", 0.9f), Sand = new("sand", 0.95f), Grass = new("dry-grass", 0.9f, DoubleSided: true);
@@ -15,55 +16,45 @@ public static class Crumbly
     {
         var model = new Model("crumbly-rock", round: false, new Vector3(4, 2, 4));
         var rng = new Random(481);
-        var ochre = Rgb(0.6f, 0.52f, 0.42f); var pale = Rgb(0.8f, 0.72f, 0.58f); var dark = Rgb(0.3f, 0.24f, 0.19f); var grey = Rgb(0.55f, 0.52f, 0.48f);
-        // Three blocks split by cracks, each a stack of layers; each layer's outline is the block's, wobbled and shrunk a little
-        // with height, so the edges step back in flaky ledges.
-        var blocks = new[] { (new Vector2(-0.55f, -0.45f), 1.15f, 2f, 1), (new Vector2(0.75f, -0.35f), 0.95f, 1.7f, 2), (new Vector2(0.05f, 0.95f), 0.95f, 1.45f, 3) };
-        foreach (var (centre, radius, height, seed) in blocks)
+        var pen = new Pen(model[Stone]);
+        var layers = new[] { Rgb(0.62f, 0.52f, 0.4f), Rgb(0.56f, 0.45f, 0.34f), Rgb(0.66f, 0.57f, 0.44f), Rgb(0.52f, 0.42f, 0.33f), Rgb(0.6f, 0.5f, 0.42f) };
+        var dark = Rgb(0.32f, 0.25f, 0.2f);
+        Func<Vector3, Vector3, int, Vector4> Paint(int seed) => (p, n, layer) =>
         {
-            const int layers = 8, sides = 13;
-            var y0 = 0f;
-            for (var l = 0; l < layers; l++)
+            var c = layers[(layer * 3 + seed) % layers.Length];
+            c = Mix(c, dark, Smooth(0.35f, 0.02f, p.Y) * 0.45f);
+            return Shade(c, 0.92f + 0.14f * Fbm(p * 1.3f, seed));
+        };
+        Vector4 Loose(Vector3 p, Vector3 n) => Shade(layers[(int)(Fbm(p * 5, 490) * 11) % layers.Length], 0.82f);
+        // Three blocks split by gaps, each a stack of thin, broken, shifted slabs; the tallest's top flat at 2".
+        foreach (var (x, z, rx, rz, h, seed) in new[] { (-0.5f, -0.4f, 1.15f, 1.0f, 2f, 1), (0.85f, -0.3f, 0.85f, 0.75f, 1.6f, 2), (0.05f, 0.95f, 0.95f, 0.7f, 1.3f, 3) })
+            Crag.Stack(pen, new Crag.Strata
             {
-                var y1 = l == layers - 1 ? height : height * (l + 1) / layers + height / layers * 0.35f * ((float)rng.NextDouble() - 0.5f);
-                var shrink = 1 - 0.3f * MathF.Pow(y0 / height, 1.3f);
-                var shift = new Vector2((float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f) * 0.14f;
-                var outline = Enumerable.Range(0, sides).Select(i =>
-                {
-                    var t = 2 * MathF.PI * (i + 0.3f * (float)rng.NextDouble()) / sides + seed;
-                    var r = radius * shrink * (0.7f + 0.4f * Noise(MathF.Cos(t) * 2.2f + seed * 3, MathF.Sin(t) * 2.2f, l * 0.5f, 481)) * (0.88f + 0.2f * (float)rng.NextDouble());
-                    return centre + shift + new Vector2(MathF.Cos(t), MathF.Sin(t)) * r;
-                }).ToList();
-                var shade = 0.82f + 0.24f * (float)rng.NextDouble();
-                var (lo, hi) = (y0, y1);
-                var last = l == layers - 1;
-                Shapes.Slab(model[Stone], outline, y0, last ? y1 : y1 - 0.025f, (p, n) =>
-                {
-                    var c = n.Y > 0.5f ? Mix(ochre, pale, 0.6f) : Mix(dark, Mix(ochre, grey, 0.4f), Smooth(lo, hi, p.Y) * 0.8f + 0.2f);
-                    return Shade(c, shade * (0.88f + 0.18f * Fbm(p * 3, seed)));
-                }, topScale: 0.93f);
-                // The bedding plane: a thin dark seam under the next layer.
-                if (!last) Shapes.Slab(model[Scree], outline.Select(v => centre + shift + (v - centre - shift) * 0.9f).ToList(), y1 - 0.025f, y1, (_, _) => dark);
-                y0 = y1;
-            }
-        }
-        // Flakes: thin plates slid off the faces and leaning against them; scree in a skirt round the foot.
-        for (var k = 0; k < 16; k++)
+                Centre = new Vector2(x, z), Base = -0.05f, Height = h, Radii = new Vector2(rx, rz), Yaw = seed * 1.3f, Layers = (int)(h * 4.2f), Cuts = 6,
+                LayerCuts = 4, Cracks = 3, Chips = 10, Columns = 60, RowStep = 0.11f, Taper = 0.28f, Lumps = 0.2f, Inset = 0.2f, Groove = 0.12f, Lip = 0.05f,
+                Shift = 0.17f, Dip = 0.1f, DipToward = seed, Seed = 480 + seed,
+            }, Paint(seed));
+        // Slabs slid off the faces and leaning against them, flakes, then gravel in a skirt round the foot.
+        for (var k = 0; k < 14; k++)
         {
-            var (centre, radius, height, _) = blocks[k % 3];
-            var t = (float)rng.NextDouble() * 6.3f; var o = new Vector3(MathF.Cos(t), 0, MathF.Sin(t));
-            var at = new Vector3(centre.X, 0, centre.Y) + o * (radius * 0.95f); at.Y = 0.25f + 0.5f * (float)rng.NextDouble() * height * 0.5f;
-            var s = 0.25f + 0.25f * (float)rng.NextDouble();
-            Shapes.Box(model[Stone], Shapes.At(at, new Vector3(s, s * 1.2f, 0.06f), -t + MathF.PI / 2, 0.35f * (k % 2 == 0 ? 1 : -1), 0.2f), Shade(ochre, 0.85f + 0.2f * (float)rng.NextDouble()));
+            var t = (float)rng.NextDouble() * MathF.Tau; var d = 1.25f + 0.35f * (float)rng.NextDouble();
+            var at = new Vector3(0.1f + MathF.Cos(t) * d, 0, 0.05f + MathF.Sin(t) * d);
+            var s = 0.3f + 0.35f * (float)rng.NextDouble();
+            at.Y = s * 0.25f;
+            Crag.Chunk(pen, rng, at, new Vector3(s * 1.3f, s * 0.28f, s), -t, 0.35f + 0.4f * (float)rng.NextDouble(), 0.2f * ((float)rng.NextDouble() - 0.5f), Loose, 14);
         }
-        for (var k = 0; k < 70; k++)
+        Vector3? Skirt(Random r)
         {
-            var t = (float)rng.NextDouble() * 6.3f; var r = 1.4f + 0.55f * (float)rng.NextDouble();
-            var s = 0.05f + 0.1f * (float)rng.NextDouble();
-            var at = new Vector3(0.05f + MathF.Cos(t) * r, s * 0.3f, 0.05f + MathF.Sin(t) * r);
-            if (MathF.Abs(at.X) > 1.92f || MathF.Abs(at.Z) > 1.92f) continue;
-            Shapes.Box(model[Scree], Shapes.At(at, new Vector3(s * 1.4f, s * 0.5f, s), t, (float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f), Shade(Mix(ochre, pale, (float)rng.NextDouble()), 0.75f + 0.3f * (float)rng.NextDouble()));
+            var t = (float)r.NextDouble() * MathF.Tau; var d = 1.15f + 0.75f * MathF.Sqrt((float)r.NextDouble());
+            var at = new Vector2(0.1f + MathF.Cos(t) * d * 1.05f, MathF.Sin(t) * d);
+            return MathF.Abs(at.X) > 1.88f || MathF.Abs(at.Y) > 1.88f ? null : new Vector3(at.X, 0.06f, at.Y);
         }
+        Crag.Scree(pen, rng, 200, r => Skirt(r) is { } at ? (at, 0.04f + 0.14f * MathF.Pow((float)r.NextDouble(), 2.2f)) : null, Loose);
+        var earth = Rgb(0.5f, 0.4f, 0.28f); var sand = Rgb(0.68f, 0.58f, 0.42f);
+        Crag.Base(model, Scree, Vector3.One, new Vector2(0.05f, 0), t => 1.92f + 0.15f * (Noise(MathF.Cos(t) * 1.5f, MathF.Sin(t) * 1.5f, 2, 482) - 0.5f) + 0.25f * MathF.Pow(MathF.Abs(MathF.Sin(2 * t)), 3),
+            14, 96, 0.22f, (x, z) => 0.06f + 0.02f * Fbm(x * 3, z * 3, 0, 483),
+            (p, n) => Shade(Mix(earth, sand, Smooth(0.35f, 0.65f, Fbm(p.X * 1.5f, p.Z * 1.5f, 0, 484))), 0.85f + 0.25f * Fbm(p.X * 10, p.Z * 10, 1, 485)));
+        Crag.Tufts(model[Grass], Vector3.One, rng, 30, r => Skirt(r), 0.2f, Rgb(0.45f, 0.42f, 0.22f), Rgb(0.78f, 0.7f, 0.45f));
         return model;
     }
 
@@ -84,27 +75,51 @@ public static class Crumbly
             if (across <= 0) return 0;
             return d.H * across * (1 - v * v) * (1 - 0.3f * v * v);
         }
+        float Dunes(float x, float z) => 0.12f + 0.12f * MathF.Log(dunes.Sum(d => MathF.Exp(Dune(x, z, d) / 0.12f)));
+        // Wind ripples: asymmetric (a long stoss side, a short steep lee), wandering, across the wind; flattened out on the slip faces.
+        float Ripple(float x, float z)
+        {
+            var lee = Smooth(-0.6f, -1.4f, (Dunes(x + 0.04f, z) - Dunes(x - 0.04f, z)) / 0.08f);
+            var u = (x + 0.3f * MathF.Sin(z * 1.4f) + 0.6f * Noise(x * 0.7f, z * 0.9f, 0, 503)) / 0.26f;
+            var f = u - MathF.Floor(u);
+            var saw = f < 0.72f ? Smooth(0, 0.72f, f) : Smooth(1, 0.72f, f);
+            return 0.022f * saw * (1 - lee) * (0.6f + 0.4f * Noise(x * 1.3f, z * 1.3f, 1, 504));
+        }
         float Height(float x, float z)
         {
             var dist = MathF.Min(3 - MathF.Abs(x), 2 - MathF.Abs(z));
-            var y = 0.12f + 0.12f * MathF.Log(dunes.Sum(d => MathF.Exp(Dune(x, z, d) / 0.12f))) + 0.01f * MathF.Sin(x * 11 + 2.5f * Noise(x * 0.8f, z * 0.8f, 0, 501));
-            return MathF.Min(y, 1.5f) * Smooth(0, 0.4f, dist);
+            return MathF.Min(Dunes(x, z) + Ripple(x, z), 1.5f) * Smooth(0, 0.4f, dist);
         }
-        var sand = Rgb(0.82f, 0.72f, 0.52f); var shadow = Rgb(0.68f, 0.56f, 0.4f); var light = Rgb(0.9f, 0.82f, 0.64f);
-        Shapes.Ground(model, Sand, 90, 60, Height, (p, n) =>
+        var sand = Rgb(0.78f, 0.69f, 0.52f); var shadow = Rgb(0.66f, 0.53f, 0.37f); var light = Rgb(0.88f, 0.79f, 0.6f); var grit = Rgb(0.58f, 0.48f, 0.36f);
+        Shapes.Ground(model, Sand, 120, 80, Height, (p, n) =>
         {
+            var up = Vector3.Normalize(n / model.Inches).Y;
             var c = Mix(sand, light, Smooth(0.9f, 1.4f, p.Y));
-            c = Mix(c, shadow, Smooth(0.7f, 0.4f, n.Y) * 0.6f);
-            return Shade(c, 0.94f + 0.05f * MathF.Sin(p.X * 11 + 2.5f * Noise(p.X * 0.8f, p.Z * 0.8f, 0, 501)) + 0.08f * Fbm(p.X * 2, p.Z * 2, 1, 502));
+            c = Mix(c, shadow, Smooth(0.8f, 0.45f, up) * 0.6f);
+            c = Mix(c, grit, Smooth(0.25f, 0.05f, p.Y) * Smooth(0.45f, 0.7f, Fbm(p.X * 2, p.Z * 2, 3, 505)) * 0.6f);   // coarse grit in the hollows
+            return Shade(c, 0.9f + 0.6f * Ripple(p.X, p.Z) / 0.022f * 0.12f + 0.1f * Fbm(p.X * 2, p.Z * 2, 1, 502));
         });
-        // A few tufts of dry grass in the hollows.
-        for (var k = 0; k < 24; k++)
+        // Weathered sandstone breaking through the sand between the dunes, broken stone round them, dry grass in the hollows.
+        var pen = new Pen(model[Stone]);
+        var layers = new[] { Rgb(0.62f, 0.5f, 0.38f), Rgb(0.56f, 0.44f, 0.33f), Rgb(0.66f, 0.55f, 0.42f) };
+        Func<Vector3, Vector3, int, Vector4> Rock(int seed) => (p, n, layer) => Shade(layers[(layer + seed) % layers.Length], 0.9f + 0.14f * Fbm(p * 1.5f, seed));
+        Vector4 Loose(Vector3 p, Vector3 n) => Shade(layers[(int)(Fbm(p * 5, 506) * 7) % layers.Length], 0.82f);
+        foreach (var (x, z, rx, rz, h, seed) in new[] { (2.25f, -1.25f, 0.55f, 0.4f, 0.75f, 1), (-2.35f, 1.35f, 0.45f, 0.35f, 0.6f, 2), (0.35f, -1.45f, 0.35f, 0.3f, 0.45f, 3) })
+            Crag.Stack(pen, new Crag.Strata
+            {
+                Centre = new Vector2(x, z), Base = Height(x, z) - 0.3f, Height = Height(x, z) + h, Radii = new Vector2(rx, rz), Yaw = seed, Pitch = 0.12f, Layers = 3,
+                Cuts = 8, LayerCuts = 2, Cracks = 1, Chips = 4, Columns = 36, RowStep = 0.1f, Taper = 0.25f, Inset = 0.12f, Groove = 0.1f, Shift = 0.1f, Seed = 510 + seed,
+            }, Rock(seed));
+        Crag.Scree(pen, rng, 70, r =>
         {
-            var x = ((float)rng.NextDouble() - 0.5f) * 5.4f; var z = ((float)rng.NextDouble() - 0.5f) * 3.4f;
-            var y = Height(x, z);
-            if (y > 0.5f) continue;
-            Shapes.Tuft(model[Grass], rng, new Vector3(x, y, z), 7, 0.2f, 0.04f, 0.8f, Rgb(0.5f, 0.48f, 0.28f), Rgb(0.8f, 0.74f, 0.48f));
-        }
+            var x = ((float)r.NextDouble() - 0.5f) * 5.6f; var z = ((float)r.NextDouble() - 0.5f) * 3.6f;
+            return Height(x, z) > 0.35f ? null : (new Vector3(x, Height(x, z), z), 0.04f + 0.1f * MathF.Pow((float)r.NextDouble(), 2));
+        }, Loose);
+        Crag.Tufts(model[Grass], Vector3.One, rng, 40, r =>
+        {
+            var x = ((float)r.NextDouble() - 0.5f) * 5.5f; var z = ((float)r.NextDouble() - 0.5f) * 3.5f;
+            return Height(x, z) > 0.4f ? null : new Vector3(x, Height(x, z), z);
+        }, 0.22f, Rgb(0.5f, 0.46f, 0.26f), Rgb(0.82f, 0.74f, 0.48f));
         return model;
     }
 }

@@ -15,6 +15,11 @@ public class BakeTests
         Assert.True(deep.X > deep.Z, "a brown wash, not a grey one");
     }
 
+    /// <summary>Light passes through leaves: a canopy's inside is washed less than a stone recess as deep.</summary>
+    [Fact]
+    public void Foliage_is_washed_lighter_than_stone() =>
+        Assert.True(Value(Bake.Finish(Grey, 0.8f, 0, 0, true)) > Value(Bake.Finish(Grey, 0.8f, 0, 0, false)) + 0.05f);
+
     [Fact]
     public void A_convex_edge_is_drybrushed_paler_and_foliage_less_so()
     {
