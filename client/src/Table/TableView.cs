@@ -23,16 +23,7 @@ public partial class TableView : Node3D
     public override void _Ready()
     {
         foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera }) AddChild(n);
-        // A warm key light that casts the shadows, a cool unshadowed fill from the opposite side, and a flat ambient so the
-        // shadowed sides keep their colour; filmic tone mapping keeps the lit tops from clipping. The background stays the
-        // theme's clear colour.
-        AddChild(new DirectionalLight3D { Rotation = new Vector3(Mathf.DegToRad(-50), Mathf.DegToRad(30), 0), ShadowEnabled = true, LightColor = new Color(1f, 0.96f, 0.9f), LightEnergy = 1.1f });
-        AddChild(new DirectionalLight3D { Rotation = new Vector3(Mathf.DegToRad(-35), Mathf.DegToRad(210), 0), LightColor = new Color(0.7f, 0.78f, 0.95f), LightEnergy = 0.25f });
-        AddChild(new WorldEnvironment { Environment = new Godot.Environment
-        {
-            BackgroundMode = Godot.Environment.BGMode.ClearColor, AmbientLightSource = Godot.Environment.AmbientSource.Color,
-            AmbientLightColor = new Color(0.62f, 0.66f, 0.74f), AmbientLightEnergy = 0.45f, TonemapMode = Godot.Environment.ToneMapper.Filmic, TonemapExposure = 1.05f,
-        } });
+        TableLighting.AddTo(this);
         Camera.Current = true;
     }
 

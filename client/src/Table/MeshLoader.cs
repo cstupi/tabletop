@@ -95,6 +95,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         if (file is null || !Godot.FileAccess.FileExists(file)) return null;
         var scene = await Build(file, 1, BuiltinContent.MeshOrientation);
         if (scene is null) return null;
+        TerrainLook.Apply(scene);
         if (fit is null) return scene;
         // One mesh serves a group of built-ins (Task 6), so it is authored in the unit box — table-frame x and y in
         // [-0.5, 0.5], z in [0, 1] — and fitted here to the volume it is decorating. A circle footprint's A is a radius,

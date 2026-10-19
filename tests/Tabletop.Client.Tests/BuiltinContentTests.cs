@@ -119,6 +119,22 @@ public class BuiltinContentTests
         }
     }
 
+    /// <summary>A print's alpha is its height (PrintTextures), so its import must leave the colour under a low height alone (no
+    /// alpha-border fix) and stay lossless, so the client can read the pixels back.</summary>
+    [Fact]
+    public void Every_packed_print_imports_lossless_with_its_alpha_as_data()
+    {
+        var client = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client"));
+        var prints = BuiltinContent.Packed.Textures.Select(t => Path.Combine(client, "content", "builtin", BuiltinCatalog.TexturePath(t)))
+            .Concat(Directory.GetFiles(Path.Combine(client, "content", "table"), "*.png"));
+        foreach (var path in prints)
+        {
+            var import = File.ReadAllText(path + ".import");
+            Assert.True(import.Contains("compress/mode=0") && import.Contains("process/fix_alpha_border=false") && import.Contains("detect_3d/compress_to=0"),
+                $"{Path.GetFileName(path)}.import is not lossless with its alpha kept as data");
+        }
+    }
+
     static (double X, double Y, double Z) Rotate(double x, double y, double z, Orientation o)
     {
         double R(double d) => d * Math.PI / 180;

@@ -49,8 +49,8 @@ Today: 305 of 305 games pass in process with no pin (`core-ruins` and `core-roun
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 40 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 128, Protocol 62, Viewer 9, Client 691,
-  GameServer 1401, Management 272, Sim 286.
+  defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 103, TableTextures 29, Protocol 62, Viewer 9,
+  Client 714, GameServer 1402, Management 272, Sim 286.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
   GameServer 38, Sim 325; about 7 min.
@@ -76,7 +76,7 @@ Docker is stopped; start it (`docker compose up -d`) before anything needs the d
 
 Built since v0.1.1 (details in the design docs and module AGENTS.md):
 - **Client:** release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". Built-in
-  content (catalog `client/content/builtin/catalog.json`, 30 terrain meshes from `scripts/TerrainMeshes`, 5 textures) is
+  content (catalog `client/content/builtin/catalog.json`, 30 terrain meshes from `scripts/TerrainMeshes`, 7 board prints from `scripts/TableTextures`) is
   packed as the fallback and published to MinIO `builtin/` by each release; `GET /v1/builtin` serves it and clients switch
   when `Tabletop-Builtin-Version` changes. Placement ghosts draw the model's mesh. Unit card groups like models with wound
   totals; terrain details/controls live in the unit card's slot (`TerrainCard`). Ruler: hold Ctrl (starts under the
@@ -105,6 +105,14 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   both if they cross or go around the difficult"*), holds a drag to it, and the ruler follows the bent path with its length. The wire
   is unchanged: each side computes the same path. Suite game `core-round-the-terrain`. Not yet run: the socket suite on it, and a
   look at the area and the bent ruler in the client.
+- **Tabletop look** (spec `docs/superpowers/specs/2026-10-19-tabletop-look-design.md`): seven gaming-mat boards (grass, desert, urban, snow, ash, wasteland,
+  alien) from `scripts/table-textures`, drawn through `board.gdshader` with derived normals and anti-tiling on a wooden
+  table; `TableLighting` (warm shadowed key, cool fill, sky ambient, SSAO, AgX); all 30 built-in meshes rebuilt with their
+  detail in the geometry (`Crag`, `Masonry`, `Foliage` helpers), painted by `Bake` (AO wash, edge drybrush) and given
+  triplanar surface grain by `TerrainLook`. Built-in content is 34.3 MiB of meshes and 12.5 MiB of prints. A draft now
+  accepts Dangerous on Rush and Charge (`DraftLimits`), which the built-in ruins and quicksand carry and setup refused.
+  Weak spots: broadleaf leaves read as small triangles close up; the urban and desert mats are bright under the key light;
+  the hills' earth bands between ledges are smooth; building facades away from the light are dark.
 - Released: v0.1.18 (team rulings, Replays fix) is tagged; the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
   viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the
@@ -113,8 +121,8 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   `dotnet run --project sim -- suite --driver socket` with the stack up before the next release.
 - Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): work in progress outside the repo at
   `C:\Users\clays\Downloads\alien-hives\` — `src\` holds the generator (numpy SDF → marching cubes → painted GLB), the
-  list JSON, the owner's style reference and `README.txt` with the remaining models and the gaps the owner's style needs
-  fixed on the one draft (`draft\snatcher-lord-brood-leader.glb`).
+  list JSON and the owner's style reference; `draft\` holds all 12 models (three passes) and a side-by-side with the
+  reference. They still read smoother and more stylised than the reference; `src\README.txt` lists the gaps.
 - Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
   "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
   watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
@@ -169,8 +177,7 @@ client's update-required screen links to it. The owner releases by hand on docke
 **Client and web:** feedback text for refusals, closes and HTTP errors (`Feedback`); watcher mode; rename; lobby Players
 list with the creator's team pickers; End/Delete/Leave; setup caps shown before sending; Reauth on the open socket;
 Spawn/Split ring placement; 1" separation in the move gate; reserve chips; Add a grant. The web app has the client's
-Sci-fi and Fantasy themes (`web/src/themes.css`), plain errors, upload progress and a download page. Built-in terrain is
-procedural and coloured (`scripts/TerrainMeshes`, 13 meshes incl. `lake` and `crater`), with new table lighting.
+Sci-fi and Fantasy themes (`web/src/themes.css`), plain errors, upload progress and a download page.
 Claude checks the client on screen itself (WSLg + Godot movie frames + xdotool); right-click popups are not captured.
 
 **Rules:** under strict a team may not pass its activation while a unit can activate (p.7); warn records

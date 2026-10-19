@@ -1,6 +1,6 @@
 {
   "meshes": ["hill", "hill-rect", "woods", "ruins", "overgrown-ruins", "building", "huts", "tower", "wall", "barricade", "rock", "crumbly-rock", "dunes", "field", "tall-crops", "water", "stream", "toxic-river", "sludge-canal", "lake", "crater", "haze", "death-marsh", "sludge-field", "mine-field", "quicksand", "deadly-vegetation", "jungle", "plantation", "beast-lair"],
-  "textures": ["grass", "desert", "urban", "snow", "ash"],
+  "textures": ["grass", "desert", "urban", "snow", "ash", "wasteland", "alien"],
   "terrain": [
     { "id": "barricade", "label": "Barricade", "mesh": "barricade", "kind": "solid", "footprint": { "kind": "rect", "a": 3, "b": 1 }, "top": 1, "declarations": ["cover", "difficult"] },
     { "id": "large-forest", "label": "Large Forest", "mesh": "woods", "kind": "area", "footprint": { "kind": "circle", "a": 3 }, "top": 6, "declarations": ["blocks_line_of_sight", "see_in_and_out", "cover", "difficult"] },

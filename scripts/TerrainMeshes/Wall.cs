@@ -3,66 +3,89 @@ using static Tabletop.TerrainMeshes.Paint;
 
 namespace Tabletop.TerrainMeshes;
 
-/// <summary>A dry-stone wall along x on a footing: four panels of staggered courses between capped posts, coping on top, moss
-/// low down, and one panel broken with its blocks fallen beside it. Fitted long and thin (a wall) or short and deep (a barricade).</summary>
+/// <summary>The wall or fence (6" × 0.5", 1.5" high, Solid): a fieldstone wall along x on a footing. Five dressed pillars with
+/// caps stand to the full height; between them, panels of random-coursed rough stones (each its own size, shade and set,
+/// chipped at the corners) under a row of coping stones on edge; moss low down; one panel broken down, its stones fallen at
+/// its foot.</summary>
 public static class Wall
 {
     public static readonly Material Stone = new("stone", 0.88f), Mortar = new("mortar", 0.95f);
+    const float Length = 6, Height = 1.5f, Depth = 0.5f, Body = 0.34f, Footing = 0.1f, Coping = 1.12f;
 
     public static Model Build()
     {
-        var model = new Model("wall", round: false);
+        var model = new Model("wall", round: false, new Vector3(Length, Height, Depth));
         var rng = new Random(51);
-        var stone = Rgb(0.6f, 0.57f, 0.5f); var moss = Rgb(0.34f, 0.42f, 0.2f); var dark = Rgb(0.42f, 0.4f, 0.36f);
-        Shapes.Box(model[Stone], new Vector3(-0.5f, 0, -0.46f), new Vector3(0.5f, 0.06f, 0.46f), p => Shade(Mix(dark, moss, 0.25f * Fbm(p * 20, 1)), 0.9f + 0.15f * Fbm(p * 30, 2)));
-        float[] posts = [-0.455f, -0.2275f, 0, 0.2275f, 0.455f];
-        foreach (var x in posts)
+        float R() => (float)rng.NextDouble();
+        var stone = Rgb(0.6f, 0.57f, 0.51f); var dressed = Rgb(0.66f, 0.63f, 0.57f); var moss = Rgb(0.3f, 0.39f, 0.17f);
+        var grime = Rgb(0.33f, 0.3f, 0.25f); var mortar = Rgb(0.3f, 0.28f, 0.26f);
+        Vector4 Weather(Vector4 c, Vector3 p) =>
+            Shade(Mix(Mix(c, grime, Smooth(0.5f, 0, p.Y) * 0.5f), moss, Smooth(0.52f, 0.7f, Fbm(p * 3.2f, 52)) * Smooth(0.75f, 0.1f, p.Y) * 0.85f), 0.93f + 0.12f * Fbm(p * 4, 53));
+        // The footing: long flat stones the length of the wall.
+        for (var x = -Length / 2; x < Length / 2 - 0.05f;)
         {
-            Shapes.Box(model[Stone], new Vector3(x - 0.04f, 0.06f, -0.4f), new Vector3(x + 0.04f, 0.93f, 0.4f), p => Shade(stone, 0.85f + 0.15f * Fbm(p * 25, 3)));
-            Shapes.Box(model[Stone], new Vector3(x - 0.05f, 0.93f, -0.46f), new Vector3(x + 0.05f, 1, 0.46f), Shade(dark, 1.1f));
+            var len = MathF.Min(0.6f + 0.4f * R(), Length / 2 - x);
+            var c = Shade(stone, 0.75f + 0.2f * R());
+            Masonry.Block(model[Stone], new(x + len / 2, Footing / 2, 0), new(len - 0.025f, Footing, Depth - 0.04f), Matrix4x4.Identity, 0.025f, p => Weather(c, p), rng, 0.04f);
+            x += len;
         }
-        const float courses = 5, bottom = 0.06f, coping = 0.85f, course = (coping - bottom) / courses;
-        for (var panel = 0; panel < posts.Length - 1; panel++)
+        float[] pillars = [-2.8f, -1.4f, 0, 1.4f, 2.8f];
+        foreach (var px in pillars)
         {
-            float x0 = posts[panel] + 0.04f, x1 = posts[panel + 1] - 0.04f;
+            var w = 0.38f;
+            for (var y = Footing; y < 1.3f - 0.01f;)
+            {
+                var h = MathF.Min(0.3f, 1.3f - y);
+                var c = Shade(dressed, 0.85f + 0.18f * R());
+                Masonry.Block(model[Stone], new(px, y + h / 2, 0), new(w - 0.02f * (int)(y / 0.3f % 2), h - 0.02f, Depth - 0.1f), Matrix4x4.Identity, 0.03f, p => Weather(c, p), rng);
+                y += h;
+            }
+            Masonry.Block(model[Stone], new(px, 1.35f, 0), new(w + 0.08f, 0.1f, Depth - 0.02f), Matrix4x4.Identity, 0.025f, Shade(dressed, 0.82f));
+            Shapes.Prism(model[Stone], Matrix4x4.CreateScale(0.3f, Height - 1.4f, 0.3f) * Matrix4x4.CreateTranslation(px, 1.4f, 0), 4, 0.25f, Shade(dressed, 0.78f), MathF.PI / 4);
+        }
+        for (var panel = 0; panel < pillars.Length - 1; panel++)
+        {
+            float x0 = pillars[panel] + 0.19f, x1 = pillars[panel + 1] - 0.19f;
             var broken = panel == 2;
-            float notchFrom = x0 + 0.05f, notchTo = x1 - 0.04f, notchBelow = 0.4f;
-            Shapes.Box(model[Mortar], new Vector3(x0, bottom, -0.27f), new Vector3(x1, broken ? notchBelow : coping, 0.27f), Rgb(0.3f, 0.29f, 0.27f));
-            if (broken)
+            float Top(float x) => broken ? 0.45f + 0.5f * MathF.Pow(MathF.Abs((x - (x0 + x1) / 2) / ((x1 - x0) / 2)), 2.2f) + 0.1f * Noise(x * 9, 0, 0, 54) : Coping;
+            Masonry.Span(model[Mortar], new(x0, Footing, -Body / 2 + 0.04f), new(x1, broken ? 0.55f : Coping - 0.02f, Body / 2 - 0.04f), 0, mortar);
+            for (var y = Footing; y < Coping - 0.04f;)
             {
-                Shapes.Box(model[Mortar], new Vector3(x0, notchBelow, -0.27f), new Vector3(notchFrom, coping, 0.27f), Rgb(0.3f, 0.29f, 0.27f));
-                Shapes.Box(model[Mortar], new Vector3(notchTo, notchBelow, -0.27f), new Vector3(x1, coping, 0.27f), Rgb(0.3f, 0.29f, 0.27f));
-            }
-            for (var row = 0; row < courses; row++)
-            {
-                var y0 = bottom + row * course; var y1 = y0 + course - 0.008f;
-                var x = x0 - (row % 2 == 0 ? 0 : 0.03f);
-                while (x < x1 - 0.005f)
+                var h = MathF.Min(0.13f + 0.08f * R(), Coping - y);
+                for (var x = x0 - 0.12f * R(); x < x1;)
                 {
-                    var length = 0.05f + 0.045f * (float)rng.NextDouble();
-                    var (b0, b1) = (MathF.Max(x, x0), MathF.Min(x + length, x1));
-                    x += length + 0.006f;
-                    if (b1 - b0 < 0.01f) continue;
-                    if (broken && y0 > notchBelow - 0.01f && b1 > notchFrom && b0 < notchTo) continue;
-                    if (broken && y0 > notchBelow - 0.17f && b1 > notchFrom + 0.03f && b0 < notchTo - 0.03f && rng.NextDouble() < 0.5) continue;
-                    var out0 = 0.02f * (float)rng.NextDouble(); var out1 = 0.02f * (float)rng.NextDouble();
-                    var mossy = Smooth(0.35f, 0.1f, y0) * (0.4f + 0.6f * (float)rng.NextDouble());
-                    var c = Shade(Mix(stone, moss, mossy), 0.82f + 0.25f * (float)rng.NextDouble());
-                    Shapes.Box(model[Stone], new Vector3(b0, y0, -0.3f - out0), new Vector3(b1, y1, 0.3f + out1), p => Shade(c, 0.94f + 0.1f * Fbm(p * 40, row)));
+                    var len = 0.16f + 0.2f * R();
+                    var (a, b) = (MathF.Max(x, x0), MathF.Min(x + len, x1));
+                    x += len;
+                    if (b - a < 0.06f) continue;
+                    var mid = (a + b) / 2;
+                    if (y + h * 0.5f > Top(mid)) continue;
+                    var c = Shade(Mix(stone, Rgb(0.55f, 0.5f, 0.42f), R()), 0.78f + 0.28f * R());
+                    var set = Masonry.Turn((R() - 0.5f) * 0.1f, (R() - 0.5f) * 0.08f, (R() - 0.5f) * 0.1f);
+                    Masonry.Block(model[Stone], new(mid, y + h / 2, (R() - 0.5f) * 0.03f), new(b - a - 0.02f, h - 0.018f, Body + 0.03f * R()), set, 0.03f, p => Weather(c, p), rng, 0.12f);
                 }
+                y += h;
             }
-            if (!broken) Shapes.Box(model[Stone], new Vector3(x0 - 0.005f, coping, -0.34f), new Vector3(x1 + 0.005f, 0.9f, 0.34f), Shade(dark, 1.05f + 0.05f * panel));
-            else
+            // Coping: stones on edge along the top, where the panel stands.
+            for (var x = x0; x < x1 - 0.04f;)
             {
-                Shapes.Box(model[Stone], new Vector3(x0 - 0.005f, coping, -0.34f), new Vector3(notchFrom, 0.9f, 0.34f), Shade(dark, 1.05f));
-                Shapes.Box(model[Stone], new Vector3(notchTo, coping, -0.34f), new Vector3(x1 + 0.005f, 0.9f, 0.34f), Shade(dark, 1.05f));
-                for (var k = 0; k < 7; k++)   // the fallen blocks, on the footing on both sides
+                var w = MathF.Min(0.1f + 0.05f * R(), x1 - x);
+                if (Top(x + w / 2) >= Coping - 0.01f)
+                {
+                    var c = Shade(stone, 0.8f + 0.25f * R());
+                    Masonry.Block(model[Stone], new(x + w / 2, Coping + 0.1f, 0), new(w - 0.012f, 0.2f + 0.03f * R(), Body + 0.04f), Masonry.Turn(0, 0, (R() - 0.5f) * 0.15f), 0.022f, p => Weather(c, p), rng, 0.1f);
+                }
+                x += w;
+            }
+            if (broken)   // the fallen stones, along the foot on both sides
+                for (var k = 0; k < 14; k++)
                 {
                     var side = k % 2 == 0 ? 1 : -1;
-                    var p = new Vector3(notchFrom + (notchTo - notchFrom) * (float)rng.NextDouble(), 0.06f + 0.04f * (k / 2 % 2), side * (0.4f + 0.04f * (float)rng.NextDouble()));
-                    Shapes.Box(model[Stone], Shapes.At(p, new Vector3(0.06f, 0.08f, 0.1f), (float)rng.NextDouble() * 2, ((float)rng.NextDouble() - 0.5f) * 0.8f, ((float)rng.NextDouble() - 0.5f) * 0.8f), Shade(stone, 0.8f + 0.2f * (float)rng.NextDouble()));
+                    var s = 0.09f + 0.06f * R();
+                    var p = new Vector3(x0 + 0.1f + (x1 - x0 - 0.2f) * R(), Footing + s * 0.35f, side * (0.1f + 0.1f * R()));
+                    var c = Shade(stone, 0.75f + 0.3f * R());
+                    Masonry.Block(model[Stone], p, new(s * 1.6f, s * 0.8f, s), Masonry.Turn(R() * 3, (R() - 0.5f) * 0.8f, (R() - 0.5f) * 0.8f), s * 0.18f, q => Weather(c, q), rng, 0.2f);
                 }
-            }
         }
         return model;
     }

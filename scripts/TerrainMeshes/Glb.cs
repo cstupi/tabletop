@@ -26,12 +26,12 @@ public static class Glb
 
         foreach (var part in model.Parts)
         {
-            var count = part.Positions.Count;
-            var positions = Floats(part.Positions); var normals = Floats(part.Normals);
-            var colours = part.Colours.SelectMany(c => new[] { Byte(Linear(c.X)), Byte(Linear(c.Y)), Byte(Linear(c.Z)), Byte(c.W) }).ToArray();
+            var (p, n, c, ix) = Welded(part);
+            var count = p.Count;
+            var positions = Floats(p); var normals = Floats(n);
+            var colours = c.SelectMany(c => new[] { Byte(Linear(c.X)), Byte(Linear(c.Y)), Byte(Linear(c.Z)), Byte(c.W) }).ToArray();
             var wide = count > ushort.MaxValue;
-            var indices = wide ? part.Indices.SelectMany(i => BitConverter.GetBytes((uint)i)).ToArray() : part.Indices.SelectMany(i => BitConverter.GetBytes((ushort)i)).ToArray();
-            var p = part.Positions;
+            var indices = wide ? ix.SelectMany(i => BitConverter.GetBytes((uint)i)).ToArray() : ix.SelectMany(i => BitConverter.GetBytes((ushort)i)).ToArray();
             var position = Accessor(new
             {
                 bufferView = View(positions, 34962), componentType = 5126, count, type = "VEC3",
@@ -39,7 +39,7 @@ public static class Glb
             });
             var normal = Accessor(new { bufferView = View(normals, 34962), componentType = 5126, count, type = "VEC3" });
             var colour = Accessor(new { bufferView = View(colours, 34962), componentType = 5121, normalized = true, count, type = "VEC4" });
-            var index = Accessor(new { bufferView = View(indices, 34963), componentType = wide ? 5125 : 5123, count = part.Indices.Count, type = "SCALAR" });
+            var index = Accessor(new { bufferView = View(indices, 34963), componentType = wide ? 5125 : 5123, count = ix.Count, type = "SCALAR" });
             var m = part.Material;
             materials.Add(new Dictionary<string, object>
             {
@@ -73,6 +73,21 @@ public static class Glb
         w.Write((uint)text.Length); w.Write(0x4E4F534Au); w.Write(text);
         w.Write((uint)data.Length); w.Write(0x004E4942u); w.Write(data);
         return s.ToArray();
+    }
+
+    /// <summary>The part with exact duplicate vertices (same position, normal and written colour) shared, in first-use order.</summary>
+    static (List<Vector3> P, List<Vector3> N, List<Vector4> C, List<int> I) Welded(Part part)
+    {
+        var seen = new Dictionary<(Vector3, Vector3, uint), int>();
+        var (p, n, c, ix) = (new List<Vector3>(), new List<Vector3>(), new List<Vector4>(), new List<int>(part.Indices.Count));
+        foreach (var i in part.Indices)
+        {
+            var col = part.Colours[i];
+            var key = (part.Positions[i], part.Normals[i], (uint)(Byte(Linear(col.X)) | Byte(Linear(col.Y)) << 8 | Byte(Linear(col.Z)) << 16 | Byte(col.W) << 24));
+            if (!seen.TryGetValue(key, out var at)) { seen[key] = at = p.Count; p.Add(part.Positions[i]); n.Add(part.Normals[i]); c.Add(col); }
+            ix.Add(at);
+        }
+        return (p, n, c, ix);
     }
 
     static byte[] Floats(List<Vector3> v)
