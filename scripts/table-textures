@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Regenerate the board prints in client/content/builtin/textures/ and the table textures in client/content/table/
+# (scripts/TableTextures/AGENTS.md).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec dotnet run -c Release --project scripts/TableTextures -- "$@"

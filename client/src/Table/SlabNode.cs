@@ -4,40 +4,47 @@ using Tabletop.Geometry;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>The board at its real size, 1" thick, top face at Z = 0. Corner origin: the slab spans [0,W] × [0,L] in the wire frame.</summary>
+/// <summary>The board at its real size, 1" thick, top face at Z = 0, on a wooden table that fades into the room. Corner origin: the
+/// slab spans [0,W] × [0,L] in the wire frame. A built-in print draws through <c>board.gdshader</c> (spec
+/// 2026-10-19-tabletop-look-design.md → Boards); its edge is the print's mean colour, darkened like a painted board edge.</summary>
 public partial class SlabNode : Node3D
 {
     const float Thickness = 1f;
-    MeshInstance3D? _mesh;
+    /// <summary>Inches per pixel of a board print and of the table's wood, and the relief a full height rise stands for.</summary>
+    const float BoardPixel = 12f / 1024, WoodPixel = 24f / 1024, BoardRelief = 0.05f, WoodRelief = 0.01f;
+    const string TableWood = "res://content/table/wood.png";
+    static readonly Shader BoardShader = GD.Load<Shader>("res://content/shaders/board.gdshader"), TableShader = GD.Load<Shader>("res://content/shaders/table.gdshader");
+    MeshInstance3D? _mesh, _table;
 
     public void Set(TableSize size, VisualRef texture)
     {
-        _mesh?.QueueFree();
-        _mesh = new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3((float)size.Width, Thickness, (float)size.Length) } };
-        _mesh.Position = WorldFrame.ToGodot(new Point3(size.Width / 2, size.Length / 2, -Thickness / 2));
-        _mesh.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.35f, 0.45f, 0.3f) };
-        // BoxMesh UVs are a 3x2 atlas of its six faces, so a texture scale on the box tiles 36" x 24" per repeat; the top is its own plane, whose UVs run 0..1 across the face, so one tile is 12" x 12".
-        if (texture.IsBuiltin && Load(Core.BuiltinContent.TextureFile(texture.Builtin!)) is { } albedo)
+        _mesh?.QueueFree(); _table?.QueueFree();
+        float w = (float)size.Width, l = (float)size.Length;
+        var print = texture.IsBuiltin ? PrintTextures.Load(Core.BuiltinContent.TextureFile(texture.Builtin!), BoardRelief / BoardPixel) : null;
+        var edge = print is null ? new Color(0.22f, 0.24f, 0.2f) : print.Mean.Darkened(0.45f);
+        _mesh = new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(w, Thickness, l) }, Position = WorldFrame.ToGodot(new Point3(size.Width / 2, size.Length / 2, -Thickness / 2)),
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = edge, Roughness = 0.9f } };
+        if (print is not null)
         {
-            var top = new MeshInstance3D { Mesh = new PlaneMesh { Size = new Vector2((float)size.Width, (float)size.Length) }, Position = new Vector3(0, Thickness / 2 + 0.002f, 0),
-                MaterialOverride = new StandardMaterial3D { AlbedoTexture = albedo, Uv1Scale = new Vector3((float)size.Width / 12, (float)size.Length / 12, 1) } };
-            _mesh.AddChild(top);                                                           // child of the box, so the one QueueFree on the next Set takes both
+            var top = new ShaderMaterial { Shader = BoardShader };
+            top.SetShaderParameter("print", print.Albedo); top.SetShaderParameter("print_normal", print.Normal);
+            _mesh.AddChild(new MeshInstance3D { Mesh = new PlaneMesh { Size = new Vector2(w, l) }, Position = new Vector3(0, Thickness / 2 + 0.002f, 0), MaterialOverride = top });
         }
         AddChild(_mesh);
+        _table = Table(w, l);
+        if (_table is not null) AddChild(_table);
     }
 
-    /// <summary>A packed texture through the resource loader; a served one (a cached blob) from its bytes, once its PNG header
-    /// is within 4096 a side. Null when neither loads.</summary>
-    static Texture2D? Load(string file)
+    /// <summary>The table under the board, 60" past each edge, its wood fading to the clear colour from 3" to 30" out.</summary>
+    static MeshInstance3D? Table(float w, float l)
     {
-        if (file.StartsWith("res://", StringComparison.Ordinal)) return ResourceLoader.Exists(file) ? GD.Load<Texture2D>(file) : null;
-        try
-        {
-            var bytes = System.IO.File.ReadAllBytes(file);
-            if (Core.ImageHeader.Size(bytes) is not { } size || size.Width > 4096 || size.Height > 4096) { GD.PushWarning($"texture {file} refused"); return null; }
-            var image = new Image();
-            return image.LoadPngFromBuffer(bytes) == Error.Ok ? ImageTexture.CreateFromImage(image) : null;
-        }
-        catch (System.IO.IOException e) { GD.PushWarning($"texture {file}: {e.Message}"); return null; }
+        if (PrintTextures.Load(TableWood, WoodRelief / WoodPixel) is not { } wood) return null;
+        const float margin = 60;
+        var material = new ShaderMaterial { Shader = TableShader };
+        material.SetShaderParameter("wood", wood.Albedo); material.SetShaderParameter("wood_normal", wood.Normal);
+        material.SetShaderParameter("board_min", new Vector2(0, -l)); material.SetShaderParameter("board_max", new Vector2(w, 0));
+        material.SetShaderParameter("far_colour", RenderingServer.GetDefaultClearColor());
+        return new MeshInstance3D { Mesh = new PlaneMesh { Size = new Vector2(w + 2 * margin, l + 2 * margin) }, Position = WorldFrame.ToGodot(new Point3(w / 2.0, l / 2.0, -Thickness)),
+            MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
     }
 }
