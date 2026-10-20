@@ -115,9 +115,9 @@ public partial class DecisionBox
                 }
         }
         _input.Eligible = legal.Targets.ToHashSet();
-        _onModel = (id, right) => { if (!left.ContainsKey(id)) return; if (right) pick.Remove(id); else pick.Add(id); Show(); };
+        _onModel = (id, right) => { if (!left.ContainsKey(id)) return; if (right) pick.Remove(id); else pick.Click(id); Show(); };
         _onEnter = Confirm;
-        Add(Btn("Auto", () => { pick.Auto(); Show(); })); Add(confirm); Show();
+        Add(Btn("Auto", () => { pick.Auto(); Show(); })); Add(Btn("Clear", () => { pick.Clear(); Show(); })); Add(confirm); Show();
     }
 
     void ClearMarks() { foreach (var m in _marks) if (IsInstanceValid(m)) m.QueueFree(); _marks.Clear(); }

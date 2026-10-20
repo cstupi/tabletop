@@ -86,6 +86,34 @@ public class CasualtyPickTests
         Assert.Equal(new Dictionary<Guid, int> { [M1] = 2 }, auto.Counts);
     }
 
+    /// <summary>A click on a picked model that can take no more puts it back: a one-wound model toggles, a Tough one fills then clears.</summary>
+    [Fact]
+    public void A_click_on_a_model_that_can_take_no_more_puts_it_back()
+    {
+        var c = new CasualtyPick(new Allocation([M1, M2, M3], 2), new Dictionary<Guid, int> { [M1] = 1, [M2] = 1, [M3] = 1 });
+        c.Click(M1); c.Click(M1);
+        Assert.Empty(c.Counts);
+        c.Click(M1); c.Click(M2); c.Click(M2);
+        Assert.Equal(new Dictionary<Guid, int> { [M1] = 1 }, c.Counts);
+        var tough = new CasualtyPick(new Allocation([M1, M2], 3), new Dictionary<Guid, int> { [M1] = 2, [M2] = 3 });
+        tough.Click(M1); tough.Click(M1);
+        Assert.Equal(2, tough.Counts[M1]);
+        tough.Click(M1);
+        Assert.Empty(tough.Counts);
+        var one = new CasualtyPick(new Allocation([M1, M2], 4, MaxTargets: 1), new Dictionary<Guid, int> { [M1] = 3, [M2] = 3 });
+        one.Click(M1); one.Click(M1); one.Click(M1); one.Click(M2);
+        Assert.Equal(new Dictionary<Guid, int> { [M2] = 1 }, one.Counts);     // another model still moves the pick
+    }
+
+    [Fact]
+    public void Clear_puts_every_model_back()
+    {
+        var c = new CasualtyPick(new Allocation([M1, M2], 2), new Dictionary<Guid, int> { [M1] = 1, [M2] = 1 });
+        c.Auto();
+        c.Clear();
+        Assert.Equal((0, false), (c.Chosen, c.Complete));
+    }
+
     /// <summary>p.8: "For each wound that the unit has taken, the defending player must remove one model as a casualty." One-wound
     /// models read as models to remove, counted up to the models there are.</summary>
     [Fact]

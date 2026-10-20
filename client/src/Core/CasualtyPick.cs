@@ -3,8 +3,8 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 /// <summary>
-/// The remove-casualties pick (in-game UX spec → Casualties). A click adds one wound to an offered model up to its wounds left; a
-/// right-click takes one away; Auto fills the rest in the Ask's order. Required is the lesser of the amount and what the models it may
+/// The remove-casualties pick (in-game UX spec → Casualties). A click adds one wound to an offered model up to its wounds left, and on a
+/// model that can take no more puts it back; a right-click takes one away; Clear empties the pick; Auto fills the rest in the Ask's order. Required is the lesser of the amount and what the models it may
 /// use can take, so a pick whose wounds outnumber the models still completes. Under the Ask's MaxTargets of one, a click on another model
 /// moves the pick there. The answer is Allocated, summing to the amount, any surplus on the last model counted for the server to carry over (p.8).
 /// </summary>
@@ -38,9 +38,9 @@ public sealed class CasualtyPick
     public string Title => OneEach ? $"Remove {Required} {(Required == 1 ? "model" : "models")}"
         : $"Assign {_legal.Amount} {(_legal.Amount == 1 ? "wound" : "wounds")}" + (_legal.MaxTargets == 1 ? " to one model" : "");
 
-    public string Hint => OneEach ? "Click a model to remove it · Right-click: put it back · Auto: fill the rest · Enter: confirm"
-        : _legal.MaxTargets == 1 ? "Click a model: +1 · Another model: move there · Right-click: −1 · Auto: fill · Enter: confirm"
-        : "Click a model: +1 · Right-click: −1 · Auto: fill the rest · Enter: confirm";
+    public string Hint => OneEach ? "Click a model to remove it · Click again or right-click: put it back · Auto: fill the rest · Enter: confirm"
+        : _legal.MaxTargets == 1 ? "Click a model: +1, once full: put back · Another model: move there · Right-click: −1 · Auto: fill · Enter: confirm"
+        : "Click a model: +1, once full: put back · Right-click: −1 · Auto: fill the rest · Enter: confirm";
 
     public string Status => $"{Chosen} of {Required} chosen";
 
@@ -59,11 +59,20 @@ public sealed class CasualtyPick
         _counts[modelId] = _counts.GetValueOrDefault(modelId) + 1;
     }
 
+    /// <summary>A left click: a picked model that can take no more (its wounds left, or the pick full) is put back, anything else is Add.</summary>
+    public void Click(Guid modelId)
+    {
+        if (_counts.ContainsKey(modelId) && (Chosen >= Required || _counts[modelId] >= Capacity(modelId))) _counts.Remove(modelId);
+        else Add(modelId);
+    }
+
     public void Remove(Guid modelId)
     {
         if (!_counts.TryGetValue(modelId, out var n)) return;
         if (n <= 1) _counts.Remove(modelId); else _counts[modelId] = n - 1;
     }
+
+    public void Clear() => _counts.Clear();
 
     public void Auto()
     {
