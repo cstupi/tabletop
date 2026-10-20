@@ -21,9 +21,16 @@ public static class Program
                 await ServeApp.Build(ServeArguments.Parse(args[1..]), new SuiteRunner()).RunAsync();
                 return 0;
             }
-            return args.Length > 0 && args[0] == SuiteArguments.Verb
-                ? await RunSuiteAsync(SuiteArguments.Parse(args[1..]), Console.Out, new SuiteRunner(), CancellationToken.None)
-                : await RunAsync(SimOptions.Parse(args), Console.Out, CancellationToken.None);
+            if (args.Length > 0 && args[0] == SuiteArguments.Verb)
+            {
+                // The first Ctrl+C cancels the run, so its report is written as aborted; a second ends the process.
+                using var cancel = new CancellationTokenSource();
+                ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = !cancel.IsCancellationRequested; cancel.Cancel(); };
+                Console.CancelKeyPress += onCancel;
+                try { return await RunSuiteAsync(SuiteArguments.Parse(args[1..]), Console.Out, new SuiteRunner(), cancel.Token); }
+                finally { Console.CancelKeyPress -= onCancel; }
+            }
+            return await RunAsync(SimOptions.Parse(args), Console.Out, CancellationToken.None);
         }
         catch (UsageException usage) { Console.Error.WriteLine(usage.Message); return 2; }
     }
@@ -46,8 +53,10 @@ public static class Program
     }
 
     /// <summary>
-    /// The rules suite: --list prints the selected games, otherwise the runner plays them and the report is printed, a line per game
-    /// as it finishes and the tables at the end. Exit 0 only when the report passed. suite.json goes to --out with --keep or --out.
+    /// The rules suite: --list prints the selected games, otherwise the runner plays them. The report (SuiteReportFiles) is written to
+    /// --out after every game and at the end, or when the run aborts. The console gets each failing game with its lines and replay as it
+    /// finishes, a counter, the coverage entries the run fails on, the verdict line and the report's paths; --verbose adds a line per
+    /// game and the whole coverage table. Exit 0 only when the report passed.
     /// </summary>
     public static async Task<int> RunSuiteAsync(SuiteArguments arguments, TextWriter output, SuiteRunner runner, CancellationToken ct)
     {
@@ -58,17 +67,55 @@ public static class Program
             return 0;
         }
 
+        var planned = SuiteCatalog.Select(runner.Games, arguments.Only).Count;      // an unknown name is a usage error before any file
         var outDir = arguments.Out ?? SuiteArguments.DefaultOut;
-        var report = await runner.RunAsync(new SuiteOptions(arguments.Only, arguments.Driver, arguments.Keep, outDir),
-            new Inline<SuiteGameResult>(r => output.WriteLine($"{(r.Passed ? "pass" : "FAIL")}  {r.Name}")), ct);
-        output.WriteLine(report.Table());
-        if (arguments.Keep || arguments.Out is not null)
+        var runId = Guid.CreateVersion7();
+        var files = new SuiteReportFiles(outDir, runId, arguments.Driver, arguments.Only, planned);
+        output.WriteLine($"suite run {runId:N}: {planned} games, {(arguments.Driver == DriverKind.Socket ? SimOptions.Socket : SimOptions.InProcess)}; report {files.MarkdownPath}");
+
+        var (passed, failed) = (0, 0);
+        void Progress(SuiteGameResult r)
         {
-            Directory.CreateDirectory(outDir);
-            await File.WriteAllTextAsync(Path.Combine(outDir, SuiteReport.FileName), report.ToJson(), ct);
+            files.Game(r);
+            if (r.Passed) passed++; else failed++;
+            var stale = r.StaleLines.ToList();
+            if (arguments.Verbose || !r.Passed || stale.Count > 0)
+                output.WriteLine($"{r.Verdict}  {r.Name}  [{r.Group}]  seed {r.Seed}  {r.DurationSeconds:0.0}s");
+            foreach (var line in stale) output.WriteLine($"          {line}");
+            foreach (var line in r.Failures.SelectMany(f => f.Split('\n'))) output.WriteLine($"          {line}");
+            if (!r.Passed) output.WriteLine($"          replay: {r.Replay}");
+            if (!arguments.Verbose && (passed + failed) % ProgressEvery == 0 && passed + failed < planned)
+                output.WriteLine($"[{passed + failed}/{planned}] {passed} passed, {failed} failed");
         }
+
+        SuiteReport report;
+        try
+        {
+            report = await runner.RunAsync(new SuiteOptions(arguments.Only, arguments.Driver, arguments.Keep, outDir, runId),
+                new Inline<SuiteGameResult>(Progress), ct);
+        }
+        catch (Exception ex) when (ex is not UsageException)
+        {
+            files.Abort(ex is OperationCanceledException ? "cancelled" : ex.Message);
+            output.WriteLine($"ABORTED: {(ex is OperationCanceledException ? "cancelled" : ex.ToString())}");
+            output.WriteLine($"{passed + failed} of {planned} games played, {passed} passed, {failed} failed; run {runId:N}");
+            WriteReportPaths(output, files);
+            return 1;
+        }
+
+        files.Finish(report);
+        var coverage = report.CoverageLines(problemsOnly: !arguments.Verbose).ToList();
+        if (arguments.Verbose || coverage.Count > 1) foreach (var line in coverage) output.WriteLine(line);
+        output.WriteLine(report.Verdict);
+        WriteReportPaths(output, files);
         return report.ExitCode;
     }
+
+    /// <summary>A passing game prints nothing of its own; a counter line comes every this many games.</summary>
+    private const int ProgressEvery = 25;
+
+    private static void WriteReportPaths(TextWriter output, SuiteReportFiles files) =>
+        output.WriteLine($"report: {files.MarkdownPath}\n        {files.JsonPath}\n        (copied to {SuiteReportFiles.Latest}.md and .json)");
 
     /// <summary>Reports on the caller's thread, so the per-game lines come out in order before the tables (Progress&lt;T&gt; posts to the pool).</summary>
     private sealed class Inline<T>(Action<T> report) : IProgress<T>

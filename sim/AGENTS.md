@@ -9,7 +9,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `Program.cs`, `SimOptions.cs`, `Summary.cs`: console entry, option parsing (`UsageException`), the per-run summary table and `summary.json`.
 - `Scenarios/`: `Scenario`, `ScenarioBuilder`, `ScenarioCatalog` (the named scenarios), `ScenarioCompiler`, `Expectation`.
 - `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal, plus `ScriptMatch` picks), `AskPicks`, `PolicyView`. `Chooser.cs` is the seeded random stream.
-- `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
+- `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `SuiteReportFiles`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
 - `Serve/`: `ServeApp` (the runner's minimal API), `ServeArguments`, `SuiteRun`.
 - `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `ISocketRows` (`SocketRowSeeder`, its Postgres implementation), `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
@@ -111,6 +111,16 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
   `grimdark-future-army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
   they passed and its base is covered and fired.
+- The report (`SuiteReportFiles`): every `suite` run, either driver, `--only` included, writes `suite-<run id>.json` and
+  `suite-<run id>.md` to `--out` (default `./recordings`, git-ignored) and copies them to `suite-latest.json` and `suite-latest.md`.
+  The JSON (`SuiteRunDocument`) holds the run id, driver, selection, start and end, `verdict` (`running`, `passed`, `failed`,
+  `aborted`), the verdict line as `summary`, every `SuiteGameResult` (failure lines, known, pinned, stale, replay, seed,
+  `durationSeconds`) and the coverage table. The Markdown is the verdict line, a Failures section (each failing game's lines and replay
+  command), stale pins, a games table, then coverage. Both are rewritten after every game, so a run that throws or is cancelled
+  (Ctrl+C) keeps its games under `aborted`, with no coverage; a second Ctrl+C ends the process.
+- The console prints the run id and report path, a counter every 25 games, each failing game (and each stale pin) with its lines
+  and replay command as it finishes, the coverage entries the run fails on, the verdict line and the report paths. `--verbose` adds
+  a line per game and the whole coverage table.
 - Socket games play on a fixed account pool: participant i of any game is `sim-player-<i>` (`SocketCredentials.NameFor`,
   `PoolSize` 5: four armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
   Every run and every concurrent game (the CLI suite beside `sim-runner`) shares them; the dev mint gives a name the same account
@@ -123,7 +133,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite`,
   `POST /runs {only, driver, keep}` (409 while one runs), `GET /runs/{id}/events` (server-sent `game` per result, then `done`),
   `GET /runs/{id}/recordings/{game}`, `POST /runs/{id}/games/{game}/spectate` (a fresh session for the kept game's spectator).
-  The viewer's Tests page drives it.
+  The viewer's Tests page drives it. A kept run writes its report files and recordings to `<serve --out>/<run id>/`; an unkept
+  run writes nothing.
 
 ## Commands
 
@@ -139,8 +150,8 @@ dotnet run --project sim -- serve                              # the runner serv
 dotnet test tests/Tabletop.Sim.Tests                           # unit; --settings tests/e2e.runsettings for Postgres and the suite games
 ```
 
-- Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (recordings and `suite.json`),
-  `--list`. Each failing game prints its replay command line.
+- Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (the report and kept
+  recordings), `--verbose`, `--list`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
 - `--driver socket` needs Postgres, the game server and management running, both servers in dev mode (Development and `TABLETOP_DEV_MODE=1`; the game

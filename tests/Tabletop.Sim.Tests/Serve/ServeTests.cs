@@ -152,7 +152,8 @@ public sealed class ServeTests : IAsyncLifetime
         var plain = await PostRunAsync(new { keep = false });
         await EventsAsync(plain);
         Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync($"/runs/{plain}/recordings/{SuiteFixtures.Name}")).StatusCode);
-        Assert.True(Directory.Exists(Path.Combine(outDir, kept.ToString("N"))));
+        Assert.True(File.Exists(Path.Combine(outDir, kept.ToString("N"), $"suite-{kept:N}.json")));     // the run's report, under the run's id
+        Assert.True(File.Exists(Path.Combine(outDir, kept.ToString("N"), $"suite-{kept:N}.md")));
         Assert.False(Directory.Exists(Path.Combine(outDir, plain.ToString("N"))));     // an unkept run writes nothing, not even its directory
     }
 

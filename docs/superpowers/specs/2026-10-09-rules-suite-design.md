@@ -89,15 +89,18 @@ dotnet run --project sim -- suite --keep                       # keep the games
 dotnet run --project sim -- suite --list                       # games and what each covers
 ```
 
-- **In-process** (default) writes nothing unless `--keep`, which writes each game's recording to `--out`.
+- **In-process** (default) writes only the report unless `--keep`, which also writes each game's recording to `--out`.
 - **Socket** seeds each game's rows, plays it over the game server and deletes the rows when the game finishes, pass
   or fail (`SocketRowSeeder.DeleteAsync`). Every game plays on the fixed accounts `sim-player-<i>` and a kept game's
   spectator is `sim-spectator`; no run deletes an account. Every game a run seeds carries the run id in its
   name; a run first sweeps games left by an interrupted run. With `--keep` the rows stay, so the game opens in the
   client and the viewer's live feed, and the recording is written.
-- **Report:** a table per game (pass/fail, failed checks with their reason, seed, the command that replays that game
-  alone with `--keep`) and per entry (covering games, fired, exact checks), then totals. The same data goes to
-  `suite.json` in `--out`. Exit 0 only when every selected game passes and, on a full run, coverage is complete.
+- **Report:** per game (pass/fail, failed checks with their reason, seed, the command that replays that game alone with
+  `--keep`) and per entry (covering games, fired, exact checks), then totals, in `suite-<run id>.json` and
+  `suite-<run id>.md` in `--out` on every run (copied to `suite-latest.*`, rewritten after each game so an aborted run keeps
+  its games). The console prints a counter, each failure with its replay command as it happens, the verdict line and the
+  report paths; `--verbose` adds every game and the coverage table. Exit 0 only when every selected game passes and, on a
+  full run, coverage is complete.
 - The existing scenario catalog and `dotnet run --project sim -- <scenario>` stay as they are; the suite is beside
   them.
 

@@ -56,7 +56,7 @@ public static class ServeApp
                 var id = Guid.CreateVersion7();
                 run = active = runs[id] = new SuiteRun(id, Path.Combine(arguments.Out, id.ToString("N")));
             }
-            _ = Task.Run(() => PlayAsync(runner, run, new SuiteOptions(only, driver.Value, request?.Keep ?? false, run.OutDir),
+            _ = Task.Run(() => PlayAsync(runner, run, new SuiteOptions(only, driver.Value, request?.Keep ?? false, run.OutDir, run.Id),
                 lifetime.ApplicationStopping));
             return Results.Accepted($"/runs/{run.Id}/events", new { runId = run.Id });
         });
@@ -102,14 +102,22 @@ public static class ServeApp
 
     private static async Task PlayAsync(SuiteRunner runner, SuiteRun run, SuiteOptions options, CancellationToken ct)
     {
+        // A kept run writes its report files beside its recordings; an unkept run writes nothing, not even its directory.
+        var files = options.Keep
+            ? new SuiteReportFiles(options.OutDir, run.Id, options.Driver, options.Only, SuiteCatalog.Select(runner.Games, options.Only).Count)
+            : null;
         try
         {
-            if (options.Keep) Directory.CreateDirectory(options.OutDir);      // an unkept run writes nothing, not even its directory
-            var report = await runner.RunAsync(options, new Inline<SuiteGameResult>(run.Game), ct);
-            if (options.Keep) await File.WriteAllTextAsync(Path.Combine(options.OutDir, SuiteReport.FileName), report.ToJson(), ct);
+            var report = await runner.RunAsync(options, new Inline<SuiteGameResult>(r => { files?.Game(r); run.Game(r); }), ct);
+            files?.Finish(report);
             run.Done(report);
         }
-        catch (Exception ex) { run.Error(ex.Message); }
+        catch (Exception ex)
+        {
+            try { files?.Abort(ex is OperationCanceledException ? "cancelled" : ex.Message); }
+            catch (IOException) { }         // the run's error event still goes out
+            run.Error(ex.Message);
+        }
     }
 
     /// <summary>Reports on the runner's thread, in order (Progress&lt;T&gt; posts to the pool).</summary>
