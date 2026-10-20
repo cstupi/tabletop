@@ -37,6 +37,16 @@ public class CameraFocusTests
         Assert.Equal((0, 0, 0), CameraFocus.Steer(held, holding: false, typing: true));
     }
 
+    [Fact]
+    public void Held_q_e_turn_what_is_in_hand_at_a_steady_rate()
+    {
+        Assert.Equal(CameraFocus.TurnDegreesPerSecond * 0.5, CameraFocus.HeldTurn(new HashSet<Intent> { Intent.TurnLeft }, holding: true, typing: false, fine: false, 0.5), 9);
+        Assert.Equal(-CameraFocus.FineTurnDegreesPerSecond * 0.5, CameraFocus.HeldTurn(new HashSet<Intent> { Intent.TurnRight }, holding: true, typing: false, fine: true, 0.5), 9);
+        Assert.Equal(0, CameraFocus.HeldTurn(new HashSet<Intent> { Intent.TurnLeft, Intent.TurnRight }, holding: true, typing: false, fine: false, 0.5));
+        Assert.Equal(0, CameraFocus.HeldTurn(new HashSet<Intent> { Intent.TurnLeft }, holding: false, typing: false, fine: false, 0.5));
+        Assert.Equal(0, CameraFocus.HeldTurn(new HashSet<Intent> { Intent.TurnLeft }, holding: true, typing: true, fine: false, 0.5));
+    }
+
     /// <summary>Review Focus 1.</summary>
     [Fact]
     public void Follow_waits_for_a_quiet_camera_and_an_empty_hand()

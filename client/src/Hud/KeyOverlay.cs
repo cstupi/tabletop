@@ -12,7 +12,7 @@ public partial class KeyOverlay : PanelContainer
         ("1–9", "pick the numbered option in the decision box"),
         ("1–5, while holding a unit", "arrange it in that many rows"),
         ("W A S D", "move the camera across the table"),
-        ("Q / E", "turn each held model or the held terrain piece 15° (Shift: 5°), or the held rows; otherwise orbit the camera"),
+        ("Q / E", "hold to turn each held model or the held terrain piece (Shift: slower), or the held rows; otherwise orbit the camera"),
         ("Enter", "confirm the decision: commit, fire, remove"),
         ("C", "stop the move here (cast or pick), when the move box offers it"),
         ("Esc", "cancel, innermost first: a drag, the target assignments, the selection"),

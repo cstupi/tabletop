@@ -6,7 +6,7 @@ namespace Tabletop.Client.Table;
 
 /// <summary>
 /// Models in hand (spec → Formations): 1–5 lay them out in that many rows about the cursor, the rows across the screen as the
-/// camera sees it; Q/E turn the rows 15°, or with no rows turn each held model 15° about its own centre (p.7: models may move and
+/// camera sees it; Q/E held turn the rows, or with no rows each held model about its own centre, smoothly (p.7: models may move and
 /// turn in any direction). The drop is the drag's: a move step waits for Enter, anything else is a hand move.
 /// </summary>
 public partial class TableInput

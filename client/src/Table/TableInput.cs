@@ -168,10 +168,15 @@ public partial class TableInput : Node
     static Guid IdOf(Node3D piece) => piece switch { PieceNode p => p.ModelId, TerrainNode t => t.PlacementId, MarkerNode m => m.MarkerId, _ => Guid.Empty };
 
     /// <summary>A release the table's viewport never heard (after a drag it can reach the window and not the table's container)
-    /// still drops what is held: the button's state, not the event, ends the drag, so no drag outlives the press.</summary>
+    /// still drops what is held: the button's state, not the event, ends the drag, so no drag outlives the press. Q/E held turn
+    /// what is in hand smoothly (CameraFocus.HeldTurn).</summary>
     public override void _Process(double delta)
     {
         if (_drag is not null && !Input.IsMouseButtonPressed(MouseButton.Left)) Observe(OnLeftUp());
+        var held = new HashSet<Intent>();
+        if (Input.IsKeyPressed(Key.Q)) held.Add(Intent.TurnLeft);
+        if (Input.IsKeyPressed(Key.E)) held.Add(Intent.TurnRight);
+        if (CameraFocus.HeldTurn(held, HoldingTurnable, TextFocused(), Input.IsKeyPressed(Key.Shift), delta) is var turn and not 0) Turn(turn);
     }
 
     /// <summary>A move that ends while its models are in hand (a reconnect, an undo, the Ask closing): the drag goes with it, its

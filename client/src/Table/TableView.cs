@@ -14,6 +14,7 @@ public partial class TableView : Node3D
     readonly SlabNode _slab = new(); readonly Node3D _pieces = new(), _terrain = new(), _markers = new(), _zones = new(), _ghosts = new();
     public OrbitCamera Camera { get; } = new();
     public TableSize Size { get; private set; } = new(72, 48);
+    VisualRef _texture;   // the print the slab draws: a new size or print rebuilds it
     public IReadOnlyList<WorldVolume> Volumes { get; private set; } = [];
     /// <summary>Ids whose nodes Redraw leaves where they are: a drop the server has not answered, a drag in hand.</summary>
     public Func<Guid, bool> IsHeld { get; set; } = _ => false;
@@ -41,7 +42,7 @@ public partial class TableView : Node3D
     /// <summary>A new built-in catalog: the slab's texture and every built-in piece's mesh are drawn again from it.</summary>
     void RedrawBuiltins()
     {
-        if (Table is { } table) _slab.Set(Size, table.Texture);
+        if (Table is { } table) _slab.Set(Size, _texture = table.Texture);
         foreach (var n in _terrain.GetChildren().OfType<TerrainNode>()) if (n.Drawn.Mesh.IsBuiltin) LoadTerrainMesh(n, n.Drawn);
     }
 
@@ -76,7 +77,7 @@ public partial class TableView : Node3D
     {
         var table = Table;
         if (table is null) { Clear(); return; }
-        if (table.Size != Size || _slab.GetChildCount() == 0) { Size = table.Size; _slab.Set(Size, table.Texture); }
+        if (table.Size != Size || table.Texture != _texture || _slab.GetChildCount() == 0) { Size = table.Size; _slab.Set(Size, _texture = table.Texture); }
         Volumes = table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
         Sync(_terrain, table.Terrain, t => t.Id, BoardDiff.SameShape,
             t => { var n = new TerrainNode { PlacementId = t.Id }; n.Build(t); n.SetLook(_session.Settings.ShowTerrainHitboxes, HitboxLook.Editing(_session.Projection is null, t.Id, Selected())); LoadTerrainMesh(n, t); return n; }, (n, t) => n.Place(t));

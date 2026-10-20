@@ -207,7 +207,7 @@ same setting. A drag arms after 6 px, so a click never moves anything. The decla
 belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`
 ghosts, the release sends nothing, and Enter commits. On a `Stoppable` move Ask, C (**Cast a spell**, or **Stop here to use a rule** when no moving model holds tokens) sends the same ghosts
 with `Destinations.Continues`: the move goes on after the before-attacking window. While a unit is held, 1–5 arrange it in that many rows about
-the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E turn them 15°.
+the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E held turn them smoothly (120° a second, Shift 30°).
 
 **Contact marks.** While a model is dragged the client measures the contacts the server would refuse, with the same geometry
 (`ContactCheck`, Core: each landing rested by `Collision.RestHeight`, then `Overlap.Bases`, `Movement.Check`'s `CrossesModels`

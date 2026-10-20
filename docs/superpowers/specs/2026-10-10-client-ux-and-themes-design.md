@@ -255,7 +255,7 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 - Every drag of a terrain piece during setup rests the piece on the Solid tops under its footprint (`TerrainTransform`
   Z) and stops at the pieces declared `Impassable`. The piece is lifted: it goes straight to the cursor whenever its
   footprint there is free (`Collision.Follow`), and otherwise slides from where it is held toward the cursor, so it is
-  never left behind an obstacle the cursor has passed. Q/E turn a held piece 15° (Shift: 5°); a turn that swings it
+  never left behind an obstacle the cursor has passed. Q/E held turn a held piece smoothly, 120° a second (Shift: 30°); a turn that swings it
   into an `Impassable` piece moves it to the nearest free spot (`Collision.Clear`). A selected piece turns from its
   right-click menu (Turn left/right 15°, Set facing…) and the toolbar's Facing field. Alt places it freely. Models are
   not on the table in setup.

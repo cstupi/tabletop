@@ -4,6 +4,8 @@ namespace Tabletop.Client.Core;
 /// <summary>The camera's focus point in the table frame (spec → Camera): WASD pan clamped to the table plus 12", the 0.3 s glide, the follow rule.</summary>
 public static class CameraFocus
 {
+    /// <summary>Degrees a second Q/E turn what is in hand while held; Shift turns finer.</summary>
+    public const double TurnDegreesPerSecond = 120, FineTurnDegreesPerSecond = 30;
     public const double Margin = 12, GlideSeconds = 0.3, QuietSeconds = 2, PanPerInchOfDistance = 0.8, OrbitRadiansPerSecond = 1.5, TableLevelPitch = 0.1;
     public static readonly HotKey[] HeldKeys = [HotKey.W, HotKey.A, HotKey.S, HotKey.D, HotKey.Q, HotKey.E];
     public static Point2 Clamp(Point2 f, TableSize s) => new(Math.Clamp(f.X, -Margin, s.Width + Margin), Math.Clamp(f.Y, -Margin, s.Length + Margin));
@@ -14,6 +16,14 @@ public static class CameraFocus
         if (typing) return (0, 0, 0);
         int On(Intent i) => held.Contains(i) ? 1 : 0;
         return (On(Intent.CameraForward) - On(Intent.CameraBack), On(Intent.CameraRight) - On(Intent.CameraLeft), holding ? 0 : On(Intent.TurnLeft) - On(Intent.TurnRight));
+    }
+
+    /// <summary>The turn this frame for what is in hand, in degrees, positive counter-clockwise (Q): none while typing or with nothing in hand.</summary>
+    public static double HeldTurn(IReadOnlySet<Intent> held, bool holding, bool typing, bool fine, double seconds)
+    {
+        if (typing || !holding) return 0;
+        var sign = (held.Contains(Intent.TurnLeft) ? 1 : 0) - (held.Contains(Intent.TurnRight) ? 1 : 0);
+        return sign * (fine ? FineTurnDegreesPerSecond : TurnDegreesPerSecond) * seconds;
     }
 
     public static Point2 Pan(Point2 focus, Point2 heading, int forward, int right, double distance, double seconds, TableSize size)

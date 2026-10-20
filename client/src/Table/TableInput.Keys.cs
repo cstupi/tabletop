@@ -40,17 +40,13 @@ public partial class TableInput
     /// <summary>L or Ctrl released while the window was elsewhere never arrives: losing focus lets go of it.</summary>
     public override void _Notification(int what) { if (what == NotificationApplicationFocusOut) { SetSight(false); SetMeasureHeld(false); } }
 
-    /// <summary>Q/E turn what is held 15°, 5° with Shift held.</summary>
-    static double TurnStep => Input.IsKeyPressed(Godot.Key.Shift) ? 5 : 15;
-
     /// <summary>True when the key was used. Option1–5 are the held models' while any are held, Q and E the held models' or terrain piece's; the decision box's and the camera's otherwise.</summary>
     bool Act(Intent intent)
     {
         switch (intent)
         {
             case >= Intent.Option1 and <= Intent.Option5 when HoldingModels: Arrange(intent - Intent.Option1 + 1); return true;
-            case Intent.TurnLeft when HoldingTurnable: Turn(TurnStep); return true;           // positive yaw is counter-clockwise from above
-            case Intent.TurnRight when HoldingTurnable: Turn(-TurnStep); return true;
+            case Intent.TurnLeft or Intent.TurnRight when HoldingTurnable: return true;      // _Process turns while the key is held
             case Intent.TurnLeft or Intent.TurnRight: return false;
             case Intent.Cancel: Cancel(); return true;
             case Intent.Measure: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; if (!_measureHeld) { _tape.Clear(); ShowTape(); } return true;

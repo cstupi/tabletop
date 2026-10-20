@@ -83,7 +83,7 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   when `Tabletop-Builtin-Version` changes. Placement ghosts draw the model's mesh. Unit card groups like models with wound
   totals; terrain details/controls live in the unit card's slot (`TerrainCard`). Ruler: hold Ctrl (starts under the
   cursor), H toggles 2D/3D (`TapeMeasure`, `Measurement` mode on the wire), M click-click. Spell hover text on cast options
-  and log rows. Terrain turns in setup (Q/E while held, Shift 5°, card/menu when selected); drags slide along contacts.
+  and log rows. Terrain turns in setup (Q/E held turn it smoothly, Shift slower; card/menu when selected); drags slide along contacts.
 - **Game flow:** deployment waits until every team has a player and an army (`WaitingForPlayers`; owner ruling: "You need
   an army on your team.", so a seat with no army does not hold it); a participant row is a seat (one
   team, one army, migration 018); one account may hold several seats (self-play); team games per p.50: turns alternate by
@@ -241,7 +241,7 @@ collapse under headings. In setup Delete/Backspace (`Intent.Remove`) removes the
 right-click on one opens `MenuModel.ForSetupPiece` (Remove). Objectives were always placeable; the button was buried.
 
 **B. Move step** (`TableInput`, `.Hold`, `MoveRuler`). A drag picks a ghost up where it stands (`Drag.Grabs`; distance
-from `Origins`), so Shift-adjusting one model keeps the unit's move. Q/E with no rows turn each held model 15° (p.7), each
+from `Origins`), so Shift-adjusting one model keeps the unit's move. Q/E held with no rows turn each held model smoothly (p.7), each
 with its own facing. One ruler per held model, along its path; without Alt a model is held to its reach (`MoveRegions.Clamp`);
 `MoveRuler.Gate` counts models out of range by path length — under strict Enter and C wait, under warn and silent they send.
 
