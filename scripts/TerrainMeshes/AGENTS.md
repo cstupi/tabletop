@@ -70,4 +70,7 @@ godot --headless --path client --import          # then refresh the .import file
   authored inches, where a thin piece's slopes are as drawn.
 - Godot's runtime glTF import leaves vertex colours off on a mesh's first primitive; `MeshLoader` turns them on, and takes a
   node whose surfaces are all alpha-blended out of the shadow pass.
-- The tests fail when a shipped `.glb` differs from the generator's output: regenerate after any change here.
+- A full run into `client/content/builtin/terrain` also writes `meshes.sha256` (`Stamp`): the hash of this folder's source
+  and of each shipped mesh. The tests fail when either differs, so run the full generator after any change here. They do not
+  compare against a fresh build: MathF's last bits differ between C runtimes (WSL against the release's SDK container), and a
+  welded vertex or a colour byte on a rounding boundary then lands differently.

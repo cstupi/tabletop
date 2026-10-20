@@ -189,14 +189,24 @@ public class TerrainMeshTests
     public void The_shipped_meshes_fit_the_built_in_budget() =>
         Assert.InRange(Directory.GetFiles(Path.Combine(Root, "terrain"), "*.glb").Sum(f => new FileInfo(f).Length), 1, Budget.TotalBytes);
 
-    /// <summary>Also the determinism check: the shipped files were written by another process.</summary>
+    /// <summary>The stamp names this source and these files (Stamp: a fresh build differs between C runtimes).</summary>
     [Fact]
     public void The_shipped_meshes_are_the_generators_output()
     {
         var dir = Path.Combine(Root, "terrain");
+        var source = Path.GetFullPath(Path.Combine(Root, "../../../scripts/TerrainMeshes"));
         Assert.Equal(Catalog.All.Select(m => m.Name).Order(), Directory.GetFiles(dir, "*.glb").Select(Path.GetFileNameWithoutExtension).Order());
+        var stamp = File.ReadAllText(Path.Combine(source, Stamp.FileName));
+        Assert.True(stamp == Stamp.Of(source, Catalog.All.Select(m => (m.Name, File.ReadAllBytes(Path.Combine(dir, $"{m.Name}.glb"))))),
+            "the shipped meshes are stale: run scripts/terrain-meshes");
+    }
+
+    /// <summary>Also the determinism check: the shipped files were written by another process on this machine's C runtime.</summary>
+    [Fact]
+    public void The_generator_is_deterministic()
+    {
         foreach (var (name, build) in Catalog.All)
-            Assert.True(SameGlb(Glb.Of(build()), File.ReadAllBytes(Path.Combine(dir, $"{name}.glb"))), $"{name}.glb is stale: run scripts/terrain-meshes");
+            Assert.True(SameGlb(Glb.Of(build()), Glb.Of(Catalog.Generate(name))), $"{name} differs between two builds");
     }
 
     /// <summary>Byte-identical, or the same file but for float rounding: MathF's results differ in the last bits between CPUs,
