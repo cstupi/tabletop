@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Suite;
 using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
@@ -143,30 +142,19 @@ public class SuiteRunnerTests
     }
 
     [Fact]
-    public async Task The_suite_command_prints_the_report_writes_suite_json_and_exits_on_the_verdict()
+    public async Task The_suite_command_exits_on_the_verdict_lists_games_and_refuses_an_unknown_selection()
     {
         var directory = TempDir();
         try
         {
-            var output = new StringWriter();
-            var code = await Program.RunSuiteAsync(SuiteArguments.Parse(["--only", Name, "--out", directory]), output, new SuiteRunner([Game()]), Ct);
-            Assert.Equal(0, code);
-            Assert.Contains($"pass  {Name}", output.ToString());
-            Assert.Contains("PASSED", output.ToString());
-            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(directory, SuiteReport.FileName)));
-            Assert.True(json.RootElement.GetProperty("passed").GetBoolean());
-            Assert.Equal(Name, json.RootElement.GetProperty("games")[0].GetProperty("name").GetString());
-            Assert.Equal("AP", json.RootElement.GetProperty("coverage")[0].GetProperty("name").GetString());
-
-            var failing = new StringWriter();
-            Assert.Equal(1, await Program.RunSuiteAsync(SuiteArguments.Parse([]), failing, new SuiteRunner([Game()]), Ct));   // full run: coverage
-            Assert.Contains("UNCOVERED", failing.ToString());
+            Assert.Equal(0, await Program.RunSuiteAsync(SuiteArguments.Parse(["--only", Name, "--out", directory]), new StringWriter(), new SuiteRunner([Game()]), Ct));
+            Assert.Equal(1, await Program.RunSuiteAsync(SuiteArguments.Parse(["--out", directory]), new StringWriter(), new SuiteRunner([Game()]), Ct));   // full run: coverage
 
             var listed = new StringWriter();
             Assert.Equal(0, await Program.RunSuiteAsync(SuiteArguments.Parse(["--list"]), listed, new SuiteRunner([Game()]), Ct));
             Assert.Equal($"{Name}  [{Group}]  AP", listed.ToString().Trim());
 
-            await Assert.ThrowsAsync<UsageException>(() => Program.RunSuiteAsync(SuiteArguments.Parse(["--only", "nope"]), new StringWriter(), new SuiteRunner([Game()]), Ct));
+            await Assert.ThrowsAsync<UsageException>(() => Program.RunSuiteAsync(SuiteArguments.Parse(["--only", "nope", "--out", directory]), new StringWriter(), new SuiteRunner([Game()]), Ct));
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
     }

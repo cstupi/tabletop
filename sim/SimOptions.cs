@@ -84,8 +84,8 @@ public sealed record SimOptions(
         ulong.TryParse(text, out var value) ? value : throw new UsageException($"'{text}' is not a seed");
 }
 
-/// <summary>`suite [--only a,b] [--driver in-process|socket] [--keep] [--list] [--out DIR]`. Out is null unless given.</summary>
-public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind Driver, bool Keep, bool List, string? Out)
+/// <summary>`suite [--only a,b] [--driver in-process|socket] [--keep] [--list] [--out DIR] [--verbose]`. Out is null unless given.</summary>
+public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind Driver, bool Keep, bool List, string? Out, bool Verbose = false)
 {
     public const string Verb = "suite";
     public const string DefaultOut = "recordings";
@@ -96,7 +96,8 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
           --only A,B            game names or groups (core, special, army:<book>, spells:<book>); repeatable; default every game
           --driver in-process   the default; or socket (the stack up, as for a scenario's socket run)
           --keep                keep the games: recordings in --out, and a socket run's rows
-          --out DIR             where kept recordings and suite.json go (default: ./recordings); suite.json is written with --keep or --out
+          --out DIR             where the report (suite-<run id>.json and .md, copied to suite-latest.*) and kept recordings go (default: ./recordings)
+          --verbose             print a line per game and the coverage table as well as writing them to the report
           --list                list the games and what each covers, and exit
         """;
 
@@ -106,6 +107,7 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
         var driver = Suite.DriverKind.InProcess;
         var keep = false;
         var list = false;
+        var verbose = false;
         string? output = null;
         for (var i = 0; i < args.Length; i++)
         {
@@ -124,11 +126,12 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
                     break;
                 case "--keep": keep = true; break;
                 case "--list": list = true; break;
+                case "--verbose": verbose = true; break;
                 case "--out": output = Next(args, ref i, "--out"); break;
                 default: throw new UsageException($"unknown suite argument '{args[i]}'\n\n{Usage}");
             }
         }
-        return new SuiteArguments(only, driver, keep, list, output);
+        return new SuiteArguments(only, driver, keep, list, output, verbose);
     }
 
     private static string Next(string[] args, ref int i, string option) =>

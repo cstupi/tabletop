@@ -41,8 +41,10 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts.
 `--only core,special,army:<book uid>,spells:<book uid>,<game name>` selects; `--keep` keeps recordings (and a socket run's
-games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. A failing game prints its
-replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
+games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. Every run writes
+`recordings/suite-<run id>.md` and `.json` (copied to `suite-latest.md` and `.json`; rewritten after each game, so an aborted run
+keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
+a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
 Today: 305 of 305 games pass in process with no pin (`core-ruins` and `core-round-the-terrain` not yet run over the socket), 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 

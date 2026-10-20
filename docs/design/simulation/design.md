@@ -745,7 +745,7 @@ dotnet run --project sim -- <scenario> [options]
 Exit code `0` when every run passed, `1` otherwise, `2` on a usage error.
 
 ```
-dotnet run --project sim -- suite [--only A,B] [--driver in-process|socket] [--keep] [--out DIR] [--list]
+dotnet run --project sim -- suite [--only A,B] [--driver in-process|socket] [--keep] [--out DIR] [--verbose] [--list]
 dotnet run --project sim -- serve [--port 5180] [--bind 127.0.0.1] [--out DIR]
 ```
 
@@ -788,6 +788,13 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   unexpected failures, and lists every pin that no longer fails.
 - **Coverage.** Every entry of the shipped property set, with the games covering it, whether it fired in each, and its
   exact checks. A full run fails on an uncovered entry; any run fails on a covered entry that never fired.
+- **Report.** `SuiteReportFiles` writes `suite-<run id>.json` (`SuiteRunDocument`: run id, driver, selection, start and end,
+  verdict `running`/`passed`/`failed`/`aborted`, the verdict line, every game's result with its duration, the coverage table) and
+  `suite-<run id>.md` (verdict line, failures with their lines and replay commands, stale pins, games, coverage) to `--out` on
+  every run, and copies them to `suite-latest.*`. It rewrites both after each game, so an exception or Ctrl+C leaves an `aborted`
+  report of the games played. The console carries only a counter, each failure as it happens, the coverage entries the run fails
+  on, the verdict line and the report paths; `--verbose` adds a line per game and the full coverage table. `serve` writes the same
+  files for a kept run, in that run's directory.
 - **Socket hygiene.** A socket run takes an advisory lock, sweeps games an interrupted run left, and deletes each game's
   rows (its log and the game; team, participant and the table_state tree cascade) after judging it. It never deletes an
   account: the pool and `sim-spectator` are shared by every run and by concurrent games. `--keep` keeps the game, writes
