@@ -116,10 +116,10 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   accepts Dangerous on Rush and Charge (`DraftLimits`), which the built-in ruins and quicksand carry and setup refused.
   Weak spots: broadleaf leaves read as small triangles close up; the urban and desert mats are bright under the key light;
   the hills' earth bands between ledges are smooth; building facades away from the light are dark.
-- Released: v0.1.18 (team rulings, Replays fix) is tagged; the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
-  scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
-  viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the
-  dice as they stand when used, with a Continue stop before a repeated first step in wait-mode games.
+- Released: v0.1.19 is tagged (everything through the rules suite report: viewer protocol version, contact marks,
+  ruins/quicksand dangerous on Rush/Charge, the waiting panel, face-triggered effects, movement leftovers, path moves round
+  terrain and models, the tabletop look); the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
+  scripts/release --deploy home --version vX.Y.Z` on docker1.
 - One socket suite run on 2026-10-19 failed one game that passed on the rerun; its name was lost. The suite's report file
   (`recordings/suite-latest.md`) now keeps it if it recurs.
 - Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): work in progress outside the repo at
