@@ -39,6 +39,8 @@ public partial class SetupToolbar : VBoxContainer
         List<string> textures = [], terrainNames = [];
         var texture = new OptionButton(); table.AddChild(texture);
         texture.ItemSelected += i => Guarded.Send(s, new SetTexture(VisualRef.OfBuiltin(textures[(int)i])));
+        // The dropdown names the board's print: a rejoin or another player's change shows what the table wears.
+        void ShowTexture() { if (s.Draft?.Texture.Builtin is { } name && textures.IndexOf(name) is var at and >= 0 && texture.Selected != at) texture.Select(at); }
 
         var terrainSection = Section(SetupLimits.TerrainHeading);
         var terrain = new OptionButton(); terrainSection.AddChild(terrain);
@@ -47,6 +49,7 @@ public partial class SetupToolbar : VBoxContainer
             textures = [.. BuiltinContent.Textures]; texture.Clear(); foreach (var t in textures) texture.AddItem(t);
             var pieces = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).ToList();
             terrainNames = pieces.Select(t => t.Name).ToList(); terrain.Clear(); foreach (var t in pieces) terrain.AddItem(t.Label, 0);
+            ShowTexture();
         }
         Fill(); _onBuiltins = Fill; BuiltinContent.Changed += _onBuiltins;
         terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))), d => SetupLimits.CannotAddTerrain(d)));
@@ -88,6 +91,7 @@ public partial class SetupToolbar : VBoxContainer
         _onBoard = () =>
         {
             if (s.Draft is { } d && !_width.HasFocus() && !_length.HasFocus()) { _width.SetValueNoSignal(d.Size.Width); _length.SetValueNoSignal(d.Size.Length); }
+            ShowTexture();
             RefreshLimits();
         };
         s.BoardChanged += _onBoard;

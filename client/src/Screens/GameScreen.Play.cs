@@ -162,9 +162,8 @@ public partial class GameScreen
         }
         if (Shows(_decision)) _decision!.Place(r[HudPart.Decision]);
         if (Shows(_replay)) _replay!.Place(r[HudPart.Replay]);
-        if (Shows(_dice))
+        if (Shows(_dice) && r.TryGetValue(HudPart.Dice, out var slot))   // the open log covers the tray: HudLayout gives it no slot
         {
-            var slot = r[HudPart.Dice];
             if (Shows(_decision)) slot = slot with { Y = _decision!.Position.Y - HudLayout.M - slot.H };
             HudPlacement.Bottom(_dice!, slot);
         }
