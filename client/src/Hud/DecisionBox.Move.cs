@@ -271,7 +271,7 @@ public partial class DecisionBox
         if (_deployAt is null || _s.Projection is not { } p || _deployUnit is not { } unit || !_gate.Allowed) return;
         var moves = _deployAt.Select(kv => new ModelRelocation(kv.Key, p.Models[kv.Key].Location, new OnTable(new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0))))).ToList();
         _sent.Remember(unit, moves);
-        _onEnter = null; _onCancel = null; SetButtons(true);
+        _onEnter = null; _onCancel = null; _regate = null; SetButtons(true);   // a ghost dragged while the answer travels gates nothing: Place stays off
         var id = Guid.CreateVersion7(); _lastCommand = id;                          // a Refused for it lands in _onRefused, which rebuilds the placement
         _sent.Sent(id);
         Guarded.Run(() => _s.SendCommandAsync(new MoveModels(moves), id), message => { _refusal = $"Could not place the models: {message}"; _refusalAsk = null; Reset(); Render(); });

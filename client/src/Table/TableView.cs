@@ -95,7 +95,7 @@ public partial class TableView : Node3D
         // Each model's proxy takes its team's tint, recoloured on every redraw so it follows ownership as GameInfo arrives.
         Color Tint(ModelInPlay m) => Palette.Tinted(_session.Projection is { } p && _session.Game is { } g ? SheetFocus.TeamOf(p, g, m.UnitId)?.Ordinal : null);
         Sync(_pieces, onTable, m => m.Id, (_, _) => true,
-            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetShowHitboxes(_session.Settings.ShowHitboxes); n.SetBody(m.Slot.Base, m.Slot.Height); n.SetTint(Tint(m)); Place(n, m); LoadPieceMesh(n, m); return n; },
+            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); n.SetShowHitboxes(_session.Settings.ShowHitboxes); n.SetTint(Tint(m)); Place(n, m); LoadPieceMesh(n, m); return n; },
             (n, m) => { n.SetTint(Tint(m)); Place(n, m); });
     }
 
