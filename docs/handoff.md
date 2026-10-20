@@ -51,8 +51,8 @@ Today: 305 of 305 games pass in process and over the socket with no pin, 545 of 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 103, TableTextures 29, Protocol 62, Viewer 9,
-  Client 716, GameServer 1402, Management 272, Sim 286.
+  defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 104, TableTextures 29, Protocol 62, Viewer 9,
+  Client 716, GameServer 1402, Management 272, Sim 292.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
   GameServer 38, Sim 325; about 7 min.
@@ -116,7 +116,7 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   accepts Dangerous on Rush and Charge (`DraftLimits`), which the built-in ruins and quicksand carry and setup refused.
   Weak spots: broadleaf leaves read as small triangles close up; the urban and desert mats are bright under the key light;
   the hills' earth bands between ledges are smooth; building facades away from the light are dark.
-- Released: v0.1.19 is tagged (everything through the rules suite report: viewer protocol version, contact marks,
+- Released: v0.1.20 is tagged (v0.1.19 failed its release tests on a terrain mesh; everything through the rules suite report: viewer protocol version, contact marks,
   ruins/quicksand dangerous on Rush/Charge, the waiting panel, face-triggered effects, movement leftovers, path moves round
   terrain and models, the tabletop look); the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
   scripts/release --deploy home --version vX.Y.Z` on docker1.
