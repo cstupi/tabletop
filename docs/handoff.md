@@ -1,4 +1,4 @@
-# Handoff — 2026-10-18
+# Handoff — 2026-10-19
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
@@ -6,7 +6,8 @@ through the roll-off, deployment, activations, shooting, melee, morale, casting,
 movement, log, marker and game-end problems; *2026-10-15* below was built in response, and *2026-10-16* settled the
 combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items; *2026-10-17*
 finished the army-book rules, built optional rules and the production path, and hardened both servers for public hosting;
-*2026-10-18* is the live home deployment and the owner's play-testing fixes. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
+*2026-10-18* is the live home deployment and the owner's play-testing fixes; *2026-10-19* is path movement, the tabletop
+look, the Ruins planet and the owner's deployment and setup fixes, released as v0.1.22. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -51,8 +52,8 @@ Today: 305 of 305 games pass in process and over the socket with no pin, 545 of 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 104, TableTextures 29, Protocol 62, Viewer 9,
-  Client 716, GameServer 1402, Management 272, Sim 292.
+  defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 114, TableTextures 29, Protocol 62, Viewer 9,
+  Client 724, GameServer 1402, Management 272, Sim 292.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
   GameServer 38, Sim 325; about 7 min.
@@ -65,16 +66,41 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
-### 2026-10-18
+### 2026-10-19
 
-**Live: v0.1.15** on the owner's home server `docker1` at `https://tabletop.cstupi.com` (files at
-`https://files.tabletop.cstupi.com`). **Unreleased on `main`:** the Show hitboxes (B) and Show terrain hitboxes
-(Shift+B) settings (`HitboxLook`) — ship them in the next batch. Release flow (owner ruling: batch work, one tag per batch, run the release's own tests before tagging):
-tag `vX.Y.Z` on main and push; on docker1 `git fetch --tags && git checkout vX.Y.Z && scripts/release --deploy home
---version vX.Y.Z` (tests in containers, client built in the Godot builder container, publishes `releases/` and `builtin/`,
-deploys). The owner's other Claude sessions take instructions over Remote Control: `docker1-logical-curry` (server; it
-cannot run superuser DB queries without the owner's approval) and `syn01-piped-castle` (NAS; no root). The owner's local
-Docker is stopped; start it (`docker compose up -d`) before anything needs the dev stack.
+**Tagged: v0.1.22** (the latest; the owner deploys and says which is live on the home server `docker1` at
+`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`). Nothing on `main` is unreleased.
+Release flow: tag `vX.Y.Z` on main and push when the owner says (owner ruling: "tag it" means tag and push at once, no
+extra pre-tag run; the release runs its own tests); on docker1 `git fetch --tags && git checkout vX.Y.Z && scripts/release
+--deploy home --version vX.Y.Z` (tests in containers, client built in the Godot builder container, publishes `releases/`
+and `builtin/`, deploys). The owner's other Claude sessions take instructions over Remote Control: `docker1-logical-curry`
+(server; it cannot run superuser DB queries without the owner's approval) and `syn01-piped-castle` (NAS; no root).
+
+Released on 2026-10-19 (v0.1.20–v0.1.22), beyond the bullets below:
+- Setup: the print dropdown changes the board and names the board's print; Q/E held turn a held piece or models smoothly
+  (120°/s, Shift 30°/s; `CameraFocus.HeldTurn`); Clear terrain (asked first; `ReplaceDraft` of the draft without terrain,
+  which gives markers and zones new ids); the Ruins planet pack (`Planet.Ruins`: `ruined-corner`, `ruined-wall`,
+  `rubble-field` meshes, the built-in mesh cap 40 MiB).
+- Deployment: a model arriving with Show hitboxes off no longer throws in `TableView.Redraw` (it froze placement and lost
+  the unit); placing after an undo (`DeployView.MidDeploy` reads the live log); one account on both teams follows the
+  latest of its teams to start a turn or answer an Ask between turns (`Seats.Acting`), so the camera no longer swings to
+  Team 1 and a round boundary's Ambusher pick can be placed; the decision box places a pick by any team of the account.
+- `Session` raises each subscriber on its own (`Handlers.Raise`): one that throws no longer skips the render mark.
+- The log over the dice tray no longer throws in `GameScreen.Layout`.
+- The terrain-mesh staleness test reads `scripts/TerrainMeshes/meshes.sha256` (source and file hashes): a fresh build differs
+  between C runtimes (v0.1.19 failed its release tests on it).
+
+Seen in the real client on 2026-10-19 (WSLg harness): deployment with hitboxes off and on, self-play handover, undo then
+re-place, print changes, held Q/E, Clear terrain. Not yet seen in the client: the Ambusher placement in self-play, the Ruins
+planet pieces on the table, the movement area and bent ruler. In the harness no dropdown list opens (no keyboard focus).
+
+Leads not reproduced (2026-10-19 client validation):
+- Ctrl+Z pressed three times in a row each reported "Undone to #17" and stopped; the log's Undo to here still worked. A
+  second run stepped back normally.
+- A self-play Fanatic game reset to the round-0 roll-off between client restarts, losing its placements.
+
+Dev-stack leftovers from 2026-10-19: games `repro soul-snatcher-cults-fanatic …` (several), `Validate setup`, and the
+tabletop-look staging games under `look-dev`; delete when convenient.
 
 Built since v0.1.1 (details in the design docs and module AGENTS.md):
 - **Client:** release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". Built-in
@@ -116,15 +142,12 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   accepts Dangerous on Rush and Charge (`DraftLimits`), which the built-in ruins and quicksand carry and setup refused.
   Weak spots: broadleaf leaves read as small triangles close up; the urban and desert mats are bright under the key light;
   the hills' earth bands between ledges are smooth; building facades away from the light are dark.
-- Released: v0.1.22 is tagged (v0.1.21 plus: an Ambusher picked at a round boundary can be placed in self-play, the log over
-  the dice tray no longer throws, the setup print dropdown names the board's print, fontconfig in the client builder image);
-  the owner deploys with `git fetch --tags && git checkout vX.Y.Z && scripts/release --deploy home --version vX.Y.Z` on docker1.
 - One socket suite run on 2026-10-19 failed one game that passed on the rerun; its name was lost. The suite's report file
   (`recordings/suite-latest.md`) now keeps it if it recurs.
-- Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): work in progress outside the repo at
+- Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): accepted by the owner as good enough to save an army, outside the repo at
   `C:\Users\clays\Downloads\alien-hives\` — `src\` holds the generator (numpy SDF → marching cubes → painted GLB), the
   list JSON and the owner's style reference; `draft\` holds all 12 models (three passes) and a side-by-side with the
-  reference. They still read smoother and more stylised than the reference; `src\README.txt` lists the gaps.
+  reference; `src\README.txt` lists the gaps. Not yet put on an army.
 - Client Replay (`docs/design/client/replay.md`): Home's Replay on a game the player is in (`playing` or `ended`;
   "Games I'm in" lists `GET /v1/games?joined=true`) opens it read-only on `/ws?watch=1`, which the game server holds as a
   watcher for a participant or an admin, ended games included. The replay bar steps by round, turn, action and step,
