@@ -46,7 +46,7 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 305 of 305 games pass in process with no pin (`core-ruins` and `core-round-the-terrain` not yet run over the socket), 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 305 of 305 games pass in process and over the socket with no pin, 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
@@ -120,8 +120,8 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   scripts/release --deploy home --version vX.Y.Z` on docker1. Main since v0.1.18 (next release, one tag when the owner asks):
   viewer protocol version (fixes `upgrade_required` in Replays), contact marks, ruins/quicksand dangerous on Rush/Charge, the waiting panel's army dropdown (refreshes on board updates), face-triggered effects (a 6 and the like) read the
   dice as they stand when used, with a Continue stop before a repeated first step in wait-mode games.
-- Paused 2026-10-19. Not yet run: the socket rules suite on the face-decision merge (`ddc0673`); run
-  `dotnet run --project sim -- suite --driver socket` with the stack up before the next release.
+- One socket suite run on 2026-10-19 failed one game that passed on the rerun; its name was lost. The suite's report file
+  (`recordings/suite-latest.md`) now keeps it if it recurs.
 - Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): work in progress outside the repo at
   `C:\Users\clays\Downloads\alien-hives\` — `src\` holds the generator (numpy SDF → marching cubes → painted GLB), the
   list JSON and the owner's style reference; `draft\` holds all 12 models (three passes) and a side-by-side with the
