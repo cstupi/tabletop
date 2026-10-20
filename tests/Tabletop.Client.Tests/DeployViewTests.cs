@@ -26,6 +26,15 @@ public class DeployViewTests
         Assert.Equal(AskQuestions.Deploy, mid.Question);
     }
 
+    [Fact]
+    public void A_pick_made_again_after_an_undo_is_mid_deploy_whatever_the_undone_events_were()
+    {
+        var ask = DeployAsk(); var next = DeployAsk();
+        var a = Applier(new AskOpened(ask), Closed(ask, new SelectedPieces([Samples.Unit])), new ModelsMoved([Placed]), new TurnEnded(Samples.Team1, false, []),
+            new TurnStarted(Samples.Team1), new AskOpened(next), new Undone(1), Closed(ask, new SelectedPieces([Samples.Unit])));
+        Assert.Equal(Samples.Unit, DeployView.MidDeploy(a.Projection, a.Log, Samples.Team1)!.UnitId);
+    }
+
     [Theory]
     [InlineData(AskQuestions.DeployScouts)]
     [InlineData(AskQuestions.DeployAmbusher)]

@@ -53,7 +53,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     /// <summary>Every team this account plays, by ordinal: one, or several in self-play (Seats).</summary>
     public IReadOnlyList<Guid> MyTeamIds => Game is { } g ? Seats.Teams(g, ParticipantId) : [];
     /// <summary>The team this client acts for now (Seats.Acting): with several, the team of the first Ask that waits on one of them.</summary>
-    public Guid? MyTeamId => Seats.Acting(Projection, MyTeamIds);
+    public Guid? MyTeamId => Seats.Acting(Projection, MyTeamIds, Log);
     /// <summary>The teams deployment waits on (WaitingForPlayers): from the end of setup until every team has a player and an army; empty otherwise.</summary>
     public IReadOnlyList<TeamWaiting> WaitingTeams => Game is { Status: GameStatus.Playing } g && Applier is { } a && WaitingForPlayers.Holds(g, a.Projection.Board, a.Projection.LastSeq)
         ? WaitingForPlayers.Teams(g, a.Projection.Board) : [];

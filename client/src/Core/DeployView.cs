@@ -23,13 +23,14 @@ public static class DeployView
         if (myTeam is not { } team) return null;
         Ask? last = null;
         var ended = false;
-        foreach (var e in log)
+        var live = EventApplier.EffectiveLog(log);                                // an undo takes back the Asks, closes and turn ends after its point
+        foreach (var e in live)
         {
             if (e.Payload is AskOpened o) { last = o.Ask; ended = false; }
             else if (e.Payload is TurnEnded) ended = true;
         }
         if (last is null || ended || !Questions.Contains(last.Question) || !last.Teams.Contains(team) || p.OpenAsks.ContainsKey(last.Id)) return null;
-        var answer = log.Select(e => e.Payload).OfType<AskClosed>().LastOrDefault(c => c.AskId == last.Id)?.Answers.FirstOrDefault(a => a.TeamId == team)?.Answer;
+        var answer = live.Select(e => e.Payload).OfType<AskClosed>().LastOrDefault(c => c.AskId == last.Id)?.Answers.FirstOrDefault(a => a.TeamId == team)?.Answer;
         if (answer is not SelectedPieces { PieceIds: [var unit] }) return null;
         var shelved = p.Models.Values.Where(m => m.UnitId == unit && m.Location is OnShelf).OrderBy(m => m.Slot.Ordinal).Select(m => m.Id).ToList();
         return shelved.Count == 0 ? null : new MidDeploy(unit, last.Question, shelved);

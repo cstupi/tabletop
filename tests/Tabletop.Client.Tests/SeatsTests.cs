@@ -37,6 +37,15 @@ public class SeatsTests
     }
 
     [Fact]
+    public void Between_turns_an_account_on_both_teams_stays_with_the_team_that_last_had_the_turn()
+    {
+        var applier = new EventApplier(Samples.Board, BothSides);
+        applier.ApplyAll([new GameEvent(1, null, new TurnStarted(Samples.Team2), null), new GameEvent(2, null, new TurnEnded(Samples.Team2, false, []), null)]);
+        Assert.Equal(Samples.Team2, Seats.Acting(applier.Projection, [Samples.Team1, Samples.Team2], applier.Log));
+        Assert.Equal(Samples.Team1, Seats.Acting(applier.Projection, [Samples.Team1, Samples.Team2]));   // no log: my first team
+    }
+
+    [Fact]
     public void The_header_names_each_of_my_teams_whose_move_it_is()
     {
         var game = BothSides; var p = WithAsk(game, (Samples.Team1, false), (Samples.Team2, false));
