@@ -61,6 +61,14 @@ public static class SetupLimits
         _ => $"These {adding} pieces would take the table past {Terrain} terrain pieces (it has {d.Terrain.Count}): remove some first.",
     };
 
+    /// <summary>Null when the table has terrain for Clear terrain to remove.</summary>
+    public static string? CannotClearTerrain(TableState? d) => d switch
+    {
+        null => "The table has not arrived yet.",
+        { Terrain.Count: 0 } => "There is no terrain to clear.",
+        _ => null,
+    };
+
     /// <summary>Where a new setup marker goes: the table's centre, else the first spot on rings 6" apart about it (eight, then sixteen,
     /// … points a ring) whose marker would sit on the table and clear every marker already placed, base to base. The centre when none is.</summary>
     public static Point3 FreeSpot(TableSize size, IReadOnlyList<Marker> markers, double diameter)

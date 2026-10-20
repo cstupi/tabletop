@@ -61,6 +61,8 @@ public partial class SetupToolbar : VBoxContainer
                 foreach (var add in adds) await s.SendEditAsync(add);
             }, _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
 
+        terrainSection.AddChild(Gated(Wide("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
+
         var markers = new HFlowContainer(); Section(SetupLimits.MarkersHeading).AddChild(markers);
         markers.AddChild(Gated(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Spot(s, 3), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))), SetupLimits.CannotAddMarker));
         markers.AddChild(Gated(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Spot(s, 1), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))), SetupLimits.CannotAddMarker));
@@ -144,6 +146,17 @@ public partial class SetupToolbar : VBoxContainer
         var dialog = new ConfirmationDialog { Title = title }; dialog.AddChild(pick);
         dialog.VisibilityChanged += () => { if (!dialog.Visible) dialog.QueueFree(); };
         AddChild(dialog); return dialog;
+    }
+
+    /// <summary>Every terrain piece off the table in one edit (the draft without its terrain), asked first.</summary>
+    void ClearTerrain(Session s)
+    {
+        if (s.Draft is not { Terrain.Count: > 0 } draft) return;
+        var d = new ConfirmationDialog { Title = "Clear terrain?", OkButtonText = "Clear terrain", DialogAutowrap = true,
+            DialogText = $"All {draft.Terrain.Count} terrain pieces come off the table. Markers and zones stay." };
+        d.Confirmed += () => { if (s.Draft is { } now) Guarded.Send(s, new ReplaceDraft(now with { Terrain = [] })); };
+        d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        AddChild(d); d.PopupCentered(new Vector2I(360, 0));
     }
 
     async Task AddLibraryTerrain(Session s)

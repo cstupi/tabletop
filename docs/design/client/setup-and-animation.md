@@ -31,7 +31,7 @@ move, turn (a held piece's Q/E, the right-click menu's Turn left/right 15° and 
 terrain card's Facing field and ⟲/⟳ 15° buttons: `MoveTerrain` with the new yaw, moved clear of `Impassable` pieces by
 `MenuModel.TurnInDraft`), scale, remove, swap mesh, override volumes and reset volumes; add and remove markers; set the
 zone style (sending `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`) and swap two ordinals'
-zones; load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one
+zones; clear terrain (asked first: `ReplaceDraft` of the draft with no terrain); load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one
 (`POST /v1/layouts` from the client's own copy of the draft). Layouts stay management's. The game
 server never writes an owner-side row.
 

@@ -22,6 +22,14 @@ public class SetupLimitsTests
     }
 
     [Fact]
+    public void Clearing_terrain_needs_a_piece_to_clear()
+    {
+        Assert.Null(SetupLimits.CannotClearTerrain(Draft(1, 0)));
+        Assert.Equal("There is no terrain to clear.", SetupLimits.CannotClearTerrain(Draft(0, 3)));
+        Assert.Equal("The table has not arrived yet.", SetupLimits.CannotClearTerrain(null));
+    }
+
+    [Fact]
     public void Adding_past_a_cap_says_so_before_the_server_refuses()
     {
         Assert.Null(SetupLimits.CannotAddTerrain(Draft(63, 0)));
