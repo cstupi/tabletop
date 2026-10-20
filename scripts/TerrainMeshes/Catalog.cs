@@ -24,7 +24,7 @@ public static class Catalog
         ("water", Water.River), ("stream", Rivers.Stream), ("toxic-river", Rivers.Toxic), ("sludge-canal", Sludge.Canal), ("lake", Water.Lake),
         ("crater", Crater.Build), ("haze", Haze.Build), ("death-marsh", Marsh.Build), ("sludge-field", Sludge.Field), ("mine-field", Mines.Build),
         ("quicksand", Quicksand.Build), ("deadly-vegetation", Vegetation.Deadly), ("jungle", Vegetation.Jungle), ("plantation", Crops.Plantation),
-        ("beast-lair", Lair.Build),
+        ("beast-lair", Lair.Build), ("ruined-corner", RuinPieces.Corner), ("ruined-wall", RuinPieces.Wall), ("rubble-field", RuinPieces.Field),
     ];
 
     static readonly ConcurrentDictionary<string, Lazy<Model>> Built = new();

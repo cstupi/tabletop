@@ -36,7 +36,7 @@ Not in scope:
   majority, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
   per model and the caller counts. `architecture.md` → Rules enforcement.
 - **The terrain generators and the built-in terrain inventory.** The setup phase spec ships the
-  four planet tables with the client, and the server never reads them. The client shell plan
+  planet tables with the client, and the server never reads them. The client shell plan
   owns `TerrainGenerators` and `BuiltinContent` in `client/src/Core/`. The zone styles are the
   one piece of built-in setup content that does come into the library, because the server
   checks a deployment against them too.

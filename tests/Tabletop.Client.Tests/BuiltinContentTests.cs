@@ -43,6 +43,15 @@ public class BuiltinContentTests
         Assert.Equal(TerrainDeclarations.Difficult | TerrainDeclarations.Cover, BuiltinContent.Terrain["wall-or-fence"].Volume.Declarations);   // "Difficult when moving through it" is what Difficult means
         Assert.Equal(VolumeKind.Area, BuiltinContent.Terrain["deep-river"].Volume.Kind);
         Assert.Equal(TerrainDeclarations.Impassable, BuiltinContent.Terrain["deep-river"].Volume.Declarations);
+        // The ruins pack's own pieces. p.12 "Ruins - Cover + Dangerous when using rush/charge", as the generators' ruins.
+        Assert.Equal((VolumeKind.Area, TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge),
+            (BuiltinContent.Terrain["ruined-corner"].Volume.Kind, BuiltinContent.Terrain["ruined-corner"].Volume.Declarations));
+        // p.11 Blocking terrain "Examples: Walls, Buildings, Rocks"; Elevated terrain "over 3" tall ... are impassable".
+        Assert.Equal((VolumeKind.Solid, TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight),
+            (BuiltinContent.Terrain["ruined-wall"].Volume.Kind, BuiltinContent.Terrain["ruined-wall"].Volume.Declarations));
+        // p.12 "Rubble - Difficult".
+        Assert.Equal((VolumeKind.Area, TerrainDeclarations.Difficult),
+            (BuiltinContent.Terrain["rubble-field"].Volume.Kind, BuiltinContent.Terrain["rubble-field"].Volume.Declarations));
     }
 
     [Fact]
@@ -53,8 +62,8 @@ public class BuiltinContentTests
         Assert.Contains("objective-ring", BuiltinContent.MarkerVisuals); Assert.Contains("chip", BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
-        // Every piece names one of the catalog's meshes: 30 files for 35 pieces, shared only by the same terrain at other sizes.
-        Assert.Equal(30, BuiltinContent.TerrainMeshGroups.Count);
+        // Every piece names one of the catalog's meshes: 33 files for 38 pieces, shared only by the same terrain at other sizes.
+        Assert.Equal(33, BuiltinContent.TerrainMeshGroups.Count);
         Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(BuiltinContent.TerrainMeshFile(t.Name), BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
         Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
         Assert.Equal("res://content/builtin/terrain/sludge-canal.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
@@ -82,7 +91,7 @@ public class BuiltinContentTests
         Assert.Equal(BuiltinContent.Packed.Textures.Order(), Directory.GetFiles(Path.Combine(root, "textures"), "*.png").Select(Path.GetFileNameWithoutExtension).Order());
         Assert.Null(BuiltinContent.Packed.Version);
         Assert.Empty(BuiltinContent.Packed.Files);
-        Assert.Equal(35, BuiltinContent.Packed.Terrain.Count);
+        Assert.Equal(38, BuiltinContent.Packed.Terrain.Count);
     }
 
     /// <summary>Each shipped mesh's POSITION bounds, read under BuiltinContent.MeshOrientation in the Orientation convention

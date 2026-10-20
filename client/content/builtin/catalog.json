@@ -1,5 +1,5 @@
 {
-  "meshes": ["hill", "hill-rect", "woods", "ruins", "overgrown-ruins", "building", "huts", "tower", "wall", "barricade", "rock", "crumbly-rock", "dunes", "field", "tall-crops", "water", "stream", "toxic-river", "sludge-canal", "lake", "crater", "haze", "death-marsh", "sludge-field", "mine-field", "quicksand", "deadly-vegetation", "jungle", "plantation", "beast-lair"],
+  "meshes": ["hill", "hill-rect", "woods", "ruins", "overgrown-ruins", "building", "huts", "tower", "wall", "barricade", "rock", "crumbly-rock", "dunes", "field", "tall-crops", "water", "stream", "toxic-river", "sludge-canal", "lake", "crater", "haze", "death-marsh", "sludge-field", "mine-field", "quicksand", "deadly-vegetation", "jungle", "plantation", "beast-lair", "ruined-corner", "ruined-wall", "rubble-field"],
   "textures": ["grass", "desert", "urban", "snow", "ash", "wasteland", "alien"],
   "terrain": [
     { "id": "barricade", "label": "Barricade", "mesh": "barricade", "kind": "solid", "footprint": { "kind": "rect", "a": 3, "b": 1 }, "top": 1, "declarations": ["cover", "difficult"] },
@@ -36,6 +36,9 @@
     { "id": "beast-lair", "label": "Beast Lair", "mesh": "beast-lair", "kind": "solid", "footprint": { "kind": "circle", "a": 2 }, "top": 2, "declarations": ["dangerous"] },
     { "id": "quicksand", "label": "Quicksand", "mesh": "quicksand", "kind": "area", "footprint": { "kind": "rect", "a": 4, "b": 4 }, "top": 0.1, "declarations": ["dangerous_on_rush_charge"] },
     { "id": "hill-small", "label": "Small Hill", "mesh": "hill-rect", "kind": "solid", "footprint": { "kind": "rect", "a": 6, "b": 6 }, "top": 2, "declarations": [] },
-    { "id": "ruin", "label": "Ruin", "mesh": "ruins", "kind": "area", "footprint": { "kind": "rect", "a": 4, "b": 4 }, "top": 4, "declarations": ["blocks_line_of_sight", "see_in_and_out", "cover", "difficult"] }
+    { "id": "ruin", "label": "Ruin", "mesh": "ruins", "kind": "area", "footprint": { "kind": "rect", "a": 4, "b": 4 }, "top": 4, "declarations": ["blocks_line_of_sight", "see_in_and_out", "cover", "difficult"] },
+    { "id": "ruined-corner", "label": "Ruined Corner", "mesh": "ruined-corner", "kind": "area", "footprint": { "kind": "rect", "a": 6, "b": 6 }, "top": 5, "declarations": ["cover", "dangerous_on_rush_charge"] },
+    { "id": "ruined-wall", "label": "Ruined Wall", "mesh": "ruined-wall", "kind": "solid", "footprint": { "kind": "rect", "a": 6, "b": 1.5 }, "top": 4, "declarations": ["impassable", "blocks_line_of_sight"] },
+    { "id": "rubble-field", "label": "Rubble Field", "mesh": "rubble-field", "kind": "area", "footprint": { "kind": "rect", "a": 6, "b": 4 }, "top": 1, "declarations": ["difficult"] }
   ]
 }

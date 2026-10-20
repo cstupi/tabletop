@@ -7,7 +7,7 @@ public class TerrainGeneratorTests
 {
     static readonly TableSize Opr = new(72, 48);
 
-    [Theory] [InlineData(Planet.Generic)] [InlineData(Planet.Hospitable)] [InlineData(Planet.Wasteland)] [InlineData(Planet.Death)]
+    [Theory] [InlineData(Planet.Generic)] [InlineData(Planet.Hospitable)] [InlineData(Planet.Wasteland)] [InlineData(Planet.Death)] [InlineData(Planet.Ruins)]
     public void Nine_fixed_plus_4d3_rolled_land_beside_the_slab(Planet planet)
     {
         for (var seed = 0; seed < 20; seed++)
@@ -34,6 +34,23 @@ public class TerrainGeneratorTests
         Assert.Equal(["large-lake"], TerrainGenerators.Rolled(Planet.Generic, 12));
         Assert.Equal(["hill", "forest", "tall-crops-field"], TerrainGenerators.Rolled(Planet.Hospitable, 7));   // "Hill, Forest, or Field"
         Assert.Equal(["quicksand"], TerrainGenerators.Rolled(Planet.Death, 12));
+    }
+
+    /// <summary>The ruins pack (the owner's, not the rulebook's): ruins and what suits a ruined city, never a whole building, and
+    /// its fixed nine keep p.12's balance (at least half block line of sight, a third give cover, a third are difficult).</summary>
+    [Fact]
+    public void The_ruins_pack_is_ruins_without_whole_buildings()
+    {
+        var fixedNames = TerrainGenerators.Fixed(Planet.Ruins);
+        var every = fixedNames.Concat(Enumerable.Range(2, 11).SelectMany(roll => TerrainGenerators.Rolled(Planet.Ruins, roll))).ToList();
+        Assert.Empty(every.Intersect(["large-building", "small-buildings", "large-sight-blocker"]));
+        Assert.Equal(["ruined-wall", "ruined-wall", "ruined-wall", "ruin", "ruin", "ruined-corner", "ruined-corner", "rubble-field", "rubble-field"], fixedNames);
+        var declarations = fixedNames.Select(n => BuiltinContent.Terrain[n].Volume.Declarations).ToList();
+        Assert.True(declarations.Count(d => d.HasFlag(TerrainDeclarations.BlocksLineOfSight)) * 2 >= 9);
+        Assert.True(declarations.Count(d => d.HasFlag(TerrainDeclarations.Cover)) * 3 >= 9);
+        Assert.True(declarations.Count(d => d.HasFlag(TerrainDeclarations.Difficult)) * 3 >= 9);
+        Assert.Equal(["crater"], TerrainGenerators.Rolled(Planet.Ruins, 2));
+        Assert.Equal(["ruined-corner"], TerrainGenerators.Rolled(Planet.Ruins, 7));
     }
 
     [Fact]

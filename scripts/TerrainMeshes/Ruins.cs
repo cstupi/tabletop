@@ -12,22 +12,22 @@ public static class Ruins
 {
     public static readonly Material Stonework = new("masonry", 0.88f), Floor = new("flagstones", 0.9f), Iron = new("iron", 0.55f, Metallic: 0.6f),
         Grit = new("rubble", 0.95f), Trim = new("dressed-stone", 0.85f);
-    const int Seed = 31;
-    const float W = 6, H = 4, Course = 0.25f, Gap = 0.028f, Thick = 0.32f, Level = 2.05f;
+    internal const int Seed = 31;
+    internal const float W = 6, H = 4, Course = 0.25f, Gap = 0.028f, Thick = 0.32f, Level = 2.05f;
 
     static readonly Vector4 Stone = Rgb(0.5f, 0.49f, 0.47f), Dressed = Rgb(0.57f, 0.55f, 0.51f), Grime = Rgb(0.32f, 0.28f, 0.23f),
         Mortar = Rgb(0.27f, 0.25f, 0.23f), Moss = Rgb(0.23f, 0.31f, 0.13f), Gunmetal = Rgb(0.3f, 0.31f, 0.33f), Rust = Rgb(0.45f, 0.25f, 0.13f);
 
     /// <summary>A window or door in a wall: centred at <paramref name="At"/> along it, <paramref name="Half"/> wide each side, from
     /// <paramref name="Sill"/> up to where its pointed arch springs.</summary>
-    readonly record struct Opening(float At, float Half, float Sill, float Spring)
+    internal readonly record struct Opening(float At, float Half, float Sill, float Spring)
     {
         public float Apex => Spring + 1.732f * Half;
         /// <summary>The opening's half-width at height y (the equilateral arch narrows to its point).</summary>
         public float HalfAt(float y) => y < Sill || y > Apex ? -1 : y <= Spring ? Half : MathF.Sqrt(MathF.Max(0, 4 * Half * Half - (y - Spring) * (y - Spring))) - Half;
     }
 
-    sealed class Ctx(Model model, Random rng, bool overgrown)
+    internal sealed class Ctx(Model model, Random rng, bool overgrown)
     {
         public Model Model { get; } = model;
         public Random Rng { get; } = rng;
@@ -44,7 +44,7 @@ public static class Ruins
 
     static Model Unit(string name, bool overgrown) => Masonry.Unit(Build(name, overgrown));
 
-    static Vector4 Weather(Ctx c, Vector4 colour, Vector3 p, float grime = 1)
+    internal static Vector4 Weather(Ctx c, Vector4 colour, Vector3 p, float grime = 1)
     {
         var low = Smooth(0.9f, 0f, p.Y) * grime;
         var o = Mix(colour, Grime, low * 0.55f);
@@ -53,7 +53,7 @@ public static class Ruins
         return o;
     }
 
-    static Vector4 BlockPaint(Ctx c)
+    internal static Vector4 BlockPaint(Ctx c)
     {
         var shade = 0.8f + 0.28f * c.R;
         var warm = c.R - 0.5f;
@@ -107,18 +107,23 @@ public static class Ruins
     }
 
     /// <summary>Flagstones on a dirt bed, all within 0.05" of the table: a grid of chamfered slabs each its own shade, some cracked in
-    /// two, some sunk, some missing.</summary>
-    static void FloorTiles(Ctx c)
+    /// two, some sunk, some missing. The bed spans <paramref name="half"/> each side of the centre (the 6" square by default); the
+    /// grid is <paramref name="columns"/> × <paramref name="rows"/> slabs of 0.59" from <paramref name="start"/>; a slab where
+    /// <paramref name="keep"/> says no is left out (the floor fallen through).</summary>
+    internal static void FloorTiles(Ctx c, Vector2? half = null, int columns = 10, int rows = 10, Vector2? start = null, Func<Vector2, bool>? keep = null)
     {
         var floor = c.Model[Floor];
         var dirt = Rgb(0.38f, 0.32f, 0.25f);
-        Masonry.Face(floor, [new(-3, 0.004f, -3), new(3, 0.004f, -3), new(3, 0.004f, 3), new(-3, 0.004f, 3)], Vector3.UnitY, p => Shade(dirt, 0.8f + 0.3f * Fbm(p * 1.5f, Seed)));
-        const int n = 10; const float size = 5.9f / n;
-        for (var i = 0; i < n; i++)
-            for (var j = 0; j < n; j++)
+        var (hx, hz) = (half?.X ?? 3, half?.Y ?? 3);
+        var (x0, z0) = (start?.X ?? -2.95f, start?.Y ?? -2.95f);
+        Masonry.Face(floor, [new(-hx, 0.004f, -hz), new(hx, 0.004f, -hz), new(hx, 0.004f, hz), new(-hx, 0.004f, hz)], Vector3.UnitY, p => Shade(dirt, 0.8f + 0.3f * Fbm(p * 1.5f, Seed)));
+        const float size = 5.9f / 10;
+        for (var i = 0; i < columns; i++)
+            for (var j = 0; j < rows; j++)
             {
                 if (c.R < 0.13f) continue;
-                var x = -2.95f + (i + 0.5f) * size; var z = -2.95f + (j + 0.5f) * size;
+                var x = x0 + (i + 0.5f) * size; var z = z0 + (j + 0.5f) * size;
+                if (keep is not null && !keep(new(x, z))) continue;
                 var col = Shade(Rgb(0.45f, 0.44f, 0.42f), 0.78f + 0.3f * c.R) + new Vector4(0.02f * (c.R - 0.5f), 0, 0, 0);
                 var top = c.R < 0.2f ? 0.03f : 0.045f;
                 Vector4 Tile(Vector3 p) => Mix(Shade(col, 0.92f + 0.12f * Noise(p.X * 9, p.Z * 9, 0, 4)), dirt, 0.25f * Smooth(0.55f, 0.75f, Fbm(p * 2.5f, 9)));
@@ -136,8 +141,10 @@ public static class Ruins
 
     /// <summary>A wall from <paramref name="from"/> along <paramref name="dir"/>, <paramref name="length"/> long and <see cref="Thick"/>
     /// thick: a plinth course, then staggered courses of chamfered ashlar on a recessed mortar core, broken off along
-    /// <paramref name="top"/> (s along the wall) with blocks missing and displaced near the break, its openings framed.</summary>
-    static void Wall(Ctx c, Vector2 from, Vector2 dir, float length, Func<float, float> top, Opening[] openings)
+    /// <paramref name="top"/> (s along the wall) with blocks missing and displaced near the break, its openings framed. The courses run up to
+    /// <paramref name="tall"/>, the string course at <paramref name="level"/>; without <paramref name="corners"/> the course blocks
+    /// leave out their corner facets (fewer triangles).</summary>
+    internal static void Wall(Ctx c, Vector2 from, Vector2 dir, float length, Func<float, float> top, Opening[] openings, float tall = H, float level = Level, bool corners = true)
     {
         var nrm = new Vector2(-dir.Y, dir.X);
         var rot = Masonry.Basis(new(dir.X, 0, dir.Y), Vector3.UnitY, new(nrm.X, 0, nrm.Y));
@@ -158,7 +165,7 @@ public static class Ruins
             s += len;
         }
         var row = 0;
-        for (var y = 0.28f; y < H; y += Course, row++)
+        for (var y = 0.28f; y < tall; y += Course, row++)
         {
             var y1 = y + Course;
             var s = row % 2 == 0 ? 0 : -0.25f;
@@ -201,10 +208,10 @@ public static class Ruins
                     if (c.R < 0.07f && len2 > 0.32f)   // cracked through: two pieces a hair apart
                     {
                         var cut = len2 * (0.35f + 0.3f * c.R);
-                        Masonry.Block(part, centre + Vector3.TransformNormal(new Vector3(-len2 / 2 + cut / 2, 0, 0), rot), new(cut - 0.012f, height, d), turn, 0.03f, q => Weather(c, col, q), c.Rng, 0.04f);
-                        Masonry.Block(part, centre + Vector3.TransformNormal(new Vector3(cut / 2, -0.008f, 0), rot), new(len2 - cut - 0.012f, height - 0.01f, d), Masonry.Turn(0.03f) * turn, 0.03f, q => Weather(c, col, q), c.Rng, 0.04f);
+                        Masonry.Block(part, centre + Vector3.TransformNormal(new Vector3(-len2 / 2 + cut / 2, 0, 0), rot), new(cut - 0.012f, height, d), turn, 0.03f, q => Weather(c, col, q), c.Rng, 0.04f, corners);
+                        Masonry.Block(part, centre + Vector3.TransformNormal(new Vector3(cut / 2, -0.008f, 0), rot), new(len2 - cut - 0.012f, height - 0.01f, d), Masonry.Turn(0.03f) * turn, 0.03f, q => Weather(c, col, q), c.Rng, 0.04f, corners);
                     }
-                    else Masonry.Block(part, centre, new(len2, height, d), turn, 0.032f, q => Weather(c, col, q), c.Rng, nearTop ? 0.06f : 0);
+                    else Masonry.Block(part, centre, new(len2, height, d), turn, 0.032f, q => Weather(c, col, q), c.Rng, nearTop ? 0.06f : 0, corners);
                     if (runs.Count > 0 && b0 - runs[^1].B < 0.03f) runs[^1] = (runs[^1].A, b1); else runs.Add((b0, b1));
                 }
             }
@@ -216,10 +223,10 @@ public static class Ruins
         for (var s = 0f; s < length;)
         {
             var len = 0.6f + 0.25f * c.R; var mid = s + len / 2;
-            if (top(mid) > Level + 0.3f && top(s) > Level + 0.2f && top(MathF.Min(s + len, length)) > Level + 0.2f)
+            if (top(mid) > level + 0.3f && top(s) > level + 0.2f && top(MathF.Min(s + len, length)) > level + 0.2f)
             {
                 var col = Shade(Dressed, 0.82f + 0.15f * c.R);
-                Masonry.Block(part, P(mid, Level + 0.07f, 0), new(MathF.Min(len, length - s) - 0.02f, 0.14f, Thick + 0.14f), rot, 0.035f, q => Weather(c, col, q), c.Rng);
+                Masonry.Block(part, P(mid, level + 0.07f, 0), new(MathF.Min(len, length - s) - 0.02f, 0.14f, Thick + 0.14f), rot, 0.035f, q => Weather(c, col, q), c.Rng);
             }
             s += len;
         }
@@ -278,11 +285,11 @@ public static class Ruins
     }
 
     /// <summary>A short bar of rusty rebar out of a break.</summary>
-    static void Rebar(Ctx c, Vector3 at, Vector3 dir) => Masonry.Rebar(c.Model[Iron], c.Rng, at, dir + new Vector3(c.R - 0.5f, 0, c.R - 0.5f) * 0.5f, 0.3f + 0.25f * c.R, 0.022f);
+    internal static void Rebar(Ctx c, Vector3 at, Vector3 dir) => Masonry.Rebar(c.Model[Iron], c.Rng, at, dir + new Vector3(c.R - 0.5f, 0, c.R - 0.5f) * 0.5f, 0.3f + 0.25f * c.R, 0.022f);
 
     /// <summary>A pilaster: a stack of dressed blocks standing proud of the wall (a corner one proud of both), on a deep base, with a
     /// capital at the floor level if it reaches it, broken at <paramref name="height"/>.</summary>
-    static void Pilaster(Ctx c, Vector2 at, float height, bool? along = null)
+    internal static void Pilaster(Ctx c, Vector2 at, float height, bool? along = null, float level = Level)
     {
         var part = c.Model[Trim];
         var size = along switch { true => new Vector2(0.44f, Thick + 0.16f), false => new Vector2(Thick + 0.16f, 0.44f), _ => new Vector2(0.52f, 0.52f) };
@@ -297,7 +304,7 @@ public static class Ruins
             var turn = last ? Masonry.Turn((c.R - 0.5f) * 0.2f, (c.R - 0.5f) * 0.1f, (c.R - 0.5f) * 0.1f) : Matrix4x4.Identity;
             var shrink = k % 2 == 0 ? 0 : 0.03f;
             Masonry.Block(part, new(at.X, y + h / 2, at.Y), new(size.X - shrink, h - 0.025f, size.Y - shrink), turn, 0.035f, q => Weather(c, col, q), c.Rng, last ? 0.12f : 0);
-            if (MathF.Abs(y + h - Level) < 0.22f && height > Level + 0.4f)
+            if (MathF.Abs(y + h - level) < 0.22f && height > level + 0.4f)
             {
                 var colc = Shade(Dressed, 0.95f);
                 Masonry.Block(part, new(at.X, y + h + 0.08f, at.Y), new(size.X + 0.14f, 0.16f, size.Y + 0.14f), Matrix4x4.Identity, 0.04f, q => Weather(c, colc, q), c.Rng);
@@ -368,7 +375,7 @@ public static class Ruins
     }
 
     /// <summary>A broken column: a stepped base, octagonal drums up to a break, the top drum slipped, and one fallen on the floor.</summary>
-    static void Column(Ctx c, Vector2 at)
+    internal static void Column(Ctx c, Vector2 at)
     {
         var part = c.Model[Trim];
         var col0 = Shade(Dressed, 0.85f);

@@ -78,7 +78,7 @@ Docker is stopped; start it (`docker compose up -d`) before anything needs the d
 
 Built since v0.1.1 (details in the design docs and module AGENTS.md):
 - **Client:** release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". Built-in
-  content (catalog `client/content/builtin/catalog.json`, 30 terrain meshes from `scripts/TerrainMeshes`, 7 board prints from `scripts/TableTextures`) is
+  content (catalog `client/content/builtin/catalog.json`, 33 terrain meshes from `scripts/TerrainMeshes`, 7 board prints from `scripts/TableTextures`) is
   packed as the fallback and published to MinIO `builtin/` by each release; `GET /v1/builtin` serves it and clients switch
   when `Tabletop-Builtin-Version` changes. Placement ghosts draw the model's mesh. Unit card groups like models with wound
   totals; terrain details/controls live in the unit card's slot (`TerrainCard`). Ruler: hold Ctrl (starts under the
@@ -110,9 +110,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   for it. Suite game `core-round-the-terrain`. Not yet seen: the area and the bent ruler in the client.
 - **Tabletop look** (spec `docs/superpowers/specs/2026-10-19-tabletop-look-design.md`): seven gaming-mat boards (grass, desert, urban, snow, ash, wasteland,
   alien) from `scripts/table-textures`, drawn through `board.gdshader` with derived normals and anti-tiling on a wooden
-  table; `TableLighting` (warm shadowed key, cool fill, sky ambient, SSAO, AgX); all 30 built-in meshes rebuilt with their
+  table; `TableLighting` (warm shadowed key, cool fill, sky ambient, SSAO, AgX); every built-in mesh built with its
   detail in the geometry (`Crag`, `Masonry`, `Foliage` helpers), painted by `Bake` (AO wash, edge drybrush) and given
-  triplanar surface grain by `TerrainLook`. Built-in content is 34.3 MiB of meshes and 12.5 MiB of prints. A draft now
+  triplanar surface grain by `TerrainLook`. Built-in content is 39.5 MiB of meshes and 12.5 MiB of prints. A draft now
   accepts Dangerous on Rush and Charge (`DraftLimits`), which the built-in ruins and quicksand carry and setup refused.
   Weak spots: broadleaf leaves read as small triangles close up; the urban and desert mats are bright under the key light;
   the hills' earth bands between ledges are smooth; building facades away from the light are dark.

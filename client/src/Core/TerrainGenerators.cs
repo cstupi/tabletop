@@ -3,9 +3,12 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-public enum Planet { Generic, Hospitable, Wasteland, Death }
+public enum Planet { Generic, Hospitable, Wasteland, Death, Ruins }
 
-/// <summary>Grimdark Future p.18–19: nine fixed pieces, then 4D3 more each rolled on 2D6. Runs on the client; the result is a batch of adds.</summary>
+/// <summary>Nine fixed pieces, then 4D3 more each rolled on 2D6. Generic, Hospitable, Wasteland and Death are Grimdark Future
+/// p.18–19's planets. Ruins is the owner's pack in the same shape, not the rulebook's: a ruined city of ruins, ruined walls and
+/// rubble with craters and barricades, no whole buildings, its fixed nine keeping p.12's balance (half block line of sight, a
+/// third give cover, a third are difficult). Runs on the client; the result is a batch of adds.</summary>
 public static class TerrainGenerators
 {
     static readonly Dictionary<Planet, string[]> FixedPieces = new()
@@ -14,6 +17,7 @@ public static class TerrainGenerators
         [Planet.Hospitable] = ["wall-or-fence", "wall-or-fence", "hill", "plantation", "forest", "forest", "forest", "large-building", "large-building"],
         [Planet.Wasteland] = ["small-dunes", "small-dunes", "large-rock", "crater", "large-building", "large-building", "large-building", "toxic-smog", "toxic-smog"],
         [Planet.Death] = ["overgrown-ruins", "overgrown-ruins", "deadly-vegetation", "hill", "dense-vegetation", "dense-vegetation", "dense-vegetation", "steep-hill", "steep-hill"],
+        [Planet.Ruins] = ["ruined-wall", "ruined-wall", "ruined-wall", "ruin", "ruin", "ruined-corner", "ruined-corner", "rubble-field", "rubble-field"],
     };
 
     // 2D6 → the entry's alternatives, index 0 = a roll of 2.
@@ -23,6 +27,7 @@ public static class TerrainGenerators
         [Planet.Hospitable] = [["deep-river"], ["shallow-river"], ["tall-crops-field"], ["ruins"], ["forest", "plantation"], ["hill", "forest", "tall-crops-field"], ["hill"], ["wall-or-fence"], ["large-building"], ["small-buildings"], ["steep-hill"]],
         [Planet.Wasteland] = [["toxic-river"], ["sludge-stream"], ["sludge-field"], ["ruins"], ["large-rock"], ["small-dunes"], ["crater"], ["toxic-smog"], ["large-building"], ["mine-field"], ["small-buildings"]],
         [Planet.Death] = [["death-marsh"], ["crumbly-rock"], ["overgrown-ruins"], ["deadly-vegetation"], ["dense-vegetation"], ["dense-vegetation", "hill"], ["hill"], ["small-buildings"], ["steep-hill"], ["beast-lair"], ["quicksand"]],
+        [Planet.Ruins] = [["crater"], ["barricade"], ["rubble-field"], ["ruins"], ["ruined-wall"], ["ruined-corner"], ["ruin"], ["ruined-wall"], ["rubble-field"], ["overgrown-ruins"], ["crater"]],
     };
 
     public static IReadOnlyList<string> Fixed(Planet planet) => FixedPieces[planet];

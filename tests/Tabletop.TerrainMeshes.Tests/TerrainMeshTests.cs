@@ -146,6 +146,13 @@ public class TerrainMeshTests
         Assert.True(floor.Max(p => p.Y) < 0.015f);   // ruins are walk-in ground (Area): models stand on the table inside
     }
 
+    [Fact]
+    public void The_ruin_pieces_floors_are_at_ground_level()
+    {
+        foreach (var m in new[] { RuinPieces.Corner(), RuinPieces.Field() })
+            Assert.True(m[Ruins.Floor].Positions.Max(p => p.Y) * m.Inches.Y < 0.06f, $"{m.Name}: the floor stands off the table");
+    }
+
     [Theory, MemberData(nameof(Names))]
     public void Writes_a_small_binary_gltf_with_one_material_per_primitive(string name)
     {
