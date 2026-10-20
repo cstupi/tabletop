@@ -82,7 +82,7 @@ public static class Budget
 {
     public const int Triangles = 50_000;
     public const int Bytes = 3 << 20;
-    public const long TotalBytes = 36L << 20;
+    public const long TotalBytes = 40L << 20;
 }
 
 /// <summary>A built-in terrain mesh in the unit box: footprint on x and z in [−0.5, 0.5] (inside the unit circle's r = 0.5 when

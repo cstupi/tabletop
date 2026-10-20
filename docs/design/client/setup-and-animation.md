@@ -42,13 +42,13 @@ Table section names the 12–144" range; a layout name (Enter saves) and a marke
 name in a menu dialog stop at 64 characters, a volume's notes at 500; an empty or invalid layout name
 is caught before the request.
 
-The built-in catalog is data, `client/content/builtin/catalog.json`: 35 terrain names with their `Volume` and
-declarations and the mesh each draws with, and five textures. The client packs it (`BuiltinContent.Packed`) with its
+The built-in catalog is data, `client/content/builtin/catalog.json`: 38 terrain names with their `Volume` and
+declarations and the mesh each draws with, and seven textures. The client packs it (`BuiltinContent.Packed`) with its
 meshes and textures, and the server publishes it with each release, which the client caches and uses in place of the
 packed one (spec `2026-10-18-builtin-content-from-server-design.md`). `BuiltinContent` adds two marker visuals and the
 zone style ids. A minimal art set ships with it, so that a generated table looks like a table.
 
-The art is 35 files: 30 meshes and five textures. Each piece draws a mesh that looks like what it is; a mesh is shared only by
+The art is 40 files: 33 meshes and seven textures. Each piece draws a mesh that looks like what it is; a mesh is shared only by
 the same terrain at another size: `hill` (hill, large hill, steep hill), `woods` (forest, large forest), `ruins` (ruins or
 debris, large ruins, ruin). Every other piece has its own (`client/content/builtin/catalog.json`, `meshes`), authored at that
 piece's footprint and height, and round for a circle footprint. `scripts/terrain-meshes` generates all 30
@@ -69,7 +69,8 @@ no `content/builtin/` at all still renders a playable table. For a built-in plac
 the volumes rather than overrides, because there is no `asset_volume` row to fall through to. They
 are always written on add, and "reset" re-copies the shipped ones.
 
-`TerrainGenerators` implements the rulebook's four planet tables (GF p.18–19) as
+`TerrainGenerators` implements the rulebook's four planet tables (GF p.18–19), and the owner's Ruins
+pack in the same shape (ruins, ruined walls and rubble, craters and barricades, no whole buildings), as
 `Generate(Planet, TableSize, Random)`: nine fixed pieces plus 4D3 rolled on 2D6. They are returned
 as a batch of `AddTerrain` edits placed off the slab beside the long edge at `x = width + 4`, in
 rows 8" apart, each facing a random 15° step, for players to drag on. The client rolls, because nothing in setup is logged and no

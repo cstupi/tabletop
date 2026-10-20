@@ -64,5 +64,5 @@ Built-in meshes keep vertex colours as the paint and gain:
 
 ## Budgets
 
-Built-in content under 60 MB packed: meshes at most 50 000 triangles and 3 MB each and 36 MiB together
+Built-in content under 60 MB packed: meshes at most 50 000 triangles and 3 MB each and 40 MiB together
 (`Budget`, `scripts/TerrainMeshes`); textures at most 3 MB each (`scripts/TableTextures`).

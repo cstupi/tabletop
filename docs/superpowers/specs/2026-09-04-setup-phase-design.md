@@ -204,8 +204,8 @@ nothing to that path.
 
 **Built-in terrain ships with the client**, the way predefined textures and marker visuals
 already do: a set of meshes with their volumes and declarations, owned by nobody, in no
-library. A built-in ships as its volume and its declarations plus a **shared** mesh: the 35
-pieces draw 30 meshes under `client/content/builtin/terrain/`, one per kind of terrain, a mesh shared
+library. A built-in ships as its volume and its declarations plus a **shared** mesh: the 38
+pieces draw 33 meshes under `client/content/builtin/terrain/`, one per kind of terrain, a mesh shared
 only by the same terrain at another footprint and height. A piece that finds no mesh file draws as its volumes, the same degrade
 path a missing asset uses. A placement therefore references **either a built-in name or a
 library asset, exactly one** — the pattern `texture_builtin | texture_asset_id` and
@@ -213,7 +213,8 @@ library asset, exactly one** — the pattern `texture_builtin | texture_asset_id
 `terrain_placement.builtin` is added beside it, with the same check constraint. Which pieces
 ship is the inventory question; it must at least cover every entry the generators name.
 
-**Generators** are the rulebook's four planet tables, pages 18–19: nine fixed pieces plus 4D3
+**Generators** are the rulebook's four planet tables, pages 18–19, and the owner's Ruins pack in the same shape (no
+whole buildings; `TerrainGenerators`): nine fixed pieces plus 4D3
 rolled on 2D6, each entry a name, a size class from page 18 (scatter 1–3", large 4–8", up to
 12"), a built-in mesh, and the declarations as the text gives them — *Forest: difficult and
 cover, see in and out; Large Building: impassable and blocking* — with notes for what the six

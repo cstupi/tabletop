@@ -4,14 +4,14 @@ The generator for the client's built-in terrain meshes, `client/content/builtin/
 (seeded `System.Random` and hash noise); no Godot, no packages. Tests: `tests/Tabletop.TerrainMeshes.Tests`.
 
 ```bash
-./scripts/terrain-meshes                         # writes all 30 into client/content/builtin/terrain/
+./scripts/terrain-meshes                         # writes all 33 into client/content/builtin/terrain/
 ./scripts/terrain-meshes client/content/builtin/terrain dunes quicksand   # or just the named ones
 godot --headless --path client --import          # then refresh the .import files
 ```
 
 ## Layout
 
-- `Catalog`: name → builder, the 30 meshes `client/content/builtin/catalog.json` lists under `meshes`, in its order, each
+- `Catalog`: name → builder, the 33 meshes `client/content/builtin/catalog.json` lists under `meshes`, in its order, each
   painted by `Bake` at its authored inches (a unit-box mesh at its `Typical` size); `All` builds each once per process,
   `Generate` afresh. `Program` writes each (or the ones named after the output directory) and prints its triangles and size.
 - `Bake`: the painter's finish over the vertex colours (spec `docs/superpowers/specs/2026-10-19-tabletop-look-design.md` →
@@ -41,8 +41,9 @@ godot --headless --path client --import          # then refresh the .import file
 - `Masonry`: the built pieces' detail, authored in inches: `Block` (a box with every edge chamfered so the drybrush catches it;
   optionally chipped corners and rough, shifted corners for broken stone; `corners: false` drops the corner facets on trim
   seen from afar), `Girder` (I-section), `Rebar`, `Leaf` cards, `Rubble` (a grit mound under individual blocks, bricks and
-  slabs), and `Unit`, which copies an inches-authored model into the unit box. `Ruins`, `Building`, `Huts`, `Tower`, `Wall`,
-  `Barricade` and `Mines` use it; `Building.Window` (a pointed-arch window in a stone frame) is shared with `Tower`. All but
+  slabs), and `Unit`, which copies an inches-authored model into the unit box. `Ruins`, `RuinPieces`, `Building`, `Huts`, `Tower`, `Wall`,
+  `Barricade` and `Mines` use it; `RuinPieces` builds on `Ruins`' wall (courses to any height, a string course at any level,
+  corner facets optional), frames, pilasters and flagstones; `Building.Window` (a pointed-arch window in a stone frame) is shared with `Tower`. All but
   the ruins are `Inches` models; `ruins` and `overgrown-ruins` are authored at 6" × 6" × 4" and copied into the unit box with
   `Masonry.Unit` (the 4" ruin shares `ruins`).
 - `Glb`: one primitive per material, identical vertices shared; POSITION, NORMAL (float), COLOR_0 (linear, normalized bytes), 16- or 32-bit indices;
@@ -55,7 +56,10 @@ godot --headless --path client --import          # then refresh the .import file
   `plantation`), `Water.River` and `Water.Lake` (`water`, `lake`), `Rivers.Stream` and `Rivers.Toxic` (`stream`,
   `toxic-river`, both on `Water.River`'s styled form), `Sludge.Canal` and `Sludge.Field` (`sludge-canal`, `sludge-field`),
   `Crater`, `Haze` (`haze`: an inches model at 8"×6", a stained base with sludge pools, crust plates, pipe stubs, a drum, rubble and dead tufts under translucent billows), `Marsh` (`death-marsh`), `Mines` (`mine-field`), `Quicksand`, `Vegetation.Deadly` and `Vegetation.Jungle`
-  (`deadly-vegetation`, `jungle`), `Lair` (`beast-lair`).
+  (`deadly-vegetation`, `jungle`), `Lair` (`beast-lair`), and the ruins planet's `RuinPieces.Corner` (`ruined-corner`: a
+  two-storey corner 6" × 6" × 5", a first-floor stub and the joists above it), `RuinPieces.Wall` (`ruined-wall`: a wall section
+  6" × 1.5" × 4" with two rows of windows and a doorway) and `RuinPieces.Field` (`rubble-field`: a collapsed building's footprint
+  6" × 4" × 1", wall stumps, rubble heaps, cracked slabs and girders).
 
 ## Rules the meshes keep
 
@@ -65,8 +69,8 @@ godot --headless --path client --import          # then refresh the .import file
   with an `Inches` model are authored at their entry's footprint and top, so a 0.1" mine field keeps its mines, wire and plates within 0.1".
 - What is drawn matches what collides (client UX spec → Physical collision): every mesh a Solid entry draws reaches y = 1; the
   hills' plateau is flat at y = 1 inside `Hill.Top`; the rocks' and the beast lair's tops are flat at their volume's top; the
-  ruins' floor stays at ground level (an Area: models stand on the table inside).
-- At most 50 000 triangles and 3 MB per file, 36 MiB for all of them (`Budget`); `GlbPreflightTests` also checks the shipped files. The tests judge winding in the
+  ruins', the ruined corner's and the rubble field's floors stay at ground level (Areas: models stand on the table inside).
+- At most 50 000 triangles and 3 MB per file, 40 MiB for all of them (`Budget`); `GlbPreflightTests` also checks the shipped files. The tests judge winding in the
   authored inches, where a thin piece's slopes are as drawn.
 - Godot's runtime glTF import leaves vertex colours off on a mesh's first primitive; `MeshLoader` turns them on, and takes a
   node whose surfaces are all alpha-blended out of the shadow pass.
