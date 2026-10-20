@@ -46,6 +46,17 @@ public class SeatsTests
     }
 
     [Fact]
+    public void At_a_round_boundary_an_account_on_both_teams_acts_for_the_team_that_just_answered()
+    {
+        // Team 1 had the last turn of round 1; Team 2 then picked an Ambusher at the boundary (no turn): Team 2 places it.
+        var applier = new EventApplier(Samples.Board, BothSides);
+        var ask = new Ask(Guid.CreateVersion7(), AskQuestions.DeployAmbusher, "Deploy an Ambusher or pass", [Samples.Team2], new PieceSelection([Samples.Unit], 1, 1), true, false, null, null);
+        applier.ApplyAll([new GameEvent(1, null, new TurnStarted(Samples.Team1), null), new GameEvent(2, null, new TurnEnded(Samples.Team1, false, []), null),
+            new GameEvent(3, null, new AskOpened(ask), null), new GameEvent(4, null, new AskClosed(ask.Id, [new TeamAnswer(Samples.Team2, new SelectedPieces([Samples.Unit]))]), null)]);
+        Assert.Equal(Samples.Team2, Seats.Acting(applier.Projection, [Samples.Team1, Samples.Team2], applier.Log));
+    }
+
+    [Fact]
     public void The_header_names_each_of_my_teams_whose_move_it_is()
     {
         var game = BothSides; var p = WithAsk(game, (Samples.Team1, false), (Samples.Team2, false));

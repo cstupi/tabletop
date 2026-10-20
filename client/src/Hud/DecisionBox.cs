@@ -119,7 +119,7 @@ public partial class DecisionBox : PanelContainer
         var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds);
         if (mine is null)
         {
-            var mid = DeployView.MidDeploy(p, _s.Log, _s.MyTeamId);
+            var mid = new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);   // a pick by any team of mine is placed
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; }
             _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
             if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) { _title.Text = string.Join("\n", waiting.Select(w => w.Text)); _hint.Text = ""; }
