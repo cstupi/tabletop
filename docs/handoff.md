@@ -116,10 +116,9 @@ Built since v0.1.1 (details in the design docs and module AGENTS.md):
   accepts Dangerous on Rush and Charge (`DraftLimits`), which the built-in ruins and quicksand carry and setup refused.
   Weak spots: broadleaf leaves read as small triangles close up; the urban and desert mats are bright under the key light;
   the hills' earth bands between ledges are smooth; building facades away from the light are dark.
-- Released: v0.1.21 is tagged (the board print follows the setup dropdown, Q/E held turn smoothly, Clear terrain, the
-  Ruins planet pack, deploy placement after an undo and in self-play between turns, the Show hitboxes off crash that froze
-  deploy placement); the owner deploys with `git fetch --tags && git checkout vX.Y.Z &&
-  scripts/release --deploy home --version vX.Y.Z` on docker1.
+- Released: v0.1.22 is tagged (v0.1.21 plus: an Ambusher picked at a round boundary can be placed in self-play, the log over
+  the dice tray no longer throws, the setup print dropdown names the board's print, fontconfig in the client builder image);
+  the owner deploys with `git fetch --tags && git checkout vX.Y.Z && scripts/release --deploy home --version vX.Y.Z` on docker1.
 - One socket suite run on 2026-10-19 failed one game that passed on the rerun; its name was lost. The suite's report file
   (`recordings/suite-latest.md`) now keeps it if it recurs.
 - Alien Hives miniatures (owner's request, Army Forge `yrLpcpMH6fIA`): work in progress outside the repo at
