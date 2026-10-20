@@ -41,4 +41,8 @@ RUN set -eu; mkdir /tmp/a; cd /tmp/a \
  && echo "${AWSCLI_SHA256}  a.zip" | sha256sum -c - \
  && unzip -q a.zip && ./aws/install && cd / && rm -rf /tmp/a && aws --version
 
+# Headless Godot still asks fontconfig for system fonts; without it every run logs "Unable to load fontconfig". The client
+# ships its own fonts. Last, so adding it reuses the template layer.
+RUN apt-get update && apt-get install -y --no-install-recommends libfontconfig1 && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /tmp
