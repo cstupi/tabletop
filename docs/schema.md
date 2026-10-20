@@ -420,7 +420,7 @@ sets the column. Nothing else reads it, and deleting a starter asset does not cl
 
 `seeded_at timestamptz not null default now()`, arriving as management's `004_properties_seeded_at.sql`. The game
 server's seeder inserts a new set and, for one already present, sets `seeded_at = now()`, so the sets the running
-server ships are the newest. `GET /v1/properties` lists one set per `(game_rules, name)`, the latest by `seeded_at`;
+server ships are the newest. `GET /v1/properties` lists one set per `(game_rules, name)`, the latest by `seeded_at`, newest first;
 editing a document under the same name supersedes the listing entry, and a game that pinned the older hash keeps it.
 
 ### A deployment zone names a team ordinal, not a team

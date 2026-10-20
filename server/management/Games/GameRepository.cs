@@ -28,8 +28,10 @@ public sealed class GameRepository(Database db) : IGameRepository
     {
         await using var c = await db.Open();
         return (await c.QueryAsync<PropertiesSummary>("""
-            select distinct on (game_rules, name) content_hash as ContentHash, name as Name, game_rules as GameRules
-            from properties order by game_rules, name, seeded_at desc
+            select ContentHash, Name, GameRules from (
+                select distinct on (game_rules, name) content_hash as ContentHash, name as Name, game_rules as GameRules, seeded_at
+                from properties order by game_rules, name, seeded_at desc) latest
+            order by seeded_at desc
             """)).ToList();
     }
 

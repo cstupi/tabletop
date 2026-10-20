@@ -220,7 +220,7 @@ edit, and supporting a game beyond OPR is new data rather than new engine code.
 tables' shape without ids. It is content-addressed by SHA-256 over a canonical serialisation
 (`sha256:…`), and the game server seeds it as rows at startup, once per hash and idempotently.
 Editing a document yields a new hash and so a new set, and a game keeps the set it pinned.
-`GET /v1/properties` lists, per ruleset and name, the set seeded most recently (`properties.seeded_at`); an older set stays for the games that pinned it. Effect and condition ids are minted at seeding
+`GET /v1/properties` lists, per ruleset and name, the set seeded most recently (`properties.seeded_at`), newest first, so the set the running server seeded leads; an older set stays for the games that pinned it. Effect and condition ids are minted at seeding
 and are stable thereafter within a database. The Army Forge import of
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) is a later writer of the
 same format.

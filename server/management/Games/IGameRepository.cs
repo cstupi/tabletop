@@ -5,7 +5,7 @@ namespace Tabletop.Management.Games;
 /// <summary>Games, their participants, and the pinned Properties sets they are created from. GameRepository is the Postgres implementation.</summary>
 public interface IGameRepository
 {
-    /// <summary>One set per (game rules, name): the most recently seeded.</summary>
+    /// <summary>One set per (game rules, name): the most recently seeded, newest first, so the current set leads (the client's create dialog defaults to it).</summary>
     Task<IReadOnlyList<PropertiesSummary>> ListProperties();
     /// <summary>Every catalog entry of a pinned set, by name; null when no set has this hash.</summary>
     Task<IReadOnlyList<CatalogRuleText>?> RuleTexts(string hash);

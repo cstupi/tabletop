@@ -21,8 +21,8 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
         lock (rows.Gate)
             return Task.FromResult<IReadOnlyList<PropertiesSummary>>(rows.Properties
                 .GroupBy(p => (p.Value.GameRules, p.Value.Name))
-                .OrderBy(g => g.Key.GameRules, StringComparer.Ordinal).ThenBy(g => g.Key.Name, StringComparer.Ordinal)
                 .Select(g => g.MaxBy(p => p.Value.SeededAt))
+                .OrderByDescending(p => p.Value.SeededAt)
                 .Select(p => new PropertiesSummary(p.Key, p.Value.Name, p.Value.GameRules)).ToList());
     }
 

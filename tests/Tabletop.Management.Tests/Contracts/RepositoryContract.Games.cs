@@ -119,7 +119,7 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
-    public async Task Properties_list_the_most_recently_seeded_set_per_rules_and_name()
+    public async Task Properties_list_the_most_recently_seeded_set_per_rules_and_name_newest_first()
     {
         var name = "Contract listing " + Guid.NewGuid().ToString("N")[..6];
         var (older, newer, aof) = ("sha256:contract-old-" + name, "sha256:contract-new-" + name, "sha256:contract-aof-" + name);
@@ -127,7 +127,7 @@ public abstract partial class RepositoryContract
         await SeedProperties(newer, name, "grimdark-future", DateTimeOffset.UtcNow);
         await SeedProperties(aof, name, "age-of-fantasy", DateTimeOffset.UtcNow.AddDays(-2));
         var listed = (await Games.ListProperties()).Where(p => p.Name == name).ToList();
-        Assert.Equal([new PropertiesSummary(aof, name, "age-of-fantasy"), new PropertiesSummary(newer, name, "grimdark-future")], listed);
+        Assert.Equal([new PropertiesSummary(newer, name, "grimdark-future"), new PropertiesSummary(aof, name, "age-of-fantasy")], listed);   // the create dialog's default is the first
         Assert.NotNull(await Games.Create(await NewAccount(), GameRequest(older)));
     }
 

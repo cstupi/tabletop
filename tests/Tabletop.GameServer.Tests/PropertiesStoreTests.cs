@@ -18,21 +18,24 @@ public class PropertiesStoreTests(PostgresFixture pg)
         // run of this very test; the tail is random.
         var doc = TestProperties.CoreDocument with { Name = "Core " + Guid.CreateVersion7().ToString("N")[24..32] };
         var hash = PropertiesJson.Hash(doc);
-        Assert.Null(await _store.LoadAsync(hash, CancellationToken.None));
-        Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
-        await pg.CountAsync("update management.properties set seeded_at = now() - interval '1 day' where content_hash = $1", hash);
-        Assert.False(await _store.SeedAsync(doc, CancellationToken.None));
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1 and seeded_at > now() - interval '1 hour'", hash));   // a re-seed marks the set current again
-        var set = await _store.LoadAsync(hash, CancellationToken.None);
-        Assert.NotNull(set);
-        var expected = PropertiesJson.ToSet(doc, Guid.CreateVersion7);
-        Assert.Equal(Shape(expected), Shape(set));
-        Assert.Equal(expected.Entries.Count, set.Entries.Count);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1", hash));
-        Assert.Equal(expected.AllEffects().Count(), await pg.CountAsync("select count(*) from management.effect where properties_hash = $1", hash));
-        var again = await _store.LoadAsync(hash, CancellationToken.None);
-        Assert.Equal(set.Entry("Bane")!.Effects[0].Id, again!.Entry("Bane")!.Effects[0].Id);     // ids are stable once seeded
-        await pg.DeletePropertiesAsync(hash);
+        try
+        {
+            Assert.Null(await _store.LoadAsync(hash, CancellationToken.None));
+            Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+            await pg.CountAsync("update management.properties set seeded_at = now() - interval '1 day' where content_hash = $1", hash);
+            Assert.False(await _store.SeedAsync(doc, CancellationToken.None));
+            Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1 and seeded_at > now() - interval '1 hour'", hash));   // a re-seed marks the set current again
+            var set = await _store.LoadAsync(hash, CancellationToken.None);
+            Assert.NotNull(set);
+            var expected = PropertiesJson.ToSet(doc, Guid.CreateVersion7);
+            Assert.Equal(Shape(expected), Shape(set));
+            Assert.Equal(expected.Entries.Count, set.Entries.Count);
+            Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1", hash));
+            Assert.Equal(expected.AllEffects().Count(), await pg.CountAsync("select count(*) from management.effect where properties_hash = $1", hash));
+            var again = await _store.LoadAsync(hash, CancellationToken.None);
+            Assert.Equal(set.Entry("Bane")!.Effects[0].Id, again!.Entry("Bane")!.Effects[0].Id);     // ids are stable once seeded
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
     }
 
     [Fact]
