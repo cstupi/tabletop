@@ -527,10 +527,11 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     }
 
     // Each change raises its own event first (per-batch readers), then marks the coalesced render.
-    void RaiseGame() { GameChanged?.Invoke(); Frame.Mark(RenderCause.Game); }
-    void RaiseBoard() { BoardChanged?.Invoke(); Frame.Mark(RenderCause.Board); }
-    void RaiseFacts() { FactsChanged?.Invoke(); Frame.Mark(RenderCause.Facts); }
-    void RaiseEvents(IReadOnlyList<GameEvent> events) { EventsApplied?.Invoke(events); Frame.Mark(RenderCause.Events); }
+    // Handlers.Raise: a subscriber that throws leaves the others and the render mark to run, so one failing part never freezes the screen.
+    void RaiseGame() => Handlers.Raise(GameChanged, h => ((Action)h)(), () => Frame.Mark(RenderCause.Game));
+    void RaiseBoard() => Handlers.Raise(BoardChanged, h => ((Action)h)(), () => Frame.Mark(RenderCause.Board));
+    void RaiseFacts() => Handlers.Raise(FactsChanged, h => ((Action)h)(), () => Frame.Mark(RenderCause.Facts));
+    void RaiseEvents(IReadOnlyList<GameEvent> events) => Handlers.Raise(EventsApplied, h => ((Action<IReadOnlyList<GameEvent>>)h)(events), () => Frame.Mark(RenderCause.Events));
 
     void SetPhase(SessionPhase phase)
     {
