@@ -1,4 +1,4 @@
-# Handoff — 2026-10-19
+# Handoff — 2026-10-20
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
@@ -7,7 +7,8 @@ movement, log, marker and game-end problems; *2026-10-15* below was built in res
 combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items; *2026-10-17*
 finished the army-book rules, built optional rules and the production path, and hardened both servers for public hosting;
 *2026-10-18* is the live home deployment and the owner's play-testing fixes; *2026-10-19* is path movement, the tabletop
-look, the Ruins planet and the owner's deployment and setup fixes, released as v0.1.22. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
+look, the Ruins planet and the owner's deployment and setup fixes, released as v0.1.22; *2026-10-20* is games following the
+current rules and the lifecycle suite, pushed to `main` and not tagged. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -72,29 +73,40 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
-### 2026-10-19
+### 2026-10-20
 
 **Tagged: v0.1.22** (the latest; the owner deploys and says which is live on the home server `docker1` at
-`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`).
+`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`). Owner: "dont tag it" for today's work.
 
-Unreleased on `main` (not pushed):
-- The lifecycle suite (`sim lifecycle`, `LifecycleTests` E2E) and its dev-mode army route `POST /v1/dev/armies/import`.
+On `main` and pushed (`68a242bc`), not tagged:
+- Owner ruling: "If a rule FIX is released it shouldnt publish a new version. everything should move to it.. its a fix".
+  Every game not ended runs the set the game server seeded for its game rules: repinned at hydration, grants matched to the
+  new set by entry and position path (spec `2026-10-19-games-follow-the-current-rules-design.md`). Checked live: a `playing`
+  game on the old set moved on connect (one Information line); the ended TestAmbush kept its set.
+- The lifecycle suite (spec `2026-10-20-lifecycle-suite-design.md`; `sim lifecycle`, `LifecycleTests` E2E): six shapes
+  (`two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `leave-and-delete`) from `POST /v1/games` to delete,
+  every step over `/v1` or the game socket as the client does, the status asserted at each step, the new game on the newest
+  set (Fanatic, Ambush, Death Bolt present), `ended` in the row, replay over `/ws?watch=1`. Armies come from the dev-mode route
+  `POST /v1/dev/armies/import` (a list body, the fetched import's code). It closes the gap the sim's socket driver leaves:
+  `SocketRowSeeder` writes rows and starts games at `playing`.
 - A player who left a lobby or setup game (the client's Leave: `POST /leave`, then the socket closes) stayed in the game server's
   lobby until the next edit, and `EndSetup` snapshotted the leaver's army onto the board. The session now reads the participant
   rows again on every lobby/setup connect, on a participant's last socket closing, and at `EndSetup` (`LobbyLeaveTests`).
+  Found by the lifecycle suite.
 - `GET /v1/properties` lists the newest seeded set first, so the create dialog defaults to the current rules. A set a failed
   `PropertiesStoreTests` run left in the dev DB ("Core 25453bf2", no army-book rules, no spells) sorted first by name, and 28
   dev games, the owner's Test and TestAmbush among them, ran without Fanatic and spells. The test now cleans up in `finally`.
 - Casualty pick: a click on a picked model that can take no more puts it back (`CasualtyPick.Click`); a Clear button.
-- Owner ruling: "If a rule FIX is released it shouldnt publish a new version. everything should move to it.. its a fix".
-  Every game not ended runs the set the game server seeded for its game rules: repinned at hydration, grants matched to the
-  new set by entry and position path (spec `2026-10-19-games-follow-the-current-rules-design.md`).
-  Checked live: a `playing` game on the old set moved on connect (one Information line); the ended TestAmbush kept its set.
+
+Next: a release when the owner says "tag it".
+
 Release flow: tag `vX.Y.Z` on main and push when the owner says (owner ruling: "tag it" means tag and push at once, no
 extra pre-tag run; the release runs its own tests); on docker1 `git fetch --tags && git checkout vX.Y.Z && scripts/release
 --deploy home --version vX.Y.Z` (tests in containers, client built in the Godot builder container, publishes `releases/`
 and `builtin/`, deploys). The owner's other Claude sessions take instructions over Remote Control: `docker1-logical-curry`
 (server; it cannot run superuser DB queries without the owner's approval) and `syn01-piped-castle` (NAS; no root).
+
+### 2026-10-19
 
 Released on 2026-10-19 (v0.1.20–v0.1.22), beyond the bullets below:
 - Setup: the print dropdown changes the board and names the board's print; Q/E held turn a held piece or models smoothly
