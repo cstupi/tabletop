@@ -62,7 +62,7 @@ Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tes
   Client 726, GameServer 1415, Management 276, Sim 305.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the six lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 2 min). Management 47, GameServer 38, Sim 331; about 9 min.
+  against the compose stack (`LifecycleTests`, about 2 min). Management 47, GameServer 40, Sim 335; about 7 min.
 
 `cd viewer && npm run check && npm test` passes (125); `cd web && npm test` passes 123 (1 skipped).
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
