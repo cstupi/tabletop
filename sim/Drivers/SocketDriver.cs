@@ -303,39 +303,7 @@ public sealed class SocketDriver : IGameDriver
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or WebSocketException or IOException or HttpRequestException) { }
     }
 
-    private async Task ReadLoopAsync(Peer peer)
-    {
-        var buffer = new byte[4 * 1024 * 1024];
-        try
-        {
-            while (peer.Socket.State == WebSocketState.Open)
-            {
-                var total = 0;
-                ValueWebSocketReceiveResult result;
-                do
-                {
-                    if (total == buffer.Length) throw new InvalidOperationException($"a frame larger than {buffer.Length} bytes");
-                    result = await peer.Socket.ReceiveAsync(new Memory<byte>(buffer, total, buffer.Length - total), _stopping.Token);
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        // A server fault closes with InternalServerError and the reason; keep both for the wait that fails.
-                        peer.Fault ??= new IOException($"the server closed the socket: {peer.Socket.CloseStatus} {peer.Socket.CloseStatusDescription}");
-                        peer.Inbox.Writer.TryComplete();
-                        return;
-                    }
-                    total += result.Count;
-                } while (!result.EndOfMessage);
-                peer.Inbox.Writer.TryWrite(WireJson.Deserialize(Encoding.UTF8.GetString(buffer, 0, total)));
-            }
-        }
-        catch (OperationCanceledException) { peer.Inbox.Writer.TryComplete(); }
-        catch (Exception ex)
-        {
-            peer.Fault = ex;
-            peer.Inbox.Writer.TryComplete(ex);
-        }
-        finally { peer.Inbox.Writer.TryComplete(); }
-    }
+    private Task ReadLoopAsync(Peer peer) => SocketFrames.PumpAsync(peer.Socket, peer.Inbox.Writer, ex => peer.Fault ??= ex, _stopping.Token);
 
     public async ValueTask DisposeAsync()
     {

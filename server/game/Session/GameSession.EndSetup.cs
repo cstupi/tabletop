@@ -14,6 +14,8 @@ public sealed partial class GameSession
         if (Info.Status != GameStatus.Setup || Draft is null) { await RefuseEdit(from, editId, RefusalReason.WrongStatus, $"the game is {Info.Status}"); return; }
         if (!IsCreator(from)) { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator ends setup"); return; }
         var rows = _services.Rows; var ct = CancellationToken.None;
+        // The participants as the rows hold them now: a player who left through management since the last read brings no army.
+        Info = await rows.ReadGameAsync(GameId, ct) ?? throw new GameNotFoundException(GameId);
 
         var snapshot = DraftEditor.DropOffSlab(Draft);
         var armies = new Dictionary<Guid, ArmySnapshot?>();

@@ -142,6 +142,8 @@ public sealed partial class GameSession
         if (_watchers.Remove(client)) return;
         if (!_clients.Remove(client)) return;
         if (_clients.All(c => c.ParticipantId != client.ParticipantId)) { _presence.Remove(client.ParticipantId); await BroadcastAsync(new PresenceEnded(client.ParticipantId)); }
+        // The client's Leave deletes the row through management, then closes the socket: the lobby the others draw drops the player now.
+        if (Info.Status is GameStatus.Lobby or GameStatus.Setup && !Faulted) await RefreshInfoAsync();
     }));
 
     /// <summary>Teardown that raced the drain it was tearing down: the work is already done by definition.</summary>

@@ -1,7 +1,8 @@
 # sim
 
 `Tabletop.Sim`: plays a whole game with no Godot client, from a scenario, and writes one recording per run. Its `suite`
-verb plays the rules suite (themed games that check every catalog rule and spell); `serve` hosts the suite over HTTP.
+verb plays the rules suite (themed games that check every catalog rule and spell); `lifecycle` plays whole games against the
+stack by the client's path (management over HTTP, the game over the socket); `serve` hosts the suite over HTTP.
 Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Tests`. Not shipped to players and not referenced by a server.
 
 ## Layout
@@ -11,7 +12,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal, plus `ScriptMatch` picks), `AskPicks`, `PolicyView`. `Chooser.cs` is the seeded random stream.
 - `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `SuiteReportFiles`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
 - `Serve/`: `ServeApp` (the runner's minimal API), `ServeArguments`, `SuiteRun`.
-- `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `ISocketRows` (`SocketRowSeeder`, its Postgres implementation), `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
+- `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `ISocketRows` (`SocketRowSeeder`, its Postgres implementation), `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`, `SocketFrames` (the client socket's read loop).
+- `Lifecycle/`: the lifecycle suite. `LifecycleShape` (`LifecycleShapes`), `LifecycleRunner` (`LifecycleEndpoints`, `LifecycleResult`), `LifecycleGame` (partials `.Lobby`, `.Play`, `.Leave`), `LifecycleScenario`, `ClientSocket`, `ManagementApi`, `LifecycleArmy`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
 - `Invariants/`: `Invariants` (the checks), `ProjectionComparer`.
 - `Recording/`: `Recording`, `RecordingJson` (`SchemaVersion`), `FrameProjector`, `LogLines`.
@@ -136,6 +138,23 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   The viewer's Tests page drives it. A kept run writes its report files and recordings to `<serve --out>/<run id>/`; an unkept
   run writes nothing.
 
+## The lifecycle suite
+
+- Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
+  the game socket (`ClientSocket` outside play, `SocketDriver` in it); nothing is written to Postgres, so it needs no database connection.
+- Shapes (`LifecycleShapes.All`): `two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `leave-and-delete`. Account 0
+  creates; `lifecycle-player-0..3` take seats, `lifecycle-spectator` joins every played game and is the driver's recorder. Never deleted.
+- Armies come from `POST /v1/dev/armies/import` (dev mode only) with the body `LifecycleArmy.List` builds from management's Army
+  Forge fixture (embedded from `tests/Tabletop.Management.Tests/Fixtures/`), cut to three units; the `ambusher` shape adds Ambush to
+  its Beast Riders. Nothing calls Army Forge.
+- A lobby edit is answered by a broadcast `GameInfo` and a setup edit by a broadcast `Board`, neither naming the edit, so
+  `ClientSocket.EditAsync` waits on a condition of the state or the `Refused` with the edit's id. `ExpectRest` makes the next `AtRest`
+  the one waited for (EndSetup's, a late army's).
+- Play: `LifecycleScenario.From` reads the `CompiledScenario` back from the server's `GameInfo` and `Board` (the board's armies are
+  the seats, the recorder last), then `SocketDriver` and `RunLoop` with the default policy, round cap 5: the game ends by its rules.
+- Every step asserts the status (`GET /v1/games/{id}` and each participant's `?joined=true` row); a failure names its step. Each shape
+  deletes its game and armies in `finally`; a run first sweeps lifecycle games and armies older than an hour.
+
 ## Commands
 
 ```bash
@@ -146,12 +165,17 @@ dotnet run --project sim -- skirmish --driver socket           # needs the stack
 dotnet run --project sim -- suite                              # every suite game, in-process
 dotnet run --project sim -- suite --only core,special --driver socket --keep
 dotnet run --project sim -- suite --list
+dotnet run --project sim -- lifecycle                          # every lifecycle shape against the stack (about 2 min)
+dotnet run --project sim -- lifecycle --only late-joiner,ambusher
 dotnet run --project sim -- serve                              # the runner service on 127.0.0.1:5180
-dotnet test tests/Tabletop.Sim.Tests                           # unit; --settings tests/e2e.runsettings for Postgres and the suite games
+dotnet test tests/Tabletop.Sim.Tests                           # unit; --settings tests/e2e.runsettings for Postgres, the suite games and the lifecycle shapes
 ```
 
 - Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (the report and kept
   recordings), `--verbose`, `--list`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
+
+- Lifecycle options: `--only A,B` (shape names), `--list`. Environment: `TABLETOP_SIM_MANAGEMENT` and `TABLETOP_SIM_WS` (defaults as
+  below); no database connection.
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
 - `--driver socket` needs Postgres, the game server and management running, both servers in dev mode (Development and `TABLETOP_DEV_MODE=1`; the game
@@ -176,4 +200,5 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
 - `docs/design/simulation/design.md`
 - `docs/superpowers/specs/2026-09-06-simulation-design.md`
 - `docs/superpowers/specs/2026-10-09-rules-suite-design.md` (the suite)
+- `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md` (the lifecycle suite)
 - `docs/superpowers/specs/2026-10-02-spell-library-design.md` (the `casting` scenario), `docs/superpowers/specs/2026-10-02-army-rule-hooks-design.md` (`army-rules`), `docs/superpowers/specs/2026-10-02-objectives-design.md` (`objectives`)

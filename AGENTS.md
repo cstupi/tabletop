@@ -36,6 +36,7 @@ docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, gam
 ./scripts/client          # build, check and launch the Godot client on Windows
 dotnet build && dotnet test   # the unit suite, nothing running; --settings tests/e2e.runsettings for the E2E suite (stack up)
 dotnet run --project sim -- suite                    # the rules suite in-process; --driver socket against the stack
+dotnet run --project sim -- lifecycle                # whole games by the client's path (HTTP and socket) against the stack
 ```
 
 `docker-compose.yml` and the `scripts/` launchers run the servers in dev mode (`ASPNETCORE_ENVIRONMENT=Development` plus

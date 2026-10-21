@@ -38,6 +38,12 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 - The client's log is `/mnt/c/Users/clays/AppData/Roaming/Godot/app_userdata/Tabletop/logs/godot.log` (the latest run;
   older runs are the dated files beside it). A crash can cut its tail off.
 
+**The lifecycle suite.** `dotnet run --project sim -- lifecycle` plays six shapes against the compose stack by the client's
+path (spec `2026-10-20-lifecycle-suite-design.md`, `sim/AGENTS.md` → The lifecycle suite): management over HTTP (create on the
+first set of `GET /v1/properties`, join, army import through the dev-mode `POST /v1/dev/armies/import`, statuses, leave,
+delete) and the socket (lobby and setup edits, waiting for players, play to the rules' end, replay on `/ws?watch=1`), on
+`lifecycle-player-0..3` and `lifecycle-spectator`; nothing written to Postgres directly. Today 6 of 6 pass, about 2 min.
+
 **The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 45 s);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts.
@@ -53,10 +59,10 @@ Today: 305 of 305 games pass in process and over the socket with no pin, 545 of 
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
   defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 114, TableTextures 29, Protocol 62, Viewer 9,
-  Client 724, GameServer 1402, Management 272, Sim 292.
+  Client 726, GameServer 1415, Management 276, Sim 305.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
-  tests run against fake and real), migrations, and the suite games in process and over the socket. Management 47,
-  GameServer 38, Sim 325; about 7 min.
+  tests run against fake and real), migrations, the suite games in process and over the socket, and the six lifecycle shapes
+  against the compose stack (`LifecycleTests`, about 2 min). Management 47, GameServer 38, Sim 331; about 9 min.
 
 `cd viewer && npm run check && npm test` passes (125); `cd web && npm test` passes 123 (1 skipped).
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
@@ -72,6 +78,10 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 `https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`).
 
 Unreleased on `main` (not pushed):
+- The lifecycle suite (`sim lifecycle`, `LifecycleTests` E2E) and its dev-mode army route `POST /v1/dev/armies/import`.
+- A player who left a lobby or setup game (the client's Leave: `POST /leave`, then the socket closes) stayed in the game server's
+  lobby until the next edit, and `EndSetup` snapshotted the leaver's army onto the board. The session now reads the participant
+  rows again on every lobby/setup connect, on a participant's last socket closing, and at `EndSetup` (`LobbyLeaveTests`).
 - `GET /v1/properties` lists the newest seeded set first, so the create dialog defaults to the current rules. A set a failed
   `PropertiesStoreTests` run left in the dev DB ("Core 25453bf2", no army-book rules, no spells) sorted first by name, and 28
   dev games, the owner's Test and TestAmbush among them, ran without Fanatic and spells. The test now cleans up in `finally`.

@@ -11,10 +11,12 @@ public sealed partial class GameSession
     /// <summary>The connect sequence (client shell → The connection and the projection), in one mailbox turn so no event slips between the log and live delivery.</summary>
     public Task ConnectAsync(ISessionClient client) => RunAsync(async () =>
     {
-        // Hydration read the participant rows once and management's join inserts them whenever it likes, so a participant this
-        // session has never seen re-reads them first: Welcome carries their row (client shell → Welcome names the connecting
-        // participant), TeamOf finds their team, and the lobby edits that look themselves up find them too.
-        if (Info.Participants.All(p => p.Id != client.ParticipantId)) await ReloadInfoAsync();
+        // Hydration read the participant rows once and management's join and leave write them whenever they like, so a participant
+        // this session has never seen re-reads them first: Welcome carries their row (client shell → Welcome names the connecting
+        // participant), TeamOf finds their team, and the lobby edits that look themselves up find them too. In lobby and setup every
+        // connect re-reads them, so a player who left is gone from the lobby the connecting client draws.
+        if (Info.Status is GameStatus.Lobby or GameStatus.Setup) await RefreshInfoAsync();
+        else if (Info.Participants.All(p => p.Id != client.ParticipantId)) await ReloadInfoAsync();
         await SendStateAsync(client, client.ParticipantId, TeamsOf(client));
         await AttachCoreAsync(client);
         await client.SendAsync(Rest());

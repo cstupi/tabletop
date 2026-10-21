@@ -98,7 +98,11 @@ app.MapGames();
 app.MapManifest();
 app.MapClientReleases();
 Tabletop.Management.Content.Builtin.BuiltinEndpoint.MapBuiltin(app);
-if (devMode) app.MapDevSession();
+if (devMode)
+{
+    app.MapDevSession();
+    app.MapDevArmyImport();
+}
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
 

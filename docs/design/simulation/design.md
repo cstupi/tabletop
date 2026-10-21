@@ -800,6 +800,30 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   account: the pool and `sim-spectator` are shared by every run and by concurrent games. `--keep` keeps the game, writes
   the recording, and adds `sim-spectator` as a participant so a live feed can open the game.
 
+### The lifecycle suite
+
+The rules suite seeds its games' rows and starts them at `playing`; the lifecycle suite (`lifecycle` verb, spec
+`2026-10-20-lifecycle-suite-design.md`) covers the path around play by the client's own requests and frames, against the
+running stack, with no row written directly.
+
+- **Shapes.** `LifecycleShapes.All`: `two-players`, `self-play`, `team-game`, `late-joiner` (setup ends with a team empty; the
+  joiner takes it while deployment waits for players), `ambusher` (the creator's Beast Riders set aside, placed in round 2 or
+  later) and `leave-and-delete` (a lobby game). Accounts `lifecycle-player-0..3` take the seats, `lifecycle-spectator` records.
+- **Path.** `ManagementApi` per account: the dev mint, `GET /v1/properties` and its rules, `POST /v1/games`, join, leave, the
+  game's `GET`, `?joined=true`, delete; armies through `POST /v1/dev/armies/import` (dev mode only), whose body is management's
+  Army Forge fixture cut to three units (`LifecycleArmy`). `ClientSocket` holds an account's socket outside play: the connect,
+  lobby and setup edits (each waited on until the broadcast `GameInfo` or `Board` shows it, or its `Refused`), the wait for
+  players, and the replay on `/ws?watch=1`. It reads frames through `SocketFrames.PumpAsync`, `SocketDriver`'s read loop.
+- **Play.** `LifecycleScenario.From` builds the `CompiledScenario` from the `GameInfo` and `Board` the server sent (the board's
+  armies are the seats, the recorder goes last, the set must be `ScenarioCompiler.CoreProperties`), and `SocketDriver` with
+  `RunLoop` plays it under the default policy, round cap 5, so the game ends by its rules at round 4's end.
+- **Assertions.** Every step's status from `GET /v1/games/{id}` and each participant's joined list; the set (first in
+  `GET /v1/properties`, the embedded set, holding Fanatic, Ambush and Death Bolt); `Welcome` and its option catalog; each
+  edit's broadcast; the row reaching `ended` within 10 s of the log's end; the watcher's replay ending at the recorder's last
+  seq and refusing its command `Watcher`; the delete (someone else's 404, the creator's 204, the game gone).
+- **Hygiene.** Each shape deletes its game and armies in its `finally`; a run first deletes lifecycle games and armies older
+  than an hour (v7 id time). Accounts stay.
+
 ## Key decisions
 
 **(plan)** marks a decision stated in the plan and in no spec.
@@ -967,6 +991,17 @@ The viewer's whole input.
 | `sealed record SuiteGameResult(string Name, string Group, bool Passed, IRL<string> Failures, ulong Seed, string Replay, string? RecordingPath, Guid? GameId, string? Spectator, IRL<string>? Known, IRL<string>? Pinned, IRL<string>? Stale)` | Known: the defect ids when every failure is pinned; Stale: the pins no failure matched |
 | `sealed record SuiteReport(Guid RunId, IRL<SuiteGameResult> Games, IRL<CoverageEntry> Coverage, bool Passed)` | `string Table()`, `string ToJson()`, `int ExitCode` |
 
+### Produced: `Tabletop.Sim.Lifecycle`
+
+| Type | Members |
+| --- | --- |
+| `sealed record LifecycleShape(string Name, string Summary, Enforcement Enforcement, IRL<Seat> Seats, Seat? Late, bool Ambush, bool LobbyOnly)`; `Seat(int Account, int Team)` | `int Teams`, `IRL<int> Accounts`; `LifecycleShapes.All`, `Select(IRL<string>)` |
+| `sealed class LifecycleRunner(LifecycleEndpoints)` | `Task<IRL<LifecycleResult>> RunAsync(IRL<LifecycleShape>, IProgress<LifecycleResult>?, CancellationToken)`, `Players`, `Spectator`, `GameName`, `Stale`, `CreatedAt` |
+| `sealed record LifecycleEndpoints(Uri Management, Uri GameServer)` | `WatchUri`, `static FromEnvironment()` |
+| `sealed record LifecycleResult(string Shape, IRL<string> Failures, double Seconds, Guid? GameId)` | `bool Passed` |
+| `static class LifecycleScenario` | `From(name, seed, GameInfo, Board, Guid recorder, bool selfPlay, IRD<Guid, IRL<int>> setAside, int roundCap)`, `Credentials(CompiledScenario, IRD<Guid, MintedSession>, refresh)` |
+| `sealed class ClientSocket`, `sealed class ManagementApi`, `static class LifecycleArmy` | the socket outside play, one account's `/v1` calls, the army body |
+
 ### Produced: `Tabletop.Sim.Serve`
 
 `ServeApp` maps `GET /suite`, `POST /runs`, `GET /runs/{id}/events`, `GET /runs/{id}/recordings/{game}` and
@@ -991,7 +1026,7 @@ The viewer's whole input.
 | Scheduler | `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. |
 | Game server skeleton | `GameSession.ConnectAsync`, `ReceiveAsync`, `RunAsync<T>`, `DrainAsync` and `Play` public. `Hydrator.HydrateAsync`. `Replay.To(Board, GameInfo, IRL<GameEvent>, long)`. `InMemoryEventLog()`. `GameServerOptions` constructible with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set. `PostgresGameRows(NpgsqlDataSource)`. `PostgresFixture.CountAsync(string sql, params object[])`. `AtRest` at the end of `ConnectAsync` and at the end of `HandleCommandAsync` whatever the outcome, `Seq` the log's high-water mark, broadcast when the batch appended and to the provoking client alone when it did not, and a `Refused` before that command's `AtRest`. |
 | Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and throwing `ArgumentException` for an unknown or malformed id. `Collision.RestHeight`, `Collision.Crosses`. |
-| Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Management API plan → Task 5. |
+| Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Management API plan → Task 5. `POST /v1/dev/armies/import`, body `{"source", "list"}` (an Army Forge export), mapped only in dev mode: the lifecycle suite's import. |
 | Viewer | consumes `Tabletop.Sim.Recording` verbatim as its input format and `RecordingJson.SchemaVersion` as the number to check. It generates its TypeScript types from these C# records. |
 
 ## Sequences
@@ -1378,6 +1413,7 @@ compares the two drivers run for run, and a socket step costs what the server ta
 
 - `docs/superpowers/specs/2026-09-06-simulation-design.md`, the whole document. Its `viewer/`
   sections belong to the viewer module.
+- `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`, the lifecycle suite.
 - `docs/superpowers/specs/2026-09-04-whole-design-review.md`, ruling 5: a participant with no
   team is a spectator and is never Asked.
 - `docs/superpowers/specs/2026-09-04-scheduler-design.md`, *The turn is an Ask*: moving models by

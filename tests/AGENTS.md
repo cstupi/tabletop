@@ -22,15 +22,17 @@ dotnet test --settings tests/e2e.runsettings         # the E2E suite; needs dock
 
 - Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`). The unit suite is every test without
   `[Trait("Category", "E2E")]` and reaches no live service: servers run over the in-memory fakes in each test project's
-  `Infrastructure/`. E2E tests are the Postgres and S3 adapters, migrations and suite games over the socket driver.
+  `Infrastructure/`. E2E tests are the Postgres and S3 adapters, migrations, suite games over the socket driver, and the lifecycle
+  shapes (`LifecycleTests`, against the compose stack's management and game server).
 - Game server and sim: `InMemorySeeder` (`Tabletop.GameServer.Tests/Infrastructure/`) is one test's database: `InMemoryGameRows`,
   `InMemoryEventLog` and `InMemoryPropertiesStore`, seeded as `PostgresFixture` seeds Postgres (both are `IRowSeeder`).
   `new GameServerFactory(db)` serves that seeder's stores; `GameServerFactory.OverPostgres(pg.Db)` is the E2E suite's. The sim's
   socket runs write through `InMemorySocketRows` (`Tabletop.Sim.Tests/Infrastructure/`). A unit test news its own seeder, so
   no collection serializes it.
 - E2E in these two projects: the Postgres adapters (`PostgresGameRowsTests`, `PostgresEventLogTests`, `PropertiesStoreTests`,
-  `PostgresSocketRowsTests`), the suite games over the socket against Postgres, and the suite games in process (too slow for the unit
-  suite; `dotnet run --project sim -- suite` plays them all). `GameRowsContract`, `EventLogContract` and `SocketRowsContract` run
+  `PostgresSocketRowsTests`), the suite games over the socket against Postgres, the suite games in process (too slow for the unit
+  suite; `dotnet run --project sim -- suite` plays them all), and `LifecycleTests` (each lifecycle shape against the running stack,
+  as `dotnet run --project sim -- lifecycle` plays them). `GameRowsContract`, `EventLogContract` and `SocketRowsContract` run
   against both the fake and the adapter.
 - `tests/default.runsettings` (from `Directory.Build.props`) excludes E2E; `tests/e2e.runsettings` selects only E2E. A
   command-line `--filter` narrows within the chosen suite.

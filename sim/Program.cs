@@ -2,6 +2,7 @@ using Npgsql;
 using Tabletop.GameServer.Configuration;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
+using Tabletop.Sim.Lifecycle;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
@@ -28,6 +29,14 @@ public static class Program
                 ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = !cancel.IsCancellationRequested; cancel.Cancel(); };
                 Console.CancelKeyPress += onCancel;
                 try { return await RunSuiteAsync(SuiteArguments.Parse(args[1..]), Console.Out, new SuiteRunner(), cancel.Token); }
+                finally { Console.CancelKeyPress -= onCancel; }
+            }
+            if (args.Length > 0 && args[0] == LifecycleArguments.Verb)
+            {
+                using var cancel = new CancellationTokenSource();
+                ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = !cancel.IsCancellationRequested; cancel.Cancel(); };
+                Console.CancelKeyPress += onCancel;
+                try { return await RunLifecycleAsync(LifecycleArguments.Parse(args[1..]), Console.Out, LifecycleEndpoints.FromEnvironment(), cancel.Token); }
                 finally { Console.CancelKeyPress -= onCancel; }
             }
             return await RunAsync(SimOptions.Parse(args), Console.Out, CancellationToken.None);
@@ -109,6 +118,29 @@ public static class Program
         output.WriteLine(report.Verdict);
         WriteReportPaths(output, files);
         return report.ExitCode;
+    }
+
+    /// <summary>
+    /// The lifecycle suite: --list prints the shapes, otherwise each is played against the stack and gets a line as it finishes, a failing
+    /// one its failure lines after it, then the verdict. Exit 0 only when every shape passed.
+    /// </summary>
+    public static async Task<int> RunLifecycleAsync(LifecycleArguments arguments, TextWriter output, LifecycleEndpoints endpoints, CancellationToken ct)
+    {
+        var shapes = LifecycleShapes.Select(arguments.Only);
+        if (arguments.List)
+        {
+            foreach (var shape in shapes) output.WriteLine($"{shape.Name}  {shape.Summary}");
+            return 0;
+        }
+        output.WriteLine($"lifecycle: {shapes.Count} shapes against {endpoints.Management} and {endpoints.GameServer}");
+        var results = await new LifecycleRunner(endpoints).RunAsync(shapes, new Inline<LifecycleResult>(r =>
+        {
+            output.WriteLine($"{(r.Passed ? "pass" : "FAIL")}  {r.Shape}  {r.Seconds:0.0}s");
+            foreach (var line in r.Failures.SelectMany(f => f.Split('\n'))) output.WriteLine($"          {line}");
+        }), ct);
+        var failed = results.Count(r => !r.Passed);
+        output.WriteLine($"{results.Count - failed} of {results.Count} shapes passed");
+        return failed == 0 ? 0 : 1;
     }
 
     /// <summary>A passing game prints nothing of its own; a counter line comes every this many games.</summary>

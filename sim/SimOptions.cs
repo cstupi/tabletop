@@ -14,6 +14,7 @@ public sealed record SimOptions(
     public static string Usage => $"""
         dotnet run --project sim -- <scenario> [options]
         dotnet run --project sim -- suite [options]       the rules suite
+        dotnet run --project sim -- lifecycle [options]   the lifecycle suite (the stack up)
 
           --seed N              one seed (default: the scenario's own)
           --seeds A..B          a closed range of seeds, one game each
@@ -136,4 +137,40 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
 
     private static string Next(string[] args, ref int i, string option) =>
         ++i < args.Length ? args[i] : throw new UsageException($"{option} wants a value");
+}
+
+/// <summary>The lifecycle suite's verb (lifecycle suite spec): the shapes to play, or the list of them.</summary>
+public sealed record LifecycleArguments(IReadOnlyList<string> Only, bool List)
+{
+    public const string Verb = "lifecycle";
+
+    public static string Usage => $"""
+        dotnet run --project sim -- lifecycle [options]
+
+          --only A,B            shape names; repeatable; default every shape
+          --list                list the shapes and exit
+
+        Plays each shape against the running stack by the client's path: management over HTTP, the game over the socket.
+        TABLETOP_SIM_MANAGEMENT (default {SimOptions.DefaultManagement}) and TABLETOP_SIM_WS (default {SimOptions.DefaultWebSocket}),
+        from the environment or the nearest .env; both servers in dev mode.
+        """;
+
+    public static LifecycleArguments Parse(string[] args)
+    {
+        var only = new List<string>();
+        var list = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--only":
+                    if (++i >= args.Length) throw new UsageException("--only wants a value");
+                    only.AddRange(args[i].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+                    break;
+                case "--list": list = true; break;
+                default: throw new UsageException($"unknown lifecycle argument '{args[i]}'\n\n{Usage}");
+            }
+        }
+        return new LifecycleArguments(only, list);
+    }
 }

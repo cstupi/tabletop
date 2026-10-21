@@ -1198,8 +1198,10 @@ writes `builtin/`.
 | `GET /v1/client/latest` | → `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`; `404` before the first release (§15) | bearer |
 | `GET /v1/builtin` | → `ServedBuiltin(Version, Meshes, Textures, Terrain, Files, ExpiresAt)`; `404` before the first publish (§16) | bearer |
 | **`POST /v1/dev/sessions`, development only, not a product endpoint** | `DevSessionRequest(Name, Roles?)` → `SessionResponse` | none, and the route exists only under `IHostEnvironment.IsDevelopment()` |
+| **`POST /v1/dev/armies/import`, dev mode only, not a product endpoint** | `DevArmyImportRequest(Source, List)` (an Army Forge export) → `201 Army`, the import's `422`s | bearer; mapped only in dev mode |
 
-The last route is the simulator's token source. Nothing else calls it, no client and no web app may,
+The dev armies route is `/v1/armies/import` with the list in the body (`ArmyEndpoints.ImportAsync`), for the simulator's lifecycle
+suite, which never calls Army Forge. The sessions route is the simulator's token source. Nothing else calls it, no client and no web app may,
 and a build whose environment is unset serves `404` for it.
 
 ### Produced: types and services

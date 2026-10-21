@@ -31,6 +31,19 @@ public sealed partial class GameSession
     }
 
     /// <summary>
+    /// The rows read again, broadcast only when they differ from Info: management's join and leave write participant rows without telling
+    /// this session. A game whose row is gone (deleted) changes nothing here.
+    /// </summary>
+    internal async Task RefreshInfoAsync()
+    {
+        if (await _services.Rows.ReadGameAsync(GameId, CancellationToken.None) is not { } fresh) return;
+        if (WireJson.Serialize(fresh) == WireJson.Serialize(Info)) return;
+        Info = fresh;
+        if (Play is not null) Play.Info = Info;
+        await BroadcastAsync(new GameInfoMessage(Info));
+    }
+
+    /// <summary>
     /// Written to the game's rows, broadcast as the new GameInfo, never logged. Accepted while lobby or setup; from playing on, only taking an
     /// empty team and bringing an army while deployment waits for players (HandleWaitingEditAsync); read-only otherwise.
     /// </summary>

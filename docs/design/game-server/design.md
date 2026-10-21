@@ -679,8 +679,12 @@ built-in texture `grass`, in one transaction with `status = 'setup'`. Then `Draf
 Nothing freezes here. Teams, armies and configuration stay editable through setup, because
 deployment has not happened.
 
-**`EndSetup`** is creator only, `setup` only, and it is where things freeze. In order:
-`DraftEditor.DropOffSlab` removes generated pieces still beside the table. Each participant's
+Management's join and leave write participant rows without telling the session. In `lobby` and `setup` it reads them again
+(`RefreshInfoAsync`, broadcasting `GameInfo` only when they differ) on every connect and when a participant's last socket closes,
+which is the client's Leave (`POST /v1/games/{id}/leave`, then the socket closes).
+
+**`EndSetup`** is creator only, `setup` only, and it is where things freeze. In order: the participant rows are read again, so a
+player who left brings no army. `DraftEditor.DropOffSlab` removes generated pieces still beside the table. Each participant's
 army is read and `ArmySnapshot.Of` taken *as it stands*. One transaction rewrites the tree,
 writes every `army_snapshot` (null staying null) and flips `status` to `playing`. Then in memory
 `Draft` becomes null, `Play` is a fresh `GameState` over `new Board(snapshot, armies)`, and a
@@ -905,7 +909,7 @@ Decisions this module settles itself:
 | Type | Members |
 | --- | --- |
 | `interface ISessionClient` | `Guid ConnectionId`, `Guid ParticipantId`, `ValueTask SendAsync(SocketMessage)`, `ValueTask CloseAsync(WebSocketCloseStatus, string)` |
-| `sealed class GameSession` | `GameId`, `Info`, `Rules`, `Draft`, `Play`, `Engine`, `Dispatcher`, `Clients`, `Faulted`, `StartAsync`, `ConnectAsync`, `AttachAsync`, `DetachAsync`, `ReceiveAsync`, `TickPresenceAsync`, `RunAsync<T>`, `DrainAsync`, `BroadcastAsync`, `TeamOf`, `ActorOf`; internal `AppendAsync`, `RunToRestAsync`, `Rest`, `ReloadInfoAsync`, `NewDraft` |
+| `sealed class GameSession` | `GameId`, `Info`, `Rules`, `Draft`, `Play`, `Engine`, `Dispatcher`, `Clients`, `Faulted`, `StartAsync`, `ConnectAsync`, `AttachAsync`, `DetachAsync`, `ReceiveAsync`, `TickPresenceAsync`, `RunAsync<T>`, `DrainAsync`, `BroadcastAsync`, `TeamOf`, `ActorOf`; internal `AppendAsync`, `RunToRestAsync`, `Rest`, `ReloadInfoAsync`, `RefreshInfoAsync`, `NewDraft` |
 | `sealed record SessionServices` | `IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging` |
 | `sealed class PresenceTable` | `Set(Presence)`, `Remove(Guid)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All` |
 | `static class Hydrator` | `Task<GameSession> HydrateAsync(Guid, SessionServices, CancellationToken)`; `GameNotFoundException`, `GameRowsInconsistentException` |

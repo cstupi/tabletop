@@ -22,28 +22,7 @@ public static class ArmyEndpoints
             if (Limits.Text(r.Source, "source", Limits.Source) is { } badSource) return Problems.Unprocessable(badSource);
             var listId = ArmyForgeClient.ListId(r.Source);
             if (listId is null) return Problems.Unprocessable("source must be an Army Forge share link or list id");
-            var owner = CurrentAccount.Id(u);
-            if (await armies.Count(owner) >= Limits.PerAccount) return Problems.Unprocessable($"An account keeps at most {Limits.PerAccount} armies.");
-            Army army;
-            try
-            {
-                var list = await forge.Fetch(listId);
-                if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{Printable(list.GameSystem)}'.");
-                army = ArmyForgeImport.ToArmy(list, r.Source, await kinds.For(gameRules));
-            }
-            catch (ArmyForgeException e)
-            {
-                log.LogWarning(e, "Army Forge fetch of list {ListId} failed", listId);
-                return Problems.BadGateway(e.Status is null ? Unreachable : NoSuchList);
-            }
-            catch (InvalidArmyException e) { return Problems.Unprocessable(e.Message); }
-            catch (JsonException e)
-            {
-                log.LogWarning(e, "Army Forge export of list {ListId} is malformed", listId);
-                return Problems.Unprocessable(MalformedExport);
-            }
-            await armies.Insert(owner, army);
-            return Results.Created($"/v1/armies/{army.Id}", army);
+            return await ImportAsync(CurrentAccount.Id(u), r.Source, listId, () => forge.Fetch(listId), kinds, armies, log);
         });
 
         g.MapGet("", async (ClaimsPrincipal u, IArmyRepository armies, int? limit, Guid? after) =>
@@ -63,6 +42,36 @@ public static class ArmyEndpoints
             return await armies.Patch(owner, id, p) is { } a ? Results.Ok(a) : Problems.NotFound();
         });
         g.MapDelete("/{id:guid}", async (ClaimsPrincipal u, Guid id, IArmyRepository armies) => await armies.Delete(CurrentAccount.Id(u), id) ? Results.NoContent() : Problems.NotFound());
+    }
+
+    /// <summary>
+    /// An import once the source is known good: the account's cap, the list (Army Forge's fetch, or the dev route's body), its game
+    /// system, the mapping, the insert. Every problem is the fixed text above or the mapping's own.
+    /// </summary>
+    internal static async Task<IResult> ImportAsync(Guid owner, string source, string listId, Func<Task<AfList>> read,
+        ICatalogKinds kinds, IArmyRepository armies, ILogger log)
+    {
+        if (await armies.Count(owner) >= Limits.PerAccount) return Problems.Unprocessable($"An account keeps at most {Limits.PerAccount} armies.");
+        Army army;
+        try
+        {
+            var list = await read();
+            if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{Printable(list.GameSystem)}'.");
+            army = ArmyForgeImport.ToArmy(list, source, await kinds.For(gameRules));
+        }
+        catch (ArmyForgeException e)
+        {
+            log.LogWarning(e, "Army Forge fetch of list {ListId} failed", listId);
+            return Problems.BadGateway(e.Status is null ? Unreachable : NoSuchList);
+        }
+        catch (InvalidArmyException e) { return Problems.Unprocessable(e.Message); }
+        catch (JsonException e)
+        {
+            log.LogWarning(e, "Army Forge export of list {ListId} is malformed", listId);
+            return Problems.Unprocessable(MalformedExport);
+        }
+        await armies.Insert(owner, army);
+        return Results.Created($"/v1/armies/{army.Id}", army);
     }
 
     /// <summary>Army Forge's game-system code, quoted back only when it would pass as a name.</summary>

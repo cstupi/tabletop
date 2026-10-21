@@ -12,6 +12,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The lifecycle suite's army: management's Army Forge fixture, one file for both. -->
+    <EmbeddedResource Include="../tests/Tabletop.Management.Tests/Fixtures/army-forge-c2-6YsWRH3py.json" LogicalName="lifecycle-army-forge-list.json" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../server/game/Tabletop.GameServer.csproj" />
   </ItemGroup>
 </Project>

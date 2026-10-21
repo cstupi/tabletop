@@ -12,7 +12,7 @@
   - `AuthEndpoints` (`/v1/auth/*`), `AccountEndpoints` (`/v1/account`), `IAccountRepository` / `AccountRepository`, `AccountDeleter`.
   - `Sessions`: the post-authenticate step. `DevSessions`: the dev-mode token mint.
 - `Content/Assets/`: `AssetEndpoints`, `IAssetRepository` / `AssetRepository`, `FolderEndpoints`, `IFolderRepository` / `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `ImageHeader`, `UploadLimits`, `UploadSweep` / `UploadSweeper`, `StarterAssets`, `StarterMeshes`.
-- `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyLimits` (import and patch bounds, `InvalidArmyException`), `ArmyEndpoints`, `IArmyRepository` / `ArmyRepository`, `ICatalogKinds` / `CatalogKinds`.
+- `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `DevArmyImport` (the dev-mode body route), `ArmyLimits` (import and patch bounds, `InvalidArmyException`), `ArmyEndpoints`, `IArmyRepository` / `ArmyRepository`, `ICatalogKinds` / `CatalogKinds`.
 - `Content/Layouts/`: `LayoutEndpoints`, `LayoutRules` (bounds), `ILayoutRepository` / `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
 - `Games/`: `GameEndpoints`, `IGameRepository` / `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`; `GET /v1/properties/{hash}/rules`, a pinned set's catalog entries with `rule_text`; `GET /v1/properties/{hash}/grants`, its top-level `once`, `marker` and `spent_marker` effect rows (`GrantableEffect`: entry name, effect id, duration), what the client's Add grant names; both 404 for an unknown hash).
 - `Content/Builtin/`: `BuiltinCatalogs` (`builtin/catalog.json`, cached 60 s; `KnownVersion` never waits), `BuiltinEndpoint` (`GET /v1/builtin`), `BuiltinVersionHeader` (middleware).
@@ -63,6 +63,9 @@
 - The `account_id` claim needs no dashboard setting. The `roles` claim carries whatever roles the Stytch user has: an admin (who watches any game on the game server) is a user assigned the `admin` role of the project's RBAC policy in the dashboard.
 - `Sessions.Problem` maps Stytch errors to fixed text (the `error_type` is logged): 401/404 to 401, 429 to 429, 5xx to 502, `weak_password` to its own 422, every other 4xx (`duplicate_email` included) to one generic 422, so signup does not reveal an existing account. `POST /v1/auth/session/refresh` answers 401 for any Stytch 4xx but 429 (a dead session is unauthenticated); 429 and 5xx keep their mapping.
 - `POST /v1/dev/sessions` (`{ "name": "...", "roles": ["admin"] }`, `roles` optional and stamped in place of the Stytch user's) exists only in dev mode (`DevSessions` is registered under Development, `MapDevSession` mapped under `StartupGuard.DevMode`). It derives a name-based v8 account id, creates the Stytch user at `<name>@example.com` if absent, mints a real Stytch session through an embeddable magic-link token, and runs `Sessions.Complete`. The simulator's socket driver uses it.
+- `POST /v1/dev/armies/import` (`DevArmyImportEndpoint`, `{ "source": "...", "list": { Army Forge export } }`, signed in) exists only in dev mode
+  beside it: `/v1/armies/import` without the fetch, the list taken from the body and stored through `ArmyEndpoints.ImportAsync` (the
+  account's cap, game system, mapping, the same problems). The simulator's lifecycle suite imports through it, so it never calls Army Forge.
 - `./scripts/management` and compose set dev mode (`ASPNETCORE_ENVIRONMENT=Development` and `TABLETOP_DEV_MODE=1`). Compose publishes port 5100 on loopback only because of this route.
 
 ## Persistence
