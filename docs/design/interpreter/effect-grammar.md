@@ -185,7 +185,7 @@ Three phases. The order inside each matters.
 
 **Gather, per side.** Five sources. Unit properties from `UnitInPlay.Definition.Properties`.
 Grants from `UnitInPlay.Grants`, each becoming a `LiveProperty` whose `GrantId` is set and whose
-parameter is read out of the pinned set by `Grant.EffectId`. A `unit`-kind catalog entry sitting
+parameter is read out of the game's set by `Grant.EffectId`. A `unit`-kind catalog entry sitting
 on a model slot, from `Lookup.UnitKindOnSlots` over the unit's definition, holder-less. Model
 properties, grouped by entry name across the party's models, or `Lookup.LivingModels` when the
 party names none, and admitted per the entry's `Aggregation`. Weapon properties per weapon id,
@@ -368,7 +368,7 @@ too, or a granted hook-name rule would never fire.
 - **A granted `Regeneration` is consumed by the step that assigns the wound,** not by a roll plan:
   kind 5 is a roll of its own rather than a modifier, so no plan carries it; `assign` finds the grant through
   the row-bearing instance.
-- **A grant's parameter is the granting effect's `amount`,** read from the pinned set by
+- **A grant's parameter is the granting effect's `amount`,** read from the game's set by
   `EffectId`. The grant row carries none, so the id's database-locality matters
   ([operations.md → Failure modes](operations.md#failure-modes)).
 - **Conditions stay names.** Game flow keeps containment out of the condition store because it

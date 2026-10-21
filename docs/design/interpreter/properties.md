@@ -1,4 +1,4 @@
-# The pinned `Properties` set
+# The `Properties` set
 
 Part of [the interpreter design](design.md).
 
@@ -146,12 +146,15 @@ hex over that. `PropertySetDocumentTests` pins the property that matters: revers
 
 Consequences:
 
-- **Editing a document, or regenerating a book, produces a new set.** The hash changes, `SeedAsync` inserts new rows, and
-  every game that pinned the old hash keeps reading the old rows. Undo-by-replay requires this.
-  Content is therefore append-only: nothing updates a seeded row's content, and stale sets are never
+- **Editing a document, or regenerating a book, produces a new set, and every game that has not ended moves to it.** The hash
+  changes, `SeedAsync` inserts new rows, `PropertiesSeeder` records the hash as its game rules' current set (`CurrentProperties`),
+  and `Hydrator` repins each game that has not ended to it (`IGameRows.RepinPropertiesAsync`); an ended game keeps its set
+  ([games follow the current rules](../../superpowers/specs/2026-10-19-games-follow-the-current-rules-design.md)). Content is append-only: nothing updates a seeded row's content, and stale sets are never
   garbage-collected. The one update is a present set's null `position`s, filled from its document. [Failure modes](operations.md#failure-modes) takes that up.
 - **Effect and condition ids are minted at seeding**, not authored. `Grant.EffectId` is stable
-  within one database and not portable between databases. A grant in an event log refers to an
+  within one database and not portable between databases. A loaded set aliases the effect rows of the other sets of its game
+  rules by entry, position path and kind (`EffectAliases.Match`), and `PropertySet.EffectById` falls back to them, so a grant
+  minted before a game moved still names its row. A grant in an event log refers to an
   `effect.id`, so restoring a log into an independently seeded database would dangle. Nothing in
   the design depends on portability today, and nothing warns about it either.
 - **The hash covers content, so the same file seeds the same hash everywhere.**

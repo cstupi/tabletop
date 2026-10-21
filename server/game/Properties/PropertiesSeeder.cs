@@ -1,7 +1,8 @@
 namespace Tabletop.GameServer.Properties;
 
-/// <summary>Authored content reaches the tables here: every embedded *.properties.json is seeded once, by hash, when the server starts.</summary>
-public sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesSeeder> log)
+/// <summary>Authored content reaches the tables here: every embedded *.properties.json is seeded once, by hash, when the server starts, and
+/// its hash becomes its game rules' current set (CurrentProperties).</summary>
+public sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesSeeder> log, CurrentProperties? current = null)
 {
     /// <summary>The part scripts/ArmyBooks generates (army-book rules spec → Generator): template wrappers and text-only entries. Never edited by hand.</summary>
     public const string GeneratedPart = "grimdark-future-army-book-rules.part.json";
@@ -61,6 +62,7 @@ public sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesS
             var inserted = await store.SeedAsync(doc, ct);
             var hash = PropertiesJson.Hash(doc);
             log.LogInformation("Properties '{Name}' {Hash}: {What}", doc.Name, hash, inserted ? "seeded" : "already present");
+            current?.Set(doc.GameRules, hash);
             hashes.Add(hash);
         }
         return hashes;

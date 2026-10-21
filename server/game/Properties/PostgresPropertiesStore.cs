@@ -64,7 +64,35 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
             r => (Book: r.GetString(0), Entry: r.GetString(1)))).ToLookup(x => x.Book, x => x.Entry);
         var books = await Rows(conn, "select uid, name, version from management.book where properties_hash = $1 order by uid", hash, ct,
             r => (Uid: r.GetString(0), Name: r.GetString(1), Version: NullableString(r, 2)));
-        return new PropertySet(hash, name, rules, stats, actions, rolls, entries, books.Select(b => new BookRecord(b.Uid, b.Name, b.Version, bookSpells[b.Uid].ToList())).ToList());
+        var set = new PropertySet(hash, name, rules, stats, actions, rolls, entries, books.Select(b => new BookRecord(b.Uid, b.Name, b.Version, bookSpells[b.Uid].ToList())).ToList());
+        var foreign = await ForeignEffectsAsync(conn, rules, hash, ct);
+        return foreign.Count == 0 ? set : set.WithAliases(foreign);
+    }
+
+    /// <summary>Every effect row of the other sets of these game rules, with its position path, for EffectAliases. A row whose path
+    /// crosses a null position is left out.</summary>
+    static async Task<List<ForeignEffect>> ForeignEffectsAsync(NpgsqlConnection conn, string rules, string hash, CancellationToken ct)
+    {
+        var rows = new Dictionary<Guid, (string Entry, Guid? Parent, int? Position, EffectKind Kind)>();
+        await using (var cmd = new NpgsqlCommand("""
+            select e.id, e.entry_name, e.parent_effect_id, e.position, e.kind from management.effect e
+            join management.properties p on p.content_hash = e.properties_hash where p.game_rules = $1 and e.properties_hash <> $2
+            """, conn) { Parameters = { new() { Value = rules }, new() { Value = hash } } })
+        await using (var r = await cmd.ExecuteReaderAsync(ct))
+            while (await r.ReadAsync(ct))
+                rows[r.GetGuid(0)] = (r.GetString(1), NullableGuid(r, 2), r.IsDBNull(3) ? null : r.GetInt32(3), EnumFrom<EffectKind>(r.GetString(4)));
+        var foreign = new List<ForeignEffect>();
+        foreach (var (id, row) in rows)
+        {
+            List<int>? path = [];
+            for (Guid? at = id; at is { } a; at = rows[a].Parent)
+            {
+                if (rows[a].Position is not { } p) { path = null; break; }
+                path.Insert(0, p);
+            }
+            if (path is not null) foreign.Add(new ForeignEffect(id, row.Entry, path, row.Kind));
+        }
+        return foreign;
     }
 
     /// <summary>roll_result's values are the roll name, raw|modified and an optional success|fail; they go back in that order (a row

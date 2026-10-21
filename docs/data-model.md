@@ -39,7 +39,7 @@ erDiagram
     TEAM ||--|{ PARTICIPANT : has
     PARTICIPANT ||--o| ARMYSNAPSHOT : brings
     PARTICIPANT }o--o| ARMY : "picked in the lobby"
-    GAME }o--|| PROPERTIES : "pinned by hash"
+    GAME }o--|| PROPERTIES : "by hash"
     PROPERTIES ||--|{ STATDEFINITION : declares
     PROPERTIES ||--|{ CATALOGENTRY : catalogs
     PROPERTIES ||--|{ ACTION : names
@@ -320,13 +320,13 @@ exists**. It is kept because import knows it for free and no later pass could re
 time, so storing it would be two sources for one fact. A source identifier had no reader at all
 — the only candidate was a heuristic that was deliberately deferred.
 
-**A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions, one
+**A ruleset is two things.** `PROPERTIES` is the data — stat definitions, one
 catalog of named rules, the actions and rolls that effects can target, and the army books that
 list the catalog's spells. `GAME.game_rules`
-names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
-data half is pinned, which is an open problem for replay.
+names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. A
+game's hash is its game rules' current set until the game ends ([games follow the current rules](superpowers/specs/2026-10-19-games-follow-the-current-rules-design.md)).
 
-**There is no `RulePack` entity**, and `PROPERTIES` is not one. It is the pinned set itself,
+**There is no `RulePack` entity**, and `PROPERTIES` is not one. It is the set itself,
 addressed by the hash of its contents; its `name` and `game_rules` exist so a set can be shown
 and matched to the C# that reads it, not so packs can be registered and resolved by identity.
 

@@ -29,7 +29,7 @@ without a slot, the seven terrain declarations are columns rather than strings i
 
 ### `Properties` is ten tables, not a document
 
-The schema pinned `game.properties_hash` and stored nothing to resolve it against. **The data
+The schema named `game.properties_hash` and stored nothing to resolve it against. **The data
 half of a ruleset had no home** — stat declarations and the three property catalogs were
 designed in [content values](superpowers/specs/2026-08-29-content-values-design.md) and
 [the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) and never given
@@ -341,14 +341,14 @@ on `set_configuration`, in `lobby` and `setup` only; management reads it and cre
 ### An army book is a row, and lists its spells
 
 `book (properties_hash, uid, name, version)`, keyed `(properties_hash, uid)` and cascading from `properties`, is one
-Army Forge army book in a pinned set: its `uid`, its name, and the `version` its record carries, null for the book that
+Army Forge army book in a set: its `uid`, its name, and the `version` its record carries, null for the book that
 publishes none. `book_spell (properties_hash, book_uid, entry_name, ordinal)`, keyed `(properties_hash, book_uid,
 entry_name)`, lists the book's spells in its own order and references `book` and `catalog_entry`. A book's version is
 a property of the set, not of the game: regenerating one book makes a new set and a new hash. Both arrive as
 management's `005_spell_library.sql`.
 
 `model_slot.army_book text null` is the `uid` of the book the slot's Army Forge entry came from (the TTS export's
-`armyId`), written at import. A caster model may cast exactly the spells the pinned set lists under its slot's book; a
+`armyId`), written at import. A caster model may cast exactly the spells the game's set lists under its slot's book; a
 slot with no book, or a book the set does not list, casts nothing. It is the slot's and not the unit's because every
 entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a model rule.
 
@@ -421,7 +421,7 @@ sets the column. Nothing else reads it, and deleting a starter asset does not cl
 `seeded_at timestamptz not null default now()`, arriving as management's `004_properties_seeded_at.sql`. The game
 server's seeder inserts a new set and, for one already present, sets `seeded_at = now()`, so the sets the running
 server ships are the newest. `GET /v1/properties` lists one set per `(game_rules, name)`, the latest by `seeded_at`, newest first;
-editing a document under the same name supersedes the listing entry, and a game that pinned the older hash keeps it.
+editing a document under the same name supersedes the listing entry. A game that has not ended moves to the set the running game server seeded at its next hydration; an ended game keeps its hash ([games follow the current rules](superpowers/specs/2026-10-19-games-follow-the-current-rules-design.md)).
 
 ### A deployment zone names a team ordinal, not a team
 

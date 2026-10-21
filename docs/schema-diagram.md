@@ -17,7 +17,7 @@ erDiagram
     PROPERTIES ||--o{ BOOK : lists
     BOOK ||--o{ BOOK_SPELL : "its spells, in order"
     CATALOG_ENTRY ||--o{ BOOK_SPELL : "listed by"
-    GAME }o--|| PROPERTIES : "pinned by hash"
+    GAME }o--|| PROPERTIES : "by hash"
     ACCOUNT ||--o{ BLOB : owns
     ACCOUNT ||--o{ ASSET : owns
     ACCOUNT ||--o{ FOLDER : owns

@@ -30,6 +30,7 @@ builder.Services.AddSingleton<ISchedulerFactory, SchedulerFactory>();
 builder.Services.AddSingleton<IRulesEngineFactory>(sp => new RulesEngineFactory(sp.GetRequiredService<IPropertiesStore>(), sp.GetRequiredService<IDiceSource>(),
     sp.GetRequiredService<ISchedulerFactory>(), sp.GetRequiredService<GameServerOptions>().AcceptsSetDice));
 builder.Services.AddSingleton<IPropertiesStore, PostgresPropertiesStore>();
+builder.Services.AddSingleton<CurrentProperties>();
 builder.Services.AddSingleton<PropertiesSeeder>();
 builder.Services.AddSingleton<SessionServices>();
 builder.Services.AddSingleton<SessionRegistry>();

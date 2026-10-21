@@ -3,7 +3,7 @@
 `server/management/` is the project's HTTP surface: one ASP.NET Core minimal-API process,
 `Tabletop.Management`, over the `management` Postgres schema. It owns identity (Stytch login,
 accounts), the asset library and its folders, armies imported from Army Forge, layouts, game
-records and the public game browser, and the pinned `Properties` sets a game may choose. It holds
+records and the public game browser, and the `Properties` sets a game may choose. It holds
 no live state and can restart at any time.
 
 It is not the sole writer of the rows it defines. While a game is in `lobby` or `setup` the game
@@ -47,7 +47,7 @@ Asset bytes never pass through the process, and the service issues no token of i
 - **No multipart upload.** `IBlobStore` has no multipart member. The management API spec's open
   item stays open.
 - **No `Properties` seeding.** The game server writes the ten `Properties` tables from its embedded
-  documents at startup ([interpreter → The pinned `Properties` set](../interpreter/properties.md)); until it
+  documents at startup ([interpreter → The `Properties` set](../interpreter/properties.md)); until it
   has run, `GET /v1/properties` can return an empty list and `POST /v1/games` then answers `422`.
 - **No hosting.** Local only: Postgres and MinIO from `docker-compose.yml`, configuration from
   `TABLETOP_*` and `dotnet user-secrets`.
@@ -883,7 +883,7 @@ set null`, the lobby's pick, which the manifest reads before a snapshot exists.
 Endpoint behaviour:
 
 - `POST /v1/games` validates the `properties_hash` against the `properties` table and copies
-  `game_rules` from the chosen row, so a game can never name a ruleset its pinned set disagrees
+  `game_rules` from the chosen row, so a game can never name a ruleset its set disagrees
   with. An unknown hash is `422` with a pointer to `GET /v1/properties`. The name is ≤ 64 characters with
   no control or bidirectional formatting characters. `GameRepository.Create` writes `game.rng_seed` once.
   The seed never leaves the servers: every die is a pure function of it, so `GameInfo.RngSeed` is

@@ -228,7 +228,8 @@ when no one holds or waits on it) so that two sockets landing together hydrate o
 hydration holds up only its own game. It returns a live non-faulted session if there is one, and otherwise
 calls `Hydrator.HydrateAsync` and `StartAsync`.
 
-`Hydrator` is the one path. It branches only on status:
+`Hydrator` is the one path. A game that has not ended first moves to its game rules' current `Properties` set
+(`CurrentProperties`, `IGameRows.RepinPropertiesAsync`; games-follow-the-current-rules spec). It then branches only on status:
 
 ```mermaid
 graph TD
@@ -637,7 +638,7 @@ The game server writes management's rows while the game is `lobby` or `setup`, a
 | While `lobby` or `setup` | From `playing` on |
 | --- | --- |
 | `game.status` (the two creator transitions) | `game.status = 'ended'`, once, when a `game_ended` it appended becomes live (`IGameRows.EndGameAsync`) |
-| `game.name`, `properties_hash`, `game_rules`, `scheduler_shape`, `enforcement`, `waits_between_steps` | nothing |
+| `game.name`, `properties_hash`, `game_rules`, `scheduler_shape`, `enforcement`, `waits_between_steps` | `properties_hash` to the current set at hydration, until `ended` (`IGameRows.RepinPropertiesAsync`) |
 | `team` (insert, ordinal `max + 1`) | nothing |
 | `participant.team_id`, `participant.army_id` | nothing |
 | `participant.army_snapshot` (once, at end-setup) | nothing |
@@ -1358,8 +1359,9 @@ edge back to `absent` is recovered by hydrating again.
   a batch it cannot apply before storing it, so such a log comes only from outside (a hand edit, an
   older build). Every hydrate replays it and throws, and the game cannot be opened until the row is
   removed by hand.
-- **`GameRules` is not pinned.** Only `Properties` is content-addressed. Restarting an ended
-  game after a deploy that changed a step list may replay differently. Pinning a build version
+- **`GameRules` is not pinned.** Restarting an ended
+  game after a deploy that changed a step list may replay differently. `Properties` is content-addressed, and a game that has
+  not ended moves to its game rules' current set at hydration (games-follow-the-current-rules spec). Pinning a build version
   was rejected: every deploy would become a wall old games cannot cross.
 - **Hand-move positions are rested.** `MenuTranslation` rests each hand move with `Battlefield.Settle`, which ignores the
   client's `Z`; the `X`/`Y` the client chose are recorded. Accepted under "anyone can move

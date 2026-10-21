@@ -116,7 +116,7 @@ menu edit superseded. The session's loop calls
 
 **The ruleset seam.** The scheduler never reads a unit's action record, conditions or properties
 itself. It branches on nothing but `GameInfo.SchedulerShape`. Every ruleset question is a member
-of `IGameRules` taking `GameState` and the pinned `PropertySet` and returning a value. There are
+of `IGameRules` taking `GameState` and the game's `PropertySet` and returning a value. There are
 no callbacks into the scheduler and no state held on either side. Name checks go through the
 interpreter's `Effects.Lookup.UnitHas`, so a rule *granted* by a spell counts (whole-design
 review → *`GameRules` name checks read the grants store*).
@@ -430,7 +430,7 @@ stateDiagram-v2
    is null, so the cycle emits `ActionRecorded(unit, "Teleport")` and completes. That is
    enumeration-not-validation carried through to the end.
 
-`TurnCycle` takes the pinned `PropertySet` in its constructor and is otherwise stateless. It is
+`TurnCycle` takes the game's `PropertySet` in its constructor and is otherwise stateless. It is
 constructed once per scheduler and reads everything from the arguments of each call.
 
 ### Skipping, passing and spectators
@@ -1087,7 +1087,7 @@ nullable is what makes a spectator expressible.
 | Held | Where | Lifetime |
 | --- | --- | --- |
 | the shape (which subclass) | the `IScheduler` instance | one game session |
-| the pinned `PropertySet` | `SchedulerBase.Properties`, `TurnCycle` | one game session |
+| the game's `PropertySet` | `SchedulerBase.Properties`, `TurnCycle` | one game session |
 | round, order, active team, phase, passed | `Projection.Scheduler`, maintained by the applier | rebuilt on every hydrate and every undo |
 | the log slices and anchors | a fresh `SchedulerLog` per `Advance` | one call |
 

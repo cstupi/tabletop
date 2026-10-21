@@ -184,6 +184,16 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
         lock (_gate) return Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(assetIds.Where(_assets.ContainsKey).Distinct().ToDictionary(id => id, id => _assets[id]));
     }
 
+    public Task RepinPropertiesAsync(Guid gameId, string hash, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            if (!PropertiesExist(hash)) throw new InvalidOperationException($"no properties row {hash}");
+            if (_games.TryGetValue(gameId, out var g) && g.Status != GameStatus.Ended) _games[gameId] = g with { PropertiesHash = hash };
+        }
+        return Task.CompletedTask;
+    }
+
     public Task EndGameAsync(Guid gameId, CancellationToken ct)
     {
         lock (_gate)

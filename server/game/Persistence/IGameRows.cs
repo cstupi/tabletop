@@ -21,6 +21,9 @@ public interface IGameRows
     /// <summary>Each named asset that exists, with its owner's account id. A setup edit may reference only assets a participant owns.</summary>
     Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct);
 
+    /// <summary>The game's properties_hash to its game rules' current set, guarded on not ended (games-follow-the-current-rules spec).</summary>
+    Task RepinPropertiesAsync(Guid gameId, string hash, CancellationToken ct);
+
     /// <summary>playing → ended, guarded on playing, so management's own end and a second call change nothing.</summary>
     Task EndGameAsync(Guid gameId, CancellationToken ct);
 

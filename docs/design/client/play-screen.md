@@ -297,7 +297,7 @@ or `Text` item, a filtered list for a `Choice` item (`MenuItem.Choices`), borrow
 | Wiring | Items |
 | --- | --- |
 | right-click a model | `ForBoarding` while my move Ask moves it and offers containers (Board transport per `MoveContainment.Enterable`, answering the Ask), then `ForModel` + `ForFrame`: wounds, conditions, spell tokens, shelf, container, place here |
-| Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, Add a grant (a `Choice` of `Session.Grantable`: the pinned set's grantable effects from `GET /v1/properties/{hash}/grants`, `GrantChoices`; one use, the unit as its own grantor) and Remove grant, wounds-this-activation |
+| Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, Add a grant (a `Choice` of `Session.Grantable`: the game's set's grantable effects from `GET /v1/properties/{hash}/grants`, `GrantChoices`; one use, the unit as its own grantor) and Remove grant, wounds-this-activation |
 | right-click a marker | `ForMarker`: remove a play marker, give an objective to a team or make it neutral; in play, Unlock or Lock an objective (local, `MarkerLocks`) |
 | right-click a roster row of my team | `ForRosterUnit`: Set aside / Return to deployment (a shelved Ambush or Scout unit), Put in transport per Transport `ModelFacts.DeployInside` names, Take out of transport while that Transport is on the shelf (passengers spec) |
 | right-click a team name in the header | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |
@@ -313,7 +313,7 @@ here") is the manual containment path beside the Ask-driven one. A model off the
 to right-click, so `OffTable` offers the same item from its team's menu, through the shared
 `BackOnTable` builder and `Names.TeamOfModel`. That item is the only path when no Ask is
 open: a correction after a misclick, or a group playing under `warn`/`silent`. A unit deploys inside a Transport through
-the roster's Put in transport (passengers spec). `KnownActionNames` exists because the pinned `Properties`' action
+the roster's Put in transport (passengers spec). `KnownActionNames` exists because the game's `Properties`' action
 rows never reach the client. The menu offers the names it has seen, meaning the actions recorded
 in the log and on the units, plus free text. The activate Ask's option labels
 (`"{unit name}: {action}"`) are display text and are not parsed.

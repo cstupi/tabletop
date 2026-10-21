@@ -470,7 +470,7 @@ still takes its test.
 
 | Step | Does |
 | --- | --- |
-| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spells the pinned set lists under that model's own book (`PropertySet.SpellsOf(slot.ArmyBook)`, p.13: *"the Caster's spells must be picked from their own faction"*), not yet tried this activation, whose `Cost` the model can pay. A slot with no book, or a book the set does not list, is offered nothing. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and nothing else |
+| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spells the game's set lists under that model's own book (`PropertySet.SpellsOf(slot.ArmyBook)`, p.13: *"the Caster's spells must be picked from their own faction"*), not yet tried this activation, whose `Cost` the model can pay. A slot with no book, or a book the set does not list, is offered nothing. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and nothing else |
 | `spend-tokens` | `Windows.SimultaneousSpend` then `Windows.Spends`, over `GfCasting.SpendCapacity`. Each addressed team names which of its own models pays what and each named model is deducted its own count. `Values["net_tokens"]` is the own team's counts summed less everyone else's |
 | `roll` | `GfRolls.CastingPlan(net_tokens)`: one die at 4+ with the net token spend as a signed modifier (p.13) |
 | `result` | The `roll` die as it now stands (→ Dice edits): `Values["passed"]` 0/1, and a failure `Finish`es (p.13: *"on 4+ resolve the effect"*) |

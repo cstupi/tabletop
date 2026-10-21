@@ -219,8 +219,8 @@ edit, and supporting a game beyond OPR is new data rather than new engine code.
 **How authored content reaches those tables.** A set is one JSON document under `server/game/Content/*.properties.json`, carrying the eight
 tables' shape without ids. It is content-addressed by SHA-256 over a canonical serialisation
 (`sha256:…`), and the game server seeds it as rows at startup, once per hash and idempotently.
-Editing a document yields a new hash and so a new set, and a game keeps the set it pinned.
-`GET /v1/properties` lists, per ruleset and name, the set seeded most recently (`properties.seeded_at`), newest first, so the set the running server seeded leads; an older set stays for the games that pinned it. Effect and condition ids are minted at seeding
+Editing a document yields a new hash and so a new set. Every game that has not ended moves to the set the running server seeded for its game rules at its next hydration; an ended game keeps its set ([games follow the current rules](superpowers/specs/2026-10-19-games-follow-the-current-rules-design.md)).
+`GET /v1/properties` lists, per ruleset and name, the set seeded most recently (`properties.seeded_at`), newest first, so the set the running server seeded leads; an older set stays for the ended games that name it. Effect and condition ids are minted at seeding
 and are stable thereafter within a database. The Army Forge import of
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) is a later writer of the
 same format.
@@ -285,10 +285,11 @@ Grimdark Future's, and it is the same engine. Warhammer is the test.
 
 ### Pinning
 
-**`Properties` are content-addressed and pinned per game, snapshotted like armies.** Undo-by-replay
-requires the exact ruleset that produced the event log; a pack changing mid-game or between
-sessions makes replay diverge and undo silently produce wrong state. Distribution uses the same
-mechanism as assets — hashed and pinned in the game record.
+**`Properties` are content-addressed, and a game follows its game rules' current set.** Owner ruling: "If a rule FIX is
+released it shouldnt publish a new version. everything should move to it.. its a fix". A game that has not ended is moved to the
+set the running server seeded at hydration, and grants minted under the old set resolve through effect aliases
+([games follow the current rules](superpowers/specs/2026-10-19-games-follow-the-current-rules-design.md)). Replay applies recorded dice and results, so undo stays faithful across the move.
+An ended game keeps its set.
 
 ## Geometry
 
@@ -669,15 +670,15 @@ reach into a live match. A participant who joins after that has none. It is a `j
 `participant` rather than an entity — see [`docs/schema.md`](schema.md) — and it is opaque on
 purpose: normalised, a later migration would silently alter what a past game was played with.
 
-**A game names a `GameRules` and pins a `Properties` hash.** Undo is replay, and replay needs
-the exact ruleset that produced the log. There is no `RulePack` entity — see
+**A game names a `GameRules` and a `Properties` hash.** The hash is its game rules' current set until the game ends
+([games follow the current rules](superpowers/specs/2026-10-19-games-follow-the-current-rules-design.md)). There is no `RulePack` entity — see
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
-The `properties` table is the pinned set itself, keyed by the hash of its contents, not a
+The `properties` table is the set itself, keyed by the hash of its contents, not a
 registry that resolves packs by identity.
 
-**Pinning covers only the data half, and that is accepted.** `GameRules` is C# shipped with the
-build, so a pipeline order changing between deploys can make an old game replay differently.
-Content-addressing solves this for `Properties` and not for `GameRules`. Pinning a build version
+**Neither half is pinned across a release, and that is accepted.** `GameRules` is C# shipped with the
+build, and a game that has not ended moves to the current `Properties` set, so a change between deploys can make an old log
+replay differently; replay applies recorded dice and results. Pinning a build version
 would make every deploy a wall old games cannot cross, which is worse than a rare divergence in
 a friendly-play tabletop. Undo within a session is unaffected — the engine cannot change while a
 session is live.

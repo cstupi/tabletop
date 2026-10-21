@@ -277,7 +277,7 @@ The split is between what is edited per ruleset and what is edited every day:
 
 | Half | Form | Contents |
 | --- | --- | --- |
-| `Properties` | Rows in ten tables, pinned per game | Stat declarations, the catalog of named rules, effects, conditions, actions, rolls, army books and the spells each lists |
+| `Properties` | Rows in ten tables, named by hash per game; a game not ended runs its game rules' current set | Stat declarations, the catalog of named rules, effects, conditions, actions, rolls, army books and the spells each lists |
 | `GameRules` | C# behind an interface | Turn structure, sequence definitions, dice conventions, threshold derivation, scheduler policy |
 
 Only OPR's `GameRules` is implemented. Warhammer 40,000's core rules were read twice as a
@@ -364,7 +364,7 @@ erDiagram
   GAME ||--o{ TEAM : has
   GAME ||--o{ PARTICIPANT : has
   GAME ||--|| TABLE_STATE : "draft, then snapshot"
-  GAME }o--|| PROPERTIES : "pinned by hash"
+  GAME }o--|| PROPERTIES : "by hash"
   GAME ||--o{ GAME_EVENT : "append-only, game schema"
   PARTICIPANT }o--o| TEAM : "null until picked"
 ```

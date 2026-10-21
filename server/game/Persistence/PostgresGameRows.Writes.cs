@@ -15,6 +15,13 @@ public sealed partial class PostgresGameRows
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task RepinPropertiesAsync(Guid gameId, string hash, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("update management.game set properties_hash = $2 where id = $1 and status <> 'ended'");
+        cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(hash);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     public async Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct)
     {
         var id = Guid.CreateVersion7();

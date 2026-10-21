@@ -688,7 +688,7 @@ outcome the engine produced.
 | `TheRoundAdvancedOnlyThroughTheBoundaryAsk` | For every `RoundStarted` with `Round >= 2`, the nearest preceding `AskClosed` must have closed an Ask whose question is `AskQuestions.EndRound`, or `GameEvent.Actor` must be non-null. |
 | `NothingAdvancesAfterTheEnd` | Nothing the engine writes follows `game_ended` until a round is started by hand. |
 | `ControlFollowsTheMarkers` | Every `objective_control_set`, alone or inside another event's changes, names a marker the game holds at that point and, when it names a team, a team of the game. |
-| `SpellsComeFromTheCastersBook` | Every closed `pick-spell` names a spell the pinned set lists under its caster model's `ModelSlot.ArmyBook`, and every grant whose `EntryName` is a spell, or no entry at all, names one some caster's book lists. |
+| `SpellsComeFromTheCastersBook` | Every closed `pick-spell` names a spell the game's set lists under its caster model's `ModelSlot.ArmyBook`, and every grant whose `EntryName` is a spell, or no entry at all, names one some caster's book lists. |
 
 Invariant 2 needs no second run. The dice are counter-based on `(RngSeed, cursor)` and `RngSeed`
 is the stored seed, so die *k* is a pure function of that seed and *k*, and `Undone(N)` shortens

@@ -12,6 +12,13 @@ public static class Hydrator
     public static async Task<GameSession> HydrateAsync(Guid gameId, SessionServices services, CancellationToken ct)
     {
         var info = await services.Rows.ReadGameAsync(gameId, ct) ?? throw new GameNotFoundException(gameId);
+        // Owner ruling (games-follow-the-current-rules spec): a rules fix is no new version, every game moves to it. An ended game keeps its set.
+        if (info.Status != GameStatus.Ended && services.Current?.For(info.GameRules) is { } current && current != info.PropertiesHash)
+        {
+            await services.Rows.RepinPropertiesAsync(gameId, current, ct);
+            services.Logging.CreateLogger(typeof(Hydrator)).LogInformation("Game {GameId} moves from properties {Old} to the current {New}", gameId, info.PropertiesHash, current);
+            info = info with { PropertiesHash = current };
+        }
         var rules = GameRulesRegistry.Resolve(info.GameRules);
         if (info.Status == GameStatus.Lobby) return new GameSession(gameId, info, rules, null, null, null, services);
 

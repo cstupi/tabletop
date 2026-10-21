@@ -162,6 +162,28 @@ public class PropertiesStoreTests(PostgresFixture pg)
         Assert.NotNull(await _store.LoadAsync(hashes[0], CancellationToken.None));
     }
 
+    [Fact]
+    public async Task A_load_aliases_the_rows_of_the_other_sets_of_its_game_rules()
+    {
+        var rules = "alias-" + Guid.CreateVersion7().ToString("N")[24..32];
+        var oldDoc = AliasDocs.Of(rules, "Old.");
+        var newDoc = AliasDocs.Of(rules, "New.");
+        try
+        {
+            Assert.True(await _store.SeedAsync(oldDoc, CancellationToken.None));
+            Assert.True(await _store.SeedAsync(newDoc, CancellationToken.None));
+            var old = (await _store.LoadAsync(PropertiesJson.Hash(oldDoc), CancellationToken.None))!;
+            var current = (await _store.LoadAsync(PropertiesJson.Hash(newDoc), CancellationToken.None))!;
+            var oldBolster = old.Entry("Bolster")!.Effects;
+            var newBolster = current.Entry("Bolster")!.Effects;
+            Assert.Equal(newBolster[0].Id, current.EffectById(oldBolster[0].Id)!.Id);
+            Assert.Equal(newBolster[0].Children[0].Id, current.EffectById(oldBolster[0].Children[0].Id)!.Id);
+            Assert.Equal(newBolster[1].Id, current.EffectById(oldBolster[1].Id)!.Id);
+            Assert.Equal(oldBolster[1].Id, old.EffectById(newBolster[1].Id)!.Id);              // either way round
+        }
+        finally { foreach (var d in new[] { oldDoc, newDoc }) await pg.DeletePropertiesAsync(PropertiesJson.Hash(d)); }
+    }
+
     static PropertySetDocument Tiny(string rules, string name, CatalogKind kind, string entry = "Alpha") =>
         new(name, rules, [], [], [], [new EntryDocument(entry, kind, false, kind == CatalogKind.Model ? Aggregation.All : null, null, null, "text", null, [])]);
 

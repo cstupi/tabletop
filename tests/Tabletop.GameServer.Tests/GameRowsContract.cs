@@ -135,6 +135,22 @@ public abstract class GameRowsContract
     }
 
     [Fact]
+    public async Task Repinning_moves_every_game_but_an_ended_one_to_the_set_named()
+    {
+        var current = await Seeder.SeedPropertiesAsync();
+        foreach (var status in new[] { GameStatus.Lobby, GameStatus.Setup, GameStatus.Playing })
+        {
+            var game = await Seeder.SeedGameAsync(status);
+            await Rows.RepinPropertiesAsync(game.GameId, current, Ct);
+            Assert.Equal((current, status), ((await Rows.ReadGameAsync(game.GameId, Ct))!.PropertiesHash, await StatusOf(game.GameId)));
+        }
+        var ended = await Seeder.SeedGameAsync(GameStatus.Ended);
+        await Rows.RepinPropertiesAsync(ended.GameId, current, Ct);
+        Assert.Equal(ended.PropertiesHash, (await Rows.ReadGameAsync(ended.GameId, Ct))!.PropertiesHash);
+        await Rows.RepinPropertiesAsync(Guid.CreateVersion7(), current, Ct);         // no row: nothing written, nothing thrown
+    }
+
+    [Fact]
     public async Task Starting_setup_writes_the_draft_and_flips_lobby_to_setup()
     {
         var seeded = await Seeder.SeedGameAsync(GameStatus.Lobby);

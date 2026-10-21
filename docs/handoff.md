@@ -69,7 +69,17 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 ### 2026-10-19
 
 **Tagged: v0.1.22** (the latest; the owner deploys and says which is live on the home server `docker1` at
-`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`). Nothing on `main` is unreleased.
+`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`).
+
+Unreleased on `main` (not pushed):
+- `GET /v1/properties` lists the newest seeded set first, so the create dialog defaults to the current rules. A set a failed
+  `PropertiesStoreTests` run left in the dev DB ("Core 25453bf2", no army-book rules, no spells) sorted first by name, and 28
+  dev games, the owner's Test and TestAmbush among them, ran without Fanatic and spells. The test now cleans up in `finally`.
+- Casualty pick: a click on a picked model that can take no more puts it back (`CasualtyPick.Click`); a Clear button.
+- Owner ruling: "If a rule FIX is released it shouldnt publish a new version. everything should move to it.. its a fix".
+  Every game not ended runs the set the game server seeded for its game rules: repinned at hydration, grants matched to the
+  new set by entry and position path (spec `2026-10-19-games-follow-the-current-rules-design.md`).
+  Checked live: a `playing` game on the old set moved on connect (one Information line); the ended TestAmbush kept its set.
 Release flow: tag `vX.Y.Z` on main and push when the owner says (owner ruling: "tag it" means tag and push at once, no
 extra pre-tag run; the release runs its own tests); on docker1 `git fetch --tags && git checkout vX.Y.Z && scripts/release
 --deploy home --version vX.Y.Z` (tests in containers, client built in the Godot builder container, publishes `releases/`
@@ -100,7 +110,8 @@ Leads not reproduced (2026-10-19 client validation):
 - A self-play Fanatic game reset to the round-0 roll-off between client restarts, losing its placements.
 
 Dev-stack leftovers from 2026-10-19: games `repro soul-snatcher-cults-fanatic …` (several), `Validate setup`, and the
-tabletop-look staging games under `look-dev`; delete when convenient.
+tabletop-look staging games under `look-dev`; delete when convenient. Leaked test sets (`Core …`, `GF test`) stay in
+`management.properties`; deleting one needs its games deleted first (owner's call).
 
 Built since v0.1.1 (details in the design docs and module AGENTS.md):
 - **Client:** release builds always use their built-in servers; dev builds use `Tabletop-dev` and say "(dev)". Built-in

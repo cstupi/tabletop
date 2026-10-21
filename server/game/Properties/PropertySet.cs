@@ -71,10 +71,14 @@ public sealed record EffectCondition(Guid Id, ConditionKind Kind, EffectSubject?
     };
 }
 
-/// <summary>The pinned data half of a ruleset, in memory. Addressed by its content hash; a game pins one.</summary>
+/// <summary>The data half of a ruleset, in memory. Addressed by its content hash; a game that has not ended runs its game rules' current set
+/// (games-follow-the-current-rules spec).</summary>
 public sealed class PropertySet(string contentHash, string name, string gameRules, IReadOnlyList<StatDefinition> stats,
     IReadOnlyList<ActionDefinition> actions, IReadOnlyList<RollDefinition> rolls, IReadOnlyList<CatalogEntry> entries, IReadOnlyList<BookRecord>? books = null)
 {
+    readonly IReadOnlyList<BookRecord> _books = books ?? [];
+    IReadOnlyDictionary<Guid, Effect> _aliases = new Dictionary<Guid, Effect>();
+
     public string ContentHash { get; } = contentHash;
     public string Name { get; } = name;
     public string GameRules { get; } = gameRules;
@@ -95,8 +99,18 @@ public sealed class PropertySet(string contentHash, string name, string gameRule
     public ActionDefinition Action(string name) => Actions.FirstOrDefault(a => a.Name == name) ?? throw new KeyNotFoundException($"No action '{name}' in {ContentHash}.");
     public bool HasRoll(string name) => Rolls.Any(r => r.Name == name);
     public IEnumerable<Effect> AllEffects() => Entries.SelectMany(e => e.Effects).SelectMany(Flatten);
-    /// <summary>An effect row by id, children included: what a grant names.</summary>
-    public Effect? EffectById(Guid id) => _byId.Value.GetValueOrDefault(id);
+    /// <summary>An effect row by id, children included: what a grant names. An id of another set of the same game rules resolves through
+    /// its alias (EffectAliases), so a grant minted before the game moved to this set still acts.</summary>
+    public Effect? EffectById(Guid id) => _byId.Value.GetValueOrDefault(id) ?? _aliases.GetValueOrDefault(id);
+
+    /// <summary>This set with aliases for other sets' effect rows (EffectAliases.Match).</summary>
+    public PropertySet WithAliases(IEnumerable<ForeignEffect> foreign)
+    {
+        var copy = new PropertySet(ContentHash, Name, GameRules, Stats, Actions, Rolls, Entries, _books);
+        copy._aliases = EffectAliases.Match(this, foreign);
+        return copy;
+    }
+
     private readonly Lazy<IReadOnlyDictionary<Guid, Effect>> _byId = new(() => entries.SelectMany(e => e.Effects).SelectMany(Flatten).GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First()));
     static IEnumerable<Effect> Flatten(Effect e) => new[] { e }.Concat(e.Children.SelectMany(Flatten));
 }

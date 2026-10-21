@@ -1,6 +1,6 @@
 # Interpreter and effects
 
-The rules engine's resolution half, built only in `server/game/`. It contains the pinned
+The rules engine's resolution half, built only in `server/game/`. It contains the game's
 `Properties` set loaded from ten Postgres tables, a counter-based roll primitive over the
 game's stored seed, the effect grammar's two passes, a generic sequence interpreter whose
 frames are rebuilt from the event log on every call, and Grimdark Future's sequences behind
@@ -125,7 +125,7 @@ Every `Advance` walks the log. [Failure modes](operations.md#failure-modes) pric
 
 **Sideways to `IGameRules`.** The generic half (`Properties/`, `Dice/`, `Effects/`,
 `Interpreter/`, `Engine/`) may not name a stat, roll, action, condition or catalog entry.
-Everything OPR is either a row in the pinned set or a member of `GrimdarkFutureRules`.
+Everything OPR is either a row in the game's set or a member of `GrimdarkFutureRules`.
 `InterfaceConstraintTests` reads the source files of those five directories and fails on the
 strings `"hit"`, `"defense"`, `"Quality"`, `"Hold"`, `"shaken"`, `Tough`, `Transport` and their
 kin. Two strings are whitelisted, in `Effects/StatReader.cs` only: `"Range"` and `"Attacks"`
@@ -141,7 +141,7 @@ as a three-line decision procedure.
 
 | Document | Holds |
 | --- | --- |
-| [The pinned `Properties` set](properties.md) | the three forms of a set, the canonical hash, composition from authored files, validation, the store and seeder |
+| [The `Properties` set](properties.md) | the three forms of a set, the canonical hash, composition from authored files, validation, the store and seeder, the current set and effect aliases |
 | [Resolution](resolution.md) | the roll primitive, the effect grammar's two passes, the resolution stack and step outcomes, Asks and windows, the engine seam, the battlefield reader, the nine constraints |
 | [Decisions and rulings](decisions.md) | contested decisions, decisions taken where a spec was silent, the fourteen rulings, what is deferred |
 | [Interfaces and sequences](interfaces.md) | types produced and consumed, and the cross-module sequence diagrams |
