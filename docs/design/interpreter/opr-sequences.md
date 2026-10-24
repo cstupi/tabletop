@@ -612,10 +612,10 @@ order for a free-for-all, not just a winner.
 A null threshold means `Die.Success` is `false` for every die and raw results are compared. The
 roll primitive admits that case (whole-design review → Gaps filled).
 
-The boundary between the two steps is a confirm gate, and it is the only gate in the module that
-does not depend on `game.waits_between_steps`. The frame therefore stays on the stack after the
-dice are recorded, which is what `SetDice` needs, so the rules suite fixes the roll-off's dice as it
-fixes any other roll's.
+For players the two steps run in one go: no Continue before deployment (roll-off result spec). Under `game.waits_between_steps`
+the boundary between them is a confirm gate, so the frame stays on the stack after the dice are recorded, which is what `SetDice`
+needs, and the rules suite (which runs with the setting on when it fixes dice) fixes the roll-off's dice as it fixes any other roll's.
+`order` also writes `rolled_<ordinal>_<k>`, each team's k-th face, which the client shows as the result.
 The gate is **addressed to every team**: the roll-off has no acting unit, and its result fixes
 turn order for all of them, so there is no team with a better claim to release it. One unsealed
 `Confirm` Ask carries every team, and the dispatcher closes an unsealed Ask on the first answer,
@@ -638,7 +638,7 @@ it. An edit therefore changes exactly what the steps that run after it read off 
 So a decision the rulebook takes from a face is never settled by the step that rolls the die. The
 rolling step records the dice and settles what does not depend on their faces; the next step reads
 the record as it now stands and settles the decision. The boundary between the two is where an
-edit lands: a confirm gate (the wait setting, or the roll-off's own), or any Ask the frame waits
+edit lands: a confirm gate (the wait setting's, the roll-off's included), or any Ask the frame waits
 beneath. With neither, the deciding step runs in the same advance as the roll and an edit reaches
 only the readers after it. Replay re-derives nothing: the deciding step's `Values` and `Changes`
 are appended once, after whatever edits preceded it, and replay applies them.

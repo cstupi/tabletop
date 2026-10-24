@@ -40,7 +40,7 @@ therefore a function from an Ask to an answer, and there are two useful ones.
   the soak form: a game plays to completion unattended, and five hundred games with five
   hundred seeds is a fuzz run.
 
-**Who answers a multi-team Ask.** An unsealed Ask addressed to several teams, such as the roll-off `confirm` gate that opens every game or `end_round`, is answered once, by the first listed team that has not answered. A sealed Ask is answered by every addressed team, each in turn.
+**Who answers a multi-team Ask.** An unsealed Ask addressed to several teams, such as `end_round` or the roll-off `confirm` gate under the wait setting, is answered once, by the first listed team that has not answered. A sealed Ask is answered by every addressed team, each in turn.
 
 **Both, and mixed in one run.** A scenario scripts the opening and hands the rest to the
 policy, which is how a specific position becomes a whole game. An unscripted Ask under a

@@ -1508,7 +1508,7 @@ hydrated. One case falls on the wrong side of it, and it is a typed desync rathe
   in the same way when no step in a live frame holds that roll. So `SetDice` cannot reach any roll in a
   completed sequence. The end-of-turn morale test is the
   remaining example: a root frame with an actor and one step, which pops before any boundary can
-  gate it. The deployment roll-off is not a case, because it is gated, so its frame is live while
+  gate it. The deployment roll-off is not a case under the wait setting, which the rules suite sets: its frame is live while
   the gate is open.
 
 The typed exception makes the case recoverable on the client and loud on the server rather than
