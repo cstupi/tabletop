@@ -22,7 +22,27 @@ public sealed partial class GameSession
     /// three or four teams, p.50's free-for-all: "picking a table corner and deploying one unit each within a 2'x1' area", ZoneStyles' FreeForAll.</summary>
     internal TableState NewDraft() => new(Guid.CreateVersion7(), null, new TableSize(_services.Options.DefaultTableWidth, _services.Options.DefaultTableLength),
         VisualRef.OfBuiltin(_services.Options.DefaultTextureBuiltin), [], [],
-        ZoneStyles.ShapesOf(Info.Teams.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline).Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList());
+        DefaultZones(Info.Teams.Count));
+
+    /// <summary>The zone style a draft starts on for a team count: Frontline for two, the free-for-all corners for three or four (p.50).</summary>
+    internal static string DefaultZoneStyle(int teams) => teams > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline;
+    static List<DeploymentZone> DefaultZones(int teams) =>
+        ZoneStyles.ShapesOf(DefaultZoneStyle(teams)).Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList();
+
+    /// <summary>A team created during setup: a draft still on the default zones of the earlier team count takes the new count's, so a third
+    /// team gets a corner; zones setup chose stay as they are.</summary>
+    private async Task FollowTeamCountAsync(int before)
+    {
+        if (Info.Status != GameStatus.Setup || Draft is null || Info.Teams.Count == before) return;
+        var shapes = ZoneStyles.ShapesOf(DefaultZoneStyle(before));
+        if (!Draft.Zones.OrderBy(z => z.TeamOrdinal).Select(z => z.Shape).SequenceEqual(shapes)) return;
+        if (DefaultZoneStyle(Info.Teams.Count) == DefaultZoneStyle(before)) return;
+        var next = Draft with { Zones = DefaultZones(Info.Teams.Count) };
+        Draft = next;
+        await BroadcastAsync(new BoardMessage(new Board(next, [])));
+        try { await _services.Rows.WriteDraftAsync(GameId, next, CancellationToken.None); }
+        catch (Exception ex) { _log.LogError(ex, "Game {GameId}: the draft row write failed", GameId); await FaultAsync("the draft could not be saved"); }
+    }
 
     internal async Task ReloadInfoAsync()
     {
@@ -60,7 +80,12 @@ public sealed partial class GameSession
         var seats = SeatsOf(from);
         switch (edit)
         {
-            case CreateTeam: await rows.CreateTeamAsync(GameId, ct); break;
+            case CreateTeam:
+                var before = Info.Teams.Count;
+                await rows.CreateTeamAsync(GameId, ct);
+                await ReloadInfoAsync();
+                await FollowTeamCountAsync(before);
+                return;
             case PickTeam t when t.TeamId is { } id && Info.Teams.All(x => x.Id != id): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no team {id}"); return;
             case PickTeam { ParticipantId: { } whom } when seats.All(s => s.Id != whom) && !creator: await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator places another participant"); return;
             case PickTeam { ParticipantId: { } whom } when Info.Participants.All(p => p.Id != whom): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no participant {whom}"); return;

@@ -65,4 +65,25 @@ public class ZonesInPlayTests
         Assert.Equal(ZoneStyles.ShapesOf(ZoneStyles.FreeForAll).Select((shape, i) => (shape, i + 1)), zones.Select(z => (z.Shape, z.TeamOrdinal)));
         Assert.Equal(4, db.GameRows.DraftOf(seeded.GameId)!.Zones.Count);
     }
+
+    // A team created during setup: a draft still on the default zones follows the team count to the free-for-all corners; zones setup chose stay.
+    [Fact]
+    public async Task A_third_team_created_in_setup_moves_default_zones_to_the_corners_and_leaves_chosen_zones()
+    {
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        using var f = GameServerFactory.WithoutScheduler(db);
+        await using var c = await TestClient.OpenAsync(f);
+        await c.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        await c.SendAsync(Edit(new StartSetup())); await c.ExpectAsync<BoardMessage>();
+        await c.SendAsync(Edit(new CreateTeam()));
+        var zones = (await c.ExpectAsync<BoardMessage>()).Board.Table.Zones;
+        Assert.Equal(ZoneStyles.ShapesOf(ZoneStyles.FreeForAll), zones.Select(z => z.Shape));
+        Assert.Equal(4, db.GameRows.DraftOf(seeded.GameId)!.Zones.Count);
+
+        await c.SendAsync(Edit(new SetZoneStyle(ZoneStyles.FreeForAll, ["free-for-all/2", "free-for-all/1", "free-for-all/3", "free-for-all/4"])));
+        var chosen = (await c.ExpectAsync<BoardMessage>()).Board.Table.Zones;
+        await c.SendAsync(Edit(new CreateTeam()));
+        await c.ExpectAsync<GameInfoMessage>();
+        Assert.Equal(Keys(chosen), Keys(db.GameRows.DraftOf(seeded.GameId)!.Zones));     // no longer the default: left as setup set it
+    }
 }
