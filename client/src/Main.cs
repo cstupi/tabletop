@@ -2,6 +2,7 @@ using Godot;
 using HttpClient = System.Net.Http.HttpClient;
 using Tabletop.Client.Core;
 using Tabletop.Client.Screens;
+using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
 
 namespace Tabletop;
@@ -28,7 +29,9 @@ public partial class Main : Node
         var management = new ManagementClient(Http, new Uri(settings.ManagementUrl));
         Session = new Session(management, new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
         ApplyTheme();
-        Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); };
+        GetWindow().MinSize = new Vector2I(GraphicsSettings.MinWindowWidth, GraphicsSettings.MinWindowHeight);
+        ApplyGraphics(start: true);
+        Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); ApplyGraphics(start: false); };
         Cache = new AssetCache(data.Cache, Http);
         // Built-in content: the saved server catalog when complete, else the packed one; a release's new version syncs while signed in.
         BuiltinContent.Cache = Cache;
@@ -40,8 +43,23 @@ public partial class Main : Node
         var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };
         refresh.Timeout += () => _ = Session.RefreshAsync();
         AddChild(refresh);
+        var rect = new Godot.Timer { WaitTime = 1, Autostart = true }; rect.Timeout += SaveWindowRect; AddChild(rect);
         _ = Boot();
     }
+
+    /// <summary>The window's mode and VSync, and the shadow atlas every viewport shares; the table's own part is TableView's.</summary>
+    void ApplyGraphics(bool start) { GraphicsApplier.ApplyWindow(GetWindow(), Session.Settings, start); GraphicsApplier.ApplyAtlas(Session.Settings.Graphics); }
+
+    /// <summary>Windowed, the window's rect when it moved or resized (Window has no position signal: a 1 s timer and the close request call this). Never a fullscreen or maximized rect.</summary>
+    void SaveWindowRect()
+    {
+        var w = GetWindow();
+        if (w.Mode != Window.ModeEnum.Windowed || Session.Settings.Display != DisplayMode.Windowed) return;
+        var r = GraphicsApplier.RectOf(w);
+        if (r != Session.Settings.Window) Session.UpdateSettings(s => s with { Window = r });
+    }
+
+    public override void _Notification(int what) { if (what == NotificationWMCloseRequest) SaveWindowRect(); }
 
     void ApplyTheme()
     {

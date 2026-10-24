@@ -24,10 +24,12 @@ public partial class TableView : Node3D
     public override void _Ready()
     {
         foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera }) AddChild(n);
-        TableLighting.AddTo(this);
+        _key = TableLighting.AddTo(this);
+        ApplyGraphics();
         Camera.Current = true;
     }
 
+    DirectionalLight3D _key = null!; GraphicsProfile? _graphics;
     Action? _onBoard, _onGame, _onBuiltins, _onSettings; Action<IReadOnlyList<GameEvent>>? _onEvents;
     GameStatus? _status;
 
@@ -58,8 +60,16 @@ public partial class TableView : Node3D
         _onGame = () => { var status = _session.Game?.Status; if (status == GameStatus.Playing && _status != GameStatus.Playing) _meshes.RefreshManifest(); _status = status; };
         session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard; session.GameChanged += _onGame;
         _onBuiltins = RedrawBuiltins; BuiltinContent.Changed += _onBuiltins;
-        _onSettings = RefreshLooks; session.SettingsChanged += _onSettings;
+        _onSettings = () => { RefreshLooks(); ApplyGraphics(); }; session.SettingsChanged += _onSettings;
         Redraw(); Camera.FocusOn(Size);
+    }
+
+    /// <summary>Settings → Graphics on the table's SubViewport (MSAA, Render scale) and the key light (shadow splits, distance); the Hud is in the root viewport.</summary>
+    void ApplyGraphics()
+    {
+        var p = Main.Instance.Session.Settings.Graphics;
+        if (p == _graphics) return;
+        GraphicsApplier.ApplyViewport(GetViewport(), p); GraphicsApplier.ApplyKeyLight(_key, p); _graphics = p;
     }
 
     /// <summary>Show hitboxes, Show terrain hitboxes and the selection, on every drawn model and terrain piece: a setting or selection change applies at once.</summary>

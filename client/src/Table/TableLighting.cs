@@ -6,18 +6,20 @@ namespace Tabletop.Client.Table;
 /// A well-lit gaming table (spec 2026-10-19-tabletop-look-design.md → Lighting): a warm key from the near left that casts soft
 /// shadows, a cool unshadowed fill from the far right, and ambient light and reflections from a procedural sky (warm below, cool
 /// above), with SSAO and AgX tone mapping. The background stays the theme's clear colour. The compatibility renderer skips SSAO
-/// and the contact-hardened shadows; the baked wash on the meshes carries their recesses there.
+/// and the contact-hardened shadows; the baked wash on the meshes carries their recesses there. The key light's shadow splits and
+/// distance, and the atlas, follow Settings → Graphics (<see cref="GraphicsApplier"/>).
 /// </summary>
 public static class TableLighting
 {
-    public static void AddTo(Node3D parent)
+    public static DirectionalLight3D AddTo(Node3D parent)
     {
-        parent.AddChild(new DirectionalLight3D
+        var key = new DirectionalLight3D
         {
             Name = "Key", Rotation = new Vector3(Mathf.DegToRad(-52), Mathf.DegToRad(35), 0), LightColor = new Color(1f, 0.93f, 0.82f), LightEnergy = 1.5f,
-            ShadowEnabled = true, ShadowBlur = 1.5f, LightAngularDistance = 1f, DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-            DirectionalShadowMaxDistance = 220f, ShadowBias = 0.03f, ShadowNormalBias = 1f,
-        });
+            ShadowEnabled = true, ShadowBlur = 1.5f, LightAngularDistance = 1f,
+            ShadowBias = 0.03f, ShadowNormalBias = 1f,
+        };
+        parent.AddChild(key);
         parent.AddChild(new DirectionalLight3D
         {
             Name = "Fill", Rotation = new Vector3(Mathf.DegToRad(-30), Mathf.DegToRad(215), 0), LightColor = new Color(0.62f, 0.72f, 1f), LightEnergy = 0.3f,
@@ -40,5 +42,6 @@ public static class TableLighting
             SsaoEnabled = true, SsaoRadius = 1f, SsaoIntensity = 1.6f, SsaoPower = 1.5f, SsaoDetail = 0.5f, SsaoHorizon = 0.06f, SsaoLightAffect = 0.15f,
             AdjustmentEnabled = true, AdjustmentSaturation = 1.04f,
         } });
+        return key;
     }
 }
