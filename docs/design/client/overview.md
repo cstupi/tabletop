@@ -16,7 +16,7 @@ In:
 | Table overlays: hover labels, sight lines, target lines, shooting lasers, range rings, unit markers, floating results | `client/src/Table/{HoverLabels,SightLines,TargetLines,Lasers,RangeRingNode,UnitMarkerNodes,FloatingText}.cs`, `client/src/Core/{ShotLines,RangeRings,UnitMarkers}.cs` |
 | The Hud: header, roster, unit card, decision box, dice, log drawer, undo button, turn banner, end message, key overlay; the declared move's region and ghost, containment | `client/src/Hud/`, `client/src/Core/MoveRuler.cs` |
 | The combat log panel with undo-to-here, the right-click menu, the animation queue | `client/src/Hud/CombatLogPanel.cs`, `client/src/Table/Animator.cs` |
-| Built-in terrain, textures, marker visuals, and the rulebook's four terrain generators | `client/content/builtin/catalog.json`, `client/src/Core/BuiltinCatalog.cs`, `BuiltinContent.cs`, `BuiltinSync.cs`, `TerrainGenerators.cs` |
+| Built-in terrain, textures, marker visuals, and the rulebook's four terrain generators (now `Tabletop.Content`'s `PlanetTerrain`, served as random tables by management) | `client/content/builtin/catalog.json`, `client/src/Core/BuiltinCatalog.cs`, `BuiltinContent.cs`, `BuiltinSync.cs`, `LayoutChoices.cs` |
 | The scripted boundary checks: no physics, no rules type, no Godot in `Core` | `scripts/check-client` |
 
 Not in:

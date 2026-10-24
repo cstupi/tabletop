@@ -26,7 +26,7 @@ Asset bytes never pass through the process, and the service issues no token of i
 | Asset library | `/v1/assets` (keyset), create/confirm/download, `PATCH`, `DELETE`, `/volumes` |
 | Folders | `/v1/folders`, nested, many-to-many with assets |
 | Armies | `POST /v1/armies/import` from Army Forge, list (keyset), get, patch bindings and bases, delete |
-| Layouts | `/v1/layouts`, a `TableState` owned by an account |
+| Layouts | `/v1/layouts`, a `TableState` owned by an account; `POST /v1/layouts/random` (a random table's terrain) and `GET /v1/layouts/builtin` (the four predefined tables), neither stored |
 | Games | `/v1/properties`, `/v1/games` (public, keyset), create, get, join the game, leave, end, delete. Taking a team is the game server's, not here |
 | Development mint | `POST /v1/dev/sessions`, a real Stytch session JWT for a named account, mapped only under a development environment |
 | Manifest | `GET /v1/games/{id}/assets`, the one cross-owner read in the service |
@@ -824,6 +824,14 @@ markers, 16 zones and 16 volumes per piece; finite positions, yaws and volume di
 2000; defined enum values. Then `AssetReferences.Check`: every asset id the layout names is an uploaded
 asset **of the caller's** of a fitting kind (`texture` for the texture, `terrain` for a placement, either
 mesh kind for a marker visual), else `422`. An account holds at most 200 layouts.
+
+`POST /v1/layouts/random` takes `RandomTableRequest(Size, Planet, Zones?, Seed?)` and answers `RandomTable(Seed, Terrain,
+Unplaced, Unlisted)`: `Tabletop.Content`'s `RandomTables.Lay` over the built-in catalog embedded in the management build, the
+terrain rolled per planet (p.18–19) and placed on the table with an even share of cover, line-of-sight blockers and difficult
+terrain on each team's side. A seed pins the answer; with none the server picks one and returns it. `422` for an invalid
+size, an unresolvable zone shape or over 16 zones, `400` for an unknown planet. `GET /v1/layouts/builtin` lists four
+72×48 `TableState`s (Hospitable, Wasteland, Death, Ruins) embedded from `client/content/builtin/tables/`, apart from
+`GET /v1/layouts`. A client applies either with `ReplaceDraft`.
 
 `LayoutRepository.ReadTree(connection, id, name, size, texture)` is `static`. It is the one reader
 of the placement/volume/marker/zone tree, and the game-server plan reads the same rows for a game's

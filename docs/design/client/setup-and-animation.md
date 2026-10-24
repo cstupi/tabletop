@@ -69,12 +69,13 @@ no `content/builtin/` at all still renders a playable table. For a built-in plac
 the volumes rather than overrides, because there is no `asset_volume` row to fall through to. They
 are always written on add, and "reset" re-copies the shipped ones.
 
-`TerrainGenerators` implements the rulebook's four planet tables (GF p.18–19), and the owner's Ruins
-pack in the same shape (ruins, ruined walls and rubble, craters and barricades, no whole buildings), as
-`Generate(Planet, TableSize, Random)`: nine fixed pieces plus 4D3 rolled on 2D6. They are returned
-as a batch of `AddTerrain` edits placed off the slab beside the long edge at `x = width + 4`, in
-rows 8" apart, each facing a random 15° step, for players to drag on. The client rolls, because nothing in setup is logged and no
-seeded RNG is owed. An entry naming alternatives ("Hill, Forest, or Field") is resolved by that
+`PlanetTerrain` (`Tabletop.Content`) implements the rulebook's four planet tables (GF p.18–19), and the owner's Ruins
+pack in the same shape (ruins, ruined walls and rubble, craters and barricades, no whole buildings): nine fixed pieces
+plus 4D3 rolled on 2D6. The Random table button asks management (`POST /v1/layouts/random`, `RandomTables.Lay`), which rolls
+the pieces and lays them on the table, clear of each other, each team's side holding an even share of cover, line-of-sight
+blockers and difficult terrain; the client sends `ReplaceDraft` of the draft with that terrain, keeping its size, texture,
+markers and zones. The Layouts section's Load layout lists the predefined tables (`GET /v1/layouts/builtin`) before the account's.
+An entry naming alternatives ("Hill, Forest, or Field") is resolved by that
 same RNG, so rolling a table produces a finished board in one action; a player
 who dislikes a piece swaps its mesh or deletes it, which the toolbar already offers. The tables ship with the client and the server never reads them, which keeps
 the game server ruleset-blind during setup. 40k has no such tables. Declarations follow the tables
