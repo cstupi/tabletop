@@ -18,10 +18,11 @@ public sealed partial class GameSession
     private bool IsCreator(ISessionClient client) => Info.Participants.FirstOrDefault(p => p.Id == client.ParticipantId)?.AccountId == Info.CreatedBy;
 
     /// <summary>The default draft the creator's StartSetup creates. Size and texture come from configuration (ruling 2); the zones are the
-    /// core rules' deployment (p.6: one long table edge each, fully within 12"), ZoneStyles' Frontline, until setup sets another style.</summary>
+    /// core rules' deployment (p.6: one long table edge each, fully within 12"), ZoneStyles' Frontline, until setup sets another style; with
+    /// three or four teams, p.50's free-for-all: "picking a table corner and deploying one unit each within a 2'x1' area", ZoneStyles' FreeForAll.</summary>
     internal TableState NewDraft() => new(Guid.CreateVersion7(), null, new TableSize(_services.Options.DefaultTableWidth, _services.Options.DefaultTableLength),
         VisualRef.OfBuiltin(_services.Options.DefaultTextureBuiltin), [], [],
-        ZoneStyles.ShapesOf(ZoneStyles.Frontline).Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList());
+        ZoneStyles.ShapesOf(Info.Teams.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline).Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList());
 
     internal async Task ReloadInfoAsync()
     {

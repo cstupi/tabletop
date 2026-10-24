@@ -48,4 +48,21 @@ public class ZonesInPlayTests
         Assert.Equal(ZoneStyles.ShapesOf(ZoneStyles.Frontline).Select((shape, i) => (shape, i + 1)), zones.Select(z => (z.Shape, z.TeamOrdinal)));
         Assert.Equal(2, db.GameRows.DraftOf(seeded.GameId)!.Zones.Count);
     }
+
+    // Four-team games spec: a game of three or four teams is p.50's free-for-all, whose deployment is "picking a table corner and deploying one
+    // unit each within a 2'x1' area" — ZoneStyles' free-for-all corners — so every team has a zone even when setup never touches them.
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    public async Task A_new_draft_for_three_or_four_teams_starts_with_the_free_for_all_corners(int teams)
+    {
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: teams);
+        using var f = GameServerFactory.WithoutScheduler(db);
+        await using var c = await TestClient.OpenAsync(f);
+        await c.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        await c.SendAsync(Edit(new StartSetup()));
+        var zones = (await c.ExpectAsync<BoardMessage>()).Board.Table.Zones;
+        Assert.Equal(ZoneStyles.ShapesOf(ZoneStyles.FreeForAll).Select((shape, i) => (shape, i + 1)), zones.Select(z => (z.Shape, z.TeamOrdinal)));
+        Assert.Equal(4, db.GameRows.DraftOf(seeded.GameId)!.Zones.Count);
+    }
 }
