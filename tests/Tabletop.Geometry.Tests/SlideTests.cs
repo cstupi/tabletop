@@ -92,4 +92,42 @@ public class SlideTests
         Assert.True(cleared.Position.Horizontal.DistanceTo(new Point2(8.5, 10)) < 3.5);
         Assert.Equal(new Yaw(90), cleared.Yaw);
     }
+
+    /// <summary>An Impassable deck x 8..16, y 8..12, Z 3..4: room under it for a 1.5" model.</summary>
+    static readonly WorldVolume Deck = Fx.Box(12, 10, 8, 4, 3, 4, d: TerrainDeclarations.Impassable);
+
+    [Fact] public void At_table_level_a_model_passes_under_a_bridge_with_room() =>
+        Assert.Equal(new Point3(12, 10, 0), Collision.Slide(Fx.Model(4, 10), new(12, 10), [], [Deck], [Deck], level: 0));
+
+    [Fact] public void A_model_too_tall_for_the_gap_stops_at_the_bridge() =>
+        Assert.True(Collision.Slide(Fx.Model(4, 10, height: 3.5), new(12, 10), [], [Deck], [Deck], level: 0).X < 8 - 0.62);
+
+    [Fact] public void A_model_on_the_bridge_stays_on_it_at_its_level() =>
+        Assert.Equal(new Point3(14, 10, 4), Collision.Slide(Fx.Model(10, 10, z: 4), new(14, 10), [], [Deck], [Deck], level: 4));
+
+    [Fact]
+    public void A_low_wall_still_stops_a_model_on_a_hill_beside_it()
+    {
+        var hill = Fx.Box(10, 10, 10, 10, 0, 2);                                             // x 5..15, top 2
+        var wall = Fx.Box(12, 10, 0.5, 10, 0, 4);                                            // x 11.75..12.25, on the hill
+        Assert.True(Collision.Slide(Fx.Model(8, 10, z: 2), new(14, 10), [], [wall], [hill, wall], level: 2).X < 11.75 - 0.62);
+    }
+
+    [Fact]
+    public void A_model_passing_under_a_bridge_meets_no_model_on_it()
+    {
+        var onDeck = Fx.Model(12, 10, z: 4);
+        Assert.Equal(new Point3(14, 10, 0), Collision.Slide(Fx.Model(4, 10), new(14, 10), [onDeck], [Deck], [Deck], level: 0));
+    }
+
+    [Fact]
+    public void A_piece_at_table_level_passes_under_a_bridge()
+    {
+        var crate = Fx.Box(4, 10, 2, 2, 0, 2);
+        Assert.Equal(new Point3(12, 10, 0), Collision.Slide([crate], new(12, 10), [Deck], [Deck], level: 0).Position);
+        Assert.Equal(new Point3(12, 10, 0), Collision.Follow([crate], new(12, 10), [Deck], [Deck], level: 0).Position);
+        var under = Fx.Box(12, 10, 2, 2, 0, 2);
+        Assert.Equal(new Point3(12, 10, 0), Collision.Clear([under], [Deck], [Deck], level: 0).Position);
+        Assert.True(Collision.Follow([crate], new(12, 10), [Deck], [Deck]).Position.X < 7 + 1e-3);   // lifted to a footprint, as today: the deck is in the way
+    }
 }
