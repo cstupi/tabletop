@@ -9,7 +9,7 @@ finished the army-book rules, built optional rules and the production path, and 
 *2026-10-18* is the live home deployment and the owner's play-testing fixes; *2026-10-19* is path movement, the tabletop
 look, the Ruins planet and the owner's deployment and setup fixes, released as v0.1.22; *2026-10-20* is games following the
 current rules and the lifecycle suite; *2026-10-24* is held pieces lifting over, sound effects, the roll-off result and
-four-team games. Everything after v0.1.22 is on `main`, not tagged. An undone roll's dice stay spent: an undo always draws fresh
+four-team games. Released as v0.1.23. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -76,7 +76,7 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ### 2026-10-24
 
-On `main`, not pushed, not tagged. Specs `docs/superpowers/specs/2026-10-24-*`, plans `docs/superpowers/plans/2026-10-24-*`.
+**Tagged: v0.1.23** (pushed). Specs `docs/superpowers/specs/2026-10-24-*`, plans `docs/superpowers/plans/2026-10-24-*`.
 - **Held pieces lift over.** Every pick-up is lifted: models and terrain go straight to the cursor over everything, drawn
   0.5" above what is under them, a ring marking where they land; the drop lands at the nearest clear spot (a model within its
   reach in a move step, searched 24" out; a terrain piece clear of Impassable pieces). PageDown/PageUp step the held pieces
@@ -94,6 +94,11 @@ On `main`, not pushed, not tagged. Specs `docs/superpowers/specs/2026-10-24-*`, 
   two long-edge zones, so teams 3 and 4 could deploy anywhere; it now starts on p.50's four corner areas
   (`ZoneStyles.FreeForAll`), and a team created during setup moves default zones to the corners.
 
+- **Decision box hover.** Hovering an option's button lights its unit in `Palette.Hovered` and darkens the other choices, so
+  same-named units tell apart.
+- **Web: mesh pickers by folder.** The army page's pickers list one library folder (and its sub-folders), the army's choice,
+  kept in the browser per army (`web/src/lib/armies/folder.ts`).
+
 Validated on the merged `main`: unit suite all green, E2E 425/425 (the seven lifecycle shapes included), the rules suite in
 process 306/306 and over the socket 305/306: `battle-brothers-re-deployment` stopped with `NoAskNoEvents` after its
 re-deploy in the full socket run and passed three runs alone, so it reads as the socket driver's step timing under load
@@ -101,7 +106,7 @@ re-deploy in the full socket run and passed three runs alone, so it reads as the
 
 ### 2026-10-20
 
-**Tagged: v0.1.22** (the latest; the owner deploys and says which is live on the home server `docker1` at
+**Tagged: v0.1.22** (the owner deploys and says which is live on the home server `docker1` at
 `https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`).
 
 On `main` and pushed (`68a242bc`):
