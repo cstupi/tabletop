@@ -278,33 +278,31 @@ public class GfRollsTests
     }
 
     [Fact]
-    public void The_roll_off_records_one_die_per_team_rerolls_ties_and_stops_at_a_gate_every_team_may_release()
+    public void The_roll_off_records_one_die_per_team_rerolls_ties_and_ranks_without_a_gate()
     {
         var sim = Sim.Gf(State([Unit("A", "4+", "4+", [], 1, [])], [Unit("B", "4+", "4+", [], 1, [])]), 4, 4, 2, 5);
         sim.Append([new RoundStarted(0, [Samples.Team1, Samples.Team2], [])]);
         var events = sim.Start(GfNames.RollOffSeq, new SequenceContext(null, [], [], null));
-        Assert.Equal(["step_completed", "ask_opened"], events.Select(EventKinds.Of));                // the frame stays open behind the gate
-        var roll = events.OfType<StepCompleted>().Single();
+        Assert.Equal(["step_completed", "step_completed", "sequence_finished"], events.Take(3).Select(EventKinds.Of));   // the roll and the ranking in one go
+        Assert.DoesNotContain(events, e => e is AskOpened { Ask.Question: AskQuestions.Confirm });  // no Continue
+        var roll = events.OfType<StepCompleted>().First();
         Assert.Equal(2, roll.Rolls.Count);                                                          // a tie, then the decider
         Assert.All(roll.Rolls, r => Assert.Null(r.Threshold));
         Assert.Equal([4, 4], roll.Rolls[0].Dice.Select(d => d.Raw)); Assert.Equal([2, 5], roll.Rolls[1].Dice.Select(d => d.Raw));
         Assert.Null(roll.Values);                                                                   // the rolling step settles nothing: `order` derives it
-        var confirm = sim.AskFor(Samples.Team2);
-        Assert.Equal((AskQuestions.Confirm, 2), (confirm.Question, confirm.Teams.Count));            // no actor, no parent: every team
-        var rest = sim.Answer(Samples.Team2, new Confirmed());
-        var order = rest.OfType<StepCompleted>().Single();
+        var order = events.OfType<StepCompleted>().Single(s => s.Step == GfNames.RollOffOrderStep);
         Assert.Equal((2, 2, 1), (order.Values!["winner_ordinal"], order.Values["place_1"], order.Values["place_2"]));   // what the scheduler reads into round_started.Order
         Assert.Equal(4, DiceCursor.DrawnSoFar(sim.State));
     }
 
     /// <summary>
-    /// The point of the gate: the frame is on the stack while it is open, so SetDice is legal
-    /// against the roll-off's own record, and `order` derives the places from the edited dice rather than from a settled value.
+    /// The point of the gate the wait setting opens (the rules suite runs with it): the frame is on the stack while it is open, so SetDice
+    /// is legal against the roll-off's own record, and `order` derives the places from the edited dice rather than from a settled value.
     /// </summary>
     [Fact]
-    public void Editing_the_roll_offs_dice_at_the_gate_changes_the_order()
+    public void With_the_wait_setting_on_editing_the_roll_offs_dice_at_the_gate_changes_the_order()
     {
-        var sim = Sim.Gf(State([Unit("A", "4+", "4+", [], 1, [])], [Unit("B", "4+", "4+", [], 1, [])]), 2, 5);
+        var sim = Sim.Gf(State([Unit("A", "4+", "4+", [], 1, [])], [Unit("B", "4+", "4+", [], 1, [])], waits: true), 2, 5);
         sim.Append([new RoundStarted(0, [Samples.Team1, Samples.Team2], [])]);
         sim.Start(GfNames.RollOffSeq, new SequenceContext(null, [], [], null));
         var frame = sim.State.Projection.Stack.Single().Id;

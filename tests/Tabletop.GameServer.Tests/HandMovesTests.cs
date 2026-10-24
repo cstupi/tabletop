@@ -17,7 +17,7 @@ public class HandMovesTests
     {
         var h = new SchedulerHarness([a ?? TestArmies.Build("A", 2, 2), b ?? TestArmies.Build("B", 1, 2)], enforcement: enforcement, rules: rules);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         Assert.Equal((AskQuestions.Deploy, h.Teams[0]), (h.Open.Question, h.Open.Teams.Single()));
         return h;
     }
@@ -59,7 +59,7 @@ public class HandMovesTests
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]), TestArmies.Build("B", 2, 1, unitRules: [(1, Scout, null)])],
             enforcement: Enforcement.Strict);
         h.Dice.Enqueue(2); h.Dice.Enqueue(5);                                                   // B wins
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var a = h.Units(0); var b = h.Units(1);
         h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true)); h.Dispatch(new SetCondition(TestGames.UnitSubject(b[0]), SetAside, true));
         h.Answer(1, new SelectedPieces([b[1]])); h.Deploy(b[1]);

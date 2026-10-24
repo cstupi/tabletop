@@ -87,7 +87,7 @@ public sealed class SchedulerHarness
     /// <summary>Ends the round: the boundary Ask is addressed to every team that has a participant, and any one of them may confirm it.</summary>
     public IReadOnlyList<EventPayload> EndRound(int team = 0) => Answer(team, new Confirmed());
 
-    /// <summary>Releases the roll-off's confirm gate. The interpreter gates an actor-less root frame past position 0 whatever the wait setting says, with one unsealed Confirm to every team, so every roll-off waits here and any team may release it (interpreter plan Task 8). Its dice are editable until it is answered.</summary>
+    /// <summary>Releases the roll-off's confirm gate. With the wait setting on, the interpreter gates an actor-less root frame past position 0 with one unsealed Confirm to every team, so the roll-off waits here and any team may release it. Its dice are editable until it is answered.</summary>
     public IReadOnlyList<EventPayload> ConfirmRollOff(int team = 0) => Answer(team, new Confirmed());
 
     public IReadOnlyList<EventPayload> Deploy(Guid unitId)
@@ -97,7 +97,7 @@ public sealed class SchedulerHarness
         return events;
     }
 
-    /// <summary>Answers every deploy Ask with its first eligible unit and places it, until round one starts — releasing any roll-off gate it meets on the way, since deployment's roll-off and a free-for-all's round-one roll-off both wait at one.</summary>
+    /// <summary>Answers every deploy Ask with its first eligible unit and places it, until round one starts — releasing any roll-off gate it meets on the way, which a harness with the wait setting on opens.</summary>
     public void SkipDeployment()
     {
         Run();

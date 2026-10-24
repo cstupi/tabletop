@@ -13,7 +13,7 @@ public class PlayerTurnSchedulerTests
     [Fact]
     public void Deployment_still_alternates_one_unit_a_turn_and_the_winner_opens_round_one()
     {
-        var h = Game(); h.Dice.Enqueue(1); h.Dice.Enqueue(6); h.Run(); h.ConfirmRollOff();
+        var h = Game(); h.Dice.Enqueue(1); h.Dice.Enqueue(6); h.Run();
         Assert.Equal(AskQuestions.Deploy, h.Open.Question); Assert.Equal(h.Teams[1], h.Open.Teams.Single());
         h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());                                                  // alternation, not "B deploys everything"

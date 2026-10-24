@@ -14,7 +14,7 @@ public class DeploymentTests
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]), TestArmies.Build("B", 2, 1, unitRules: [(1, Scout, null)])]);
         h.Dice.Enqueue(2); h.Dice.Enqueue(5);                                    // B wins
-        h.Run(); h.ConfirmRollOff();                                             // the roll-off's gate, released with the dice as rolled
+        h.Run();
         var a = h.Units(0); var b = h.Units(1);
         h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true)); h.Dispatch(new SetCondition(TestGames.UnitSubject(b[0]), SetAside, true));   // set aside from the menu
         Assert.Equal([b[1]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);                       // B's Ask opened before the set-aside and is asked again without b[0]
@@ -38,7 +38,7 @@ public class DeploymentTests
     public void A_scout_is_no_longer_set_aside_once_it_has_deployed()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]), TestArmies.Build("B", 1, 1)]);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();                               // A wins
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();                               // A wins
         var a = h.Units(0); var b = h.Units(1);
         h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true));
         h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
@@ -52,9 +52,9 @@ public class DeploymentTests
     }
 
     [Fact]
-    public void The_roll_off_waits_at_a_confirm_gate_to_every_team_and_a_die_edited_there_decides_the_order()
+    public void With_the_wait_setting_on_the_roll_off_waits_at_a_confirm_gate_to_every_team_and_a_die_edited_there_decides_the_order()
     {
-        var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1)]);
+        var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1)], waits: true);
         h.Dice.Enqueue(2); h.Dice.Enqueue(5);
         h.Run();
         Assert.Equal(["sequence_started", "step_completed", "ask_opened"], h.Kinds(0));                    // rolled, then held: no order and no round_started yet
@@ -82,7 +82,7 @@ public class DeploymentTests
     public void A_set_aside_unit_that_is_neither_scout_nor_ambusher_is_simply_never_offered()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1), TestArmies.Build("B", 1, 1)]);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
         var a = h.Units(0);
         h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true));
         h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);

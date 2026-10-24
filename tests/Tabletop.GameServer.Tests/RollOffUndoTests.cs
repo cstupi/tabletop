@@ -10,7 +10,7 @@ public class RollOffUndoTests
     static SchedulerHarness Rolled()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1)]);
-        h.Dice.Enqueue(2); h.Dice.Enqueue(5); h.Run(); h.ConfirmRollOff();
+        h.Dice.Enqueue(2); h.Dice.Enqueue(5); h.Run();
         return h;
     }
 
@@ -25,9 +25,9 @@ public class RollOffUndoTests
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
         h.Dispatch(new Undo(0));
         Assert.Equal(1, RollOffs(h));                                                                      // one live roll-off: the new one
-        Assert.Single(h.P.Stack);
-        Assert.Equal(AskQuestions.Confirm, h.Open.Question); Assert.NotNull(h.Open.FrameId);               // waiting at its gate again
-        Assert.Empty(h.P.Scheduler.Order);
+        Assert.Empty(h.P.Stack);                                                                           // it ran through, no gate
+        Assert.Equal([h.Teams[0], h.Teams[1]], h.P.Scheduler.Order);                                       // the new dice: A rolled 6
+        Assert.Equal((AskQuestions.Deploy, h.Teams[0]), (h.Open.Question, h.Open.Teams.Single()));
     }
 
     [Fact]

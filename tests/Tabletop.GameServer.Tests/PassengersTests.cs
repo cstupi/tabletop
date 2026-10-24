@@ -22,7 +22,7 @@ public class PassengersTests
         var a = TestArmies.Build("A", 3, modelsPerUnit, unitRules, [(2, Transport, spaces), .. modelRules ?? []]);
         var h = new SchedulerHarness([a, TestArmies.Build("B", 2, 1)], enforcement: Enforcement.Strict, rules: rules);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var units = h.Units(0);
         return (h, units, h.P.Units[units[1]].Definition.Models[0].Id);
     }
@@ -115,7 +115,7 @@ public class PassengersTests
     {
         var a = TestArmies.Build("A", 3, 2, modelRules: [(2, Transport, 11)]);
         var h = new SchedulerHarness([a, TestArmies.Build("B", 2, 1)], enforcement: Enforcement.Warn);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
         var units = h.Units(0); var transport = h.P.Units[units[1]].Definition.Models[0].Id;
         h.Answer(0, new SelectedPieces([units[0]])); h.Deploy(units[0]);
         h.Dispatch(TakeOut(h, units[0]), team: 0);                                             // removed, as casualties are

@@ -62,14 +62,15 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
     }
 
     /// <summary>
-    /// Who a step boundary is gated to, or null for no gate. The actor's team, and only when WaitsBetweenSteps is on. Every team,
-    /// whatever that setting says, for a frame with no actor and no parent: the roll-off is the only one, and nothing else keeps its log
-    /// open, so its dice would never be reachable by SetDice (the rules suite's), which needs the frame on the stack. The Ask is unsealed, so the
+    /// Who a step boundary is gated to, or null for no gate. Only when WaitsBetweenSteps is on, which players never set: the actor's team,
+    /// or every team for a frame with no actor and no parent. The roll-off is the only such frame, and nothing else keeps it on the stack,
+    /// so the gate is what lets SetDice (the rules suite's, which runs with the setting on) reach its dice. That Ask is unsealed, so the
     /// dispatcher closes it on the first answer and any team releases it. A nested actorless frame - the terrain-wounds deal-wounds -
     /// is not gated, because its own assign Ask already suspends it.
     /// </summary>
     static IReadOnlyList<Guid>? GateTeams(GameState state, FrameView top, Guid? actorTeam) =>
-        actorTeam is { } team ? state.Info.WaitsBetweenSteps ? [team] : null
+        !state.Info.WaitsBetweenSteps ? null
+        : actorTeam is { } team ? [team]
         : top.Parent is null ? state.Info.Teams.OrderBy(t => t.Ordinal).Select(t => t.Id).ToList()
         : null;
 
