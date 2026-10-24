@@ -12,12 +12,22 @@ ARG TABLETOP_BLOB_ORIGIN
 RUN test -n "$TABLETOP_BLOB_ORIGIN" || { echo "the TABLETOP_BLOB_ORIGIN build arg is required" >&2; exit 1; }; \
     TABLETOP_BLOB_ORIGIN="$TABLETOP_BLOB_ORIGIN" npm run build
 
+# Tabletop.Geometry as WebAssembly (libs/Tabletop.Geometry.Wasm): the viewer's geometry runtime, fetched by the page on first use.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS geometry
+WORKDIR /src
+COPY Directory.Build.props global.json ./
+COPY libs/Tabletop.Geometry/ libs/Tabletop.Geometry/
+COPY libs/Tabletop.Geometry.Wasm/ libs/Tabletop.Geometry.Wasm/
+COPY scripts/geometry-wasm scripts/
+RUN ./scripts/geometry-wasm --out /out
+
 # The viewer (viewer/), Vite mode hosted: base /viewer/, the website's session, the socket on the page's own host.
 FROM node:24-alpine AS viewer
 WORKDIR /src/viewer
 COPY viewer/package.json viewer/package-lock.json viewer/.npmrc ./
 RUN npm ci --no-audit --no-fund
 COPY viewer/ ./
+COPY --from=geometry /out/_framework public/geometry/_framework
 RUN npm run build:hosted
 
 FROM caddy:2-alpine
