@@ -20,7 +20,7 @@ export function configOf(env: Env, location: PageLocation): ViewerConfig {
   return { hosted: false, socketUrl: env.VITE_GAME_SOCKET ?? DEV_SOCKET, runner: true };
 }
 
-type StorageLike = { getItem(key: string): string | null; setItem(key: string, value: string): void };
+export type StorageLike = { getItem(key: string): string | null; setItem(key: string, value: string): void };
 
 function stored(storage: StorageLike): Record<string, unknown> | null {
   try {
