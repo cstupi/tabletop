@@ -9,6 +9,7 @@
 **/node_modules
 recordings
 client
+!client/content/builtin/catalog.json
 web/build
 web/.svelte-kit
 viewer/.svelte-kit
