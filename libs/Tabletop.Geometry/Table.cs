@@ -13,6 +13,9 @@ public static class Table
     /// <summary>No part of the base off the battlefield (rulebook p.7).</summary>
     public static bool ContainsBase(TableSize size, PlacedModel model) => Outline(size).ContainsOutline(model.BaseOutline());
 
+    /// <summary>The footprint lies wholly on the slab, edges inclusive.</summary>
+    public static bool ContainsVolume(TableSize size, WorldVolume volume) => Outline(size).ContainsOutline(volume.WorldOutline());
+
     internal static PolygonOutline Outline(TableSize size) => new(Bounds(size).Vertices);
 
     /// <summary>The longest edge a table may have, in inches: twice the 72" the rulebook's tables use (p.6), so every sweep and grid over
