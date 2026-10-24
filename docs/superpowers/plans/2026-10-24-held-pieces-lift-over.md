@@ -119,7 +119,7 @@ test `tests/Tabletop.Geometry.Tests/LandTests.cs`.
     `ClearStep` apart out to `ClearReach`, the first offset `free` takes. `Clear` uses it.
   - `public const double Lift = 0.5`.
   - `Land(PlacedModel moving, Point2 to, models, walls, volumes, Func<Point2, bool>? within = null)`: `Ring` over offsets from `to`;
-    a spot is free when the base there shares interior with no Solid wall, the model rested there (`RestHeight`) overlaps no model
+    a spot (rings out to 24", `LandReach`, so a frame stays bounded) is free when the base there shares interior with no Solid wall, the model rested there (`RestHeight`) overlaps no model
     (`Overlap.Bases`), and `within` takes it, tested in that order. No free spot: `to`, rested.
   - `Land(IReadOnlyList<(PlacedModel Moving, Point2 To, Func<Point2, bool>? Within)> held, stationary, walls, volumes)`: in drag
     order, each against the stationary and the held already landed.
@@ -176,12 +176,12 @@ create `client/src/Table/LandingMarks.cs`. No unit tests (Godot glue); `dotnet b
   A piece whose `Drawn` is not its `Lands` shows a landing mark there.
 - [ ] `LandingMarks` (a `Node3D` under the view): `Show(IReadOnlyList<(Point3 At, Yaw Yaw, Base Base)>)` for models,
   `ShowPiece(IReadOnlyList<WorldVolume>)` for a terrain piece's footprints (a rect footprint as `Base.Rect(length, width)`,
-  a circle as `Base.Circle(2r)`, each at its world centre and yaw), both drawn with `Palette.BaseRing`; `Hide()`.
+  a circle as `Base.Circle(2r)`, each at its world centre and yaw), both drawn with `Palette.BaseRing`; `Clear()`.
 - [ ] Keys: `Intent.Lower`/`Intent.Raise` while `HoldingTurnable` step `drag.Level` through `HoldLevel` over the lead piece's
   surfaces where it lands (`Collision.Surfaces` for a model, `DragBodies.Surfaces` for a piece) and `Place` again from the
   cursor; otherwise unused.
 - [ ] Drop and cancel: `OnLeftUp` moves each held node to `drag.Current` before anything is sent or kept; `CancelDrag` and
-  `OnLeftUp` hide the marks.
+  `OnLeftUp` hide the marks (`Clear`).
 - [ ] `KeyOverlay`: `("PageDown / PageUp (while holding)", "lower or raise the held models or terrain piece one surface, to pass under a bridge; above the highest, lifted again")`,
   and Alt's line reads "place freely: no lifting, sliding, stopping or allowance".
 - [ ] `dotnet build client/Tabletop.csproj`; `./scripts/check-client`; commit "Client: held pieces hover over what is under them and land clear; PageUp/PageDown step the level".
