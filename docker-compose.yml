@@ -189,9 +189,25 @@ services:
     ports:
       - "127.0.0.1:5173:5173"
 
+  # Tabletop.Geometry as WebAssembly for the viewer: published into viewer/public/geometry/, which Vite serves. A Geometry change needs
+  # `docker compose up -d geometry-wasm` (or ./scripts/geometry-wasm on the host); Vite serves the new files on reload.
+  geometry-wasm:
+    <<: *dotnet
+    command: ["./scripts/geometry-wasm"]
+    depends_on:
+      dev-init: { condition: service_completed_successfully }
+    environment:
+      <<: *dotnet-env
+      TabletopBuildSlot: -wasm
+    restart: "no"
+
   viewer:
     <<: *vite
     working_dir: ${PWD}/viewer
+    depends_on:
+      dev-init: { condition: service_completed_successfully }
+      management: { condition: service_healthy }
+      geometry-wasm: { condition: service_completed_successfully }
     environment:
       <<: *vite-env
       VITE_GAME_SOCKET: ${VITE_GAME_SOCKET:-ws://127.0.0.1:5200/ws}   # opened by the browser, so the host's address
