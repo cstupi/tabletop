@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Regenerate the sound effects in client/content/sounds/ (scripts/Sounds/AGENTS.md).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec dotnet run --project scripts/Sounds -- "$@"
