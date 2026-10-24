@@ -29,8 +29,8 @@ public sealed record LifecycleResult(string Shape, IReadOnlyList<string> Failure
 /// </summary>
 public sealed class LifecycleRunner(LifecycleEndpoints endpoints)
 {
-    /// <summary>The fixed accounts: lifecycle-player-0..3 take seats, lifecycle-spectator records. Never deleted.</summary>
-    public static IReadOnlyList<string> Players { get; } = Enumerable.Range(0, 4).Select(i => $"lifecycle-player-{i}").ToList();
+    /// <summary>The fixed accounts: lifecycle-player-0..7 take seats, lifecycle-spectator records. Never deleted.</summary>
+    public static IReadOnlyList<string> Players { get; } = Enumerable.Range(0, 8).Select(i => $"lifecycle-player-{i}").ToList();
     public const string Spectator = "lifecycle-spectator";
     public const string GamePrefix = "lifecycle ";
 

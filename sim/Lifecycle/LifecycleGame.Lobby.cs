@@ -95,7 +95,7 @@ public sealed partial class LifecycleGame
     {
         var account = _players[seat.Account];
         var ambush = shape.Ambush && seat.Account == 0;
-        var army = await account.ImportArmyAsync(LifecycleArmy.List(ambush), ct);
+        var army = await account.ImportArmyAsync(LifecycleArmy.List(seat.Book, ambush), ct);
         _armies.Add((account, army.Id));
         Check(army.Units.Count == 3 && army.Source == LifecycleArmy.Source, $"the import holds {army.Units.Count} units from {army.Source}");
         if (ambush)

@@ -1,0 +1,158 @@
+{
+ "id": "lifecycle-1wj1ysgxpuuz9bc7",
+ "name": "Orc Marauders",
+ "gameSystem": "gf",
+ "units": [
+  {
+   "selectionId": "1wj11",
+   "name": "Veterans",
+   "size": 5,
+   "quality": 3,
+   "defense": 4,
+   "bases": {
+    "round": "32",
+    "square": "30"
+   },
+   "rules": [
+    {
+     "name": "Bad Shot",
+     "label": "Bad Shot"
+    },
+    {
+     "name": "Ferocious",
+     "label": "Ferocious"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Pistol",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 12,
+     "attacks": 1,
+     "specialRules": []
+    },
+    {
+     "name": "CCW",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 2,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "1wj1ysgxpuuz9bc7"
+  },
+  {
+   "selectionId": "1wj12",
+   "name": "Berserkers",
+   "size": 5,
+   "quality": 4,
+   "defense": 6,
+   "bases": {
+    "round": "32",
+    "square": "30"
+   },
+   "rules": [
+    {
+     "name": "Protected",
+     "label": "Protected"
+    },
+    {
+     "name": "Piercing Assault",
+     "label": "Piercing Assault"
+    },
+    {
+     "name": "Ferocious",
+     "label": "Ferocious"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Berserker Claws",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "AP",
+       "label": "AP(4)",
+       "rating": 4
+      }
+     ]
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "1wj1ysgxpuuz9bc7"
+  },
+  {
+   "selectionId": "1wj13",
+   "name": "Orc Bikers",
+   "size": 3,
+   "quality": 4,
+   "defense": 5,
+   "bases": {
+    "round": "60x35",
+    "square": "50x25"
+   },
+   "rules": [
+    {
+     "name": "Fast",
+     "label": "Fast"
+    },
+    {
+     "name": "Tough",
+     "label": "Tough(3)",
+     "rating": 3
+    },
+    {
+     "name": "Bad Shot",
+     "label": "Bad Shot"
+    },
+    {
+     "name": "Ferocious",
+     "label": "Ferocious"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Twin Mini-MG",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 18,
+     "attacks": 3,
+     "specialRules": [
+      {
+       "name": "AP",
+       "label": "AP(1)",
+       "rating": 1
+      }
+     ]
+    },
+    {
+     "name": "Pistol",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 12,
+     "attacks": 1,
+     "specialRules": []
+    },
+    {
+     "name": "CCW",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 0,
+     "attacks": 2,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "1wj1ysgxpuuz9bc7"
+  }
+ ]
+}

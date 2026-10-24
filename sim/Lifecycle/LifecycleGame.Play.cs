@@ -43,10 +43,20 @@ public sealed partial class LifecycleGame
             $"the game played to {report.Outcome.Kind} at round {report.Rounds}:\n{string.Join("\n", report.Failures)}");
         var final = await driver.ProjectionAsync(ct);
 
+        _step = "turn order";
+        var log = new LogQueries(loop.Log, final);
+        var ordinals = info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
+        foreach (var failure in new[]
+        {
+            FreeForAllChecks.RollOff(log, shape.Teams), FreeForAllChecks.DeploymentRotation(log), FreeForAllChecks.DeployedInZones(log, ordinals),
+            FreeForAllChecks.TurnOrder(log), FreeForAllChecks.TurnRotation(log), FreeForAllChecks.EveryTeamActivated(log), FreeForAllChecks.Winners(log),
+        })
+            Check(failure is null, failure!);
+
         if (ambusher is { } unit)
         {
             _step = "ambush";
-            var queries = new LogQueries(loop.Log, final);
+            var queries = log;
             var round = 0;
             var rounds = new Dictionary<long, int>();
             foreach (var e in loop.Log)

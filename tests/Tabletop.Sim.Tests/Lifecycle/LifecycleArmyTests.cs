@@ -27,4 +27,22 @@ public class LifecycleArmyTests
         Assert.Equal(Rules(plain, "Blood Hounds"), Rules(ambush, "Blood Hounds"));
         Assert.Equal(Names(plain), Names(ambush));
     }
+
+    [Fact]
+    public void Four_books_each_give_a_list_of_three_unjoined_units_of_that_book()
+    {
+        Assert.Equal(4, LifecycleArmy.Books.Count);
+        Assert.Equal(4, LifecycleArmy.Books.Distinct().Count());
+        for (var book = 0; book < LifecycleArmy.Books.Count; book++)
+        {
+            var list = LifecycleArmy.List(book);
+            Assert.Equal(3, list["units"]!.AsArray().Count);
+            Assert.Equal("gf", (string)list["gameSystem"]!);
+            Assert.All(list["units"]!.AsArray(), u =>
+            {
+                Assert.Null(u!["joinToUnit"]);
+                Assert.Equal(LifecycleArmy.Books[book], (string)u["armyId"]!);
+            });
+        }
+    }
 }

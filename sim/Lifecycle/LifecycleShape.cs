@@ -2,8 +2,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Sim.Lifecycle;
 
-/// <summary>An account of the shape (an index into LifecycleAccounts.Players) on a team ordinal, bringing an army of its own.</summary>
-public sealed record Seat(int Account, int Team);
+/// <summary>An account of the shape (an index into LifecycleRunner.Players) on a team ordinal, bringing an army of its own from a book (an index into LifecycleArmy.Books).</summary>
+public sealed record Seat(int Account, int Team, int Book = 0);
 
 /// <summary>
 /// One game the lifecycle suite plays from creation to deletion. Account 0 creates it. Seats are taken in order: a team no other account
@@ -27,6 +27,8 @@ public static class LifecycleShapes
         new("team-game", "two accounts a side; the creator places the second of each", Enforcement.Strict, [new(0, 1), new(2, 2), new(1, 1), new(3, 2)]),
         new("late-joiner", "setup ends with team 2 empty; a second account joins, takes it and brings an army", Enforcement.Strict, [new(0, 1)], Late: new(1, 2)),
         new("ambusher", "two accounts; the creator's Beast Riders ambush after round one", Enforcement.Strict, [new(0, 1), new(1, 2)], Ambush: true),
+        new("four-teams", "eight accounts, two a team on four teams, armies from four books; the creator places the second of each", Enforcement.Strict,
+            [new(0, 1, 0), new(2, 2, 1), new(4, 3, 2), new(6, 4, 3), new(1, 1, 1), new(3, 2, 2), new(5, 3, 3), new(7, 4, 0)]),
         new("leave-and-delete", "a lobby game: a player joins, takes a team and leaves; the creator deletes it", Enforcement.Strict, [new(0, 1), new(1, 2)], LobbyOnly: true),
     ];
 

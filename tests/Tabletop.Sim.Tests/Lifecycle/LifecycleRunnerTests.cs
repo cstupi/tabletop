@@ -1,3 +1,4 @@
+using Tabletop.Protocol;
 using Tabletop.Sim.Lifecycle;
 
 namespace Tabletop.Sim.Tests.Lifecycle;
@@ -45,6 +46,20 @@ public class LifecycleRunnerTests
         var team = LifecycleShapes.Select(["team-game"])[0];
         Assert.Equal(2, team.Teams);
         Assert.Equal([0, 1, 2, 3], team.Accounts);
+    }
+
+    [Fact]
+    public void Four_teams_seats_eight_accounts_two_a_team_with_armies_from_four_books()
+    {
+        var shape = LifecycleShapes.Select(["four-teams"])[0];
+        Assert.Equal(4, shape.Teams);
+        Assert.Equal([0, 1, 2, 3, 4, 5, 6, 7], shape.Accounts);
+        Assert.Equal(Enforcement.Strict, shape.Enforcement);
+        Assert.All(Enumerable.Range(1, 4), team => Assert.Equal(2, shape.Seats.Count(s => s.Team == team)));
+        Assert.All(Enumerable.Range(0, 4), book => Assert.Equal(2, shape.Seats.Count(s => s.Book == book)));
+        // The first seat of each team is its account's own pick; the second is the creator's placing, after every team is held.
+        Assert.Equal([1, 2, 3, 4], shape.Seats.Take(4).Select(s => s.Team));
+        Assert.True(LifecycleRunner.Players.Count >= shape.Accounts.Max() + 1);
     }
 
     [Fact]
