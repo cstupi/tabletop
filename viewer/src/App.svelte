@@ -3,6 +3,7 @@
   import PlaybackView from './lib/components/PlaybackView.svelte';
   import ReplayPage from './lib/components/ReplayPage.svelte';
   import SourcePicker from './lib/components/SourcePicker.svelte';
+  import GamesPage from './lib/games/GamesPage.svelte';
   import TestsPage from './lib/components/TestsPage.svelte';
   import type { Feed } from './lib/feed/feed';
   import { recordingFeed } from './lib/feed/recordingFeed';
@@ -79,7 +80,7 @@
 
 <main class="page">
   {#if route.page === 'games'}
-    <p class="muted pad">The games list.</p>
+    <GamesPage {auth} />
   {:else if route.page === 'game'}
     <p class="muted pad">Game {route.gameId}</p>
   {:else if route.page === 'replay'}
