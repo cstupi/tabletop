@@ -89,10 +89,13 @@ unit in hand, and no player camera move in the last 2 s. Any player move stops a
 roster click: `TableInput.Focus`, `Centre(…, byPlayer: true)`) counts as a camera move for follow and keeps its own glide.
 
 Godot physics is not used. Picking is a ray tested against `TableView.Pieces` AABBs and the slab
-plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `Stationary`, `Walls`, `Models`, `Piece`) through
-`Collision.Separate`, which slides each model along the walls and other bases and rests it; a setup terrain piece goes
-through `Collision.Clear` (out of what a turn swung it into) and `Collision.Follow` (straight to a free cursor, else a slide
-from where it is held). Alt places freely, and the server judges the landing. Distance is
+plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `HeldEnd`, `Stationary`, `Walls`, `Models`, `Piece`;
+held pieces lift over spec). Lifted, every pick-up's start, a held model or setup terrain piece goes straight to the
+cursor, drawn over what is under it (`Collision.Hover`), and lands at the nearest clear spot (`Collision.Land`), marked
+by a ring (`LandingMarks`). PageDown and PageUp step a level (`HoldLevel`); at a level a model goes through
+`Collision.Separate`, which slides each model along the walls and other bases that height and rests it nearest the level,
+and a terrain piece through `Collision.Clear` (out of what a turn swung it into) and `Collision.Follow` (straight to a free
+cursor, else a slide from where it is held). Alt places freely, and the server judges the landing. Distance is
 `Distance.ClosestPoints`. The engine is never asked a question the rules depend on, so there is no
 second geometry implementation to diverge from the server's and no collision layer to configure.
 `WorldFrame` is the only place the two coordinate systems meet: `x = X`, `y = Z`, `z = −Y`,
@@ -201,7 +204,7 @@ A plain drag of a model outside a move step is a hand move: one `MoveModels` on 
 The server judges it under the game's enforcement setting (`HandMoves.Judge`, rule `hand_move`): placing the unit
 picked at a deploy Ask from the shelf is legal, and anything else is a breach that `silent` accepts, `warn` accepts
 with the warning on the event, and `strict` refuses. Under `strict` the drag does not start and the click only
-selects. The drag slides along impassable terrain and stops where its body meets another model's, in plan and height, so it passes above or below a model on another level (`DragBodies`, `Collision.Separate`); holding Alt
+selects. The drag is lifted over everything and lands clear of other bases and impassable terrain; at a level (PageDown) it slides along impassable terrain and stops where its body meets another model's, in plan and height, so it passes above or below a model on another level (`DragBodies`, `Collision.Separate`); holding Alt
 places freely, and the F1 overlay and the move hint say so. A placement that overlaps another base is `move_overlap` under the
 same setting. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
 belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`

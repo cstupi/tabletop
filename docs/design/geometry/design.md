@@ -20,7 +20,7 @@ In scope, all of it inside `libs/Tabletop.Geometry`:
 | The one internal convex shape | `Outline`, `CircleOutline`, `PolygonOutline` | 2 |
 | Values to world outlines | `Bodies`, `WorldVolumes` | 3 |
 | Edge-to-edge measurement | `Distance` | 4 |
-| Collision: rest, slide, separate | `Collision` | 5 |
+| Collision: rest, surfaces, slide, separate, land | `Collision` | 5 |
 | Standing in and on terrain | `Containment` | 6 |
 | Base overlap, a body inside a Solid | `Overlap` | 7 |
 | Line of sight | `LineOfSight`, `LineOfSightResult` | 8 |
@@ -334,7 +334,7 @@ Distance is **horizontal**. Height never enters it; `Height_does_not_enter_horiz
 is a test. Vertical separation is a second, separate number, matching how the rulebook writes
 melee reach on p.9. A single 3D distance would collapse two rules into one and match neither.
 
-### 6. Collision: rest, slide, separate
+### 6. Collision: rest, surfaces, slide, separate, land
 
 `Collision` is *Nothing on the table is inside anything else* (client UX spec → Physical collision). It is a linear scan, not
 a physics query, and names no rule: what a body may climb, and what it may not cross, arrive as parameters.
@@ -344,12 +344,22 @@ a physics query, and names no rule: what a body may climb, and what it may not c
   no step-up limit. Touching a side is not standing on it (`InteriorsIntersect`), so a base flush against a building stays on
   the table. `RestHeight(IReadOnlyList<WorldVolume> piece, volumes)` rests a terrain piece: Solid tops under any of its
   footprints, its own volumes and every Area ignored. `RestHeight(Point2, volumes)` rests a marker, boundary inclusive.
+- `Surfaces(body, volumes)` (held pieces lift over spec → Surfaces) lists the heights a model or a piece could rest at,
+  ascending: 0, each Solid top and (a model) each Area floor under it, kept where the body standing there shares no
+  height interval with a Solid under it. The highest is always `RestHeight`. `RestNear(body, volumes, level)` is the
+  one nearest a level, the higher on a tie; the server's `Battlefield.Settle` and `DraftEditor` rest at the Z sent.
 - `Slide(PlacedModel, to, models, walls, volumes)` moves the base from its placement toward `to`, sampled every `Step` (0.1")
   and bisected to contact, so a 0.5" wall cannot be stepped over. It stops at the first contact with a wall's footprint or a
   model's body, slides once along the contact tangent, and returns the landing with its `RestHeight`. **The caller names the
   walls**: during a move Ask the Ask's `ImpassableVolumeIds`, otherwise every Solid declared `Impassable`; every other Solid is
   climbed. A body that starts inside a wall or inside another model's body can leave it. `Slide(piece, to, walls, volumes)` does the same
-  for a terrain piece and returns its `TerrainTransform`.
+  for a terrain piece and returns its `TerrainTransform`. With a finite `level` (a held piece at a level) the body rests at each
+  sample nearest the level on every volume but the walls it can meet, and a wall stops it only where their height intervals
+  overlap, so it passes under a bridge with room; a wall it starts in stays ground. `Follow`, `Blocked` and `Clear` take the level too.
+- `Land(model, to, models, walls, volumes, within)` is a lifted held model's landing: the nearest spot to `to`, in rings 0.25"
+  apart, where its base enters no wall, it overlaps no model rested there and `within` (a move step's reach) takes it, rested on
+  its highest open surface; a group lands in drag order. `Land(piece, …)` is `Clear` at the target. `Hover` is the height a lifted
+  body is drawn at, `Lift` (0.5") over the highest top under it, models included.
 - **Model against model is three-dimensional.** A model's body is its base outline extruded from its settled Z by its height
   (`ModelBody.Height`; the import writes 1.5 × the base's larger dimension). The moving body is rested at each sample on what is
   under it (`RestHeight`), and meets another model only where the outlines share area in plan *and* the height intervals
@@ -853,7 +863,7 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 | Module | Obligation |
 | --- | --- |
 | Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
-| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer with `Collision.RestHeight`, ignoring the client's `To.Z` (`Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
+| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer on its open surface nearest the client's `To.Z` (`Collision.RestNear`, `Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
 | Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `MoveReach.Triangles`; hold a drag with `MoveReach.Clamp`; show `MoveReach.Route` as the ruler, its length as the readout; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
 
 ## Sequences
@@ -967,7 +977,7 @@ does not move is `move_through_models`, and `Distance.BodyToBody` under the regi
 is `move_separation`, all three in three dimensions (owner ruling: movement takes elevation into
 account), so a model crossing above a model on a lower level neither moves through it nor, 1" or
 more above it, comes within 1" of it. It warns under `warn` and refuses only under `strict`. Every placement the
-server appends is rested (`Battlefield.Settle` → `Collision.RestHeight`), so no stored model is
+server appends is rested (`Battlefield.Settle` → `Collision.RestNear`, nearest the Z sent), so no stored model is
 inside a Solid and `Overlap.WithSolid` has no production caller; crossing or landing on an
 Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is not judged:
 `Coherency.Check` has no production caller. Its two hazards: `OutOfCoherency` holds
@@ -1065,7 +1075,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | A move whose straight line crosses something it may not, but which a path round it reaches | Judged along the shortest legal path (`Movement.Check`); the answer carries the destination only, and each side computes the same path (`movement.md`) | Yes |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
-| A model dragged into a wall by the client | The drag slides along Impassable Solids, and an Alt drop rests on the highest Solid top under the base, as the server rests every placement (`Battlefield.Settle`), so no stored model is inside a Solid. A move answer crossing or landing on an Impassable volume is `move_impassable` (`GfMoves.PathBreach`); a hand placement is not judged against terrain | Yes |
+| A model dragged into a wall by the client | Lifted, it lands clear of Impassable Solids; at a level the drag slides along them; an Alt drop rests on the open surface under the base nearest its level, as the server rests every placement nearest the Z sent (`Battlefield.Settle`), so no stored model is inside a Solid. A move answer crossing or landing on an Impassable volume is `move_impassable` (`GfMoves.PathBreach`); a hand placement is not judged against terrain | Yes |
 | Two structurally identical `Polygon` values compared with `==` | Unequal. `Polygon` is a record over `IReadOnlyList<Point2>`, so equality is reference equality on the list. `PolygonOutline` is the same shape over `Vertices` and shares the hazard | **Trap.** Nothing in this library compares polygons, but a consumer might |
 
 There is no shared mutable state, no I/O and no async, so every call is thread-safe and

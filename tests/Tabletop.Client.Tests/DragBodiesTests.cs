@@ -14,8 +14,13 @@ public class DragBodiesTests
         new Volume(VolumeKind.Solid, Footprint.Rect(0.5, 20), new Point2(0, 0), new Yaw(0), 0, top, d, null), new TerrainTransform(new Point3(10, 10, 0), new Yaw(0), 1));
     static TerrainPlacement Piece(double x, VolumeKind kind, Footprint f, double top, TerrainDeclarations d) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("hill"),
         new Point3(x, 30, 0), new Yaw(0), 1, [new TerrainVolume(Guid.CreateVersion7(), new Volume(kind, f, new Point2(0, 0), new Yaw(0), 0, top, d, null))]);
-    static Point3 Drag(PlacedModel from, Point2 to, IReadOnlyList<PlacedModel> others, IReadOnlyList<WorldVolume> volumes, MoveRegion? region = null, bool free = false) =>
-        DragBodies.Models([new HeldBody(A, from, to)], others, volumes, region, free)[A];
+    /// <summary>A drag at a level (table level by default): today's slide at that height.</summary>
+    static Point3 Drag(PlacedModel from, Point2 to, IReadOnlyList<PlacedModel> others, IReadOnlyList<WorldVolume> volumes, MoveRegion? region = null, bool free = false, double? level = 0) =>
+        DragBodies.Models([new HeldBody(A, from, to)], others, volumes, region, free, level)[A].Lands;
+    static HeldEnd Lifted(PlacedModel from, Point2 to, IReadOnlyList<PlacedModel> others, IReadOnlyList<WorldVolume> volumes, MoveRegion? region = null, Func<Guid, Point2, bool>? within = null) =>
+        DragBodies.Models([new HeldBody(A, from, to)], others, volumes, region, free: false, level: null, within)[A];
+    static Point3 Held(IReadOnlyList<TerrainPlacement> terrain, Guid id, Placement at, Point2 to, bool free = false, double? level = 0) =>
+        DragBodies.Piece(terrain, id, at, to, free, level).Lands;
 
     [Fact]
     public void A_drag_stops_at_an_impassable_wall_and_climbs_anything_else()
@@ -44,7 +49,7 @@ public class DragBodiesTests
             new TerrainTransform(new Point3(10, 10, 0), new Yaw(0), 1));                                    // x 8..12, y 0..20, top 4
         var big = new PlacedModel(new ModelBody(Base.Circle(3), 4.5), new Placement(new Point3(11, 3, 4), new Yaw(0)));   // on the roof, edge out to x 12.5
         PlacedModel[] below = [M(12.8, 10)];                                                                   // on the ground at the roof's foot
-        Assert.Equal(new Point3(11, 13, 4), Drag(big, new(11, 13), below, [roof]));
+        Assert.Equal(new Point3(11, 13, 4), Drag(big, new(11, 13), below, [roof], level: 4));
         var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = big }, new MoveRegion([A], 10, [], [], null), [roof], new TableSize(72, 48), below);
         Assert.True(Areas.Inside(regions.Outline(A), new Point2(11, 12.9)));
     }
@@ -55,8 +60,71 @@ public class DragBodiesTests
         var hill = Piece(20, VolumeKind.Solid, Footprint.Rect(6, 6), 2, TerrainDeclarations.None);
         var building = Piece(40, VolumeKind.Solid, Footprint.Rect(6, 6), 8, TerrainDeclarations.Impassable);
         var wood = Piece(2, VolumeKind.Area, Footprint.Circle(3), 6, TerrainDeclarations.None);
-        Assert.Equal(new Point3(20, 30, 2), DragBodies.Piece([hill, building, wood], wood.Id, At(wood), new(20, 30), free: false));
-        Assert.True(DragBodies.Piece([hill, building, wood], wood.Id, At(wood), new(40, 30), free: false).X <= 34 + 1e-3);
+        Assert.Equal(new Point3(20, 30, 2), Held([hill, building, wood], wood.Id, At(wood), new(20, 30)));
+        Assert.True(Held([hill, building, wood], wood.Id, At(wood), new(40, 30)).X <= 34 + 1e-3);
+    }
+
+    [Fact]
+    public void A_lifted_model_goes_straight_over_a_wall_and_lands_beyond_it()
+    {
+        var end = Lifted(M(8, 10), new(12, 10), [], [Wall(TerrainDeclarations.Impassable)]);
+        Assert.Equal(new Point3(12, 10, 0), end.Lands);
+        Assert.Equal(new Point3(12, 10, 0.5), end.Drawn);
+        Assert.Equal(new Point3(10, 10, 6.5), Lifted(M(8, 10), new(10, 10), [], [Wall(TerrainDeclarations.Impassable)]).Drawn);   // over the wall's top
+    }
+
+    [Fact]
+    public void A_lifted_model_over_another_hovers_over_it_and_lands_clear_of_it()
+    {
+        var other = M(12, 10);
+        var end = Lifted(M(4, 10), new(12, 10), [other], []);
+        Assert.Equal(1.5 + 0.5, end.Drawn.Z, 6);
+        Assert.False(Overlap.Bases(M(end.Lands.X, end.Lands.Y), other));
+    }
+
+    [Fact]
+    public void A_lifted_landing_keeps_to_the_reach() =>
+        Assert.True(Lifted(M(4, 10), new(12, 10), [M(12, 10)], [], within: (id, p) => id == A && p.X <= 11.5).Lands.X <= 11.5);
+
+    [Fact]
+    public void A_lifted_landing_never_lands_on_a_base_even_when_the_ask_passes_models()
+    {
+        var region = new MoveRegion([A], 12, [], [], null) with { PassesModels = true };
+        var end = Lifted(M(4, 10), new(12, 10), [M(12, 10)], [], region);
+        Assert.False(Overlap.Bases(M(end.Lands.X, end.Lands.Y), M(12, 10)));
+    }
+
+    [Fact]
+    public void Alt_rests_near_the_level()
+    {
+        var deck = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(8, 4), new Point2(0, 0), new Yaw(0), 3, 4, TerrainDeclarations.None, null),
+            new TerrainTransform(new Point3(30, 10, 0), new Yaw(0), 1));                                    // x 26..34, Z 3..4
+        Assert.Equal(new Point3(30, 10, 0), Drag(M(20, 10), new(30, 10), [], [deck], free: true, level: 0));
+        Assert.Equal(new Point3(30, 10, 4), Drag(M(20, 10), new(30, 10), [], [deck], free: true, level: null));
+    }
+
+    [Fact]
+    public void A_lifted_terrain_piece_crosses_a_building_and_lands_clear()
+    {
+        var building = Piece(40, VolumeKind.Solid, Footprint.Rect(6, 6), 8, TerrainDeclarations.Impassable);    // x 37..43
+        var crate = Piece(30, VolumeKind.Solid, Footprint.Rect(2, 2), 2, TerrainDeclarations.None);
+        var past = DragBodies.Piece([building, crate], crate.Id, At(crate), new(50, 30), free: false, level: null);
+        Assert.Equal(new Point3(50, 30, 0), past.Lands);
+        Assert.Equal(new Point3(50, 30, 0.5), past.Drawn);
+        var over = DragBodies.Piece([building, crate], crate.Id, At(crate), new(40, 30), free: false, level: null);
+        Assert.Equal(8.5, over.Drawn.Z, 6);
+        Assert.True(Math.Abs(over.Lands.X - 40) >= 4 - 1e-3 || Math.Abs(over.Lands.Y - 30) >= 4 - 1e-3, $"at {over.Lands}");
+    }
+
+    [Fact]
+    public void A_piece_at_table_level_goes_under_a_bridge()
+    {
+        var bridge = Piece(40, VolumeKind.Solid, Footprint.Rect(8, 4), 4, TerrainDeclarations.Impassable);
+        bridge = bridge with { Volumes = [bridge.Volumes[0] with { Volume = bridge.Volumes[0].Volume with { Bottom = 3 } }] };   // x 36..44, Z 3..4
+        var crate = Piece(30, VolumeKind.Solid, Footprint.Rect(2, 2), 2, TerrainDeclarations.None);
+        Assert.Equal(new Point3(40, 30, 0), Held([bridge, crate], crate.Id, At(crate), new(40, 30), level: 0));
+        Assert.Equal([0.0], DragBodies.Surfaces([bridge, crate], crate.Id, At(crate)));
+        Assert.Equal([0.0, 4.0], DragBodies.Surfaces([bridge, crate], crate.Id, new Placement(new Point3(40, 30, 0), new Yaw(0))));
     }
 
     static Placement At(TerrainPlacement t, double yaw = 0) => new(t.Position, new Yaw(yaw));
@@ -68,11 +136,11 @@ public class DragBodiesTests
         var wall = Piece(30, VolumeKind.Solid, Footprint.Rect(1, 4), 2, TerrainDeclarations.None);             // x 29.5..30.5, y 28..32
         // Held against the building's left side, the cursor moves up along it: the wall follows, never stuck at the contact.
         var held = new Placement(new Point3(36.4, 30, 0), new Yaw(0));
-        var up = DragBodies.Piece([building, wall], wall.Id, held, new(38, 32), free: false);
+        var up = Held([building, wall], wall.Id, held, new(38, 32));
         Assert.Equal(32, up.Y, 3);
         Assert.True(up.X <= 36.5 + 1e-3, $"at {up}");
         // The cursor past the building: the spot is free, the piece goes there.
-        Assert.Equal(new Point3(50, 30, 0), DragBodies.Piece([building, wall], wall.Id, held, new(50, 30), free: false));
+        Assert.Equal(new Point3(50, 30, 0), Held([building, wall], wall.Id, held, new(50, 30)));
     }
 
     [Fact]
@@ -83,7 +151,7 @@ public class DragBodiesTests
         var at = DragBodies.Turn([building, wall], wall.Id, new Yaw(90));
         Assert.True(at.X <= 34 + 1e-3, $"at {at}");
         Assert.Equal(new Point3(35.5, 30, 0), DragBodies.Turn([building, wall], wall.Id, new Yaw(0)));
-        var held = DragBodies.Piece([building, wall], wall.Id, At(wall, 90), new(35.5, 30), free: false);
+        var held = Held([building, wall], wall.Id, At(wall, 90), new(35.5, 30));
         Assert.True(held.X <= 34 + 1e-3, $"held at {held}");                                                       // a turn in hand clears the same way
     }
 
@@ -132,9 +200,9 @@ public class DragBodiesTests
     public void Each_held_model_gets_its_own_end()
     {
         Guid x = Guid.CreateVersion7(), y = Guid.CreateVersion7();
-        var ends = DragBodies.Models([new HeldBody(x, M(0, 0), new(5, 0)), new HeldBody(y, M(0, 10), new(5, 10))], [M(4, 10)], [], null, free: false);
-        Assert.Equal(new Point3(5, 0, 0), ends[x]);
-        Assert.True(ends[y].X < 4 - 1.25);                                               // y alone meets the model at (4, 10)
+        var ends = DragBodies.Models([new HeldBody(x, M(0, 0), new(5, 0)), new HeldBody(y, M(0, 10), new(5, 10))], [M(4, 10)], [], null, free: false, level: 0);
+        Assert.Equal(new Point3(5, 0, 0), ends[x].Lands);
+        Assert.True(ends[y].Lands.X < 4 - 1.25);                                               // y alone meets the model at (4, 10)
     }
 
     [Fact]

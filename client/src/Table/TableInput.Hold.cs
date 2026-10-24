@@ -59,9 +59,10 @@ public partial class TableInput
     /// <summary>
     /// The held pieces toward these points, each facing its own yaw, and a ruler on each. Inside a move step each model's target is
     /// held to its reach from its origin: the allowance, and the difficult cap on a line through difficult terrain (MoveRegions.Clamp), and every one
-    /// to the cap once any of the move's models goes in or through difficult terrain (MoveRegions.Allowance, p.11). Held models slide along walls and other models and rest on the Solid
-    /// tops under them (DragBodies.Models); a setup terrain piece slides and rests the same way (DragBodies.Piece); a marker rests
-    /// on the Solid under its point. Alt places freely, past the allowance too; the drop still rests. Inside a move step a model past
+    /// to the cap once any of the move's models goes in or through difficult terrain (MoveRegions.Allowance, p.11). Held models and a setup terrain piece
+    /// are lifted until PageDown sets a level (held pieces lift over spec): lifted, each goes straight to its target, drawn hovering over what is under
+    /// it, with a ring where it will land; at a level it slides along walls and other models that height and rests nearest the level
+    /// (DragBodies.Models, DragBodies.Piece). A marker rests on the Solid under its point. Alt places freely, past the allowance too; the drop still rests. Inside a move step a model past
     /// the allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
     /// </summary>
     void Place(IReadOnlyDictionary<Guid, Point3> targets)
@@ -76,18 +77,22 @@ public partial class TableInput
             : Allowance;
         var capped = Unit(id => Held(id, null)) is { } unit && unit < Allowance ? unit : (double?)null;
         Point2 To(Guid id) => Held(id, capped);
-        var ends = p is not null && drag.ModelIds.All(p.Models.ContainsKey)
-            ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height),
-                new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free)
+        // Lifted, inside a move step only a spot in the model's reach is a landing (held pieces lift over spec → Landing).
+        Func<Guid, Point2, bool>? within = !free && Reach is { } inReach ? (id, at) => !Proposing.Contains(id) || inReach.Clamp(id, at, capped).DistanceTo(at) <= 1e-3 : null;
+        var holdsModels = p is not null && drag.ModelIds.All(p.Models.ContainsKey);
+        var ends = holdsModels
+            ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p!.Models[id].Slot.Base, p.Models[id].Slot.Height),
+                new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free, drag.Level, within)
             : targets.ToDictionary(kv => kv.Key, kv => _session.Draft is { } d && d.Terrain.Any(t => t.Id == kv.Key)
-                ? DragBodies.Piece(d.Terrain, kv.Key, new Placement(drag.Current[kv.Key], drag.Yaws[kv.Key]), kv.Value.Horizontal, free)
-                : new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst)));   // a marker rests on the Solid under its point
+                ? DragBodies.Piece(d.Terrain, kv.Key, new Placement(drag.Current[kv.Key], drag.Yaws[kv.Key]), kv.Value.Horizontal, free, drag.Level)
+                : Still(new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst))));   // a marker rests on the Solid under its point
+        ShowLandings(ends, holdsModels);
         var lines = new List<(IReadOnlyList<Point3> Path, RulerReadout Readout)>();
         Violations.Moved(targets.Keys);                                                  // a refused commit's reason lapses once its models move
         foreach (var id in targets.Keys)
         {
-            drag.Current[id] = ends[id];
-            MoveNode(id, drag.Current[id]);
+            drag.Current[id] = ends[id].Lands;                                            // the ruler, the proposal, presence and the drop read the landing
+            MoveNode(id, ends[id].Drawn);
             Face(id, drag.Yaws[id]);
             ModelDragged?.Invoke(id, drag.Current[id]);
             // In a move the ruler follows the path the base takes round what it may not pass (MoveRegions.Route, p.5) and reads its length.
@@ -103,6 +108,35 @@ public partial class TableInput
         if (p is not null && _session.Game is { } game && drag.ModelIds.All(p.Models.ContainsKey) && !drag.ModelIds.Any(Proposing.Contains))
             Violations.Measure(drag.ModelIds, ContactCheck.Words(ContactCheck.Placement(p, drag.ModelIds.ToDictionary(id => id, id => new Placement(drag.Current[id], drag.Yaws[id])), _view.Volumes),
                 null, new Names(game, p).Unit));
+    }
+
+    static HeldEnd Still(Point3 at) => new(at, at);
+
+    /// <summary>A ring where each lifted piece will land (held pieces lift over spec → Lifted): a model's base, a terrain piece's footprints.</summary>
+    void ShowLandings(IReadOnlyDictionary<Guid, HeldEnd> ends, bool models)
+    {
+        var lifted = ends.Where(kv => kv.Value.Drawn != kv.Value.Lands).ToList();
+        if (lifted.Count == 0) { _marks.Clear(); return; }
+        if (models) { _marks.Show(lifted.Select(kv => (kv.Value.Lands, _drag!.Yaws[kv.Key], _session.Projection!.Models[kv.Key].Slot.Base)).ToList()); return; }
+        var (id, end) = (lifted[0].Key, lifted[0].Value);
+        if (_session.Draft?.Terrain.FirstOrDefault(t => t.Id == id) is { } piece) _marks.ShowPiece((piece with { Position = end.Lands, Yaw = _drag!.Yaws[id] }).WorldVolumes(), end.Lands.Z);
+        else _marks.Clear();
+    }
+
+    /// <summary>
+    /// PageDown and PageUp while holding (held pieces lift over spec → Held): the level one open surface down or up from where the lead piece lands
+    /// (HoldLevel), above the highest lifted again; the held pieces go there at once.
+    /// </summary>
+    void StepLevel(bool up)
+    {
+        if (_drag is not { } drag) return;
+        var lead = drag.ModelIds[0];
+        var at = new Placement(drag.Current[lead], drag.Yaws[lead]);
+        IReadOnlyList<double> surfaces = _session.Projection is { } p && p.Models.TryGetValue(lead, out var m)
+            ? Collision.Surfaces(new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), at), _view.Volumes)
+            : _session.Draft is { } d && d.Terrain.Any(t => t.Id == lead) ? DragBodies.Surfaces(d.Terrain, lead, at) : [];
+        drag.Level = up ? HoldLevel.Raise(drag.Level, surfaces) : HoldLevel.Lower(drag.Level, surfaces);
+        Place(drag.Rows > 0 ? Arranged(drag.Cursor) : drag.Grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position with { X = kv.Value.Position.X + drag.Cursor.X - drag.Start.X, Y = kv.Value.Position.Y + drag.Cursor.Y - drag.Start.Y }));
     }
 
     void ShowRulers(IReadOnlyList<(IReadOnlyList<Point3> Path, RulerReadout Readout)> lines)

@@ -532,8 +532,8 @@ once rounds have begun) is anchored anywhere on the table with every base over 9
 A hand placement is judged for overlap, zone and Ambush distance (`IGameRules.PlacementBreach`: `move_overlap`, `deploy_zone`,
 `ambush_distance`; `architecture.md` → Rules enforcement), and coherency is not judged.
 
-`HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` ignores the client's
-`Z`), so a model deployed onto a hill stands on it.
+`HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` rests on the open surface
+nearest the `Z` sent, and 0 is not open on a hill), so a model deployed onto a hill stands on it.
 
 ### The projection recording
 

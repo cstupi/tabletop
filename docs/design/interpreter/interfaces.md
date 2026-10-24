@@ -32,7 +32,7 @@ Part of [the interpreter design](design.md).
 | `sealed class StepContext` | `State`, `Properties`, `Rules`, `Frame`, `History`, `Projection`, `ActorTeam`, `TeamOf`, `Roll`, `Rolls`, `ForcedRerolls`, `Plan`, `Ask`, `SealedAsk` |
 | `sealed class SequenceInterpreter(IGameRules, PropertySet, IDiceSource) : ISequenceStarter` | `Advance(GameState)`, `Start(...)` |
 | `static class Windows` | `ReactionOrder`, `Run`, `SimultaneousSpend`, `Spends` |
-| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle(state, modelId, placement)` (ignores the client's Z; rests on `Collision.RestHeight`) |
+| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle(state, modelId, placement)` (rests on the open surface nearest the client's Z, `Collision.RestNear`) |
 | `static class Teams` | `Of(GameState, Guid unitId)`, `Others(GameState, Guid? team)` |
 
 `Tabletop.GameServer.Rules`, the nine members added to `IGameRules` beside the scheduler's

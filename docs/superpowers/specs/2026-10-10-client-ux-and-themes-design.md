@@ -207,8 +207,8 @@ the player moved the camera in the last 2 s or is holding a unit. Off by the fol
 ## Physical collision
 
 **The requirement.** Nothing on the table is ever inside anything else. Every model and every terrain piece is a solid
-body: dropped over something, it rests on top of it; dragged into the side of something, it stops at contact and slides
-along it. A wood dropped on a hill sits on the hill; a model dragged onto a hill stands on it; two models' bases never
+body: dropped over something, it rests on top of it; held lifted, it passes over things and lands clear; dragged at a level
+into the side of something, it stops at contact and slides along it. A wood dropped on a hill sits on the hill; a model dragged onto a hill stands on it; two models' bases never
 share space.
 
 **Today.** Nothing collides. A model on the table never climbs a hill: the drag settles only onto a top within 0.5" above
@@ -250,12 +250,14 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 
 **Client.**
 
-- Every drag of a model (a unit's move, deployment, a hand move) slides and rests through `Collision`. Holding **Alt**
-  while dragging places freely, for corrections; the dropped position still rests on what is under it.
-- Every drag of a terrain piece during setup rests the piece on the Solid tops under its footprint (`TerrainTransform`
-  Z) and stops at the pieces declared `Impassable`. The piece is lifted: it goes straight to the cursor whenever its
-  footprint there is free (`Collision.Follow`), and otherwise slides from where it is held toward the cursor, so it is
-  never left behind an obstacle the cursor has passed. Q/E held turn a held piece smoothly, 120° a second (Shift: 30°); a turn that swings it
+- Every drag of a model (a unit's move, deployment, a hand move) and of a terrain piece during setup is lifted by
+  default and lands clear; PageDown and PageUp put it at a level, where it slides and rests through `Collision`
+  (held pieces lift over spec, `2026-10-24-held-pieces-lift-over-design.md`). Holding **Alt** while dragging places
+  freely, for corrections; the dropped position still rests on what is under it.
+- A terrain piece at a level rests on the Solid tops under its footprint (`TerrainTransform` Z) and stops at the pieces
+  declared `Impassable` that height: it goes straight to the cursor whenever its footprint there is free
+  (`Collision.Follow`), and otherwise slides from where it is held toward the cursor, so it is never left behind an
+  obstacle the cursor has passed. Q/E held turn a held piece smoothly, 120° a second (Shift: 30°); a turn that swings it
   into an `Impassable` piece moves it to the nearest free spot (`Collision.Clear`). A selected piece turns from its
   right-click menu (Turn left/right 15°, Set facing…) and the toolbar's Facing field. Alt places it freely. Models are
   not on the table in setup.
@@ -269,9 +271,9 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 
 **Server.**
 
-- `Battlefield.Settle` rests every placement it applies through `Collision.RestHeight` over the model's base and ignores
-  the client's Z. Hand moves (`MoveModels`) and deployment placements are settled the same way, so a stored position is
-  never inside terrain whatever the client sent. Setup terrain edits rest the piece the same way (`DraftEditor`).
+- `Battlefield.Settle` rests every placement it applies over the model's base on its open surface nearest the client's
+  Z (`Collision.RestNear`), so a Z of 0 on a hill still gets the hill's top. Hand moves (`MoveModels`) and deployment placements are settled the same way, so a stored position is
+  never inside terrain whatever the client sent. Setup terrain edits rest the piece the same way, nearest the Z sent (`DraftEditor`).
 - `GfMoves.ContactBreach` judges p.7's clauses, decided by the enforcement setting like every other breach:
   - `move_through_models`: *"may never move through other models or units (friendly or enemy), even if they are taking
     a Charge action"*: the straight path from start to destination crosses another model's base.

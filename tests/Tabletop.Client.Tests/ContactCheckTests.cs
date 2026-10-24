@@ -124,4 +124,14 @@ public class ContactCheckTests
         Assert.Equal("path crosses a model", ContactCheck.Words(new Contact(ContactKind.Crosses, null), null, Name));
         Assert.Equal("within 1\" of Orc Boyz", ContactCheck.Words(new Contact(ContactKind.TooClose, TableUx.Orcs.Id), 1, Name));
     }
+
+    [Fact]
+    public void A_landing_is_judged_on_its_open_surface_nearest_its_z()
+    {
+        // A deck x 36..44, Z 3..4, over the Orc at (40, 30): a landing sent on the deck stands over the Orc, one sent at the table meets it.
+        var deck = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(8, 8), new Point2(0, 0), new Yaw(0), 3, 4, TerrainDeclarations.None, null),
+            new TerrainTransform(new Point3(40, 30, 0), new Yaw(0), 1));
+        Assert.Empty(ContactCheck.Placement(Deployed, To((S0, new Placement(new Point3(40.5, 30, 4), new Yaw(0)))), [deck]));
+        Assert.Equal(ContactKind.OnBase, ContactCheck.Placement(Deployed, To((S0, At(40.5, 30))), [deck])[S0].Kind);
+    }
 }

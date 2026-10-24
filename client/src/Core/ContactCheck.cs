@@ -12,7 +12,7 @@ public sealed record Contact(ContactKind Kind, Guid? UnitId);
 
 /// <summary>
 /// The contacts a drag shows before the server judges it: the same geometry the server measures a move answer and a hand placement with
-/// (Overlap.Bases, Movement.Check's CrossesModels along the path, Distance.BodyToBody, each landing rested by Collision.RestHeight), taken from the Ask's own parameters
+/// (Overlap.Bases, Movement.Check's CrossesModels along the path, Distance.BodyToBody, each landing rested by Collision.RestNear at its Z, as Battlefield.Settle rests it), taken from the Ask's own parameters
 /// (Separation, PassesModels). The server stays the judge: a unit a mover already stood within the separation of is left to it.
 /// </summary>
 public static class ContactCheck
@@ -50,7 +50,7 @@ public static class ContactCheck
         var landed = proposed.Where(kv => p.Models.ContainsKey(kv.Key)).ToDictionary(kv => kv.Key, kv =>
         {
             var body = Body(p.Models[kv.Key], kv.Value);
-            return Body(p.Models[kv.Key], kv.Value with { Position = kv.Value.Position with { Z = Collision.RestHeight(body, volumes) } });
+            return Body(p.Models[kv.Key], kv.Value with { Position = kv.Value.Position with { Z = Collision.RestNear(body, volumes, kv.Value.Position.Z) } });   // as the server settles it: its open surface nearest the Z given
         });
         var standing = p.Models.Values.Where(m => !landed.ContainsKey(m.Id) && m.Location is OnTable).Select(m => (m.Id, m.UnitId, At: Standing(m)!.Value)).ToList();
         var everyone = standing.Concat(landed.Select(kv => (Id: kv.Key, p.Models[kv.Key].UnitId, At: kv.Value))).ToList();
