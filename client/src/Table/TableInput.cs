@@ -11,7 +11,7 @@ public enum TableTool { Select, Measure }
 /// <summary>Mouse and keys → presence, commands and edits. Geometry is the library's; Godot only casts the pick ray.</summary>
 public partial class TableInput : Node
 {
-    TableView _view = null!; Session _session = null!; RulerNode _ruler = null!;
+    TableView _view = null!; Session _session = null!; RulerNode _ruler = null!; LandingMarks _marks = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
     bool _presenceDirty; Cursor? _cursor; readonly TapeMeasure _tape = new(); Vector2 _measureDown;
     Drag? _drag; readonly PendingDrops _drops = new(); Guid? _hovered;
@@ -84,6 +84,9 @@ public partial class TableInput : Node
         public int Rows { get; set; }
         public double Turn { get; set; }
         public Point3 Cursor { get; set; } = start;
+        /// <summary>Held pieces lift over spec → Held: null is lifted, every pick-up's start; else the height PageDown and PageUp chose, which each held
+        /// piece rests nearest as the drag moves.</summary>
+        public double? Level { get; set; }
     }
     const float DragThreshold = 6;
 
@@ -98,7 +101,7 @@ public partial class TableInput : Node
     {
         _view = view; _session = session;
         view.Camera.Holding = () => HoldingTurnable;
-        view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
+        view.AddChild(_ruler = new RulerNode()); view.AddChild(_marks = new LandingMarks()); AddChild(_presenceTimer);
         _tape.Mode = session.Settings.MeasureMode;
         view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a proposed placement
         session.RefusedReceived += OnRefused;
@@ -252,7 +255,7 @@ public partial class TableInput : Node
     public Action<Point3>? PlacementPoint { get; set; }
 
     /// <summary>Abandon the drag in progress and send nothing. The decision box calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
-    public void CancelDrag() { var held = _drag?.ModelIds ?? []; _drag = null; ForgetHandMarks(held); HideRulers(); _presenceDirty = true; _view.Redraw(); }
+    public void CancelDrag() { var held = _drag?.ModelIds ?? []; _drag = null; ForgetHandMarks(held); HideRulers(); _marks.Hide(); _presenceDirty = true; _view.Redraw(); }
 
     /// <summary>A hand move's marks end with its drag: the server judges the drop (and warns under warn).</summary>
     void ForgetHandMarks(IReadOnlyList<Guid> held) => Violations.Measure(held.Where(id => !Proposing.Contains(id)), new Dictionary<Guid, string>());
@@ -361,7 +364,8 @@ public partial class TableInput : Node
             return;
         }
         if (_drag is null) return;
-        var drag = _drag; _drag = null; HideRulers(); _presenceDirty = true; ForgetHandMarks(drag.ModelIds);
+        var drag = _drag; _drag = null; HideRulers(); _marks.Hide(); _presenceDirty = true; ForgetHandMarks(drag.ModelIds);
+        if (drag.Armed) foreach (var (id, at) in drag.Current) MoveNode(id, at);       // a lifted piece is drawn hovering: it drops where it lands
         var moved = drag.Armed && drag.Current.Any(kv => kv.Value != drag.Grabs[kv.Key].Position || drag.Yaws[kv.Key] != drag.Grabs[kv.Key].Yaw);
         if (!moved) return;
         var status = _session.Game?.Status;
