@@ -7,13 +7,14 @@ path before, around and after play.
 
 ## What it drives
 
-- Sessions: `POST /v1/dev/sessions` for fixed accounts `lifecycle-player-0..3` and `lifecycle-spectator`
+- Sessions: `POST /v1/dev/sessions` for fixed accounts `lifecycle-player-0..7` and `lifecycle-spectator`
   (`SocketCredentials.MintOneAsync`). Accounts are never deleted.
 - Armies: `POST /v1/dev/armies/import` (dev mode only, beside the session mint) takes `{ source, list }`, an Army Forge
   export body, and stores it through the mapping `POST /v1/armies/import` uses after its fetch (`ArmyForgeImport.ToArmy`,
   the account's 200-army cap, the same problems). The list is `tests/Tabletop.Management.Tests/Fixtures/army-forge-c2-6YsWRH3py.json`
   (Wormhole Daemons of War), embedded in `sim/`, cut to its three unjoined units (`LifecycleArmy`); the Ambusher shape
-  adds `Ambush` to its Beast Riders. No call reaches Army Forge.
+  adds `Ambush` to its Beast Riders. `four-teams` also brings lists of three units cut from Human Defense Force, Battle
+  Brothers and Orc Marauders (`sim/Lifecycle/Armies/`). No call reaches Army Forge.
 - Game: `GET /v1/properties` (the first set of `grimdark-future` is the client's default), `POST /v1/games`,
   `POST /v1/games/{id}/join`, `GET /v1/games/{id}`, `GET /v1/games?joined=true`, `POST /v1/games/{id}/leave`,
   `DELETE /v1/games/{id}`, `DELETE /v1/armies/{id}`.
@@ -34,6 +35,7 @@ path before, around and after play.
 | `team-game` | players 0 and 1 on team 1, players 2 and 3 on team 2 (the creator places 1 and 3) | strict |
 | `late-joiner` | player 0 on team 1; setup ends with team 2 empty; player 1 joins, takes team 2 and brings an army | strict |
 | `ambusher` | as `two-players`; player 0's Beast Riders (Ambush) set aside before deployment | strict |
+| `four-teams` | players 0..7, two a team on four teams (the creator places 1, 3, 5 and 7), armies from four books | strict |
 | `leave-and-delete` | a lobby game: player 1 joins, takes a team and leaves; player 1's delete is 404; the creator's delete is 204 | — |
 
 `lifecycle-spectator` joins every played game in the lobby and holds no team: it is the driver's recorder.
@@ -52,7 +54,10 @@ path before, around and after play.
 - Setup: the board after `EndSetup` holds the moved terrain and both markers.
 - Waiting for players (`late-joiner`): after `EndSetup` the log is empty (`AtRest(0)`), the status `playing`; the joiner's
   `PickArmy` starts the log.
-- Play: `RunLoop`'s outcome is `Ended`, its invariants hold. `ambusher`: the Beast Riders reach the table from a
+- Play: `RunLoop`'s outcome is `Ended`, its invariants hold. The log, read by `FreeForAllChecks` (p.50, p.6): the roll-off
+  ranks every team; deployment and each round's turns go round the order, one unit a turn; every model stands in its team's
+  zone at round one; round one follows the deployment order, later rounds who finished activating first; `game_ended` names
+  the teams holding the most markers. `ambusher`: the Beast Riders reach the table from a
   `deploy_ambusher` Ask in round 2 or later.
 - Replay: the watcher's `Welcome` has `Guid.Empty` and status `ended`; its log, applied to the board, ends the game at the
   recorder's last seq; a command from it is `Refused(Watcher)`.
