@@ -1,0 +1,835 @@
+{
+  "id": "e56fe5dc-ba39-4a87-821b-3ac02afa4b18",
+  "name": "Wasteland planet",
+  "size": {
+    "width": 72,
+    "length": 48
+  },
+  "texture": {
+    "builtin": "wasteland"
+  },
+  "terrain": [
+    {
+      "id": "dde10aa6-34f3-4aea-836e-33948d2b0690",
+      "mesh": {
+        "builtin": "toxic-smog"
+      },
+      "position": {
+        "x": 13.987490589724617,
+        "y": 26.494287227510608,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 45
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "47e0d073-5310-4ec6-858e-129676e7a49f",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous"
+          }
+        }
+      ]
+    },
+    {
+      "id": "9726881a-baa2-4254-96e5-6fe5dcba39da",
+      "mesh": {
+        "builtin": "toxic-smog"
+      },
+      "position": {
+        "x": 58.012509410275385,
+        "y": 21.505712772489392,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 225
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "7a3b2679-a491-48a1-8797-fc39e2c65fb5",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ecd5d779-d2a3-4e21-a3c4-4c5d21b15faa",
+      "mesh": {
+        "builtin": "toxic-smog"
+      },
+      "position": {
+        "x": 54.5441417463795,
+        "y": 6.380391466608453,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 345
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "2afa4b18-699f-4cf6-9108-3d0e7efc66a3",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous"
+          }
+        }
+      ]
+    },
+    {
+      "id": "d3369bad-43c0-4e86-bc29-34a5523ed51f",
+      "mesh": {
+        "builtin": "toxic-smog"
+      },
+      "position": {
+        "x": 17.455858253620498,
+        "y": 41.61960853339155,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 165
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "25f46d2c-3c01-4103-a55d-05dd32d65ebe",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous"
+          }
+        }
+      ]
+    },
+    {
+      "id": "666505e6-ef12-4cab-b0e6-88e5349eedd3",
+      "mesh": {
+        "builtin": "mine-field"
+      },
+      "position": {
+        "x": 34.18044571307509,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 105
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "66ea84d4-5474-4ee1-af0c-668e8aea15b2",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 0.1,
+            "declarations": "dangerous"
+          }
+        }
+      ]
+    },
+    {
+      "id": "94d8a46c-eb31-4ddb-be72-6a4d854e7b93",
+      "mesh": {
+        "builtin": "large-building"
+      },
+      "position": {
+        "x": 53.93221191965612,
+        "y": 39.30483539742643,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 45
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "6eecb9ac-501f-425f-b11a-6489f7f98bfd",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 8,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "faabb57c-786c-483c-8edd-6edeb445daa2",
+      "mesh": {
+        "builtin": "large-building"
+      },
+      "position": {
+        "x": 18.06778808034388,
+        "y": 8.69516460257357,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 225
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "4f4bfd8d-2fae-4908-ac64-c3cfa56c3589",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 8,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "d20479c7-e272-470d-86c2-c1001c9ca1c7",
+      "mesh": {
+        "builtin": "large-building"
+      },
+      "position": {
+        "x": 39.67917251199445,
+        "y": 11.640779016372178,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 255
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "b47fe144-feef-4199-8340-2d791f374702",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 8,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "0a398d23-30cd-4142-88d4-fd3b2e807d67",
+      "mesh": {
+        "builtin": "large-rock"
+      },
+      "position": {
+        "x": 32.32082748800555,
+        "y": 36.35922098362782,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 75
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "a8e3ad73-dc65-4479-bfdc-86d663a2bcb9",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "f099f823-e041-4259-8211-f4eb47c3ec45",
+      "mesh": {
+        "builtin": "ruins"
+      },
+      "position": {
+        "x": 4.78226642533311,
+        "y": 14.833171612971078,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 345
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "ba4e855f-a906-4599-99f5-6f9d420c2498",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "cover, dangerous_on_rush_charge"
+          }
+        }
+      ]
+    },
+    {
+      "id": "6f248c5e-737c-4c78-ab2b-1d98110a51d5",
+      "mesh": {
+        "builtin": "crater"
+      },
+      "position": {
+        "x": 67.2177335746669,
+        "y": 33.16682838702892,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 165
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "30789dc3-aefc-4c22-8001-8910be3b6998",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 1,
+            "declarations": "cover"
+          }
+        }
+      ]
+    },
+    {
+      "id": "3cf374ba-a974-4f9a-bc22-b677ca70e3e8",
+      "mesh": {
+        "builtin": "sludge-field"
+      },
+      "position": {
+        "x": 64.35775971429318,
+        "y": 11.626874221315083,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 15
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "47f0d78a-e570-4b94-9f71-959319ec0fba",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 0.5,
+            "declarations": "difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "4da66982-03d0-42d2-b13c-cec2b9e3c9af",
+      "mesh": {
+        "builtin": "sludge-field"
+      },
+      "position": {
+        "x": 7.642240285706819,
+        "y": 36.373125778684916,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 195
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "fbb1d185-7e51-4442-9af3-b0e1638a82d8",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 0.5,
+            "declarations": "difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "de54e1d4-1a23-4327-bd8c-5ed556ba04dd",
+      "mesh": {
+        "builtin": "toxic-river"
+      },
+      "position": {
+        "x": 47.60954662021694,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 180
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "92e59a8a-f06d-4420-81b7-e1575d0b5bb4",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 3,
+              "b": 12
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 0.5,
+            "declarations": "difficult, dangerous",
+            "notes": "Optionally one 3\u0022-6\u0022 wide bridge per full 24\u0022"
+          }
+        }
+      ]
+    },
+    {
+      "id": "88c924eb-5fc3-4a1b-8c26-16b911b18ca1",
+      "mesh": {
+        "builtin": "small-dunes"
+      },
+      "position": {
+        "x": 41.91518234550728,
+        "y": 44.67308197015574,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 330
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "7f78a3b7-c696-4e83-84be-cb6827348384",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 1.5,
+            "declarations": "cover",
+            "notes": "Units on top may ignore one unit/terrain for line of sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e5341db8-8c03-40bb-bd87-aba07f757253",
+      "mesh": {
+        "builtin": "small-dunes"
+      },
+      "position": {
+        "x": 30.084817654492717,
+        "y": 3.3269180298442578,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 150
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "69f10581-ff7f-450d-b214-c63d70da6ceb",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 1.5,
+            "declarations": "cover",
+            "notes": "Units on top may ignore one unit/terrain for line of sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "f2bba97a-dce0-45de-a2a0-1d246e4685df",
+      "mesh": {
+        "builtin": "large-rock"
+      },
+      "position": {
+        "x": 26.38639642036818,
+        "y": 45.02158304165191,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 210
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "8f59a1e8-ca56-4619-928a-e01e01820e37",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "429b8b71-566e-4daf-84c2-862a38e2aa8b",
+      "mesh": {
+        "builtin": "large-rock"
+      },
+      "position": {
+        "x": 45.61360357963182,
+        "y": 2.9784169583480917,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 30
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "3a7de205-d701-4e6b-b049-055a07b358d2",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "08cb3cf0-5d4e-41b2-a19f-236c693676a4",
+      "mesh": {
+        "builtin": "large-rock"
+      },
+      "position": {
+        "x": 24.02045495064019,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 330
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "5ec41464-e2d1-423a-bbeb-f78774bb32b4",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "rect",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "impassable, blocks_line_of_sight"
+          }
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "id": "3bc565fb-c549-4647-a0d0-7353104ec605",
+      "kind": "objective",
+      "position": {
+        "x": 18,
+        "y": 18,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    },
+    {
+      "id": "8e129676-e7a4-4fdd-a10a-a634f30aea03",
+      "kind": "objective",
+      "position": {
+        "x": 54,
+        "y": 30,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    },
+    {
+      "id": "6e33948d-2b06-407a-bb26-79a491c8a107",
+      "kind": "objective",
+      "position": {
+        "x": 54,
+        "y": 18,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    },
+    {
+      "id": "97fc39e2-c65f-4597-a688-1abaa2c254d6",
+      "kind": "objective",
+      "position": {
+        "x": 18,
+        "y": 30,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "e2fcbcfc-92f5-42df-a043-d0d053910155",
+      "shape": "frontline/1",
+      "teamOrdinal": 1
+    },
+    {
+      "id": "c4326d5a-7405-4bb1-965e-02c7f45cd59c",
+      "shape": "frontline/2",
+      "teamOrdinal": 2
+    }
+  ]
+}

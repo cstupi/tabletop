@@ -22,5 +22,6 @@
     <EmbeddedResource Include="Persistence/Migrations/*.sql" />
     <EmbeddedResource Include="Content/Armies/army-book-units.json" LogicalName="army-book-units.json" />
     <EmbeddedResource Include="../../client/content/builtin/catalog.json" LogicalName="builtin-catalog.json" Link="Content/Layouts/builtin-catalog.json" />
+    <EmbeddedResource Include="../../client/content/builtin/tables/*.json" LogicalName="builtin-table-%(Filename).json" />
   </ItemGroup>
 </Project>
