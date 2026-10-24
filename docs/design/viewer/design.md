@@ -119,6 +119,8 @@ picker lists the games: name, status, players (`GameSummary.ParticipantNames`), 
 timeline and a running game follows live. Recording files and URLs and the Tests page's Watch and
 Open live are unchanged.
 
+**Geometry in the browser.** `viewer/src/lib/geometry/` runs `libs/Tabletop.Geometry` as WebAssembly (`libs/Tabletop.Geometry.Wasm`, JSON in and out) for the browser setup and play, which drag, land, rest, check contacts, measure and test zones with the code Godot runs. The runtime is fetched on the first `loadGeometry()` and never by playback; `scripts/geometry-wasm` builds it, the web image carries it under `/viewer/geometry/_framework/`, and the hosted CSP allows `'wasm-unsafe-eval'` for it. `tests/fixtures/geometry.cases.json` holds cases C# computed directly; Vitest replays them through the WebAssembly.
+
 **Two builds.** `npm run build` (and the dev server) is the developer viewer: its own login,
 `VITE_GAME_SOCKET`, the Tests page. `npm run build:hosted` (Vite mode `hosted`, base `/viewer/`) is the
 production admin Replays tool, served by the web image at `/viewer/` on the website's origin

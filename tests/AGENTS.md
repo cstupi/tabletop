@@ -11,6 +11,7 @@ xUnit projects, one per library, per server and for the client's Godot-free core
 - `Tabletop.Sim.Tests`: `sim/`; references `Tabletop.GameServer.Tests` for `GameServerFactory`, `InMemorySeeder` and `PostgresFixture`.
 - `Tabletop.ArmyBooks.Tests`: the generator, against `Fixtures/`.
 - `Tabletop.Viewer.Tests`: generates and checks the viewer's TypeScript types and fixtures.
+- `Tabletop.Geometry.Wasm.Tests`: the browser facade in-process, and the agreement cases (`TABLETOP_WRITE_FIXTURES=1` writes `viewer/tests/fixtures/geometry.cases.json`, which the viewer replays through the WebAssembly).
 
 ## Commands
 

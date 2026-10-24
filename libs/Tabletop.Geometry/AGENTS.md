@@ -1,7 +1,7 @@
 # libs/Tabletop.Geometry
 
 Geometry values and computations: distance, line of sight, cover, collision (rest, surfaces, slide, separate, land), containment, overlap, coherency, the movement region and the built-in zone styles.
-`net10.0`, Godot-free, persistence-free, no project references. Consumed by `libs/Tabletop.Content`, `libs/Tabletop.Protocol`, `server/game`, `client/` and `sim/`.
+`net10.0`, Godot-free, persistence-free, no project references. Consumed by `libs/Tabletop.Content`, `libs/Tabletop.Protocol`, `libs/Tabletop.Geometry.Wasm` (the viewer's WebAssembly build), `server/game`, `client/` and `sim/`.
 
 ## Layout
 
