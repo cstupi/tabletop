@@ -113,11 +113,11 @@ public static partial class Collision
         return Rested(piece, from + by, ground, level);
     }
 
-    /// <summary>The first offset `free` takes: none, then rings <see cref="ClearStep"/> apart out to <see cref="ClearReach"/>; null when none is.</summary>
-    static Point2? Ring(Func<Point2, bool> free)
+    /// <summary>The first offset `free` takes: none, then rings <see cref="ClearStep"/> apart out to `reach` (<see cref="ClearReach"/>); null when none is.</summary>
+    static Point2? Ring(Func<Point2, bool> free, double reach = ClearReach)
     {
         if (free(new Point2(0, 0))) return new Point2(0, 0);
-        for (var r = ClearStep; r <= ClearReach; r += ClearStep)
+        for (var r = ClearStep; r <= reach; r += ClearStep)
         {
             var n = Math.Max(16, (int)Math.Ceiling(2 * Math.PI * r / ClearStep));
             for (var i = 0; i < n; i++)

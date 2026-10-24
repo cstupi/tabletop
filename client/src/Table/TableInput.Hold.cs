@@ -116,11 +116,11 @@ public partial class TableInput
     void ShowLandings(IReadOnlyDictionary<Guid, HeldEnd> ends, bool models)
     {
         var lifted = ends.Where(kv => kv.Value.Drawn != kv.Value.Lands).ToList();
-        if (lifted.Count == 0) { _marks.Hide(); return; }
+        if (lifted.Count == 0) { _marks.Clear(); return; }
         if (models) { _marks.Show(lifted.Select(kv => (kv.Value.Lands, _drag!.Yaws[kv.Key], _session.Projection!.Models[kv.Key].Slot.Base)).ToList()); return; }
         var (id, end) = (lifted[0].Key, lifted[0].Value);
         if (_session.Draft?.Terrain.FirstOrDefault(t => t.Id == id) is { } piece) _marks.ShowPiece((piece with { Position = end.Lands, Yaw = _drag!.Yaws[id] }).WorldVolumes(), end.Lands.Z);
-        else _marks.Hide();
+        else _marks.Clear();
     }
 
     /// <summary>

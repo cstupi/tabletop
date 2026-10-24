@@ -34,5 +34,5 @@ public partial class LandingMarks : Node3D
             return (new Point3(c.X, c.Y, z), v.WorldYaw(), shape);
         }).ToList());
 
-    public void Hide() { foreach (var (_, ring) in _rings) ring.Visible = false; }
+    public void Clear() { foreach (var (_, ring) in _rings) ring.Visible = false; }
 }

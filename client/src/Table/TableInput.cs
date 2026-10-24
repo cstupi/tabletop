@@ -255,7 +255,7 @@ public partial class TableInput : Node
     public Action<Point3>? PlacementPoint { get; set; }
 
     /// <summary>Abandon the drag in progress and send nothing. The decision box calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
-    public void CancelDrag() { var held = _drag?.ModelIds ?? []; _drag = null; ForgetHandMarks(held); HideRulers(); _marks.Hide(); _presenceDirty = true; _view.Redraw(); }
+    public void CancelDrag() { var held = _drag?.ModelIds ?? []; _drag = null; ForgetHandMarks(held); HideRulers(); _marks.Clear(); _presenceDirty = true; _view.Redraw(); }
 
     /// <summary>A hand move's marks end with its drag: the server judges the drop (and warns under warn).</summary>
     void ForgetHandMarks(IReadOnlyList<Guid> held) => Violations.Measure(held.Where(id => !Proposing.Contains(id)), new Dictionary<Guid, string>());
@@ -364,7 +364,7 @@ public partial class TableInput : Node
             return;
         }
         if (_drag is null) return;
-        var drag = _drag; _drag = null; HideRulers(); _marks.Hide(); _presenceDirty = true; ForgetHandMarks(drag.ModelIds);
+        var drag = _drag; _drag = null; HideRulers(); _marks.Clear(); _presenceDirty = true; ForgetHandMarks(drag.ModelIds);
         if (drag.Armed) foreach (var (id, at) in drag.Current) MoveNode(id, at);       // a lifted piece is drawn hovering: it drops where it lands
         var moved = drag.Armed && drag.Current.Any(kv => kv.Value != drag.Grabs[kv.Key].Position || drag.Yaws[kv.Key] != drag.Grabs[kv.Key].Yaw);
         if (!moved) return;
