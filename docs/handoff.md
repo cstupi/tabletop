@@ -454,8 +454,7 @@ A new game starts with Frontline zones; the owner's games created before that ha
 checked against a zone. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
 are built. A
 Limited weapon with no eligible target is not marked used; the book is silent. `SetDice` (suite only) carries no
-actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets
-and a second ruleset are not built.
+actor check.
 
 ## How to work here
 
