@@ -17,7 +17,7 @@ specifics.
 | `web/` | The SvelteKit web app: accounts, army import, mesh upload (STL to GLB). |
 | `sim/` | A headless simulator that plays whole games against the server and writes recordings. Developer-only. |
 | `viewer/` | A 2D web viewer for sim recordings and live games. Its hosted build is production's admin-only Replays at `/viewer/`. |
-| `libs/` | Shared, Godot-free, persistence-free: `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol`. |
+| `libs/` | Shared, Godot-free, persistence-free: `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol`; `Tabletop.Geometry.Wasm` is Geometry compiled to WebAssembly for the viewer. |
 | `tests/` | One xUnit project per library, per server, for the client's core, the sim, the viewer and the army books. |
 | `scripts/` | Launch scripts, the Postgres init schema, `ArmyBooks/` (the army-book generator), `TerrainMeshes/`, `TableTextures/` and `Sounds/` (the built-in terrain meshes, the table textures and the sound effects), `release` and `release-client` (`deploy/README.md` → Releases). |
 | `.github/workflows/` | `ci.yml` (build and tests on pushes and pull requests to main), `release.yml` (a `vX.Y.Z` tag publishes the client). |
