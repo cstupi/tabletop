@@ -2,10 +2,11 @@
   import { page } from '$app/state';
   import { api } from '$lib/api/client';
   import { errorMessage } from '$lib/api/errors';
-  import type { Army, AssetDto, PatchArmyRequest } from '$lib/api/types';
+  import type { Army, AssetDto, FolderDto, Guid, PatchArmyRequest } from '$lib/api/types';
   import AssetPicker from '$lib/components/AssetPicker.svelte';
   import BasePicker from '$lib/components/BasePicker.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { loadFolder, saveFolder } from '$lib/armies/folder';
   import { rename, slotBase, slotHeight, slotMesh, slotSummary, unitDefault } from '$lib/armies/patches';
   import { MAX_NAME, nameProblem } from '$lib/validation';
 
@@ -14,6 +15,10 @@
   let loadFailed = $state(false);
   let assets = $state<AssetDto[]>([]); let assetsLoaded = $state(false);
   let status = $state<string>('');
+  // every mesh picker lists one library folder, the last one picked for this army
+  let folders = $state<FolderDto[]>([]); let folder = $state<Guid | null>(null);
+  $effect(() => { const armyId = id; api.folders.list().then((f) => { folders = f; folder = loadFolder(armyId, f); }).catch(fail); });
+  function pickFolder(f: Guid | null) { folder = f; saveFolder(id, f); }
   const fail = (e: unknown) => { error = errorMessage(e); };
   const nameError = $derived(army ? nameProblem(name, 'Army name') : null);
 
@@ -66,7 +71,7 @@
         </button>
         <small class="unit-stats"><span class="num">[{unit.models.length}]</span> · {Object.entries(unit.stats).map(([k, v]) => `${k} ${v}`).join(' · ')}{#if unit.properties.length} · {props(unit.properties)}{/if}</small>
       </h2>
-      <label class="unit-mesh">Mesh for every model in {unit.name} <AssetPicker {assets} value={unit.models.every((m) => m.assetId === unit.models[0]?.assetId) ? (unit.models[0]?.assetId ?? null) : null} base={unit.models[0]?.base ?? null} onchange={(a) => apply(unitDefault(unit.id, a))} /></label>
+      <label class="unit-mesh">Mesh for every model in {unit.name} <AssetPicker {assets} {folders} {folder} onfolder={pickFolder} value={unit.models.every((m) => m.assetId === unit.models[0]?.assetId) ? (unit.models[0]?.assetId ?? null) : null} base={unit.models[0]?.base ?? null} onchange={(a) => apply(unitDefault(unit.id, a))} /></label>
       {#if open[unit.id]}
         <div class="scroll-x" id="models-{unit.id}">
           <table>
@@ -76,7 +81,7 @@
                 <tr>
                   <th scope="row">{m.name}</th>
                   <td><small>{slotSummary(m)}</small></td>
-                  <td><AssetPicker {assets} value={m.assetId ?? null} base={m.base} label="Mesh for {m.name} {i + 1}" onchange={(a) => apply(slotMesh(m.id, a))} /></td>
+                  <td><AssetPicker {assets} {folders} {folder} onfolder={pickFolder} value={m.assetId ?? null} base={m.base} label="Mesh for {m.name} {i + 1}" onchange={(a) => apply(slotMesh(m.id, a))} /></td>
                   <td><BasePicker value={m.base} allowNone={false} label="Base for {m.name} {i + 1}" onchangevalue={(b) => b && apply(slotBase(m.id, b))} /></td>
                   <td><input class="height" type="number" step="0.25" min="0.25" value={m.height.toFixed(2)} aria-label="Height in inches for {m.name} {i + 1}" onchange={(e) => { const h = Number(e.currentTarget.value); if (Number.isFinite(h) && h > 0) apply(slotHeight(m.id, h)); else e.currentTarget.value = m.height.toFixed(2); }} /></td>
                 </tr>
