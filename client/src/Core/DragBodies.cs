@@ -7,7 +7,10 @@ namespace Tabletop.Client.Core;
 /// <summary>One held model: its body where it stands now and where the cursor puts it.</summary>
 public sealed record HeldBody(Guid Id, PlacedModel At, Point2 To);
 
-/// <summary>What a drag collides with (client UX spec → Physical collision → Client). Alt places freely; the drop still rests.</summary>
+/// <summary>Where a held piece is drawn and where it lands (held pieces lift over spec): apart only while it is lifted, hovering at its target.</summary>
+public sealed record HeldEnd(Point3 Drawn, Point3 Lands);
+
+/// <summary>What a drag collides with (client UX spec → Physical collision → Client; held pieces lift over spec). Alt places freely; the drop still rests.</summary>
 public static class DragBodies
 {
     /// <summary>Every model not held, where it stands: a ghost (a proposed placement, a disembark ghost) where it is drawn, any other model on the table.</summary>
@@ -27,27 +30,57 @@ public static class DragBodies
         ? volumes.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList()
         : volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
 
-    public static IReadOnlyDictionary<Guid, Point3> Models(IReadOnlyList<HeldBody> held, IReadOnlyList<PlacedModel> stationary, IReadOnlyList<WorldVolume> volumes, MoveRegion? region, bool free)
+    /// <summary>
+    /// Held pieces lift over spec → Held. Lifted (level null): each held model goes straight to its target, drawn <see cref="Collision.Lift"/> over
+    /// the highest top under it, models included (Collision.Hover), and lands at the nearest spot where its base meets no other model's (the held
+    /// ones already landed included; a landing on a base is never right, so a region that passes models still counts them) and enters no wall,
+    /// inside a move step only where `within` takes it (Collision.Land). At a level: today's drag at that height (Collision.Separate). Alt
+    /// (`free`): straight to the target, resting on the open surface nearest the level (the highest when lifted).
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, HeldEnd> Models(IReadOnlyList<HeldBody> held, IReadOnlyList<PlacedModel> stationary, IReadOnlyList<WorldVolume> volumes, MoveRegion? region,
+        bool free, double? level, Func<Guid, Point2, bool>? within = null)
     {
-        if (free) return held.ToDictionary(h => h.Id, h => new Point3(h.To.X, h.To.Y, Collision.RestHeight(h.At with { Placement = h.At.Placement with { Position = new Point3(h.To.X, h.To.Y, 0) } }, volumes)));
-        var ends = Collision.Separate(held.Select(h => (h.At, h.To)).ToList(), region is { PassesModels: true } ? [] : stationary, Walls(volumes, region), volumes);
-        return held.Select((h, i) => (h.Id, End: ends[i])).ToDictionary(x => x.Id, x => x.End);
+        static PlacedModel At(HeldBody h) => h.At with { Placement = h.At.Placement with { Position = new Point3(h.To.X, h.To.Y, 0) } };
+        if (free)
+            return held.ToDictionary(h => h.Id, h => { var end = new Point3(h.To.X, h.To.Y, Collision.RestNear(At(h), volumes, level ?? double.PositiveInfinity)); return new HeldEnd(end, end); });
+        if (level is { } l)
+        {
+            var ends = Collision.Separate(held.Select(h => (h.At, h.To)).ToList(), region is { PassesModels: true } ? [] : stationary, Walls(volumes, region), volumes, l);
+            return held.Select((h, i) => (h.Id, End: ends[i])).ToDictionary(x => x.Id, x => new HeldEnd(x.End, x.End));
+        }
+        var lands = Collision.Land(held.Select(h => (h.At, h.To, within is null ? null : (Func<Point2, bool>)(p => within(h.Id, p)))).ToList(), stationary, Walls(volumes, region), volumes);
+        return held.Select((h, i) => (h, Lands: lands[i])).ToDictionary(x => x.h.Id, x => new HeldEnd(new Point3(x.h.To.X, x.h.To.Y, Collision.Hover(At(x.h), volumes, stationary)), x.Lands));
     }
 
     /// <summary>
-    /// A setup terrain drag from where the piece is held (at, its yaw included): first moved clear of any piece declared Impassable its
-    /// footprint enters (a turn in hand), then straight to the cursor when that spot is free, else slid toward it along what it meets
-    /// (Collision.Follow). Rests on the Solid tops under its footprints. Alt places freely; the drop still rests.
+    /// A setup terrain drag from where the piece is held (at, its yaw included). Lifted (level null): straight to the cursor, drawn
+    /// <see cref="Collision.Lift"/> over the highest top under it, landing where its footprint enters no piece declared Impassable, else at the
+    /// nearest spot that does (Collision.Land). At a level: first moved clear of what its footprint meets there (a turn in hand), then straight
+    /// to the cursor when that spot is free, else slid toward it (Collision.Follow), so it passes under a bridge with room. Alt places freely:
+    /// straight, resting on the open surface nearest the level.
     /// </summary>
-    public static Point3 Piece(IReadOnlyList<TerrainPlacement> terrain, Guid pieceId, Placement at, Point2 to, bool free)
+    public static HeldEnd Piece(IReadOnlyList<TerrainPlacement> terrain, Guid pieceId, Placement at, Point2 to, bool free, double? level)
     {
         var others = terrain.Where(t => t.Id != pieceId).SelectMany(t => t.WorldVolumes()).ToList();
         var held = terrain.Single(t => t.Id == pieceId) with { Position = at.Position, Yaw = at.Yaw };
-        if (held.Volumes.Count == 0) return new Point3(to.X, to.Y, 0);                    // nothing to collide or rest
-        if (free) return Collision.Slide(held.WorldVolumes(), to, [], others).Position;
+        if (held.Volumes.Count == 0) { var flat = new Point3(to.X, to.Y, 0); return new HeldEnd(flat, flat); }   // nothing to collide or rest
+        var there = held with { Position = new Point3(to.X, to.Y, 0) };
+        if (free) { var end = new Point3(to.X, to.Y, Collision.RestNear(there.WorldVolumes(), others, level ?? double.PositiveInfinity)); return new HeldEnd(end, end); }
         var walls = Walls(others, null);
-        var clear = held with { Position = Collision.Clear(held.WorldVolumes(), walls, others).Position };
-        return Collision.Follow(clear.WorldVolumes(), to, walls, others).Position;
+        if (level is { } l)
+        {
+            var clear = held with { Position = Collision.Clear(held.WorldVolumes(), walls, others, l).Position };
+            var end = Collision.Follow(clear.WorldVolumes(), to, walls, others, l).Position;
+            return new HeldEnd(end, end);
+        }
+        return new HeldEnd(new Point3(to.X, to.Y, Collision.Hover(there.WorldVolumes(), others)), Collision.Land(held.WorldVolumes(), to, walls, others).Position);
+    }
+
+    /// <summary>The held piece's open surfaces where it stands (Collision.Surfaces): what PageUp and PageDown step through (HoldLevel).</summary>
+    public static IReadOnlyList<double> Surfaces(IReadOnlyList<TerrainPlacement> terrain, Guid pieceId, Placement at)
+    {
+        var held = terrain.Single(t => t.Id == pieceId) with { Position = at.Position, Yaw = at.Yaw };
+        return held.Volumes.Count == 0 ? [0] : Collision.Surfaces(held.WorldVolumes(), terrain.Where(t => t.Id != pieceId).SelectMany(t => t.WorldVolumes()).ToList());
     }
 
     /// <summary>A piece turned in place to the yaw: where it stands, or the nearest spot clear of the pieces declared Impassable, rested.</summary>
