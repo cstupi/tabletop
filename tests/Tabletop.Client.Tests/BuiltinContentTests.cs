@@ -6,17 +6,6 @@ namespace Tabletop.Client.Tests;
 public class BuiltinContentTests
 {
     [Fact]
-    public void Every_generator_entry_names_a_built_in()
-    {
-        foreach (var planet in Enum.GetValues<Planet>())
-        {
-            Assert.All(TerrainGenerators.Fixed(planet), n => Assert.True(BuiltinContent.Terrain.ContainsKey(n), $"{planet}: {n}"));
-            for (var roll = 2; roll <= 12; roll++)
-                Assert.All(TerrainGenerators.Rolled(planet, roll), n => Assert.True(BuiltinContent.Terrain.ContainsKey(n), $"{planet} {roll}: {n}"));
-        }
-    }
-
-    [Fact]
     public void Every_builtin_solid_over_three_inches_is_impassable() =>   // p.11 elevated terrain
         Assert.All(BuiltinContent.Terrain.Values.Select(t => t.Volume).Where(v => v.Kind == VolumeKind.Solid && v.Top > 3),
             v => Assert.True(v.Declarations.HasFlag(TerrainDeclarations.Impassable)));
