@@ -21,17 +21,17 @@ public class StepAndWaitTests
     }
 
     [Fact]
-    public async Task Step_and_wait_stops_at_the_roll_off_gate_with_the_ask_open_and_answers_nothing()
+    public async Task Step_and_wait_stops_at_the_first_deploy_ask_with_the_ask_open_and_answers_nothing()
     {
         var (_, driver, loop) = await Paused();
         await using var _ = driver;
         var report = await loop.RunAsync(Ct);
         var paused = Assert.IsType<RunOutcome.Paused>(report.Outcome);
-        Assert.Equal(AskQuestions.Confirm, paused.Question);
+        Assert.Equal(AskQuestions.Deploy, paused.Question);                       // the roll-off ran through: no Continue
         Assert.Equal(0, report.AsksAnswered);
         var open = Assert.Single(await driver.OpenAsksAsync(Ct));
         Assert.Equal(paused.AskId, open.Ask.Id);
-        Assert.Equal(2, open.Ask.Teams.Count);
+        Assert.Single(open.Ask.Teams);
         Assert.Empty(open.Answers);
         Assert.True(report.Passed, string.Join("\n", report.Failures));   // a pause is a stop, not a failure
     }
@@ -54,17 +54,13 @@ public class StepAndWaitTests
         var (_, driver, loop) = await Paused();
         await using var _ = driver;
         var first = Assert.IsType<RunOutcome.Paused>((await loop.RunAsync(Ct)).Outcome);
-        var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
-
-        var second = Assert.IsType<RunOutcome.Paused>((await loop.AnswerPausedAsync(gate.Teams[0], new Confirmed(), Ct)).Outcome);
-        Assert.NotEqual(first.AskId, second.AskId);
-        Assert.Equal(AskQuestions.Deploy, second.Question);
+        Assert.Equal(AskQuestions.Deploy, first.Question);
 
         var ask = (await driver.OpenAsksAsync(Ct)).Single().Ask;
         var unit = Assert.IsType<PieceSelection>(ask.Legal).Eligible[0];
         var report = await loop.AnswerPausedAsync(ask.Teams.Single(), new SelectedPieces([unit]), Ct);
-        var third = Assert.IsType<RunOutcome.Paused>(report.Outcome);
-        Assert.NotEqual(second.AskId, third.AskId);
+        var second = Assert.IsType<RunOutcome.Paused>(report.Outcome);
+        Assert.NotEqual(first.AskId, second.AskId);
 
         var projection = await driver.ProjectionAsync(Ct);
         Assert.All(projection.Units[unit].Definition.Models, m => Assert.IsType<OnTable>(projection.Models[m.Id].Location));
@@ -90,7 +86,7 @@ public class StepAndWaitTests
     [Fact]
     public async Task An_external_answer_is_recorded_once_and_consumes_its_ordinal()
     {
-        var scenario = ScenarioCatalog.Get("skirmish").WithSeed(33);
+        var scenario = ScenarioCatalog.Get("skirmish").WithSeed(33) with { WaitsBetweenSteps = true };   // the wait setting opens the roll-off's Confirm
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
         driver.Mode = DriverMode.StepAndWait;
