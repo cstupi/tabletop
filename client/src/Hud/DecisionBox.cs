@@ -168,6 +168,7 @@ public partial class DecisionBox : PanelContainer
         void Show(IReadOnlyList<AskOption> shown, IReadOnlyList<(int Key, string Label, string OptionId)> numbered)
         {
             if (!IsInstanceValid(list)) return;
+            if (_lit is not null) Light(null);
             foreach (var c in list.GetChildren()) { list.RemoveChild(c); c.QueueFree(); }
             _numbered = numbered;
             foreach (var row in DecisionView.Rows(shown))
@@ -181,8 +182,8 @@ public partial class DecisionBox : PanelContainer
                 var b = Btn(key > 0 ? $"{key}. {c.Label}" : c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
                 if (mine.Ask.Question == "cast" && SpellText.OfOption(_s.Rules, c.Id, c.Label) is { } tip) b.TooltipText = tip;
                 var pieces = c.Pieces;
-                b.MouseEntered += () => Light(pieces, Palette.Selected);
-                b.MouseExited += () => Light(pieces, null);
+                b.MouseEntered += () => Light(pieces);
+                b.MouseExited += () => Light(null);
                 list.AddChild(b);
             }
         }
@@ -220,11 +221,20 @@ public partial class DecisionBox : PanelContainer
     /// <summary>Whether a model glows for the open Ask: GameScreen puts the glow back where the selection leaves a model.</summary>
     public bool Glows(PieceNode n) => _glow.Contains(n.ModelId) || _glow.Contains(n.UnitId);
 
-    /// <summary>A choice's pieces lit while its button is hovered, then back to the Ask's glow.</summary>
-    void Light(IReadOnlyList<Guid> pieces, Color? colour)
+    /// <summary>The pieces lit by the option button under the pointer, the rest of the Ask's glow dark so the hovered unit stands out
+    /// among others of the same name; null puts the Ask's glow back.</summary>
+    IReadOnlyList<Guid>? _lit;
+    void Light(IReadOnlyList<Guid>? pieces)
     {
+        bool In(IReadOnlyList<Guid>? set, PieceNode n) => set is not null && (set.Contains(n.ModelId) || set.Contains(n.UnitId));
         foreach (var n in _view.Pieces.OfType<PieceNode>())
-            if (IsInstanceValid(n) && (pieces.Contains(n.ModelId) || pieces.Contains(n.UnitId))) n.SetHighlight(colour ?? (Glows(n) ? Palette.Selected : null));
+        {
+            if (!IsInstanceValid(n)) continue;
+            if (In(pieces, n)) n.SetHighlight(Palette.Hovered);
+            else if (pieces is not null && Glows(n)) n.SetHighlight(null);
+            else if (In(_lit, n) || (pieces is null && Glows(n))) n.SetHighlight(Glows(n) ? Palette.Selected : null);
+        }
+        _lit = pieces;
     }
 
     /// <summary>
@@ -306,6 +316,7 @@ public partial class DecisionBox : PanelContainer
     void Unhook()
     {
         _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
+        if (_lit is not null && IsInstanceValid(_view)) Light(null);                 // a button freed under the pointer never hears its exit
         _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.Violations.Clear();   // a refused commit's marks come back with its ghosts (ApplyVerdict)
         if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click

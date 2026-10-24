@@ -12,6 +12,7 @@ public static class Palette
     public static Color Tinted(int? teamOrdinal) => teamOrdinal is { } o ? Proxy.Lerp(Team(o), 0.5f) with { A = Proxy.A } : Proxy;
     public static readonly Color Selected = new(1f, 1f, 1f);
     public static readonly Color Picked = new(1f, 0.85f, 0.2f, 0.7f);        // the selected unit's models
+    public static readonly Color Hovered = new(0.25f, 0.9f, 1f);             // the models of the decision box option under the pointer
     /// <summary>A FixedSize Label3D's pixel size: a 40 px font reads about 20 px tall at 720 lines, whatever the camera's distance.</summary>
     public const float ScreenPixel = 0.0011f;
     public static readonly Color Ghost = new(0.9f, 0.9f, 1f, 0.35f);
