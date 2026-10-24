@@ -124,7 +124,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   and replay command as it finishes, the coverage entries the run fails on, the verdict line and the report paths. `--verbose` adds
   a line per game and the whole coverage table.
 - Socket games play on a fixed account pool: participant i of any game is `sim-player-<i>` (`SocketCredentials.NameFor`,
-  `PoolSize` 5: four armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
+  `PoolSize` 9: eight armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
   Every run and every concurrent game (the CLI suite beside `sim-runner`) shares them; the dev mint gives a name the same account
   every time, and a 409 from two first mints at once is asked again.
 - A socket run holds its lock (`ISocketRows.HoldAsync`; Postgres: an advisory lock), sweeps games an interrupted run left (named `suite-run <run id> <game>`, `SuiteRows`), seeds and deletes each

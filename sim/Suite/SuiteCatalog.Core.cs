@@ -11,7 +11,7 @@ public static partial class SuiteCatalog
     private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions(), CoreGames.FiringLine(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround(), CoreGames.Ruins(),
         CoreGames.CoverAndSight(), CoreGames.TransportRun(), CoreGames.TransportDeploy(),
         CoreGames.Overkill(), CoreGames.HoldTheMarkers(), CoreGames.Deployment(), CoreGames.OverALowerModel(), CoreGames.RoundTheTerrain(),
-        CoreGames.PerimeterSight(), CoreGames.HybridSight(), CoreGames.MeleeNoSeparation(), CoreGames.SelfPlay(), CoreGames.TeamGame()];
+        CoreGames.PerimeterSight(), CoreGames.HybridSight(), CoreGames.MeleeNoSeparation(), CoreGames.SelfPlay(), CoreGames.TeamGame(), CoreGames.FourTeams()];
 }
 
 /// <summary>
