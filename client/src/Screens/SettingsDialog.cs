@@ -21,6 +21,10 @@ public partial class SettingsDialog : AcceptDialog
         Check(box, "Show hitboxes (B)", session.Settings.ShowHitboxes, session, (s, on) => s with { ShowHitboxes = on });
         Check(box, "Show terrain hitboxes (Shift+B)", session.Settings.ShowTerrainHitboxes, session, (s, on) => s with { ShowTerrainHitboxes = on });
         Check(box, "Range rings on at start", session.Settings.RangeRings, session, (s, on) => s with { RangeRings = on });
+        Check(box, "Sound", session.Settings.Sound, session, (s, on) => s with { Sound = on });
+        var volume = new HSlider { MinValue = 0, MaxValue = 100, Step = 1, Value = session.Settings.Volume, CustomMinimumSize = new Vector2(160, 0), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        volume.ValueChanged += v => session.UpdateSettings(s => s with { Volume = (int)v });
+        var volumeRow = new HBoxContainer(); volumeRow.AddChild(new Label { Text = "Volume" }); volumeRow.AddChild(volume); box.AddChild(volumeRow);
     }
 
     static void Check(Container box, string text, bool value, Session session, Func<ClientSettings, bool, ClientSettings> set)

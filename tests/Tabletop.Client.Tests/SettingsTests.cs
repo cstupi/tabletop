@@ -102,4 +102,18 @@ public class SettingsTests : IDisposable
         var path = Path.Combine(_dir, "settings.json"); File.WriteAllText(path, json); var s = ClientSettings.Load(path);
         Assert.Equal(("scifi", true, true, false), (s.Theme, s.CameraFollow, s.TurnBanner, s.RangeRings));
     }
+
+    [Fact]
+    public void Sound_is_on_at_volume_70_round_trips_and_loads_clamped()
+    {
+        var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;
+        Assert.Equal((true, 70), (d.Sound, d.Volume));
+        Assert.NotEqual(d, d with { Sound = false }); Assert.NotEqual(d, d with { Volume = 20 });
+        var s = d with { Sound = false, Volume = 20 }; s.Save(path);
+        Assert.Equal(s, ClientSettings.Load(path));
+        File.WriteAllText(path, """{ "animate": false }""");
+        Assert.Equal((true, 70), (ClientSettings.Load(path).Sound, ClientSettings.Load(path).Volume));
+        File.WriteAllText(path, """{ "volume": 400 }"""); Assert.Equal(100, ClientSettings.Load(path).Volume);
+        File.WriteAllText(path, """{ "volume": -5 }"""); Assert.Equal(0, ClientSettings.Load(path).Volume);
+    }
 }
