@@ -18,7 +18,7 @@ public sealed record HudVisible(bool Roster, bool UnitCard, bool Decision, bool 
 public static class HudLayout
 {
     public const float M = 8, Column = 420, CornerH = 40, HeaderW = 760, HeaderH = 96, ToastW = 360, ToastH = 120, DecisionW = 480,
-        DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, BannerH = 96, EndW = 480, EndH = 360;
+        DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, BannerH = 136, EndW = 480, EndH = 360;
 
     public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
 

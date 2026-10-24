@@ -56,13 +56,15 @@ ranking step in a live batch into a `Banner` with a detail line; `Hud/TurnBanner
 
 ### Task 2: A log stopped at the old gate resumes
 
-**Files:** `server/game/Interpreter/SequenceInterpreter.cs`; test `tests/Tabletop.GameServer.Tests/RollOffResumeTests.cs`.
+**Files:** `server/game/Interpreter/SequenceInterpreter.cs`, `server/game/Engine/RulesEngine.cs`; test
+`tests/Tabletop.GameServer.Tests/RollOffResumeTests.cs`.
 
 - [ ] Test: a harness (wait setting off) whose log holds the roll-off's `sequence_started`, its roll's `step_completed` and an open
-  every-team Confirm (written as the old interpreter wrote them) advances to `ask_closed` with no answers, the ranking's
-  `step_completed` over the dice already rolled, `sequence_finished`, `round_started` with that order, and the winner's deploy Ask.
-- [ ] Test: the same through `GameSession` hydration (`GameServerFactory`, seeded log): the first client sees the deploy Ask.
-- [ ] `Advance`: when the top frame waits only on boundary Confirms and `GateTeams` gives none now, emit `AskClosed(id, [])` for each.
+  every-team Confirm (written as the old interpreter wrote them), rehydrated (`SchedulerHarness.Rehydrate`, the hydrate path), advances
+  to `ask_closed` with no answers, the ranking's `step_completed` over the dice already rolled, `sequence_finished`, `round_started`
+  with that order, and the winner's deploy Ask; draws no die.
+- [ ] `SequenceInterpreter.StaleGates`: when the top frame waits only on boundary Confirms and `GateTeams` gives none now,
+  `AskClosed(id, [])` for each. `RulesEngine.Advance` asks it while a framed Ask is open (where it otherwise returns nothing).
 - [ ] Commit.
 
 ### Task 3: The ranking step names each team's faces
@@ -92,7 +94,8 @@ ranking step in a live batch into a `Banner` with a detail line; `Hud/TurnBanner
 
 ### Task 5: The Godot side
 
-**Files:** `client/src/Hud/TurnBanner.cs`.
+**Files:** `client/src/Hud/TurnBanner.cs`, `client/src/Theme/Ui.cs` and `ThemeBuilder.cs` (`Variation.BannerDetail`, 24 px),
+`client/src/Core/HudLayout.cs` (`BannerH` 136, room for the second line).
 
 - [ ] `TurnBanner` queues `RollOffBanners.Of` ahead of the batch's turn banners (one Banner area, so the message and "Team k's turn"
   show one after the other), passes `enabled` false in a replay, and shows `Detail` on a second, smaller label in the same panel.
