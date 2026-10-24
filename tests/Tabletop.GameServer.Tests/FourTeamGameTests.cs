@@ -33,7 +33,7 @@ public class FourTeamGameTests
     {
         var h = FourTeams();
         foreach (var face in new[] { 5, 5, 2, 5, 3, 6, 1 }) h.Dice.Enqueue(face);       // teams 1, 2 and 4 tie on 5 and roll again: 3, 6, 1
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var steps = h.Log.Select(e => e.Payload).OfType<StepCompleted>().ToList();
         var rolls = steps.Single(s => s.Step == GfNames.RollOffRollStep).Rolls;
         Assert.Equal([4, 3], rolls.Select(r => r.Dice.Count));                           // one die a team, then one for each team still tied
@@ -49,7 +49,7 @@ public class FourTeamGameTests
     {
         var h = FourTeams();
         foreach (var face in new[] { 3, 6, 1, 4 }) h.Dice.Enqueue(face);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var t = h.Teams;
         IReadOnlyList<Guid> order = [t[1], t[3], t[0], t[2]];
         for (var turn = 0; turn < 8; turn++)
