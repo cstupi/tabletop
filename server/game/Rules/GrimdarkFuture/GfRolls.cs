@@ -156,10 +156,10 @@ public static class GfRolls
             threshold: new TargetRead(4, null));
 
     /// <summary>
-    /// The roll-off the scheduler starts (scheduler → Deployment; p.6, p.50). Two steps, because the boundary between them is the confirm
-    /// gate that keeps the frame on the stack while a player edits the dice, and because
-    /// dice_edited and dice_rerolled reach back into a RollRecord and never rewrite a step_completed's Values — so the ranking has to be
-    /// re-derived after the gate rather than written by the step that rolled.
+    /// The roll-off the scheduler starts (scheduler → Deployment; p.6, p.50). Two steps, run in one go for players. Under the wait setting
+    /// (development, the rules suite) the boundary between them is a confirm gate that keeps the frame on the stack while SetDice fixes the
+    /// dice, and dice_edited reaches back into a RollRecord and never rewrites a step_completed's Values — so the ranking is derived by
+    /// the second step rather than written by the step that rolled.
     /// </summary>
     public static Sequence RollOffSequence() => new(GfNames.RollOffSeq, [new RollOffStep(), new RollOffOrderStep()]);
 
@@ -189,9 +189,10 @@ public static class GfRolls
 
     /// <summary>
     /// Ranks the teams from the dice the previous step recorded, replaying the same tie loop over them instead of rolling, so a die
-    /// edited or rerolled at the gate is the one that counts. It never rolls: a residual tie an edit created falls to team ordinal, which
+    /// edited at the gate is the one that counts. It never rolls: a residual tie an edit created falls to team ordinal, which
     /// is the tolerance Scheduler.RollOff.Order already has for a hand-edited log.
-    /// Values: winner_ordinal, and place_1..place_n — the team ordinals best first — which Scheduler.RollOff.Order reads into round_started.Order.
+    /// Values: winner_ordinal; place_1..place_n — the team ordinals best first — which Scheduler.RollOff.Order reads into round_started.Order;
+    /// and rolled_&lt;ordinal&gt;_&lt;k&gt;, each team's k-th face (k from 1; a tie's re-rolls follow), which the client shows as the roll-off's result.
     /// </summary>
     sealed class RollOffOrderStep : IStep
     {
@@ -209,6 +210,8 @@ public static class GfRolls
             var values = new Dictionary<string, int>();
             if (ranked.Count > 0) values["winner_ordinal"] = ranked[0].Ordinal;
             for (var k = 0; k < ranked.Count; k++) values[$"place_{k + 1}"] = ranked[k].Ordinal;
+            foreach (var team in teams)
+                for (var k = 0; k < keys[team.Id].Count; k++) values[$"rolled_{team.Ordinal}_{k + 1}"] = keys[team.Id][k];
             return new Complete([], values);
         }
     }

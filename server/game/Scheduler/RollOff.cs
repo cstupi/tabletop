@@ -9,10 +9,10 @@ namespace Tabletop.GameServer.Scheduler;
 /// interpreter like any other. The scheduler starts it with no actor and, once its frame has finished, reads the descending order
 /// from its step_completed.Values place_1..place_n — team ordinals, best first (scheduler → Deployment; p.50). Replay applies
 /// round_started.Order and never reads the values again.
-/// It is confirm-gated like any other roll: the sequence is two steps, and the boundary before the second is an
-/// every-team Confirm the interpreter opens whatever the wait setting says, so the frame stays open with its dice editable and the
-/// order is read only once sequence_finished stands. Waiting is that whole interval. The values live on the step that carries
-/// place_1 — the ranking step, which runs after the gate — so an edited die decides the order and no logged step is ever rewritten.
+/// The sequence is two steps, run in one go unless the wait setting is on (development, the rules suite): then the boundary before the
+/// second is an every-team Confirm, so the frame stays open with its dice reachable by SetDice, and Waiting is that interval. The order
+/// is read only once sequence_finished stands. The values live on the step that carries place_1 — the ranking step, which runs after
+/// any gate — so an edited die decides the order and no logged step is ever rewritten.
 /// </summary>
 public static class RollOff
 {
@@ -24,7 +24,7 @@ public static class RollOff
     public sealed record Waiting : Progress;
     public sealed record Resolved(IReadOnlyList<Guid> Order) : Progress;
 
-    /// <summary>Since the last round_started (the whole log before the first): no roll-off → start one; abandoned → start again; started and unfinished → wait, which is where a confirm gate holds it; finished → its order.</summary>
+    /// <summary>Since the last round_started (the whole log before the first): no roll-off → start one; abandoned → start again; started and unfinished → wait (a gate under the wait setting); finished → its order.</summary>
     public static Progress Advance(GameState state, SchedulerLog log, string sequence, ISequenceStarter starter)
     {
         var since = log.SinceRound.Select(e => e.Payload).ToList();
@@ -36,7 +36,7 @@ public static class RollOff
     }
 
     /// <summary>place_1..place_n as team ids; ordinals the values do not name (a hand-edited log; the team list itself cannot change after the flip to playing) follow in ordinal order.
-    /// The step handed in is the frame's last completed step carrying place_1 — the ranking step, which the interpreter runs after the confirm gate, over whatever dice stand then.</summary>
+    /// The step handed in is the frame's last completed step carrying place_1 — the ranking step, which runs after any gate, over whatever dice stand then.</summary>
     public static IReadOnlyList<Guid> Order(GameState state, StepCompleted? step)
     {
         var teams = state.Info.Teams.OrderBy(t => t.Ordinal).ToList();

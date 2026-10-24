@@ -292,6 +292,7 @@ public class GfRollsTests
         Assert.Null(roll.Values);                                                                   // the rolling step settles nothing: `order` derives it
         var order = events.OfType<StepCompleted>().Single(s => s.Step == GfNames.RollOffOrderStep);
         Assert.Equal((2, 2, 1), (order.Values!["winner_ordinal"], order.Values["place_1"], order.Values["place_2"]));   // what the scheduler reads into round_started.Order
+        Assert.Equal((4, 2, 4, 5), (order.Values["rolled_1_1"], order.Values["rolled_1_2"], order.Values["rolled_2_1"], order.Values["rolled_2_2"]));   // each team's faces, the tie's re-roll second: what the client shows
         Assert.Equal(4, DiceCursor.DrawnSoFar(sim.State));
     }
 
