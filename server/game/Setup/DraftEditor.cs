@@ -107,11 +107,12 @@ public static class DraftEditor
         return d.Terrain.Any(t => t.Id == id) ? d with { Terrain = d.Terrain.Select(t => t.Id == id ? change(t) : t).ToList() } : Miss(out missing, $"no terrain {id}");
     }
 
-    /// <summary>Client UX spec → Physical collision: the edited piece rests on the Solid tops under its footprints, its own volumes ignored.</summary>
+    /// <summary>Client UX spec → Physical collision; held pieces lift over spec: the edited piece rests on its open surface nearest the Z sent, over the
+    /// Solid tops under its footprints, its own volumes ignored, so a piece set under a bridge with room stays there.</summary>
     static TableState? Rest(TableState? d, Guid id)
     {
         if (d?.Terrain.FirstOrDefault(t => t.Id == id) is not { } piece) return d;
-        var z = Collision.RestHeight(piece.WorldVolumes(), d.Terrain.Where(t => t.Id != id).SelectMany(t => t.WorldVolumes()).ToList());
+        var z = Collision.RestNear(piece.WorldVolumes(), d.Terrain.Where(t => t.Id != id).SelectMany(t => t.WorldVolumes()).ToList(), piece.Position.Z);
         return d with { Terrain = d.Terrain.Select(t => t.Id == id ? t with { Position = t.Position with { Z = z } } : t).ToList() };
     }
 

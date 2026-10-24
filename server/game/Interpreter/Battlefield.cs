@@ -93,7 +93,11 @@ public static class Battlefield
         return names;
     }
 
-    /// <summary>Client UX spec → Physical collision: rests the model over its whole base (Collision.RestHeight). The client's Z is not read.</summary>
+    /// <summary>
+    /// Client UX spec → Physical collision; held pieces lift over spec → Server: rests the model over its whole base on its open surface nearest the
+    /// client's Z (Collision.RestNear). A Z of 0 on a hill or a crate gets its top, since 0 is not open there; a model sent at table level under a
+    /// bridge with room stays under it.
+    /// </summary>
     public static Placement Settle(GameState state, Guid modelId, Placement client) =>
-        new(client.Position with { Z = Collision.RestHeight(At(state, modelId, client), Terrain(state)) }, client.Yaw);
+        new(client.Position with { Z = Collision.RestNear(At(state, modelId, client), Terrain(state), client.Position.Z) }, client.Yaw);
 }
