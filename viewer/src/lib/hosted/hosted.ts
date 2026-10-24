@@ -52,10 +52,11 @@ export function rolesOf(jwt: string): string[] {
   } catch { return []; }
 }
 
-export type Access = 'signed-out' | 'not-admin' | 'admin';
+export type Access = 'signed-out' | 'player' | 'admin';
 
+/** Every signed-in account plays; the `admin` role adds watching any game. The servers check the role themselves. */
 export const accessOf = (jwt: string | null): Access =>
-  jwt === null ? 'signed-out' : rolesOf(jwt).includes('admin') ? 'admin' : 'not-admin';
+  jwt === null ? 'signed-out' : rolesOf(jwt).includes('admin') ? 'admin' : 'player';
 
 /** The website's sign-in page, which returns to `path` afterwards (web/src/lib/session/redirect.ts `safeNext`). */
 export const signInHref = (path: string): string => `/login?${new URLSearchParams({ next: path })}`;

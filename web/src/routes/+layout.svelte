@@ -6,7 +6,6 @@
   import { page } from '$app/state';
   import { session } from '$lib/session/session.svelte';
   import { loginHref } from '$lib/session/redirect';
-  import { isAdmin } from '$lib/session/jwt';
   import { REPLAYS_URL } from '$lib/replays';
   import Icon from '$lib/components/Icon.svelte';
   import ThemeSwitch from '$lib/components/ThemeSwitch.svelte';
@@ -36,10 +35,8 @@
         <a href="/armies" aria-current={current('/armies')}><Icon name="armies" />Armies</a>
         <a href="/library" aria-current={current('/library')}><Icon name="library" />Library</a>
         <a href="/download" aria-current={current('/download')}><Icon name="download" /><span class="label">Download</span></a>
-        {#if isAdmin(session.token)}
-          <!-- The viewer is a separate static app, not a route here: a full page load. -->
-          <a href={REPLAYS_URL} data-sveltekit-reload><Icon name="replay" /><span class="label">Replays</span></a>
-        {/if}
+        <!-- The viewer is a separate static app, not a route here: a full page load. -->
+        <a href={REPLAYS_URL} data-sveltekit-reload><Icon name="replay" /><span class="label">Play</span></a>
         <a href="/account" aria-current={current('/account')}><Icon name="account" /><span class="visually-hidden">Account: </span><span class="account-name">{session.account?.name ?? '…'}</span></a>
       </span>
     {/if}

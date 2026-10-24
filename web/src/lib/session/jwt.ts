@@ -21,8 +21,6 @@ export function decodeRoles(jwt: string): string[] {
   return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
 }
 
-/** Shows the admin-only nav entry; the servers check the role themselves. */
-export const isAdmin = (jwt: string | null): boolean => jwt !== null && decodeRoles(jwt).includes('admin');
 
 /** Once a minute, but never later than 30 s before expiry, and at once when already expired. */
 export function refreshDelayMs(exp: number | null, nowMs = Date.now(), { intervalMs = 60_000, marginMs = 30_000 } = {}): number {

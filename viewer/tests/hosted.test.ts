@@ -49,13 +49,13 @@ describe('the hosted viewer', () => {
     expect(() => writeWebSession({ getItem: () => null, setItem: () => { throw new Error('full'); } }, 'x')).not.toThrow();
   });
 
-  it('reads roles from the token and admits only the admin role', () => {
+  it('accessOf gives a signed-in non-admin player access, and rolesOf reads the roles', () => {
     expect(rolesOf(jwt({ roles: ['admin', 'x'] }))).toEqual(['admin', 'x']);
     expect(rolesOf(jwt({ roles: 'admin' }))).toEqual(['admin']);
     expect(rolesOf(jwt({}))).toEqual([]);
     expect(rolesOf('garbage')).toEqual([]);
     expect(accessOf(admin)).toBe('admin');
-    expect(accessOf(player)).toBe('not-admin');
+    expect(accessOf(player)).toBe('player');
     expect(accessOf(null)).toBe('signed-out');
   });
 
@@ -80,6 +80,11 @@ describe('the hosted viewer', () => {
       expect(sent).toEqual([player]);
       expect(result).toEqual({ access: 'admin', sessionJwt: admin });
       expect(readWebSession(s)).toBe(admin);
+    });
+
+    it('hostedSession returns player for a refreshed non-admin', async () => {
+      const s = store({ [WEB_SESSION_KEY]: webSession(admin) });
+      expect(await hostedSession(s, async () => ({ sessionJwt: player }))).toEqual({ access: 'player', sessionJwt: player });
     });
 
     it('is signed out with no stored session, without calling management', async () => {

@@ -30,7 +30,7 @@
   async function hostedJwt(): Promise<string> {
     const result = await hostedSession(storage, (jwt) => refreshSession(jwt));
     access = result.access;
-    if (result.sessionJwt === null || result.access !== 'admin') throw new Error('signed out of Tabletop');
+    if (result.sessionJwt === null) throw new Error('signed out of Tabletop');
     return result.sessionJwt;
   }
 
@@ -97,12 +97,6 @@
   <h1>Signed out</h1>
   <p>Sign in to Tabletop to open Replays.</p>
   <p><a href={signInHref(window.location.pathname)}>Sign in</a></p>
-</main>
-{:else if access === 'not-admin'}
-<main class="gate">
-  <h1>Not authorised</h1>
-  <p>Replays are open to admin accounts only.</p>
-  <p><a href="/">Back to Tabletop</a></p>
 </main>
 {:else}
 <header>
