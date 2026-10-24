@@ -180,9 +180,9 @@ public sealed partial class RunLoop(
     }
 
     /// <summary>
-    /// The scenario's set-aside units get the condition a player sets from the menu, before the first answer: the roll-off's confirm gate is
-    /// what is open then, so the first deploy Ask has not opened and already leaves them out (a deploy Ask open before the change would be
-    /// asked again). Sent by the owning participant.
+    /// The scenario's set-aside units get the condition a player sets from the menu, before the first answer. The first deploy Ask is
+    /// usually open by then (the roll-off's Confirm only under the step gate), and the server withdraws it and asks again without them
+    /// (SchedulerBase.Withdrawn). Sent by the owning participant.
     /// </summary>
     private async Task<RunOutcome?> SetAsideAsync(CancellationToken ct)
     {

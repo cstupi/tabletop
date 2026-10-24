@@ -93,7 +93,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. `SetDice` is no player
   command: a game server takes it only with `GameServerOptions.AcceptsSetDice` on, which dev mode sets (Development and `TABLETOP_DEV_MODE=1`: the
   compose `game` service) and the in-process driver passes to its `RulesEngineFactory`; anywhere else it is refused. A game with fixes runs
-  with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable; a fix that never meets its roll fails
+  with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable (the roll-off's too, whose Confirm opens only then); a fix that never meets its roll fails
   the game. A fix lands before the step that decides from those dice (opr-sequences.md → Dice edits), so the casting result, a
   hit's extra hits and per-die grants, and a morale test's consequence follow the fixed faces; added attack dice were drawn on the
   faces as rolled.
