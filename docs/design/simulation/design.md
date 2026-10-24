@@ -241,10 +241,10 @@ a frame id is not stable across a rewrite of the sequence. `ScriptBuilder.Then(q
 takes the next unused ordinal for that question. `At(question, ordinal, answer)` names one. A
 duplicate key throws at build time.
 
-The first Ask of every game is the roll-off `confirm` gate, addressed to both teams. An unsealed Ask
-addressed to several teams, the gate and `end_round` among them, is answered once, by the first listed
-team that has not answered, so `ComposedAnswers.Answer` is called once for it and `("confirm", 0)` is the
-gate. A sealed Ask is answered by every addressed team, so `Answer` is called once per (Ask, team) pair
+The first Ask of a game is the winner's first `deploy` Ask; with the step gate on (`Scenario.WaitsBetweenSteps`, a suite game that
+fixes dice) it is the roll-off `confirm` gate, addressed to both teams. An unsealed Ask addressed to several teams, that gate and
+`end_round` among them, is answered once, by the first listed team that has not answered, so `ComposedAnswers.Answer` is called
+once for it and, with the step gate on, `("confirm", 0)` is the roll-off's gate. A sealed Ask is answered by every addressed team, so `Answer` is called once per (Ask, team) pair
 and the ordinal advances each time. A script writer counts one line per answer given, not one per Ask opened.
 
 ### The two prohibitions, and the uniform default
@@ -1048,7 +1048,7 @@ sequenceDiagram
     H-->>D: GameSession
     D->>S: StartAsync
     S->>E: Advance until it rests
-    E-->>S: the roll-off confirm gate, the first Ask, addressed to both teams
+    E-->>S: the roll-off and round 0, then the first deploy Ask
     D->>S: ConnectAsync(RecorderClient for the recorder participant)
     loop one per team
         D->>S: ConnectAsync(RecorderClient for the participant)

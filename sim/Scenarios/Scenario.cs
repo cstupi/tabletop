@@ -95,7 +95,8 @@ public sealed record Scenario(
 
     /// <summary>
     /// The game's step gate (GameInfo.WaitsBetweenSteps): every step boundary of a frame with an actor waits on a Confirm to the
-    /// actor's team, so a completed step's rolls stay on the stack where SetDice can reach them. Off unless a run fixes dice.
+    /// actor's team, and the roll-off's on one to every team, so a completed step's rolls stay on the stack where SetDice can reach them.
+    /// Off unless a run fixes dice; players never have it, and without it the roll-off runs straight through.
     /// </summary>
     public bool WaitsBetweenSteps { get; init; }
 

@@ -62,10 +62,10 @@ through four names: `PropertySet.Actions` for the turn Ask's action rows, `Looku
 by the name `FirstTeamDecision.RollOffNeeded` carries, and `ScriptedDice`/`InMemoryPropertiesStore`
 in tests.
 
-The roll-off's gate bounds what the scheduler may assume about it. It does not resolve in the
-batch that started it, so the scheduler is re-entered only after the gate closes, and the order
-sits on the `step_completed` named `order` (`GfNames.RollOffOrderStep`), not the one named
-`roll-off`. The keys are `winner_ordinal` and `place_1 .. place_n`.
+The scheduler reads the roll-off's order only once its `sequence_finished` stands: with the wait setting off it resolves in the
+batch that started it; with it on, a gate holds it across dispatches. The order sits on the `step_completed` named `order`
+(`GfNames.RollOffOrderStep`), not the one named `roll-off`. The keys are `winner_ordinal`, `place_1 .. place_n`, and
+`rolled_<ordinal>_<k>` (each team's k-th face, which the client shows as the roll-off's result).
 
 Ask questions a client may see, which the client-shell module renders from their legal-set
 shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_casualties`, `charge_target`,

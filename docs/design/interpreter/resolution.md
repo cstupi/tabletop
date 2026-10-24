@@ -303,9 +303,11 @@ An **actorless nested** frame stays ungated, which is the terrain-wounds `deal-w
 `assign` opens the defender's Ask, so the frame is already suspended and its dice are already
 editable, and the target's team would be the addressee if a gate were ever wanted there.
 
-The gate on the roll-off is the plan's ruling 8. `GfRolls.RollOffSequence` has a second step,
-`order`, so the gate has a boundary to sit on and an edit made at the gate is read back into the
-order.
+The gate on the roll-off is the plan's ruling 8, and it opens only under the wait setting (roll-off result spec): players get no
+Continue before deployment. `GfRolls.RollOffSequence` has a second step, `order`, so the gate has a boundary to sit on and an edit
+made at the gate is read back into the order. A log that stopped at the gate when it opened whatever the setting said resumes with
+that gate closed unanswered (`SequenceInterpreter.StaleGates`, asked by `RulesEngine.Advance` while a framed Ask is open) and the
+ranking run over the dice already rolled.
 
 ## Asks, windows and the simultaneous token spend
 

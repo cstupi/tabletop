@@ -164,15 +164,14 @@ public class DriverAgreementTests
             await Seed(seeder, c, credentials);
             IGameDriver driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
             await using var _ = driver;
-            var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
-            Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), Ct));
+            var deploy = (await driver.OpenAsksAsync(Ct)).Single().Ask;                  // the roll-off ran through: deployment's first Ask
+            Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(deploy.Teams[0], deploy.Id, new SelectedPieces([((PieceSelection)deploy.Legal).Eligible[0]]), Ct));
 
             var stale = await driver.AnswerAsync(c.TeamIds[1], Guid.NewGuid(), new Confirmed(), Ct);
             Assert.IsType<SubmitResult.Rejected>(stale);
 
             var step = await driver.StepAsync(Ct);                                   // the accepted answer's events, once
             Assert.Contains(step.Events, e => e.Payload is AskAnswered);
-            Assert.Equal(AskQuestions.Deploy, step.OpenAsks.Single().Ask.Question);
             var again = await driver.StepAsync(Ct);
             Assert.Empty(again.Events);
             Assert.True(again.Quiescent);
@@ -192,8 +191,8 @@ public class DriverAgreementTests
             IGameDriver driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
             await using var _ = driver;
             var seen = new List<GameEvent>();
-            var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
-            await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), Ct);
+            var deploy = (await driver.OpenAsksAsync(Ct)).Single().Ask;                  // the roll-off ran through: deployment's first Ask
+            await driver.AnswerAsync(deploy.Teams[0], deploy.Id, new SelectedPieces([((PieceSelection)deploy.Legal).Eligible[0]]), Ct);
             seen.AddRange(await driver.DrainEventsAsync(Ct));
             seen.AddRange((await driver.StepAsync(Ct)).Events);
             Assert.NotEmpty(seen);
@@ -268,8 +267,8 @@ public class DriverAgreementTests
             IGameDriver driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), shortLived, Ct, renewBefore: TimeSpan.FromSeconds(2));
             await using var _ = driver;
             await Task.Delay(TimeSpan.FromSeconds(4));                          // past the first tokens' expiry
-            var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
-            Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), Ct));
+            var deploy = (await driver.OpenAsksAsync(Ct)).Single().Ask;                  // the roll-off ran through: deployment's first Ask
+            Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(deploy.Teams[0], deploy.Id, new SelectedPieces([((PieceSelection)deploy.Legal).Eligible[0]]), Ct));
             Assert.NotEmpty((await driver.StepAsync(Ct)).Events);
             lock (refreshed) Assert.Equal(Enumerable.Range(0, c.Info.Participants.Count), refreshed.Order());
         }

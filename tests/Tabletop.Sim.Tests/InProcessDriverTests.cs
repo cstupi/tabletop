@@ -19,10 +19,9 @@ public class InProcessDriverTests
 
         var asks = await driver.OpenAsksAsync(CancellationToken.None);
         var ask = Assert.Single(asks).Ask;
-        Assert.Equal(AskQuestions.Confirm, ask.Question);                       // the roll-off gate comes first
-        Assert.Equal(2, ask.Teams.Count);
-        Assert.All(ask.Teams, t => Assert.Contains(t, c.TeamIds));
-        Assert.IsType<Confirmation>(ask.Legal);
+        Assert.Equal(AskQuestions.Deploy, ask.Question);                        // the roll-off ran through: deployment's first Ask, no Continue
+        Assert.Contains(Assert.Single(ask.Teams), c.TeamIds);
+        Assert.IsType<PieceSelection>(ask.Legal);
     }
 
     [Fact]
@@ -36,18 +35,14 @@ public class InProcessDriverTests
         Assert.Equal(0, projection.Scheduler.Round);
     }
 
-    static async Task<Ask> RollOffGate(IGameDriver driver) =>
-        (await driver.OpenAsksAsync(CancellationToken.None)).Single().Ask;
-
-    static async Task<Ask> PastTheGateToDeploy(IGameDriver driver)
+    static async Task<Ask> FirstDeploy(IGameDriver driver)
     {
-        var gate = await RollOffGate(driver);
-        Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), CancellationToken.None));
-        await driver.StepAsync(CancellationToken.None);
         var ask = (await driver.OpenAsksAsync(CancellationToken.None)).Single().Ask;
         Assert.Equal(AskQuestions.Deploy, ask.Question);
         return ask;
     }
+
+    static AskAnswer FirstUnit(Ask ask) => new SelectedPieces([Assert.IsType<PieceSelection>(ask.Legal).Eligible[0]]);
 
     [Fact]
     public async Task An_answer_is_accepted_and_produces_events()
@@ -55,14 +50,13 @@ public class InProcessDriverTests
         var c = Scenario();
         IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
         await using var _ = driver;
-        var gate = await RollOffGate(driver);
-        var result = await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), CancellationToken.None);
+        var deploy = await FirstDeploy(driver);
+        var result = await driver.AnswerAsync(deploy.Teams[0], deploy.Id, FirstUnit(deploy), CancellationToken.None);
         Assert.IsType<SubmitResult.Accepted>(result);
         var step = await driver.StepAsync(CancellationToken.None);
         Assert.NotEmpty(step.Events);                                   // the submit's events are handed out once, by the step
         Assert.Contains(step.Events, e => e.Payload is AskAnswered);
         Assert.Equal(step.Events.Select(e => e.Seq).Order(), step.Events.Select(e => e.Seq));
-        Assert.Equal(AskQuestions.Deploy, step.OpenAsks.Single().Ask.Question);
 
         var again = await driver.StepAsync(CancellationToken.None);
         Assert.Empty(again.Events);
@@ -75,8 +69,8 @@ public class InProcessDriverTests
         var c = Scenario();
         IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
         await using var _ = driver;
-        var gate = await RollOffGate(driver);
-        await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), CancellationToken.None);
+        var deploy = await FirstDeploy(driver);
+        await driver.AnswerAsync(deploy.Teams[0], deploy.Id, FirstUnit(deploy), CancellationToken.None);
         var drained = await driver.DrainEventsAsync(CancellationToken.None);
         var step = await driver.StepAsync(CancellationToken.None);
         Assert.NotEmpty(drained);
@@ -92,7 +86,7 @@ public class InProcessDriverTests
         var c = Scenario();
         IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
         await using var _ = driver;
-        var ask = await PastTheGateToDeploy(driver);
+        var ask = await FirstDeploy(driver);
         var eligible = Assert.IsType<PieceSelection>(ask.Legal).Eligible;
         var result = await driver.AnswerAsync(ask.Teams[0], ask.Id, new SelectedPieces([eligible[0]]), CancellationToken.None);
         Assert.IsType<SubmitResult.Accepted>(result);
@@ -104,7 +98,7 @@ public class InProcessDriverTests
         var c = Scenario();
         IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
         await using var _ = driver;
-        var ask = await PastTheGateToDeploy(driver);
+        var ask = await FirstDeploy(driver);
         var result = await driver.AnswerAsync(ask.Teams[0], ask.Id, new SelectedPieces([Guid.CreateVersion7()]), CancellationToken.None);
         var rejected = Assert.IsType<SubmitResult.Rejected>(result);
         Assert.Equal(RefusalReason.OutsideLegalSet, rejected.Reason);
@@ -140,7 +134,7 @@ public class InProcessDriverTests
     {
         var scenario = ScenarioCatalog.Get("stalemate") with { Enforcement = enforcement };
         await using var driver = await InProcessDriver.StartAsync(ScenarioCompiler.Compile(scenario), CancellationToken.None);
-        var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];                 // the roll-off's confirm gate
+        var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];                 // deployment's first Ask
         var result = Assert.IsType<SubmitResult.Accepted>(await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, new Chosen("not-an-option")), CancellationToken.None));
         var answered = (await driver.DrainEventsAsync(CancellationToken.None)).First(e => e.Payload is AskAnswered);
         Assert.Equal(warned, result.Warning is not null);
@@ -153,6 +147,6 @@ public class InProcessDriverTests
         var scenario = ScenarioCatalog.Get("stalemate") with { Enforcement = Enforcement.Warn };
         await using var driver = await InProcessDriver.StartAsync(ScenarioCompiler.Compile(scenario), CancellationToken.None);
         var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];
-        Assert.Equal(new SubmitResult.Accepted(null), await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, new Confirmed()), CancellationToken.None));
+        Assert.Equal(new SubmitResult.Accepted(null), await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, FirstUnit(open.Ask)), CancellationToken.None));
     }
 }

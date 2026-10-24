@@ -107,7 +107,7 @@ scheduler therefore runs only *between* sequences, never while a frame is live, 
 `Running` and `WaitingCompletion` states and `RollOff.Waiting` are reachable from unit tests but
 never from the real engine. That one property of the ladder is the whole reason for all three, and
 it is a property of another module: each of the three is the correct answer for a state the game
-really occupies — a gated roll-off occupies `Waiting` for as long as a player takes to confirm —
+really occupies — a roll-off gated under the wait setting occupies `Waiting` until a team confirms —
 so the readers answer it rather than assuming the ladder. Unframed Asks are the scheduler's own,
 and it is still called while one is open. It returns `[]` to wait. It is the one thing in the
 engine allowed to emit an `ask_closed`, with an empty answer list, for an Ask of its own that a
@@ -480,15 +480,15 @@ Deployment is not special-cased machinery. It is the same scheduler running a ph
 ruleset supplies. `IGameRules.PhasesBeforeRounds` is `[deployment, scouts]` for Grimdark Future
 and `[]` for a ruleset that starts at round one. The sequence of logged facts is:
 
-`roll-off sequence` (rolled, gated, confirmed, ranked) → `round_started(0, order, [])` →
+`roll-off sequence` (rolled, ranked; under the wait setting gated and confirmed between) → `round_started(0, order, [])` →
 `phase_started("deployment")` → alternating `turn_started` / deploy Ask / `models_moved` /
 `turn_ended` → `phase_started("scouts")` → the same again → `round_started(1, order, changes)` →
 `phase_started("rounds")`.
 
 Before the roll-off the session holds the whole list back while any team has no participant or
 no army (`WaitingForPlayers`, game flow → *Waiting for players*): the log stays empty and the
-scheduler is not called. The confirm gate inside the roll-off is the one place that list pauses for
-a player once it has begun. `round_started(0, …)` and `phase_started("deployment")` are still one batch, emitted
+scheduler is not called. Once it has begun, the list first pauses for a player at the first deploy Ask (under the wait setting,
+at the roll-off's confirm gate before it). `round_started(0, …)` and `phase_started("deployment")` are still one batch, emitted
 by the `Advance` that reads the resolved order; the gate moves when that `Advance` happens, not
 what it emits.
 
@@ -601,26 +601,27 @@ Four states, all read from the log since the round anchor:
 | started, no `sequence_finished` | `Waiting` |
 | started and finished | `Resolved(Order(state, lastStepCarryingPlace1))` |
 
-**The roll-off is confirm-gated.** `GfRolls.RollOffSequence` is two steps,
-`roll-off` then `order`, and the boundary between them is an unsealed `Confirm` Ask to every team,
-opened whatever `waits_between_steps` says, because the frame has no actor and no parent. Every
-team is the addressee because no acting unit has a better claim to release a result that fixes
-turn order for all of them, and the first answer closes it. So the rules suite's `SetDice` reaches
-the dice while they are rolled, visible and not yet ranked, and the `order` step ranks whatever
-stands when the gate is released. Nothing rewrites a logged `step_completed`, which is
-why the ranking is a second step rather than a recomputation.
+**The roll-off is confirm-gated only under the wait setting.** `GfRolls.RollOffSequence` is two steps,
+`roll-off` then `order`. For players they run in one go and the order is read in the same run (roll-off result spec: no Continue
+before deployment). Under `waits_between_steps` the boundary between them is an unsealed `Confirm` Ask to every team, because the
+frame has no actor and no parent. Every team is the addressee because no acting unit has a better claim to release a result that
+fixes turn order for all of them, and the first answer closes it. So the rules suite's `SetDice` (it sets the wait setting when it
+fixes dice) reaches the dice while they are rolled, visible and not yet ranked, and the `order` step ranks whatever stands when the
+gate is released. Nothing rewrites a logged `step_completed`, which is why the ranking is a second step rather than a
+recomputation. A log that stopped at a gate opened before this ruling resumes with the gate closed unanswered
+(`SequenceInterpreter.StaleGates`) and the ranking over the dice already rolled.
 
-Three consequences for this reader. It spans dispatches: the start, the confirm, and the `Advance`
+Three consequences for this reader. It may span dispatches: the start, the confirm under the wait setting, and the `Advance`
 after `sequence_finished` that writes `round_started`. Every branch is therefore read from the log
 and nothing is carried across — the wait is *no `sequence_finished` for the started frame*, not
 *the frame is on `Projection.Stack`*, which is the same question today and a weaker thing to
 depend on. And `Resolved` reads the last completed step of the frame **that carries `place_1`**,
 which is the `order` step: keying on `sequence_finished` rather than on any `step_completed` is
-what stops an order being written from dice a player may still edit, and keying on `place_1`
+what stops an order being written from dice a `SetDice` may still change, and keying on `place_1`
 rather than on a step name keeps the ruleset's step names out of the engine.
 
 `Waiting` is what holds for the whole gated interval. `RulesEngine.Advance` does not call the
-scheduler during it — a framed Ask open returns `[]` and a live frame runs the interpreter — so
+scheduler during it — a framed Ask open returns `[]` (or closes a stale gate) and a live frame runs the interpreter — so
 the engine's own wait shows up as the engine resting, and the branch is exercised from
 `RollOffTests` over a hand-built log. It is not dead code: a state the game really occupies stands
 behind it.
@@ -803,7 +804,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Ambushers are the interactive boundary hook; a pass there stands for the boundary only, and no turn events are written | `turn_ended.Passed` is round-scoped and would skip the team's activations | reusing `turn_ended` at the boundary | scheduler → The round boundary |
 | Free-for-all is a first-team policy inside the ruleset hook, not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.50 |
 | The roll-off is a ruleset sequence started with no actor, its order read from `step_completed.Values` | the roll-off must be logged and replayable; the scheduler rolls no dice | a roll primitive in the scheduler | scheduler → Deployment; interpreter plan Task 11 |
-| The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the rules suite's `SetDice` must reach these dice like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | the plan's ruling 7 |
+| Under the wait setting the roll-off waits behind a confirm gate; without it, none. The reader keys on `sequence_finished` and on `place_1` | the rules suite's `SetDice` must reach these dice like any others, an order must never be read from dice still in play, and players get no Continue before deployment | gating it whatever the wait setting (the old ruling) | the plan's ruling 7; roll-off result spec |
 | Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window and the hook are the interpreter's | an `IReactionOrdering` type in `Scheduler/` | scheduler → Windows; interpreter plan Task 9 |
 | Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement; whole-design review → ruling 1 |
 | An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | scheduler → Enforcement; the plan's ruling 3 |
@@ -870,7 +871,7 @@ Plus two public statics the tests call directly:
 | interpreter | `Properties.PropertySet.Actions` (`ActionDefinition.Name`) | the action rows the turn Ask offers |
 | interpreter | `Effects.Lookup.UnitHas(GameState, PropertySet, Guid, string)` | `Immobile`, `Aircraft`, `Scout`, `Ambush`; reads the grants store |
 | interpreter | `GfNames`, `GfRolls.RollOffSequence`, `Interpreter.Windows.ReactionOrder` | names; the roll-off body; the one ordering policy |
-| interpreter | the roll-off's confirm gate: an unsealed framed `Confirm` to every team between the `roll-off` and `order` steps, opened whatever the wait setting says | why `RollOff.Advance` waits across dispatches, why `place_1` arrives only with `sequence_finished`, and why the gate is never a stale scheduler Ask |
+| interpreter | the roll-off's confirm gate: an unsealed framed `Confirm` to every team between the `roll-off` and `order` steps, opened only under the wait setting | why `RollOff.Advance` waits across dispatches, why `place_1` arrives only with `sequence_finished`, and why the gate is never a stale scheduler Ask |
 | skeleton | `LegalSetMembership.Contains`, `Legality`, `EnforcementPolicy.Decide`, `GameInfo.Enforcement` | the one clause that puts an unreadable turn answer on the dial |
 | interpreter | `Rules.SequenceStart(string Sequence, SequenceContext Context)` | `HookStartSequences`, `EndOfTurnSequences` |
 | skeleton | `GameState`, `Actor`, `IGameRules`, `EventApplier.EffectiveLog`, `CommandDispatcher`, `InMemoryEventLog` | state, the log, the drive loop |
@@ -974,10 +975,13 @@ sequenceDiagram
     R-->>Sc: RollOffNeeded('roll-off')
     Sc->>I: Start('roll-off', no actor)
     Note over I: step 'roll-off': one die per team, ties rerolled among the tied
-    I-->>S: step_completed('roll-off'), ask_opened(confirm to every team)
-    Note over S,B: the engine rests - the rules suite's SetDice lands here
-    B->>S: AnswerAsk(Confirmed)
-    Note over I: step 'order': ranks the dice that stand - Values place_1..n
+    I-->>S: step_completed('roll-off')
+    opt the wait setting on (the rules suite)
+        I-->>S: ask_opened(confirm to every team)
+        Note over S,B: the engine rests - the rules suite's SetDice lands here
+        B->>S: AnswerAsk(Confirmed)
+    end
+    Note over I: step 'order': ranks the dice that stand - Values place_1..n, rolled_ordinal_k
     I-->>S: step_completed('order'), sequence_finished
     Sc->>Sc: RollOff.Resolved: order = [B, A]
     Sc-->>S: round_started(0, [B, A], []), phase_started('deployment')
@@ -1024,7 +1028,7 @@ sequenceDiagram
     D-->>Sc: [ask_answered, ask_closed] (unsealed: first answer closes it)
     Sc->>R: FirstTeam(state, round 2, teams)
     R-->>Sc: OrderedTeams: whoever finished first (p.7, p.50)
-    Note over Sc,B: a FirstTeam answering RollOffNeeded would wait at its confirm gate before any of the following
+    Note over Sc,B: a FirstTeam answering RollOffNeeded would run its roll-off before any of the following
     Sc->>R: OnRoundStarted(state, properties, 2)
     R-->>Sc: [fatigue cleared, Caster tokens +X capped at 6]
     Sc-->>D: round_started(2, order, shape changes + hook changes)
@@ -1215,10 +1219,9 @@ part that is.
 a roll-off outcome is chosen by the test (`h.Dice.Enqueue(6); h.Dice.Enqueue(1)`). `Rehydrate`
 must redraw nothing, which the counter-based RNG over the effective log makes true.
 
-**Every roll-off waits.** Its confirm gate is not conditional on the wait setting, so
-`h.ConfirmRollOff()` releases one and `h.SkipDeployment()` releases any it meets — for Grimdark
-Future, deployment's only, since a free-for-all rolls off once. A test that drives `Run()` by hand and then asserts on a deploy
-Ask calls it explicitly, which is also the assertion that the gate was there.
+**A roll-off waits only under the wait setting.** A harness built with `waits: true` opens its confirm gate;
+`h.ConfirmRollOff()` releases one and `h.SkipDeployment()` releases any it meets. A harness without it runs the roll-off through, so
+`Run()` alone reaches the first deploy Ask. `RollOffResumeTests` resumes a log stopped at the gate as it opened before.
 
 **Needs Docker.** Only `SchedulerEndToEndTests`, for the Postgres event log and management rows.
 Everything else runs on `dotnet test` with nothing up.
@@ -1253,10 +1256,10 @@ unreadable case and the out-of-set case are one rule, one clause in `CommandDisp
 See *Menu overrides, stale Asks, and enforcement* for the clause and for why the dispatcher is the
 only place it fits.
 
-**2. The roll-off's dice are reachable by `SetDice`: it is gated like any other roll** (the plan's ruling 7).
-The interpreter gates its actor-less frame with an unsealed `Confirm` to every team between the
-`roll-off` and `order` steps, whatever the wait setting says, and ranks the dice that stand when a
-team releases it. The scheduler's side is the reader: `RollOff.Advance` waits across dispatches,
+**2. The roll-off's dice are reachable by `SetDice`: under the wait setting it is gated like any other roll** (the plan's
+ruling 7; roll-off result spec). The interpreter gates its actor-less frame with an unsealed `Confirm` to every team between the
+`roll-off` and `order` steps only when the wait setting is on, and ranks the dice that stand when a team releases it; players, who
+never have the setting, get no gate. The scheduler's side is the reader: `RollOff.Advance` waits across dispatches,
 keys `Resolved` on `sequence_finished`, and reads the completed step carrying `place_1`. See
 *First team: policy and roll-off*.
 

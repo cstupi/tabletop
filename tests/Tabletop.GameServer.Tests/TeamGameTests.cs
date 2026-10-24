@@ -29,7 +29,7 @@ public class TeamGameTests
     public void Deployment_alternates_by_team_and_either_player_deploys_any_unit_of_the_team()
     {
         var h = TwoAside(); h.Dice.Enqueue(6); h.Dice.Enqueue(1);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var (ann, bob, cid, dee) = (h.Participants[0], h.Participants[1], h.Participants[2], h.Participants[3]);
         var deploy = h.OpenAsk(0)!;
         Assert.Equal(new[] { UnitOf(h, 0), UnitOf(h, 2) }.Order(), ((PieceSelection)deploy.Legal).Eligible.Order());     // both seats' units are offered
@@ -48,7 +48,7 @@ public class TeamGameTests
     public void A_teammate_may_place_the_teams_pick_under_strict()
     {
         var h = TwoAside(Enforcement.Strict);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
         h.AnswerAs(h.Participants[0], new SelectedPieces([UnitOf(h, 0)]));
         var (outcome, _) = h.As(h.Participants[2], TestGames.Move(h.State, UnitOf(h, 0)));                 // Cid places Ann's pick
         Assert.IsType<Dispatch.Applied>(outcome);

@@ -1,7 +1,8 @@
 using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
-public sealed record Banner(string Text, double Seconds);
+/// <summary>One banner: its line, how long it stays, and a smaller second line (the roll-off's rolls) or null.</summary>
+public sealed record Banner(string Text, double Seconds, string? Detail = null);
 
 /// <summary>Spec → Turn banner: "Round n" on RoundStarted from round 1, "Team k's turn" on a TurnStarted whose team differs from the previous TurnStarted's.
 /// A batch while Session is catching up, a batch with an undo, and a disabled banner show nothing but still track the team.</summary>

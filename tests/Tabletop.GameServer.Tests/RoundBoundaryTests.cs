@@ -80,7 +80,7 @@ public class RoundBoundaryTests
     public void Setting_the_round_from_the_menu_mid_deployment_moves_to_the_rounds_phase_and_offers_an_activation()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 2, 1)]);
-        h.Dice.Enqueue(1); h.Dice.Enqueue(6); h.Run(); h.ConfirmRollOff();
+        h.Dice.Enqueue(1); h.Dice.Enqueue(6); h.Run();
         var b = h.Units(1);
         h.Answer(1, new SelectedPieces([b[0]])); h.Deploy(b[0]);
         Assert.Equal((0, Deployment), (h.P.Scheduler.Round, h.P.Scheduler.Phase));

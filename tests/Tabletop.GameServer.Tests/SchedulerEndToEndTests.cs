@@ -31,25 +31,18 @@ public class SchedulerEndToEndTests
         Assert.Empty((await other.ExpectAsync<EventsMessage>()).Events);
 
         var batches = new List<GameEvent>();
-        while (batches.Count < 3) batches.AddRange((await other.ExpectAsync<EventsMessage>()).Events);         // the engine advanced after the flip and stopped at the roll-off's gate
-        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], batches.Select(e => e.Kind));
+        while (batches.Count < 8) batches.AddRange((await other.ExpectAsync<EventsMessage>()).Events);         // the engine advanced after the flip: the roll-off runs through, no Continue
+        Assert.Equal(["sequence_started", "step_completed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], batches.Select(e => e.Kind));
         Assert.All(batches, e => Assert.Null(e.Actor));                                                       // the engine acted
-        var gate = ((AskOpened)batches[2].Payload).Ask;
-        Assert.Equal((AskQuestions.Confirm, 2, false), (gate.Question, gate.Teams.Count, gate.Sealed));       // both teams may release it, and the first answer does
-        Assert.NotNull(gate.FrameId);
-        await other.SendAsync(Cmd(new AnswerAsk(gate.Id, new Confirmed())));                                  // the team that lost the roll-off releases it
-        var released = new List<GameEvent>();
-        while (released.Count < 8) released.AddRange((await other.ExpectAsync<EventsMessage>()).Events);
-        Assert.Equal(["ask_answered", "ask_closed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], released.Select(e => e.Kind));
-        var ask = ((AskOpened)released[7].Payload).Ask;
+        var ask = ((AskOpened)batches[7].Payload).Ask;
         Assert.Equal((AskQuestions.Deploy, seeded.TeamIds[0]), (ask.Question, ask.Teams.Single()));           // the creator's team rolled 6
         var unit = Assert.Single(Assert.IsType<PieceSelection>(ask.Legal).Eligible);
-        Assert.Equal(11, db.EventCount(seeded.GameId));
+        Assert.Equal(8, db.EventCount(seeded.GameId));
 
         await other.SendAsync(Cmd(new AnswerAsk(ask.Id, new SelectedPieces([unit]))));
         Assert.Equal(RefusalReason.NotPermitted, (await other.ExpectAsync<Refused>()).Reason);                // not their team
-        await creator.ExpectAsync<GameInfoMessage>(); await creator.ExpectAsync<BoardMessage>(); await creator.ExpectAsync<EventsMessage>();   // the creator's socket saw the flip and the same eleven events; drain them
-        for (var seen = 0; seen < 11;) seen += (await creator.ExpectAsync<EventsMessage>()).Events.Count;
+        await creator.ExpectAsync<GameInfoMessage>(); await creator.ExpectAsync<BoardMessage>(); await creator.ExpectAsync<EventsMessage>();   // the creator's socket saw the flip and the same eight events; drain them
+        for (var seen = 0; seen < 8;) seen += (await creator.ExpectAsync<EventsMessage>()).Events.Count;
         await creator.SendAsync(Cmd(new AnswerAsk(ask.Id, new SelectedPieces([unit]))));
         var answered = (await creator.ExpectAsync<EventsMessage>()).Events;
         Assert.Equal(["ask_answered", "ask_closed"], answered.Select(e => e.Kind));
@@ -77,10 +70,7 @@ public class SchedulerEndToEndTests
             await c.SendAsync(Edit(new PickArmy(army.Id))); await c.ExpectAsync<GameInfoMessage>();
             await c.SendAsync(Edit(new StartSetup())); await c.ExpectAsync<BoardMessage>();
             await c.SendAsync(Edit(new EndSetup())); await c.ExpectAsync<GameInfoMessage>(); await c.ExpectAsync<BoardMessage>();
-            var opened = new List<GameEvent>();
-            while (opened.Count < 3) opened.AddRange((await c.ExpectAsync<EventsMessage>()).Events);           // the roll-off's gate
-            await c.SendAsync(Cmd(new AnswerAsk(((AskOpened)opened[2].Payload).Ask.Id, new Confirmed())));
-            var got = 0; while (got < 8) got += (await c.ExpectAsync<EventsMessage>()).Events.Count;
+            var got = 0; while (got < 8) got += (await c.ExpectAsync<EventsMessage>()).Events.Count;           // the roll-off, round 0 and the first deploy Ask
         }
         var before = db.EventCount(seeded.GameId);
         using var second = Factory();

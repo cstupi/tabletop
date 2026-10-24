@@ -19,7 +19,7 @@ public class GfDeploymentZoneTests
     {
         var h = new SchedulerHarness([a ?? TestArmies.Build("A", 2, 2), b ?? TestArmies.Build("B", 1, 2)], enforcement: enforcement, rules: GrimdarkFutureRules.Instance);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         return h;
     }
 

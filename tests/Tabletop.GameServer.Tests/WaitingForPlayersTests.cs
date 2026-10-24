@@ -77,8 +77,8 @@ public class WaitingForPlayersTests
         Assert.Equal(joined.Armies.OrderBy(a => a.ParticipantId).Select(a => a.ParticipantId), joined.Armies.Select(a => a.ParticipantId));
         Assert.Empty((await creator.ExpectAsync<EventsMessage>()).Events);
         var opened = new List<GameEvent>();
-        while (opened.Count < 3) opened.AddRange((await creator.ExpectAsync<EventsMessage>()).Events);
-        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], opened.Select(e => e.Kind));   // the roll-off, gated
+        while (opened.Count < 8) opened.AddRange((await creator.ExpectAsync<EventsMessage>()).Events);
+        Assert.Equal(["sequence_started", "step_completed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], opened.Select(e => e.Kind));   // the roll-off runs through to the first deploy Ask
         Assert.NotNull(db.GameRows.ParticipantsOf(seeded.GameId).Single(p => p.AccountId == late).ArmySnapshot);
 
         // A fresh process reads the late army from its row: the same board, the same log.
@@ -119,8 +119,8 @@ public class WaitingForPlayersTests
         Assert.Empty(WaitingForPlayers.Teams(info, board));
         Assert.Equal(2, board.Armies.Count);
         var opened = new List<GameEvent>();
-        while (opened.Count < 3) opened.AddRange((await c.ExpectAsync<EventsMessage>()).Events);
-        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], opened.Select(e => e.Kind));   // the roll-off
+        while (opened.Count < 8) opened.AddRange((await c.ExpectAsync<EventsMessage>()).Events);
+        Assert.Equal(["sequence_started", "step_completed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], opened.Select(e => e.Kind));   // the roll-off runs through to the first deploy Ask
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public class WaitingForPlayersTests
         await creator.SendAsync(Edit(new PickArmy(second.Id, seeded.TeamIds[1])));
         await creator.ExpectAsync<BoardMessage>();
         var opened = new List<GameEvent>();
-        while (opened.Count < 3) opened.AddRange((await creator.ExpectAsync<EventsMessage>()).Events);
-        Assert.Equal("ask_opened", opened[2].Kind);
+        while (opened.Count < 8) opened.AddRange((await creator.ExpectAsync<EventsMessage>()).Events);
+        Assert.Equal("ask_opened", opened[7].Kind);
     }
 
     [Fact]
@@ -168,12 +168,8 @@ public class WaitingForPlayersTests
             while (events.Count < atLeast || events[^1].Payload is not AskOpened) events.AddRange((await c.ExpectAsync<EventsMessage>()).Events);
             return ((AskOpened)events[^1].Payload).Ask;
         }
-        var gate = await NextAsk(3);
-        Assert.Equal(2, gate.Teams.Count);
-        await c.SendAsync(Cmd(new AnswerAsk(gate.Id, new Confirmed())));                         // no team named: the first of mine the Ask addresses
-        var deploy1 = await NextAsk(events.Count + 1);
+        var deploy1 = await NextAsk(8);                                                          // the roll-off ran through: no Continue
         Assert.Equal((AskQuestions.Deploy, seeded.TeamIds[0]), (deploy1.Question, deploy1.Teams.Single()));
-        Assert.Equal(seeded.TeamIds[0], events.Select(e => e.Payload).OfType<AskAnswered>().First().TeamId);
 
         await c.SendAsync(Cmd(new AnswerAsk(deploy1.Id, new SelectedPieces([armyA.Units[0].Id]), seeded.TeamIds[1])));
         Assert.Equal(RefusalReason.NotPermitted, (await c.ExpectAsync<Refused>()).Reason);      // named team 2: this Ask is team 1's

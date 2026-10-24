@@ -16,7 +16,7 @@ public class SetAsideDuringDeploymentTests
     static (SchedulerHarness H, IReadOnlyList<Guid> A, IReadOnlyList<Guid> B) AtAsLastAsk()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Ambush, null)]), TestArmies.Build("B", 3, 1)]);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();                               // A wins
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();                               // A wins
         var a = h.Units(0); var b = h.Units(1);
         h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
         h.Answer(1, new SelectedPieces([b[0]])); h.Deploy(b[0]);
@@ -45,7 +45,7 @@ public class SetAsideDuringDeploymentTests
     public void Setting_aside_one_of_several_units_during_its_own_deploy_turn_asks_again_without_it()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Ambush, null)]), TestArmies.Build("B", 1, 1)]);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
         var a = h.Units(0);
         Assert.Equal([a[0], a[1]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);
         var seq = h.P.LastSeq;
@@ -79,7 +79,7 @@ public class SetAsideDuringDeploymentTests
     public void Setting_aside_the_last_unit_out_of_turn_skips_that_team_and_return_to_deployment_brings_it_back()
     {
         var g = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Ambush, null)]), TestArmies.Build("B", 3, 1)]);
-        g.Dice.Enqueue(6); g.Dice.Enqueue(1); g.Run(); g.ConfirmRollOff();
+        g.Dice.Enqueue(6); g.Dice.Enqueue(1); g.Run();
         var ga = g.Units(0); var gb = g.Units(1);
         g.Answer(0, new SelectedPieces([ga[0]])); g.Deploy(ga[0]);
         var bAsk = g.Open;

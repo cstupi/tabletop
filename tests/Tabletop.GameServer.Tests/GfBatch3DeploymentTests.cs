@@ -23,7 +23,7 @@ public class GfBatch3DeploymentTests
         var a = TestArmies.Build("A", 2, 1, unitRules: [(2, Ambush, null), .. ambusher], modelRules: own);
         var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1, modelRules: enemy)], enforcement: enforcement, rules: GrimdarkFutureRules.Instance);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var au = h.Units(0); var bu = h.Units(1);
         h.Dispatch(new SetCondition(TestGames.UnitSubject(au[1]), SetAside, true));
         h.Answer(0, new SelectedPieces([au[0]])); h.Dispatch(At(h, au[0], 10, ownY), team: 0);
@@ -81,7 +81,7 @@ public class GfBatch3DeploymentTests
         var a = TestArmies.Build("A", 3, 1, unitRules: [(1, GfAmbush.ReDeployment, null)]);
         var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1)], enforcement: Enforcement.Strict, rules: GrimdarkFutureRules.Instance);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         var au = h.Units(0); var bu = h.Units(1);
         h.Answer(0, new SelectedPieces([au[0]])); h.Dispatch(At(h, au[0], 10, 44), team: 0);
         h.Answer(1, new SelectedPieces([bu[0]])); h.Dispatch(At(h, bu[0], 10, 4), team: 1);

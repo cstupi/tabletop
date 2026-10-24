@@ -54,7 +54,7 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
     public Emit Advance(GameState state)
     {
         if (state.Projection.Ended is not null) return Emit.None;
-        if (state.Projection.OpenAsks.Values.Any(a => a.Ask.FrameId is not null)) return Emit.None;
+        if (state.Projection.OpenAsks.Values.Any(a => a.Ask.FrameId is not null)) return Interpreter.StaleGates(state) is { Count: > 0 } stale ? new Emit(stale) : Emit.None;
         if (GameOverAsk.Settle(state) is { Count: > 0 } settled) return new Emit(settled);
         var proposed = state.Projection.Stack.Count > 0 ? Interpreter.Advance(state) : scheduler.Advance(state, Interpreter);
         if (proposed.Count == 0) return Emit.None;

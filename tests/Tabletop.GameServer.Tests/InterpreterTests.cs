@@ -95,14 +95,24 @@ public class InterpreterTests
         Assert.Equal("mine", ((AskOpened)Run(state, interpreter).Single()).Ask.Question);
     }
 
-    /// <summary>
-    /// The gate on a frame with no actor and no parent does not read WaitsBetweenSteps, which is off here, and it carries every team.
-    /// The frame is still on the stack while it is open, which is what makes the roll-off's dice editable.
-    /// </summary>
+    /// <summary>A frame with no actor and no parent (the roll-off) runs straight through with the wait setting off: players get no Continue.</summary>
     [Fact]
-    public void An_actorless_root_frames_boundary_gates_every_team_whatever_the_wait_setting()
+    public void An_actorless_root_frame_runs_through_with_the_wait_setting_off()
     {
         var state = State([A], [B]);
+        var interpreter = new SequenceInterpreter(new StubRules(new Sequence("two", [new LambdaStep("a", _ => new Complete([])), new LambdaStep("b", _ => new Complete([]))])), TestProperties.Core, new ScriptedDice(1));
+        Append(state, interpreter.Start(state, "two", new SequenceContext(null, [], [], null)));
+        Assert.Equal(["step_completed", "step_completed", "sequence_finished"], Run(state, interpreter).Select(EventKinds.Of));
+    }
+
+    /// <summary>
+    /// With the wait setting on (development, and the suite's dice fixes) the actorless root frame's boundary is one unsealed Confirm to
+    /// every team. The frame is still on the stack while it is open, which is what makes the roll-off's dice reachable by SetDice.
+    /// </summary>
+    [Fact]
+    public void An_actorless_root_frames_boundary_gates_every_team_with_the_wait_setting_on()
+    {
+        var state = State([A], [B], waits: true);
         var interpreter = new SequenceInterpreter(new StubRules(new Sequence("two", [new LambdaStep("a", _ => new Complete([])), new LambdaStep("b", _ => new Complete([]))])), TestProperties.Core, new ScriptedDice(1));
         Append(state, interpreter.Start(state, "two", new SequenceContext(null, [], [], null)));
         var first = Run(state, interpreter);

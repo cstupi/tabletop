@@ -14,10 +14,8 @@ public class AlternatingSchedulerTests
     {
         var h = TwoTeams(); h.Dice.Enqueue(1); h.Dice.Enqueue(6);
         h.Run();
-        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], h.Kinds(0));                   // the roll-off waits at its confirm gate
-        Assert.Equal((AskQuestions.Confirm, 0, (Guid?)null), (h.Open.Question, h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));
-        var gate = h.P.LastSeq; h.ConfirmRollOff(team: 1);
-        Assert.Equal(["ask_answered", "ask_closed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(gate));
+        Assert.Equal(["sequence_started", "step_completed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(0));   // the roll-off runs through: no Continue
+        Assert.Equal(AskQuestions.Deploy, h.Open.Question);
         Assert.Equal((0, "deployment", h.Teams[1]), (h.P.Scheduler.Round, h.P.Scheduler.Phase, h.P.Scheduler.ActiveTeamId));    // B rolled 6
         Assert.Equal([h.Teams[1], h.Teams[0]], h.P.Scheduler.Order);
         var b = h.Units(1)[0]; var a = h.Units(0);
@@ -175,7 +173,7 @@ public class AlternatingSchedulerTests
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), null], spectators: 1);
         h.Dice.Enqueue(3); h.Dice.Enqueue(5);
-        h.Run(); h.ConfirmRollOff();
+        h.Run();
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());                                                  // B won the roll-off but has nothing to deploy
         h.SkipDeployment();
         var a0 = h.Units(0)[0];
@@ -193,7 +191,7 @@ public class AlternatingSchedulerTests
         var asked = h.Log.Select(e => e.Payload).OfType<AskOpened>().Select(o => o.Ask).ToList();
         Assert.All(asked.Where(a => a.FrameId is null && a.Question != AskQuestions.EndRound), a => Assert.Equal([h.Teams[0]], a.Teams));   // only A is ever asked to deploy or activate
         Assert.All(asked.Where(a => a.FrameId is null && a.Question == AskQuestions.EndRound), a => Assert.Equal(h.Teams, a.Teams));        // both teams may end a round; the spectator has no team and is in no Ask
-        var empty = new SchedulerHarness([null, null]); empty.Run(); empty.ConfirmRollOff();
+        var empty = new SchedulerHarness([null, null]); empty.Run();
         Assert.Equal((1, AskQuestions.EndRound), (empty.P.Scheduler.Round, empty.Open.Question));          // round one began and stopped at its boundary
         Assert.Empty(empty.Run());
         empty.EndRound();
