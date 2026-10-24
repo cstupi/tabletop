@@ -8,6 +8,9 @@ update. A release busts the client's cache by carrying a new catalog version.
 
 - `client/content/builtin/catalog.json` is the catalog, kept by hand beside the files it names:
   `client/content/builtin/terrain/<mesh>.glb` (from `scripts/TerrainMeshes`) and `client/content/builtin/textures/<name>.png`.
+- `client/content/builtin/tables/<planet>.json` are the predefined tables: whole `TableState`s at 72×48 written by the
+  management tests' `BuiltinTablesWriter` (`TABLETOP_WRITE_GENERATED=1`) from `RandomTables`. Management embeds these and the
+  catalog (`BuiltinLayouts`), the random table's terrain source and `GET /v1/layouts/builtin`; the Dockerfile copies them.
 
 ```json
 {
@@ -82,7 +85,7 @@ laid out like `client/content/builtin/` (a test publish).
     from setup. The file is written only when every download succeeded, so a failed one is retried at the next notice of
     that version (at most once a minute). A failure keeps the catalog in use.
 - `BuiltinContent.Changed` redraws: `TableView` reloads every built-in terrain mesh and the slab texture, `SetupToolbar`
-  refills its texture and terrain lists. `TerrainGenerators` skips a piece the catalog in use does not list.
+  refills its texture and terrain lists. The random table lists as unplaced no piece the catalog lacks: management's embedded catalog is the repo's, and a piece it lacks comes back in `unlisted`.
 - A cached mesh is a downloaded blob: `MeshLoader` runs `GlbPreflight` on it like any asset. A cached texture passes
   `ImageHeader` and loads with `Image.LoadPngFromBuffer`.
 

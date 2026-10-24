@@ -214,7 +214,7 @@ library asset, exactly one** — the pattern `texture_builtin | texture_asset_id
 ship is the inventory question; it must at least cover every entry the generators name.
 
 **Generators** are the rulebook's four planet tables, pages 18–19, and the owner's Ruins pack in the same shape (no
-whole buildings; `TerrainGenerators`): nine fixed pieces plus 4D3
+whole buildings; `PlanetTerrain`): nine fixed pieces plus 4D3
 rolled on 2D6, each entry a name, a size class from page 18 (scatter 1–3", large 4–8", up to
 12"), a built-in mesh, and the declarations as the text gives them — *Forest: difficult and
 cover, see in and out; Large Building: impassable and blocking* — with notes for what the six

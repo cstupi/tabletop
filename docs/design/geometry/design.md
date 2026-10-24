@@ -37,7 +37,7 @@ Not in scope:
   per model and the caller counts. `architecture.md` → Rules enforcement.
 - **The terrain generators and the built-in terrain inventory.** The setup phase spec ships the
   planet tables with the client, and the server never reads them. The client shell plan
-  owns `TerrainGenerators` and `BuiltinContent` in `client/src/Core/`. The zone styles are the
+  owns `BuiltinContent` in `client/src/Core/`; the planet rolls and the random table are `Tabletop.Content`'s (`PlanetTerrain`, `RandomTables`). The zone styles are the
   one piece of built-in setup content that does come into the library, because the server
   checks a deployment against them too.
 - **Small tables.** *"We don't need to support skirmish at all."* The seven built-in zone
@@ -1187,7 +1187,7 @@ Deferred, with where it is recorded:
 | The p.23–24 deployment styles; custom and adjustable zone shapes | geometry plan Task 13; setup content → Deliberately not decided |
 | How zone styles are organised per game | geometry values → Deliberately not decided |
 | `climbable` as a declaration | geometry values → Declarations (not a declaration; a movement rule the pack owns) |
-| The terrain generators and the built-in terrain inventory | setup phase → Terrain; the client shell plan's `TerrainGenerators` |
+| The terrain generators and the built-in terrain inventory | setup phase → Terrain; `PlanetTerrain` in `Tabletop.Content` |
 | A combined `Check` + `SightBlockersBetween` call | section 9 |
 | A bisection pass on the movement region's rays | section 12 |
 

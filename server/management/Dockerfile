@@ -5,6 +5,8 @@ WORKDIR /src
 COPY global.json Directory.Build.props ./
 COPY libs/ libs/
 COPY server/management/ server/management/
+COPY client/content/builtin/catalog.json client/content/builtin/catalog.json
+COPY client/content/builtin/tables/ client/content/builtin/tables/
 RUN dotnet publish server/management/Tabletop.Management.csproj -c Release -o /app --nologo
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

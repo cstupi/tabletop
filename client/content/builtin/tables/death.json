@@ -1,0 +1,758 @@
+{
+  "id": "b80d60a2-deed-4916-b3d4-f14bf1f05053",
+  "name": "Death planet",
+  "size": {
+    "width": 72,
+    "length": 48
+  },
+  "texture": {
+    "builtin": "alien"
+  },
+  "terrain": [
+    {
+      "id": "907aae1b-8abc-4e3e-890c-8b958709a5b1",
+      "mesh": {
+        "builtin": "overgrown-ruins"
+      },
+      "position": {
+        "x": 32.55410406764322,
+        "y": 10.324786444345854,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 135
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "6f56130a-4838-4cc2-80b8-6917599c601b",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "59ef29b6-571a-44b2-87d5-403badc63a36",
+      "mesh": {
+        "builtin": "overgrown-ruins"
+      },
+      "position": {
+        "x": 39.44589593235678,
+        "y": 37.675213555654146,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 315
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "09f9f982-2ee7-433a-8699-71dd4d79b957",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "8d805f3b-ca95-4b59-b57b-027f9fe44623",
+      "mesh": {
+        "builtin": "hill"
+      },
+      "position": {
+        "x": 8.305019833289562,
+        "y": 28.19327141912341,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 90
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "f0505333-3c98-40ef-99ee-e447fa58a627",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 2,
+            "declarations": "cover",
+            "notes": "Units on top may ignore one unit/terrain for line of sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "03efe554-9110-465b-a4fa-7ec196604f75",
+      "mesh": {
+        "builtin": "hill"
+      },
+      "position": {
+        "x": 63.69498016671044,
+        "y": 19.80672858087659,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 270
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "6696e4f0-e879-4aa2-9523-5e1e7b5ae394",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 2,
+            "declarations": "cover",
+            "notes": "Units on top may ignore one unit/terrain for line of sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "890cedfa-c90c-45d3-a976-ba7a7e204caf",
+      "mesh": {
+        "builtin": "steep-hill"
+      },
+      "position": {
+        "x": 45.7214434024512,
+        "y": 8.500059578800602,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "bce5a736-4ddd-4a97-ad7c-b0fef291566f",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 3,
+            "declarations": "cover",
+            "notes": "Difficult terrain for units moving up. Units on top may ignore one unit/terrain for line of sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "8af4eaaa-5219-4caf-b0d3-4dd723e0184c",
+      "mesh": {
+        "builtin": "steep-hill"
+      },
+      "position": {
+        "x": 26.2785565975488,
+        "y": 39.4999404211994,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 180
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "d15ed52b-7f24-461d-a429-28e39f76b52f",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 3,
+            "declarations": "cover",
+            "notes": "Difficult terrain for units moving up. Units on top may ignore one unit/terrain for line of sight"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ef8a35a2-5db8-4125-bbac-d6bff94410dc",
+      "mesh": {
+        "builtin": "deadly-vegetation"
+      },
+      "position": {
+        "x": 45.69405429330378,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 285
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "2c94bb2a-f064-45d0-969f-e3113472c08a",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "cover, difficult, dangerous"
+          }
+        }
+      ]
+    },
+    {
+      "id": "c527fad6-bedd-40c0-b87f-aab0fec48109",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 66.75343253219194,
+        "y": 38.27066891932425,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 225
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "158f85af-6ddb-45a3-995c-0dfba85f5381",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "3e0d4235-9a51-4038-9fc4-b7ee30c5a595",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 5.246567467808063,
+        "y": 9.729331080675749,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 45
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "b3788360-0866-4ec8-bebf-3c9336920c77",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "fc6cca39-10b9-46e2-a627-cf37b50c21bb",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 63.32270994005851,
+        "y": 5.784505250763383,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 135
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "e2dcb22b-5323-4fbc-bf64-fbbbb7528e8b",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "d5a25b07-a457-4b28-85d0-042b53c80672",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 8.677290059941491,
+        "y": 42.21549474923662,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 315
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "0b67612e-e734-4f31-8d1c-7d3822267e92",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "69172fb3-dd04-450a-b5e2-762ea176fd92",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 53.2232132503871,
+        "y": 39.40710382508445,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 60
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "6cf43cdd-c0ff-483c-a113-b11a16b47c38",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "d3b8f68c-99d8-4b67-9f32-e8dd89799beb",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 18.776786749612903,
+        "y": 8.592896174915552,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 240
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "7a0aeaf6-ece7-4f04-8316-67f3c12929fb",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "1e73b12d-8b15-48f0-ab97-8cdc8b71b567",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 39.534081566861865,
+        "y": 16.841395996902786,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 135
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "52586cdb-7cdc-4b25-905f-61206ba7f624",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "be06159f-a618-443d-907c-30e4502e9a1e",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 32.465918433138135,
+        "y": 31.158604003097214,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 315
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "5f7c393a-2f50-4760-9ade-df3db3dfa0d3",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "0871d241-ad28-4028-a775-3783ac45531c",
+      "mesh": {
+        "builtin": "dense-vegetation"
+      },
+      "position": {
+        "x": 20.250472648185898,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 270
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "435504e8-0785-4e64-ad97-0f15c2933979",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "circle",
+              "a": 3,
+              "b": 3
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 6,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "76425202-af89-4875-b593-5e8d894bbadc",
+      "mesh": {
+        "builtin": "beast-lair"
+      },
+      "position": {
+        "x": 28.420548936547966,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 315
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "d0c81699-df6c-471e-945c-4d6b1389d944",
+          "volume": {
+            "kind": "solid",
+            "footprint": {
+              "kind": "circle",
+              "a": 2,
+              "b": 2
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 2,
+            "declarations": "dangerous"
+          }
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "id": "56130a48-385c-4240-b869-17599c601b90",
+      "kind": "objective",
+      "position": {
+        "x": 18,
+        "y": 18,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    },
+    {
+      "id": "7aae1b8a-bcce-4ec9-8c8b-958709a5b109",
+      "kind": "objective",
+      "position": {
+        "x": 54,
+        "y": 30,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    },
+    {
+      "id": "f9f9822e-e763-4a46-9971-dd4d79b95759",
+      "kind": "objective",
+      "position": {
+        "x": 54,
+        "y": 18,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    },
+    {
+      "id": "ef29b657-1a14-4287-9540-3badc63a3612",
+      "kind": "objective",
+      "position": {
+        "x": 18,
+        "y": 30,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 0
+      },
+      "diameter": 3,
+      "visual": {
+        "builtin": "objective-ring"
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "5a1f7f4f-93c4-47b7-8098-68d841f1ac73",
+      "shape": "frontline/1",
+      "teamOrdinal": 1
+    },
+    {
+      "id": "a35cb195-b790-42f3-ba0b-ba3106369f6f",
+      "shape": "frontline/2",
+      "teamOrdinal": 2
+    }
+  ]
+}

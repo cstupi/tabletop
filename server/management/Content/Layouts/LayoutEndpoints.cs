@@ -14,6 +14,8 @@ public static class LayoutEndpoints
     public static void MapLayouts(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/v1/layouts").RequireAuthorization();
+        g.MapRandomTable();
+        g.MapGet("/builtin", (BuiltinLayouts b) => Results.Ok(b.Tables));
         g.MapGet("", async (ClaimsPrincipal u, ILayoutRepository layouts) => Results.Ok(await layouts.List(CurrentAccount.Id(u))));
         g.MapPost("", async (ClaimsPrincipal u, TableState state, ILayoutRepository layouts, IAssetRepository assets) =>
         {

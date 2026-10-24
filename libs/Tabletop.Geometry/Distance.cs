@@ -21,6 +21,12 @@ public static class Distance
     /// <summary>Base edge to a placed volume's footprint edge.</summary>
     public static double EdgeToEdge(PlacedModel a, WorldVolume volume) => Outline.Separation(a.BaseOutline(), volume.WorldOutline()).Distance;
 
+    /// <summary>The gap between two placed footprints in plan, 0 when they touch or overlap; heights ignored.</summary>
+    public static double Between(WorldVolume a, WorldVolume b) => Outline.Separation(a.WorldOutline(), b.WorldOutline()).Distance;
+
+    /// <summary>The gap from a placed footprint to a point in plan, 0 inside it.</summary>
+    public static double Between(WorldVolume a, Point2 point) => a.WorldOutline().DistanceTo(point);
+
     /// <summary>Base edge to a marker's edge; a marker is a circle of a diameter (geometry values → Marker size).</summary>
     public static double EdgeToMarker(PlacedModel a, Point2 centre, double diameter) =>
         Outline.Separation(a.BaseOutline(), new CircleOutline(centre, diameter / 2)).Distance;

@@ -90,6 +90,32 @@ public class ManagementClientTests
     }
 
     [Fact]
+    public async Task RandomTable_posts_the_request_and_reads_the_table()
+    {
+        var (c, f) = Make();
+        var layout = Tabletop.Content.Tests.TableStateTests.Sample();
+        f.Answer(HttpStatusCode.OK, new RandomTable(5, [layout.Terrain[0]], ["hill"], []));
+        var t = await c.RandomTable(new RandomTableRequest(layout.Size, Planet.Wasteland, layout.Zones, null));
+        Assert.Equal(HttpMethod.Post, f.Requests[0].Method);
+        Assert.Equal("/v1/layouts/random", f.Requests[0].RequestUri!.AbsolutePath);
+        Assert.Contains("\"planet\":\"wasteland\"", f.Bodies[0]);
+        Assert.Contains("\"zones\":[", f.Bodies[0]);
+        Assert.DoesNotContain("seed", f.Bodies[0]);
+        Assert.Equal((5, 1, "hill"), (t.Seed, t.Terrain.Count, t.Unplaced.Single()));
+    }
+
+    [Fact]
+    public async Task BuiltinLayouts_reads_the_list()
+    {
+        var (c, f) = Make();
+        var a = Tabletop.Content.Tests.TableStateTests.Sample() with { Name = "Hospitable planet" };
+        f.Answer(HttpStatusCode.OK, new[] { a, a with { Name = "Ruins planet" } });
+        var tables = await c.BuiltinLayouts();
+        Assert.Equal("/v1/layouts/builtin", f.Requests[0].RequestUri!.AbsolutePath);
+        Assert.Equal(["Hospitable planet", "Ruins planet"], tables.Select(t => t.Name));
+    }
+
+    [Fact]
     public async Task Rule_texts_are_read_from_the_pinned_set()
     {
         var (c, f) = Make();

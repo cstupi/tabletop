@@ -1,15 +1,11 @@
-using Tabletop.Geometry;
-using Tabletop.Protocol;
-
-namespace Tabletop.Client.Core;
+namespace Tabletop.Content;
 
 public enum Planet { Generic, Hospitable, Wasteland, Death, Ruins }
 
-/// <summary>Nine fixed pieces, then 4D3 more each rolled on 2D6. Generic, Hospitable, Wasteland and Death are Grimdark Future
-/// p.18–19's planets. Ruins is the owner's pack in the same shape, not the rulebook's: a ruined city of ruins, ruined walls and
-/// rubble with craters and barricades, no whole buildings, its fixed nine keeping p.12's balance (half block line of sight, a
-/// third give cover, a third are difficult). Runs on the client; the result is a batch of adds.</summary>
-public static class TerrainGenerators
+/// <summary>Grimdark Future p.18–19's planets plus the owner's Ruins pack: nine fixed pieces, then 4D3 more rolled on 2D6.</summary>
+/// <remarks>Generic, Hospitable, Wasteland and Death are the rulebook's. Ruins is the owner's pack in the same shape: a ruined city of ruins,
+/// ruined walls and rubble with craters and barricades, no whole buildings, its fixed nine keeping p.12's balance.</remarks>
+public static class PlanetTerrain
 {
     static readonly Dictionary<Planet, string[]> FixedPieces = new()
     {
@@ -33,11 +29,9 @@ public static class TerrainGenerators
     public static IReadOnlyList<string> Fixed(Planet planet) => FixedPieces[planet];
     public static IReadOnlyList<string> Rolled(Planet planet, int twoD6) => Table[planet][Math.Clamp(twoD6, 2, 12) - 2];
 
-    /// <summary>The pieces land beside the long edge, off the slab, in rows 8" apart, four to a row, each facing a random 15° step; players drag them on. A piece
-    /// the catalog (default: the one in use) does not list is skipped.</summary>
-    public static IReadOnlyList<AddTerrain> Generate(Planet planet, TableSize table, Random rng, BuiltinCatalog? catalog = null)
+    /// <summary>The fixed nine then the rolled ones, drawn from <paramref name="rng"/> as 4D3, then per piece 2D6 and the alternative.</summary>
+    public static IReadOnlyList<string> Roll(Planet planet, Random rng)
     {
-        catalog ??= BuiltinContent.Catalog;
         var names = new List<string>(Fixed(planet));
         var extra = Enumerable.Range(0, 4).Sum(_ => rng.Next(1, 4));                        // 4D3
         for (var i = 0; i < extra; i++)
@@ -45,8 +39,6 @@ public static class TerrainGenerators
             var alternatives = Rolled(planet, rng.Next(1, 7) + rng.Next(1, 7));            // 2D6
             names.Add(alternatives[rng.Next(alternatives.Count)]);
         }
-        var yaws = names.Select(_ => new Yaw(rng.Next(0, 24) * 15)).ToList();
-        return names.Select((name, i) => (name, yaw: yaws[i])).Where(x => catalog.Terrain.ContainsKey(x.name))
-            .Select((x, i) => new AddTerrain(catalog.Place(x.name, new Point3(table.Width + 4 + (i % 4) * 8, 4 + (i / 4) * 8, 0), x.yaw))).ToList();
+        return names;
     }
 }

@@ -6,10 +6,6 @@ using Tabletop.Geometry;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>A built-in terrain piece: its volume (the data) and the mesh it draws with (the appearance), one of the catalog's
-/// <see cref="BuiltinCatalog.Meshes"/>, fitted to the volume. Owned by nobody, in no library.</summary>
-public sealed record BuiltinTerrain(string Name, string Label, Volume Volume, string Mesh);
-
 /// <summary>A published file: its content hash and size, and where to download it (a served catalog only).</summary>
 public sealed record BuiltinFile(string Sha256, long Size, Uri? Url = null);
 
@@ -56,14 +52,6 @@ public sealed partial class BuiltinCatalog
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,63}$")] private static partial Regex Name();
     [GeneratedRegex("^[0-9a-f]{64}$")] private static partial Regex Sha256();
 
-    static readonly Dictionary<string, TerrainDeclarations> DeclarationNames = new()
-    {
-        ["impassable"] = TerrainDeclarations.Impassable, ["blocks_line_of_sight"] = TerrainDeclarations.BlocksLineOfSight,
-        ["see_in_and_out"] = TerrainDeclarations.SeeInAndOut, ["cover"] = TerrainDeclarations.Cover,
-        ["difficult"] = TerrainDeclarations.Difficult, ["dangerous"] = TerrainDeclarations.Dangerous,
-        ["dangerous_on_rush_charge"] = TerrainDeclarations.DangerousOnRushCharge,
-    };
-
     /// <summary>Reads and checks a catalog; <see cref="FormatException"/> names the first fault.</summary>
     public static BuiltinCatalog Parse(string json)
     {
@@ -73,28 +61,7 @@ public sealed partial class BuiltinCatalog
         var meshes = Names(dto.Meshes, "mesh"); var textures = Names(dto.Textures, "texture");
         if (meshes.Count == 0) throw new FormatException("The catalog names no mesh.");
         if (textures.Count == 0) throw new FormatException("The catalog names no texture.");
-        var terrain = new Dictionary<string, BuiltinTerrain>();
-        foreach (var t in dto.Terrain ?? throw new FormatException("The catalog has no terrain."))
-        {
-            var id = t.Id is { } i && Name().IsMatch(i) ? i : throw new FormatException($"Terrain id '{t.Id}' is not a name.");
-            if (terrain.ContainsKey(id)) throw new FormatException($"Terrain '{id}' is listed twice.");
-            if (string.IsNullOrWhiteSpace(t.Label) || t.Label.Length > 64) throw new FormatException($"Terrain '{id}' has no label, or one over 64 characters.");
-            if (t.Notes is { Length: > 500 }) throw new FormatException($"Terrain '{id}' has notes over 500 characters.");
-            if (t.Mesh is null || !meshes.Contains(t.Mesh)) throw new FormatException($"Terrain '{id}' names mesh '{t.Mesh}', which the catalog does not list.");
-            var kind = t.Kind switch { "solid" => VolumeKind.Solid, "area" => VolumeKind.Area, _ => throw new FormatException($"Terrain '{id}' has kind '{t.Kind}', not solid or area.") };
-            var footprint = t.Footprint switch
-            {
-                { Kind: "circle", A: > 0 and <= 144 } f => Footprint.Circle(f.A),
-                { Kind: "rect", A: > 0 and <= 144, B: > 0 and <= 144 } f => Footprint.Rect(f.A, f.B!.Value),
-                _ => throw new FormatException($"Terrain '{id}' has no circle or rect footprint with positive sizes up to 144\"."),
-            };
-            if (t.Top is not (> 0 and <= 144)) throw new FormatException($"Terrain '{id}' has top {t.Top}, not above 0 and up to 144\".");
-            var declarations = TerrainDeclarations.None;
-            foreach (var d in t.Declarations ?? [])
-                declarations |= DeclarationNames.TryGetValue(d, out var flag) ? flag : throw new FormatException($"Terrain '{id}' declares '{d}', which is not a terrain declaration.");
-            terrain[id] = new BuiltinTerrain(id, t.Label, new Volume(kind, footprint, new Point2(0, 0), new Yaw(0), 0, t.Top, declarations, t.Notes), t.Mesh);
-        }
-        if (terrain.Count == 0) throw new FormatException("The catalog has no terrain.");
+        var terrain = BuiltinTerrain.Parse(dto.Terrain ?? throw new FormatException("The catalog has no terrain."), meshes);
         var files = new Dictionary<string, BuiltinFile>();
         if (dto.Files is { } named)
         {
@@ -117,8 +84,6 @@ public sealed partial class BuiltinCatalog
         return list;
     }
 
-    sealed record Dto(string? Version, List<string>? Meshes, List<string>? Textures, List<TerrainDto>? Terrain, Dictionary<string, FileDto>? Files);
-    sealed record TerrainDto(string? Id, string? Label, string? Mesh, string? Kind, FootprintDto? Footprint, double Top, List<string>? Declarations, string? Notes);
-    sealed record FootprintDto(string? Kind, double A, double? B);
+    sealed record Dto(string? Version, List<string>? Meshes, List<string>? Textures, JsonElement? Terrain, Dictionary<string, FileDto>? Files);
     sealed record FileDto(string? Sha256, long Size, Uri? Url);
 }

@@ -9,13 +9,13 @@ Geometry values and computations: distance, line of sight, cover, collision (res
 - `Bases.cs`, `Bodies.cs`: `Base` (circle, oval, rect), `ModelBody`; a model is a base and a height, upright, yaw only.
 - `Volumes.cs`, `WorldVolumes.cs`: terrain `Volume` (Solid or Area, `Footprint`, declarations) and `WorldVolume` (the piece's transform applied).
 - `Outline.cs`: convex `Polygon` and `PolygonOutline`; every base and footprint becomes one.
-- `Distance.cs`, `LineOfSight.cs`, `Cover.cs`, `Collision.cs`, `Collision.Surfaces.cs`, `Collision.Slide.cs`, `Collision.Land.cs`, `Collision.Crosses.cs`, `Containment.cs`, `Overlap.cs`, `Coherency.cs`, `Movement.cs`: static computations, one class each.
+- `Distance.cs` (also `Between`, the plan gap between two placed footprints or a footprint and a point), `LineOfSight.cs`, `Cover.cs`, `Collision.cs`, `Collision.Surfaces.cs`, `Collision.Slide.cs`, `Collision.Land.cs`, `Collision.Crosses.cs`, `Containment.cs`, `Overlap.cs`, `Coherency.cs`, `Movement.cs`: static computations, one class each.
 - `MoveShape.cs`, `MoveSpace.cs`, `MoveSpace.Search.cs`, `MoveReach.cs`, `ReachMesh.cs`: movement along the path (`docs/design/geometry/movement.md`). `MoveShape` is one obstacle in the moving base's configuration space (a convex core grown by a radius) with its ring of graph corners; `MoveSpace` a base's obstacles by group (walls, bodies, difficult, dangerous), the table box, `Clear`, `Route` (A*) and `Settle` (a Dijkstra `Field`); `MoveReach` one model's reach for a move Ask (`Route`, `Clamp`, `Triangles`); `ReachMesh` the reachable area as triangles.
 - `SightBlockers.cs`: a table's blocking volumes prepared once for many sight lines (outlines, heights and boxes built once, a box test before the exact one); `Check` and `Measure` equal `LineOfSight.Check` and `Cover.SightBlockersBetween`. It also takes `SightPrism`s (a convex outline between two heights; `Bodies.Perimeter` builds a unit's from the convex hull of its bases) and an ignore predicate.
 - `BaseEdge.cs`: one placed base's outline built once for many point distances (`To` equals `Distance.EdgeToEdge` to a point), with the radii of the circles about its centre it contains (`Inner`) and lies in (`Outer`).
 - `RangeOutline.cs`: `Of`, the union outline of the rings at a range from each model's base edge (the client's range rings, and the browser's).
 - `Contacts.cs`: `Of`, each proposed model's first contact (`ContactKind`: on a base, a path through a model, too close, in impassable terrain) from `ContactBody` rows and `ContactTerms`.
-- `Table.cs`: the slab, `Bounds`, `ContainsPoint`, `ContainsBase`, `IsValid` (edges at most `MaxEdge`, 144").
+- `Table.cs`: the slab, `Bounds`, `ContainsPoint`, `ContainsBase`, `ContainsVolume` (a footprint wholly on it), `IsValid` (edges at most `MaxEdge`, 144").
 - `ZoneStyles.cs`: the seven built-in deployment styles and `Resolve` against a `TableSize`.
 - `Tolerance.cs`: `1e-6` inches, internal.
 - `Sampling.cs`: `Steps`, the sample count of a swept check, capped at `MaxSamples` (4096).

@@ -48,6 +48,7 @@ builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IH
 builder.Services.AddSingleton<ICatalogKinds, CatalogKinds>();
 builder.Services.AddSingleton<IArmyRepository, ArmyRepository>();
 builder.Services.AddSingleton<ILayoutRepository, LayoutRepository>();
+builder.Services.AddSingleton(Tabletop.Management.Content.Layouts.BuiltinLayouts.Embedded());
 builder.Services.AddSingleton<IGameRepository, GameRepository>();
 builder.Services.AddSingleton<Sessions>();
 builder.Services.AddSingleton(sp => new Tabletop.Management.Releases.ClientReleases(sp.GetRequiredService<IBlobStore>(), TimeProvider.System,
