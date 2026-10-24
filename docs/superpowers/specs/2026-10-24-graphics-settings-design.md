@@ -2,8 +2,9 @@
 
 Owner, 2026-10-24: *"Do we need to add high and low res options and resolution settings?"* — then *"Build it."*
 
-The client has none: it opens in Godot's default 1152×648 window with no fullscreen, and always renders MSAA 2×
-(`project.godot`) with four-split directional shadows to 220" (`TableLighting`).
+The client has none: it opens in Godot's default 1152×648 window with no fullscreen, and renders the table's `SubViewport`
+with no MSAA (`project.godot`'s `msaa_3d=2` reaches only the root window, which draws no 3D) and four-split directional
+shadows to 220" (`TableLighting`).
 
 ## Settings
 
@@ -26,7 +27,7 @@ The Settings dialog gains a **Graphics** group, kept in `ClientSettings` and app
   | Shadows | 2 splits, atlas 2048, max distance 120" | 4 splits, atlas 4096, 220" (today) | 4 splits, atlas 8192, 220" |
   | Render scale | 75 % | 100 % | 100 % |
 
-  Medium is exactly today's look. Moving the Render scale slider keeps the Quality and overrides only its scale; picking a
+  Medium is today's shadows with 2× MSAA on the table. Moving the Render scale slider keeps the Quality and overrides only its scale; picking a
   Quality resets the scale to that Quality's.
 - **Render scale** is the 3D viewport's `Scaling3DScale` with FSR 1 upscaling below 100 %; the Hud renders at full resolution.
 - **VSync** is the window's VSync mode, Enabled or Disabled.
