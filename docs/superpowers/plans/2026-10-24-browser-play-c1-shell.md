@@ -185,9 +185,10 @@ listens to `hashchange`, renders the gate (checking / signed out with `signInHre
 
 ### Task 4: Management calls for the games list, and who may do what
 
-**Files:** create `viewer/src/lib/api/types.ts`, `viewer/src/lib/api/client.ts`, `viewer/src/lib/games/rowActions.ts`;
+**Files:** create `viewer/src/lib/api/types.ts`, `viewer/src/lib/api/client.ts`, `viewer/src/lib/api/names.ts`,
+`viewer/src/lib/games/rowActions.ts`;
 modify `viewer/src/lib/live/games.ts` (`GameSummary.joined`, `listGames(jwt, { joined })`); test `viewer/tests/api.test.ts`,
-`viewer/tests/rowActions.test.ts`, `viewer/tests/games.test.ts`.
+`viewer/tests/rowActions.test.ts`, `viewer/tests/games.test.ts`, `viewer/tests/names.test.ts`.
 
 **Interfaces:**
 
@@ -211,6 +212,9 @@ export function apiOf(jwt: () => Promise<string>, base?: string, fetchFn?: typeo
 // rowActions.ts — GameRowActions.Of, ported
 export interface RowActions { readonly canEnd: boolean; readonly canDelete: boolean; readonly canReplay: boolean }
 export function rowActionsOf(row: GameSummary | null, me: string | null): RowActions;
+// names.ts — TextLimits.Name and NameProblem (management's Limits.Name), word for word
+export const NAME = 64;
+export function nameProblem(value: string | null, field?: string): string | null;   // field default 'A name'
 ```
 
 C2 adds the layout, built-in and asset calls to `Api`.
@@ -219,8 +223,10 @@ C2 adds the layout, built-in and asset calls to `Api`.
   has not ended and deletes any`; `a non-creator neither ends nor deletes`; `replay needs a joined game that is playing or
   ended` (joined lobby → false; not joined playing → false; joined ended → true). `api.test.ts` with a fake fetch:
   `createGame posts the request with the bearer`; `listArmies follows next until it is absent`; `a 422 problem throws its
-  detail with the status`; `leaveGame accepts 204`. `games.test.ts`: `listGames with joined asks for joined=true`.
-- [ ] `cd viewer && npx vitest run tests/rowActions.test.ts tests/api.test.ts tests/games.test.ts` fails.
+  detail with the status`; `leaveGame accepts 204`. `games.test.ts`: `listGames with joined asks for joined=true`. `names.test.ts`: `a blank name
+  is required`, `65 characters is too long`, `a bidi mark is refused`, `a good name passes` (Godot's texts).
+- [ ] `cd viewer && npx vitest run tests/rowActions.test.ts tests/api.test.ts tests/games.test.ts tests/names.test.ts`
+  fails.
 - [ ] Implement; every request sends `Tabletop-Client-Version: <PROTOCOL_VERSION>` (`ProtocolVersion.Header`) as `ManagementClient` does.
 - [ ] `npm test && npm run check`.
 - [ ] Commit: `Viewer: management calls for games and armies; GameRowActions ported`.
@@ -246,7 +252,8 @@ Mine rows: name, status, players, created; **Open** (`#/game/<id>`; `joinGame` f
 go."), **End** / **Delete** (creator, asked first with Godot's texts: "<name> ends for every player." / "<name> and its whole log
 are deleted for every player. This cannot be undone."), each disabled with Godot's tooltip when not allowed. Open rows:
 **Join** (`joinGame`, then `#/game/<id>`). Admins also get **All games** (every game, Replay on each: an admin watches any).
-**Create game** opens `CreateGameDialog`: name (64 characters, required), rule set, activation (Alternating activation /
+**Create game** opens `CreateGameDialog`: name (`nameProblem`, shown as typed;
+Create waits until it is null), rule set, activation (Alternating activation /
 Player turn), enforcement (Silent / Warn / Strict), an army (optional; "No army (pick one in the lobby)"); Create posts
 `createGame`, navigates to `#/game/<id>` and hands the army to `GamePage` as `?army=<id>` in the hash, which sends
 `PickArmy(armyId)` once welcomed (HomeScreen's `PickWhenConnected`). Lists reload after every action.
