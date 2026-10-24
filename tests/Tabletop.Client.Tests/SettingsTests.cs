@@ -116,4 +116,41 @@ public class SettingsTests : IDisposable
         File.WriteAllText(path, """{ "volume": 400 }"""); Assert.Equal(100, ClientSettings.Load(path).Volume);
         File.WriteAllText(path, """{ "volume": -5 }"""); Assert.Equal(0, ClientSettings.Load(path).Volume);
     }
+
+    [Fact]
+    public void Graphics_default_to_windowed_medium_vsync_with_no_override()
+    {
+        var d = ClientSettings.Default;
+        Assert.Equal((DisplayMode.Windowed, GraphicsQuality.Medium, (int?)null, true, (WindowRect?)null), (d.Display, d.Quality, d.RenderScale, d.VSync, d.Window));
+        Assert.Equal(GraphicsSettings.Profile(GraphicsQuality.Medium, null), d.Graphics);
+    }
+
+    [Fact]
+    public void Graphics_round_trip_and_each_field_counts_for_equality()
+    {
+        var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;
+        Assert.NotEqual(d, d with { Display = DisplayMode.Fullscreen }); Assert.NotEqual(d, d with { Quality = GraphicsQuality.High });
+        Assert.NotEqual(d, d with { RenderScale = 80 }); Assert.NotEqual(d, d with { VSync = false }); Assert.NotEqual(d, d with { Window = new WindowRect(1, 2, 1280, 720) });
+        var s = d with { Display = DisplayMode.Fullscreen, Quality = GraphicsQuality.Low, RenderScale = 60, VSync = false, Window = new WindowRect(100, 80, 1600, 900) }; s.Save(path);
+        var back = ClientSettings.Load(path);
+        Assert.Equal(s, back);
+        Assert.Equal(new GraphicsProfile(0, 2, 2048, 120f, 60), back.Graphics);
+    }
+
+    [Fact]
+    public void An_old_file_loads_graphics_at_the_defaults()
+    {
+        var path = Path.Combine(_dir, "settings.json"); File.WriteAllText(path, """{ "animate": false }"""); var s = ClientSettings.Load(path);
+        Assert.Equal((DisplayMode.Windowed, GraphicsQuality.Medium, (int?)null, true, (WindowRect?)null), (s.Display, s.Quality, s.RenderScale, s.VSync, s.Window));
+    }
+
+    [Theory]
+    [InlineData("""{ "display": "borderless", "quality": "ultra", "renderScale": 30, "window": { "x": 0, "y": 0, "width": 200, "height": 100 } }""", 50)]
+    [InlineData("""{ "display": "1", "quality": "2", "renderScale": 130 }""", 100)]
+    [InlineData("""{ "renderScale": 62 }""", 60)]
+    public void Bad_graphics_values_load_at_defaults_or_clamped(string json, int scale)
+    {
+        var path = Path.Combine(_dir, "settings.json"); File.WriteAllText(path, json); var s = ClientSettings.Load(path);
+        Assert.Equal((DisplayMode.Windowed, GraphicsQuality.Medium, (int?)scale, (WindowRect?)null), (s.Display, s.Quality, s.RenderScale, s.Window));
+    }
 }

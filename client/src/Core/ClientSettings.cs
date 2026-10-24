@@ -23,6 +23,15 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     /// <summary>Whether the table plays its sound effects (<see cref="SoundCues"/>), and how loud: 0 to 100.</summary>
     public bool Sound { get; init; } = true;
     public int Volume { get; init; } = 70;
+    /// <summary>Windowed or borderless Fullscreen (Settings → Graphics); <see cref="Window"/> is the windowed rect the player left, none until the first save.</summary>
+    public DisplayMode Display { get; init; }
+    public WindowRect? Window { get; init; }
+    /// <summary>The Quality, and the Render scale percent the player set over it: none follows the Quality's (<see cref="GraphicsSettings.DefaultScale"/>); picking a Quality clears it.</summary>
+    public GraphicsQuality Quality { get; init; } = GraphicsQuality.Medium;
+    public int? RenderScale { get; init; }
+    public bool VSync { get; init; } = true;
+    /// <summary>What the applier sets on the table's viewport, its key light and the shadow atlas.</summary>
+    public GraphicsProfile Graphics => GraphicsSettings.Profile(Quality, RenderScale);
     /// <summary>The web app's origin: the update-required screen sends the player to its Download page.</summary>
     public string WebUrl { get; init; } = DevWebUrl;
     public string DownloadUrl => WebUrl.TrimEnd('/') + "/download";
@@ -44,7 +53,10 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     sealed record Dto(bool? Animate, string[]? MutedWindowKinds, bool? RememberMe, string? ManagementUrl, string? GameServerUrl, string? LogFilter, bool? LogOpen,
-        string? Theme = null, bool? CameraFollow = null, bool? TurnBanner = null, bool? RangeRings = null, string? WebUrl = null, string? MeasureMode = null, bool? ShowHitboxes = null, bool? ShowTerrainHitboxes = null, bool? Sound = null, int? Volume = null);
+        string? Theme = null, bool? CameraFollow = null, bool? TurnBanner = null, bool? RangeRings = null, string? WebUrl = null, string? MeasureMode = null, bool? ShowHitboxes = null, bool? ShowTerrainHitboxes = null, bool? Sound = null, int? Volume = null,
+        string? Display = null, string? Quality = null, int? RenderScale = null, bool? VSync = null, WindowRect? Window = null);
+
+    static T EnumOr<T>(string? s, T fallback) where T : struct, Enum => Enum.TryParse<T>(s, true, out var v) && Enum.IsDefined(v) && !int.TryParse(s, out _) ? v : fallback;
 
     public static ClientSettings Load(string path) => Load(path, BuildInfo.Current);
 
@@ -61,6 +73,7 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
             Enum.TryParse<LogFilter>(d.LogFilter, true, out var f) && Enum.IsDefined(f) && !int.TryParse(d.LogFilter, out _) ? f : def.LogFilter, d.LogOpen ?? def.LogOpen)
             with { Theme = UiThemes.Resolve(d.Theme).Id, CameraFollow = d.CameraFollow ?? true, TurnBanner = d.TurnBanner ?? true, RangeRings = d.RangeRings ?? false, ShowHitboxes = d.ShowHitboxes ?? true, ShowTerrainHitboxes = d.ShowTerrainHitboxes ?? true, Sound = d.Sound ?? true, Volume = Math.Clamp(d.Volume ?? 70, 0, 100),
                 MeasureMode = Enum.TryParse<MeasureMode>(d.MeasureMode, true, out var m) && Enum.IsDefined(m) && !int.TryParse(d.MeasureMode, out _) ? m : MeasureMode.Horizontal,
+                Display = EnumOr(d.Display, DisplayMode.Windowed), Quality = EnumOr(d.Quality, GraphicsQuality.Medium), RenderScale = GraphicsSettings.ClampScale(d.RenderScale), VSync = d.VSync ?? true, Window = GraphicsSettings.ClampWindow(d.Window),
                 WebUrl = release ? def.WebUrl : d.WebUrl ?? def.WebUrl };
     }
 
@@ -81,7 +94,8 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
         var dev = build.WebUrl is null;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, JsonSerializer.Serialize(new Dto(Animate, MutedWindowKinds.Order().ToArray(), RememberMe, dev ? ManagementUrl : null, dev ? GameServerUrl : null,
-            LogFilter.ToString(), LogOpen, Theme, CameraFollow, TurnBanner, RangeRings, dev ? WebUrl : null, MeasureMode.ToString(), ShowHitboxes, ShowTerrainHitboxes, Sound, Volume), Json));
+            LogFilter.ToString(), LogOpen, Theme, CameraFollow, TurnBanner, RangeRings, dev ? WebUrl : null, MeasureMode.ToString(), ShowHitboxes, ShowTerrainHitboxes, Sound, Volume,
+            Display.ToString(), Quality.ToString(), RenderScale, VSync, Window), Json));
     }
 
     public ClientSettings Mute(string windowKind) => this with { MutedWindowKinds = new HashSet<string>(MutedWindowKinds) { windowKind } };
@@ -89,6 +103,6 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
 
     public bool Equals(ClientSettings? other) => other is not null && Animate == other.Animate && RememberMe == other.RememberMe
         && ManagementUrl == other.ManagementUrl && GameServerUrl == other.GameServerUrl && LogFilter == other.LogFilter && LogOpen == other.LogOpen
-        && Theme == other.Theme && CameraFollow == other.CameraFollow && TurnBanner == other.TurnBanner && RangeRings == other.RangeRings && ShowHitboxes == other.ShowHitboxes && ShowTerrainHitboxes == other.ShowTerrainHitboxes && MeasureMode == other.MeasureMode && Sound == other.Sound && Volume == other.Volume && WebUrl == other.WebUrl && MutedWindowKinds.SetEquals(other.MutedWindowKinds);
+        && Theme == other.Theme && CameraFollow == other.CameraFollow && TurnBanner == other.TurnBanner && RangeRings == other.RangeRings && ShowHitboxes == other.ShowHitboxes && ShowTerrainHitboxes == other.ShowTerrainHitboxes && MeasureMode == other.MeasureMode && Sound == other.Sound && Volume == other.Volume && Display == other.Display && Quality == other.Quality && RenderScale == other.RenderScale && VSync == other.VSync && Window == other.Window && WebUrl == other.WebUrl && MutedWindowKinds.SetEquals(other.MutedWindowKinds);
     public override int GetHashCode() => HashCode.Combine(Animate, RememberMe, ManagementUrl, GameServerUrl, MutedWindowKinds.Count, LogFilter, Theme);
 }
