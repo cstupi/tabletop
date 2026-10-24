@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -19,6 +20,10 @@ public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, 
 public sealed record GrantableEffectDto(string EntryName, Guid EffectId, string Duration);
 public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models);
 public sealed record LayoutSummary(Guid Id, string Name, TableSize Size, int Terrain, int Markers);
+/// <summary>POST /v1/layouts/random: the draft's size and zone rows; no seed lets the server pick one.</summary>
+public sealed record RandomTableRequest(TableSize Size, Planet Planet, IReadOnlyList<DeploymentZone>? Zones, int? Seed);
+/// <summary>The laid terrain; Unplaced names the rolled pieces withdrawn for want of room, Unlisted those the server's catalog lacks.</summary>
+public sealed record RandomTable(int Seed, IReadOnlyList<TerrainPlacement> Terrain, IReadOnlyList<string> Unplaced, IReadOnlyList<string> Unlisted);
 public enum AssetKind { Miniature, Terrain, Texture }
 public sealed record AssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, bool Uploaded, double Scale, Orientation Orientation, Base? ModelledBase);
 public sealed record DownloadResponse(Uri Url, DateTimeOffset ExpiresAt);

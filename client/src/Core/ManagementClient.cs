@@ -40,6 +40,8 @@ public sealed class ManagementClient(HttpClient http, Uri baseUrl)
     public Task<Army> GetArmy(Guid id) => Get<Army>($"/v1/armies/{id}");
     public Task<IReadOnlyList<LayoutSummary>> ListLayouts() => Get<IReadOnlyList<LayoutSummary>>("/v1/layouts");
     public Task<TableState> GetLayout(Guid id) => Get<TableState>($"/v1/layouts/{id}");
+    public Task<RandomTable> RandomTable(RandomTableRequest request) => Post<RandomTable>("/v1/layouts/random", request);
+    public Task<IReadOnlyList<TableState>> BuiltinLayouts() => Get<IReadOnlyList<TableState>>("/v1/layouts/builtin");
     public Task<TableState> SaveLayout(TableState layout) => Post<TableState>("/v1/layouts", layout);
     public Task<Manifest> GetManifest(Guid gameId) => Get<Manifest>($"/v1/games/{gameId}/assets");
     public Task<Page<AssetDto>> ListAssets(AssetKind kind, Guid? after) => Get<Page<AssetDto>>($"/v1/assets?limit=200&kind={kind.ToString().ToLowerInvariant()}" + (after is null ? "" : $"&after={after}"));

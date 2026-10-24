@@ -55,14 +55,15 @@ public partial class SetupToolbar : VBoxContainer
         terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))), d => SetupLimits.CannotAddTerrain(d)));
         terrainSection.AddChild(Gated(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
         var generators = new HFlowContainer(); terrainSection.AddChild(generators);
-        foreach (var planet in Enum.GetValues<Planet>())
-            generators.AddChild(Gated(Btn($"{planet} planet", () => Guarded.Run(async () =>
-            {
-                // The whole set or none: a set that would pass the cap is not sent piece by piece into refusals.
-                var adds = TerrainGenerators.Generate(planet, SizeNow(s), Random.Shared);
-                if (SetupLimits.CannotAddTerrain(s.Draft, adds.Count) is { } full) { _screen.Toast(full); return; }
-                foreach (var add in adds) await s.SendEditAsync(add);
-            }, _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
+        var planets = new OptionButton(); foreach (var planet in Enum.GetValues<Planet>()) planets.AddItem($"{planet} planet"); generators.AddChild(planets);
+        generators.AddChild(Gated(Btn("Random table", () => Guarded.Run(async () =>
+        {
+            // The server rolls and lays the table, balanced across the teams; the draft keeps its size, texture, markers and zones.
+            var draft = s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.");
+            var laid = await s.Management.RandomTable(new RandomTableRequest(draft.Size, Enum.GetValues<Planet>()[planets.Selected], draft.Zones, null));
+            await s.SendEditAsync(new ReplaceDraft(LayoutChoices.WithTerrain(draft, laid)));
+            if (laid.Unplaced.Count > 0) _screen.Toast($"No room for: {string.Join(", ", laid.Unplaced)}.");
+        }, _screen.Toast)), d => d is null ? "The table has not arrived yet." : null));
 
         terrainSection.AddChild(Gated(Wide("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
 
@@ -181,11 +182,16 @@ public partial class SetupToolbar : VBoxContainer
 
     async Task LoadLayout(Session s)
     {
-        var layouts = await s.Management.ListLayouts();
+        var (builtin, saved) = (s.Management.BuiltinLayouts(), s.Management.ListLayouts());
+        var choices = LayoutChoices.Of(await builtin, await saved);
         if (!IsInstanceValid(this)) return;
-        var pick = new OptionButton(); foreach (var l in layouts) pick.AddItem($"{l.Name} ({l.Size.Width}×{l.Size.Length}, {l.Terrain} terrain)");
+        var pick = new OptionButton(); foreach (var c in choices) pick.AddItem(c.Label);
         var dialog = Dialog("Load a layout (replaces the whole draft, size included)", pick);
-        dialog.Confirmed += () => Guarded.Run(async () => await s.SendEditAsync(new ReplaceDraft(await s.Management.GetLayout(layouts[pick.Selected].Id))), _screen.Toast);
+        dialog.Confirmed += () => Guarded.Run(async () =>
+        {
+            var choice = choices[pick.Selected];
+            await s.SendEditAsync(new ReplaceDraft(choice.Builtin ?? await s.Management.GetLayout(choice.SavedId!.Value)));
+        }, _screen.Toast);
         dialog.PopupCentered();
     }
 }
