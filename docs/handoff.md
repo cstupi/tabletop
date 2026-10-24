@@ -1,4 +1,4 @@
-# Handoff — 2026-10-20
+# Handoff — 2026-10-24
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
@@ -8,7 +8,8 @@ combat log, split the tests into a unit suite and an E2E suite, and cleared most
 finished the army-book rules, built optional rules and the production path, and hardened both servers for public hosting;
 *2026-10-18* is the live home deployment and the owner's play-testing fixes; *2026-10-19* is path movement, the tabletop
 look, the Ruins planet and the owner's deployment and setup fixes, released as v0.1.22; *2026-10-20* is games following the
-current rules and the lifecycle suite, pushed to `main` and not tagged. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
+current rules and the lifecycle suite; *2026-10-24* is held pieces lifting over, sound effects, the roll-off result and
+four-team games. Everything after v0.1.22 is on `main`, not tagged. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -73,12 +74,37 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
+### 2026-10-24
+
+On `main`, not pushed, not tagged. Specs `docs/superpowers/specs/2026-10-24-*`, plans `docs/superpowers/plans/2026-10-24-*`.
+- **Held pieces lift over.** Every pick-up is lifted: models and terrain go straight to the cursor over everything, drawn
+  0.5" above what is under them, a ring marking where they land; the drop lands at the nearest clear spot (a model within its
+  reach in a move step, searched 24" out; a terrain piece clear of Impassable pieces). PageDown/PageUp step the held pieces
+  down or up one surface (`HoldLevel`); at a level they slide along what is at that height and pass under a Solid with room.
+  `Battlefield.Settle` and setup terrain edits (`DraftEditor.Rest`) rest on the open surface nearest the Z sent; without an
+  overhang that is the old rest.
+- **Sound effects.** Shoot, melee, move and wound cues (`SoundCues`, `SoundPlayer`), once per cue per live batch, never on
+  catch-up, replay or undo; WAVs synthesised by `scripts/Sounds` into `client/content/sounds/`. Settings: Sound, Volume.
+- **The roll-off result.** The roll-off no longer opens a Continue for every team (it still gates under the wait setting,
+  which only the rules suite uses for fixed dice); a game stopped at the old gate resumes (`SequenceInterpreter.StaleGates`).
+  Every client shows "Team k goes first" with each team's roll for 4 s ahead of the turn banner (`RollOffBanners`; the
+  ranking step writes `rolled_<ordinal>_<k>`).
+- **Four-team games.** Lifecycle shape `four-teams` (8 accounts, 2 a team, four army books) and `FreeForAllChecks` over every
+  shape; `FourTeamGameTests`; suite game `core-four-teams`. Fixed: a game of three or four teams started setup with only the
+  two long-edge zones, so teams 3 and 4 could deploy anywhere; it now starts on p.50's four corner areas
+  (`ZoneStyles.FreeForAll`), and a team created during setup moves default zones to the corners.
+
+Validated on the merged `main`: unit suite all green, E2E 425/425 (the seven lifecycle shapes included), the rules suite in
+process 306/306 and over the socket 305/306: `battle-brothers-re-deployment` stopped with `NoAskNoEvents` after its
+re-deploy in the full socket run and passed three runs alone, so it reads as the socket driver's step timing under load
+(`sim/Run/RunLoop.cs`), not a rule.
+
 ### 2026-10-20
 
 **Tagged: v0.1.22** (the latest; the owner deploys and says which is live on the home server `docker1` at
-`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`). Owner: "dont tag it" for today's work.
+`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`).
 
-On `main` and pushed (`68a242bc`), not tagged:
+On `main` and pushed (`68a242bc`):
 - Owner ruling: "If a rule FIX is released it shouldnt publish a new version. everything should move to it.. its a fix".
   Every game not ended runs the set the game server seeded for its game rules: repinned at hydration, grants matched to the
   new set by entry and position path (spec `2026-10-19-games-follow-the-current-rules-design.md`). Checked live: a `playing`
@@ -286,8 +312,8 @@ in-process driver), for the rules suite's fixed dice.
 Model against model is 3D (`libs/Tabletop.Geometry`: `Collision.Crosses`, `Slide`, `Separate`, `Distance.BodyToBody`,
 movement paths): a model's volume is its base times 1.5 × the larger base dimension, so a model crossing above a lower
 one passes it, and the 1" separation is measured in 3D. An Aircraft's placement ignores units and terrain (p.13): no 1"
-separation, no impassable landing check; overlap still applies. Limit: `Collision.RestHeight` puts a model touching a
-Solid on top of it, so no model stands under a roof or floor.
+separation, no impassable landing check; overlap still applies. A body rests on its open surface nearest the Z it
+was given (`Collision.RestNear`), so a model can stand under a roof or floor with room.
 
 ### 2026-10-15
 
@@ -396,8 +422,9 @@ drawn through round 0.
 
 **Client UX** (spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`):
 
-- **Collision.** A drag slides along Impassable Solids, stops at other models' bases and rests on the highest Solid under the
-  base (`Collision.Slide`, `Separate`, `RestHeight`); Alt places freely. The server rests every placement (`Battlefield.Settle`)
+- **Collision.** A held piece is lifted over everything and lands clear (spec `2026-10-24-held-pieces-lift-over-design.md`);
+  PageDown/PageUp put it at a level, where it slides along what is at that height (`Collision.Slide`, `Separate`, `Land`,
+  `RestNear`); Alt places freely. The server rests every placement on its open surface nearest the Z sent (`Battlefield.Settle`)
   and judges a move answer's p.7 contact clauses under the enforcement setting (`GfMoves.ContactBreach`: `move_overlap`,
   `move_through_models` when only a path through models fits, `move_separation`) and a hand placement's overlap (`PlacementBreach`). The
   built-in `ruin` is a walk-in Area; `large-sight-blocker` is Impassable.
@@ -428,7 +455,7 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 
 ## Defects the rules suite found
 
-D1-D16 are fixed; the suite passes 302/302 on both drivers with no pin. What stays open is in *Next* 1.
+D1-D16 are fixed; the suite has 306 games and passes with no pin. What stays open is in *Next* 1.
 
 ## Rules-suite gaps
 
