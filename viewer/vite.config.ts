@@ -22,5 +22,6 @@ export default defineConfig(({ mode }) => ({
   // Development is same-origin through the proxy, so management needs no CORS entry for the viewer.
   server: { port: 5174, proxy },
   preview: { port: 5174, proxy },
-  test: { include: ['tests/**/*.test.ts'], environment: 'node' },
+  // The WebAssembly runtime's dotnet.js is loaded from disk, not bundled: external, or Vitest warns about its source maps.
+  test: { include: ['tests/**/*.test.ts'], environment: 'node', server: { deps: { external: [/_framework\//] } } },
 }));

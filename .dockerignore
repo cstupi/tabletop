@@ -15,3 +15,4 @@ viewer/.svelte-kit
 viewer/dist
 home.env
 build
+viewer/public/geometry

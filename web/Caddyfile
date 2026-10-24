@@ -26,9 +26,11 @@
 	# The viewer's hosted build (the admin Replays tool): one page with no routes of its own. A plain Vite build carries no
 	# CSP, so its whole policy is this header, in place of the frame-ancestors-only one above.
 	handle /viewer/* {
-		header Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{host}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://{host}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		try_files {path} /viewer/index.html
-		file_server
+		file_server {
+			precompressed br gzip
+		}
 	}
 	handle {
 		try_files {path} /index.html

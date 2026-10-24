@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Publish libs/Tabletop.Geometry.Wasm (Release) and put its _framework/ where Vite serves it.
+#   scripts/geometry-wasm [--out DIR]     DIR defaults to viewer/public/geometry
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd); out=$root/viewer/public/geometry
+if [[ ${1:-} == --out ]]; then out=${2:?--out needs a directory}; fi
+dotnet publish "$root/libs/Tabletop.Geometry.Wasm" -c Release -o "$root/build/geometry-wasm" --nologo
+rm -rf "$out/_framework"; mkdir -p "$out"
+cp -r "$root/build/geometry-wasm/wwwroot/_framework" "$out/_framework"

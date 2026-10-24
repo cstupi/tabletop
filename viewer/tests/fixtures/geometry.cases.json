@@ -1,0 +1,6421 @@
+[
+  {
+    "name": "land_models_beside_an_impassable_block",
+    "method": "LandModels",
+    "request": {
+      "held": [
+        {
+          "id": "00000003-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1,
+                "b": 1
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 2,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 10,
+            "y": 10,
+            "length": 14.142135623730951
+          }
+        },
+        {
+          "id": "00000004-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1,
+                "b": 1
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 4,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 10,
+            "y": 10,
+            "length": 14.142135623730951
+          }
+        }
+      ],
+      "stationary": [],
+      "walls": [
+        "00000001-0000-0000-0000-000000000001"
+      ],
+      "terrain": [
+        {
+          "id": "00000002-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000001-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "id": "00000003-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 10,
+          "y": 10,
+          "z": 3.5
+        },
+        "lands": {
+          "x": 12.5,
+          "y": 10,
+          "z": 0
+        }
+      },
+      {
+        "id": "00000004-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 10,
+          "y": 10,
+          "z": 3.5
+        },
+        "lands": {
+          "x": 11.080818837048291,
+          "y": 12.528701374516489,
+          "z": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "land_models_ignores_volumes_not_named_walls",
+    "method": "LandModels",
+    "request": {
+      "held": [
+        {
+          "id": "00000003-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1,
+                "b": 1
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 2,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 10,
+            "y": 10,
+            "length": 14.142135623730951
+          }
+        },
+        {
+          "id": "00000004-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1,
+                "b": 1
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 4,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 10,
+            "y": 10,
+            "length": 14.142135623730951
+          }
+        }
+      ],
+      "stationary": [],
+      "walls": [],
+      "terrain": [
+        {
+          "id": "00000002-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000001-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "id": "00000003-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 10,
+          "y": 10,
+          "z": 3.5
+        },
+        "lands": {
+          "x": 10,
+          "y": 10,
+          "z": 3
+        }
+      },
+      {
+        "id": "00000004-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 10,
+          "y": 10,
+          "z": 3.5
+        },
+        "lands": {
+          "x": 11,
+          "y": 10,
+          "z": 3
+        }
+      }
+    ]
+  },
+  {
+    "name": "land_models_busy_table",
+    "method": "LandModels",
+    "request": {
+      "held": [
+        {
+          "id": "0000000b-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1.26,
+                "b": 1.26
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 2,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 20,
+            "y": 20,
+            "length": 28.284271247461902
+          }
+        },
+        {
+          "id": "0000000c-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 0.98,
+                "b": 0.98
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 4,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 20.5,
+            "y": 20,
+            "length": 28.64000698323937
+          }
+        },
+        {
+          "id": "0000000d-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1.26,
+                "b": 1.26
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 2,
+                "y": 6,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 15,
+            "y": 13,
+            "length": 19.849433241279208
+          }
+        }
+      ],
+      "stationary": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 14,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 15.6,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 17.2,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 18.8,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20.4,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 14,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 15.6,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 17.2,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 18.8,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20.4,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "walls": [
+        "00000005-0000-0000-0000-000000000001"
+      ],
+      "terrain": [
+        {
+          "id": "00000006-0000-0000-0000-000000000001",
+          "position": {
+            "x": 20,
+            "y": 20,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000005-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 6,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 6,
+                "declarations": "impassable, blocks_line_of_sight"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000008-0000-0000-0000-000000000001",
+          "position": {
+            "x": 32,
+            "y": 24,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 30
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000007-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "area",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 4,
+                "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000a-0000-0000-0000-000000000001",
+          "position": {
+            "x": 44,
+            "y": 12,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000009-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "id": "0000000b-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 20,
+          "y": 20,
+          "z": 6.5
+        },
+        "lands": {
+          "x": 23.75,
+          "y": 20,
+          "z": 0
+        }
+      },
+      {
+        "id": "0000000c-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 20.5,
+          "y": 20,
+          "z": 6.5
+        },
+        "lands": {
+          "x": 23.514382966081808,
+          "y": 21.214905483482497,
+          "z": 0
+        }
+      },
+      {
+        "id": "0000000d-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 15,
+          "y": 13,
+          "z": 2
+        },
+        "lands": {
+          "x": 15.249050966978249,
+          "y": 14.732187523291632,
+          "z": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "land_piece_beside_an_impassable_block",
+    "method": "LandPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000002-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000001-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000f-0000-0000-0000-000000000001",
+          "position": {
+            "x": 30,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "0000000e-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 2
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "0000000f-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 30,
+          "y": 30,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      },
+      "to": {
+        "x": 10,
+        "y": 10,
+        "length": 14.142135623730951
+      }
+    },
+    "expected": {
+      "drawn": {
+        "x": 10,
+        "y": 10,
+        "z": 3.5
+      },
+      "lands": {
+        "x": 13,
+        "y": 10,
+        "z": 0
+      }
+    }
+  },
+  {
+    "name": "land_piece_onto_a_hill",
+    "method": "LandPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000011-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000010-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000f-0000-0000-0000-000000000001",
+          "position": {
+            "x": 30,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "0000000e-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 2
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "0000000f-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 30,
+          "y": 30,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      },
+      "to": {
+        "x": 10,
+        "y": 10,
+        "length": 14.142135623730951
+      }
+    },
+    "expected": {
+      "drawn": {
+        "x": 10,
+        "y": 10,
+        "z": 2.5
+      },
+      "lands": {
+        "x": 10,
+        "y": 10,
+        "z": 2
+      }
+    }
+  },
+  {
+    "name": "a_piece_with_no_volumes_lands_flat",
+    "method": "LandPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000012-0000-0000-0000-000000000001",
+          "position": {
+            "x": 30,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": []
+        }
+      ],
+      "pieceId": "00000012-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 30,
+          "y": 30,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      },
+      "to": {
+        "x": 5,
+        "y": 6,
+        "length": 7.810249675906654
+      }
+    },
+    "expected": {
+      "drawn": {
+        "x": 5,
+        "y": 6,
+        "z": 0
+      },
+      "lands": {
+        "x": 5,
+        "y": 6,
+        "z": 0
+      }
+    }
+  },
+  {
+    "name": "land_piece_busy_table",
+    "method": "LandPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000006-0000-0000-0000-000000000001",
+          "position": {
+            "x": 20,
+            "y": 20,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000005-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 6,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 6,
+                "declarations": "impassable, blocks_line_of_sight"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000008-0000-0000-0000-000000000001",
+          "position": {
+            "x": 32,
+            "y": 24,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 30
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000007-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "area",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 4,
+                "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000a-0000-0000-0000-000000000001",
+          "position": {
+            "x": 44,
+            "y": 12,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000009-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000014-0000-0000-0000-000000000001",
+          "position": {
+            "x": 60,
+            "y": 40,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000013-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 2
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "00000014-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 60,
+          "y": 40,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 45
+        }
+      },
+      "to": {
+        "x": 20.5,
+        "y": 19,
+        "length": 27.95084971874737
+      }
+    },
+    "expected": {
+      "drawn": {
+        "x": 20.5,
+        "y": 19,
+        "z": 6.5
+      },
+      "lands": {
+        "x": 19.756021486564585,
+        "y": 15.579985969100942,
+        "z": 0
+      }
+    }
+  },
+  {
+    "name": "turn_piece_clear_of_an_impassable_piece",
+    "method": "TurnPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000002-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000001-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000016-0000-0000-0000-000000000001",
+          "position": {
+            "x": 13,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000015-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "00000016-0000-0000-0000-000000000001",
+      "yaw": {
+        "degrees": 90
+      }
+    },
+    "expected": {
+      "x": 15,
+      "y": 10,
+      "z": 0
+    }
+  },
+  {
+    "name": "model_surfaces_on_a_hill",
+    "method": "ModelSurfaces",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "00000011-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000010-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": [
+      2
+    ]
+  },
+  {
+    "name": "model_surfaces_under_a_bridge",
+    "method": "ModelSurfaces",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "00000018-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000017-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 6,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 4,
+                "top": 5,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": [
+      0,
+      5
+    ]
+  },
+  {
+    "name": "rest_model_highest",
+    "method": "RestModel",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "00000011-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000010-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": 2
+  },
+  {
+    "name": "rest_model_level_zero_under_a_bridge",
+    "method": "RestModel",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "00000018-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000017-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 6,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 4,
+                "top": 5,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "level": 0
+    },
+    "expected": 0
+  },
+  {
+    "name": "rest_model_busy_table",
+    "method": "RestModel",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 32,
+            "y": 24,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "00000006-0000-0000-0000-000000000001",
+          "position": {
+            "x": 20,
+            "y": 20,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000005-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 6,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 6,
+                "declarations": "impassable, blocks_line_of_sight"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000008-0000-0000-0000-000000000001",
+          "position": {
+            "x": 32,
+            "y": 24,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 30
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000007-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "area",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 4,
+                "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000a-0000-0000-0000-000000000001",
+          "position": {
+            "x": 44,
+            "y": 12,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000009-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": 0
+  },
+  {
+    "name": "model_surfaces_busy_table",
+    "method": "ModelSurfaces",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 32,
+            "y": 24,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "00000006-0000-0000-0000-000000000001",
+          "position": {
+            "x": 20,
+            "y": 20,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000005-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 6,
+                  "b": 6
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 6,
+                "declarations": "impassable, blocks_line_of_sight"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000008-0000-0000-0000-000000000001",
+          "position": {
+            "x": 32,
+            "y": 24,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 30
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000007-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "area",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 4,
+                "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000a-0000-0000-0000-000000000001",
+          "position": {
+            "x": 44,
+            "y": 12,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000009-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected": [
+      0
+    ]
+  },
+  {
+    "name": "piece_surfaces_over_a_hill",
+    "method": "PieceSurfaces",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000011-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000010-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000f-0000-0000-0000-000000000001",
+          "position": {
+            "x": 30,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "0000000e-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 2
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "0000000f-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 10,
+          "y": 10,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    "expected": [
+      2
+    ]
+  },
+  {
+    "name": "rest_piece_highest",
+    "method": "RestPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000011-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000010-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000f-0000-0000-0000-000000000001",
+          "position": {
+            "x": 30,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "0000000e-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 2
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "0000000f-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 10,
+          "y": 10,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "rest_piece_at_level_zero",
+    "method": "RestPiece",
+    "request": {
+      "terrain": [
+        {
+          "id": "00000011-0000-0000-0000-000000000001",
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000010-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 8,
+                  "b": 8
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 2,
+                "declarations": "none"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0000000f-0000-0000-0000-000000000001",
+          "position": {
+            "x": 30,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "0000000e-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 2,
+                  "b": 2
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 1,
+                "declarations": "none"
+              }
+            }
+          ]
+        }
+      ],
+      "pieceId": "0000000f-0000-0000-0000-000000000001",
+      "at": {
+        "position": {
+          "x": 10,
+          "y": 10,
+          "z": 0
+        },
+        "yaw": {
+          "degrees": 0
+        }
+      },
+      "level": 0
+    },
+    "expected": 2
+  },
+  {
+    "name": "contacts_every_kind",
+    "method": "Contacts",
+    "request": {
+      "models": [
+        {
+          "id": "0000001b-0000-0000-0000-000000000001",
+          "unitId": "00000019-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 10,
+              "y": 10,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "0000001c-0000-0000-0000-000000000001",
+          "unitId": "0000001a-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 30,
+              "y": 30,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "0000001d-0000-0000-0000-000000000001",
+          "unitId": "00000019-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 12,
+              "y": 10,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "00000020-0000-0000-0000-000000000001",
+          "unitId": "00000019-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 70,
+              "y": 10,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "00000021-0000-0000-0000-000000000001",
+          "unitId": "0000001a-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 72,
+              "y": 10,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "00000022-0000-0000-0000-000000000001",
+          "unitId": "0000001a-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 70,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "00000023-0000-0000-0000-000000000001",
+          "unitId": "0000001a-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 70,
+              "y": 8,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "00000024-0000-0000-0000-000000000001",
+          "unitId": "00000019-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 10,
+              "y": 20,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "00000025-0000-0000-0000-000000000001",
+          "unitId": "0000001a-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 20,
+              "y": 40,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "proposed": {
+        "0000001b-0000-0000-0000-000000000001": {
+          "position": {
+            "x": 30.5,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        },
+        "0000001d-0000-0000-0000-000000000001": {
+          "position": {
+            "x": 50,
+            "y": 50,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        },
+        "00000020-0000-0000-0000-000000000001": {
+          "position": {
+            "x": 73,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        },
+        "00000024-0000-0000-0000-000000000001": {
+          "position": {
+            "x": 20,
+            "y": 42,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [
+        {
+          "id": "0000001f-0000-0000-0000-000000000001",
+          "position": {
+            "x": 50,
+            "y": 50,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "0000001e-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ],
+      "terms": {
+        "separation": 3,
+        "passesModels": false,
+        "landing": true,
+        "move": {
+          "allowance": 3,
+          "impassable": [],
+          "difficult": []
+        }
+      }
+    },
+    "expected": [
+      {
+        "modelId": "0000001b-0000-0000-0000-000000000001",
+        "kind": "on_base",
+        "unitId": "0000001a-0000-0000-0000-000000000001"
+      },
+      {
+        "modelId": "0000001d-0000-0000-0000-000000000001",
+        "kind": "in_impassable"
+      },
+      {
+        "modelId": "00000020-0000-0000-0000-000000000001",
+        "kind": "crosses"
+      },
+      {
+        "modelId": "00000024-0000-0000-0000-000000000001",
+        "kind": "too_close",
+        "unitId": "0000001a-0000-0000-0000-000000000001"
+      }
+    ]
+  },
+  {
+    "name": "contacts_placement_on_a_base",
+    "method": "Contacts",
+    "request": {
+      "models": [
+        {
+          "id": "0000001b-0000-0000-0000-000000000001",
+          "unitId": "00000019-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 10,
+              "y": 10,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "id": "0000001c-0000-0000-0000-000000000001",
+          "unitId": "0000001a-0000-0000-0000-000000000001",
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "at": {
+            "position": {
+              "x": 30,
+              "y": 30,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "proposed": {
+        "0000001b-0000-0000-0000-000000000001": {
+          "position": {
+            "x": 30.5,
+            "y": 30,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "terrain": [],
+      "terms": {
+        "passesModels": true,
+        "landing": false
+      }
+    },
+    "expected": [
+      {
+        "modelId": "0000001b-0000-0000-0000-000000000001",
+        "kind": "on_base",
+        "unitId": "0000001a-0000-0000-0000-000000000001"
+      }
+    ]
+  },
+  {
+    "name": "overlap_bases_apart",
+    "method": "OverlapBases",
+    "request": {
+      "a": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "b": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 3
+        },
+        "placement": {
+          "position": {
+            "x": 13,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": false
+  },
+  {
+    "name": "overlap_bases_stacked",
+    "method": "OverlapBases",
+    "request": {
+      "a": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "b": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10.5,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": true
+  },
+  {
+    "name": "edge_to_edge",
+    "method": "EdgeToEdge",
+    "request": {
+      "a": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "b": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 3
+        },
+        "placement": {
+          "position": {
+            "x": 13,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "edge_to_edge_oval_and_rect",
+    "method": "EdgeToEdge",
+    "request": {
+      "a": {
+        "body": {
+          "base": {
+            "shape": "oval",
+            "a": 2.4,
+            "b": 1.4
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 35
+          }
+        }
+      },
+      "b": {
+        "body": {
+          "base": {
+            "shape": "rect",
+            "a": 2,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 14,
+            "y": 11,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 80
+          }
+        }
+      }
+    },
+    "expected": 2.2418001087830906
+  },
+  {
+    "name": "body_to_body",
+    "method": "BodyToBody",
+    "request": {
+      "a": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "b": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1.26,
+            "b": 1.26
+          },
+          "height": 2
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 3
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": 1.5
+  },
+  {
+    "name": "edge_to_point",
+    "method": "EdgeToPoint",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "point": {
+        "x": 15,
+        "y": 12,
+        "length": 19.209372712298546
+      }
+    },
+    "expected": 4.885164807134505
+  },
+  {
+    "name": "edge_to_marker",
+    "method": "EdgeToMarker",
+    "request": {
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "centre": {
+        "x": 15,
+        "y": 12,
+        "length": 19.209372712298546
+      },
+      "diameter": 1.5
+    },
+    "expected": 4.135164807134504
+  },
+  {
+    "name": "nearest_pair",
+    "method": "NearestPair",
+    "request": {
+      "from": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "to": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 50,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 23,
+              "y": 0,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 5,
+              "y": 40,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "distance": 2,
+      "from": 1,
+      "to": 1
+    }
+  },
+  {
+    "name": "nearest_pair_busy_table",
+    "method": "NearestPair",
+    "request": {
+      "from": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 14,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 15.6,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 17.2,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 18.8,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20.4,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "to": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 14,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 15.6,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 17.2,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 18.8,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20.4,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "distance": 0.47999999999999965,
+      "from": 0,
+      "to": 0
+    }
+  },
+  {
+    "name": "range_outline_busy_table",
+    "method": "RangeOutline",
+    "request": {
+      "models": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 14,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 15.6,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 17.2,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 18.8,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20.4,
+              "y": 12,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 14,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 15.6,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 17.2,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 0.98,
+              "b": 0.98
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 18.8,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        },
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 20.4,
+              "y": 13.6,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "range": 6
+    },
+    "expected": [
+      {
+        "a": {
+          "x": 7.513936170102295,
+          "y": 12.225999987815749,
+          "length": 14.350411578433638
+        },
+        "b": {
+          "x": 7.512592221022979,
+          "y": 11.816587052615029,
+          "length": 14.002527323715677
+        }
+      },
+      {
+        "a": {
+          "x": 7.512592221022979,
+          "y": 11.816587052615029,
+          "length": 14.002527323715677
+        },
+        "b": {
+          "x": 7.537065499525698,
+          "y": 11.407904025871655,
+          "length": 13.672879382472416
+        }
+      },
+      {
+        "a": {
+          "x": 7.537065499525698,
+          "y": 11.407904025871655,
+          "length": 13.672879382472416
+        },
+        "b": {
+          "x": 7.587258611979236,
+          "y": 11.001577298752917,
+          "length": 13.364175855827721
+        }
+      },
+      {
+        "a": {
+          "x": 7.587258611979236,
+          "y": 11.001577298752917,
+          "length": 13.364175855827721
+        },
+        "b": {
+          "x": 7.662971810340703,
+          "y": 10.599223885318068,
+          "length": 13.079169848930524
+        }
+      },
+      {
+        "a": {
+          "x": 7.662971810340703,
+          "y": 10.599223885318068,
+          "length": 13.079169848930524
+        },
+        "b": {
+          "x": 7.763903787070993,
+          "y": 10.202444987464222,
+          "length": 12.820611753622725
+        }
+      },
+      {
+        "a": {
+          "x": 7.763903787070993,
+          "y": 10.202444987464222,
+          "length": 12.820611753622725
+        },
+        "b": {
+          "x": 7.88965287421546,
+          "y": 9.8128196227982,
+          "length": 12.591189436474606
+        }
+      },
+      {
+        "a": {
+          "x": 7.88965287421546,
+          "y": 9.8128196227982,
+          "length": 12.591189436474606
+        },
+        "b": {
+          "x": 8.039718641877965,
+          "y": 9.431898340792767,
+          "length": 12.393457231604481
+        }
+      },
+      {
+        "a": {
+          "x": 8.039718641877965,
+          "y": 9.431898340792767,
+          "length": 12.393457231604481
+        },
+        "b": {
+          "x": 8.21350388972703,
+          "y": 9.061197052234398,
+          "length": 12.229756259467413
+        }
+      },
+      {
+        "a": {
+          "x": 8.21350388972703,
+          "y": 9.061197052234398,
+          "length": 12.229756259467413
+        },
+        "b": {
+          "x": 8.410317023608727,
+          "y": 8.70219099651881,
+          "length": 12.102130414827622
+        }
+      },
+      {
+        "a": {
+          "x": 8.410317023608727,
+          "y": 8.70219099651881,
+          "length": 12.102130414827622
+        },
+        "b": {
+          "x": 8.629374807808315,
+          "y": 8.356308870802023,
+          "length": 12.012244066696338
+        }
+      },
+      {
+        "a": {
+          "x": 8.629374807808315,
+          "y": 8.356308870802023,
+          "length": 12.012244066696338
+        },
+        "b": {
+          "x": 8.869805482007813,
+          "y": 8.024927144370444,
+          "length": 11.961308664235258
+        }
+      },
+      {
+        "a": {
+          "x": 8.869805482007813,
+          "y": 8.024927144370444,
+          "length": 11.961308664235258
+        },
+        "b": {
+          "x": 9.130652230535228,
+          "y": 7.709364580856531,
+          "length": 11.950025623217012
+        }
+      },
+      {
+        "a": {
+          "x": 9.130652230535228,
+          "y": 7.709364580856531,
+          "length": 11.950025623217012
+        },
+        "b": {
+          "x": 9.410876990099306,
+          "y": 7.410876990099307,
+          "length": 11.978551810847751
+        }
+      },
+      {
+        "a": {
+          "x": 9.410876990099306,
+          "y": 7.410876990099307,
+          "length": 11.978551810847751
+        },
+        "b": {
+          "x": 9.70936458085653,
+          "y": 7.13065223053523,
+          "length": 12.046491680021546
+        }
+      },
+      {
+        "a": {
+          "x": 9.70936458085653,
+          "y": 7.13065223053523,
+          "length": 12.046491680021546
+        },
+        "b": {
+          "x": 10.024927144370443,
+          "y": 6.8698054820078145,
+          "length": 12.152917000068747
+        }
+      },
+      {
+        "a": {
+          "x": 10.024927144370443,
+          "y": 6.8698054820078145,
+          "length": 12.152917000068747
+        },
+        "b": {
+          "x": 10.356308870802021,
+          "y": 6.629374807808316,
+          "length": 12.296411824994157
+        }
+      },
+      {
+        "a": {
+          "x": 10.356308870802021,
+          "y": 6.629374807808316,
+          "length": 12.296411824994157
+        },
+        "b": {
+          "x": 10.702190996518812,
+          "y": 6.410317023608726,
+          "length": 12.475137533074982
+        }
+      },
+      {
+        "a": {
+          "x": 10.702190996518812,
+          "y": 6.410317023608726,
+          "length": 12.475137533074982
+        },
+        "b": {
+          "x": 11.061197052234396,
+          "y": 6.213503889727031,
+          "length": 12.686911003708186
+        }
+      },
+      {
+        "a": {
+          "x": 11.061197052234396,
+          "y": 6.213503889727031,
+          "length": 12.686911003708186
+        },
+        "b": {
+          "x": 11.431898340792767,
+          "y": 6.039718641877964,
+          "length": 12.929288493465858
+        }
+      },
+      {
+        "a": {
+          "x": 11.431898340792767,
+          "y": 6.039718641877964,
+          "length": 12.929288493465858
+        },
+        "b": {
+          "x": 11.812819622798195,
+          "y": 5.889652874215461,
+          "length": 13.199648420299706
+        }
+      },
+      {
+        "a": {
+          "x": 11.812819622798195,
+          "y": 5.889652874215461,
+          "length": 13.199648420299706
+        },
+        "b": {
+          "x": 12.20244498746422,
+          "y": 5.763903787070994,
+          "length": 13.495267709041642
+        }
+      },
+      {
+        "a": {
+          "x": 12.20244498746422,
+          "y": 5.763903787070994,
+          "length": 13.495267709041642
+        },
+        "b": {
+          "x": 12.599223885318063,
+          "y": 5.662971810340704,
+          "length": 13.813388151973529
+        }
+      },
+      {
+        "a": {
+          "x": 12.599223885318063,
+          "y": 5.662971810340704,
+          "length": 13.813388151973529
+        },
+        "b": {
+          "x": 13.001577298752915,
+          "y": 5.587258611979236,
+          "length": 14.151271004845583
+        }
+      },
+      {
+        "a": {
+          "x": 13.001577298752915,
+          "y": 5.587258611979236,
+          "length": 14.151271004845583
+        },
+        "b": {
+          "x": 13.407904025871654,
+          "y": 5.537065499525698,
+          "length": 14.506239509708333
+        }
+      },
+      {
+        "a": {
+          "x": 13.407904025871654,
+          "y": 5.537065499525698,
+          "length": 14.506239509708333
+        },
+        "b": {
+          "x": 13.816587052615025,
+          "y": 5.512592221022979,
+          "length": 14.87571009322823
+        }
+      },
+      {
+        "a": {
+          "x": 13.816587052615025,
+          "y": 5.512592221022979,
+          "length": 14.87571009322823
+        },
+        "b": {
+          "x": 14.225999987815747,
+          "y": 5.513936170102295,
+          "length": 15.257213629666985
+        }
+      },
+      {
+        "a": {
+          "x": 14.225999995575986,
+          "y": 5.51393617146402,
+          "length": 15.257213637394845
+        },
+        "b": {
+          "x": 14.615066200474208,
+          "y": 5.443567630902329,
+          "length": 15.595915766522054
+        }
+      },
+      {
+        "a": {
+          "x": 14.615066200474208,
+          "y": 5.443567630902329,
+          "length": 15.595915766522054
+        },
+        "b": {
+          "x": 15.007635132609936,
+          "y": 5.39651577847861,
+          "length": 15.948401011415429
+        }
+      },
+      {
+        "a": {
+          "x": 15.007635132609936,
+          "y": 5.39651577847861,
+          "length": 15.948401011415429
+        },
+        "b": {
+          "x": 15.402310696233531,
+          "y": 5.37294794503798,
+          "length": 16.31256400457628
+        }
+      },
+      {
+        "a": {
+          "x": 15.402310696233531,
+          "y": 5.37294794503798,
+          "length": 16.31256400457628
+        },
+        "b": {
+          "x": 15.797689303766466,
+          "y": 5.37294794503798,
+          "length": 16.686388373714223
+        }
+      },
+      {
+        "a": {
+          "x": 15.797689303766466,
+          "y": 5.37294794503798,
+          "length": 16.686388373714223
+        },
+        "b": {
+          "x": 16.19236486739006,
+          "y": 5.39651577847861,
+          "length": 17.067954257791314
+        }
+      },
+      {
+        "a": {
+          "x": 16.19236486739006,
+          "y": 5.39651577847861,
+          "length": 17.067954257791314
+        },
+        "b": {
+          "x": 16.58493379952579,
+          "y": 5.443567630902329,
+          "length": 17.45544206506557
+        }
+      },
+      {
+        "a": {
+          "x": 16.58493379952579,
+          "y": 5.443567630902329,
+          "length": 17.45544206506557
+        },
+        "b": {
+          "x": 16.97400000442401,
+          "y": 5.51393617146402,
+          "length": 17.847133334324745
+        }
+      },
+      {
+        "a": {
+          "x": 16.97400001218425,
+          "y": 5.513936170102295,
+          "length": 17.84713334128462
+        },
+        "b": {
+          "x": 17.2,
+          "y": 5.51,
+          "length": 18.061010492217758
+        }
+      },
+      {
+        "a": {
+          "x": 17.2,
+          "y": 5.51,
+          "length": 18.061010492217758
+        },
+        "b": {
+          "x": 17.425999987815747,
+          "y": 5.513936170102295,
+          "length": 18.277553656420128
+        }
+      },
+      {
+        "a": {
+          "x": 17.42599999557599,
+          "y": 5.51393617146402,
+          "length": 18.27755366422962
+        },
+        "b": {
+          "x": 17.81506620047421,
+          "y": 5.443567630902329,
+          "length": 18.62817791088238
+        }
+      },
+      {
+        "a": {
+          "x": 17.81506620047421,
+          "y": 5.443567630902329,
+          "length": 18.62817791088238
+        },
+        "b": {
+          "x": 18.207635132609937,
+          "y": 5.39651577847861,
+          "length": 18.990533422461315
+        }
+      },
+      {
+        "a": {
+          "x": 18.207635132609937,
+          "y": 5.39651577847861,
+          "length": 18.990533422461315
+        },
+        "b": {
+          "x": 18.60231069623353,
+          "y": 5.37294794503798,
+          "length": 19.362709853202166
+        }
+      },
+      {
+        "a": {
+          "x": 18.60231069623353,
+          "y": 5.37294794503798,
+          "length": 19.362709853202166
+        },
+        "b": {
+          "x": 18.997689303766467,
+          "y": 5.37294794503798,
+          "length": 19.742866268668557
+        }
+      },
+      {
+        "a": {
+          "x": 18.997689303766467,
+          "y": 5.37294794503798,
+          "length": 19.742866268668557
+        },
+        "b": {
+          "x": 19.392364867390064,
+          "y": 5.39651577847861,
+          "length": 20.12923738489248
+        }
+      },
+      {
+        "a": {
+          "x": 19.392364867390064,
+          "y": 5.39651577847861,
+          "length": 20.12923738489248
+        },
+        "b": {
+          "x": 19.78493379952579,
+          "y": 5.443567630902329,
+          "length": 20.520137280335764
+        }
+      },
+      {
+        "a": {
+          "x": 19.78493379952579,
+          "y": 5.443567630902329,
+          "length": 20.520137280335764
+        },
+        "b": {
+          "x": 20.174000004424013,
+          "y": 5.51393617146402,
+          "length": 20.913961085396505
+        }
+      },
+      {
+        "a": {
+          "x": 20.174000012184248,
+          "y": 5.513936170102295,
+          "length": 20.913961092523156
+        },
+        "b": {
+          "x": 20.58341294738497,
+          "y": 5.512592221022979,
+          "length": 21.3088141753092
+        }
+      },
+      {
+        "a": {
+          "x": 20.58341294738497,
+          "y": 5.512592221022979,
+          "length": 21.3088141753092
+        },
+        "b": {
+          "x": 20.992095974128343,
+          "y": 5.537065499525698,
+          "length": 21.71007111303538
+        }
+      },
+      {
+        "a": {
+          "x": 20.992095974128343,
+          "y": 5.537065499525698,
+          "length": 21.71007111303538
+        },
+        "b": {
+          "x": 21.398422701247082,
+          "y": 5.587258611979236,
+          "length": 22.1158303687287
+        }
+      },
+      {
+        "a": {
+          "x": 21.398422701247082,
+          "y": 5.587258611979236,
+          "length": 22.1158303687287
+        },
+        "b": {
+          "x": 21.800776114681927,
+          "y": 5.662971810340702,
+          "length": 22.52427776704948
+        }
+      },
+      {
+        "a": {
+          "x": 21.800776114681927,
+          "y": 5.662971810340702,
+          "length": 22.52427776704948
+        },
+        "b": {
+          "x": 22.197555012535776,
+          "y": 5.763903787070993,
+          "length": 22.93368778459242
+        }
+      },
+      {
+        "a": {
+          "x": 22.197555012535776,
+          "y": 5.763903787070993,
+          "length": 22.93368778459242
+        },
+        "b": {
+          "x": 22.587180377201797,
+          "y": 5.889652874215458,
+          "length": 23.342423361146636
+        }
+      },
+      {
+        "a": {
+          "x": 22.587180377201797,
+          "y": 5.889652874215458,
+          "length": 23.342423361146636
+        },
+        "b": {
+          "x": 22.96810165920723,
+          "y": 6.039718641877963,
+          "length": 23.748934609803573
+        }
+      },
+      {
+        "a": {
+          "x": 22.96810165920723,
+          "y": 6.039718641877963,
+          "length": 23.748934609803573
+        },
+        "b": {
+          "x": 23.3388029477656,
+          "y": 6.21350388972703,
+          "length": 24.151756739878884
+        }
+      },
+      {
+        "a": {
+          "x": 23.3388029477656,
+          "y": 6.21350388972703,
+          "length": 24.151756739878884
+        },
+        "b": {
+          "x": 23.697809003481183,
+          "y": 6.410317023608725,
+          "length": 24.54950744737339
+        }
+      },
+      {
+        "a": {
+          "x": 23.697809003481183,
+          "y": 6.410317023608725,
+          "length": 24.54950744737339
+        },
+        "b": {
+          "x": 24.043691129197974,
+          "y": 6.629374807808314,
+          "length": 24.940883975085505
+        }
+      },
+      {
+        "a": {
+          "x": 24.043691129197974,
+          "y": 6.629374807808314,
+          "length": 24.940883975085505
+        },
+        "b": {
+          "x": 24.37507285562955,
+          "y": 6.869805482007809,
+          "length": 25.324659999255136
+        }
+      },
+      {
+        "a": {
+          "x": 24.37507285562955,
+          "y": 6.869805482007809,
+          "length": 25.324659999255136
+        },
+        "b": {
+          "x": 24.690635419143465,
+          "y": 7.130652230535226,
+          "length": 25.699682461732845
+        }
+      },
+      {
+        "a": {
+          "x": 24.690635419143465,
+          "y": 7.130652230535226,
+          "length": 25.699682461732845
+        },
+        "b": {
+          "x": 24.989123009900688,
+          "y": 7.410876990099301,
+          "length": 26.064868435622905
+        }
+      },
+      {
+        "a": {
+          "x": 24.989123009900688,
+          "y": 7.410876990099301,
+          "length": 26.064868435622905
+        },
+        "b": {
+          "x": 25.269347769464765,
+          "y": 7.709364580856527,
+          "length": 26.419202087396943
+        }
+      },
+      {
+        "a": {
+          "x": 25.269347769464765,
+          "y": 7.709364580856527,
+          "length": 26.419202087396943
+        },
+        "b": {
+          "x": 25.530194517992186,
+          "y": 8.02492714437044,
+          "length": 26.761731778772685
+        }
+      },
+      {
+        "a": {
+          "x": 25.530194517992186,
+          "y": 8.02492714437044,
+          "length": 26.761731778772685
+        },
+        "b": {
+          "x": 25.77062519219168,
+          "y": 8.356308870802017,
+          "length": 27.091567336362598
+        }
+      },
+      {
+        "a": {
+          "x": 25.77062519219168,
+          "y": 8.356308870802017,
+          "length": 27.091567336362598
+        },
+        "b": {
+          "x": 25.98968297639127,
+          "y": 8.702190996518807,
+          "length": 27.407877505440204
+        }
+      },
+      {
+        "a": {
+          "x": 25.98968297639127,
+          "y": 8.702190996518807,
+          "length": 27.407877505440204
+        },
+        "b": {
+          "x": 26.186496110272966,
+          "y": 9.061197052234395,
+          "length": 27.70988759545521
+        }
+      },
+      {
+        "a": {
+          "x": 26.186496110272966,
+          "y": 9.061197052234395,
+          "length": 27.70988759545521
+        },
+        "b": {
+          "x": 26.36028135812203,
+          "y": 9.431898340792761,
+          "length": 27.996877318558315
+        }
+      },
+      {
+        "a": {
+          "x": 26.36028135812203,
+          "y": 9.431898340792761,
+          "length": 27.996877318558315
+        },
+        "b": {
+          "x": 26.510347125784538,
+          "y": 9.812819622798195,
+          "length": 28.268178817871622
+        }
+      },
+      {
+        "a": {
+          "x": 26.510347125784538,
+          "y": 9.812819622798195,
+          "length": 28.268178817871622
+        },
+        "b": {
+          "x": 26.636096212929004,
+          "y": 10.202444987464213,
+          "length": 28.523174879151245
+        }
+      },
+      {
+        "a": {
+          "x": 26.636096212929004,
+          "y": 10.202444987464213,
+          "length": 28.523174879151245
+        },
+        "b": {
+          "x": 26.737028189659295,
+          "y": 10.599223885318063,
+          "length": 28.76129731750174
+        }
+      },
+      {
+        "a": {
+          "x": 26.737028189659295,
+          "y": 10.599223885318063,
+          "length": 28.76129731750174
+        },
+        "b": {
+          "x": 26.81274138802076,
+          "y": 11.001577298752908,
+          "length": 28.98202552965056
+        }
+      },
+      {
+        "a": {
+          "x": 26.81274138802076,
+          "y": 11.001577298752908,
+          "length": 28.98202552965056
+        },
+        "b": {
+          "x": 26.8629345004743,
+          "y": 11.407904025871648,
+          "length": 29.184885201766186
+        }
+      },
+      {
+        "a": {
+          "x": 26.8629345004743,
+          "y": 11.407904025871648,
+          "length": 29.184885201766186
+        },
+        "b": {
+          "x": 26.88740777897702,
+          "y": 11.816587052615018,
+          "length": 29.36944716274079
+        }
+      },
+      {
+        "a": {
+          "x": 26.88740777897702,
+          "y": 11.816587052615018,
+          "length": 29.36944716274079
+        },
+        "b": {
+          "x": 26.886063829897704,
+          "y": 12.225999987815742,
+          "length": 29.53532637313162
+        }
+      },
+      {
+        "a": {
+          "x": 15.374000004424003,
+          "y": 20.08606382853598,
+          "length": 25.294462561202025
+        },
+        "b": {
+          "x": 14.955451857181743,
+          "y": 20.160793530405293,
+          "length": 25.102253604569306
+        }
+      },
+      {
+        "a": {
+          "x": 14.955451857181743,
+          "y": 20.160793530405293,
+          "length": 25.102253604569306
+        },
+        "b": {
+          "x": 14.53297453744986,
+          "y": 20.208542815358776,
+          "length": 24.891616091092896
+        }
+      },
+      {
+        "a": {
+          "x": 14.53297453744986,
+          "y": 20.208542815358776,
+          "length": 24.891616091092896
+        },
+        "b": {
+          "x": 14.108305428697445,
+          "y": 20.229115320622704,
+          "length": 24.66295579861558
+        }
+      },
+      {
+        "a": {
+          "x": 14.108305428697445,
+          "y": 20.229115320622704,
+          "length": 24.66295579861558
+        },
+        "b": {
+          "x": 13.683190927843151,
+          "y": 20.222426444423455,
+          "length": 24.416720608384864
+        }
+      },
+      {
+        "a": {
+          "x": 13.683190927843151,
+          "y": 20.222426444423455,
+          "length": 24.416720608384864
+        },
+        "b": {
+          "x": 13.259379263423183,
+          "y": 20.188503693901403,
+          "length": 24.15340182769225
+        }
+      },
+      {
+        "a": {
+          "x": 13.259379263423183,
+          "y": 20.188503693901403,
+          "length": 24.15340182769225
+        },
+        "b": {
+          "x": 12.838613306227005,
+          "y": 20.127486571991323,
+          "length": 23.87353571075135
+        }
+      },
+      {
+        "a": {
+          "x": 12.838613306227005,
+          "y": 20.127486571991323,
+          "length": 23.87353571075135
+        },
+        "b": {
+          "x": 12.422623401966083,
+          "y": 20.039626003734607,
+          "length": 23.577705201241102
+        }
+      },
+      {
+        "a": {
+          "x": 12.422623401966083,
+          "y": 20.039626003734607,
+          "length": 23.577705201241102
+        },
+        "b": {
+          "x": 12.013120255450392,
+          "y": 19.92528330438238,
+          "length": 23.266541922507773
+        }
+      },
+      {
+        "a": {
+          "x": 12.013120255450392,
+          "y": 19.92528330438238,
+          "length": 23.266541922507773
+        },
+        "b": {
+          "x": 11.61178789553561,
+          "y": 19.784928693533157,
+          "length": 22.94072844395092
+        }
+      },
+      {
+        "a": {
+          "x": 11.61178789553561,
+          "y": 19.784928693533157,
+          "length": 22.94072844395092
+        },
+        "b": {
+          "x": 11.220276749771717,
+          "y": 19.61913936141541,
+          "length": 22.60100085447782
+        }
+      },
+      {
+        "a": {
+          "x": 11.220276749771717,
+          "y": 19.61913936141541,
+          "length": 22.60100085447782
+        },
+        "b": {
+          "x": 10.840196857232637,
+          "y": 19.42859709526722,
+          "length": 22.248151675898434
+        }
+      },
+      {
+        "a": {
+          "x": 10.840196857232637,
+          "y": 19.42859709526722,
+          "length": 22.248151675898434
+        },
+        "b": {
+          "x": 10.473111247438279,
+          "y": 19.214085475574237,
+          "length": 21.883033150454512
+        }
+      },
+      {
+        "a": {
+          "x": 10.473111247438279,
+          "y": 19.214085475574237,
+          "length": 21.883033150454512
+        },
+        "b": {
+          "x": 10.120529512597285,
+          "y": 18.97648665369601,
+          "length": 21.5065609369154
+        }
+      },
+      {
+        "a": {
+          "x": 10.120529512597285,
+          "y": 18.97648665369601,
+          "length": 21.5065609369154
+        },
+        "b": {
+          "x": 9.783901599603864,
+          "y": 18.71677772413236,
+          "length": 21.119718248246315
+        }
+      },
+      {
+        "a": {
+          "x": 9.783901599603864,
+          "y": 18.71677772413236,
+          "length": 21.119718248246315
+        },
+        "b": {
+          "x": 9.464611847318238,
+          "y": 18.436026706348294,
+          "length": 20.7235604599592
+        }
+      },
+      {
+        "a": {
+          "x": 9.464611847318238,
+          "y": 18.436026706348294,
+          "length": 20.7235604599592
+        },
+        "b": {
+          "x": 9.163973293651708,
+          "y": 18.135388152681763,
+          "length": 20.31922021080513
+        }
+      },
+      {
+        "a": {
+          "x": 9.163973293651708,
+          "y": 18.135388152681763,
+          "length": 20.31922021080513
+        },
+        "b": {
+          "x": 8.883222275867642,
+          "y": 17.81609840039614,
+          "length": 19.90791300501057
+        }
+      },
+      {
+        "a": {
+          "x": 8.883222275867642,
+          "y": 17.81609840039614,
+          "length": 19.90791300501057
+        },
+        "b": {
+          "x": 8.62351334630399,
+          "y": 17.47947048740272,
+          "length": 19.490943305901478
+        }
+      },
+      {
+        "a": {
+          "x": 8.62351334630399,
+          "y": 17.47947048740272,
+          "length": 19.490943305901478
+        },
+        "b": {
+          "x": 8.385914524425765,
+          "y": 17.126888752561726,
+          "length": 19.069711082069396
+        }
+      },
+      {
+        "a": {
+          "x": 8.385914524425765,
+          "y": 17.126888752561726,
+          "length": 19.069711082069396
+        },
+        "b": {
+          "x": 8.17140290473278,
+          "y": 16.759803142767367,
+          "length": 18.645718726179215
+        }
+      },
+      {
+        "a": {
+          "x": 8.17140290473278,
+          "y": 16.759803142767367,
+          "length": 18.645718726179215
+        },
+        "b": {
+          "x": 7.980860638584592,
+          "y": 16.379723250228288,
+          "length": 18.220578209447087
+        }
+      },
+      {
+        "a": {
+          "x": 7.980860638584592,
+          "y": 16.379723250228288,
+          "length": 18.220578209447087
+        },
+        "b": {
+          "x": 7.815071306466844,
+          "y": 15.988212104464392,
+          "length": 17.796018257534552
+        }
+      },
+      {
+        "a": {
+          "x": 7.815071306466844,
+          "y": 15.988212104464392,
+          "length": 17.796018257534552
+        },
+        "b": {
+          "x": 7.6747166956176205,
+          "y": 15.586879744549611,
+          "length": 17.373891231645338
+        }
+      },
+      {
+        "a": {
+          "x": 7.6747166956176205,
+          "y": 15.586879744549611,
+          "length": 17.373891231645338
+        },
+        "b": {
+          "x": 7.560373996265394,
+          "y": 15.177376598033922,
+          "length": 16.9561792678054
+        }
+      },
+      {
+        "a": {
+          "x": 7.560373996265394,
+          "y": 15.177376598033922,
+          "length": 16.9561792678054
+        },
+        "b": {
+          "x": 7.4725134280086785,
+          "y": 14.761386693773,
+          "length": 16.544999064819212
+        }
+      },
+      {
+        "a": {
+          "x": 7.4725134280086785,
+          "y": 14.761386693773,
+          "length": 16.544999064819212
+        },
+        "b": {
+          "x": 7.411496306098599,
+          "y": 14.340620736576822,
+          "length": 16.14260451741448
+        }
+      },
+      {
+        "a": {
+          "x": 7.411496306098599,
+          "y": 14.340620736576822,
+          "length": 16.14260451741448
+        },
+        "b": {
+          "x": 7.377573555576543,
+          "y": 13.916809072156854,
+          "length": 15.751386171344084
+        }
+      },
+      {
+        "a": {
+          "x": 7.377573555576543,
+          "y": 13.916809072156854,
+          "length": 15.751386171344084
+        },
+        "b": {
+          "x": 7.370884679377296,
+          "y": 13.491694571302556,
+          "length": 15.373866246393384
+        }
+      },
+      {
+        "a": {
+          "x": 7.370884679377296,
+          "y": 13.491694571302556,
+          "length": 15.373866246393384
+        },
+        "b": {
+          "x": 7.391457184641223,
+          "y": 13.067025462550141,
+          "length": 15.012687759069596
+        }
+      },
+      {
+        "a": {
+          "x": 7.391457184641223,
+          "y": 13.067025462550141,
+          "length": 15.012687759069596
+        },
+        "b": {
+          "x": 7.439206469594706,
+          "y": 12.644548142818259,
+          "length": 14.670596123992658
+        }
+      },
+      {
+        "a": {
+          "x": 7.439206469594706,
+          "y": 12.644548142818259,
+          "length": 14.670596123992658
+        },
+        "b": {
+          "x": 7.513936171464017,
+          "y": 12.225999995576,
+          "length": 14.35041158575808
+        }
+      },
+      {
+        "a": {
+          "x": 15.825999987815743,
+          "y": 20.086063829897704,
+          "length": 25.571707721485257
+        },
+        "b": {
+          "x": 15.6,
+          "y": 20.09,
+          "length": 25.43556761702007
+        }
+      },
+      {
+        "a": {
+          "x": 15.6,
+          "y": 20.09,
+          "length": 25.43556761702007
+        },
+        "b": {
+          "x": 15.374000012184256,
+          "y": 20.086063829897704,
+          "length": 25.29446256700004
+        }
+      },
+      {
+        "a": {
+          "x": 18.574000004424004,
+          "y": 20.08606382853598,
+          "length": 27.357694279459377
+        },
+        "b": {
+          "x": 18.184933799525783,
+          "y": 20.156432369097672,
+          "length": 27.14725737792206
+        }
+      },
+      {
+        "a": {
+          "x": 18.184933799525783,
+          "y": 20.156432369097672,
+          "length": 27.14725737792206
+        },
+        "b": {
+          "x": 17.792364867390063,
+          "y": 20.20348422152139,
+          "length": 26.921163092697164
+        }
+      },
+      {
+        "a": {
+          "x": 17.792364867390063,
+          "y": 20.20348422152139,
+          "length": 26.921163092697164
+        },
+        "b": {
+          "x": 17.39768930376647,
+          "y": 20.22705205496202,
+          "length": 26.679828109351334
+        }
+      },
+      {
+        "a": {
+          "x": 17.39768930376647,
+          "y": 20.22705205496202,
+          "length": 26.679828109351334
+        },
+        "b": {
+          "x": 17.00231069623353,
+          "y": 20.22705205496202,
+          "length": 26.42370533905872
+        }
+      },
+      {
+        "a": {
+          "x": 17.00231069623353,
+          "y": 20.22705205496202,
+          "length": 26.42370533905872
+        },
+        "b": {
+          "x": 16.60763513260994,
+          "y": 20.20348422152139,
+          "length": 26.15328505918833
+        }
+      },
+      {
+        "a": {
+          "x": 16.60763513260994,
+          "y": 20.20348422152139,
+          "length": 26.15328505918833
+        },
+        "b": {
+          "x": 16.215066200474215,
+          "y": 20.156432369097672,
+          "length": 25.86909619093349
+        }
+      },
+      {
+        "a": {
+          "x": 16.215066200474215,
+          "y": 20.156432369097672,
+          "length": 25.86909619093349
+        },
+        "b": {
+          "x": 15.825999995575996,
+          "y": 20.086063828535984,
+          "length": 25.571707725218374
+        }
+      },
+      {
+        "a": {
+          "x": 19.025999987815744,
+          "y": 20.086063829897704,
+          "length": 27.66656168943097
+        },
+        "b": {
+          "x": 18.8,
+          "y": 20.09,
+          "length": 27.514507082628246
+        }
+      },
+      {
+        "a": {
+          "x": 18.8,
+          "y": 20.09,
+          "length": 27.514507082628246
+        },
+        "b": {
+          "x": 18.574000012184257,
+          "y": 20.086063829897704,
+          "length": 27.35769428572784
+        }
+      },
+      {
+        "a": {
+          "x": 26.886063828535978,
+          "y": 12.225999995575986,
+          "length": 29.53532637510435
+        },
+        "b": {
+          "x": 26.96079353040529,
+          "y": 12.644548142818246,
+          "length": 29.77866661765083
+        }
+      },
+      {
+        "a": {
+          "x": 26.96079353040529,
+          "y": 12.644548142818246,
+          "length": 29.77866661765083
+        },
+        "b": {
+          "x": 27.008542815358773,
+          "y": 13.067025462550127,
+          "length": 30.00347545615343
+        }
+      },
+      {
+        "a": {
+          "x": 27.008542815358773,
+          "y": 13.067025462550127,
+          "length": 30.00347545615343
+        },
+        "b": {
+          "x": 27.0291153206227,
+          "y": 13.491694571302547,
+          "length": 30.20925185139207
+        }
+      },
+      {
+        "a": {
+          "x": 27.0291153206227,
+          "y": 13.491694571302547,
+          "length": 30.20925185139207
+        },
+        "b": {
+          "x": 27.022426444423456,
+          "y": 13.916809072156841,
+          "length": 30.39554417501261
+        }
+      },
+      {
+        "a": {
+          "x": 27.022426444423456,
+          "y": 13.916809072156841,
+          "length": 30.39554417501261
+        },
+        "b": {
+          "x": 26.9885036939014,
+          "y": 14.340620736576808,
+          "length": 30.56194913198545
+        }
+      },
+      {
+        "a": {
+          "x": 26.9885036939014,
+          "y": 14.340620736576808,
+          "length": 30.56194913198545
+        },
+        "b": {
+          "x": 26.927486571991324,
+          "y": 14.761386693772986,
+          "length": 30.70811082121255
+        }
+      },
+      {
+        "a": {
+          "x": 26.927486571991324,
+          "y": 14.761386693772986,
+          "length": 30.70811082121255
+        },
+        "b": {
+          "x": 26.839626003734608,
+          "y": 15.177376598033907,
+          "length": 30.833719925090033
+        }
+      },
+      {
+        "a": {
+          "x": 26.839626003734608,
+          "y": 15.177376598033907,
+          "length": 30.833719925090033
+        },
+        "b": {
+          "x": 26.72528330438238,
+          "y": 15.586879744549602,
+          "length": 30.938513019706527
+        }
+      },
+      {
+        "a": {
+          "x": 26.72528330438238,
+          "y": 15.586879744549602,
+          "length": 30.938513019706527
+        },
+        "b": {
+          "x": 26.584928693533158,
+          "y": 15.988212104464385,
+          "length": 31.02227199831734
+        }
+      },
+      {
+        "a": {
+          "x": 26.584928693533158,
+          "y": 15.988212104464385,
+          "length": 31.02227199831734
+        },
+        "b": {
+          "x": 26.41913936141541,
+          "y": 16.379723250228277,
+          "length": 31.084823601750706
+        }
+      },
+      {
+        "a": {
+          "x": 26.41913936141541,
+          "y": 16.379723250228277,
+          "length": 31.084823601750706
+        },
+        "b": {
+          "x": 26.228597095267226,
+          "y": 16.759803142767353,
+          "length": 31.126039050450586
+        }
+      },
+      {
+        "a": {
+          "x": 26.228597095267226,
+          "y": 16.759803142767353,
+          "length": 31.126039050450586
+        },
+        "b": {
+          "x": 26.01408547557424,
+          "y": 17.126888752561715,
+          "length": 31.145833773927254
+        }
+      },
+      {
+        "a": {
+          "x": 26.01408547557424,
+          "y": 17.126888752561715,
+          "length": 31.145833773927254
+        },
+        "b": {
+          "x": 25.776486653696015,
+          "y": 17.479470487402708,
+          "length": 31.144167234462238
+        }
+      },
+      {
+        "a": {
+          "x": 25.776486653696015,
+          "y": 17.479470487402708,
+          "length": 31.144167234462238
+        },
+        "b": {
+          "x": 25.51677772413236,
+          "y": 17.816098400396132,
+          "length": 31.121042842992505
+        }
+      },
+      {
+        "a": {
+          "x": 25.51677772413236,
+          "y": 17.816098400396132,
+          "length": 31.121042842992505
+        },
+        "b": {
+          "x": 25.236026706348294,
+          "y": 18.135388152681756,
+          "length": 31.076507966178475
+        }
+      },
+      {
+        "a": {
+          "x": 25.236026706348294,
+          "y": 18.135388152681756,
+          "length": 31.076507966178475
+        },
+        "b": {
+          "x": 24.935388152681767,
+          "y": 18.436026706348287,
+          "length": 31.010654024739456
+        }
+      },
+      {
+        "a": {
+          "x": 24.935388152681767,
+          "y": 18.436026706348287,
+          "length": 31.010654024739456
+        },
+        "b": {
+          "x": 24.616098400396144,
+          "y": 18.716777724132353,
+          "length": 30.923616684219887
+        }
+      },
+      {
+        "a": {
+          "x": 24.616098400396144,
+          "y": 18.716777724132353,
+          "length": 30.923616684219887
+        },
+        "b": {
+          "x": 24.27947048740272,
+          "y": 18.976486653696007,
+          "length": 30.81557614042876
+        }
+      },
+      {
+        "a": {
+          "x": 24.27947048740272,
+          "y": 18.976486653696007,
+          "length": 30.81557614042876
+        },
+        "b": {
+          "x": 23.926888752561727,
+          "y": 19.214085475574233,
+          "length": 30.686757502873085
+        }
+      },
+      {
+        "a": {
+          "x": 23.926888752561727,
+          "y": 19.214085475574233,
+          "length": 30.686757502873085
+        },
+        "b": {
+          "x": 23.559803142767368,
+          "y": 19.428597095267218,
+          "length": 30.53743128058051
+        }
+      },
+      {
+        "a": {
+          "x": 23.559803142767368,
+          "y": 19.428597095267218,
+          "length": 30.53743128058051
+        },
+        "b": {
+          "x": 23.17972325022829,
+          "y": 19.619139361415407,
+          "length": 30.367913975770765
+        }
+      },
+      {
+        "a": {
+          "x": 23.17972325022829,
+          "y": 19.619139361415407,
+          "length": 30.367913975770765
+        },
+        "b": {
+          "x": 22.788212104464396,
+          "y": 19.784928693533153,
+          "length": 30.17856879188026
+        }
+      },
+      {
+        "a": {
+          "x": 22.788212104464396,
+          "y": 19.784928693533153,
+          "length": 30.17856879188026
+        },
+        "b": {
+          "x": 22.386879744549617,
+          "y": 19.925283304382376,
+          "length": 29.96980646345293
+        }
+      },
+      {
+        "a": {
+          "x": 22.386879744549617,
+          "y": 19.925283304382376,
+          "length": 29.96980646345293
+        },
+        "b": {
+          "x": 21.97737659803392,
+          "y": 20.039626003734604,
+          "length": 29.742086216359557
+        }
+      },
+      {
+        "a": {
+          "x": 21.97737659803392,
+          "y": 20.039626003734604,
+          "length": 29.742086216359557
+        },
+        "b": {
+          "x": 21.561386693773,
+          "y": 20.12748657199132,
+          "length": 29.495916867663265
+        }
+      },
+      {
+        "a": {
+          "x": 21.561386693773,
+          "y": 20.12748657199132,
+          "length": 29.495916867663265
+        },
+        "b": {
+          "x": 21.14062073657682,
+          "y": 20.1885036939014,
+          "length": 29.23185807516266
+        }
+      },
+      {
+        "a": {
+          "x": 21.14062073657682,
+          "y": 20.1885036939014,
+          "length": 29.23185807516266
+        },
+        "b": {
+          "x": 20.716809072156856,
+          "y": 20.222426444423455,
+          "length": 28.950521747151942
+        }
+      },
+      {
+        "a": {
+          "x": 20.716809072156856,
+          "y": 20.222426444423455,
+          "length": 28.950521747151942
+        },
+        "b": {
+          "x": 20.291694571302557,
+          "y": 20.229115320622704,
+          "length": 28.652573623150886
+        }
+      },
+      {
+        "a": {
+          "x": 20.291694571302557,
+          "y": 20.229115320622704,
+          "length": 28.652573623150886
+        },
+        "b": {
+          "x": 19.867025462550142,
+          "y": 20.208542815358776,
+          "length": 28.338735036162156
+        }
+      },
+      {
+        "a": {
+          "x": 19.867025462550142,
+          "y": 20.208542815358776,
+          "length": 28.338735036162156
+        },
+        "b": {
+          "x": 19.44454814281826,
+          "y": 20.160793530405293,
+          "length": 28.009784866257167
+        }
+      },
+      {
+        "a": {
+          "x": 19.44454814281826,
+          "y": 20.160793530405293,
+          "length": 28.009784866257167
+        },
+        "b": {
+          "x": 19.025999995576,
+          "y": 20.086063828535984,
+          "length": 27.666561693779002
+        }
+      }
+    ]
+  },
+  {
+    "name": "range_outline_one_base",
+    "method": "RangeOutline",
+    "request": {
+      "models": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1,
+              "b": 1
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 10,
+              "y": 10,
+              "z": 0
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "range": 12
+    },
+    "expected": [
+      {
+        "a": {
+          "x": 22.5,
+          "y": 10,
+          "length": 24.62214450449026
+        },
+        "b": {
+          "x": 22.473236540482546,
+          "y": 10.817539115376789,
+          "length": 24.941241210436715
+        }
+      },
+      {
+        "a": {
+          "x": 22.473236540482546,
+          "y": 10.817539115376789,
+          "length": 24.941241210436715
+        },
+        "b": {
+          "x": 22.393060767172628,
+          "y": 11.631577402750645,
+          "length": 25.233762371046957
+        }
+      },
+      {
+        "a": {
+          "x": 22.393060767172628,
+          "y": 11.631577402750645,
+          "length": 25.233762371046957
+        },
+        "b": {
+          "x": 22.25981600504038,
+          "y": 12.438629025201603,
+          "length": 25.499390200646754
+        }
+      },
+      {
+        "a": {
+          "x": 22.25981600504038,
+          "y": 12.438629025201603,
+          "length": 25.499390200646754
+        },
+        "b": {
+          "x": 22.074072828613353,
+          "y": 13.235238063781509,
+          "length": 25.7378363085924
+        }
+      },
+      {
+        "a": {
+          "x": 22.074072828613353,
+          "y": 13.235238063781509,
+          "length": 25.7378363085924
+        },
+        "b": {
+          "x": 21.836626618688822,
+          "y": 14.01799331628952,
+          "length": 25.948841952957494
+        }
+      },
+      {
+        "a": {
+          "x": 21.836626618688822,
+          "y": 14.01799331628952,
+          "length": 25.948841952957494
+        },
+        "b": {
+          "x": 21.548494156391087,
+          "y": 14.783542904563621,
+          "length": 26.132178271607867
+        }
+      },
+      {
+        "a": {
+          "x": 21.548494156391087,
+          "y": 14.783542904563621,
+          "length": 26.132178271607867
+        },
+        "b": {
+          "x": 21.210909269158606,
+          "y": 15.528608627737515,
+          "length": 26.28764648913863
+        }
+      },
+      {
+        "a": {
+          "x": 21.210909269158606,
+          "y": 15.528608627737515,
+          "length": 26.28764648913863
+        },
+        "b": {
+          "x": 20.825317547305485,
+          "y": 16.25,
+          "length": 26.41507809842912
+        }
+      },
+      {
+        "a": {
+          "x": 20.825317547305485,
+          "y": 16.25,
+          "length": 26.41507809842912
+        },
+        "b": {
+          "x": 20.393370153781817,
+          "y": 16.944627912745027,
+          "length": 26.514335015808655
+        }
+      },
+      {
+        "a": {
+          "x": 20.393370153781817,
+          "y": 16.944627912745027,
+          "length": 26.514335015808655
+        },
+        "b": {
+          "x": 19.91691675364044,
+          "y": 17.60951786260901,
+          "length": 26.585309709028948
+        }
+      },
+      {
+        "a": {
+          "x": 19.91691675364044,
+          "y": 17.60951786260901,
+          "length": 26.585309709028948
+        },
+        "b": {
+          "x": 19.39799759348722,
+          "y": 18.241822688750858,
+          "length": 26.6279252974159
+        }
+      },
+      {
+        "a": {
+          "x": 19.39799759348722,
+          "y": 18.241822688750858,
+          "length": 26.6279252974159
+        },
+        "b": {
+          "x": 18.838834764831844,
+          "y": 18.838834764831844,
+          "length": 26.64213562373095
+        }
+      },
+      {
+        "a": {
+          "x": 18.838834764831844,
+          "y": 18.838834764831844,
+          "length": 26.64213562373095
+        },
+        "b": {
+          "x": 18.241822688750858,
+          "y": 19.39799759348722,
+          "length": 26.6279252974159
+        }
+      },
+      {
+        "a": {
+          "x": 18.241822688750858,
+          "y": 19.39799759348722,
+          "length": 26.6279252974159
+        },
+        "b": {
+          "x": 17.60951786260901,
+          "y": 19.91691675364044,
+          "length": 26.585309709028948
+        }
+      },
+      {
+        "a": {
+          "x": 17.60951786260901,
+          "y": 19.91691675364044,
+          "length": 26.585309709028948
+        },
+        "b": {
+          "x": 16.94462791274503,
+          "y": 20.393370153781817,
+          "length": 26.514335015808655
+        }
+      },
+      {
+        "a": {
+          "x": 16.94462791274503,
+          "y": 20.393370153781817,
+          "length": 26.514335015808655
+        },
+        "b": {
+          "x": 16.25,
+          "y": 20.82531754730548,
+          "length": 26.415078098429117
+        }
+      },
+      {
+        "a": {
+          "x": 16.25,
+          "y": 20.82531754730548,
+          "length": 26.415078098429117
+        },
+        "b": {
+          "x": 15.528608627737515,
+          "y": 21.210909269158606,
+          "length": 26.28764648913863
+        }
+      },
+      {
+        "a": {
+          "x": 15.528608627737515,
+          "y": 21.210909269158606,
+          "length": 26.28764648913863
+        },
+        "b": {
+          "x": 14.783542904563623,
+          "y": 21.548494156391087,
+          "length": 26.132178271607867
+        }
+      },
+      {
+        "a": {
+          "x": 14.783542904563623,
+          "y": 21.548494156391087,
+          "length": 26.132178271607867
+        },
+        "b": {
+          "x": 14.017993316289521,
+          "y": 21.83662661868882,
+          "length": 25.94884195295749
+        }
+      },
+      {
+        "a": {
+          "x": 14.017993316289521,
+          "y": 21.83662661868882,
+          "length": 25.94884195295749
+        },
+        "b": {
+          "x": 13.235238063781509,
+          "y": 22.074072828613353,
+          "length": 25.7378363085924
+        }
+      },
+      {
+        "a": {
+          "x": 13.235238063781509,
+          "y": 22.074072828613353,
+          "length": 25.7378363085924
+        },
+        "b": {
+          "x": 12.438629025201603,
+          "y": 22.25981600504038,
+          "length": 25.499390200646754
+        }
+      },
+      {
+        "a": {
+          "x": 12.438629025201603,
+          "y": 22.25981600504038,
+          "length": 25.499390200646754
+        },
+        "b": {
+          "x": 11.631577402750647,
+          "y": 22.393060767172628,
+          "length": 25.23376237104696
+        }
+      },
+      {
+        "a": {
+          "x": 11.631577402750647,
+          "y": 22.393060767172628,
+          "length": 25.23376237104696
+        },
+        "b": {
+          "x": 10.81753911537679,
+          "y": 22.473236540482546,
+          "length": 24.94124121043672
+        }
+      },
+      {
+        "a": {
+          "x": 10.81753911537679,
+          "y": 22.473236540482546,
+          "length": 24.94124121043672
+        },
+        "b": {
+          "x": 10,
+          "y": 22.5,
+          "length": 24.62214450449026
+        }
+      },
+      {
+        "a": {
+          "x": 10,
+          "y": 22.5,
+          "length": 24.62214450449026
+        },
+        "b": {
+          "x": 9.182460884623211,
+          "y": 22.473236540482546,
+          "length": 24.27681915948041
+        }
+      },
+      {
+        "a": {
+          "x": 9.182460884623211,
+          "y": 22.473236540482546,
+          "length": 24.27681915948041
+        },
+        "b": {
+          "x": 8.368422597249355,
+          "y": 22.393060767172628,
+          "length": 23.905640909384537
+        }
+      },
+      {
+        "a": {
+          "x": 8.368422597249355,
+          "y": 22.393060767172628,
+          "length": 23.905640909384537
+        },
+        "b": {
+          "x": 7.561370974798398,
+          "y": 22.25981600504038,
+          "length": 23.50901400732867
+        }
+      },
+      {
+        "a": {
+          "x": 7.561370974798398,
+          "y": 22.25981600504038,
+          "length": 23.50901400732867
+        },
+        "b": {
+          "x": 6.764761936218492,
+          "y": 22.074072828613353,
+          "length": 23.087370904818005
+        }
+      },
+      {
+        "a": {
+          "x": 6.764761936218492,
+          "y": 22.074072828613353,
+          "length": 23.087370904818005
+        },
+        "b": {
+          "x": 5.98200668371048,
+          "y": 21.836626618688822,
+          "length": 22.641171923025233
+        }
+      },
+      {
+        "a": {
+          "x": 5.98200668371048,
+          "y": 21.836626618688822,
+          "length": 22.641171923025233
+        },
+        "b": {
+          "x": 5.216457095436382,
+          "y": 21.548494156391087,
+          "length": 22.170904921462935
+        }
+      },
+      {
+        "a": {
+          "x": 5.216457095436382,
+          "y": 21.548494156391087,
+          "length": 22.170904921462935
+        },
+        "b": {
+          "x": 4.471391372262485,
+          "y": 21.210909269158606,
+          "length": 21.677084970734
+        }
+      },
+      {
+        "a": {
+          "x": 4.471391372262485,
+          "y": 21.210909269158606,
+          "length": 21.677084970734
+        },
+        "b": {
+          "x": 3.7500000000000027,
+          "y": 20.825317547305485,
+          "length": 21.16025403784439
+        }
+      },
+      {
+        "a": {
+          "x": 3.7500000000000027,
+          "y": 20.825317547305485,
+          "length": 21.16025403784439
+        },
+        "b": {
+          "x": 3.0553720872549714,
+          "y": 20.393370153781817,
+          "length": 20.620980694931458
+        }
+      },
+      {
+        "a": {
+          "x": 3.0553720872549714,
+          "y": 20.393370153781817,
+          "length": 20.620980694931458
+        },
+        "b": {
+          "x": 2.3904821373909915,
+          "y": 19.91691675364044,
+          "length": 20.05985986542849
+        }
+      },
+      {
+        "a": {
+          "x": 2.3904821373909915,
+          "y": 19.91691675364044,
+          "length": 20.05985986542849
+        },
+        "b": {
+          "x": 1.7581773112491401,
+          "y": 19.39799759348722,
+          "length": 19.4775126259676
+        }
+      },
+      {
+        "a": {
+          "x": 1.7581773112491401,
+          "y": 19.39799759348722,
+          "length": 19.4775126259676
+        },
+        "b": {
+          "x": 1.1611652351681574,
+          "y": 18.838834764831844,
+          "length": 18.874586088176873
+        }
+      },
+      {
+        "a": {
+          "x": 1.1611652351681574,
+          "y": 18.838834764831844,
+          "length": 18.874586088176873
+        },
+        "b": {
+          "x": 0.6020024065127849,
+          "y": 18.24182268875086,
+          "length": 18.251753392627045
+        }
+      },
+      {
+        "a": {
+          "x": 0.6020024065127849,
+          "y": 18.24182268875086,
+          "length": 18.251753392627045
+        },
+        "b": {
+          "x": 0.08308324635956232,
+          "y": 17.60951786260901,
+          "length": 17.60971385853193
+        }
+      },
+      {
+        "a": {
+          "x": 0.08308324635956232,
+          "y": 17.60951786260901,
+          "length": 17.60971385853193
+        },
+        "b": {
+          "x": -0.39337015378181306,
+          "y": 16.94462791274503,
+          "length": 16.949193348925615
+        }
+      },
+      {
+        "a": {
+          "x": -0.39337015378181306,
+          "y": 16.94462791274503,
+          "length": 16.949193348925615
+        },
+        "b": {
+          "x": -0.8253175473054846,
+          "y": 16.25,
+          "length": 16.2709449342652
+        }
+      },
+      {
+        "a": {
+          "x": -0.8253175473054846,
+          "y": 16.25,
+          "length": 16.2709449342652
+        },
+        "b": {
+          "x": -1.210909269158602,
+          "y": 15.52860862773752,
+          "length": 15.575749971400363
+        }
+      },
+      {
+        "a": {
+          "x": -1.210909269158602,
+          "y": 15.52860862773752,
+          "length": 15.575749971400363
+        },
+        "b": {
+          "x": -1.5484941563910848,
+          "y": 14.783542904563625,
+          "length": 14.864419765448325
+        }
+      },
+      {
+        "a": {
+          "x": -1.5484941563910848,
+          "y": 14.783542904563625,
+          "length": 14.864419765448325
+        },
+        "b": {
+          "x": -1.83662661868882,
+          "y": 14.017993316289523,
+          "length": 14.137798058821398
+        }
+      },
+      {
+        "a": {
+          "x": -1.83662661868882,
+          "y": 14.017993316289523,
+          "length": 14.137798058821398
+        },
+        "b": {
+          "x": -2.074072828613353,
+          "y": 13.235238063781512,
+          "length": 13.396764710308352
+        }
+      },
+      {
+        "a": {
+          "x": -2.074072828613353,
+          "y": 13.235238063781512,
+          "length": 13.396764710308352
+        },
+        "b": {
+          "x": -2.2598160050403813,
+          "y": 12.438629025201601,
+          "length": 12.642241114740077
+        }
+      },
+      {
+        "a": {
+          "x": -2.2598160050403813,
+          "y": 12.438629025201601,
+          "length": 12.642241114740077
+        },
+        "b": {
+          "x": -2.3930607671726296,
+          "y": 11.63157740275065,
+          "length": 11.875198217779793
+        }
+      },
+      {
+        "a": {
+          "x": -2.3930607671726296,
+          "y": 11.63157740275065,
+          "length": 11.875198217779793
+        },
+        "b": {
+          "x": -2.473236540482544,
+          "y": 10.817539115376789,
+          "length": 11.09666848643704
+        }
+      },
+      {
+        "a": {
+          "x": -2.473236540482544,
+          "y": 10.817539115376789,
+          "length": 11.09666848643704
+        },
+        "b": {
+          "x": -2.5,
+          "y": 10.000000000000002,
+          "length": 10.307764064044154
+        }
+      },
+      {
+        "a": {
+          "x": -2.5,
+          "y": 10.000000000000002,
+          "length": 10.307764064044154
+        },
+        "b": {
+          "x": -2.473236540482544,
+          "y": 9.182460884623215,
+          "length": 9.50970487884947
+        }
+      },
+      {
+        "a": {
+          "x": -2.473236540482544,
+          "y": 9.182460884623215,
+          "length": 9.50970487884947
+        },
+        "b": {
+          "x": -2.3930607671726296,
+          "y": 8.368422597249353,
+          "length": 8.703863314731825
+        }
+      },
+      {
+        "a": {
+          "x": -2.3930607671726296,
+          "y": 8.368422597249353,
+          "length": 8.703863314731825
+        },
+        "b": {
+          "x": -2.2598160050403813,
+          "y": 7.561370974798401,
+          "length": 7.891837517027349
+        }
+      },
+      {
+        "a": {
+          "x": -2.2598160050403813,
+          "y": 7.561370974798401,
+          "length": 7.891837517027349
+        },
+        "b": {
+          "x": -2.074072828613353,
+          "y": 6.764761936218489,
+          "length": 7.075576453696386
+        }
+      },
+      {
+        "a": {
+          "x": -2.074072828613353,
+          "y": 6.764761936218489,
+          "length": 7.075576453696386
+        },
+        "b": {
+          "x": -1.8366266186888218,
+          "y": 5.982006683710481,
+          "length": 6.257603479003221
+        }
+      },
+      {
+        "a": {
+          "x": -1.8366266186888218,
+          "y": 5.982006683710481,
+          "length": 6.257603479003221
+        },
+        "b": {
+          "x": -1.5484941563910848,
+          "y": 5.216457095436379,
+          "length": 5.441439035853097
+        }
+      },
+      {
+        "a": {
+          "x": -1.5484941563910848,
+          "y": 5.216457095436379,
+          "length": 5.441439035853097
+        },
+        "b": {
+          "x": -1.2109092691586039,
+          "y": 4.471391372262482,
+          "length": 4.632455295205512
+        }
+      },
+      {
+        "a": {
+          "x": -1.2109092691586039,
+          "y": 4.471391372262482,
+          "length": 4.632455295205512
+        },
+        "b": {
+          "x": -0.8253175473054846,
+          "y": 3.7500000000000036,
+          "length": 3.839745962155617
+        }
+      },
+      {
+        "a": {
+          "x": -0.8253175473054846,
+          "y": 3.7500000000000036,
+          "length": 3.839745962155617
+        },
+        "b": {
+          "x": -0.3933701537818184,
+          "y": 3.055372087254976,
+          "length": 3.0805906364629427
+        }
+      },
+      {
+        "a": {
+          "x": -0.3933701537818184,
+          "y": 3.055372087254976,
+          "length": 3.0805906364629427
+        },
+        "b": {
+          "x": 0.08308324635956055,
+          "y": 2.3904821373909915,
+          "length": 2.3919255161921424
+        }
+      },
+      {
+        "a": {
+          "x": 0.08308324635956055,
+          "y": 2.3904821373909915,
+          "length": 2.3919255161921424
+        },
+        "b": {
+          "x": 0.6020024065127814,
+          "y": 1.7581773112491401,
+          "length": 1.8583848781235914
+        }
+      },
+      {
+        "a": {
+          "x": 0.6020024065127814,
+          "y": 1.7581773112491401,
+          "length": 1.8583848781235914
+        },
+        "b": {
+          "x": 1.161165235168152,
+          "y": 1.161165235168161,
+          "length": 1.6421356237309515
+        }
+      },
+      {
+        "a": {
+          "x": 1.161165235168152,
+          "y": 1.161165235168161,
+          "length": 1.6421356237309515
+        },
+        "b": {
+          "x": 1.7581773112491366,
+          "y": 0.6020024065127849,
+          "length": 1.8583848781235892
+        }
+      },
+      {
+        "a": {
+          "x": 1.7581773112491366,
+          "y": 0.6020024065127849,
+          "length": 1.8583848781235892
+        },
+        "b": {
+          "x": 2.390482137390989,
+          "y": 0.0830832463595641,
+          "length": 2.3919255161921398
+        }
+      },
+      {
+        "a": {
+          "x": 2.390482137390989,
+          "y": 0.0830832463595641,
+          "length": 2.3919255161921398
+        },
+        "b": {
+          "x": 3.0553720872549732,
+          "y": -0.39337015378181484,
+          "length": 3.08059063646294
+        }
+      },
+      {
+        "a": {
+          "x": 3.0553720872549732,
+          "y": -0.39337015378181484,
+          "length": 3.08059063646294
+        },
+        "b": {
+          "x": 3.7499999999999947,
+          "y": -0.8253175473054792,
+          "length": 3.8397459621556074
+        }
+      },
+      {
+        "a": {
+          "x": 3.7499999999999947,
+          "y": -0.8253175473054792,
+          "length": 3.8397459621556074
+        },
+        "b": {
+          "x": 4.471391372262483,
+          "y": -1.2109092691586039,
+          "length": 4.632455295205513
+        }
+      },
+      {
+        "a": {
+          "x": 4.471391372262483,
+          "y": -1.2109092691586039,
+          "length": 4.632455295205513
+        },
+        "b": {
+          "x": 5.216457095436382,
+          "y": -1.5484941563910848,
+          "length": 5.4414390358531
+        }
+      },
+      {
+        "a": {
+          "x": 5.216457095436382,
+          "y": -1.5484941563910848,
+          "length": 5.4414390358531
+        },
+        "b": {
+          "x": 5.982006683710478,
+          "y": -1.83662661868882,
+          "length": 6.257603479003216
+        }
+      },
+      {
+        "a": {
+          "x": 5.982006683710478,
+          "y": -1.83662661868882,
+          "length": 6.257603479003216
+        },
+        "b": {
+          "x": 6.764761936218492,
+          "y": -2.074072828613353,
+          "length": 7.075576453696389
+        }
+      },
+      {
+        "a": {
+          "x": 6.764761936218492,
+          "y": -2.074072828613353,
+          "length": 7.075576453696389
+        },
+        "b": {
+          "x": 7.5613709747983915,
+          "y": -2.2598160050403795,
+          "length": 7.891837517027339
+        }
+      },
+      {
+        "a": {
+          "x": 7.5613709747983915,
+          "y": -2.2598160050403795,
+          "length": 7.891837517027339
+        },
+        "b": {
+          "x": 8.368422597249355,
+          "y": -2.3930607671726296,
+          "length": 8.703863314731827
+        }
+      },
+      {
+        "a": {
+          "x": 8.368422597249355,
+          "y": -2.3930607671726296,
+          "length": 8.703863314731827
+        },
+        "b": {
+          "x": 9.182460884623216,
+          "y": -2.473236540482544,
+          "length": 9.509704878849472
+        }
+      },
+      {
+        "a": {
+          "x": 9.182460884623216,
+          "y": -2.473236540482544,
+          "length": 9.509704878849472
+        },
+        "b": {
+          "x": 9.999999999999998,
+          "y": -2.5,
+          "length": 10.30776406404415
+        }
+      },
+      {
+        "a": {
+          "x": 9.999999999999998,
+          "y": -2.5,
+          "length": 10.30776406404415
+        },
+        "b": {
+          "x": 10.81753911537678,
+          "y": -2.473236540482544,
+          "length": 11.096668486437032
+        }
+      },
+      {
+        "a": {
+          "x": 10.81753911537678,
+          "y": -2.473236540482544,
+          "length": 11.096668486437032
+        },
+        "b": {
+          "x": 11.63157740275064,
+          "y": -2.3930607671726314,
+          "length": 11.875198217779786
+        }
+      },
+      {
+        "a": {
+          "x": 11.63157740275064,
+          "y": -2.3930607671726314,
+          "length": 11.875198217779786
+        },
+        "b": {
+          "x": 12.438629025201603,
+          "y": -2.2598160050403813,
+          "length": 12.642241114740077
+        }
+      },
+      {
+        "a": {
+          "x": 12.438629025201603,
+          "y": -2.2598160050403813,
+          "length": 12.642241114740077
+        },
+        "b": {
+          "x": 13.235238063781503,
+          "y": -2.074072828613355,
+          "length": 13.396764710308341
+        }
+      },
+      {
+        "a": {
+          "x": 13.235238063781503,
+          "y": -2.074072828613355,
+          "length": 13.396764710308341
+        },
+        "b": {
+          "x": 14.01799331628952,
+          "y": -1.8366266186888218,
+          "length": 14.137798058821394
+        }
+      },
+      {
+        "a": {
+          "x": 14.01799331628952,
+          "y": -1.8366266186888218,
+          "length": 14.137798058821394
+        },
+        "b": {
+          "x": 14.783542904563614,
+          "y": -1.5484941563910866,
+          "length": 14.864419765448314
+        }
+      },
+      {
+        "a": {
+          "x": 14.783542904563614,
+          "y": -1.5484941563910866,
+          "length": 14.864419765448314
+        },
+        "b": {
+          "x": 15.528608627737512,
+          "y": -1.2109092691586056,
+          "length": 15.575749971400354
+        }
+      },
+      {
+        "a": {
+          "x": 15.528608627737512,
+          "y": -1.2109092691586056,
+          "length": 15.575749971400354
+        },
+        "b": {
+          "x": 16.25,
+          "y": -0.8253175473054828,
+          "length": 16.2709449342652
+        }
+      },
+      {
+        "a": {
+          "x": 16.25,
+          "y": -0.8253175473054828,
+          "length": 16.2709449342652
+        },
+        "b": {
+          "x": 16.944627912745023,
+          "y": -0.3933701537818184,
+          "length": 16.94919334892561
+        }
+      },
+      {
+        "a": {
+          "x": 16.944627912745023,
+          "y": -0.3933701537818184,
+          "length": 16.94919334892561
+        },
+        "b": {
+          "x": 17.609517862609,
+          "y": 0.08308324635955344,
+          "length": 17.60971385853192
+        }
+      },
+      {
+        "a": {
+          "x": 17.609517862609,
+          "y": 0.08308324635955344,
+          "length": 17.60971385853192
+        },
+        "b": {
+          "x": 18.241822688750865,
+          "y": 0.6020024065127849,
+          "length": 18.251753392627048
+        }
+      },
+      {
+        "a": {
+          "x": 18.241822688750865,
+          "y": 0.6020024065127849,
+          "length": 18.251753392627048
+        },
+        "b": {
+          "x": 18.838834764831844,
+          "y": 1.1611652351681538,
+          "length": 18.874586088176873
+        }
+      },
+      {
+        "a": {
+          "x": 18.838834764831844,
+          "y": 1.1611652351681538,
+          "length": 18.874586088176873
+        },
+        "b": {
+          "x": 19.39799759348722,
+          "y": 1.7581773112491401,
+          "length": 19.4775126259676
+        }
+      },
+      {
+        "a": {
+          "x": 19.39799759348722,
+          "y": 1.7581773112491401,
+          "length": 19.4775126259676
+        },
+        "b": {
+          "x": 19.916916753640436,
+          "y": 2.390482137390989,
+          "length": 20.059859865428482
+        }
+      },
+      {
+        "a": {
+          "x": 19.916916753640436,
+          "y": 2.390482137390989,
+          "length": 20.059859865428482
+        },
+        "b": {
+          "x": 20.39337015378181,
+          "y": 3.0553720872549635,
+          "length": 20.620980694931447
+        }
+      },
+      {
+        "a": {
+          "x": 20.39337015378181,
+          "y": 3.0553720872549635,
+          "length": 20.620980694931447
+        },
+        "b": {
+          "x": 20.82531754730548,
+          "y": 3.7499999999999947,
+          "length": 21.160254037844382
+        }
+      },
+      {
+        "a": {
+          "x": 20.82531754730548,
+          "y": 3.7499999999999947,
+          "length": 21.160254037844382
+        },
+        "b": {
+          "x": 21.210909269158606,
+          "y": 4.471391372262483,
+          "length": 21.677084970734
+        }
+      },
+      {
+        "a": {
+          "x": 21.210909269158606,
+          "y": 4.471391372262483,
+          "length": 21.677084970734
+        },
+        "b": {
+          "x": 21.548494156391087,
+          "y": 5.216457095436381,
+          "length": 22.170904921462935
+        }
+      },
+      {
+        "a": {
+          "x": 21.548494156391087,
+          "y": 5.216457095436381,
+          "length": 22.170904921462935
+        },
+        "b": {
+          "x": 21.83662661868882,
+          "y": 5.982006683710477,
+          "length": 22.641171923025226
+        }
+      },
+      {
+        "a": {
+          "x": 21.83662661868882,
+          "y": 5.982006683710477,
+          "length": 22.641171923025226
+        },
+        "b": {
+          "x": 22.074072828613353,
+          "y": 6.7647619362184805,
+          "length": 23.087370904818
+        }
+      },
+      {
+        "a": {
+          "x": 22.074072828613353,
+          "y": 6.7647619362184805,
+          "length": 23.087370904818
+        },
+        "b": {
+          "x": 22.259816005040378,
+          "y": 7.5613709747983915,
+          "length": 23.509014007328666
+        }
+      },
+      {
+        "a": {
+          "x": 22.259816005040378,
+          "y": 7.5613709747983915,
+          "length": 23.509014007328666
+        },
+        "b": {
+          "x": 22.393060767172628,
+          "y": 8.368422597249355,
+          "length": 23.905640909384537
+        }
+      },
+      {
+        "a": {
+          "x": 22.393060767172628,
+          "y": 8.368422597249355,
+          "length": 23.905640909384537
+        },
+        "b": {
+          "x": 22.473236540482546,
+          "y": 9.182460884623215,
+          "length": 24.276819159480414
+        }
+      },
+      {
+        "a": {
+          "x": 22.473236540482546,
+          "y": 9.182460884623215,
+          "length": 24.276819159480414
+        },
+        "b": {
+          "x": 22.5,
+          "y": 10,
+          "length": 24.62214450449026
+        }
+      }
+    ]
+  },
+  {
+    "name": "zone_polygons_frontline",
+    "method": "ZonePolygons",
+    "request": {
+      "shape": "frontline/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": [
+      [
+        {
+          "x": 0,
+          "y": 36,
+          "length": 36
+        },
+        {
+          "x": 72,
+          "y": 36,
+          "length": 80.49844718999243
+        },
+        {
+          "x": 72,
+          "y": 48,
+          "length": 86.53323061113575
+        },
+        {
+          "x": 0,
+          "y": 48,
+          "length": 48
+        }
+      ]
+    ]
+  },
+  {
+    "name": "zone_polygons_disordered",
+    "method": "ZonePolygons",
+    "request": {
+      "shape": "disordered/2",
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": [
+      [
+        {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        {
+          "x": 36,
+          "y": 0,
+          "length": 36
+        },
+        {
+          "x": 0,
+          "y": 24,
+          "length": 24
+        }
+      ],
+      [
+        {
+          "x": 36,
+          "y": 0,
+          "length": 36
+        },
+        {
+          "x": 72,
+          "y": 0,
+          "length": 72
+        },
+        {
+          "x": 72,
+          "y": 24,
+          "length": 75.8946638440411
+        }
+      ]
+    ]
+  },
+  {
+    "name": "zone_contains_inside",
+    "method": "ZoneContains",
+    "request": {
+      "shape": "frontline/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "point": {
+        "x": 10,
+        "y": 40,
+        "length": 41.23105625617661
+      }
+    },
+    "expected": true
+  },
+  {
+    "name": "zone_contains_outside",
+    "method": "ZoneContains",
+    "request": {
+      "shape": "frontline/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "point": {
+        "x": 10,
+        "y": 10,
+        "length": 14.142135623730951
+      }
+    },
+    "expected": false
+  },
+  {
+    "name": "zone_holds_base_straddling",
+    "method": "ZoneHoldsBase",
+    "request": {
+      "shape": "frontline/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 36,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": false
+  },
+  {
+    "name": "zone_holds_base_inside",
+    "method": "ZoneHoldsBase",
+    "request": {
+      "shape": "frontline/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 44,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": true
+  },
+  {
+    "name": "table_holds_base_inside",
+    "method": "TableHoldsBase",
+    "request": {
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": true
+  },
+  {
+    "name": "table_holds_base_over_the_edge",
+    "method": "TableHoldsBase",
+    "request": {
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "model": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 1,
+            "b": 1
+          },
+          "height": 1.5
+        },
+        "placement": {
+          "position": {
+            "x": 0.2,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      }
+    },
+    "expected": false
+  }
+]

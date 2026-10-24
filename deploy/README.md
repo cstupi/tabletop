@@ -90,8 +90,10 @@ sudo systemctl daemon-reload && sudo systemctl enable --now tabletop-management 
 
 ```bash
 cd web && npm ci && TABLETOP_BLOB_ORIGIN=https://blobs.tabletop.example.org npm run build   # static site in web/build
-cd viewer && npm ci && npm run build:hosted                                                  # Replays in viewer/dist, for /viewer/
+./scripts/geometry-wasm && cd viewer && npm ci && npm run build:hosted                      # Replays in viewer/dist, for /viewer/ (geometry-wasm: the WebAssembly runtime in public/geometry/)
 ```
+
+`scripts/geometry-wasm` publishes `Tabletop.Geometry` as WebAssembly (the .NET SDK, no workload) into `viewer/public/geometry/`, which the build copies into `dist/`; `web/Dockerfile` does it in its own stage. `/viewer/`'s CSP carries `script-src 'self' 'wasm-unsafe-eval'` so the runtime can compile, and the file server serves the precompressed `.br`/`.gz` files.
 
 The viewer's hosted build is the admin-only Replays tool: same origin as the web app, so it reuses the website's session
 (`localStorage`) and `/v1`, and opens the socket at `wss://<host>/ws`. It goes under `/viewer/` beside `web/build`

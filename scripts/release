@@ -164,6 +164,7 @@ fi
 if [[ $deploy == home ]]; then
   if [[ $skip_tests == 0 ]]; then
     step "Web app and viewer checks (the builds are in web/Dockerfile)"
+    in_sdk ./scripts/geometry-wasm   # the viewer's tests load the runtime from public/geometry/; the image build has its own stage
     for dir in web viewer; do
       in_node "$dir" npm ci --no-audit --no-fund; in_node "$dir" npm run check; in_node "$dir" npm test
     done
@@ -171,6 +172,7 @@ if [[ $deploy == home ]]; then
 else
 step "Web app and viewer"
 run npm --prefix web ci --no-audit --no-fund
+run ./scripts/geometry-wasm
 run npm --prefix viewer ci --no-audit --no-fund
 if [[ $skip_tests == 0 ]]; then
   run npm --prefix web run check; run npm --prefix web test

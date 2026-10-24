@@ -12,6 +12,7 @@ A static web app that draws a `sim/` recording or a game's log top-down on a 2D 
 - `src/lib/board/` `frame.ts` (shapes, `OVAL_VERTICES`), `draw.ts`, `pick.ts`, `transform.ts`, `palette.ts` (declaration colours).
 - `src/lib/timeline/timeline.ts` (`reduce`, `frameOf`), `src/lib/asks/describe.ts`.
 - `src/lib/components/` `SourcePicker`, `Board`, `Timeline`, `LogPanel`, `AskPanel`, `RollPanel`, `Scoreboard`.
+- `src/lib/geometry/` `loadGeometry` (`Geometry`: `Tabletop.Geometry` as WebAssembly, typed), `wallsOf`, `placed`; the runtime is `public/geometry/_framework/` from `scripts/geometry-wasm`, never committed. Nothing in playback imports it.
 - `src/lib/hosted/hosted.ts` the hosted build: `configOf` (which build, socket URL, runner), `hostedSession` (the website's session from `localStorage`), `accessOf`, `signInHref`.
 - `src/lib/suite/` `client.ts` (runner API: `fetchSuite`, `startRun`, `runEvents`), `model.ts` (Tests page model); `components/TestsPage.svelte`.
 - `tests/` Vitest; `tests/fixtures/` per-scenario files (`skirmish`, `terrain`): `.recording.json`, `.events.json`, `.board.json`, `.welcome.json`.
@@ -26,6 +27,7 @@ A static web app that draws a `sim/` recording or a game's log top-down on a 2D 
 - The Tests page (header tab) drives the runner service (`sim serve`): `/suite` and `/runs` are proxied to `TABLETOP_SUITE_PROXY_TARGET` (default `http://localhost:5180`; compose `http://sim-runner:5180`). Watch loads a kept recording; Open live asks the runner for a spectator session (`POST /runs/{id}/games/{game}/spectate`) and opens the live feed on that kept socket game. The page groups the games, runs a selection with Keep and a driver, lists each result
   as it arrives (a game pinned to an engine defect shows failures prefixed `known defect <id>: `) and the coverage table at the end.
 - Hosted build (Vite mode `hosted`, base `/viewer/`): `web/Dockerfile` builds it into the web image at `/srv/viewer`; `web/Caddyfile` serves it with its own CSP header. It has no login form: it reads the website's session from `localStorage` `tabletop.session` (`{ sessionJwt, account }`, written by `web/src/lib/session/session.svelte.ts`), refreshes it before each use and writes the new JWT back. Signed out (nothing stored, or a refresh refused with a 4xx but 429) shows a sign-in link to `/login?next=/viewer/`; a JWT without the `admin` role shows *Not authorised*. The socket is `wss://<page host>/ws`. No Tests tab (`config.runner` is false). The Games panel opens loaded; `GET /v1/games` lists ended games too, and the live feed replays a game's log from the start.
+- Geometry in the browser (`src/lib/geometry/`): the first `loadGeometry()` fetches the .NET runtime and `Tabletop.Geometry.Wasm` from `${BASE_URL}geometry/_framework/` (about 1.7 MB brotli; Caddy serves the precompressed files), once per page; playback never calls it, which `tests/geometry.lazy.test.ts` checks. Each call is a JSON request to one `libs/Tabletop.Geometry.Wasm` facade method and a JSON answer, synchronous once loaded; held pieces are always lifted (the browser drops them). `tests/geometry.agreement.test.ts` replays `tests/fixtures/geometry.cases.json` through the WebAssembly.
 - Playback only. It sends no command and answers no Ask; the server refuses a watcher anything that changes the game (`refused`, reason `watcher`). The calls to management are the two auth endpoints and `GET /v1/games`.
 
 ## Commands
@@ -33,6 +35,7 @@ A static web app that draws a `sim/` recording or a game's log top-down on a 2D 
 - `docker compose up -d` runs the dev server as the `viewer` service on `http://127.0.0.1:5174`, `/v1` proxied to
   `http://management:5100`, `VITE_GAME_SOCKET=ws://127.0.0.1:5200/ws`. It shares `viewer/node_modules` with the host and
   runs `npm ci` on start when `package-lock.json` differs from the hash in `node_modules/.tabletop-lock.sha256`.
+- `./scripts/geometry-wasm` (needs the .NET SDK) before `npm test`, `npm run dev` and a build: it publishes the runtime into `public/geometry/`. `docker compose up -d geometry-wasm` does the same for the dev stack after a Geometry change.
 - `cd viewer && npm install`
 - `cd viewer && npm run dev` (after `docker compose stop viewer`): `:5174`, `/v1` proxied to `TABLETOP_API_PROXY_TARGET`,
   default `http://localhost:5100`.
@@ -47,6 +50,7 @@ A static web app that draws a `sim/` recording or a game's log top-down on a 2D 
 
 - No SvelteKit and no code shared with `web/` (the hosted build shares only the `tabletop.session` storage entry).
 - `src/lib/protocol/*.generated.ts` are never hand-edited. A plain `dotnet test` fails when they are stale.
+- A change to `libs/Tabletop.Geometry` or the facade reruns `TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Geometry.Wasm.Tests` (writes `tests/fixtures/geometry.cases.json`) and `./scripts/geometry-wasm`. The hosted CSP's `'wasm-unsafe-eval'` (`web/Caddyfile`) lets the runtime start.
 - Fixtures are checked in and regenerated deliberately; ids differ between runs, so never diff them against a previous version.
 - A change to `EventApplier`, `FrameProjector` or `LogLines` regenerates the fixtures and ports the same change to `src/lib/live/` until `tests/agreement.test.ts` passes.
 - `agreement.test.ts` replays the fixture events through the TypeScript `Applier` and `FrameProjector` and compares with the C# recording after `tests/normalise.ts`.
