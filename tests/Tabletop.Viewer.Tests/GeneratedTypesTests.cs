@@ -16,15 +16,17 @@ public class GeneratedTypesTests
     public static EmitRequest WireModule => new(
         "wire.generated.ts", WireJson.Options,
         [typeof(SocketMessage)],
-        // Only what the live feed reads. No Command, no Edit, no Presence, no Ping, no AtRest (spec →
-        // Two feeds: "Keep the generated surface as small as the live feed actually needs"). Adding a
-        // thirteenth kind to SocketMessage in C# therefore leaves this module byte for byte unchanged.
+        // What a playing client sends and reads: Command, Edit, AtRest, Reauth, sight and model facts join the
+        // live feed's frames. No Presence, no Ping (presence is not ported). A new kind added to SocketMessage in C#
+        // leaves this module byte for byte unchanged until it is listed here.
         new Dictionary<Type, IReadOnlyList<Type>>
         {
             [typeof(SocketMessage)] =
             [
                 typeof(Connect), typeof(Welcome), typeof(GameInfoMessage), typeof(BoardMessage),
                 typeof(EventsMessage), typeof(Refused), typeof(Rejected),
+                typeof(CommandMessage), typeof(EditMessage), typeof(AtRest), typeof(Reauth),
+                typeof(SightQuery), typeof(SightAnswer), typeof(ModelFacts),
             ],
         },
         new Dictionary<Type, string>());
@@ -89,7 +91,7 @@ public class GeneratedTypesTests
     }
 
     [Fact]
-    public void The_wire_module_carries_the_frames_the_live_feed_reads_and_nothing_more()
+    public void The_wire_module_carries_the_frames_a_playing_client_sends_and_reads()
     {
         var ts = TypeScriptEmitter.Emit(WireModule);
         Assert.Contains("export interface EventsMessage {\n  readonly kind: 'events';", ts.Replace("\r\n", "\n"));
@@ -99,7 +101,19 @@ public class GeneratedTypesTests
         Assert.Contains("export type Location =", ts);
         Assert.Contains("export interface ModelsMoved {\n  readonly kind: 'models_moved';", ts.Replace("\r\n", "\n"));
         Assert.Contains("export interface VisualRef {\n  readonly builtin?: string;\n  readonly assetId?: string;\n}", ts.Replace("\r\n", "\n"));
-        foreach (var absent in new[] { "AnswerAsk", "MoveModels", "PickTeam", "SetTableSize", "PresenceMessage", "PingMessage", "Cursor", "Measurement", "AtRest", "at_rest" })
+        var n = ts.Replace("\r\n", "\n");
+        foreach (var present in new[]
+        {
+            "export type Command =", "export type Edit =",
+            "export interface CommandMessage {\n  readonly kind: 'command';",
+            "export interface EditMessage {\n  readonly kind: 'edit';",
+            "export interface AtRest {\n  readonly kind: 'at_rest';",
+            "export interface PickTeam {\n  readonly kind: 'pick_team';",
+            "export interface ReplaceDraft {\n  readonly kind: 'replace_draft';",
+            "export interface Reauth", "export interface ModelFacts",
+        })
+            Assert.Contains(present, n);
+        foreach (var absent in new[] { "PresenceMessage", "PingMessage", "presence_ended", "Cursor", "Measurement" })
             Assert.DoesNotContain(absent, ts);
     }
 
@@ -123,6 +137,6 @@ public class GeneratedTypesTests
         }
         // SocketMessage, EventPayload, StateChange, LegalSet, Location, AskAnswer — if the skip rule
         // ever swallows one of those, the loop above passes by checking nothing.
-        Assert.True(unions >= 6, $"only {unions} discriminated unions were checked; the skip rule is too broad");
+        Assert.True(unions >= 8, $"only {unions} discriminated unions were checked; the skip rule is too broad");
     }
 }
