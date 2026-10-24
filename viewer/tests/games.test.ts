@@ -3,7 +3,7 @@ import { listGames, rowOf, type GameSummary } from '../src/lib/live/games';
 
 const summary = (id: string, over: Partial<GameSummary> = {}): GameSummary => ({
   id, name: `game ${id}`, status: 'playing', createdBy: 'c', createdAt: '2026-10-09T12:34:00Z',
-  participants: 2, participantNames: ['Ann', 'Bo'], ...over,
+  participants: 2, participantNames: ['Ann', 'Bo'], joined: false, ...over,
 });
 
 type Call = { url: string; auth: string | null };
@@ -20,7 +20,7 @@ function fakeFetch(pages: Record<string, unknown>, calls: Call[], status = 200):
 describe('the game list', () => {
   it('follows the keyset to the end, with the bearer on every page', async () => {
     const calls: Call[] = [];
-    const games = await listGames('jwt-1', '', fakeFetch({
+    const games = await listGames('jwt-1', {}, '', fakeFetch({
       '/v1/games?limit=200': { items: [summary('b'), summary('a')], next: 'a' },
       '/v1/games?limit=200&after=a': { items: [summary('0')], next: null },
     }, calls));
@@ -30,13 +30,19 @@ describe('the game list', () => {
 
   it('stops at a last page that leaves next out', async () => {
     const calls: Call[] = [];
-    const games = await listGames('jwt-1', '', fakeFetch({ '/v1/games?limit=200': { items: [summary('a')] } }, calls));
+    const games = await listGames('jwt-1', {}, '', fakeFetch({ '/v1/games?limit=200': { items: [summary('a')] } }, calls));
     expect(games.map((g) => g.id)).toEqual(['a']);
     expect(calls.map((c) => c.url)).toEqual(['/v1/games?limit=200']);
   });
 
+  it('listGames with joined asks for joined=true', async () => {
+    const calls: Call[] = [];
+    await listGames('j', { joined: true }, '', fakeFetch({ '/v1/games?limit=200&joined=true': { items: [] } }, calls));
+    expect(calls.map((c) => c.url)).toEqual(['/v1/games?limit=200&joined=true']);
+  });
+
   it('reports the problem detail when management refuses', async () => {
-    await expect(listGames('bad', '', fakeFetch({}, [], 401))).rejects.toThrow('unauthorized_credentials');
+    await expect(listGames('bad', {}, '', fakeFetch({}, [], 401))).rejects.toThrow('unauthorized_credentials');
   });
 
   it('shows name, status, players and the created time per row', () => {
