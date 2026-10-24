@@ -19,7 +19,7 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
         var sequence = rules.Sequence(top.Frame.Sequence);
         if (top.Position >= sequence.Steps.Count) return [new SequenceFinished(top.Id)];
         if (top.History.Waiting) return [];
-        var actorTeam = top.Context.ActorUnitId is { } u ? Teams.Of(state, u) : null;
+        var actorTeam = ActorTeam(state, top);
         // A boundary is before every step but the first, and before a repeat of the first in a frame with an actor: a repeat at position 0
         // (assign's segments, a placement's roll) settles what it rolled on the next run, so the wait setting stops there too.
         var boundary = top.Position > 0 || (top.Frame.Steps.Count > 0 && actorTeam is not null);
@@ -73,6 +73,23 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
         : actorTeam is { } team ? [team]
         : top.Parent is null ? state.Info.Teams.OrderBy(t => t.Ordinal).Select(t => t.Id).ToList()
         : null;
+
+    /// <summary>
+    /// The top frame waiting only on boundary Confirms that GateTeams no longer asks for: closed with no answers, so the step runs on the
+    /// next Advance. The roll-off was gated to every team whatever the wait setting said, and a log that stopped there resumes this way
+    /// (roll-off result spec → No gate). Any other wait stands. RulesEngine asks this while a framed Ask is open, when Advance is not called.
+    /// </summary>
+    public IReadOnlyList<EventPayload> StaleGates(GameState state)
+    {
+        var frames = FrameReader.Read(state);
+        if (frames.Count == 0) return [];
+        var top = frames[^1];
+        var open = top.History.Asks.Where(a => !a.Closed).ToList();
+        if (open.Count == 0 || open.Any(a => a.Ask.Question != AskQuestions.Confirm) || GateTeams(state, top, ActorTeam(state, top)) is not null) return [];
+        return open.Select(a => (EventPayload)new AskClosed(a.Ask.Id, [])).ToList();
+    }
+
+    static Guid? ActorTeam(GameState state, FrameView top) => top.Context.ActorUnitId is { } u ? Teams.Of(state, u) : null;
 
     static void Completed(List<EventPayload> events, StepContext ctx, IStep step, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values, bool finished)
     {
