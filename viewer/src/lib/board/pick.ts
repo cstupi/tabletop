@@ -1,9 +1,9 @@
 import type { Scene, Shape } from './frame';
 import type { Point } from './transform';
 
-export type Hit =
-  | { readonly kind: 'model'; readonly id: string }
-  | { readonly kind: 'terrain'; readonly id: string; readonly volumeId: string };
+import type { BoardHit } from './interaction';
+
+export type Hit = BoardHit;
 
 /** Boundary inclusive, any vertex order, concave allowed — Tabletop.Geometry.Polygon.Contains's contract. */
 export function contains(shape: Shape, p: Point): boolean {
@@ -26,11 +26,15 @@ export function contains(shape: Shape, p: Point): boolean {
   return inside;
 }
 
-/** Models first, last drawn wins, then terrain. Table inches in, never screen pixels. */
+/** Models first, then markers, then terrain; the last drawn wins within each. Table inches in, never screen pixels. */
 export function pickAt(scene: Scene, p: Point): Hit | null {
   for (let i = scene.models.length - 1; i >= 0; i--) {
     const model = scene.models[i]!;
     if (contains(model.shape, p)) return { kind: 'model', id: model.id };
+  }
+  for (let i = scene.markers.length - 1; i >= 0; i--) {
+    const marker = scene.markers[i]!;
+    if (contains({ kind: 'circle', centre: marker.centre, radius: marker.radius }, p)) return { kind: 'marker', id: marker.id };
   }
   for (let i = scene.terrain.length - 1; i >= 0; i--) {
     const piece = scene.terrain[i]!;

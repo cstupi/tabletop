@@ -13,7 +13,7 @@
   import { attachFeed, detachFeed, IDLE, type Feed, type FeedState } from '../feed/feed';
   import { EMPTY, frameOf, reduce, type Timeline as TimelineState, type TimelineAction } from '../timeline/timeline';
 
-  let { feed }: { feed: Feed | null } = $props();
+  let { feed, models = 'bases' }: { feed: Feed | null; models?: 'bases' | 'circles' } = $props();
 
   let current: Feed | null = null;
   let unsubscribe: (() => void) | null = null;
@@ -80,7 +80,8 @@
       {#if scene === null}
         <p class="muted pad">Load a recording to draw it.</p>
       {:else}
-        <Board {scene} {selected} onPick={pick} {showGrid} {showZones} {showLabels} />
+        <Board {scene} selected={new Set(selected === null ? [] : [selected])} interaction={{ onSelect: (hit) => pick(hit) }}
+          {models} {showGrid} {showZones} {showLabels} />
       {/if}
     </div>
     <aside class="right">

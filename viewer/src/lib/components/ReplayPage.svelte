@@ -25,7 +25,7 @@
 
 <div class="replay">
   <p class="bar"><a href="#/games">Back to games</a>{#if error !== null} <span class="error" role="alert">{error}</span>{/if}</p>
-  <PlaybackView {feed} />
+  <PlaybackView {feed} models="circles" />
 </div>
 
 <style>

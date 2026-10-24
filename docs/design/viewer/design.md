@@ -3,7 +3,7 @@
 `viewer/` is a static web page that draws a `sim/` recording top-down in inches, with a timeline
 under the board and the log beside it. It is a developer tool and the fifth deliverable, separate
 from `web/`: `web/` owns preparation for players, and a debugging surface for the person writing
-the engine does not belong in it. Its hosted build also ships in production as the admin-only Replays
+the engine does not belong in it. Its hosted build also ships in production as the browser play and replay app for every signed-in player
 tool at `/viewer/` on the website's origin (*Two builds*, under Context). Two feeds reach it, a recording file and a
 live socket, and the live feed manufactures the recording's own shape in the browser, so nothing
 below the feed abstraction knows which feed it is on.
@@ -121,14 +121,14 @@ Open live are unchanged.
 
 **Two builds.** `npm run build` (and the dev server) is the developer viewer: its own login,
 `VITE_GAME_SOCKET`, the Tests page. `npm run build:hosted` (Vite mode `hosted`, base `/viewer/`) is the
-production admin Replays tool, served by the web image at `/viewer/` on the website's origin
+production play and replay app, served by the web image at `/viewer/` on the website's origin
 (`web/Dockerfile`, `web/Caddyfile`). `configOf` (`src/lib/hosted/hosted.ts`) tells them apart:
 
 - Session: the website's own, read from `localStorage` `tabletop.session` (`{ sessionJwt, account }`,
   written by `web/src/lib/session/session.svelte.ts`). `hostedSession` refreshes it through
   `/v1/auth/session/refresh` before each use and writes the new JWT back. No stored session, or a refresh
-  refused with a 4xx other than 429, shows *Signed out* with a link to `/login?next=/viewer/`; a JWT whose
-  `roles` claim lacks `admin` shows *Not authorised*. The page gate is for the reader; the socket and `/v1`
+  refused with a 4xx other than 429, shows *Signed out* with a link to `/login?next=/viewer/`; every signed-in
+  account opens it (the `admin` role adds Watch). The page gate is for the reader; the socket and `/v1`
   enforce access.
 - Socket: `wss://<page host>/ws` (`ws://` on http), the same `/ws` the client reaches through
   `TABLETOP_WEB_URL`.

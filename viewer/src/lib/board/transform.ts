@@ -17,6 +17,18 @@ export function fit(table: Table, viewport: Viewport): View {
   };
 }
 
+/** Fits a box in table inches (the table, widened to hold terrain set beside it) into the viewport, centred, with the margin. */
+export function fitBox(
+  box: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }, table: Table, viewport: Viewport,
+): View {
+  const width = Math.max(1e-9, box.maxX - box.minX);
+  const height = Math.max(1e-9, box.maxY - box.minY);
+  const scale = Math.min(Math.max(1, viewport.width - 2 * MARGIN) / width, Math.max(1, viewport.height - 2 * MARGIN) / height);
+  const left = (viewport.width - width * scale) / 2;
+  const top = (viewport.height - height * scale) / 2;
+  return { scale, panX: left - box.minX * scale, panY: top - (table.length - box.maxY) * scale };
+}
+
 /** The only place y is flipped: the table's y grows away from the near edge, the canvas's grows downward. */
 export function toScreen(view: View, table: Table, p: Point): Point {
   return { x: view.panX + p.x * view.scale, y: view.panY + (table.length - p.y) * view.scale };

@@ -11,7 +11,7 @@ repo-root `docker-compose.yml` is development only.
 | `systemd/` | `tabletop-migrate`, `tabletop-management`, `tabletop-game` units for a host run |
 | `prod.env.example`, `home.env.example` | Every setting and secret for each stack |
 | `../server/*/Dockerfile` | The server images (`dotnet publish -c Release` on `aspnet:10.0`, user `app`) |
-| `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors`; the viewer's hosted build (admin Replays) at `/viewer/` |
+| `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors`; the viewer's hosted build (browser play and replay) at `/viewer/` |
 | `../scripts/postgres/roles.sh` | The database roles |
 | `../scripts/postgres/backup.sh` | `pg-backup`'s nightly `pg_dump`, keeping the newest 14 |
 | `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher (Put on `releases/*` and `builtin/*`) when `RELEASE_S3_ACCESS_KEY` is set |
@@ -90,13 +90,13 @@ sudo systemctl daemon-reload && sudo systemctl enable --now tabletop-management 
 
 ```bash
 cd web && npm ci && TABLETOP_BLOB_ORIGIN=https://blobs.tabletop.example.org npm run build   # static site in web/build
-cd viewer && npm ci && npm run build:hosted                                                  # Replays in viewer/dist, for /viewer/
+cd viewer && npm ci && npm run build:hosted                                                  # the play app in viewer/dist, for /viewer/
 ```
 
-The viewer's hosted build is the admin-only Replays tool: same origin as the web app, so it reuses the website's session
+The viewer's hosted build is the browser play and replay app, open to every signed-in player: same origin as the web app, so it reuses the website's session
 (`localStorage`) and `/v1`, and opens the socket at `wss://<host>/ws`. It goes under `/viewer/` beside `web/build`
 (`scripts/release` installs it to `$TABLETOP_WEB_ROOT/viewer/`); `/viewer/` falls back to `/viewer/index.html`, not the
-web app's. It has no Tests page and no runner proxy. Non-admins see *Not authorised*; the game server admits only an admin
+web app's. It has no Tests page and no runner proxy. The game server admits only an admin
 or a participant on the socket, and `/v1` requires a session.
 
 What the reverse proxy fronts, all on 127.0.0.1: the static `web/build` (SPA fallback to `index.html`) with the viewer under `/viewer/`, `/v1/*` →
@@ -154,7 +154,7 @@ compose` needs it in `home.env`. Every container on `gateway_default` can then s
 | --- | --- | --- |
 | APP `tabletop.cstupi.com` | `/v1/*` | `tabletop-management:5100` |
 | APP | `/ws` | `tabletop-game:5200` (WebSocket; Caddy's `reverse_proxy` upgrades it) |
-| APP | everything else (the web app, and Replays at `/viewer/`) | `tabletop-web:8080` |
+| APP | everything else (the web app, and the play app at `/viewer/`) | `tabletop-web:8080` |
 | FILES `files.tabletop.cstupi.com` | everything | `tabletop-minio:9000` |
 
 - Keep the `Host` header (Caddy's default): presigned URLs are signed for the FILES host. No request body limit on FILES

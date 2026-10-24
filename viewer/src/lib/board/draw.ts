@@ -1,10 +1,15 @@
 import type { Scene, Shape } from './frame';
+import type { Overlay } from './interaction';
 import { markerColour, teamColour, terrainStroke } from './palette';
 import { type View, type Viewport, gridStep, toScreen } from './transform';
 
 export type DrawOptions = {
-  readonly selected?: string | undefined;
+  readonly selected: ReadonlySet<string>;
   readonly hovered?: string | undefined;
+  /** A model's real base outline, or a circle as wide as its longer side. */
+  readonly models: 'bases' | 'circles';
+  /** Drawn after the scene, in table inches. */
+  readonly overlays?: readonly Overlay[];
   readonly showGrid: boolean;
   readonly showZones: boolean;
   readonly showLabels: boolean;
@@ -82,20 +87,29 @@ export function draw(
 
   for (const model of scene.models) {
     const colour = teamColour(model.teamOrdinal);
-    path(ctx, model.shape, view, table);
+    const circles = options.models === 'circles';
+    const picked = options.selected.has(model.id);
+    path(ctx, circles ? model.circle : model.shape, view, table);
     ctx.fillStyle = model.wounds > 0 ? '#1b1e24' : colour;
     ctx.globalAlpha = model.wounds > 0 ? 1 : 0.65;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = model.id === options.selected ? '#ffffff' : model.id === options.hovered ? '#e6e8ec' : colour;
-    ctx.lineWidth = model.id === options.selected ? 2.5 : model.elevated ? 2 : 1;
+    ctx.strokeStyle = picked ? '#ffffff' : model.id === options.hovered ? '#e6e8ec' : colour;
+    ctx.lineWidth = picked ? 2.5 : model.elevated ? 2 : 1;
     if (model.elevated) ctx.setLineDash([2, 2]);
     ctx.stroke();
     ctx.setLineDash([]);
     if (model.facing !== null) {
       ctx.strokeStyle = colour;
       ctx.lineWidth = 1.5;
-      line(ctx, at(model.facing[0].x, model.facing[0].y), at(model.facing[1].x, model.facing[1].y));
+      line(ctx, at(model.facing[0].x, model.facing[0].y), at(...tickEnd(model, circles)));
+    }
+    if (model.z > 0.01 && view.scale > 6) {
+      const p = at(model.centre.x, model.centre.y);
+      ctx.fillStyle = '#e6e8ec';
+      ctx.font = '9px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${+model.z.toFixed(1)}"`, p.x, p.y + 10);
     }
     if (options.showLabels && view.scale > 6) {
       const p = at(model.centre.x, model.centre.y);
@@ -107,7 +121,23 @@ export function draw(
     }
   }
 
+  for (const overlay of options.overlays ?? []) {
+    ctx.save();
+    overlay(ctx, (p) => toScreen(view, table, p), view.scale);
+    ctx.restore();
+  }
+
   ctx.restore();
+}
+
+/** Where a model's facing tick ends: the base's own reach, or the circle's edge. */
+function tickEnd(model: Scene['models'][number], circles: boolean): [number, number] {
+  const [from, to] = model.facing!;
+  if (!circles || model.circle.kind !== 'circle') return [to.x, to.y];
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (length === 0) return [to.x, to.y];
+  const k = model.circle.radius / length;
+  return [from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k];
 }
 
 function line(ctx: CanvasRenderingContext2D, a: { x: number; y: number }, b: { x: number; y: number }): void {
