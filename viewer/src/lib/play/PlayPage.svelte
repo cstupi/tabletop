@@ -25,6 +25,7 @@
   import { choose, pieceMenu, rosterMenu, tableMenu, teamMenu, type MenuContext, type MenuStep } from './menus';
   import type { MenuItem } from './menuModel';
   import PieceMenu from './PieceMenu.svelte';
+  import WaitingPanel from './WaitingPanel.svelte';
   import { rollOffBannerOf, type Banner as BannerModel } from './rollOffBanners';
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
@@ -387,6 +388,7 @@
     {#if problem !== null}<div class="hud alert" role="alert">{problem}</div>{/if}
   </div>
   <aside class="side">
+    {#if snap !== null}<WaitingPanel {connection} {api} {snap} />{/if}
     {#if box !== null}<DecisionBoxView {box} {panel} />{/if}
     {#if snap !== null && box !== null}
       <InfoColumn

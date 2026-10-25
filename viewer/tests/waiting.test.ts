@@ -69,6 +69,20 @@ describe('WaitingForPlayers and WaitingView', () => {
     expect(s.game.teams).toHaveLength(2);
   });
 
+  it('a Join line becomes an army line once the board holds my seat, and an unchanged frame keeps the lines', () => {
+    const empty = boardOf([]);
+    const account = newId();
+    const alone = gameOf({}, [{ id: P1, accountId: account, name: 'Clay', teamId: TEAM1 }]);
+    const before = waitingLines(alone, waitingTeams(alone, empty), P1);
+    expect(before.map((l) => [l.text, l.join !== null, l.army !== null])).toEqual([['Team 1 has no army', false, true], ['Waiting for a player on Team 2', true, false]]);
+    const again: GameInfo = { ...alone, participants: alone.participants.map((x) => ({ ...x })) };       // a new GameInfo object, the same lines
+    expect(linesChanged(before, waitingLines(again, waitingTeams(again, empty), P1))).toBe(false);
+    const joined: GameInfo = { ...alone, participants: [...alone.participants, { id: SECOND, accountId: account, name: 'Clay', teamId: TEAM2 }] };
+    const after = waitingLines(joined, waitingTeams(joined, empty), P1);
+    expect(after.map((l) => [l.text, l.join !== null, l.army !== null])).toEqual([['Team 1 has no army', false, true], ['Team 2 has no army', false, true]]);
+    expect(linesChanged(before, after)).toBe(true);
+  });
+
   it('the wait holds only on an empty log', () => {
     const game = gameOf();
     const empty = boardOf([]);
