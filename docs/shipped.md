@@ -1,6 +1,66 @@
-# Shipped through v0.1.23
+# Shipped through v0.1.24
 
-What each batch up to v0.1.23 built, with the owner's rulings made along the way. `docs/handoff.md` holds the current state.
+What each batch up to v0.1.24 built, with the owner's rulings made along the way. `docs/handoff.md` holds the current state.
+
+## 2026-10-24, v0.1.24
+
+Released as v0.1.24.
+
+- **Graphics settings** (spec `2026-10-24-graphics-settings-design.md`): Settings → Graphics: Display (Windowed, Fullscreen
+  borderless), Quality (Low, Medium, High: MSAA, shadow splits and atlas, render scale), Render scale 50–100 % (FSR 1 below
+  100 %), VSync; `Core/GraphicsSettings`, `Table/GraphicsApplier`. The table's `SubViewport` had no MSAA before; Medium is today's
+  shadows with 2× MSAA. The window's size and position are kept.
+- **Browser play** (spec `2026-10-24-browser-play-design.md`, plans `2026-10-24-browser-play-{a,b,c1,c2,d1,d2,d3,d4}*.md`): every
+  signed-in player sets up, plays and replays games in the browser at `/viewer/` (the website header's **Play**), models as
+  circles on the 2D board; Godot and the browser share a table.
+  - Tables: `Tabletop.Content` `RandomTables` lays a planet's rolled terrain on the table, the same count of each kind per team
+    (mirrored for two teams, one per team per round for three or four); `POST /v1/layouts/random`; four predefined 72×48 tables
+    at `GET /v1/layouts/builtin`; Godot's Setup has the planet pick, Random table and the predefined tables. Wasteland reaches
+    15 % difficult, which is what p.19's table holds (p.12's thirds are guidelines).
+  - `libs/Tabletop.Geometry.Wasm`: Geometry compiled to WebAssembly (`viewer/src/lib/geometry/`, about 1.7 MB brotli, loaded
+    only for setup and play); `scripts/geometry-wasm`, compose one-shot `geometry-wasm`; `/viewer/` CSP allows
+    `'wasm-unsafe-eval'`. `RangeOutline` and `Contacts` moved into Geometry; the client calls them.
+  - Viewer: games list, create, join, leave, end, delete; `GameConnection` (refusals matched by message id); lobby; setup
+    (terrain, markers, zones, layouts, random); play (decision box for every Ask mode, drag moves and deploys landing as
+    Godot's, contacts, refused commits, combat log matching Godot's on the fixtures, unit card, dice, Undo, header, roster,
+    range rings, sight check, menus, waiting panel); replays on `/ws?watch=1`.
+  - Stack tests (`cd viewer && TABLETOP_E2E=1 npm run test:e2e`) play lobby to setup, deployment drags, a refused move, and a
+    whole round from the browser modules. The whole-round driver always holds, so move, shoot and assign Asks are covered by
+    unit tests only there.
+  - Not built: the browser's level keys (it always drops lifted), the reach outline, closest-base lines, a Leave menu item,
+    banners beyond the roll-off.
+- Validated on `main` after the last merge: unit suite all green, E2E 425/425, viewer 744 unit and 4 stack tests, web 128,
+  rules suite 306/306 in process. Nothing has been looked at on screen yet.
+
+## 2026-10-24, v0.1.23
+
+**Tagged: v0.1.23** (pushed). Specs `docs/superpowers/specs/2026-10-24-*`, plans `docs/superpowers/plans/2026-10-24-*`.
+- **Held pieces lift over.** Every pick-up is lifted: models and terrain go straight to the cursor over everything, drawn
+  0.5" above what is under them, a ring marking where they land; the drop lands at the nearest clear spot (a model within its
+  reach in a move step, searched 24" out; a terrain piece clear of Impassable pieces). PageDown/PageUp step the held pieces
+  down or up one surface (`HoldLevel`); at a level they slide along what is at that height and pass under a Solid with room.
+  `Battlefield.Settle` and setup terrain edits (`DraftEditor.Rest`) rest on the open surface nearest the Z sent; without an
+  overhang that is the old rest.
+- **Sound effects.** Shoot, melee, move and wound cues (`SoundCues`, `SoundPlayer`), once per cue per live batch, never on
+  catch-up, replay or undo; WAVs synthesised by `scripts/Sounds` into `client/content/sounds/`. Settings: Sound, Volume.
+- **The roll-off result.** The roll-off no longer opens a Continue for every team (it still gates under the wait setting,
+  which only the rules suite uses for fixed dice); a game stopped at the old gate resumes (`SequenceInterpreter.StaleGates`).
+  Every client shows "Team k goes first" with each team's roll for 4 s ahead of the turn banner (`RollOffBanners`; the
+  ranking step writes `rolled_<ordinal>_<k>`).
+- **Four-team games.** Lifecycle shape `four-teams` (8 accounts, 2 a team, four army books) and `FreeForAllChecks` over every
+  shape; `FourTeamGameTests`; suite game `core-four-teams`. Fixed: a game of three or four teams started setup with only the
+  two long-edge zones, so teams 3 and 4 could deploy anywhere; it now starts on p.50's four corner areas
+  (`ZoneStyles.FreeForAll`), and a team created during setup moves default zones to the corners.
+
+- **Decision box hover.** Hovering an option's button lights its unit in `Palette.Hovered` and darkens the other choices, so
+  same-named units tell apart.
+- **Web: mesh pickers by folder.** The army page's pickers list one library folder (and its sub-folders), the army's choice,
+  kept in the browser per army (`web/src/lib/armies/folder.ts`).
+
+Validated on the merged `main`: unit suite all green, E2E 425/425 (the seven lifecycle shapes included), the rules suite in
+process 306/306 and over the socket 305/306: `battle-brothers-re-deployment` stopped with `NoAskNoEvents` after its
+re-deploy in the full socket run and passed three runs alone, so it reads as the socket driver's step timing under load
+(`sim/Run/RunLoop.cs`), not a rule.
 
 ## 2026-10-20
 

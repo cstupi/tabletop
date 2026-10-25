@@ -1,14 +1,15 @@
-# Handoff — 2026-10-24
+# Handoff — 2026-10-25
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.24 is the latest tag. What each earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.24 is the latest tag; *Next* holds what is on `main` since. What each
+earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
 
 ```bash
-docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173, viewer 5174 (Vite), sim-runner 5180
+docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173 (+ /viewer/), viewer 5174 (Vite), sim-runner 5180
 ./scripts/client         # build, check, launch the Godot client on Windows
 ```
 
@@ -21,9 +22,12 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
   after a clean restores NuGet for about a minute.
 - `docker compose stop management game` frees the ports for `./scripts/management` and `./scripts/game`;
   `docker compose stop web viewer` does the same for `./scripts/web` and the viewer's `npm run dev`.
-- The web app (`http://127.0.0.1:5173`, importing armies and meshes) and the viewer (`http://127.0.0.1:5174`) run as
-  Vite dev servers in `node:24.19.0` containers, proxying `/v1` to the management container. They share `node_modules`
-  with the host and run `npm ci` on start only when `package-lock.json` changed since the last install.
+- The web app (`http://127.0.0.1:5173`) and the viewer run as Vite dev servers in `node:24.19.0` containers, proxying `/v1`
+  to the management container. The website proxies `/viewer/` to the viewer's server, so the browser game is
+  `http://127.0.0.1:5173/viewer/` (the header's **Play**) and shares the website's session, as production serves it; the
+  viewer's own `:5174` serves the same app without the website's session. They share `node_modules` with the host and run
+  `npm ci` on start only when `package-lock.json` changed since the last install. The compose one-shot `geometry-wasm`
+  publishes the WebAssembly geometry into `viewer/public/geometry/` first; rerun it after a Geometry change.
 - Never `docker compose down -v`: the Postgres volume holds the schema the server tests read.
 - Godot's import step wipes the client's build output. If every script fails with "class could not be found", run
   `./scripts/client` again.
@@ -33,109 +37,86 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 - The client's log is `/mnt/c/Users/clays/AppData/Roaming/Godot/app_userdata/Tabletop/logs/godot.log` (the latest run;
   older runs are the dated files beside it). A crash can cut its tail off.
 
-**The lifecycle suite.** `dotnet run --project sim -- lifecycle` plays six shapes against the compose stack by the client's
+**The lifecycle suite.** `dotnet run --project sim -- lifecycle` plays seven shapes against the compose stack by the client's
 path (spec `2026-10-20-lifecycle-suite-design.md`, `sim/AGENTS.md` → The lifecycle suite): management over HTTP (create on the
 first set of `GET /v1/properties`, join, army import through the dev-mode `POST /v1/dev/armies/import`, statuses, leave,
 delete) and the socket (lobby and setup edits, waiting for players, play to the rules' end, replay on `/ws?watch=1`), on
-`lifecycle-player-0..3` and `lifecycle-spectator`; nothing written to Postgres directly. Today 6 of 6 pass, about 2 min.
+`lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. Today 7 of 7 pass (`four-teams`
+included), about 3 min.
 
 **The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 45 s);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
-each game's rows, never the accounts.
+each game's rows, never the accounts (`sim-player-0..8`).
 `--only core,special,army:<book uid>,spells:<book uid>,<game name>` selects; `--keep` keeps recordings (and a socket run's
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. Every run writes
 `recordings/suite-<run id>.md` and `.json` (copied to `suite-latest.md` and `.json`; rewritten after each game, so an aborted run
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
-a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
+a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 305 of 305 games pass in process and over the socket with no pin, 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 306 of 306 games pass in process with no pin, 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 
-**Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
+**Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 60 s. Geometry 228, Content 23, ArmyBooks 40, TerrainMeshes 114, TableTextures 29, Protocol 62, Viewer 9,
-  Client 726, GameServer 1415, Management 276, Sim 305.
+  defect). About 4 min. Geometry 268, Geometry.Wasm 22, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
+  Protocol 62, Sounds 19, Viewer 9, Client 769, GameServer 1430, Management 293, Sim 307.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
-  tests run against fake and real), migrations, the suite games in process and over the socket, and the six lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 2 min). Management 47, GameServer 40, Sim 335; about 7 min.
+  tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
+  against the compose stack (`LifecycleTests`, about 3 min). Management 47, GameServer 40, Sim 338; about 7 min.
 
-`cd viewer && npm run check && npm test` passes (125); `cd web && npm test` passes 123 (1 skipped).
+`cd viewer && npm run check && npm test` passes 781 (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
+plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
+`cd web && npm test` passes 128 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
+dev session (`POST /v1/dev/sessions`, roles admin) and stores it as `tabletop.session` on the website's origin.
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
+## Release
+
+The owner releases. "tag it" means tag `vX.Y.Z` on `main` and push at once, no extra pre-tag run (the release runs its own tests).
+On the home server `docker1` (`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`): `git fetch --tags &&
+git checkout vX.Y.Z && scripts/release --deploy home --version vX.Y.Z` (tests in containers, the client built in the Godot builder
+container, publishes `releases/` and `builtin/`, deploys). The owner says which version is live. The owner's other Claude
+sessions take instructions over Remote Control: `docker1-logical-curry` (server; no superuser DB queries without the owner's
+approval) and `syn01-piped-castle` (NAS; no root).
+
 ## Next
 
-### 2026-10-24
+### 2026-10-25, after v0.1.24
 
-**Tagged: v0.1.23** (pushed). Specs `docs/superpowers/specs/2026-10-24-*`, plans `docs/superpowers/plans/2026-10-24-*`.
-- **Held pieces lift over.** Every pick-up is lifted: models and terrain go straight to the cursor over everything, drawn
-  0.5" above what is under them, a ring marking where they land; the drop lands at the nearest clear spot (a model within its
-  reach in a move step, searched 24" out; a terrain piece clear of Impassable pieces). PageDown/PageUp step the held pieces
-  down or up one surface (`HoldLevel`); at a level they slide along what is at that height and pass under a Solid with room.
-  `Battlefield.Settle` and setup terrain edits (`DraftEditor.Rest`) rest on the open surface nearest the Z sent; without an
-  overhang that is the old rest.
-- **Sound effects.** Shoot, melee, move and wound cues (`SoundCues`, `SoundPlayer`), once per cue per live batch, never on
-  catch-up, replay or undo; WAVs synthesised by `scripts/Sounds` into `client/content/sounds/`. Settings: Sound, Volume.
-- **The roll-off result.** The roll-off no longer opens a Continue for every team (it still gates under the wait setting,
-  which only the rules suite uses for fixed dice); a game stopped at the old gate resumes (`SequenceInterpreter.StaleGates`).
-  Every client shows "Team k goes first" with each team's roll for 4 s ahead of the turn banner (`RollOffBanners`; the
-  ranking step writes `rolled_<ordinal>_<k>`).
-- **Four-team games.** Lifecycle shape `four-teams` (8 accounts, 2 a team, four army books) and `FreeForAllChecks` over every
-  shape; `FourTeamGameTests`; suite game `core-four-teams`. Fixed: a game of three or four teams started setup with only the
-  two long-edge zones, so teams 3 and 4 could deploy anywhere; it now starts on p.50's four corner areas
-  (`ZoneStyles.FreeForAll`), and a team created during setup moves default zones to the corners.
+On `main`, not pushed, not tagged.
 
-- **Decision box hover.** Hovering an option's button lights its unit in `Palette.Hovered` and darkens the other choices, so
-  same-named units tell apart.
-- **Web: mesh pickers by folder.** The army page's pickers list one library folder (and its sub-folders), the army's choice,
-  kept in the browser per army (`web/src/lib/armies/folder.ts`).
+- **The play UI** (spec `2026-10-25-play-ui-design.md`), after the owner found the browser viewer broken (*"completely broken
+  and has horrific ux"*, the replay's Play button dead):
+  - One sign-in: the viewer is served under `/viewer/` in development too, through the website's dev server, and reads the
+    website's session; the developer password form and the pasted JWT are gone; the dev socket is `ws://127.0.0.1:5200/ws`.
+  - A page of the website: it loads `web/src/themes.css`, `app.css`, the header (`shell/SiteHeader.svelte`), icons and the theme
+    switch, and fills the window (no page scroll; side columns scroll inside themselves).
+  - Redesigned: the games list (status chip, players, age, one main action each); lobby (team cards beside a Game panel, Start
+    setup always in view); setup (tools sidebar with terrain search grouped by what a piece does, the piece's card, End setup in
+    the header strip); play (top bar, collapsible roster column, decision box leading the right column, unit card, log); replay
+    (the play page's parts read-only and a playback bar: step by round, turn and action, Play/Pause, 0.5–8×, scrubber; the old
+    one opened on the last frame, so Play did nothing); the board (theme colours read at draw time, filled terrain, zone bands,
+    objective tokens, names only when zoomed or selected, never ids or snake_case).
+  - The top bar used to stay on "Round 0" all game (it never redrew); fixed.
+- **Objective names.** A marker with no label reads as its kind and place ("Objective 2"), never an id, in Godot's `Names` and
+  the browser's.
+- **Clean dev data.** The viewer's e2e tests use fixed accounts (`viewer-e2e-*`) and delete their games and armies in `finally`;
+  the 154 games earlier test runs left in the dev database are deleted (the owner's 10 remain).
+- Checked: viewer 781 unit tests, type check, hosted build and stack tests; client tests; the web image builds with the viewer
+  in it. Every page was reviewed by screenshot in both themes at 1440×900 and 1280×720; nobody has clicked through it on screen,
+  and Godot's graphics settings, Random table and predefined tables have not been seen in the client. The full unit, E2E and
+  rules suites were last run before this batch (all green at v0.1.24).
 
-Validated on the merged `main`: unit suite all green, E2E 425/425 (the seven lifecycle shapes included), the rules suite in
-process 306/306 and over the socket 305/306: `battle-brothers-re-deployment` stopped with `NoAskNoEvents` after its
-re-deploy in the full socket run and passed three runs alone, so it reads as the socket driver's step timing under load
-(`sim/Run/RunLoop.cs`), not a rule.
-
-### 2026-10-24, v0.1.24
-
-Released as v0.1.24.
-
-- **Graphics settings** (spec `2026-10-24-graphics-settings-design.md`): Settings → Graphics: Display (Windowed, Fullscreen
-  borderless), Quality (Low, Medium, High: MSAA, shadow splits and atlas, render scale), Render scale 50–100 % (FSR 1 below
-  100 %), VSync; `Core/GraphicsSettings`, `Table/GraphicsApplier`. The table's `SubViewport` had no MSAA before; Medium is today's
-  shadows with 2× MSAA. The window's size and position are kept.
-- **Browser play** (spec `2026-10-24-browser-play-design.md`, plans `2026-10-24-browser-play-{a,b,c1,c2,d1,d2,d3,d4}*.md`): every
-  signed-in player sets up, plays and replays games in the browser at `/viewer/` (the website header's **Play**), models as
-  circles on the 2D board; Godot and the browser share a table.
-  - Tables: `Tabletop.Content` `RandomTables` lays a planet's rolled terrain on the table, the same count of each kind per team
-    (mirrored for two teams, one per team per round for three or four); `POST /v1/layouts/random`; four predefined 72×48 tables
-    at `GET /v1/layouts/builtin`; Godot's Setup has the planet pick, Random table and the predefined tables. Wasteland reaches
-    15 % difficult, which is what p.19's table holds (p.12's thirds are guidelines).
-  - `libs/Tabletop.Geometry.Wasm`: Geometry compiled to WebAssembly (`viewer/src/lib/geometry/`, about 1.7 MB brotli, loaded
-    only for setup and play); `scripts/geometry-wasm`, compose one-shot `geometry-wasm`; `/viewer/` CSP allows
-    `'wasm-unsafe-eval'`. `RangeOutline` and `Contacts` moved into Geometry; the client calls them.
-  - Viewer: games list, create, join, leave, end, delete; `GameConnection` (refusals matched by message id); lobby; setup
-    (terrain, markers, zones, layouts, random); play (decision box for every Ask mode, drag moves and deploys landing as
-    Godot's, contacts, refused commits, combat log matching Godot's on the fixtures, unit card, dice, Undo, header, roster,
-    range rings, sight check, menus, waiting panel); replays on `/ws?watch=1`.
-  - Stack tests (`cd viewer && TABLETOP_E2E=1 npm run test:e2e`) play lobby to setup, deployment drags, a refused move, and a
-    whole round from the browser modules. The whole-round driver always holds, so move, shoot and assign Asks are covered by
-    unit tests only there.
-  - Not built: the browser's level keys (it always drops lifted), the reach outline, closest-base lines, a Leave menu item,
-    banners beyond the roll-off.
-- Validated on `main` after the last merge: unit suite all green, E2E 425/425, viewer 744 unit and 4 stack tests, web 128,
-  rules suite 306/306 in process. Nothing has been looked at on screen yet.
-- **The play UI** (spec `2026-10-25-play-ui-design.md`), after the owner found the viewer broken: the viewer is served under
-  `/viewer/` in development too, through the website's dev server (`http://127.0.0.1:5173/viewer/`), and shares the website's
-  session; the developer sign-in and pasted JWT are gone. It loads the website's `themes.css`, `app.css`, header and icons and fills
-  the window. Redesigned: the games list, lobby (team cards, Game panel), setup (tools sidebar, terrain search, piece card), play
-  (top bar, roster column, decision box leading the right column, unit card, log), replay (the play page's parts read-only, a
-  playback bar; Play now works: the old one opened on the last frame), and the board (theme colours, terrain fills, names only
-  when zoomed or selected). The viewer's e2e tests delete what they create; the 154 games earlier test runs left in the dev
-  database are deleted (the owner's 10 remain).
-- Next: the easy computer player (brainstormed: sensible single decisions scored on the game server, deterministic,
-  difficulty levels later with combos, blocking and screening); its design is the next step.
+**Next: the easy computer player.** Brainstormed with the owner (not yet a design): play against the computer at several
+difficulty levels, built easy first. Deterministic C# on the game server (the rules live there), no LLM. Easy makes sensible,
+human-looking single decisions aimed at winning: sample legal positions for deploy and move, score each (expected damage dealt
+and taken from the real stats, cover from the threatening units, objectives, the unit's role from its weapons: a ranged army
+holds and moves only for objectives), pick the best; activation order, targets, Scout and Ambush the same way. Harder levels
+plan across activations (combos such as ambush and debuff one unit, finish with another), and block and screen with units.
+The browser board is how the owner wants to play and judge it, many games at once. Next step: the written design.
 
 ### 0. Performance
 
