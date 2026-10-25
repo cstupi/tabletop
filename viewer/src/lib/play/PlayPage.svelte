@@ -15,9 +15,24 @@
   import { moveHooks } from './decisionBox.move';
   import DecisionBoxView from './DecisionBox.svelte';
   import GameOverModal from './GameOverModal.svelte';
+  import Banner from './Banner.svelte';
+  import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
+  import Roster from './Roster.svelte';
+  import { Names } from './names';
+  import { mine as askMine } from './askView';
+  import { refusalText } from '../connection/feedback';
+  import { choose, pieceMenu, rosterMenu, tableMenu, teamMenu, type MenuContext, type MenuStep } from './menus';
+  import type { MenuItem } from './menuModel';
+  import PieceMenu from './PieceMenu.svelte';
+  import WaitingPanel from './WaitingPanel.svelte';
+  import { rollOffBannerOf, type Banner as BannerModel } from './rollOffBanners';
   import { intentOf, textFocused } from './keys';
-  import { fetchRuleTexts, RuleTexts } from './ruleTexts';
+  import { isWatching } from './waiting';
+  import { RangeRingCache, ringsOverlay } from './rangeRings';
+  import { SightCheck, sightOverlay } from './sightCheck';
+  import { teamColour } from '../board/palette';
+  import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
   import { sceneOfPlay } from './scene';
   import type { Selection } from './selectionView';
   import { loadSettings, saveSettings, type PlaySettings, type StorageLike } from './settings';
@@ -35,8 +50,9 @@
   let box = $state.raw<DecisionBox | null>(null);
   let geometry = $state.raw<Geometry | null>(null);
   let rules = $state.raw(RuleTexts.empty);
+  let grants = $state.raw<readonly GrantChoice[]>([]);
   let selected = $state.raw<ReadonlySet<string>>(new Set());
-  let settings: PlaySettings = loadSettings(browserStorage());
+  let settings = $state.raw<PlaySettings>(loadSettings(browserStorage()));
 
   // --- D3 (info): the selection and hover the card reads, the log's table highlight, the undo prediction ---
   let selection = $state.raw<Selection | null>(null);
@@ -55,6 +71,29 @@
     return () => { for (const stop of stops) stop(); prediction.reset(); };
   });
   // --- end D3 ---
+
+  // --- D4: the roll-off banner (live batches only; the queue shows one after another) ---
+  let banner = $state.raw<BannerModel | null>(null);
+  $effect(() => {
+    const conn = connection;
+    const queue: BannerModel[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const next = (): void => {
+      timer = null;
+      banner = queue.shift() ?? null;
+      if (banner !== null) timer = setTimeout(next, banner.seconds * 1000);
+    };
+    const stop = conn.onEvents((events) => {
+      const s = conn.state;
+      if (s.game === null) return;
+      const b = rollOffBannerOf(events, new Names(s.game, s.projection), s.catchingUp);
+      if (b === null) return;
+      queue.push(b);
+      if (timer === null) next();
+    });
+    return () => { stop(); if (timer !== null) clearTimeout(timer); banner = null; };
+  });
+  // --- end D4 banner ---
 
   /** localStorage can throw (a private window, blocked site data): the settings then live for the page only. */
   function browserStorage(): StorageLike | null {
@@ -136,6 +175,7 @@
       void fetchRuleTexts(api, hash).then((got) => {
         if (got === null) { fetched.delete(hash); return; }
         rules = got.rules;
+        grants = got.grants;
         box?.render();
       });
     });
@@ -182,8 +222,100 @@
     b.unit(unit);
   }
 
+  // D4: range rings for my selected unit when V has them on (RangeRingNode).
+  const ringCache = new RangeRingCache();
+  const ringsDrawn = $derived.by((): Overlay | null => {
+    const p = shown, game = snap?.game, unit = selection?.pieceId;
+    if (!settings.rangeRings || geometry === null || p === null || game == null || unit === undefined) return null;
+    const u = p.units.get(unit);
+    const team = u === undefined ? undefined : game.participants.find((x) => x.id === u.participantId)?.teamId;
+    if (team === undefined || team !== actingTeam) return null;                  // mine only
+    const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
+    return ringsOverlay(ringCache.of(geometry, p, unit), teamColour(ordinal));
+  });
+
+  // D4: the sight check — L held with a unit selected, or the shooter of my open target pick, over the hovered unit.
+  let sightHeld = $state(false);
+  let sightTick = $state(0);
+  const sight = new SightCheck((observer, target) => connection.querySight(observer, target));
+  $effect(() => sight.subscribe(() => { sightTick++; }));
+  $effect(() => {
+    void panel; void hoveredUnit; void sightHeld;
+    const s = snap, b = box, sel = selection;
+    untrack(() => { if (s?.projection != null && s.game !== null && b !== null) sight.update(s.projection, s.game, b, hoveredUnit, sel?.pieceId ?? null, sightHeld); });
+  });
+  const sightView = $derived.by(() => {
+    void sightTick; void panel;
+    return shown === null || snap?.game == null ? null : sight.view(shown, snap.game, new Names(snap.game, shown), box?.targets != null);
+  });
+  const sightDrawn = $derived(sightView === null || scene === null ? null : sightOverlay(sightView, scene));
+
+  // D4: the menus (GameScreen.Play: ItemsFor, OpenTeamMenu, the roster's and the table's) and the hand actions they send.
+  let menu = $state.raw<{ items: readonly MenuItem[]; at: { x: number; y: number } } | null>(null);
+  let pending = $state.raw<{ item: MenuItem; what: 'piece' | 'table' } | null>(null);
+  let problem = $state<string | null>(null);
+  let problemTimer: ReturnType<typeof setTimeout> | undefined;
+  let pointerAt = { x: 0, y: 0 };
+  function report(text: string): void { problem = text; clearTimeout(problemTimer); problemTimer = setTimeout(() => { problem = null; }, 8000); }
+  $effect(() => () => { clearTimeout(problemTimer); });
+
+  function menuContext(): MenuContext | null {
+    const s = snap;
+    if (s === null || s.projection === null || s.game === null) return null;
+    return {
+      game: s.game, p: s.projection, log: s.log, watching: isWatching(s), myTeam: actingTeam,
+      mine: askMine(s.projection, s.game, actingTeam, new Set(settings.mutedWindowKinds)), grantable: grants, deployInside: s.deployInside, locks,
+    };
+  }
+  function openMenu(items: readonly MenuItem[] | null, at: { x: number; y: number }): void {
+    pending = null;
+    menu = items === null || items.length === 0 ? null : { items, at };
+  }
+  async function sendHand(command: Parameters<GameConnection['sendCommand']>[0]): Promise<void> {
+    try {
+      const outcome = await connection.sendCommand(command);
+      if (outcome.refused !== null) report(refusalText(outcome.refused) ?? outcome.refused.detail ?? 'The server refused that.');
+    } catch (e) { report(`Could not send: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  function onStep(item: MenuItem, step: MenuStep): void {
+    switch (step.kind) {
+      case 'send': void sendHand(step.command); break;
+      case 'local': item.local?.(); break;
+      case 'pick': pending = { item, what: step.what }; break;
+      case 'invalid': report('That is not a valid value.'); break;
+      case 'dialog': break;
+    }
+  }
+  /** The pick a menu item asked for: the next piece or table click. */
+  function resolvePick(hit: BoardHit | null, at: { x: number; y: number }): void {
+    const wait = pending;
+    pending = null;
+    if (wait === null) return;
+    if (wait.what === 'piece') { if (hit !== null) onStep(wait.item, choose(wait.item, hit.id)); else report('Click a piece.'); return; }
+    onStep(wait.item, choose(wait.item, `${at.x},${at.y},0`));
+  }
+  const teamMenuAt = (teamId: string, at: { x: number; y: number }): void => {
+    const c = menuContext();
+    if (c !== null) openMenu(teamMenu(c, teamId, new Names(c.game, c.p)), at);
+  };
+  const rosterMenuAt = (unitId: string, at: { x: number; y: number }): void => {
+    const c = menuContext();
+    if (c !== null) openMenu(rosterMenu(c, unitId), at);
+  };
+
+  /** The roster's and header's unit pick selects the unit as a click on its model does. */
+  function pickUnit(unit: string): void {
+    const p = snap?.projection;
+    if (p === null || p === undefined) return;
+    selection = { pieceId: unit, modelIds: [] };
+    selected = new Set([...p.models.values()].filter((m) => m.unitId === unit).map((m) => m.id));
+    box?.unit(unit);
+  }
+  let gameOver: GameOverModal | undefined = $state();
+
   const interaction: BoardInteraction = {
     onSelect(hit: BoardHit | null, mods: Modifiers, at: { x: number; y: number }) {
+      if (pending !== null) { resolvePick(hit, at); return; }              // D4: a menu item waits for this click
       if (drags.placeAt(at)) return;                                       // D2: a deploy's click on the table
       if (hit?.kind === 'model') clickModel(hit.id, mods);
       else { selected = new Set(); selection = hit === null ? null : { pieceId: hit.id, modelIds: [] }; }   // D3: a marker or terrain piece is selectable too
@@ -196,8 +328,13 @@
     onDragMove: (at, mods) => drags.onDragMove(at, mods),
     onDragEnd: (at, mods) => drags.onDragEnd(at, mods),
     onDragCancel: () => drags.onDragCancel(),
-    onContextMenu(hit: BoardHit | null) {
-      if (hit?.kind === 'model' && box?.eligible.has(hit.id) === true) box.model(hit.id, true);
+    onContextMenu(hit: BoardHit | null, at: { x: number; y: number }, _screen: unknown, mods?: Modifiers) {
+      pending = null;
+      if (hit?.kind === 'model' && box?.eligible.has(hit.id) === true) { box.model(hit.id, true); return; }   // the casualty pick's, not a menu
+      const c = menuContext();
+      if (c === null) return;
+      if (hit !== null && hit.kind !== 'terrain') openMenu(pieceMenu(c, hit.id, mods?.shift === true), pointerAt);
+      else if (mods?.alt === true) openMenu(tableMenu(c, { x: at.x, y: at.y, z: 0 }), pointerAt);
     },
   };
 
@@ -216,11 +353,14 @@
   // --- end D3 helpers ---
 
   function onKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Escape' && pending !== null) { pending = null; e.preventDefault(); return; }
     if (e.defaultPrevented || textFocused(e.target) || box === null) return;
     const mods: Modifiers = { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey };
     const intent = intentOf(e.key, mods);
     if (intent === null) return;
     if (drags.onKey(intent, e.shiftKey)) { e.preventDefault(); return; }   // D2: Q/E, 1–5 and Enter while a drag is in hand
+    if (intent.kind === 'sight') { sightHeld = true; e.preventDefault(); return; }
+    if (intent.kind === 'toggleRangeRings') { changeSettings((x) => ({ ...x, rangeRings: !x.rangeRings })); e.preventDefault(); return; }
     const used = intent.kind === 'option' ? box.number(intent.key)
       : intent.kind === 'confirm' ? box.enter()
       : intent.kind === 'cancel' ? box.cancel()
@@ -230,17 +370,25 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onpointerdowncapture={(e) => { pointerAt = { x: e.clientX, y: e.clientY }; }} onkeydown={onKeydown} onkeyup={(e) => { if (e.key === 'l' || e.key === 'L') sightHeld = false; }} onblur={() => { sightHeld = false; }} />
 
 <div class="play">
   <div class="stage">
     {#if scene === null || snap === null}
       <p class="muted pad">Loading the game…</p>
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={infoOverlay === null ? overlays : [...overlays, infoOverlay]} {warned} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
+    {#if snap !== null && shown !== null && snap.game !== null}
+      <div class="hud top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
+      <div class="hud left"><Roster {snap} {shown} myTeam={actingTeam} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
+    {/if}
+    <div class="hud banner"><Banner {banner} /></div>
+    {#if pending !== null}<div class="hud hint" role="status">{pending.item.label}: {pending.what === 'piece' ? 'click a piece' : 'click the table'} (Esc cancels)</div>{/if}
+    {#if problem !== null}<div class="hud alert" role="alert">{problem}</div>{/if}
   </div>
   <aside class="side">
+    {#if snap !== null}<WaitingPanel {connection} {api} {snap} />{/if}
     {#if box !== null}<DecisionBoxView {box} {panel} />{/if}
     {#if snap !== null && box !== null}
       <InfoColumn
@@ -250,13 +398,20 @@
       />
     {/if}
   </aside>
+  {#if menu !== null}<PieceMenu items={menu.items} at={menu.at} {onStep} onClose={() => (menu = null)} />{/if}
   {#if snap !== null && box !== null}
-    <GameOverModal {connection} {snap} myTeams={teams} {actingTeam} />
+    <GameOverModal bind:this={gameOver} {connection} {snap} myTeams={teams} {actingTeam} />
   {/if}
 </div>
 
 <style>
   .play { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; height: 100%; min-height: 0; }
   .stage { position: relative; min-height: 0; min-width: 0; }
+  .hud { position: absolute; z-index: 2; pointer-events: none; }
+  .hud.top { top: 0.4rem; left: 50%; transform: translateX(-50%); width: min(46rem, calc(100% - 17rem)); display: flex; justify-content: center; }
+  .hud.left { top: 0.4rem; left: 0.4rem; bottom: 0.4rem; display: flex; align-items: flex-start; }
+  .hud.hint { bottom: 2.4rem; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 0.2rem 0.6rem; }
+  .hud.alert { bottom: 0.4rem; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid #ff6b5c; padding: 0.2rem 0.6rem; }
+  .hud.banner { top: 20%; left: 50%; transform: translateX(-50%); }
   .side { overflow: auto; border-left: 1px solid var(--line); padding: 0.5rem 0.6rem; }
 </style>

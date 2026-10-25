@@ -26,8 +26,8 @@ export interface BoardInteraction {
   onDragEnd?(at: Point, mods: Modifiers): void;
   /** Escape, pointer cancel or the canvas losing the pointer mid-drag. */
   onDragCancel?(): void;
-  /** Right click; `screen` is canvas pixels, for a menu. */
-  onContextMenu?(hit: BoardHit | null, at: Point, screen: Point): void;
+  /** Right click; `screen` is canvas pixels, for a menu; `mods` are the keys held when it went down. */
+  onContextMenu?(hit: BoardHit | null, at: Point, screen: Point, mods?: Modifiers): void;
   /** Keys while the canvas has focus (it is focusable); true when handled. Escape cancels a drag before this is asked. */
   onKey?(key: string, mods: Modifiers): boolean;
 }

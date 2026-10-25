@@ -9,7 +9,7 @@
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true, glow, marks, warned,
+    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed,
   }: {
     scene: Scene;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
@@ -26,12 +26,15 @@
     marks?: ReadonlyMap<string, string> | undefined;
     /** Models in breach, drawn in the warning colour. */
     warned?: ReadonlySet<string> | undefined;
+    /** Models darkened by the sight check. */
+    dimmed?: ReadonlySet<string> | undefined;
   } = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let box = $state({ width: 800, height: 600 });
   let hovered: string | undefined = $state(undefined);
   let pointer: PointerState = IDLE_POINTER;
+  let downMods: Modifiers = { shift: false, ctrl: false, alt: false };
 
   // A new table is a different table: the old pan and zoom mean nothing on it.
   $effect(() => { void scene.table.width; void scene.table.length; view = null; });
@@ -45,7 +48,7 @@
     canvas.height = Math.round(box.height * dpr);
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned });
+    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned, dimmed });
   });
 
   $effect(() => {
@@ -79,7 +82,7 @@
         case 'dragEnd': interaction?.onDragEnd?.(effect.at, effect.mods); break;
         case 'dragCancel': interaction?.onDragCancel?.(); break;
         case 'pan': view = panBy(current, effect.dx, effect.dy); break;
-        case 'context': interaction?.onContextMenu?.(effect.hit, effect.at, effect.screen); break;
+        case 'context': interaction?.onContextMenu?.(effect.hit, effect.at, effect.screen, downMods); break;
       }
     }
   }
@@ -105,6 +108,7 @@
     onpointerdown={(e) => {
       if (e.button !== 0 && e.button !== 2) return;
       canvas!.focus();
+      downMods = modsOf(e);
       canvas!.setPointerCapture(e.pointerId);
       feed({ type: 'down', button: e.button, ...inputAt(e) });
     }}

@@ -1,106 +1,23 @@
-// A game in play, from the browser modules, against the running stack (docker compose up -d): two accounts import an army each over the
-// dev route, take a team each, end setup, and answer the server's Asks through the decision box controller on their real connections.
+// A game in play, from the browser modules, against the running stack (docker compose up -d): the decision box on real connections, deployment and
+// moves by dragging, and a game from lobby through deployment and a whole round.
 // Skipped unless TABLETOP_E2E=1. Run: npm run test:e2e.
 
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { apiOf } from '../../src/lib/api/client';
-import { connectGame, type ConnectionState, type GameConnection } from '../../src/lib/connection/gameConnection';
-import { acting, teamsOf } from '../../src/lib/lobby/seats';
-import type { Geometry, PlacedModel, Placement } from '../../src/lib/geometry';
-import { DecisionBox } from '../../src/lib/play/decisionBox';
-import { moveHooks } from '../../src/lib/play/decisionBox.move';
+import type { PlacedModel, Placement } from '../../src/lib/geometry';
 import { DEPLOY_QUESTIONS } from '../../src/lib/play/deployView';
 import { ModelDrag } from '../../src/lib/play/modelDrag';
-import { Violations } from '../../src/lib/play/violations';
 import { loadTestGeometry } from '../geometry';
-import { DEFAULT_SETTINGS } from '../../src/lib/play/settings';
-import { RuleTexts } from '../../src/lib/play/ruleTexts';
-import type { Edit, Team } from '../../src/lib/protocol/wire.generated';
-
-const MANAGEMENT = 'http://127.0.0.1:5100';
-const SOCKET = 'ws://127.0.0.1:5200/ws';
-const BOOKS = ['z65fgu0l29i4lnlu', '78qp9l5alslt6yj8'];
-
-async function session(name: string): Promise<string> {
-  const response = await fetch(`${MANAGEMENT}/v1/dev/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) });
-  if (!response.ok) throw new Error(`dev session for ${name}: ${response.status}`);
-  return ((await response.json()) as { sessionJwt: string }).sessionJwt;
-}
-
-async function importArmy(jwt: string, book: string): Promise<string> {
-  const list = JSON.parse(readFileSync(`../sim/Lifecycle/Armies/${book}.json`, 'utf8')) as unknown;
-  const response = await fetch(`${MANAGEMENT}/v1/dev/armies/import`, {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${jwt}` }, body: JSON.stringify({ source: 'lifecycle', list }),
-  });
-  if (response.status !== 201) throw new Error(`army import answered ${response.status}: ${await response.text()}`);
-  return ((await response.json()) as { id: string }).id;
-}
-
-function waitFor(conn: GameConnection, ready: (s: ConnectionState) => boolean, what: string, ms = 15_000): Promise<ConnectionState> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { stop(); reject(new Error(`timed out waiting for ${what}`)); }, ms);
-    const stop = conn.subscribe((s) => { if (ready(s)) { clearTimeout(timer); queueMicrotask(() => stop()); resolve(s); } });
-  });
-}
-
-/** A player's box with D2's move hooks over real geometry. The browser's gate is off (silent), so the server is the one to refuse. */
-function playerOf(conn: GameConnection, g: Geometry) {
-  const violations = new Violations();
-  const hooks = moveHooks({ geometry: () => g, violations, enforcement: () => 'silent' });
-  const box = boxOf(conn, hooks);
-  return { conn, box, violations, hooks };
-}
-
-const boxOf = (conn: GameConnection, hooks: ReturnType<typeof moveHooks> | null = null): DecisionBox => {
-  const myTeams = () => (conn.state.game === null ? [] : teamsOf(conn.state.game, conn.state.participantId));
-  const box = new DecisionBox({
-    state: () => conn.state, myTeams, acting: () => acting(conn.state.projection, myTeams(), conn.state.log),
-    settings: () => DEFAULT_SETTINGS, updateSettings: () => {}, rules: () => RuleTexts.empty,
-    send: (command) => conn.sendCommand(command), onRefused: (l) => conn.onRefused((r) => l(r)),
-  }, hooks);
-  conn.subscribe(() => box.render());
-  return box;
-};
-
-/** Two accounts take a team each in a new game and end setup: both connections are playing. */
-async function playingGame(label: string, enforcement: 'strict' | 'warn' | 'silent' = 'strict') {
-  const stamp = Date.now();
-  const [jwtA, jwtB] = await Promise.all([`${label}-a-${stamp}`, `${label}-b-${stamp}`].map(session)) as [string, string];
-  const apiA = apiOf(async () => jwtA, MANAGEMENT);
-  const apiB = apiOf(async () => jwtB, MANAGEMENT);
-  const [armyA, armyB] = await Promise.all([importArmy(jwtA, BOOKS[0]!), importArmy(jwtB, BOOKS[1]!)]);
-  const properties = (await apiA.listProperties())[0]!;
-  const created = await apiA.createGame({
-    name: `${label} e2e ${stamp}`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement, waitsBetweenSteps: false,
-  });
-  await apiB.joinGame(created.id);
-  const a = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtA });
-  const b = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtB });
-  let t1!: Team, t2!: Team;
-  try {
-    await Promise.all([waitFor(a, (s) => s.phase === 'connected', 'A connected'), waitFor(b, (s) => s.phase === 'connected', 'B connected')]);
-    const sendOk = async (conn: GameConnection, edit: Edit) => expect((await conn.sendEdit(edit)).refused).toBeNull();
-    while ((a.state.game?.teams.length ?? 0) < 2) await sendOk(a, { kind: 'create_team' });
-    await waitFor(b, (s) => (s.game?.teams.length ?? 0) >= 2, 'B sees two teams');
-    [t1, t2] = [...a.state.game!.teams].sort((x, y) => x.ordinal - y.ordinal) as [Team, Team];
-    await sendOk(a, { kind: 'pick_team', teamId: t1.id });
-    await sendOk(b, { kind: 'pick_team', teamId: t2.id });
-    await sendOk(a, { kind: 'pick_army', armyId: armyA, teamId: t1.id });
-    await sendOk(b, { kind: 'pick_army', armyId: armyB, teamId: t2.id });
-    await waitFor(a, (s) => s.game!.participants.every((p) => p.armyId !== undefined), 'both armies picked');
-    await sendOk(a, { kind: 'start_setup' });
-    await waitFor(a, (s) => s.game?.status === 'setup' && s.draft !== null, 'A in setup');
-    await sendOk(a, { kind: 'end_setup' });
-    await Promise.all([waitFor(a, (s) => s.game?.status === 'playing' && s.projection !== null, 'A playing'), waitFor(b, (s) => s.game?.status === 'playing' && s.projection !== null, 'B playing')]);
-  } catch (e) { a.close(); b.close(); throw e; }
-  return { a, b, t1, t2 };
-}
-
-const until = async (what: string, cond: () => boolean, ms = 10_000) => {
-  for (let i = 0; i < ms / 50 && !cond(); i++) await new Promise((r) => setTimeout(r, 50));
-  if (!cond()) throw new Error(`timed out waiting for ${what}`);
-};
+import { effectiveLog, projectTo } from '../../src/lib/live/apply';
+import { build } from '../../src/lib/play/combatLog';
+import { headerOf } from '../../src/lib/play/headerView';
+import { midDeploy } from '../../src/lib/play/deployView';
+import { Names } from '../../src/lib/play/names';
+import { UndoPrediction, undoPlanOf } from '../../src/lib/play/undo';
+import { waitHolds } from '../../src/lib/play/waiting';
+import { refusalText } from '../../src/lib/connection/feedback';
+import type { Refused } from '../../src/lib/protocol/wire.generated';
+import { MANAGEMENT, boxOf, playerOf, playingGame, until } from './harness';
+import { step, type Seat } from './driver';
 
 describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, the decision box on the real server', () => {
   it('answers the Asks the server puts to each team and shows its refusals', async () => {
@@ -256,4 +173,97 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, deployment and 
       b.close();
     }
   }, 120_000);
+});
+
+describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, a whole round on the real server', () => {
+  it('a game goes from lobby through deployment and round 1 from the browser modules', async () => {
+    const g = await loadTestGeometry();
+    const game = await playingGame('d4', 'warn', { layout: true });
+    const { a, b, t1, t2 } = game;
+    const refusals: Refused[] = [];
+    const deliberate = new Set<string>();
+    for (const c of [a, b]) c.onRefused((r) => { refusals.push(r); });
+    try {
+      const mk = (name: string, conn: typeof a, api: typeof game.apiA): Seat => {
+        const player = playerOf(conn, g);
+        const undo = new UndoPrediction();
+        conn.onEvents((events) => undo.events(events));
+        return { name, conn, api, box: player.box, undo, violations: player.violations };
+      };
+      const seatA = mk('A', a, game.apiA), seatB = mk('B', b, game.apiB);
+      for (const c of [a, b]) expect(waitHolds(c.state.game!, c.state.projection!.board, c.state.projection!.lastSeq)).toBe(false);
+
+      // The deliberate refusal: a team answering an Ask that is not addressed to it is refused in Godot's words.
+      await until('an open Ask', () => (a.state.projection?.openAsks.size ?? 0) > 0);
+      const open = [...a.state.projection!.openAsks.values()][0]!.ask;
+      const [stranger, strangerTeam] = open.teams.includes(t1.id) ? [b, t2.id] : [a, t1.id];
+      const outcome = await stranger.sendCommand({ kind: 'answer_ask', askId: open.id, answer: { kind: 'passed' }, teamId: strangerTeam });
+      const refused = outcome.refused ?? await new Promise<Refused | null>((resolve) => {
+        const stop = stranger.onRefused((r) => { if (r.messageId === outcome.id) { stop(); resolve(r); } });
+        setTimeout(() => { stop(); resolve(null); }, 3000);
+      });
+      expect(refused).not.toBeNull();
+      deliberate.add(refused!.messageId);
+      expect(refusalText(refused!)).toMatch(/^(Not allowed|Against the rules|Not one of the choices offered|Not at this point of the game|Refused): /);
+
+      // Play: each seat whose box has work takes a step. A's first placement is undone at once, then placed again.
+      let undone = false;
+      let steps = 0;
+      const roundOf = () => a.state.projection!.scheduler.round;
+      while (roundOf() < 2 && steps < 600) {
+        let acted = false;
+        for (const seat of [seatA, seatB]) {
+          const placing = seat.box.deployUnit;
+          if (await step(seat, g)) {
+            acted = true;
+            steps++;
+            if (seat === seatA && !undone && placing !== null && seat.box.deployUnit === null) {
+              const plan = undoPlanOf(a.state.log, new Names(a.state.game!, a.state.projection!));
+              expect(plan).not.toBeNull();
+              await seat.undo.undoTo(a.state, plan!.toSeq, (c) => a.sendCommand(c));
+              await until('the undone on both logs', () => [a, b].every((c) => c.state.log.some((e) => e.payload.kind === 'undone')));
+              await until('A mid-deploy again', () => midDeploy(a.state.projection!, a.state.log, t1.id)?.unitId === placing
+                || midDeploy(a.state.projection!, a.state.log, t2.id)?.unitId === placing);
+              undone = true;
+            }
+          }
+        }
+        if (!acted) await new Promise((r) => setTimeout(r, 100));
+      }
+      expect(roundOf()).toBe(2);
+      expect(undone).toBe(true);
+      await until('both connections to agree', () => a.state.projection!.lastSeq === b.state.projection!.lastSeq);
+
+      const live = effectiveLog(a.state.log);
+      const start1 = live.find((e) => e.payload.kind === 'round_started' && e.payload.round === 1)!;
+      const start2 = live.find((e) => e.payload.kind === 'round_started' && e.payload.round === 2)!;
+      // Every model of both armies went from the shelf to the table before round 1 began.
+      const deployed = new Set<string>();
+      for (const e of live) {
+        if (e.seq >= start1.seq) break;
+        if (e.payload.kind === 'models_moved') for (const m of e.payload.moves) if (m.to.kind === 'table') deployed.add(m.modelId);
+      }
+      const all = [...a.state.projection!.models.keys()];
+      expect(all.filter((id) => !deployed.has(id))).toEqual([]);
+      // Every unit with a model on the table when round 1 ended was activated in it.
+      const end1 = live.filter((e) => e.payload.kind === 'round_ended').find((e) => e.seq < start2.seq && e.seq > start1.seq);
+      const atEnd = projectTo(a.state.board!, a.state.game!, a.state.log, end1 === undefined ? start2.seq - 1 : end1.seq);
+      const onTable = new Set([...atEnd.models.values()].filter((m) => m.location.kind === 'table').map((m) => m.unitId));
+      const recorded = new Set(live.filter((e) => e.seq > start1.seq && e.seq < start2.seq && e.payload.kind === 'action_recorded').map((e) => (e.payload as { unitId: string }).unitId));
+      expect([...onTable].filter((u) => !recorded.has(u))).toEqual([]);
+      // The combat log has both teams' round 1 headers, the header says round 2, and nothing was refused but the deliberate case.
+      const headers = build(a.state.log, new Names(a.state.game!, a.state.projection!)).flatMap((e) => (e.type === 'block' ? [e.header] : []));
+      expect(headers.some((h) => h.startsWith('R1 · Team 1 · '))).toBe(true);
+      expect(headers.some((h) => h.startsWith('R1 · Team 2 · '))).toBe(true);
+      expect(headerOf(a.state.projection!, a.state.game!, new Names(a.state.game!, a.state.projection!)).round).toBe(2);
+      expect(refusals.filter((r) => !deliberate.has(r.messageId)).map((r) => refusalText(r))).toEqual([]);
+    } finally {
+      a.close();
+      b.close();
+      const auth = (jwt: string) => ({ authorization: `Bearer ${jwt}` });
+      await game.apiA.deleteGame(game.gameId).catch(() => undefined);
+      await Promise.all([[game.jwtA, game.armyA], [game.jwtB, game.armyB]].map(([jwt, id]) =>
+        fetch(`${MANAGEMENT}/v1/armies/${id}`, { method: 'DELETE', headers: auth(jwt!) }).catch(() => undefined)));
+    }
+  }, 300_000);
 });

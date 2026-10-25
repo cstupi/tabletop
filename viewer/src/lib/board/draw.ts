@@ -22,6 +22,8 @@ export type DrawOptions = {
   readonly marks?: ReadonlyMap<string, string> | undefined;
   /** Models in breach (PieceNode.SetWarning): their circle in the warning colour. */
   readonly warned?: ReadonlySet<string> | undefined;
+  /** Models that cannot shoot the sight check's target: drawn darkened. */
+  readonly dimmed?: ReadonlySet<string> | undefined;
 };
 
 export function draw(
@@ -105,6 +107,7 @@ export function draw(
     ctx.globalAlpha = model.wounds > 0 ? 1 : 0.65;
     ctx.fill();
     ctx.globalAlpha = 1;
+    if (options.dimmed?.has(model.id) === true) { ctx.fillStyle = 'rgba(0, 0, 0, 0.55)'; ctx.fill(); }
     ctx.strokeStyle = picked ? '#ffffff' : model.id === options.hovered ? '#e6e8ec' : colour;
     ctx.lineWidth = picked ? 2.5 : model.elevated ? 2 : 1;
     if (model.elevated) ctx.setLineDash([2, 2]);
