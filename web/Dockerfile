@@ -27,6 +27,7 @@ WORKDIR /src/viewer
 COPY viewer/package.json viewer/package-lock.json viewer/.npmrc ./
 RUN npm ci --no-audit --no-fund
 COPY viewer/ ./
+COPY client/content/builtin/catalog.json /src/client/content/builtin/catalog.json
 COPY --from=geometry /out/_framework public/geometry/_framework
 RUN npm run build:hosted
 

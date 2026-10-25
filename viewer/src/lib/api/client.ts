@@ -4,7 +4,10 @@
 
 import { ManagementError } from '../live/management';
 import { PROTOCOL_VERSION } from '../protocol/wire.generated';
-import type { ArmySummary, CreateGameRequest, GameInfo, Page, PropertiesSummary } from './types';
+import type { TableState, TerrainVolume } from '../protocol/wire.generated';
+import type {
+  ArmySummary, AssetDto, CreateGameRequest, GameInfo, LayoutSummary, Page, PropertiesSummary, RandomTable, RandomTableRequest,
+} from './types';
 
 export interface Api {
   createGame(request: CreateGameRequest): Promise<GameInfo>;
@@ -15,6 +18,20 @@ export interface Api {
   listProperties(): Promise<PropertiesSummary[]>;
   /** Every page of /v1/armies?limit=200. */
   listArmies(): Promise<ArmySummary[]>;
+  /** GET /v1/builtin; null on 404 (nothing published: the packed catalog applies). */
+  builtinCatalog(): Promise<unknown | null>;
+  /** Every page of /v1/assets?kind=terrain&limit=200, uploaded assets only. */
+  terrainAssets(): Promise<AssetDto[]>;
+  /** GET /v1/assets/{id}/volumes. */
+  assetVolumes(id: string): Promise<TerrainVolume[]>;
+  listLayouts(): Promise<LayoutSummary[]>;
+  getLayout(id: string): Promise<TableState>;
+  saveLayout(table: TableState): Promise<TableState>;
+  deleteLayout(id: string): Promise<void>;
+  /** GET /v1/layouts/builtin: the predefined tables. */
+  builtinLayouts(): Promise<TableState[]>;
+  /** POST /v1/layouts/random. */
+  randomTable(request: RandomTableRequest): Promise<RandomTable>;
 }
 
 const defaultBase = (): string => import.meta.env.VITE_API_BASE ?? '';
@@ -33,6 +50,9 @@ export function apiOf(jwt: () => Promise<string>, base: string = defaultBase(), 
     }
     return response;
   }
+  const maybe = async <T>(path: string): Promise<T | null> => {
+    try { return await read<T>('GET', path); } catch (e) { if (e instanceof ManagementError && e.status === 404) return null; throw e; }
+  };
   const read = async <T>(method: string, path: string, body?: unknown): Promise<T> => (await send(method, path, body)).json() as Promise<T>;
   const none = async (method: string, path: string): Promise<void> => { await send(method, path); };
 
@@ -43,6 +63,24 @@ export function apiOf(jwt: () => Promise<string>, base: string = defaultBase(), 
     endGame: (id) => none('POST', `/v1/games/${id}/end`),
     deleteGame: (id) => none('DELETE', `/v1/games/${id}`),
     listProperties: () => read('GET', '/v1/properties'),
+    builtinCatalog: () => maybe('/v1/builtin'),
+    async terrainAssets() {
+      const assets: AssetDto[] = [];
+      let after: string | null = null;
+      do {
+        const page: Page<AssetDto> = await read('GET', `/v1/assets?kind=terrain&limit=200${after === null ? '' : `&after=${after}`}`);
+        assets.push(...page.items.filter((a) => a.uploaded));
+        after = page.next ?? null;
+      } while (after !== null);
+      return assets;
+    },
+    assetVolumes: (id) => read('GET', `/v1/assets/${id}/volumes`),
+    listLayouts: () => read('GET', '/v1/layouts'),
+    getLayout: (id) => read('GET', `/v1/layouts/${id}`),
+    saveLayout: (table) => read('POST', '/v1/layouts', table),
+    deleteLayout: (id) => none('DELETE', `/v1/layouts/${id}`),
+    builtinLayouts: () => read('GET', '/v1/layouts/builtin'),
+    randomTable: (request) => read('POST', '/v1/layouts/random', request),
     async listArmies() {
       const armies: ArmySummary[] = [];
       let after: string | null = null;

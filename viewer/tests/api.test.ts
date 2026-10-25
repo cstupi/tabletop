@@ -55,4 +55,36 @@ describe('the management api', () => {
     const api = apiOf(jwt, '', fake(() => json([{ contentHash: 'h', name: 'GF', gameRules: 'gf' }])));
     expect(await api.listProperties()).toEqual([{ contentHash: 'h', name: 'GF', gameRules: 'gf' }]);
   });
+
+  it('randomTable posts the request and returns the terrain', async () => {
+    const calls: Call[] = [];
+    const answer = { seed: 7, terrain: [], unplaced: [], unlisted: [] };
+    const api = apiOf(jwt, '', fake(() => json(answer), calls));
+    const request = { size: { width: 72, length: 48 }, planet: 'hospitable', seed: 7 } as const;
+    expect(await api.randomTable(request)).toEqual(answer);
+    expect(calls[0]).toMatchObject({ url: '/v1/layouts/random', method: 'POST', body: request });
+  });
+
+  it('builtinCatalog is null on 404', async () => {
+    const api = apiOf(jwt, '', fake(() => json({ title: 'Not found' }, 404)));
+    expect(await api.builtinCatalog()).toBeNull();
+    const broken = apiOf(jwt, '', fake(() => json({ title: 'Bad gateway' }, 502)));
+    await expect(broken.builtinCatalog()).rejects.toBeInstanceOf(ManagementError);
+  });
+
+  it('terrainAssets keeps uploaded terrain only', async () => {
+    const calls: Call[] = [];
+    const api = apiOf(jwt, '', fake((c) => c.url.endsWith('after=a1')
+      ? json({ items: [{ id: 'a2', uploaded: true }] })
+      : json({ items: [{ id: 'a1', uploaded: true }, { id: 'a0', uploaded: false }], next: 'a1' }), calls));
+    expect((await api.terrainAssets()).map((a) => a.id)).toEqual(['a1', 'a2']);
+    expect(calls[0]!.url).toBe('/v1/assets?kind=terrain&limit=200');
+  });
+
+  it('deleteLayout accepts 204', async () => {
+    const calls: Call[] = [];
+    const api = apiOf(jwt, '', fake(() => new Response(null, { status: 204 }), calls));
+    await api.deleteLayout('l1');
+    expect(calls[0]).toMatchObject({ url: '/v1/layouts/l1', method: 'DELETE' });
+  });
 });

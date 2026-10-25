@@ -53,8 +53,9 @@ export function draw(
   }
 
   for (const piece of scene.terrain) {
-    ctx.strokeStyle = terrainStroke(piece.declarations);
-    ctx.lineWidth = piece.kind === 'solid' ? 2 : 1;
+    const picked = options.selected.has(piece.id);
+    ctx.strokeStyle = picked ? '#ffffff' : terrainStroke(piece.declarations);
+    ctx.lineWidth = picked ? 3 : piece.kind === 'solid' ? 2 : 1;
     if (piece.kind === 'area') ctx.setLineDash([3, 3]);
     path(ctx, piece.shape, view, table);
     ctx.stroke();
@@ -73,7 +74,8 @@ export function draw(
   for (const marker of scene.markers) {
     const p = at(marker.centre.x, marker.centre.y);
     ctx.strokeStyle = marker.teamOrdinal === undefined ? markerColour(marker.kind) : teamColour(marker.teamOrdinal);
-    ctx.lineWidth = marker.teamOrdinal === undefined ? 1.5 : 3;
+    if (options.selected.has(marker.id)) ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = options.selected.has(marker.id) ? 3 : marker.teamOrdinal === undefined ? 1.5 : 3;
     ctx.beginPath();
     ctx.arc(p.x, p.y, Math.max(3, marker.radius * view.scale), 0, 2 * Math.PI);
     ctx.stroke();
