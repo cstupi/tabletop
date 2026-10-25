@@ -15,7 +15,12 @@
   import { moveHooks } from './decisionBox.move';
   import DecisionBoxView from './DecisionBox.svelte';
   import GameOverModal from './GameOverModal.svelte';
+  import Banner from './Banner.svelte';
+  import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
+  import Roster from './Roster.svelte';
+  import { Names } from './names';
+  import { rollOffBannerOf, type Banner as BannerModel } from './rollOffBanners';
   import { intentOf, textFocused } from './keys';
   import { fetchRuleTexts, RuleTexts } from './ruleTexts';
   import { sceneOfPlay } from './scene';
@@ -55,6 +60,29 @@
     return () => { for (const stop of stops) stop(); prediction.reset(); };
   });
   // --- end D3 ---
+
+  // --- D4: the roll-off banner (live batches only; the queue shows one after another) ---
+  let banner = $state.raw<BannerModel | null>(null);
+  $effect(() => {
+    const conn = connection;
+    const queue: BannerModel[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const next = (): void => {
+      timer = null;
+      banner = queue.shift() ?? null;
+      if (banner !== null) timer = setTimeout(next, banner.seconds * 1000);
+    };
+    const stop = conn.onEvents((events) => {
+      const s = conn.state;
+      if (s.game === null) return;
+      const b = rollOffBannerOf(events, new Names(s.game, s.projection), s.catchingUp);
+      if (b === null) return;
+      queue.push(b);
+      if (timer === null) next();
+    });
+    return () => { stop(); if (timer !== null) clearTimeout(timer); banner = null; };
+  });
+  // --- end D4 banner ---
 
   /** localStorage can throw (a private window, blocked site data): the settings then live for the page only. */
   function browserStorage(): StorageLike | null {
@@ -182,6 +210,16 @@
     b.unit(unit);
   }
 
+  /** The roster's and header's unit pick selects the unit as a click on its model does. */
+  function pickUnit(unit: string): void {
+    const p = snap?.projection;
+    if (p === null || p === undefined) return;
+    selection = { pieceId: unit, modelIds: [] };
+    selected = new Set([...p.models.values()].filter((m) => m.unitId === unit).map((m) => m.id));
+    box?.unit(unit);
+  }
+  let gameOver: GameOverModal | undefined = $state();
+
   const interaction: BoardInteraction = {
     onSelect(hit: BoardHit | null, mods: Modifiers, at: { x: number; y: number }) {
       if (drags.placeAt(at)) return;                                       // D2: a deploy's click on the table
@@ -239,6 +277,11 @@
     {:else}
       <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={infoOverlay === null ? overlays : [...overlays, infoOverlay]} {warned} models="circles" {glow} {marks} />
     {/if}
+    {#if snap !== null && shown !== null && snap.game !== null}
+      <div class="hud top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={() => {}} /></div>
+      <div class="hud left"><Roster {snap} {shown} myTeam={actingTeam} onPick={pickUnit} onMenu={() => {}} /></div>
+    {/if}
+    <div class="hud banner"><Banner {banner} /></div>
   </div>
   <aside class="side">
     {#if box !== null}<DecisionBoxView {box} {panel} />{/if}
@@ -251,12 +294,16 @@
     {/if}
   </aside>
   {#if snap !== null && box !== null}
-    <GameOverModal {connection} {snap} myTeams={teams} {actingTeam} />
+    <GameOverModal bind:this={gameOver} {connection} {snap} myTeams={teams} {actingTeam} />
   {/if}
 </div>
 
 <style>
   .play { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; height: 100%; min-height: 0; }
   .stage { position: relative; min-height: 0; min-width: 0; }
+  .hud { position: absolute; z-index: 2; pointer-events: none; }
+  .hud.top { top: 0.4rem; left: 50%; transform: translateX(-50%); width: min(46rem, calc(100% - 17rem)); display: flex; justify-content: center; }
+  .hud.left { top: 0.4rem; left: 0.4rem; bottom: 0.4rem; display: flex; align-items: flex-start; }
+  .hud.banner { top: 20%; left: 50%; transform: translateX(-50%); }
   .side { overflow: auto; border-left: 1px solid var(--line); padding: 0.5rem 0.6rem; }
 </style>
