@@ -31,3 +31,10 @@ export interface RandomTableRequest {
 export interface RandomTable {
   readonly seed: number; readonly terrain: readonly TerrainPlacement[]; readonly unplaced: readonly string[]; readonly unlisted: readonly string[];
 }
+
+/** GET /v1/properties/{hash}/rules: a pinned set's rule catalog row (ManagementDtos.RuleTextDto); `played` absent reads true. */
+export interface RuleTextDto {
+  readonly name: string; readonly kind: string; readonly takesParameter: boolean; readonly ruleText: string; readonly played?: boolean;
+}
+/** GET /v1/properties/{hash}/grants (ManagementDtos.GrantableEffectDto). */
+export interface GrantableEffectDto { readonly entryName: string; readonly effectId: string; readonly duration: string }
