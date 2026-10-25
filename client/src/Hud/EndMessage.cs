@@ -93,7 +93,7 @@ public partial class EndMessage : Control
         }
         var acting = _s.MyTeamId;
         foreach (var choice in model.Choices)
-            AddButton(choice.Label, () => Answer(model.AskId!.Value, choice.Id, acting));
+            AddButton(choice.Label, () => Answer(model, choice.Id, acting));
         return true;
     }
 
@@ -103,10 +103,10 @@ public partial class EndMessage : Control
     }
 
     /// <summary>One answer per Ask: the buttons go at once, and the next render shows the waiting line or the end.</summary>
-    void Answer(Guid askId, string optionId, Guid? team)
+    void Answer(GameOverModel model, string optionId, Guid? team)
     {
         foreach (var c in _buttons.GetChildren()) if (c is Button b) b.Disabled = true;
-        Guarded.Run(() => _s.SendCommandAsync(new AnswerAsk(askId, new Chosen(optionId), team)), message => { GD.PushWarning($"Answer failed: {message}"); if (IsInstanceValid(this)) Fill(); });
+        Guarded.Run(() => _s.SendCommandAsync(GameOverView.Answer(model, optionId, team)), message => { GD.PushWarning($"Answer failed: {message}"); if (IsInstanceValid(this)) Fill(); });
     }
 
     public override void _Input(InputEvent e)

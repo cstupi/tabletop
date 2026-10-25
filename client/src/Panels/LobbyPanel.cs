@@ -38,8 +38,8 @@ public partial class LobbyPanel : VBoxContainer
             b.Disabled = !choice.Enabled; b.TooltipText = choice.Why;
             teams.AddChild(b);
         }
-        teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
-        teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
+        teams.AddChild(Btn("Watch", () => Guarded.Send(s, LobbyEdits.Watch())));
+        teams.AddChild(Btn("Create team", () => Guarded.Send(s, LobbyEdits.CreateTeam())));
         AddChild(Seats(s, game));
         // My own army: one picker per team I hold (an army a side when I play both), or one for my teamless row. Teammates pick theirs.
         var pickers = LobbyView.Armies(game, s.ParticipantId).Select(seat => (Seat: seat, Box: new OptionButton())).ToList();
@@ -67,9 +67,8 @@ public partial class LobbyPanel : VBoxContainer
         {
             if (TextLimits.NameProblem(name.Text, "A game name") is { } problem) { Problem(problem); return; }
             Problem(null);
-            Guarded.Send(s, new SetConfiguration(name.Text.Trim(), game.PropertiesHash,
-                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, WaitsBetweenSteps: false,
-                RulesOptions.MapOf(s.Options, chosen)));
+            Guarded.Send(s, LobbyEdits.Configure(game, name.Text,
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, s.Options, chosen));
         });
         config.AddChild(apply);
         // The server takes the configuration from the creator alone: everyone else sees it, read-only, with the reason.
@@ -81,10 +80,10 @@ public partial class LobbyPanel : VBoxContainer
                 if (control is BaseButton or LineEdit) control.TooltipText = LobbyView.CreatorOnly;
             }
         if (Leave is { } leave && s.ParticipantId is { } me && me != Guid.Empty) AddChild(Btn("Leave game", leave));   // gives the seat up, asked first
-        if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
+        if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, LobbyEdits.StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
-            AddChild(_endSetup = Btn(EndText(s), () => Guarded.Send(s, new EndSetup()))); _endSetup.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+            AddChild(_endSetup = Btn(EndText(s), () => Guarded.Send(s, LobbyEdits.EndSetup()))); _endSetup.AutowrapMode = TextServer.AutowrapMode.WordSmart;
             _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = EndText(s); };
             s.BoardChanged += _onBoard;
         }

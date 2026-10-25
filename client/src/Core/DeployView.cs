@@ -12,6 +12,10 @@ public static class DeployView
     static readonly HashSet<string> Questions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
     const int PerRow = 5, MaxRings = 64; const double Gap = 0.2;
 
+    /// <summary>One MoveModels from where each ghost's model is now to its ghost, in the ghosts' order.</summary>
+    public static MoveModels Place(Projection p, IReadOnlyList<(Guid ModelId, Placement At)> ghosts) =>
+        new(ghosts.Select(g => new ModelRelocation(g.ModelId, p.Models[g.ModelId].Location, new OnTable(g.At))).ToList());
+
     /// <summary>
     /// The unit my team picked at the latest Ask, when that Ask is a deploy question that has closed with a unit and some of its
     /// models are still shelved. Any later Ask — the next deploy, an activation — or a turn's end ends it, because the server moved on (a pick

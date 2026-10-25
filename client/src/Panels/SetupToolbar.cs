@@ -34,11 +34,11 @@ public partial class SetupToolbar : VBoxContainer
         var size = new HFlowContainer(); table.AddChild(size);
         var width = _width = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Length, Suffix = "\"" };
         size.AddChild(width); size.AddChild(length);
-        size.AddChild(Btn("Set size", () => Guarded.Send(s, new SetTableSize(new TableSize(width.Value, length.Value)))));
+        size.AddChild(Btn("Set size", () => Guarded.Send(s, SetupEdits.TableSize(width.Value, length.Value))));
         // The lists follow the built-in catalog in use, refilled when a release brings a new one.
         List<string> textures = [], terrainNames = [];
         var texture = new OptionButton(); table.AddChild(texture);
-        texture.ItemSelected += i => Guarded.Send(s, new SetTexture(VisualRef.OfBuiltin(textures[(int)i])));
+        texture.ItemSelected += i => Guarded.Send(s, SetupEdits.Texture(textures[(int)i]));
         // The dropdown names the board's print: a rejoin or another player's change shows what the table wears.
         void ShowTexture() { if (s.Draft?.Texture.Builtin is { } name && textures.IndexOf(name) is var at and >= 0 && texture.Selected != at) texture.Select(at); }
 
@@ -52,7 +52,7 @@ public partial class SetupToolbar : VBoxContainer
             ShowTexture();
         }
         Fill(); _onBuiltins = Fill; BuiltinContent.Changed += _onBuiltins;
-        terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))), d => SetupLimits.CannotAddTerrain(d)));
+        terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, SetupEdits.AddBuiltin(terrainNames[terrain.Selected], SizeNow(s), Random.Shared.NextDouble))), d => SetupLimits.CannotAddTerrain(d)));
         terrainSection.AddChild(Gated(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
         var generators = new HFlowContainer(); terrainSection.AddChild(generators);
         var planets = new OptionButton(); foreach (var planet in Enum.GetValues<Planet>()) planets.AddItem($"{planet} planet"); generators.AddChild(planets);
@@ -61,21 +61,21 @@ public partial class SetupToolbar : VBoxContainer
             // The server rolls and lays the table, balanced across the teams; the draft keeps its size, texture, markers and zones.
             var draft = s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.");
             var laid = await s.Management.RandomTable(new RandomTableRequest(draft.Size, Enum.GetValues<Planet>()[planets.Selected], draft.Zones, null));
-            await s.SendEditAsync(new ReplaceDraft(LayoutChoices.WithTerrain(draft, laid)));
+            await s.SendEditAsync(SetupEdits.Random(draft, laid));
             if (laid.Unplaced.Count > 0) _screen.Toast($"No room for: {string.Join(", ", laid.Unplaced)}.");
         }, _screen.Toast)), d => d is null ? "The table has not arrived yet." : null));
 
         terrainSection.AddChild(Gated(Wide("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
 
         var markers = new HFlowContainer(); Section(SetupLimits.MarkersHeading).AddChild(markers);
-        markers.AddChild(Gated(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Spot(s, 3), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))), SetupLimits.CannotAddMarker));
-        markers.AddChild(Gated(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Spot(s, 1), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))), SetupLimits.CannotAddMarker));
+        markers.AddChild(Gated(Btn("Add objective", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Objective(d)); }), SetupLimits.CannotAddMarker));
+        markers.AddChild(Gated(Btn("Add token", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Token(d)); }), SetupLimits.CannotAddMarker));
 
         var zones = new HFlowContainer(); Section(_ => "Zones").AddChild(zones);
         var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(z); zones.AddChild(style);
-        zones.AddChild(Btn("Set zones", () => Guarded.Send(s, new SetZoneStyle(ZoneStyles.All[style.Selected], ZoneStyles.ShapesOf(ZoneStyles.All[style.Selected])))));
+        zones.AddChild(Btn("Set zones", () => Guarded.Send(s, SetupEdits.Zones(ZoneStyles.All[style.Selected]))));
         var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1, Prefix = "Team" }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2, Prefix = "Team" }; zones.AddChild(a); zones.AddChild(b);
-        zones.AddChild(Btn("Swap", () => Guarded.Send(s, new SwapZones((int)a.Value, (int)b.Value))));
+        zones.AddChild(Btn("Swap", () => Guarded.Send(s, SetupEdits.SwapZones((int)a.Value, (int)b.Value))));
 
         var layouts = new HFlowContainer(); Section(_ => "Layouts").AddChild(layouts);
         layouts.AddChild(Btn("Load layout…", () => Guarded.Run(() => LoadLayout(s), _screen.Toast)));
@@ -139,9 +139,6 @@ public partial class SetupToolbar : VBoxContainer
     }
 
     static TableSize SizeNow(Session s) => s.Draft?.Size ?? new TableSize(72, 48);
-    static Point3 Beside(TableSize d) => new(d.Width + 4 + Random.Shared.Next(0, 3) * 8, 4 + Random.Shared.Next(0, 4) * 8, 0);
-    /// <summary>A new marker's spot: the centre, else clear of the markers already placed (SetupLimits.FreeSpot).</summary>
-    static Point3 Spot(Session s, double diameter) => SetupLimits.FreeSpot(SizeNow(s), s.Draft?.Markers ?? [], diameter);
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
     /// <summary>A button across the panel: its text wraps, so a long label never widens the side panel.</summary>
     static Button Wide(string text, Action a) { var b = Btn(text, a); b.AutowrapMode = TextServer.AutowrapMode.WordSmart; return b; }
@@ -159,7 +156,7 @@ public partial class SetupToolbar : VBoxContainer
         if (s.Draft is not { Terrain.Count: > 0 } draft) return;
         var d = new ConfirmationDialog { Title = "Clear terrain?", OkButtonText = "Clear terrain", DialogAutowrap = true,
             DialogText = $"All {draft.Terrain.Count} terrain pieces come off the table. Markers and zones stay." };
-        d.Confirmed += () => { if (s.Draft is { } now) Guarded.Send(s, new ReplaceDraft(now with { Terrain = [] })); };
+        d.Confirmed += () => { if (s.Draft is { } now) Guarded.Send(s, SetupEdits.ClearTerrain(now)); };
         d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
         AddChild(d); d.PopupCentered(new Vector2I(360, 0));
     }
@@ -175,7 +172,7 @@ public partial class SetupToolbar : VBoxContainer
         {
             // Scale 1: MeshLoader.Orient already applies the asset's scale to the mesh, and its volumes are table-frame after scale.
             var asset = assets[pick.Selected]; var volumes = await s.Management.GetAssetVolumes(asset.Id);
-            await s.SendEditAsync(new AddTerrain(new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(asset.Id), Beside(SizeNow(s)), new Yaw(0), 1, volumes.Select(v => new TerrainVolume(Guid.CreateVersion7(), v.Volume)).ToList())));
+            await s.SendEditAsync(SetupEdits.AddAsset(asset.Id, volumes.Select(v => v.Volume).ToList(), SizeNow(s), Random.Shared.NextDouble));
         }, _screen.Toast);
         dialog.PopupCentered();
     }
@@ -190,7 +187,7 @@ public partial class SetupToolbar : VBoxContainer
         dialog.Confirmed += () => Guarded.Run(async () =>
         {
             var choice = choices[pick.Selected];
-            await s.SendEditAsync(new ReplaceDraft(choice.Builtin ?? await s.Management.GetLayout(choice.SavedId!.Value)));
+            await s.SendEditAsync(SetupEdits.Load(choice.Builtin ?? await s.Management.GetLayout(choice.SavedId!.Value)));
         }, _screen.Toast);
         dialog.PopupCentered();
     }

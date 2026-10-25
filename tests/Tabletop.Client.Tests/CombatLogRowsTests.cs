@@ -63,4 +63,27 @@ public class CombatLogRowsTests
         Assert.Equal(before.TakeWhile(e => e.Seq < undoneFrom).Count(), kept);
         Assert.True(after[kept].Undone);
     }
+
+    static LineEntry Line(EventPayload payload, bool undone = false) => new(7, new GameEvent(7, Samples.P1, payload, null), undone, "line");
+    static RollEntry LiveRoll() => CombatLog.Flatten(CombatLog.Build(CombatLogFixtureTests.Log(), new Names(CombatLogFixtureTests.Game, null))).OfType<RollEntry>().First(r => !r.Undone);
+
+    [Fact]
+    public void Undo_to_here_is_offered_on_a_live_row() => Assert.True(CombatLog.UndoHere(Line(Round1), watching: false));
+
+    [Fact]
+    public void Undo_to_here_is_not_offered_to_a_watcher_on_an_undone_row_or_on_an_undo_marker()
+    {
+        Assert.False(CombatLog.UndoHere(Line(Round1), watching: true));
+        Assert.False(CombatLog.UndoHere(Line(Round1, undone: true), watching: false));
+        Assert.False(CombatLog.UndoHere(Line(new Undone(3)), watching: false));
+    }
+
+    [Fact]
+    public void A_live_roll_offers_undo_to_here()
+    {
+        var roll = LiveRoll();
+        Assert.True(CombatLog.UndoHere(roll, watching: false));
+        Assert.False(CombatLog.UndoHere(roll with { Undone = true }, watching: false));
+        Assert.False(CombatLog.UndoHere(roll, watching: true));
+    }
 }

@@ -12,6 +12,8 @@ public static class GameOverView
 {
     public const string WaitingNote = "Waiting for the other player";
 
+    public static AnswerAsk Answer(GameOverModel model, string optionId, Guid? team) => new(model.AskId!.Value, new Chosen(optionId), team);
+
     public static GameOverModel Of(Projection p, GameInfo game, Guid? myTeam)
     {
         if (p.Ended is { } ended) return new(GameOverStage.Ended, null, HeaderView.Outcome(ended, new Names(game, p)), ended.Reason, [], null);

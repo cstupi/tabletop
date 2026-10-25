@@ -34,20 +34,23 @@ public partial class DecisionBox
     /// <summary>Pick Min–Max pieces: a click on an eligible piece toggles it, a shelved one is a numbered entry (a deploy). One pick of one answers at once.</summary>
     void RenderPick(Ask ask, PieceSelection sel, Projection p, Names names)
     {
-        var picked = new List<Guid>();
+        var eligible = DeployView.Pickable(p, ask);                                  // a deploy pick: units with a model on the shelf (passengers spec)
+        var pick = new PiecePick(sel, eligible);
         var count = new Label(); Add(count);
         var done = Btn("Done (Enter)", Done);
-        void Done() { if (picked.Count >= sel.Min && picked.Count <= sel.Max) Send(ask, new SelectedPieces(picked.ToList())); }
-        void Refresh() { count.Text = sel.Max == 1 && picked.Count == 1 ? names.Piece(picked[0]) : $"{picked.Count} of {sel.Min}–{sel.Max}"; done.Disabled = picked.Count < sel.Min || picked.Count > sel.Max; }
+        void Done() { if (pick.Answer() is { } answer) Send(ask, answer); }
+        void Refresh() { count.Text = pick.Count(names); done.Disabled = !pick.Ready; }
         void Toggle(Guid id)
         {
-            if (picked.Remove(id)) _view.PieceAt(id)?.SetHighlight(Palette.Selected);
-            else if (picked.Count < sel.Max) { picked.Add(id); _view.PieceAt(id)?.SetHighlight(Palette.Ghost); }
-            else return;
-            if (sel.Max == 1 && picked.Count == 1) { Done(); return; }
+            switch (pick.Toggle(id))
+            {
+                case PickChange.Added: _view.PieceAt(id)?.SetHighlight(Palette.Ghost); break;
+                case PickChange.Removed: _view.PieceAt(id)?.SetHighlight(Palette.Selected); break;
+                default: return;
+            }
+            if (pick.AnswersAtOnce) { Done(); return; }
             Refresh();
         }
-        var eligible = DeployView.Pickable(p, ask);                                  // a deploy pick: units with a model on the shelf (passengers spec)
         foreach (var shelved in DeployView.OffTable(p, eligible))
         {
             var key = _numbered.FirstOrDefault(n => n.OptionId == shelved.ToString()).Key;
@@ -55,7 +58,7 @@ public partial class DecisionBox
         }
         _onNumber = option => { if (Guid.TryParse(option, out var id) && eligible.Contains(id)) Toggle(id); };
         _input.Eligible = eligible.ToHashSet();
-        _onTarget = clicked => { if (Resolve(clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
+        _onTarget = clicked => { if (AskAnswers.Resolve(p, clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
         _onEnter = Done;
         Add(done); Refresh();
     }
@@ -85,7 +88,7 @@ public partial class DecisionBox
             fire.Disabled = t.Answer() is null;
             TargetsChanged?.Invoke();
         }
-        _onTarget = clicked => { if (Resolve(clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
+        _onTarget = clicked => { if (_s.Projection is { } p && AskAnswers.Resolve(p, clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
         _onEnter = Fire;
         _onCancel = () => { if (t.Assigned.Count == 0) return false; t.Clear(); Show(); return true; };
         Add(fire); Show();

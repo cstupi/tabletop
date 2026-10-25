@@ -267,7 +267,7 @@ public partial class HomeScreen : Control
                     if (session.Phase == SessionPhase.Connected)
                     {
                         session.PhaseChanged -= PickWhenConnected;
-                        Run(() => session.SendEditAsync(new PickArmy(id)));
+                        Run(() => session.SendEditAsync(LobbyEdits.ArmyFromCreate(id)));
                     }
                 }
                 session.PhaseChanged += PickWhenConnected;

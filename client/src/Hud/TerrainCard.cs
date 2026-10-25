@@ -113,45 +113,44 @@ public partial class TerrainCard : VBoxContainer
         var size = new HFlowContainer(); _body.AddChild(size);
         size.AddChild(new Label { Text = "Scale" });
         var scale = new SpinBox { MinValue = 0.25, MaxValue = 4, Step = 0.25, Value = t.Scale, Prefix = "×" }; size.AddChild(scale);
-        scale.ValueChanged += v => Guarded.Send(s, new ScaleTerrain(t.Id, v));
+        scale.ValueChanged += v => Guarded.Send(s, SetupEdits.Scale(t.Id, v));
         var swapRow = new HFlowContainer(); _body.AddChild(swapRow);
         var swap = new OptionButton(); var names = BuiltinContent.Terrain.Keys.Order().ToList(); foreach (var n in names) swap.AddItem(n);
         if (t.Mesh.Builtin is { } b && names.IndexOf(b) is >= 0 and var at) swap.Select(at);
         swapRow.AddChild(swap);
-        swapRow.AddChild(Btn("Swap mesh (keeps volumes)", () => Guarded.Send(s, new SwapTerrainMesh(t.Id, VisualRef.OfBuiltin(names[swap.Selected])))));
+        swapRow.AddChild(Btn("Swap mesh (keeps volumes)", () => Guarded.Send(s, SetupEdits.SwapBuiltin(t.Id, names[swap.Selected]))));
         var more = new HFlowContainer(); _body.AddChild(more);
         more.AddChild(Btn("Swap for my asset…", () => Guarded.Run(() => SwapForAsset(s, t.Id), _toast)));
         more.AddChild(Btn("Reset volumes", () => Guarded.Run(async () =>
-            await s.SendEditAsync(new OverrideTerrainVolumes(t.Id, t.Mesh.IsBuiltin ? BuiltinContent.VolumesOf(t.Mesh.Builtin!) : (await s.Management.GetAssetVolumes(t.Mesh.AssetId!.Value)).Select(v => new TerrainVolume(Guid.CreateVersion7(), v.Volume)).ToList())), _toast)));
-        more.AddChild(Btn("Remove", () => Guarded.Send(s, new RemoveTerrain(t.Id))));
+            await s.SendEditAsync(SetupEdits.ResetVolumes(t.Id, t.Mesh.IsBuiltin ? BuiltinContent.VolumesOf(t.Mesh.Builtin!).Select(v => v.Volume).ToList() : (await s.Management.GetAssetVolumes(t.Mesh.AssetId!.Value)).Select(v => v.Volume).ToList())), _toast)));
+        more.AddChild(Btn("Remove", () => Guarded.Send(s, SetupEdits.RemoveTerrain(t.Id))));
     }
 
     /// <summary>Every volume field is one OverrideTerrainVolumes carrying the placement's whole volume list with one volume changed.</summary>
     void RenderVolumeEdits(TerrainPlacement t, TerrainVolume tv)
     {
         var s = _s;
-        void Edit(Func<Volume, Volume> change) =>
-            Guarded.Send(s, new OverrideTerrainVolumes(t.Id, t.Volumes.Select(v => v.Id != tv.Id ? v : v with { Volume = change(v.Volume) }).ToList()));
+        void Edit(Func<Volume, Volume> change) => Guarded.Send(s, SetupEdits.ChangeVolume(t, tv.Id, change));
         var shape = new HFlowContainer(); _body.AddChild(shape);
         var kind = new OptionButton(); foreach (var k in Enum.GetNames<VolumeKind>()) kind.AddItem(k); kind.Select((int)tv.Volume.Kind); shape.AddChild(kind);
-        kind.ItemSelected += k => Edit(v => v with { Kind = (VolumeKind)k });
+        kind.ItemSelected += k => Edit(SetupEdits.WithKind((VolumeKind)k));
         var fp = tv.Volume.Footprint;
         shape.AddChild(new Label { Text = fp.Kind == FootprintKind.Circle ? "radius" : "w×l" });
-        shape.AddChild(Spin(fp.A, 144, x => Edit(v => v with { Footprint = v.Footprint.Kind == FootprintKind.Circle ? new Footprint(FootprintKind.Circle, x, x) : v.Footprint with { A = x } })));
-        if (fp.Kind == FootprintKind.Rect) shape.AddChild(Spin(fp.B, 144, x => Edit(v => v with { Footprint = v.Footprint with { B = x } })));
+        shape.AddChild(Spin(fp.A, 144, x => Edit(SetupEdits.WithFootprintA(x))));
+        if (fp.Kind == FootprintKind.Rect) shape.AddChild(Spin(fp.B, 144, x => Edit(SetupEdits.WithFootprintB(x))));
         var heights = new HFlowContainer(); _body.AddChild(heights);
-        heights.AddChild(new Label { Text = "from" }); heights.AddChild(Spin(tv.Volume.Bottom, 60, x => Edit(v => v with { Bottom = x })));
-        heights.AddChild(new Label { Text = "to" }); heights.AddChild(Spin(tv.Volume.Top, 60, x => Edit(v => v with { Top = x })));
+        heights.AddChild(new Label { Text = "from" }); heights.AddChild(Spin(tv.Volume.Bottom, 60, x => Edit(SetupEdits.WithBottom(x))));
+        heights.AddChild(new Label { Text = "to" }); heights.AddChild(Spin(tv.Volume.Top, 60, x => Edit(SetupEdits.WithTop(x))));
         var flags = new HFlowContainer(); _body.AddChild(flags);
         foreach (var (flag, text) in TerrainLabel.Declarations)
         {
             var cb = new CheckBox { Text = text, ButtonPressed = tv.Volume.Declarations.HasFlag(flag) };
-            cb.Toggled += on => Edit(v => v with { Declarations = on ? v.Declarations | flag : v.Declarations & ~flag });
+            cb.Toggled += on => Edit(SetupEdits.WithDeclaration(flag, on));
             flags.AddChild(cb);
         }
         var notes = new LineEdit { Text = tv.Volume.Notes ?? "", PlaceholderText = $"notes, Enter to save (at most {TextLimits.Notes} characters)", MaxLength = TextLimits.Notes, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         _body.AddChild(notes);
-        notes.TextSubmitted += text => Edit(v => v with { Notes = text.Length == 0 ? null : text });
+        notes.TextSubmitted += text => Edit(SetupEdits.WithNotes(text));
     }
 
     void RenderMarker(MarkerCardContent m)
@@ -159,7 +158,7 @@ public partial class TerrainCard : VBoxContainer
         _body.AddChild(Wrap(m.Label is { } label ? $"{m.Name} · {label}" : m.Name));
         var badges = new HFlowContainer(); _body.AddChild(badges); badges.AddChild(Badge(m.Diameter));
         var s = _s; var id = m.PieceId;
-        _body.AddChild(Btn("Remove marker", () => Guarded.Send(s, new RemoveSetupMarker(id))));
+        _body.AddChild(Btn("Remove marker", () => Guarded.Send(s, SetupEdits.RemoveMarker(id))));
     }
 
     /// <summary>Setup phase -> Terrain: anyone may swap a piece's mesh for an asset from their library, and the placement keeps its
@@ -173,7 +172,7 @@ public partial class TerrainCard : VBoxContainer
         var dialog = new ConfirmationDialog { Title = "Swap this piece's mesh (its volumes and declarations stay)" }; dialog.AddChild(pick);
         dialog.VisibilityChanged += () => { if (!dialog.Visible) dialog.QueueFree(); };
         AddChild(dialog);
-        dialog.Confirmed += () => Guarded.Send(s, new SwapTerrainMesh(placementId, VisualRef.OfAsset(assets[pick.Selected].Id)));
+        dialog.Confirmed += () => Guarded.Send(s, SetupEdits.SwapAsset(placementId, assets[pick.Selected].Id));
         dialog.PopupCentered();
     }
 

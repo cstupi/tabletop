@@ -192,8 +192,7 @@ public partial class DecisionBox : PanelContainer
         _input.Eligible = DecisionView.ClickAnswers(options);
         _onTarget = clicked =>
         {
-            var hits = all.Where(c => Resolve(clicked, c.Pieces) is not null).ToList();
-            if (hits.Count == 1) Send(mine.Ask, new Chosen(hits[0].Id));
+            if (_s.Projection is { } p && AskAnswers.ChosenByClick(options, p, clicked) is { } chosen) Send(mine.Ask, chosen);
         };
         _onUnit = unit =>
         {
@@ -247,7 +246,7 @@ public partial class DecisionBox : PanelContainer
         var spendable = AskViewModel.SpendableBy(p, _s.Game!, _s.MyTeamId!.Value, (TokenSpend)mine.Ask.Legal);
         var spends = spendable.ToDictionary(kv => kv.Key, kv => new SpinBox { MinValue = 0, MaxValue = kv.Value, Prefix = names.Piece(kv.Key) });
         foreach (var sp in spends.Values) Add(sp);
-        void Spend() => Send(mine.Ask, new TokensSpent(spends.Where(kv => kv.Value.Value > 0).ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)));
+        void Spend() => Send(mine.Ask, AskAnswers.Spent(spends.ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)));
         _onEnter = Spend;
         Add(Btn("Spend (Enter)", Spend));
         if (mine.AnsweredTeams.Count > 0) Add(new Label { Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered")) });
@@ -277,16 +276,6 @@ public partial class DecisionBox : PanelContainer
 
     static bool Run(Action a) { a(); return true; }
 
-    /// <summary>What a table click names in a legal set, which holds model ids or unit ids: the clicked id itself, its unit, or the set's model of the clicked unit.</summary>
-    Guid? Resolve(Guid clicked, IReadOnlyCollection<Guid> ids)
-    {
-        if (ids.Contains(clicked)) return clicked;
-        var p = _s.Projection; if (p is null) return null;
-        if (p.Models.GetValueOrDefault(clicked)?.UnitId is { } unit && ids.Contains(unit)) return unit;
-        if (p.Units.ContainsKey(clicked)) foreach (var id in ids) if (p.Models.GetValueOrDefault(id)?.UnitId == clicked) return id;
-        return null;
-    }
-
     /// <summary>A sealed Ask withholds every answer until it closes; the closing frame carries them all, and that frame is the reveal.</summary>
     void Reveal(IReadOnlyList<GameEvent> events)
     {
@@ -309,7 +298,7 @@ public partial class DecisionBox : PanelContainer
         SetButtons(true); Unhook();                                             // one answer per Ask: no second click or key can double-send
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
         _sent.Sent(_lastCommand.Value);                                         // a move commit's ghosts go with it, else none are held
-        await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer, _answering), _lastCommand.Value);   // for the team the Ask was rendered for
+        await _s.SendCommandAsync(AskAnswers.Answer(ask, answer, _answering), _lastCommand.Value);   // for the team the Ask was rendered for
     }
 
     /// <summary>The open Ask's handlers and table state, dropped whenever it ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>

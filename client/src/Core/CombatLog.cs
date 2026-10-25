@@ -119,6 +119,9 @@ public static partial class CombatLog
     };
 
     /// <summary>The last roll still standing: what the dice tray shows.</summary>
+    /// <summary>Which log row offers Undo to here: not a watcher, not a row already undone, not an undo marker. A roll row offers it in its expansion, a block or line row on the row.</summary>
+    public static bool UndoHere(LogEntry e, bool watching) => !watching && !e.Undone && e.Event.Payload is not Undone;
+
     public static RollEntry? Latest(IReadOnlyList<GameEvent> log, Names n) => Latest(Build(log, n));
 
     /// <summary>The last roll still standing in entries already built, nested blocks included.</summary>
