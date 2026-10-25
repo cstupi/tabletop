@@ -10,7 +10,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
     private AssetDto Dto(Guid id, InMemoryRows.AssetRow a)
     {
         var b = rows.Blobs[(a.Owner, a.Hash)];
-        return new AssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, b.Uploaded, a.Scale, a.Orientation, a.ModelledBase);
+        return new AssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, b.Uploaded, a.Scale, a.Orientation, a.ModelledBase, a.SharedAt is not null);
     }
 
     /// <summary>check ((kind = 'miniature') = (modelled_base_shape is not null))</summary>
@@ -66,7 +66,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             var next = new InMemoryRows.AssetRow
             {
                 Owner = a.Owner, Hash = a.Hash, Name = p.Name ?? a.Name, Kind = a.Kind, Scale = p.Scale ?? a.Scale,
-                Orientation = p.Orientation ?? a.Orientation, ModelledBase = p.ModelledBase ?? a.ModelledBase, Volumes = a.Volumes,
+                Orientation = p.Orientation ?? a.Orientation, ModelledBase = p.ModelledBase ?? a.ModelledBase, SharedAt = a.SharedAt, Volumes = a.Volumes,
             };
             Check(next);
             rows.Assets[id] = next;
@@ -101,8 +101,28 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             if (rows.Assets.Values.Any(x => x.Owner == ownerId && x.Hash == a.Hash)) return Task.FromResult<(bool, string?)>((true, null));
             var key = rows.Blobs[(ownerId, a.Hash)].Key;
             rows.Blobs.Remove((ownerId, a.Hash));
-            return Task.FromResult<(bool, string?)>((true, key));
+            return Task.FromResult<(bool, string?)>((true, rows.Blobs.Values.Any(b => b.Key == key) ? null : key));
         }
+    }
+
+    public Task<IReadOnlyList<Guid>> SetShared(Guid ownerId, IReadOnlyList<Guid> ids, bool shared)
+    {
+        lock (rows.Gate)
+        {
+            var done = ids.Distinct().Where(id => rows.Assets.TryGetValue(id, out var a) && a.Owner == ownerId).ToList();
+            foreach (var id in done) rows.Assets[id].SharedAt = shared ? rows.Assets[id].SharedAt ?? DateTimeOffset.UtcNow : null;
+            return Task.FromResult<IReadOnlyList<Guid>>(done);
+        }
+    }
+
+    public Task<string?> BlobKey(Guid ownerId, Guid id)
+    {
+        lock (rows.Gate) return Task.FromResult(rows.Assets.TryGetValue(id, out var a) && a.Owner == ownerId ? rows.Blobs[(a.Owner, a.Hash)].Key : null);
+    }
+
+    public Task<IReadOnlyList<string>> Unreferenced(IReadOnlyList<string> keys)
+    {
+        lock (rows.Gate) return Task.FromResult<IReadOnlyList<string>>(keys.Distinct().Where(k => !rows.Blobs.Values.Any(b => b.Key == k)).ToList());
     }
 
     public Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId)
@@ -131,7 +151,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
                 foreach (var id in rows.Assets.Where(a => a.Value.Owner == key.Owner && a.Value.Hash == key.Hash).Select(a => a.Key).ToList()) rows.RemoveAsset(id);
                 rows.Blobs.Remove(key);
             }
-            return Task.FromResult<IReadOnlyList<string>>(gone.Select(b => b.Value.Key).ToList());
+            return Task.FromResult<IReadOnlyList<string>>(gone.Select(b => b.Value.Key).Distinct().Where(k => !rows.Blobs.Values.Any(b => b.Key == k)).ToList());
         }
     }
 

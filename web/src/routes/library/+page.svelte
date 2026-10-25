@@ -8,6 +8,8 @@
   import UploadDialog from '$lib/components/UploadDialog.svelte';
   import BasePicker from '$lib/components/BasePicker.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import LibraryTabs from '$lib/components/LibraryTabs.svelte';
+  import { folderSharing, markShared } from '$lib/library/shared';
   import { filterAssets } from '$lib/library/folders';
   import { ASSET_DRAG, folderOptions, holdersIn, runBulk, uploadTarget, type BulkOutcome } from '$lib/library/bulk';
   import { clear, click, keepOnly, NONE, selectAll, type Selection } from '$lib/library/selection';
@@ -25,6 +27,8 @@
   const count = $derived(selection.ids.size);
   const targets = $derived(folderOptions(folders));
   const usage = $derived(libraryUsage(assets));
+  const folderShare = $derived(selected ? folderSharing(assets, folders, selected) : null);
+  const selectedShared = $derived(assets.filter((a) => selection.ids.has(a.id) && a.shared).length);
   const nearQuota = $derived(usage.assets >= ASSET_QUOTA.assets * 0.9 || usage.bytes >= ASSET_QUOTA.bytes * 0.9);
   // The selection holds only tiles in view: changing folder or filter, or deleting, drops the rest.
   $effect(() => { const next = keepOnly(selection, order); if (next !== selection) selection = next; });
@@ -125,6 +129,15 @@
       return { message: `Deleted ${plural(outcome.done.length)}.`, outcome };
     });
   }
+  /** Shares or unshares `ids`; the tiles show the result. */
+  function setShared(ids: Guid[], shared: boolean) {
+    if (ids.length === 0) return;
+    void bulk(async () => {
+      const outcome = await runBulk(ids, (part) => (shared ? api.assets.share(part) : api.assets.unshare(part)));
+      assets = markShared(assets, outcome.done, shared);
+      return { message: `${shared ? 'Shared' : 'Unshared'} ${plural(outcome.done.length)}.`, outcome };
+    });
+  }
   function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && count > 0 && !uploading) { selection = clear(); done = null; } }
 </script>
 
@@ -132,6 +145,7 @@
 <svelte:window onkeydown={onKey} />
 
 <h1>Library{#if folderName} <small>· {folderName}</small>{/if}</h1>
+<LibraryTabs current="mine" />
 <div class="layout">
   <div class="panel folders"><FolderTree {folders} selected={selected} onselect={(id) => goto(id ? `/library?folder=${id}` : '/library')}
     oncreate={(p, name) => actFolder(() => api.folders.create({ name, parentId: p }))} onrename={(id, name) => actFolder(() => api.folders.patch(id, { name, parentId: folders.find((f) => f.id === id)?.parentId ?? null }))}
@@ -142,6 +156,10 @@
       <button class="primary" bind:this={addButton} onclick={() => (uploading = true)}><Icon name="upload" />Add STL / GLB / texture</button>
       <label>Kind <select bind:value={kind}><option value="">Any kind</option><option value="miniature">Miniatures</option><option value="terrain">Terrain</option><option value="texture">Textures</option></select></label>
       <label>Made for base <BasePicker bind:value={base} allowNone label="Made for base" /></label>
+      {#if folderShare && folderShare.shared.length + folderShare.unshared.length > 0}
+        {#if folderShare.unshared.length > 0}<button disabled={busy} onclick={() => setShared(folderShare.unshared, true)}>Share folder</button>{/if}
+        {#if folderShare.shared.length > 0}<button disabled={busy} onclick={() => setShared(folderShare.shared, false)}>Unshare folder</button>{/if}
+      {/if}
       <span class="count" role="status">{#if !loading}Showing {shown.length} of {assets.length}{/if}</span>
     </div>
     {#if !loading && shown.length > 0}
@@ -154,11 +172,13 @@
               {#each targets as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
             </select></label>
           {#if selected}<button disabled={busy} onclick={removeFromFolder}>Remove from folder</button>{/if}
+          {#if selectedShared < count}<button disabled={busy} onclick={() => setShared([...selection.ids], true)}>Share</button>{/if}
+          {#if selectedShared > 0}<button disabled={busy} onclick={() => setShared([...selection.ids], false)}>Unshare</button>{/if}
           <button class="danger" disabled={busy} onclick={deleteSelected}>Delete</button>
           <span class="end">{#if count < shown.length}<button class="quiet" disabled={busy} onclick={() => (selection = selectAll(selection, order))}>Select all {shown.length}</button>{/if}<button class="quiet" disabled={busy} onclick={() => { selection = clear(); done = null; }}>Clear</button></span>
         {:else}
           <button class="quiet" onclick={() => (selection = selectAll(selection, order))}>Select all {shown.length}</button>
-          <small class="hint">Tick tiles, Ctrl-click, Shift-click a range, or long-press, to move or delete several at once.</small>
+          <small class="hint">Tick tiles, Ctrl-click, Shift-click a range, or long-press, to move, share or delete several at once.</small>
         {/if}
       </div>
     {/if}
@@ -180,7 +200,7 @@
             <a class="tile" href="/library/{a.id}" draggable="true" onclick={(e) => onTileClick(e, a.id)} onkeydown={(e) => onTileKey(e, a.id, i)}
               ondragstart={(e) => onDragStart(e, a.id)} onpointerdown={(e) => onPointerDown(e, a.id)} onpointerup={cancelPress} onpointercancel={cancelPress} onpointermove={onPointerMove}
               oncontextmenu={(e) => { if (pressed) e.preventDefault(); }}>
-              <Icon name={a.kind} size="1.75rem" /><span><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}</small></span></a>
+              <Icon name={a.kind} size="1.75rem" /><span><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}{#if a.shared}{' · '}<span class="shared">shared</span>{/if}</small></span></a>
           </div></div>
         {/each}
       </div>
@@ -212,4 +232,5 @@
   :global([data-theme='fantasy']) .on .tile { border-color: var(--wood); box-shadow: inset 0 0 0 2px var(--wood); background: #E6D3A8 }
   :global([data-theme='scifi']) .tile { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px) }
   .usage { margin-bottom: 0 }
+  .shared { color: var(--accent) }
 </style>

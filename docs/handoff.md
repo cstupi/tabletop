@@ -62,11 +62,11 @@ Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tes
   Protocol 64, Sounds 19, Viewer 16, Client 851, GameServer 1452, Management 303, Sim 308.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 3 min). Management 47, GameServer 40, Sim 338; about 7 min.
+  against the compose stack (`LifecycleTests`, about 3 min). Management 54, GameServer 40, Sim 338; about 7 min.
 
 `cd viewer && npm run check && npm test` passes 1,662 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
-`cd web && npm test` passes 128 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
+`cd web && npm test` passes 133 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
 dev session (`POST /v1/dev/sessions`, roles admin) and stores it as `tabletop.session` on the website's origin.
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
@@ -83,6 +83,25 @@ sessions take instructions over Remote Control: `docker1-logical-curry` (server;
 approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
+
+### Shared models
+
+Spec `2026-10-25-shared-models-design.md`. Owner: one player lets others copy their models into their own collection.
+
+- Sharing: on the website, Share and Unshare on the Library's selection, Share folder and Unshare folder on the folder in
+  view (every asset in it and its sub-folders at that moment), and a Shared checkbox on the asset page. Any kind
+  (miniature, terrain, texture). `asset.shared_at`, migration `020_shared_assets.sql`.
+- Browsing and copying: Library → Shared (`/library/shared`) lists every other account's shared, uploaded models with
+  owner and the owner's folder names, searches name, player or folder, filters by kind, and copies the selection into a
+  chosen folder; `/library/shared/{id}` previews one. `GET /v1/shared-assets`, `/{id}`, `/{id}/download`,
+  `POST /v1/shared-assets/copy`, `POST /v1/assets/share` and `/unshare`.
+- A copy is the copier's own asset (name, scale, folders, volumes its own; under the upload quota) and plays like an
+  upload: army slots, layouts, the game manifest, Godot and the browser. Its blob row names the sharer's S3 object, so
+  no bytes are copied; an object is deleted only when no blob row names it (asset delete, the upload sweep, a lost
+  confirm, account delete), and every presign reads `blob.s3_key`.
+- Validated over HTTP and the socket against the branch's own servers: share, search, preview, copy into a folder,
+  assign to an army, the copy in a game's manifest for the other player, then unshare, source delete and the sharer's
+  account delete with the copy still downloading, and the object gone after the copier's account delete.
 
 ### 2026-10-25, v0.1.25
 

@@ -33,12 +33,13 @@ Asset   owner, blob, name, kind                 the library item
 ```
 
 **Dedup is per user.** `architecture.md` deduped blobs across all users; that is
-corrected. Nobody shares storage with anybody else, so deleting an asset never has to
-check whether another account still points at the bytes.
+corrected. Two accounts uploading the same bytes get two blob rows and two objects. A copy of a
+shared asset ([shared models](2026-10-25-shared-models-design.md)) is the exception: the copier's
+blob row names the sharer's object, so an object is deleted only when no blob row names its key.
 
-**The library is private for discovery, not for access.** *Corrected 2026-08-29; this section
-originally said that sharing copies a model into the recipient's library.* Nobody can browse or
-search another account's assets. But the participants in a game download the assets that game
+**The library is private for discovery, not for access.** Nobody can browse or search another
+account's assets except the ones its owner shares, which any account can copy into its own library
+([shared models](2026-10-25-shared-models-design.md)). But the participants in a game download the assets that game
 uses and render them locally, and that creates no record on either side — it is a download, not
 a share, and nothing enters anybody's library. Per-user dedup is unaffected, because there is
 still nothing pointing across accounts.

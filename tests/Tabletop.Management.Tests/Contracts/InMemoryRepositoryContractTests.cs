@@ -17,6 +17,7 @@ public sealed class InMemoryRepositoryContractTests : RepositoryContract
     {
         Accounts = new InMemoryAccountRepository(_rows);
         Assets = new InMemoryAssetRepository(_rows);
+        Shared = new InMemorySharedAssetRepository(_rows);
         Folders = new InMemoryFolderRepository(_rows);
         Armies = new InMemoryArmyRepository(_rows);
         Layouts = new InMemoryLayoutRepository(_rows);
@@ -26,6 +27,7 @@ public sealed class InMemoryRepositoryContractTests : RepositoryContract
 
     protected override IAccountRepository Accounts { get; }
     protected override IAssetRepository Assets { get; }
+    protected override ISharedAssetRepository Shared { get; }
     protected override IFolderRepository Folders { get; }
     protected override IArmyRepository Armies { get; }
     protected override ILayoutRepository Layouts { get; }

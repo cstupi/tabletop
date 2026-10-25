@@ -8,15 +8,15 @@ namespace Tabletop.Management.Content.Assets;
 public sealed class AssetRepository(Database db) : IAssetRepository
 {
     private sealed record Row(Guid Id, Guid OwnerId, string Name, string Kind, string BlobHash, long ByteSize, string ContentType, bool Uploaded, double Scale,
-        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB)
+        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB, bool Shared)
     {
         public AssetDto ToDto() => new(Id, Name, AssetRules.Kind(Kind), BlobHash, ByteSize, ContentType, Uploaded, Scale, new Orientation(OrientationPitch, OrientationYaw, OrientationRoll),
-            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value));
+            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value), Shared);
     }
 
     private const string Select = @"select a.id as Id, a.owner_id as OwnerId, a.name as Name, a.kind as Kind, a.blob_hash as BlobHash, b.byte_size as ByteSize, b.content_type as ContentType,
         b.uploaded as Uploaded, a.scale::float8 as Scale, a.orientation_pitch::float8 as OrientationPitch, a.orientation_yaw::float8 as OrientationYaw, a.orientation_roll::float8 as OrientationRoll,
-        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB
+        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB, a.shared_at is not null as Shared
         from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash";
 
     public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
@@ -84,7 +84,6 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         return rows.ToDictionary(r => r.Id, r => AssetRules.Kind(r.Kind));
     }
 
-    /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too and returns its S3 key.</summary>
     public async Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id)
     {
         await using var c = await db.Open();
@@ -93,8 +92,34 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         if (hash is null) return (false, null);
         var key = await c.ExecuteScalarAsync<string?>(@"delete from blob where owner_id = @ownerId and hash = @hash
             and not exists (select 1 from asset where owner_id = @ownerId and blob_hash = @hash) returning s3_key", new { ownerId, hash }, tx);
+        // A separate statement, so it sees a copy's blob row committed while the delete above waited on the copy's lock.
+        if (key is not null && await c.ExecuteScalarAsync<bool>("select exists (select 1 from blob where s3_key = @key)", new { key }, tx)) key = null;
         await tx.CommitAsync();
         return (true, key);
+    }
+
+    public async Task<IReadOnlyList<Guid>> SetShared(Guid ownerId, IReadOnlyList<Guid> ids, bool shared)
+    {
+        await using var c = await db.Open();
+        var done = shared
+            ? await c.QueryAsync<Guid>("update asset set shared_at = coalesce(shared_at, now()) where owner_id = @ownerId and id = any(@ids) returning id", new { ownerId, ids = ids.Distinct().ToArray() })
+            : await c.QueryAsync<Guid>("update asset set shared_at = null where owner_id = @ownerId and id = any(@ids) returning id", new { ownerId, ids = ids.Distinct().ToArray() });
+        var set = done.ToHashSet();
+        return ids.Distinct().Where(set.Contains).ToList();
+    }
+
+    public async Task<string?> BlobKey(Guid ownerId, Guid id)
+    {
+        await using var c = await db.Open();
+        return await c.ExecuteScalarAsync<string?>("select b.s3_key from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash where a.id = @id and a.owner_id = @ownerId", new { id, ownerId });
+    }
+
+    public async Task<IReadOnlyList<string>> Unreferenced(IReadOnlyList<string> keys)
+    {
+        if (keys.Count == 0) return [];
+        await using var c = await db.Open();
+        var named = (await c.QueryAsync<string>("select distinct s3_key from blob where s3_key = any(@keys)", new { keys = keys.ToArray() })).ToHashSet();
+        return keys.Distinct().Where(k => !named.Contains(k)).ToList();
     }
 
     public async Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId)
@@ -121,9 +146,10 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         await using var tx = await c.BeginTransactionAsync();
         await c.ExecuteAsync(@"delete from asset a using blob b where b.owner_id = a.owner_id and b.hash = a.blob_hash
             and not b.uploaded and b.created_at < @cutoff", new { cutoff }, tx);
-        var keys = (await c.QueryAsync<string>("delete from blob where not uploaded and created_at < @cutoff returning s3_key", new { cutoff }, tx)).ToList();
+        var keys = (await c.QueryAsync<string>("delete from blob where not uploaded and created_at < @cutoff returning s3_key", new { cutoff }, tx)).Distinct().ToArray();
+        var named = (await c.QueryAsync<string>("select distinct s3_key from blob where s3_key = any(@keys)", new { keys }, tx)).ToHashSet();
         await tx.CommitAsync();
-        return keys;
+        return keys.Where(k => !named.Contains(k)).ToList();
     }
 
     public async Task<bool> StarterSeeded(Guid ownerId)

@@ -409,6 +409,14 @@ migrations only.
 (`uploaded = false`) older than an hour is deleted with its assets by management's upload sweep; a new asset
 on a pending blob resets the time.
 
+### `asset` records whether its owner shares it, and `blob.s3_key` may name another owner's object
+
+`asset.shared_at timestamptz null` and the indexes `blob_s3_key_idx` on `blob (s3_key)` and `asset_shared_idx` (partial, shared
+assets), from management's `020_shared_assets.sql` ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)). A shared,
+uploaded asset is listed to every signed-in account. A copy is an `asset` row of the copier's on a `blob` row of the copier's whose
+`s3_key` is the sharer's `{owner}/{hash}`, so `s3_key` is not always `{owner_id}/{hash}`: every presign reads the column, and an S3 object
+is deleted only when no `blob` row names its key.
+
 ### `account` records whether its starter meshes were seeded
 
 `starter_seeded_at timestamptz null`, arriving as management's `003_account_starter.sql`. Null means the
@@ -434,7 +442,8 @@ style, and is the same value as `Tabletop.Content.DeploymentZone.Shape`. The sty
 
 ### Deleting an account is application logic
 
-Its armies, assets, blobs, folders and layouts cascade downward normally. But
+Its armies, assets, blobs, folders and layouts cascade downward normally; of its blobs' S3 objects,
+only those no other account's `blob` row names (a copy of a shared asset) are deleted. But
 [accounts](superpowers/specs/2026-08-29-accounts-design.md) requires deleting **every game it
 hosted** (`game.created_by`), which reaches *upward* to the game and then back down to other
 people's participants and into the game schema's event log, and **leaving every game it joined**

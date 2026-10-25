@@ -53,6 +53,7 @@ public class ManagementFactory : WebApplicationFactory<Program>
             s.AddSingleton(Rows);
             s.Replace(ServiceDescriptor.Singleton<IAccountRepository, InMemoryAccountRepository>());
             s.Replace(ServiceDescriptor.Singleton<IAssetRepository, InMemoryAssetRepository>());
+            s.Replace(ServiceDescriptor.Singleton<ISharedAssetRepository, InMemorySharedAssetRepository>());
             s.Replace(ServiceDescriptor.Singleton<IFolderRepository, InMemoryFolderRepository>());
             s.Replace(ServiceDescriptor.Singleton<ICatalogKinds, InMemoryCatalogKinds>());
             s.Replace(ServiceDescriptor.Singleton<IArmyRepository, InMemoryArmyRepository>());

@@ -86,6 +86,9 @@ public static class AssetEndpoints
             return Results.Ok(new BulkAssetsResponse(done, notFound));
         });
 
+        g.MapPost("/share", (ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets) => Share(user, r, assets, true));
+        g.MapPost("/unshare", (ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets) => Share(user, r, assets, false));
+
         g.MapPost("/{id:guid}/confirm", Confirm);
 
         g.MapGet("/{id:guid}/download", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
@@ -94,7 +97,8 @@ public static class AssetEndpoints
             var asset = await assets.Get(owner, id);
             if (asset is null) return Problems.NotFound();
             if (!asset.Uploaded) return Problems.Conflict("Not confirmed yet.");
-            return Results.Ok(new DownloadResponse(await blobs.PresignDownload(IBlobStore.Key(owner, asset.Hash), DownloadTtl), DateTimeOffset.UtcNow.Add(DownloadTtl)));
+            if (await assets.BlobKey(owner, id) is not { } key) return Problems.NotFound();
+            return Results.Ok(new DownloadResponse(await blobs.PresignDownload(key, DownloadTtl), DateTimeOffset.UtcNow.Add(DownloadTtl)));
         });
 
         g.MapGet("/{id:guid}/volumes", async (ClaimsPrincipal user, Guid id, IAssetRepository assets) =>
@@ -124,7 +128,9 @@ public static class AssetEndpoints
         if (asset.Uploaded)
         {
             await blobs.Delete([staging]);
-            return Results.Ok(new ConfirmResponse(asset, glb ? await Triangles(blobs, content, asset.ByteSize) : null, null));
+            // The blob row's key: a copied blob names the sharer's object, not {owner}/{hash}.
+            var key = await assets.BlobKey(owner, id) ?? content;
+            return Results.Ok(new ConfirmResponse(asset, glb ? await Triangles(blobs, key, asset.ByteSize) : null, null));
         }
 
         var size = await blobs.Size(staging);
@@ -153,12 +159,20 @@ public static class AssetEndpoints
         finally { await blobs.Delete([held]); }
         if (!await assets.MarkUploaded(owner, asset.Hash))
         {
-            // The sweep deleted the rows while this confirm ran; no row names the content object, so it goes too.
-            await blobs.Delete([content]);
+            // The sweep deleted the rows while this confirm ran; the content object goes too unless a copy's blob row names it.
+            await blobs.Delete(await assets.Unreferenced([content]));
             return Problems.Conflict("The upload was abandoned before it was confirmed; create the asset again.");
         }
         var warning = triangles > UploadLimits.WarnTriangles ? $"{triangles:N0} triangles is above the {UploadLimits.WarnTriangles:N0} this table renders comfortably; every participant downloads it." : null;
         return Results.Ok(new ConfirmResponse((await assets.Get(owner, id))!, triangles, warning));
+    }
+
+    private static async Task<IResult> Share(ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets, bool shared)
+    {
+        if (Limits.BulkIds(r.AssetIds) is { } bad) return Problems.Unprocessable(bad);
+        var done = await assets.SetShared(CurrentAccount.Id(user), r.AssetIds, shared);
+        var set = done.ToHashSet();
+        return Results.Ok(new BulkAssetsResponse(done, r.AssetIds.Distinct().Where(id => !set.Contains(id)).ToList()));
     }
 
     /// <summary>Lowercase hex, or null when the object is not exactly length bytes.</summary>
