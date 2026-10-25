@@ -7,6 +7,7 @@ import { Applier } from '../src/lib/live/apply';
 import { build, flatten, latest, pip } from '../src/lib/play/combatLog';
 import { Names } from '../src/lib/play/names';
 import { chain, collapsed, outcome, result, title, type LogEntry } from '../src/lib/play/rollEntry';
+import { undoPlanOf } from '../src/lib/play/undo';
 import type { Board, GameEvent, GameInfo } from '../src/lib/protocol/wire.generated';
 
 interface Row {
@@ -54,5 +55,8 @@ describe.each(cases)('combat log agreement', (c) => {
     expect(l === null ? null : collapsed(l, pip)).toBe(c.latest);
   });
 
-  it.todo(`combatlog fixture ${c.name} undo plan agrees`);
+  it(`combatlog fixture ${c.name} undo plan agrees`, () => {
+    const plan = undoPlanOf(projection?.log ?? c.events, names, entries);
+    expect(plan === null ? null : { toSeq: plan.toSeq, tooltip: plan.tooltip, lostRolls: [...plan.lostRolls] }).toEqual(c.undo);
+  });
 });

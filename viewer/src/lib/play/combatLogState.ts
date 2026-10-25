@@ -8,6 +8,7 @@ import type { GameEvent, GameInfo } from '../protocol/wire.generated';
 import { build, latest } from './combatLog';
 import { Names } from './names';
 import type { LogEntry, RollEntry } from './rollEntry';
+import { type UndoPlan, undoPlanOf } from './undo';
 
 export class CombatLogState {
   readonly names: Names;
@@ -16,6 +17,8 @@ export class CombatLogState {
   #entries: readonly LogEntry[] | null = null;
   #latest: RollEntry | null = null;
   #latestDone = false;
+  #undo: UndoPlan | null = null;
+  #undoDone = false;
 
   constructor(log: readonly GameEvent[], pendingUndoTo: number | null, names: Names) {
     this.#log = log; this.#pendingUndoTo = pendingUndoTo; this.names = names;
@@ -28,7 +31,17 @@ export class CombatLogState {
     return this.#latest;
   }
 
-  get undo(): null { return null; }   // Task 4 wires undoPlanOf
+  get undo(): UndoPlan | null {
+    if (this.#undoDone) return this.#undo;
+    const to = this.#pendingUndoTo;
+    if (to === null) this.#undo = undoPlanOf(this.#log, this.names, this.entries);
+    else {
+      const last = this.#log.length === 0 ? 0 : this.#log[this.#log.length - 1]!.seq;
+      this.#undo = undoPlanOf([...this.#log, { seq: last + 1, payload: { kind: 'undone', toSeq: to } } as GameEvent], this.names);
+    }
+    this.#undoDone = true;
+    return this.#undo;
+  }
 }
 
 /** Hands every reader the same CombatLogState until the log state changes: another log, another length or last seq, another pending

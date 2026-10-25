@@ -4,6 +4,7 @@ import { build, latest, pip, type ActivationBlock } from '../src/lib/play/combat
 import { CombatLogCache } from '../src/lib/play/combatLogState';
 import { Names } from '../src/lib/play/names';
 import { collapsed, type LogEntry } from '../src/lib/play/rollEntry';
+import { undoPlanOf } from '../src/lib/play/undo';
 import type { EventPayload, GameInfo } from '../src/lib/protocol/wire.generated';
 import { BoardSample, D, Frame, P1, Rifle, Roll, Round1, TEAM1, Unit, ctx, finished, started, step, undone } from './logSamples';
 import { ev, gameOf, newId } from './play';
@@ -58,6 +59,7 @@ describe('CombatLogCache', () => {
       const state = cache.of(a.log, null, game, a.projection);
       expect(wordsOf(state.entries)).toEqual(wordsOf(build(a.log, n)));
       expect(state.latest?.record.id).toBe(latest(build(a.log, n))?.record.id);
+      expect(state.undo).toEqual(undoPlanOf(a.log, n));
     };
     same();
     let seq = a.log.length;
@@ -68,5 +70,13 @@ describe('CombatLogCache', () => {
     expect(cache.of(a.log, null, game, a.projection).latest!.record.id).toBe(Roll);
   });
 
-  it.todo('a pending undo plans over the log with its marker');
+  // While an undo travels the button plans as if its marker had landed: one press further back.
+  it('a pending undo plans over the log with its marker', () => {
+    const a = applierOf(...shooting(Roll), { kind: 'score_set', teamId: TEAM1, score: 1 });
+    const n = new Names(game, a.projection);
+    const state = new CombatLogCache().of(a.log, 4, game, a.projection);
+    const pending = [...a.log, ev(6, undone(4))];
+    expect(state.undo).toEqual(undoPlanOf(pending, n));
+    expect(state.undo!.toSeq).toBe(3);
+  });
 });
