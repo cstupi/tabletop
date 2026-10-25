@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Scene } from '../board/frame';
   import { draw } from '../board/draw';
+  import { boardColoursOf, type BoardColours } from '../board/style';
   import type { Glow } from '../play/decisionBox';
   import type { BoardHit, BoardInteraction, Modifiers, Overlay } from '../board/interaction';
   import { pickAt } from '../board/pick';
@@ -34,6 +35,14 @@
   let box = $state({ width: 800, height: 600 });
   let hovered: string | undefined = $state(undefined);
   let pointer: PointerState = IDLE_POINTER;
+  // The theme's board colours, read again whenever <html data-theme> changes, so a theme switch redraws in the new one.
+  const readColours = (): BoardColours => boardColoursOf((name) => getComputedStyle(document.documentElement).getPropertyValue(name));
+  let colours: BoardColours = $state.raw(readColours());
+  $effect(() => {
+    const observer = new MutationObserver(() => { colours = readColours(); });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+    return () => observer.disconnect();
+  });
   let downMods: Modifiers = { shift: false, ctrl: false, alt: false };
 
   // A new table is a different table: the old pan and zoom mean nothing on it.
@@ -48,7 +57,7 @@
     canvas.height = Math.round(box.height * dpr);
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned, dimmed });
+    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned, dimmed, colours });
   });
 
   $effect(() => {
@@ -126,12 +135,12 @@
       if (interaction?.onKey?.(e.key, modsOf(e)) === true) e.preventDefault();
     }}
   ></canvas>
-  <button onclick={() => (view = null)}>Reset view</button>
+  <button class="small reset" title="Fit the table to the window" onclick={() => (view = null)}>Reset view</button>
 </div>
 
 <style>
   .board { position: relative; width: 100%; height: 100%; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
   canvas:focus-visible { box-shadow: inset 0 0 0 1px var(--muted); }
-  button { position: absolute; top: 0.5rem; right: 0.5rem; }
+  .reset { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; }
 </style>

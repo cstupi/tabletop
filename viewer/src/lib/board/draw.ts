@@ -1,10 +1,13 @@
-import type { Scene, Shape } from './frame';
+import { circle, haloText, line, path, shapeCentre, SMALL_FONT } from './canvas';
+import type { Scene } from './frame';
 import type { Overlay } from './interaction';
-import { GLOW, markerColour, teamColour, terrainStroke } from './palette';
+import { GLOW, teamColour } from './palette';
+import { BOARD_DEFAULTS, type BoardColours, LABEL_SCALE, labelText, terrainStyle, withAlpha } from './style';
 import type { Glow } from '../play/decisionBox';
 import { type View, type Viewport, gridStep, toScreen } from './transform';
 
 const WARNING = '#ffc44e';
+const RIM = 'rgba(0, 0, 0, 0.45)';
 
 export type DrawOptions = {
   readonly selected: ReadonlySet<string>;
@@ -15,6 +18,7 @@ export type DrawOptions = {
   readonly overlays?: readonly Overlay[];
   readonly showGrid: boolean;
   readonly showZones: boolean;
+  /** Terrain and marker names (when zoomed in or selected) and a model's wound and condition tags. */
   readonly showLabels: boolean;
   /** What a model glows in (the open Ask's pieces, a hovered option's, a pick's ghost); null draws none. */
   readonly glow?: ((modelId: string, unitId: string) => Glow | null) | undefined;
@@ -24,180 +28,180 @@ export type DrawOptions = {
   readonly warned?: ReadonlySet<string> | undefined;
   /** Models that cannot shoot the sight check's target: drawn darkened. */
   readonly dimmed?: ReadonlySet<string> | undefined;
+  /** The theme's board colours (style.ts boardColoursOf); default Sci-fi's. */
+  readonly colours?: BoardColours | undefined;
 };
 
-export function draw(
-  ctx: CanvasRenderingContext2D, scene: Scene, view: View, viewport: Viewport, options: DrawOptions,
-): void {
-  const table = scene.table;
-  const at = (x: number, y: number) => toScreen(view, table, { x, y });
+type Ctx = CanvasRenderingContext2D;
+type At = (x: number, y: number) => { x: number; y: number };
+
+export function draw(ctx: Ctx, scene: Scene, view: View, viewport: Viewport, options: DrawOptions): void {
+  const c = options.colours ?? BOARD_DEFAULTS;
+  const at: At = (x, y) => toScreen(view, scene.table, { x, y });
+  const named = options.showLabels && view.scale >= LABEL_SCALE;
 
   ctx.save();
   ctx.clearRect(0, 0, viewport.width, viewport.height);
-
-  // The slab.
-  const origin = at(0, table.length);
-  ctx.fillStyle = '#1b1e24';
-  ctx.fillRect(origin.x, origin.y, table.width * view.scale, table.length * view.scale);
-
-  if (options.showGrid) {
-    const step = gridStep(view);
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= table.width + 1e-9; x += step) {
-      ctx.strokeStyle = x % 12 === 0 ? '#39404c' : '#252a32';
-      line(ctx, at(x, 0), at(x, table.length));
-    }
-    for (let y = 0; y <= table.length + 1e-9; y += step) {
-      ctx.strokeStyle = y % 12 === 0 ? '#39404c' : '#252a32';
-      line(ctx, at(0, y), at(table.width, y));
-    }
-  }
-
-  if (options.showZones) {
-    ctx.setLineDash([6, 4]);
-    for (const zone of scene.zones) {
-      ctx.strokeStyle = teamColour(zone.teamOrdinal);
-      ctx.lineWidth = 1.5;
-      for (const polygon of zone.polygons) path(ctx, polygon, view, table), ctx.stroke();
-    }
-    ctx.setLineDash([]);
-  }
-
-  for (const piece of scene.terrain) {
-    const picked = options.selected.has(piece.id);
-    ctx.strokeStyle = picked ? '#ffffff' : terrainStroke(piece.declarations);
-    ctx.lineWidth = picked ? 3 : piece.kind === 'solid' ? 2 : 1;
-    if (piece.kind === 'area') ctx.setLineDash([3, 3]);
-    path(ctx, piece.shape, view, table);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (options.showLabels) {
-      const centre = shapeCentre(piece.shape);
-      const p = at(centre.x, centre.y);
-      ctx.fillStyle = terrainStroke(piece.declarations);
-      ctx.font = '10px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(piece.label, p.x, p.y - 4);
-      ctx.fillText(piece.declarations.join(' · ') || piece.kind, p.x, p.y + 8);
-    }
-  }
-
-  for (const marker of scene.markers) {
-    const p = at(marker.centre.x, marker.centre.y);
-    ctx.strokeStyle = marker.teamOrdinal === undefined ? markerColour(marker.kind) : teamColour(marker.teamOrdinal);
-    if (options.selected.has(marker.id)) ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = options.selected.has(marker.id) ? 3 : marker.teamOrdinal === undefined ? 1.5 : 3;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(3, marker.radius * view.scale), 0, 2 * Math.PI);
-    ctx.stroke();
-    if (options.showLabels) {
-      ctx.fillStyle = markerColour(marker.kind);
-      ctx.font = '10px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(marker.label, p.x, p.y - Math.max(3, marker.radius * view.scale) - 3);
-    }
-  }
-
-  for (const model of scene.models) {
-    const colour = options.warned?.has(model.id) === true ? WARNING : teamColour(model.teamOrdinal);
-    const circles = options.models === 'circles';
-    const picked = options.selected.has(model.id);
-    path(ctx, circles ? model.circle : model.shape, view, table);
-    ctx.fillStyle = model.wounds > 0 ? '#1b1e24' : colour;
-    ctx.globalAlpha = model.wounds > 0 ? 1 : 0.65;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    if (options.dimmed?.has(model.id) === true) { ctx.fillStyle = 'rgba(0, 0, 0, 0.55)'; ctx.fill(); }
-    ctx.strokeStyle = picked ? '#ffffff' : model.id === options.hovered ? '#e6e8ec' : colour;
-    ctx.lineWidth = picked ? 2.5 : model.elevated ? 2 : 1;
-    if (model.elevated) ctx.setLineDash([2, 2]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    const glow = options.glow?.(model.id, model.unitId) ?? null;
-    if (glow !== null) {
-      const c = at(model.centre.x, model.centre.y);
-      ctx.strokeStyle = GLOW[glow];
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, Math.max(5, (model.circle.kind === 'circle' ? model.circle.radius : 0.5) * view.scale + 3), 0, 2 * Math.PI);
-      ctx.stroke();
-    }
-    if (model.facing !== null) {
-      ctx.strokeStyle = colour;
-      ctx.lineWidth = 1.5;
-      line(ctx, at(model.facing[0].x, model.facing[0].y), at(...tickEnd(model, circles)));
-    }
-    const mark = options.marks?.get(model.id);
-    if (mark !== undefined) {
-      const c = at(model.centre.x, model.centre.y);
-      ctx.fillStyle = '#ff6b5c';
-      ctx.font = 'bold 14px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(mark, c.x, c.y + 5);
-    }
-    if (model.z > 0.01 && view.scale > 6) {
-      const p = at(model.centre.x, model.centre.y);
-      ctx.fillStyle = '#e6e8ec';
-      ctx.font = '9px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${+model.z.toFixed(1)}"`, p.x, p.y + 10);
-    }
-    if (options.showLabels && view.scale > 6) {
-      const p = at(model.centre.x, model.centre.y);
-      ctx.fillStyle = '#e6e8ec';
-      ctx.font = '9px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      const tags = [model.wounds > 0 ? `-${model.wounds}` : '', ...model.conditions.map((c) => c[0]!)].filter(Boolean);
-      if (tags.length > 0) ctx.fillText(tags.join(''), p.x, p.y - 2);
-    }
-  }
-
+  table(ctx, scene, view, at, c, options.showGrid);
+  if (options.showZones) zones(ctx, scene, view);
+  terrain(ctx, scene, view, at, c, options, named);
+  markers(ctx, scene, view, at, c, options, named);
+  for (const model of scene.models) drawModel(ctx, model, scene, view, at, c, options);
   for (const overlay of options.overlays ?? []) {
     ctx.save();
-    overlay(ctx, (p) => toScreen(view, table, p), view.scale);
+    overlay(ctx, (p) => toScreen(view, scene.table, p), view.scale);
     ctx.restore();
   }
-
   ctx.restore();
 }
 
-/** Where a model's facing tick ends: the base's own reach, or the circle's edge. */
-function tickEnd(model: Scene['models'][number], circles: boolean): [number, number] {
-  const [from, to] = model.facing!;
-  if (!circles || model.circle.kind !== 'circle') return [to.x, to.y];
-  const length = Math.hypot(to.x - from.x, to.y - from.y);
-  if (length === 0) return [to.x, to.y];
-  const k = model.circle.radius / length;
-  return [from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k];
-}
-
-function line(ctx: CanvasRenderingContext2D, a: { x: number; y: number }, b: { x: number; y: number }): void {
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-}
-
-function path(ctx: CanvasRenderingContext2D, shape: Shape, view: View, table: { width: number; length: number }): void {
-  ctx.beginPath();
-  if (shape.kind === 'circle') {
-    const p = toScreen(view, table, shape.centre);
-    ctx.arc(p.x, p.y, shape.radius * view.scale, 0, 2 * Math.PI);
-    return;
+function table(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, grid: boolean): void {
+  const { width, length } = scene.table;
+  const origin = at(0, length);
+  ctx.fillStyle = c.bg;
+  ctx.fillRect(origin.x, origin.y, width * view.scale, length * view.scale);
+  if (grid) {
+    const step = gridStep(view);
+    ctx.lineWidth = 1;
+    for (let x = step; x < width - 1e-9; x += step) {
+      ctx.strokeStyle = x % 12 === 0 ? c.gridMajor : c.grid;
+      line(ctx, at(x, 0), at(x, length));
+    }
+    for (let y = step; y < length - 1e-9; y += step) {
+      ctx.strokeStyle = y % 12 === 0 ? c.gridMajor : c.grid;
+      line(ctx, at(0, y), at(width, y));
+    }
   }
-  shape.points.forEach((point, i) => {
-    const p = toScreen(view, table, point);
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
-  });
-  ctx.closePath();
+  ctx.strokeStyle = c.edge;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(origin.x, origin.y, width * view.scale, length * view.scale);
 }
 
-function shapeCentre(shape: Shape): { x: number; y: number } {
-  if (shape.kind === 'circle') return shape.centre;
-  const n = shape.points.length;
-  return {
-    x: shape.points.reduce((s, p) => s + p.x, 0) / n,
-    y: shape.points.reduce((s, p) => s + p.y, 0) / n,
-  };
+/** A deployment zone: a tinted band in its team's colour with a solid edge. */
+function zones(ctx: Ctx, scene: Scene, view: View): void {
+  for (const zone of scene.zones) {
+    const colour = teamColour(zone.teamOrdinal);
+    for (const polygon of zone.polygons) {
+      path(ctx, polygon, view, scene.table);
+      ctx.fillStyle = withAlpha(colour, 0.12);
+      ctx.fill();
+      ctx.strokeStyle = withAlpha(colour, 0.7);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+}
+
+function terrain(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o: DrawOptions, named: boolean): void {
+  for (const piece of scene.terrain) {
+    const style = terrainStyle(piece.kind, piece.declarations);
+    path(ctx, piece.shape, view, scene.table);
+    ctx.fillStyle = style.fill;
+    ctx.fill();
+    const picked = o.selected.has(piece.id);
+    ctx.strokeStyle = RIM;                          // a dark rim under the edge separates a piece from any table colour
+    ctx.lineWidth = style.width + 2;
+    ctx.stroke();
+    ctx.strokeStyle = picked ? c.select : style.stroke;
+    ctx.lineWidth = picked ? 2.5 : style.width;
+    ctx.stroke();
+  }
+  // One name per piece, over its first volume.
+  const labelled = new Set<string>();
+  for (const piece of scene.terrain) {
+    if (labelled.has(piece.id) || !(named || (o.showLabels && o.selected.has(piece.id)))) continue;
+    labelled.add(piece.id);
+    const centre = shapeCentre(piece.shape);
+    haloText(ctx, labelText(piece.label), at(centre.x, centre.y), c.label, withAlpha(c.bg, 0.75));
+  }
+}
+
+/** A marker as a token: a washed disc, a ring and a centre dot; an objective in its controller's colour, or neutral. */
+function markers(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o: DrawOptions, named: boolean): void {
+  for (const marker of scene.markers) {
+    const p = at(marker.centre.x, marker.centre.y);
+    const radius = Math.max(5, marker.radius * view.scale);
+    const objective = marker.kind === 'objective';
+    const colour = marker.teamOrdinal !== undefined ? teamColour(marker.teamOrdinal) : objective ? c.label : c.labelDim;
+    const picked = o.selected.has(marker.id);
+    circle(ctx, p, radius);
+    ctx.fillStyle = withAlpha(c.bg, 0.55);
+    ctx.fill();
+    ctx.fillStyle = withAlpha(colour, marker.teamOrdinal !== undefined ? 0.35 : 0.14);
+    ctx.fill();
+    ctx.strokeStyle = picked ? c.select : colour;
+    ctx.lineWidth = picked ? 3 : objective ? 2.5 : 1.5;
+    ctx.stroke();
+    if (objective) {
+      circle(ctx, p, Math.max(1.5, radius * 0.5));
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      circle(ctx, p, Math.max(1.5, radius * 0.16));
+      ctx.fillStyle = colour;
+      ctx.fill();
+    }
+    if (named || (o.showLabels && picked)) {
+      const text = labelText(marker.label, '');
+      if (text.length > 0) haloText(ctx, text, { x: p.x, y: p.y - radius - 9 }, c.label, withAlpha(c.bg, 0.75), SMALL_FONT);
+    }
+  }
+}
+
+function drawModel(ctx: Ctx, model: Scene['models'][number], scene: Scene, view: View, at: At, c: BoardColours, o: DrawOptions): void {
+  const colour = o.warned?.has(model.id) === true ? WARNING : teamColour(model.teamOrdinal);
+  const circles = o.models === 'circles';
+  const picked = o.selected.has(model.id);
+  const centre = at(model.centre.x, model.centre.y);
+  const radius = (model.circle.kind === 'circle' ? model.circle.radius : 0.5) * view.scale;
+  path(ctx, circles ? model.circle : model.shape, view, scene.table);
+  ctx.fillStyle = withAlpha(colour, 0.88);
+  ctx.fill();
+  if (o.dimmed?.has(model.id) === true) { ctx.fillStyle = 'rgba(0, 0, 0, 0.55)'; ctx.fill(); }
+  ctx.strokeStyle = model.id === o.hovered && !picked ? c.label : RIM;
+  ctx.lineWidth = model.elevated ? 2 : 1.25;
+  if (model.elevated) ctx.setLineDash([2, 2]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (picked) {
+    circle(ctx, centre, radius + 2.5);
+    ctx.strokeStyle = c.select;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  const glow = o.glow?.(model.id, model.unitId) ?? null;
+  if (glow !== null) {
+    circle(ctx, centre, Math.max(5, radius + 3));
+    ctx.strokeStyle = GLOW[glow];
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  if (model.facing !== null && radius >= 4) {
+    const [from, to] = model.facing;
+    const end = circles ? tickEnd(model) : to;
+    const start = { x: from.x + (end.x - from.x) * 0.45, y: from.y + (end.y - from.y) * 0.45 };
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.lineWidth = Math.min(2.5, Math.max(1.25, radius / 5));
+    ctx.lineCap = 'round';
+    line(ctx, at(start.x, start.y), at(end.x, end.y));
+    ctx.lineCap = 'butt';
+  }
+  const mark = o.marks?.get(model.id);
+  if (mark !== undefined) haloText(ctx, mark, centre, '#ff6b5c', withAlpha(c.bg, 0.8), 'bold 14px system-ui, sans-serif');
+  if (view.scale > 6) {
+    const tags = o.showLabels
+      ? [model.wounds > 0 ? `-${model.wounds}` : '', ...model.conditions.map((x) => x[0]!.toUpperCase())].filter(Boolean).join(' ')
+      : '';
+    if (tags.length > 0) haloText(ctx, tags, { x: centre.x, y: centre.y - radius - 7 }, c.label, withAlpha(c.bg, 0.8), SMALL_FONT);
+    if (model.z > 0.01) haloText(ctx, `${+model.z.toFixed(1)}"`, { x: centre.x, y: centre.y + radius + 7 }, c.label, withAlpha(c.bg, 0.8), SMALL_FONT);
+  }
+}
+
+/** Where a model's facing tick ends on its circle's edge. */
+function tickEnd(model: Scene['models'][number]): { x: number; y: number } {
+  const [from, to] = model.facing!;
+  if (model.circle.kind !== 'circle') return to;
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (length === 0) return to;
+  const k = model.circle.radius / length;
+  return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
 }

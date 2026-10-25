@@ -85,9 +85,9 @@
       {/if}
     </div>
     <aside class="right">
-      <nav>
+      <nav class="seg" aria-label="Panel">
         {#each ['log', 'ask', 'dice', 'meta'] as const as name (name)}
-          <button class:active={tab === name} onclick={() => (tab = name)}>{name}</button>
+          <button class="small" aria-pressed={tab === name} onclick={() => (tab = name)}>{name}</button>
         {/each}
       </nav>
       <div class="tab">
@@ -135,5 +135,18 @@
 
 <style>
   .playback { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; min-height: 0; }
-  .status { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .status {
+    display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) var(--s4);
+    border-bottom: 1px solid var(--rule); background: var(--panel-solid);
+  }
+  .panes { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; min-height: 0; }
+  .left { position: relative; min-width: 0; min-height: 0; }
+  .right {
+    display: flex; flex-direction: column; gap: var(--s2); min-height: 0; padding: var(--s3);
+    border-left: 1px solid var(--rule); background: var(--panel-solid);
+  }
+  .tab { flex: 1; min-height: 0; overflow: auto; }
+  .pad { padding: var(--s3); margin: 0; }
+  .pad p { margin: 0 0 var(--s1); }
+  .selected { border-top: 1px solid var(--rule); flex: none; }
 </style>

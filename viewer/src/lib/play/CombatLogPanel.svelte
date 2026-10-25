@@ -27,7 +27,8 @@
   let scroller: HTMLDivElement | undefined = $state();
   let toEnd = true;
 
-  const keyOf = (e: LogEntry): string => (e.type === 'roll' ? `r${e.record.id}` : `s${e.seq}`);
+  // One event can write several lines ("Moved", "Moved this round"): a line's key carries its text.
+  const keyOf = (e: LogEntry): string => (e.type === 'roll' ? `r${e.record.id}` : e.type === 'line' ? `l${e.seq}:${e.text}` : `s${e.seq}`);
   const isOpen = (e: LogEntry): boolean => (e.type === 'block' ? !foldedBlocks.has(keyOf(e)) : openRolls.has(keyOf(e)));
 
   function toggle(e: LogEntry): void {

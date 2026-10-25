@@ -51,10 +51,10 @@
     }} />
   </label>
   <input type="url" placeholder="or a URL to a recording" bind:value={url} style="width: 18rem" />
-  <button disabled={url.length === 0} onclick={() => load(async () => recordingFeed(await fromUrl(url)))}>Load</button>
+  <button class="small" disabled={url.length === 0} onclick={() => load(async () => recordingFeed(await fromUrl(url)))}>Load</button>
   <details class="live" bind:open>
     <summary>Games</summary>
-      <button onclick={reload}>Refresh</button>
+      <button class="small" onclick={reload}>Refresh</button>
       <table>
         <thead><tr><th>Name</th><th>Status</th><th>Players</th><th>Created (UTC)</th></tr></thead>
         <tbody>
@@ -71,7 +71,15 @@
 </div>
 
 <style>
-  .picker { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; padding: 0.3rem 0.6rem; }
+  .picker {
+    display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) var(--s4);
+    border-bottom: 1px solid var(--rule);
+  }
+  .picker label { display: inline-flex; align-items: center; gap: var(--s2); }
+  /* The games list scrolls inside itself, so the board below keeps its room. */
+  .live { flex-basis: 100%; max-height: 35vh; overflow: auto; }
+  summary { cursor: pointer; color: var(--dim); }
+  table { width: 100%; margin-top: var(--s2); }
   .game { cursor: pointer; }
   .game:hover { text-decoration: underline; }
   td, th { padding: 0 0.5rem; text-align: left; }

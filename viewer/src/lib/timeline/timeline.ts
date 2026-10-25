@@ -34,8 +34,11 @@ export function reduce(state: Timeline, action: TimelineAction): Timeline {
       const index = state.follow ? count - 1 : state.index;
       return { ...state, count, index: clamp(index, count) };
     }
+    // Playing lets go of the end (a live feed opens following it, where a tick would stop at once); from the last frame it starts again
+    // from the first.
     case 'play':
-      return state.count === 0 ? state : { ...state, playing: true };
+      return state.count === 0 ? state
+        : { ...state, playing: true, follow: false, index: state.index >= state.count - 1 ? 0 : state.index };
     case 'pause':
       return { ...state, playing: false };
     case 'toggle':
