@@ -30,7 +30,7 @@ describe('the hosted viewer', () => {
   it('is the developer viewer otherwise: VITE_GAME_SOCKET, its own login, the Tests runner', () => {
     expect(configOf({ MODE: 'development', VITE_GAME_SOCKET: 'ws://127.0.0.1:5200/ws' }, { protocol: 'http:', host: 'x' }))
       .toEqual({ hosted: false, socketUrl: 'ws://127.0.0.1:5200/ws', runner: true });
-    expect(configOf({ MODE: 'production' }, { protocol: 'http:', host: 'x' }).socketUrl).toBe('ws://localhost:5200/ws');
+    expect(configOf({ MODE: 'production' }, { protocol: 'http:', host: 'x' }).socketUrl).toBe('ws://127.0.0.1:5200/ws');
   });
 
   it('reads the website session the web app keeps under tabletop.session', () => {

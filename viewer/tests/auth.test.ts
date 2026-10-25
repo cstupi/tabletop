@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { devAuth, hostedAuth } from '../src/lib/shell/auth';
+import { hostedAuth } from '../src/lib/shell/auth';
 import { WEB_SESSION_KEY, readWebSession } from '../src/lib/hosted/hosted';
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -43,18 +43,5 @@ describe('hostedAuth', () => {
     const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/v1/account');
     expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${player}`);
-  });
-});
-
-describe('devAuth', () => {
-  it('throws before signIn and reads admin from the roles claim', async () => {
-    const auth = devAuth(async (j) => ({ sessionJwt: j }));
-    await expect(auth.jwt()).rejects.toThrow('signed out');
-    expect(auth.access).toBe('signed-out');
-    auth.usePasted(admin);
-    expect(auth.access).toBe('admin');
-    expect(await auth.jwt()).toBe(admin);
-    auth.usePasted(player);
-    expect(auth.access).toBe('player');
   });
 });

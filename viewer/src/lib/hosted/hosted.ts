@@ -2,12 +2,13 @@
 // The hosted build (`npm run build:hosted`, Vite mode `hosted`): the viewer served under /viewer/ on the website's origin
 // (web/Dockerfile). It reuses the website's session, which web/src/lib/session/session.svelte.ts keeps in localStorage
 // under `tabletop.session` as { sessionJwt, account }, opens the game socket on the page's own host, and has no Tests page
-// (no runner behind it). The developer build keeps its own login, VITE_GAME_SOCKET and the Tests page.
+// (no runner behind it). The developer build is served the same way through the website's dev server (web/vite.config.ts) and
+// keeps VITE_GAME_SOCKET and the Tests page.
 
 import { ManagementError, type Session } from '../live/management';
 
 export const WEB_SESSION_KEY = 'tabletop.session';
-const DEV_SOCKET = 'ws://localhost:5200/ws';
+const DEV_SOCKET = 'ws://127.0.0.1:5200/ws';   // never localhost: Windows tries ::1 first, which does not reach WSL
 
 export type ViewerConfig = { readonly hosted: boolean; readonly socketUrl: string; readonly runner: boolean };
 type Env = { readonly MODE?: string; readonly VITE_GAME_SOCKET?: string };

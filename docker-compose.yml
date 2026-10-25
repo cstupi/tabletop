@@ -185,7 +185,8 @@ services:
     working_dir: ${PWD}/web
     environment:
       <<: *vite-env
-      PUBLIC_VIEWER_URL: http://127.0.0.1:5174/   # the admin Replays entry; production serves the viewer at /viewer/
+      PUBLIC_VIEWER_URL: /viewer/                              # the header's Play link: the viewer through this server, as in production
+      TABLETOP_VIEWER_PROXY_TARGET: http://viewer:5174          # /viewer/ proxied to the viewer's dev server
     ports:
       - "127.0.0.1:5173:5173"
 

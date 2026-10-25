@@ -18,7 +18,9 @@ export default defineConfig(({ mode }) => ({
   plugins: [svelte()],
   // The packed built-in catalog (what Godot packs): the setup page's fallback when GET /v1/builtin answers 404.
   resolve: { alias: { '@builtin-catalog': fileURLToPath(new URL('../client/content/builtin/catalog.json', import.meta.url)) } },
-  base: mode === 'hosted' ? '/viewer/' : '/',
+  // Always under /viewer/: production serves it there, and development through the website's dev server (web/vite.config.ts),
+  // so the viewer shares the website's origin and its session.
+  base: '/viewer/',
   define: mode === 'hosted'
     ? {}
     : { 'import.meta.env.VITE_GAME_SOCKET': JSON.stringify(process.env.VITE_GAME_SOCKET ?? 'ws://localhost:5200/ws') },

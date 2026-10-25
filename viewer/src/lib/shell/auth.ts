@@ -1,8 +1,9 @@
 // viewer/src/lib/shell/auth.ts
-// One sign-in for the whole shell. The hosted build borrows the website's session; the developer build signs in once per page.
+// One sign-in for the whole shell: the website's session, read from `tabletop.session` on the website's origin. Development serves
+// the viewer through the website's dev server at /viewer/ (web/vite.config.ts), so both builds sign in the same way.
 
 import { hostedSession, signInHref, accessOf, type Access, type StorageLike } from '../hosted/hosted';
-import { logIn, ManagementError, type Session } from '../live/management';
+import { ManagementError, type Session } from '../live/management';
 
 export { signInHref };
 
@@ -46,25 +47,4 @@ export function hostedAuth(storage: StorageLike, refresh: (jwt: string) => Promi
     return inFlight;
   };
   return { get access() { return access; }, jwt, account: accountOf(jwt, fetchFn) };
-}
-
-/** The developer build: `signIn` (password or a pasted JWT) once per page; `access` from the JWT's roles. */
-export type DevAuth = Auth & { signIn(email: string, password: string): Promise<void>; usePasted(jwt: string): void };
-
-export function devAuth(refresh: (jwt: string) => Promise<Session>, fetchFn: typeof fetch = fetch): DevAuth {
-  let current: string | null = null;
-  let account = accountOf(() => jwt(), fetchFn);
-  const set = (next: string) => { current = next; account = accountOf(() => jwt(), fetchFn); };
-  const jwt = async (): Promise<string> => {
-    if (current === null) throw new Error(SIGNED_OUT);
-    current = (await refresh(current)).sessionJwt;
-    return current;
-  };
-  return {
-    get access() { return accessOf(current); },
-    jwt,
-    account: () => account(),
-    async signIn(email, password) { set((await logIn(email, password)).sessionJwt); },
-    usePasted(pasted) { set(pasted); },
-  };
 }

@@ -27,6 +27,9 @@ WORKDIR /src/viewer
 COPY viewer/package.json viewer/package-lock.json viewer/.npmrc ./
 RUN npm ci --no-audit --no-fund
 COPY viewer/ ./
+# The website's themes, controls and icons, which the viewer imports so it looks like the site.
+COPY web/src/themes.css web/src/app.css /src/web/src/
+COPY web/src/lib/components/Icon.svelte web/src/lib/components/icons.ts /src/web/src/lib/components/
 COPY client/content/builtin/catalog.json /src/client/content/builtin/catalog.json
 COPY --from=geometry /out/_framework public/geometry/_framework
 RUN npm run build:hosted
