@@ -65,7 +65,9 @@ public static class Battlefield
     /// <summary>
     /// p.11's sight test, per model and not judged: the target unit's living models that are "behind a sight blocker" from these
     /// attacking models. A model is when every attacking model with a clear line to it has a blocker along that line
-    /// (`Cover.SightBlockersBetween` non-empty while `LineOfSight.Check` is clear), which includes no attacking model seeing it at all.
+    /// (`Cover.SightBlockersBetween` non-empty while `LineOfSight.Check` is clear), or passes through cover terrain that does not block
+    /// sight and that neither model stands in (`Cover.CoverTerrainBetween`: p.11's terrain "models can hide in or behind", a wall or fence,
+    /// a barricade), which includes no attacking model seeing it at all.
     /// The blockers are terrain and every unit but the two: p.11's other units "are sight blockers that can provide other units
     /// with cover", so a model does not take cover behind its own unit, and the attackers ignore their own (p.8).
     /// </summary>
