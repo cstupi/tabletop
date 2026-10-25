@@ -17,7 +17,8 @@ import { RuleTexts } from '../../src/lib/play/ruleTexts';
 import { loadEdit } from '../../src/lib/setup/layouts';
 import type { Edit, Team } from '../../src/lib/protocol/wire.generated';
 
-export const MANAGEMENT = 'http://127.0.0.1:5100';
+/** Management's /v1: the compose service's port; `TABLETOP_E2E_MANAGEMENT` points the suites elsewhere (e.g. the website's proxy on :5173). */
+export const MANAGEMENT = process.env.TABLETOP_E2E_MANAGEMENT ?? 'http://127.0.0.1:5100';
 export const SOCKET = 'ws://127.0.0.1:5200/ws';
 export const BOOKS = ['z65fgu0l29i4lnlu', '78qp9l5alslt6yj8'];
 
