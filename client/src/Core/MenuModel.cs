@@ -117,6 +117,10 @@ public static class MenuModel
             _ => new AnswerAsk(ask.Id, AskAnswers.Embark(p, region, c)))).ToList();
     }
 
+    /// <summary>The table's right-click: a token dropped at a table-frame point, labelled by the player.</summary>
+    public static MenuItem Token(Point3 at) => new("Drop a token here", MenuInput.Text,
+        label => new PlaceMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, at, new Yaw(0), 1, label, VisualRef.OfBuiltin("chip"))));
+
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>
     [
         new("Set score", MenuInput.Integer, s => Int(s) is { } n ? new SetScore(teamId, n) : null),

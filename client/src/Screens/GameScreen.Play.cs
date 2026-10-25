@@ -71,8 +71,8 @@ public partial class GameScreen
         };
         _menu.ItemChosen += _onItem;
         // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu, and the table's menu offers only Leave; a replay offers none.
-        _onPieceRight = (id, at) => { if (!_session.IsWatching) _menu?.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
-        _onTableRight = at => { if (!_session.Replaying) _menu?.Open(_session.IsWatching ? [_leave] : [Token(at), _leave], GetViewport().GetMousePosition()); };
+        _onPieceRight = (id, at) => { if (MenuCtx() is { } ctx) _menu?.Open(Menus.Piece(ctx, id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
+        _onTableRight = at => { if (!_session.Replaying) _menu?.Open([.. MenuCtx() is { } ctx ? Menus.Table(ctx, WorldFrame.FromGodot(at)) : _session.IsWatching ? [] : [MenuModel.Token(WorldFrame.FromGodot(at))], _leave], GetViewport().GetMousePosition()); };
         Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
 
         // The parts die with the screen, so their own events need no unsubscribing.
@@ -85,7 +85,7 @@ public partial class GameScreen
         _undo.Reported += Toast;
         _animator.Played += _floating.Show;
         _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
-        _roster.UnitMenuRequested += (id, at) => { if (!_session.IsWatching && _session.Game is { } g && _session.Projection is { } p) _menu?.Open(MenuModel.ForRosterUnit(g, p, id, _session.MyTeamId, _session.DeployInside), at); };
+        _roster.UnitMenuRequested += (id, at) => { if (MenuCtx() is { } ctx) _menu?.Open(Menus.Roster(ctx, id), at); };
         _end.LeaveRequested += () => Guarded.Run(_session.DisconnectAsync, Toast);
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
         // or holds a unit; never for the history replayed on join.
@@ -239,8 +239,7 @@ public partial class GameScreen
     /// <summary>The team menu, from the header's team names (spec → Layout): what the team panel's right-click opened.</summary>
     void OpenTeamMenu(Guid teamId, Vector2 at)
     {
-        if (!_session.IsWatching && _session.Game is { } game && _session.Projection is { } p)
-            _menu?.Open(MenuModel.ForTeam(game, p, teamId).Concat(MenuModel.OffTable(p, teamId, new Names(game, p))).ToList(), at);
+        if (MenuCtx() is { } ctx) _menu?.Open(Menus.Team(ctx, teamId), at);
     }
 
     /// <summary>A unit card group row's click (ModelGroup.Next) selects that one model on the table (spec → Unit card).</summary>
@@ -257,18 +256,9 @@ public partial class GameScreen
             _sight.ShowAssigned(_decision?.Targets?.Groups ?? [], _decision?.Targets is { } a ? new Dictionary<string, Guid>(a.Assigned) : new Dictionary<string, Guid>());
     }
 
-    IReadOnlyList<MenuItem> ItemsFor(Guid id, bool shift)
-    {
-        var p = _session.Projection; if (p is null) return [];
-        if (p.Models.TryGetValue(id, out var model))
-        {
-            var known = MenuModel.KnownActionNames(p, _session.Log);
-            var boarding = _session.Game is { } g ? MenuModel.ForBoarding(p, AskViewModel.Mine(p, g, _session.MyTeamId, _session.Settings.MutedWindowKinds)?.Ask, id) : [];
-            return [.. boarding, .. shift ? MenuModel.ForUnit(p, model.UnitId, known, _session.Grantable) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p))];
-        }
-        return _session.Game is { } game ? MenuModel.ForMarker(game, p, id, Input.Locks) : [];
-    }
-
-    static MenuItem Token(Vector3 at) => new("Drop a token here", MenuInput.Text,
-        label => new PlaceMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, WorldFrame.FromGodot(at), new Yaw(0), 1, label, VisualRef.OfBuiltin("chip"))));
+    /// <summary>What the menus read, built once per open; null before the game and its projection arrive.</summary>
+    MenuContext? MenuCtx() => _session.Game is { } game && _session.Projection is { } p
+        ? new MenuContext(game, p, _session.Log, _session.IsWatching, _session.MyTeamId, AskViewModel.Mine(p, game, _session.MyTeamId, _session.Settings.MutedWindowKinds),
+            _session.Grantable, _session.DeployInside, Input.Locks)
+        : null;
 }
