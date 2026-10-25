@@ -22,11 +22,11 @@
 }} />
 
 <div class="timeline">
-  <button onclick={() => dispatch({ type: 'first' })} disabled={timeline.count === 0} title="Home">|&lt;</button>
-  <button onclick={() => dispatch({ type: 'step', by: -1 })} disabled={timeline.index <= 0}>&lt;</button>
-  <button onclick={() => dispatch({ type: 'toggle' })} disabled={timeline.count === 0}>{timeline.playing ? 'Pause' : 'Play'}</button>
-  <button onclick={() => dispatch({ type: 'step', by: 1 })} disabled={timeline.index >= timeline.count - 1}>&gt;</button>
-  <button onclick={() => dispatch({ type: 'last' })} disabled={timeline.count === 0} title="End">&gt;|</button>
+  <button class="small" onclick={() => dispatch({ type: 'first' })} disabled={timeline.count === 0} title="Home">|&lt;</button>
+  <button class="small" onclick={() => dispatch({ type: 'step', by: -1 })} disabled={timeline.index <= 0}>&lt;</button>
+  <button class="small primary" style="min-width: 5rem" onclick={() => dispatch({ type: 'toggle' })} disabled={timeline.count === 0}>{timeline.playing ? 'Pause' : 'Play'}</button>
+  <button class="small" onclick={() => dispatch({ type: 'step', by: 1 })} disabled={timeline.index >= timeline.count - 1}>&gt;</button>
+  <button class="small" onclick={() => dispatch({ type: 'last' })} disabled={timeline.count === 0} title="End">&gt;|</button>
   <input
     type="range" min="0" max={Math.max(0, timeline.count - 1)} value={Math.max(0, timeline.index)}
     disabled={timeline.count === 0}
@@ -42,7 +42,11 @@
 </div>
 
 <style>
-  .timeline { display: flex; gap: 0.4rem; align-items: center; padding: 0.4rem 0.6rem; border-top: 1px solid var(--line); }
-  input[type='range'] { flex: 1 1 12rem; }
+  .timeline {
+    display: flex; gap: var(--s2); align-items: center; padding: var(--s2) var(--s4);
+    border-top: 1px solid var(--rule); background: var(--panel-solid);
+  }
+  input[type='range'] { flex: 1 1 12rem; accent-color: var(--accent); }
+  label { display: inline-flex; align-items: center; gap: var(--s1); }
   .line { flex: 2 1 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
