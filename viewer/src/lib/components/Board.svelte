@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Scene } from '../board/frame';
   import { draw } from '../board/draw';
+  import type { Glow } from '../play/decisionBox';
   import type { BoardHit, BoardInteraction, Modifiers, Overlay } from '../board/interaction';
   import { pickAt } from '../board/pick';
   import { IDLE_POINTER, step, type PointerEffect, type PointerInput, type PointerState } from '../board/pointer';
@@ -8,7 +9,7 @@
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true,
+    showGrid = true, showZones = true, showLabels = true, glow, marks,
   }: {
     scene: Scene;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
@@ -20,6 +21,9 @@
     selected?: ReadonlySet<string>;
     models?: 'bases' | 'circles';
     showGrid?: boolean; showZones?: boolean; showLabels?: boolean;
+    /** The open Ask's glow per model, and the labels over models (play only). */
+    glow?: ((modelId: string, unitId: string) => Glow | null) | undefined;
+    marks?: ReadonlyMap<string, string> | undefined;
   } = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -39,7 +43,7 @@
     canvas.height = Math.round(box.height * dpr);
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels });
+    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks });
   });
 
   $effect(() => {
