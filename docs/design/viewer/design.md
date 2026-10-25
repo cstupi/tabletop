@@ -368,10 +368,26 @@ shape is the one that is picked.
 matching `Tabletop.Geometry.Polygon.Contains`. Circles are a squared-distance test. Polygons are an
 on-edge test followed by a crossing count.
 
-`draw` is one function over the whole scene with a `DrawOptions` of `selected`, `hovered`,
-`showGrid`, `showZones` and `showLabels`. A model with wounds is drawn filled dark rather than
-tinted, a model whose `z` is above the slab gets a dashed outline, and grid lines on a twelve-inch
-boundary are brighter.
+`draw` (`board/draw.ts`, its strokes in `board/canvas.ts`) is one pass over the whole scene with a `DrawOptions` of `selected`,
+`hovered`, `showGrid`, `showZones`, `showLabels`, the play options and `colours`. A model whose `z` is above the slab gets a dashed
+outline, and grid lines on a twelve-inch boundary are stronger.
+
+### The board's look
+
+The board reads as a tabletop in the site's theme (spec `2026-10-25-play-ui-design.md` → Principles). `board/style.ts` decides it
+without a canvas, so it is unit-tested (`tests/boardStyle.test.ts`):
+
+- **Colours.** The slab, grid, twelve-inch grid, table edge, label, dim label and selection come from the `--board-*` custom properties
+  in `viewer/src/app.css`, one set per theme. `Board.svelte` reads them through `boardColoursOf(getComputedStyle(...))` and reads them
+  again when a `MutationObserver` sees `<html data-theme>` change, which redraws. Team colours (`palette.ts`) are the same in both themes.
+- **Terrain.** A soft fill and an outline in its first declaration's hue (`terrainStyle`): a solid piece denser (34%) with a firm edge,
+  an area a light wash (16%) with a thinner one, both over a dark rim that separates a piece from either table colour.
+- **Names.** A terrain piece's name (once per piece) and a marker's label show only from `LABEL_SCALE` (18 px per inch) or when it is
+  selected, never the declarations. `labelText` turns a wire name into words (`ruined-wall` → "Ruined wall") and never shows an id.
+- **Zones.** A band tinted 12% in the team's colour with a solid 70% edge.
+- **Markers.** A token: a washed disc, a ring and, for an objective, an inner ring and a centre dot, in the controller's colour or neutral.
+- **Models.** Filled in the team's colour with a dark rim and a facing tick; the selection is a ring outside in the theme's selection
+  colour. Wound and condition tags and the height show only from 6 px per inch. No model carries its id or name on the board.
 
 ### The timeline reducer
 
@@ -391,6 +407,9 @@ stateDiagram-v2
     Following --> Paused: step / scrub / jump / first
     Paused --> Paused: frames (index clamped)
 ```
+
+`play` lets go of `follow` and, from the last frame, starts again at frame 0. A live feed opens following its end, so before this a
+press of Play there ticked once, found the last frame and stopped: the replay's "Play does nothing".
 
 `follow` is what makes one reducer serve both feeds. A recording arrives complete, so `follow`
 starts `false` and the timeline sits on frame 0. The live feed appends, so `App.svelte` starts it
@@ -567,6 +586,30 @@ canonical lowercase strings, because neither option set sets a dictionary key po
 not scored for, which `noUncheckedIndexedAccess` makes visible.
 
 The score is not geometry. `Scene` is unchanged by it.
+
+### Replay
+
+`#/replay/<id>` (`replay/ReplayPage.svelte`) is the play page read-only, Godot's replay (`docs/design/client/replay.md`) in the browser.
+It opens `connectGame` on the watch socket (`?watch=1`), which sends nothing but the connect and reauths, and builds from its board,
+game and log:
+
+- `replay/replayTimeline.ts` ports `ReplayTimeline`: position counts the events applied (0 is the board as setup left it), forward
+  applies the next events to one `Applier`, backward rebuilds; `replayStops(log, unit)` gives the stops by step (before each run of one
+  participant's events), action (before each action frame opens), turn and round (just after each `turn_started`, `round_started`);
+  the caption reads `Round 2 · 140 of 2210`. The log is read on every call, so a running game's events extend it.
+- `replay/replayClock.ts` ports `ReplayClock` (a step every 1.5 s over the speed: 0.5×, 1×, 2×, 4×, 8×) and `replay/replayPlayer.ts` the
+  replay bar's logic (`ReplayBar.cs`): a step button pauses and jumps, Play from the end of an ended game starts from 0, playing pauses
+  at the end of an ended game and waits at the end of a running one. The page drives `advance(seconds)` from `requestAnimationFrame`.
+- `replay/replayView.ts`: the top bar (`headerView.ts`: round and turn, "Deployment · Team 2's turn" before round 1, each team's
+  score, the activation, the result), the selected unit's card (`unitSheet.ts`, `unitCard.ts`), terrain names from the built-in
+  catalog (`nameOf`).
+
+Layout: the top bar (back to Games, the game's name, a Replay chip, the round and turn, the scores); the board (`models: 'circles'`,
+zones once the geometry loads) beside a 24rem column with the unit card when a model is selected and the combat log in Godot's words
+(`CombatLogPanel` over the shown events); the replay bar fixed at the foot: `«R «T ‹A ‹`, Play/Pause as the primary button, `› A› T» R»`,
+the scrubber, the caption and the speed. Space plays and pauses, the arrows step (Shift: by action), Home and End jump. Like the play
+page it loads the geometry for the zones, so it lives in `replay/`, outside the playback modules `geometry.lazy.test.ts` checks.
+`PlaybackView` stays the developer Watch tab.
 
 ## Key decisions
 
