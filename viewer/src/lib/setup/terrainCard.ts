@@ -16,10 +16,10 @@ export interface TerrainCard {
 }
 export interface MarkerCard { readonly pieceId: string; readonly name: string; readonly diameter: string; readonly label: string | null }
 
-/** TerrainLabel's order: the seven declarations with their words. */
+/** TerrainLabel's order: the seven declarations with their words (spelled out, never the wire's names). */
 export const DECLARATION_WORDS: readonly (readonly [string, string])[] = [
   ['cover', 'Cover'], ['difficult', 'Difficult'], ['dangerous', 'Dangerous'], ['dangerous_on_rush_charge', 'Dangerous on Rush/Charge'],
-  ['impassable', 'Impassable'], ['blocks_line_of_sight', 'Blocks LOS'], ['see_in_and_out', 'See in/out'],
+  ['impassable', 'Impassable'], ['blocks_line_of_sight', 'Blocks line of sight'], ['see_in_and_out', 'See in and out'],
 ];
 
 /** TerrainLabel.Inches: "0.#". */
@@ -40,7 +40,7 @@ export function terrainCardOf(t: TableState | null, status: GameStatus | null, s
   if (!inPlay(status) || selected === null) return null;
   const piece = t?.terrain.find((p) => p.id === selected);
   if (piece === undefined) return null;
-  const source = piece.mesh.builtin !== undefined ? `Built-in ${piece.mesh.builtin}` : `Library asset ${(piece.mesh.assetId ?? '').replaceAll('-', '').slice(0, 8)}`;
+  const source = piece.mesh.builtin !== undefined ? 'Built-in terrain' : 'From a player\'s library';
   const height = piece.volumes.length === 0 ? ''
     : `${inches(piece.position.z + Math.min(...piece.volumes.map((v) => v.volume.bottom)) * piece.scale)}–${inches(piece.position.z + Math.max(...piece.volumes.map((v) => v.volume.top)) * piece.scale)}"`;
   const volumes = piece.volumes.map((tv): CardVolume => {
@@ -57,10 +57,14 @@ export function terrainCardOf(t: TableState | null, status: GameStatus | null, s
   };
 }
 
+/** A marker's label, null when it only repeats its kind (a token labelled "token"). */
+const labelOf = (kind: string, label: string | undefined): string | null =>
+  label === undefined || label.trim().toLowerCase() === kind.toLowerCase() ? null : label;
+
 /** A selected setup marker on the same card: kind, diameter and label. Setup only. */
 export function markerCardOf(t: TableState | null, status: GameStatus | null, selected: string | null): MarkerCard | null {
   if (status !== 'setup' || selected === null) return null;
   const m = t?.markers.find((x) => x.id === selected);
   return m === undefined ? null
-    : { pieceId: m.id, name: kindWord(m.kind), diameter: `${inches(m.diameter)}" across`, label: m.label ?? null };
+    : { pieceId: m.id, name: kindWord(m.kind), diameter: `${inches(m.diameter)}" across`, label: labelOf(m.kind, m.label) };
 }
