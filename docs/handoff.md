@@ -62,7 +62,7 @@ Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tes
   Protocol 62, Sounds 19, Viewer 16, Client 831, GameServer 1430, Management 303, Sim 307.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 3 min). Management 47, GameServer 40, Sim 338; about 7 min.
+  against the compose stack (`LifecycleTests`, about 3 min). Management 54, GameServer 40, Sim 338; about 7 min.
 
 `cd viewer && npm run check && npm test` passes 781 (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
