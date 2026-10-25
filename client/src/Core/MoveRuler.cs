@@ -106,38 +106,15 @@ public static class MoveRuler
         return boundary;
     }
 
-    /// <summary>How many facings a non-circular base is tried at. p.7 lets a model take any facing, so a placement is legal
-    /// if some yaw fits; the drawn region is the union over fitting yaws. Eight are 45° apart, which is
-    /// finer than the region's own 2° rays are deep. A circular base is yaw-invariant and skips every one of them.</summary>
-    public const int ExitYaws = 8;
+    /// <summary>How many facings a non-circular base is tried at (<see cref="Containment.ExitYaws"/>).</summary>
+    public const int ExitYaws = Containment.ExitYaws;
 
-    /// <summary>
-    /// Is this position offered at any facing? Fully within the exit distance of the container's base, on the slab, and clear
-    /// of the impassable volumes the Ask named. The last two are asked through Movement.Check with the candidate as both start
-    /// and destination: the distance is zero, so Check samples exactly that placement and answers CrossesImpassable and
-    /// LeavesTable for it — no new geometry primitive.
-    /// </summary>
+    /// <summary>Is this position offered at any facing? <see cref="Containment.ExitYaw"/> finds one.</summary>
     static bool Admits(ModelBody body, PlacedModel container, double within, Point2 at, IReadOnlyList<WorldVolume> impassable, TableSize size) =>
         ExitYawAt(body, container, within, at, impassable, size) is not null;
 
     /// <summary>A facing this position is legal at, or null if none is. The panel asks for it when it builds the answer, so the
     /// placement it sends is one the server's own ExitPlacement will accept; a circular base answers at the first try.</summary>
-    public static Yaw? ExitYawAt(ModelBody body, PlacedModel container, double within, Point2 at, IReadOnlyList<WorldVolume> impassable, TableSize size)
-    {
-        var yaws = body.Base.Shape == BaseShape.Circle ? 1 : ExitYaws;
-        for (var i = 0; i < yaws; i++)
-        {
-            var yaw = new Yaw(360.0 * i / yaws);
-            if (AdmitsAt(body, container, within, at, yaw, impassable, size)) return yaw;
-        }
-        return null;
-    }
-
-    static bool AdmitsAt(ModelBody body, PlacedModel container, double within, Point2 at, Yaw yaw, IReadOnlyList<WorldVolume> impassable, TableSize size)
-    {
-        var candidate = new PlacedModel(body, new Placement(new Point3(at.X, at.Y, container.Placement.Position.Z), yaw));
-        if (!Containment.BaseFullyWithin(candidate, container, within)) return false;
-        var check = Movement.Check(candidate, at, 0, impassable, [], null, size);
-        return !check.CrossesImpassable && !check.LeavesTable;
-    }
+    public static Yaw? ExitYawAt(ModelBody body, PlacedModel container, double within, Point2 at, IReadOnlyList<WorldVolume> impassable, TableSize size) =>
+        Containment.ExitYaw(body, container, within, at, impassable, size);
 }

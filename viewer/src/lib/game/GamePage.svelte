@@ -6,6 +6,7 @@
   import { apiOf } from '../api/client';
   import { connectGame, type ConnectionState, type GameConnection } from '../connection/gameConnection';
   import LobbyPage from '../lobby/LobbyPage.svelte';
+  import { armyFromCreate } from '../lobby/lobbyEdits';
   import { isCreator } from '../lobby/seats';
   import PlayPage from '../play/PlayPage.svelte';
   import SetupPage from '../setup/SetupPage.svelte';
@@ -36,7 +37,7 @@
       // The creator's link carries the army chosen in Create game: it is picked once, after the first welcome.
       if (!armySent && pick !== undefined && s.phase === 'connected' && s.game !== null) {
         armySent = true;
-        void conn.sendEdit({ kind: 'pick_army', armyId: pick }).catch(() => {});
+        void conn.sendEdit(armyFromCreate(pick)).catch(() => {});
       }
     });
     return () => { stop(); conn.close(); connection = null; snap = null; };

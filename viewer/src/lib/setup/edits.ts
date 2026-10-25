@@ -5,11 +5,11 @@
 import { declarationsOf } from '../live/project';
 import type { Geometry } from '../geometry';
 import type {
-  AddSetupMarker, Edit, Marker, MoveTerrain, OverrideTerrainVolumes, RemoveSetupMarker, RemoveTerrain, ReplaceDraft, TableSize,
-  TableState, TerrainPlacement, Volume,
+  AddSetupMarker, AddTerrain, Edit, Marker, MoveTerrain, OverrideTerrainVolumes, RemoveSetupMarker, RemoveTerrain, ReplaceDraft, ScaleTerrain,
+  SetTableSize, SetTexture, SetZoneStyle, SwapTerrainMesh, SwapZones, TableSize, TableState, TerrainPlacement, Volume,
 } from '../protocol/wire.generated';
-import { declarationsWire } from './catalog';
-import { NOTES, freeSpot } from './limits';
+import { type BuiltinTerrain, declarationsWire, placeAsset, placeBuiltin } from './catalog';
+import { NOTES, beside, freeSpot } from './limits';
 
 export const TERRAIN_TURN = 15, SCALE_MIN = 0.25, SCALE_MAX = 4, SCALE_STEP = 0.25;
 
@@ -98,3 +98,22 @@ export const withBottom = (bottom: number) => (v: Volume): Volume => ({ ...v, bo
 export const withTop = (top: number) => (v: Volume): Volume => ({ ...v, top });
 
 export const clearTerrain = (d: TableState): ReplaceDraft => ({ kind: 'replace_draft', draft: { ...d, terrain: [] } });
+
+// One function per toolbar and card control (SetupEdits.cs).
+export const tableSize = (width: number, length: number): SetTableSize => ({ kind: 'set_table_size', size: { width, length } });
+export const texture = (builtin: string): SetTexture => ({ kind: 'set_texture', texture: { builtin } });
+export const addBuiltin = (entry: BuiltinTerrain, size: TableSize, random?: () => number): AddTerrain =>
+  ({ kind: 'add_terrain', placement: placeBuiltin(entry, beside(size, random), { degrees: 0 }) });
+/** The asset's volumes under new ids, scale 1 (the asset's own scale is already in its mesh and volumes). */
+export const addAsset = (assetId: string, volumes: readonly Volume[], size: TableSize, random?: () => number): AddTerrain =>
+  ({ kind: 'add_terrain', placement: placeAsset(assetId, volumes.map((volume) => ({ id: crypto.randomUUID(), volume })), beside(size, random)) });
+export const zones = (style: string): SetZoneStyle => ({ kind: 'set_zone_style', style, shapes: zoneShapes(style) });
+export const swapZones = (a: number, b: number): SwapZones => ({ kind: 'swap_zones', teamOrdinalA: a, teamOrdinalB: b });
+export const scale = (placementId: string, value: number): ScaleTerrain => ({ kind: 'scale_terrain', placementId, scale: value });
+export const swapBuiltin = (placementId: string, builtin: string): SwapTerrainMesh => ({ kind: 'swap_terrain_mesh', placementId, mesh: { builtin } });
+export const swapAsset = (placementId: string, assetId: string): SwapTerrainMesh => ({ kind: 'swap_terrain_mesh', placementId, mesh: { assetId } });
+export const removeTerrain = (placementId: string): RemoveTerrain => ({ kind: 'remove_terrain', placementId });
+export const removeMarker = (markerId: string): RemoveSetupMarker => ({ kind: 'remove_setup_marker', markerId });
+/** Reset volumes: the given volumes under new ids. */
+export const resetVolumes = (placementId: string, volumes: readonly Volume[]): OverrideTerrainVolumes =>
+  ({ kind: 'override_terrain_volumes', placementId, volumes: volumes.map((volume) => ({ id: crypto.randomUUID(), volume })) });

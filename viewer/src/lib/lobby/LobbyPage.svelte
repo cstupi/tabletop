@@ -8,6 +8,7 @@
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { sendEdit } from '../game/send';
   import type { Edit, Enforcement, SchedulerShape } from '../protocol/wire.generated';
+  import { createTeam, startSetup } from './lobbyEdits';
   import { seatLine } from './lobbyView';
   import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL, configChanged, settingsSummary, waitingFor } from './lobbyPage';
   import { CUSTOM, configurationOf, presetOf, valueOf } from './rulesOptions';
@@ -73,14 +74,14 @@
     <section class="teams" aria-label="Teams">
       <div class="head">
         <h2>Teams</h2>
-        {#if participant}<button class="small" onclick={() => send({ kind: 'create_team' })}>Add team</button>{/if}
+        {#if participant}<button class="small" onclick={() => send(createTeam())}>Add team</button>{/if}
       </div>
       <p class="seat">{seatLine(game, snap.participantId)}</p>
       {#if problem !== null}<p role="alert">{problem} <button class="quiet" onclick={() => (problem = null)}>Dismiss</button></p>{/if}
       {#if game.teams.length === 0}
         <div class="panel empty">
           <p>No teams yet. Add one for each side of the table.</p>
-          {#if participant}<button class="primary" onclick={() => send({ kind: 'create_team' })}>Add team</button>{/if}
+          {#if participant}<button class="primary" onclick={() => send(createTeam())}>Add team</button>{/if}
         </div>
       {/if}
       <TeamCards {snap} {armies} {creator} {send} />
@@ -129,7 +130,7 @@
             </div>
           {/if}
           <button class="primary start" disabled={changed} title={changed ? 'Apply or undo your changes first' : ''}
-            onclick={() => send({ kind: 'start_setup' })}>Start setup</button>
+            onclick={() => send(startSetup())}>Start setup</button>
           <small>Everyone can then lay out the table; you end setup to start the game.</small>
         </div>
       {:else}

@@ -50,6 +50,30 @@ describe('the move Ask', () => {
     expect(r.control('stop')).toBeUndefined();
   });
 
+  it('a disembark answers the exit yaw at the drop, not the ghost\'s', () => {
+    const r = moveRig();
+    for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
+    const walls = ['11111111-0000-7000-8000-000000000001'];
+    r.openMove(region({ modelIds: r.ids, allowance: 0, impassableVolumeIds: walls, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
+    r.setExit({ degrees: 45 });
+    r.box.dragged(r.ids[0]!, at(14, 10, 135));                                // the player turned it to 135°
+    r.box.enter();
+    expect(answerOf(r.sent[0]).moves[0]!.to).toEqual({ kind: 'table', placement: { position: { x: 14, y: 10, z: 0 }, yaw: { degrees: 45 } } });
+    const [body, container, within, drop, , impassable] = r.exitCalls[0]! as [any, any, number, any, unknown, string[]];
+    expect([body.base.shape, container.placement.position, within, drop, impassable]).toEqual(['circle', { x: 20, y: 10, z: 0 }, 6, { x: 14, y: 10 }, walls]);
+  });
+
+  it('a disembark no facing fits answers the container\'s facing', () => {
+    const r = moveRig();
+    for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
+    r.applier.projection.models.get(r.truck)!.location = { kind: 'table', placement: at(20, 10, 90) };
+    r.openMove(region({ modelIds: r.ids, allowance: 0, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
+    r.setExit(null);
+    r.box.dragged(r.ids[0]!, at(40, 40, 135));                                // out of reach: no facing fits
+    r.box.enter();
+    expect(answerOf(r.sent[0]).moves[0]!.to.placement.yaw).toEqual({ degrees: 90 });
+  });
+
   it('a dragged ghost regates with contacts and readouts', () => {
     const r = moveRig();
     const [a] = r.ids as [string, string];

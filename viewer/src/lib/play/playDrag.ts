@@ -8,10 +8,10 @@ import type { BoardHit } from '../board/interaction';
 import type { ConnectionState, SendOutcome } from '../connection/gameConnection';
 import { refusalText } from '../connection/feedback';
 import type { Geometry, Placement, Point3, XY, Yaw } from '../geometry';
-import type { Command, Refused } from '../protocol/wire.generated';
+import type { Command, MoveModels, Refused } from '../protocol/wire.generated';
 import type { DecisionBox } from './decisionBox';
 import type { MoveBoxHooks } from './decisionBox.move';
-import { handMarks, handMoves, markerMove, mayDrag } from './handMove';
+import { handMarks, handMoveCommand, markerMove, mayDrag } from './handMove';
 import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
 import { allowanceOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
@@ -133,7 +133,7 @@ export class PlayDrags {
     if (!proposing) this.#deps.violations.measure(ids, new Map());          // a hand move's marks end with its drag: the server judges the drop
     if (landed !== null) {
       if (proposing) for (const [id, placement] of landed) box.dragged(id, placement);   // the ghosts stay; the box gates the commit
-      else if (ids.every((id) => p.models.has(id))) this.#handMove(handMoves(grabs, landed));
+      else if (ids.every((id) => p.models.has(id))) this.#handMove(handMoveCommand(grabs, landed));
     }
     this.#deps.changed();
   }
@@ -228,10 +228,10 @@ export class PlayDrags {
   }
 
   /** OnLeftUp's free move: the drop is drawn where it fell until its event or refusal. */
-  #handMove(moves: ReturnType<typeof handMoves>): void {
+  #handMove(command: MoveModels): void {
     const token = `hand:${++this.#tokens}`;
-    this.#deps.drops.add(token, moves);
-    this.#deps.send({ kind: 'move_models', moves }).then((outcome) => {
+    this.#deps.drops.add(token, command.moves);
+    this.#deps.send(command).then((outcome) => {
       this.#byId.set(outcome.id, token);
       if (outcome.refused !== null) this.#refuseHand(token, refusalText(outcome.refused) ?? outcome.refused.detail ?? 'refused');
     }, (e: unknown) => {

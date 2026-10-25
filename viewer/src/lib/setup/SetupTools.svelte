@@ -8,11 +8,11 @@
   import Confirm, { type Question } from '../game/Confirm.svelte';
   import TeamCards from '../lobby/TeamCards.svelte';
   import type { Edit, TableState } from '../protocol/wire.generated';
-  import { type BuiltinTerrain, type Catalog, placeAsset, placeBuiltin } from './catalog';
-  import { ZONE_STYLES, clearTerrain, objective, token, zoneShapes } from './edits';
+  import type { BuiltinTerrain, Catalog } from './catalog';
+  import { ZONE_STYLES, addAsset as addAssetEdit, addBuiltin as addBuiltinEdit, clearTerrain, objective, swapZones, tableSize, texture, token, zones } from './edits';
   import LayoutsSection from './LayoutsSection.svelte';
   import {
-    MARKERS, MAX_EDGE, MIN_EDGE, TERRAIN, beside, cannotAddMarker, cannotAddTerrain, cannotClearTerrain,
+    MARKERS, MAX_EDGE, MIN_EDGE, TERRAIN, cannotAddMarker, cannotAddTerrain, cannotClearTerrain,
   } from './limits';
   import { terrainGroups, terrainSummary, textureLabel, zoneStyleLabel } from './terrainGroups';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
@@ -44,7 +44,7 @@
   $effect(() => { api.listArmies().then((list) => { armies = list; }).catch(() => {}); });
 
   const addBuiltin = (entry: BuiltinTerrain) =>
-    send({ kind: 'add_terrain', placement: placeBuiltin(entry, beside(draft.size), { degrees: 0 }) });
+    send(addBuiltinEdit(entry, draft.size));
 
   async function showAssets() {
     report(null);
@@ -59,7 +59,7 @@
     try {
       // Scale 1: the asset's own scale is already in its mesh and volumes.
       const volumes = await api.assetVolumes(asset.id);
-      await send({ kind: 'add_terrain', placement: placeAsset(asset.id, volumes, beside(draft.size)) });
+      await send(addAssetEdit(asset.id, volumes.map((v) => v.volume), draft.size));
     } catch (e) { report((e as Error).message); }
   }
 
@@ -80,11 +80,11 @@
         <label>Width <input type="number" min={MIN_EDGE} max={MAX_EDGE} bind:value={width} onfocus={() => (typing = true)} onblur={() => (typing = false)} /></label>
         <span class="x" aria-hidden="true">×</span>
         <label>Length <input type="number" min={MIN_EDGE} max={MAX_EDGE} bind:value={length} onfocus={() => (typing = true)} onblur={() => (typing = false)} /></label>
-        <button class="small" disabled={!sizeChanged} onclick={() => send({ kind: 'set_table_size', size: { width, length } })}>Set</button>
+        <button class="small" disabled={!sizeChanged} onclick={() => send(tableSize(width, length))}>Set</button>
       </div>
       <small class="dim">Inches, {MIN_EDGE}–{MAX_EDGE}" a side.</small>
       <label>Surface
-        <select value={draft.texture.builtin ?? ''} onchange={(e) => send({ kind: 'set_texture', texture: { builtin: e.currentTarget.value } })}>
+        <select value={draft.texture.builtin ?? ''} onchange={(e) => send(texture(e.currentTarget.value))}>
           {#if draft.texture.builtin === undefined}<option value="">From a library</option>{/if}
           {#each catalog.textures as t (t)}<option value={t}>{textureLabel(t)}</option>{/each}
         </select>
@@ -151,7 +151,7 @@
     <div class="body">
       <div class="inline">
         <select aria-label="Zone style" bind:value={style}>{#each ZONE_STYLES as z (z)}<option value={z}>{zoneStyleLabel(z)}</option>{/each}</select>
-        <button class="small" onclick={() => send({ kind: 'set_zone_style', style, shapes: zoneShapes(style) })}>Set</button>
+        <button class="small" onclick={() => send(zones(style))}>Set</button>
       </div>
       {#if teams.length >= 2}
         <small class="dim">Swap two teams' zones</small>
@@ -159,7 +159,7 @@
           <select aria-label="First team" bind:value={teamA}>{#each teams as t (t)}<option value={t}>Team {t}</option>{/each}</select>
           <span>and</span>
           <select aria-label="Second team" bind:value={teamB}>{#each teams as t (t)}<option value={t}>Team {t}</option>{/each}</select>
-          <button class="small" disabled={teamA === teamB} onclick={() => send({ kind: 'swap_zones', teamOrdinalA: teamA, teamOrdinalB: teamB })}>Swap</button>
+          <button class="small" disabled={teamA === teamB} onclick={() => send(swapZones(teamA, teamB))}>Swap</button>
         </div>
       {/if}
     </div>

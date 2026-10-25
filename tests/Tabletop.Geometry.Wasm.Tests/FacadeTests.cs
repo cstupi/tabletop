@@ -195,6 +195,22 @@ public class FacadeTests
     }
 
     [Fact]
+    public void ExitYaw_equals_Containment_ExitYaw_over_the_named_impassable_volumes()
+    {
+        var truck = new PlacedModel(new ModelBody(Base.Circle(4), 2), Pl(10, 10));
+        var body = new ModelBody(Base.Circle(1), 1);
+        var wall = PieceAt(14, 10, Box(2, 2, 0, 3, TerrainDeclarations.Impassable));
+        var forest = PieceAt(20, 10, Box(4, 4, 0, 3, TerrainDeclarations.Cover, VolumeKind.Area));
+        var size = new TableSize(72, 48);
+        string Ask(Point2 at, params Guid[] impassable) => Facade.ExitYaw(W(new ExitRequest(body, truck, 6, at, impassable, [wall, forest], size)));
+        Assert.Equal(new Yaw(0), R<Yaw?>(Ask(new Point2(12, 10))));
+        Assert.Null(R<Yaw?>(Ask(new Point2(14, 10), Impassable(wall))));                // the wall named: the drop is in it
+        Assert.Equal(new Yaw(0), R<Yaw?>(Ask(new Point2(14, 10))));                      // not named: it is only terrain
+        Assert.Equal(new Yaw(0), R<Yaw?>(Ask(new Point2(14.5, 10), Impassable(forest)))); // a volume named is judged, whatever it declares
+        Assert.Null(R<Yaw?>(Ask(new Point2(40, 10))));
+    }
+
+    [Fact]
     public void Bad_json_throws_JsonException()
     {
         Assert.ThrowsAny<JsonException>(() => Facade.EdgeToEdge("{"));

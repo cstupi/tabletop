@@ -7,10 +7,10 @@ xUnit projects, one per library, per server and for the client's Godot-free core
 - `Tabletop.Geometry.Tests`, `Tabletop.Content.Tests`, `Tabletop.Protocol.Tests`: one per lib, headless.
 - `Tabletop.GameServer.Tests`: the game server and its rules engine; the largest project.
 - `Tabletop.Management.Tests`: the management API over in-memory repositories and blob store; the SQL repositories, `S3BlobStore` and migrations are E2E.
-- `Tabletop.Client.Tests`: compiles `client/src/Core/**/*.cs` from source, so a `using Godot` there breaks this project. `CombatLogViewerFixtureTests` writes `viewer/tests/fixtures/combatlog.json` (`TABLETOP_WRITE_FIXTURES=1`, `--filter CombatLogViewerFixture`) and fails when it is stale.
+- `Tabletop.Client.Tests`: compiles `client/src/Core/**/*.cs` from source, so a `using Godot` there breaks this project. `CombatLogViewerFixtureTests` writes `viewer/tests/fixtures/combatlog.json` (`TABLETOP_WRITE_FIXTURES=1`, `--filter CombatLogViewerFixture`) and `CallsViewerFixtureTests` writes `viewer/tests/fixtures/calls.json` (`--filter CallsViewerFixture`), what Godot's Core builders send for each choice over the recorded logs; both fail when stale.
 - `Tabletop.Sim.Tests`: `sim/`; references `Tabletop.GameServer.Tests` for `GameServerFactory`, `InMemorySeeder` and `PostgresFixture`.
 - `Tabletop.ArmyBooks.Tests`: the generator, against `Fixtures/`.
-- `Tabletop.Viewer.Tests`: generates and checks the viewer's TypeScript types and fixtures.
+- `Tabletop.Viewer.Tests`: generates and checks the viewer's TypeScript types and fixtures, and the call logs `viewer/tests/fixtures/calls/` (`CallLogFixtureTests`, `--filter CallLogFixture`).
 - `Tabletop.Geometry.Wasm.Tests`: the browser facade in-process, and the agreement cases (`TABLETOP_WRITE_FIXTURES=1` writes `viewer/tests/fixtures/geometry.cases.json`, which the viewer replays through the WebAssembly).
 
 ## Commands
@@ -48,6 +48,7 @@ TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests    # viewer/te
 
 - A plain `dotnet test` fails when the generated types are stale.
 - Fixtures are one recording plus the welcome, board and events frames per scenario. Ids differ between runs, so they are regenerated deliberately and never diffed against a previous version.
+- The call logs are regenerated before `calls.json`: `--filter CallLogFixture` in `Tabletop.Viewer.Tests`, then `--filter CallsViewerFixture` in `Tabletop.Client.Tests`.
 - After regenerating, run `cd viewer && npm test`.
 
 ## Conventions and pitfalls

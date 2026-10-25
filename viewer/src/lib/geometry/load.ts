@@ -1,5 +1,5 @@
 import type { Contact, Geometry, Nearest, PieceEnd, Segment, XY, HeldEnd } from './types';
-import type { Point3 } from './types';
+import type { Point3, Yaw } from './types';
 
 interface Exports { [method: string]: (json: string) => string }
 
@@ -55,6 +55,8 @@ function wrap(exports: Exports): Geometry {
     zoneContains: (shape, size, point) => ask<boolean>('ZoneContains', { shape, size, point }),
     zoneHoldsBase: (shape, size, model) => ask<boolean>('ZoneHoldsBase', { shape, size, model }),
     tableHoldsBase: (size, model) => ask<boolean>('TableHoldsBase', { size, model }),
+    exitYaw: (body, container, within, at, terrain, impassable, size) =>
+      ask<Yaw | null>('ExitYaw', { body, container, within, at, impassable, terrain: pieces(terrain), size }),
     call,
   };
 }

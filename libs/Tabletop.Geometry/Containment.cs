@@ -37,4 +37,28 @@ public static class Containment
             var other => throw new ArgumentOutOfRangeException(nameof(model), other.GetType().Name),
         };
     }
+
+    /// <summary>How many facings a non-circular base is tried at: p.7 lets a model take any facing, so an exit position is legal if some yaw fits.
+    /// Eight are 45° apart, finer than the exit region's own 2° rays are deep. A circular base is yaw-invariant and tries one.</summary>
+    public const int ExitYaws = 8;
+
+    /// <summary>
+    /// A facing this exit position is legal at, or null if none is (p.7, p.15): the base fully within <paramref name="within"/> of the
+    /// container's base, on the table and clear of the impassable volumes. The last two are asked through <see cref="Movement.Check"/> with the
+    /// candidate as both start and destination: the distance is zero, so Check samples exactly that placement and answers CrossesImpassable
+    /// and LeavesTable for it. The candidate takes the container's Z; a circular base answers at the first try, 0°.
+    /// </summary>
+    public static Yaw? ExitYaw(ModelBody body, PlacedModel container, double within, Point2 at, IReadOnlyList<WorldVolume> impassable, TableSize size)
+    {
+        var yaws = body.Base.Shape == BaseShape.Circle ? 1 : ExitYaws;
+        for (var i = 0; i < yaws; i++)
+        {
+            var yaw = new Yaw(360.0 * i / yaws);
+            var candidate = new PlacedModel(body, new Placement(new Point3(at.X, at.Y, container.Placement.Position.Z), yaw));
+            if (!BaseFullyWithin(candidate, container, within)) continue;
+            var check = Movement.Check(candidate, at, 0, impassable, [], null, size);
+            if (!check.CrossesImpassable && !check.LeavesTable) return yaw;
+        }
+        return null;
+    }
 }

@@ -6,9 +6,9 @@
   import type { AssetDto } from '../api/types';
   import type { Geometry } from '../geometry';
   import type { Edit, TableState } from '../protocol/wire.generated';
-  import { type Catalog, volumesOfBuiltin } from './catalog';
+  import type { Catalog } from './catalog';
   import {
-    SCALE_MAX, SCALE_MIN, SCALE_STEP, TERRAIN_TURN, overrideVolume, turnInDraft, withBottom, withDeclaration, withFootprint, withKind,
+    SCALE_MAX, SCALE_MIN, SCALE_STEP, TERRAIN_TURN, overrideVolume, removeMarker, removeTerrain, resetVolumes as resetVolumesEdit, scale, swapAsset, swapBuiltin, turnInDraft, withBottom, withDeclaration, withFootprint, withKind,
     withNotes, withTop,
   } from './edits';
   import { NOTES } from './limits';
@@ -50,9 +50,9 @@
     if (piece === undefined) return;
     try {
       const volumes = piece.mesh.builtin !== undefined
-        ? volumesOfBuiltin(catalog.terrain.get(piece.mesh.builtin) ?? (() => { throw new Error('That built-in is not in the catalog.'); })())
-        : (await api.assetVolumes(piece.mesh.assetId!)).map((v) => ({ id: crypto.randomUUID(), volume: v.volume }));
-      await send({ kind: 'override_terrain_volumes', placementId: piece.id, volumes });
+        ? [(catalog.terrain.get(piece.mesh.builtin) ?? (() => { throw new Error('That built-in is not in the catalog.'); })()).volume]
+        : (await api.assetVolumes(piece.mesh.assetId!)).map((v) => v.volume);
+      await send(resetVolumesEdit(piece.id, volumes));
     } catch (e) { report((e as Error).message); }
   }
 
@@ -80,7 +80,7 @@
         </label>
         <label>Scale
           <input type="number" min={SCALE_MIN} max={SCALE_MAX} step={SCALE_STEP} value={piece.scale}
-            onchange={(e) => send({ kind: 'scale_terrain', placementId: piece.id, scale: num(e) })} />
+            onchange={(e) => send(scale(piece.id, num(e)))} />
         </label>
       </div>
       <div class="pair">
@@ -93,14 +93,14 @@
       <h3>Look</h3>
       <div class="inline">
         <select aria-label="Mesh" bind:value={swap}>{#each meshes as m (m.id)}<option value={m.id}>{m.label}</option>{/each}</select>
-        <button class="small" title="Swap the mesh; the volumes stay" onclick={() => send({ kind: 'swap_terrain_mesh', placementId: piece.id, mesh: { builtin: swap } })}>Swap</button>
+        <button class="small" title="Swap the mesh; the volumes stay" onclick={() => send(swapBuiltin(piece.id, swap))}>Swap</button>
       </div>
       {#if assets === null}
         <button class="quiet left" onclick={swapForAsset}>Use a mesh from your library…</button>
       {:else}
         <div class="inline">
           <select aria-label="Your terrain" bind:value={asset}>{#each assets as a (a.id)}<option value={a.id}>{a.name}</option>{/each}</select>
-          <button class="small" onclick={() => { assets = null; void send({ kind: 'swap_terrain_mesh', placementId: piece.id, mesh: { assetId: asset } }); }}>Swap</button>
+          <button class="small" onclick={() => { assets = null; void send(swapAsset(piece.id, asset)); }}>Swap</button>
           <button class="quiet" onclick={() => (assets = null)}>Cancel</button>
         </div>
       {/if}
@@ -144,7 +144,7 @@
 
     <div class="actions-row">
       <button class="small" onclick={resetVolumes} title="Back to the catalog's or the asset's volumes">Reset volumes</button>
-      <button class="small danger" onclick={() => send({ kind: 'remove_terrain', placementId: piece.id })}>Remove</button>
+      <button class="small danger" onclick={() => send(removeTerrain(piece.id))}>Remove</button>
     </div>
   </section>
 {:else if marker !== null}
@@ -157,7 +157,7 @@
       <button class="icon-btn" aria-label="Close the card" title="Close" onclick={onClose}><Icon name="close" /></button>
     </header>
     <div class="actions-row">
-      <button class="small danger" onclick={() => send({ kind: 'remove_setup_marker', markerId: marker.pieceId })}>Remove marker</button>
+      <button class="small danger" onclick={() => send(removeMarker(marker.pieceId))}>Remove marker</button>
     </div>
   </section>
 {/if}

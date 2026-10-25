@@ -4,7 +4,7 @@
 
 import type { Geometry, Placement, Point3, Yaw } from '../geometry';
 import type { Projection } from '../live/apply';
-import type { Enforcement, GameStatus, ModelRelocation, MoveMarker } from '../protocol/wire.generated';
+import type { Enforcement, GameStatus, ModelRelocation, MoveMarker, MoveModels } from '../protocol/wire.generated';
 import { allWords, placement as contactsOfPlacement } from './contactCheck';
 import type { MarkerLocks } from './markerLocks';
 import { terrainMayDrag } from './markerLocks';
@@ -34,6 +34,10 @@ export function handMoves(grabs: ReadonlyMap<string, Placement>, landings: Reado
     modelId, from: { kind: 'table', placement: grabs.get(modelId)! }, to: { kind: 'table', placement: to },
   }));
 }
+
+/** What a hand drop sends (HandMoves.Models). */
+export const handMoveCommand = (grabs: ReadonlyMap<string, Placement>, landings: ReadonlyMap<string, Placement>): MoveModels =>
+  ({ kind: 'move_models', moves: handMoves(grabs, landings) });
 
 /** While in hand: ContactCheck.Placement's words for the held models (cleared when the drag ends; the server judges the drop). */
 export function handMarks(g: Geometry, p: Projection, held: ReadonlyMap<string, Placement>, n: Names): Map<string, string> {

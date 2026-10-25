@@ -3,7 +3,7 @@
 // my team has not answered. Ended: the result and reason.
 
 import type { Projection } from '../live/apply';
-import type { AskOption, GameInfo } from '../protocol/wire.generated';
+import type { AnswerAsk, AskOption, GameInfo } from '../protocol/wire.generated';
 import { outcome } from './headerView';
 import { Names } from './names';
 
@@ -15,6 +15,10 @@ export interface GameOverModel {
 }
 
 export const WAITING_NOTE = 'Waiting for the other player';
+
+/** GameOverView.Answer: the chosen option for the team the popup answers as; teamId omitted when none. */
+export const answerOf = (model: GameOverModel, optionId: string, team: string | null): AnswerAsk =>
+  ({ kind: 'answer_ask', askId: model.askId!, answer: { kind: 'chosen', optionId }, ...(team === null ? {} : { teamId: team }) });
 
 export function gameOverOf(p: Projection, game: GameInfo, myTeam: string | null): GameOverModel {
   if (p.ended !== undefined) return { stage: 'ended', askId: null, result: outcome(p.ended, new Names(game, p)), reason: p.ended.reason, choices: [], note: null };

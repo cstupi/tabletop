@@ -25,4 +25,5 @@ public static partial class Exports
     [JSExport] public static string ZoneContains(string json) => Facade.ZoneContains(json);
     [JSExport] public static string ZoneHoldsBase(string json) => Facade.ZoneHoldsBase(json);
     [JSExport] public static string TableHoldsBase(string json) => Facade.TableHoldsBase(json);
+    [JSExport] public static string ExitYaw(string json) => Facade.ExitYaw(json);
 }

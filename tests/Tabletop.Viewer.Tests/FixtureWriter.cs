@@ -46,4 +46,16 @@ public static class FixtureWriter
         await File.WriteAllTextAsync(Path.Combine(directory, $"{name}.events.json"),
             WireJson.Serialize((SocketMessage)new EventsMessage(fixture.Log)), ct);
     }
+
+    /// <summary>The three frames a socket delivers on connect, under `name`; the welcome carries `options`.</summary>
+    public static async Task WriteFramesAsync(Fixture fixture, string name, string directory, RulesOptionCatalog options, CancellationToken ct)
+    {
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, $"{name}.welcome.json"),
+            WireJson.Serialize((SocketMessage)new Welcome(fixture.RecorderParticipantId, fixture.Game) { Options = options }), ct);
+        await File.WriteAllTextAsync(Path.Combine(directory, $"{name}.board.json"),
+            WireJson.Serialize((SocketMessage)new BoardMessage(fixture.Board)), ct);
+        await File.WriteAllTextAsync(Path.Combine(directory, $"{name}.events.json"),
+            WireJson.Serialize((SocketMessage)new EventsMessage(fixture.Log)), ct);
+    }
 }

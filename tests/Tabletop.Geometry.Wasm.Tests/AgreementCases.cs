@@ -175,6 +175,19 @@ public static class AgreementCases
         Add("table_holds_base_inside", "TableHoldsBase", new TableRequest(size, a), Table.ContainsBase(size, a));
         var edge = Model(0.2, 10);
         Add("table_holds_base_over_the_edge", "TableHoldsBase", new TableRequest(size, edge), Table.ContainsBase(size, edge));
+        // ExitYaw: Containment.ExitYaw over the volumes the Ask names Impassable (a disembark's facing, p.7 and p.15).
+        var truck = new PlacedModel(new ModelBody(Base.Circle(4), 2), Pl(10, 10));
+        var rider = new ModelBody(Base.Circle(1), 1);
+        var oval = new ModelBody(Base.Oval(3, 1), 1);
+        var wall = Block(14, 10); var wallIds = ImpassableIds([wall]);
+        void Exit(string name, ModelBody body, Point2 at, bool named) => Add(name, "ExitYaw",
+            new ExitRequest(body, truck, 6, at, named ? wallIds : [], [wall], size),
+            Containment.ExitYaw(body, truck, 6, at, named ? ImpassableOf(Volumes([wall])) : [], size));
+        Exit("exit_yaw_round_base_within_reach", rider, new Point2(12, 10), false);
+        Exit("exit_yaw_in_a_named_impassable_volume", rider, new Point2(14, 10), true);
+        Exit("exit_yaw_in_a_volume_not_named", rider, new Point2(14, 10), false);
+        Exit("exit_yaw_oval_within_reach", oval, new Point2(12, 11), false);
+        Exit("exit_yaw_beyond_reach", rider, new Point2(30, 10), false);
         return cases;
     }
 

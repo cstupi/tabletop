@@ -46,7 +46,9 @@ describe('logRows', () => {
     const { block, roll, round } = rolled();
     expect(undoHere(block, false)).toBe(true);
     expect(undoHere(round, false)).toBe(true);
-    expect(undoHere(roll, false)).toBe(false);
+    expect(undoHere(roll, false)).toBe(true);                        // CombatLog.UndoHere: a roll offers it in its expansion
+    expect(undoHere({ ...roll, undone: true }, false)).toBe(false);
+    expect(undoHere(roll, true)).toBe(false);
     expect(undoHere({ ...block, undone: true }, false)).toBe(false);
     expect(undoHere(block, true)).toBe(false);
     const { entries } = buildSample(Round1, started(Frame, 'x', ctx(Unit, [], [], 'Hold')), finished(Frame), undone(1));

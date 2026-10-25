@@ -6,6 +6,7 @@
   import type { ArmySummary } from '../api/types';
   import type { ConnectionState } from '../connection/gameConnection';
   import type { Edit } from '../protocol/wire.generated';
+  import { watch } from './lobbyEdits';
   import { armySeats, pickArmy, place } from './lobbyView';
   import { placeLabels, teamCards, unassigned, type CardPlayer } from './lobbyPage';
   import { teamsOf } from './seats';
@@ -82,7 +83,7 @@
         <p class="dim hint">Players without a team watch once play starts.</p>
       {/if}
       {#if participant && holding}
-        <footer><button class="small" onclick={() => send({ kind: 'pick_team' })} title="Leave every team you hold and watch once play starts">Watch instead</button></footer>
+        <footer><button class="small" onclick={() => send(watch())} title="Leave every team you hold and watch once play starts">Watch instead</button></footer>
       {/if}
     </section>
   {/if}
