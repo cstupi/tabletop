@@ -622,13 +622,14 @@ The score is not geometry. `Scene` is unchanged by it.
 | `feed/feed.ts` | `type FeedStatus`, `type FeedState`, `IDLE`, `type ControlChannel`, `interface Feed`, `class Emitter` |
 | `feed/recordingFeed.ts` | `recordingFeed(RecordingSource): Feed` |
 | `feed/liveFeed.ts` | `CLIENT_VERSION`, `type SocketLike`, `type LiveOptions`, `liveFeed(LiveOptions, open?): Feed`, `isServerFrame` |
-| `live/apply.ts` | `type UnitInPlay`, `type ModelInPlay`, `type SchedulerPosition`, `type OpenAsk`, `type Projection`, `class ProjectionDesyncError` with `kind` and `unknownId`, `initialProjection`, `applyChange`, `applyTo`, `effectiveLog`, `class Applier` |
+| `live/apply.ts` | `type UnitInPlay`, `type ModelInPlay`, `type SchedulerPosition`, `type OpenAsk`, `type Projection`, `class ProjectionDesyncError` with `kind` and `unknownId`, `initialProjection`, `applyChange`, `applyTo`, `effectiveLog`, `class Applier`, `projectTo`, `type Frame`, `type CompletedStep` (`Projection.stack`) |
 | `live/logLines.ts` | `lineOf(GameEvent, Projection, ReadonlyMap<string,number>): string`, `shortId` |
 | `live/project.ts` | `declarationsOf(string)`, `recordedBoardOf(Board, GameInfo): RecordedBoard`, `class FrameProjector` |
 | `live/management.ts` | `class ManagementError` with `status`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
 | `hosted/hosted.ts` | `WEB_SESSION_KEY`, `type ViewerConfig`, `configOf(env, location)`, `readWebSession`, `writeWebSession`, `rolesOf`, `type Access`, `accessOf`, `signInHref`, `hostedSession(storage, refresh)` |
 | `connection/gameConnection.ts` | `connectGame(options): GameConnection`: the participant socket (sends, refusals, queue of 16, reconnect, `Reauth`, resync) |
-| `game/` | `GamePage.svelte`, `connectionFeed(connection): Feed`, `sendEdit`, `Confirm.svelte` |
+| `game/` | `GamePage.svelte`, `sendEdit`, `Confirm.svelte` |
+| `play/` | ports of Godot core files, one module each (`names`, `logText`, `ruleTexts`, `spellText`, `askView`, `headerView`, `waiting`, `decisionView`, `deployView`, `targetAssignment`, `casualtyPick`, `sealedReveals`, `gameOverView`), `settings`, `scene` (`sceneOfPlay`), `keys`, `decisionBox` (`DecisionBox`: the controller, `DecisionPanel`, `MoveHooks`), `PlayPage.svelte`, `DecisionBox.svelte`, `GameOverModal.svelte` |
 | `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `LobbyPanel.svelte` |
 | `setup/` | `catalog`, `limits`, `edits`, `terrainCard`, `layouts`, `SetupDrag` (`drag.ts`), `SetupPage.svelte`, `SetupToolbar.svelte`, `TerrainCard.svelte`, `PieceMenu.svelte`, `LayoutsSection.svelte` |
 | `board/table.ts` | `sceneOfTable(TableState, zones, name): Scene`, `extentOf`, `pieceOutlines`, `ghostOverlay` |

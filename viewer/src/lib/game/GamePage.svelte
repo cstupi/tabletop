@@ -3,22 +3,19 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { apiOf } from '../api/client';
-  import PlaybackView from '../components/PlaybackView.svelte';
   import { connectGame, type ConnectionState, type GameConnection } from '../connection/gameConnection';
-  import type { Feed } from '../feed/feed';
   import LobbyPanel from '../lobby/LobbyPanel.svelte';
   import { isCreator } from '../lobby/seats';
+  import PlayPage from '../play/PlayPage.svelte';
   import SetupPage from '../setup/SetupPage.svelte';
   import type { View } from '../board/transform';
   import type { Auth } from '../shell/auth';
-  import { connectionFeed } from './connectionFeed';
 
   let { gameId, army, auth, socketUrl }: { gameId: string; army?: string | undefined; auth: Auth; socketUrl: string } = $props();
 
   const api = apiOf(() => auth.jwt());
   let connection: GameConnection | null = $state.raw(null);
   let snap = $state.raw<ConnectionState | null>(null);
-  let feed: Feed | null = $state.raw(null);
   let view: View | null = $state.raw(null);
 
   $effect(() => {
@@ -35,17 +32,10 @@
         void conn.sendEdit({ kind: 'pick_army', armyId: pick }).catch(() => {});
       }
     });
-    return () => { stop(); feed?.close(); feed = null; conn.close(); connection = null; snap = null; };
+    return () => { stop(); conn.close(); connection = null; snap = null; };
   });
 
   const status = $derived(snap?.game?.status ?? null);
-  $effect(() => {
-    const inPlay = status === 'playing' || status === 'ended';
-    untrack(() => {
-      if (inPlay && feed === null && connection !== null) feed = connectionFeed(connection);
-      if (!inPlay && feed !== null) { feed.close(); feed = null; }
-    });
-  });
 
   function leave() {
     void api.leaveGame(gameId).then(() => { window.location.hash = '#/games'; }).catch(() => {});
@@ -75,7 +65,7 @@
         <SetupPage {connection} {snap} {api} bind:view creator={isCreator(snap.game, snap.participantId)} />
       </div>
     {:else}
-      <PlaybackView {feed} models="circles" />
+      <PlayPage {connection} {api} bind:view />
     {/if}
   {:else}
     <p class="muted pad">Connecting to the game…</p>

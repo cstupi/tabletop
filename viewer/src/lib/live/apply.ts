@@ -2,7 +2,8 @@
 // A port of Tabletop.Protocol.EventApplier (contracts plan Task 14), branch for branch.
 // It copies. It never decides legality, never derives a location, never clears a store on its own.
 import type {
-  Board, GameEvent, GameEnded, GameInfo, Grant, Location, Marker, ModelSlot, StateChange, Unit,
+  Board, DieReplacement, GameEvent, GameEnded, GameInfo, Grant, Location, Marker, ModelSlot, OutlineStep, RollRecord,
+  SequenceContext, StateChange, Unit,
 } from '../protocol/wire.generated';
 import type { Ask, AskAnswer } from '../protocol/wire.generated';
 
@@ -18,6 +19,17 @@ export type ModelInPlay = {
 export type SchedulerPosition = {
   round: number; order: string[]; activeTeamId: string | undefined;
   phase: string | undefined; readonly passed: Set<string>;
+};
+/** EventApplier's CompletedStep: one finished step of a sequence's frame. `rolls` is a copy, so a replaced die never edits the event. */
+export type CompletedStep = {
+  readonly step: string; readonly answer: AskAnswer | undefined; rolls: RollRecord[];
+  readonly changes: readonly StateChange[]; readonly values: Readonly<Record<string, number>> | undefined;
+  readonly applied: readonly string[] | undefined;
+};
+/** EventApplier's Frame: an open sequence. */
+export type Frame = {
+  readonly id: string; readonly sequence: string; readonly context: SequenceContext;
+  readonly outline: readonly OutlineStep[]; readonly steps: CompletedStep[];
 };
 export type OpenAsk = { readonly ask: Ask; readonly answers: Map<string, AskAnswer | undefined> };
 
@@ -42,6 +54,7 @@ export type Projection = {
   readonly control: Map<string, string>;
   readonly scheduler: SchedulerPosition;
   readonly openAsks: Map<string, OpenAsk>;
+  readonly stack: Frame[];
   lastSeq: number;
   ended: GameEnded | undefined;
 };
@@ -51,7 +64,7 @@ export function initialProjection(board: Board, game: GameInfo): Projection {
     board,
     units: new Map(), models: new Map(), markers: new Map(), scores: new Map(), control: new Map(),
     scheduler: { round: 0, order: [], activeTeamId: undefined, phase: undefined, passed: new Set() },
-    openAsks: new Map(), lastSeq: 0, ended: undefined,
+    openAsks: new Map(), stack: [], lastSeq: 0, ended: undefined,
   };
   for (const team of game.teams) p.scores.set(team.id, 0);
   // Insertion order matters: it is the order every frame lists models and units in, and C#'s
@@ -91,6 +104,30 @@ const askIn = (p: Projection, kind: string, id: string): OpenAsk => {
   const ask = p.openAsks.get(id);
   if (ask === undefined) throw new ProjectionDesyncError(kind, id);
   return ask;
+};
+
+const frameOf = (p: Projection, kind: string, frameId: string): Frame => {
+  const frame = p.stack.find((f) => f.id === frameId);
+  if (frame === undefined) throw new ProjectionDesyncError(kind, frameId);
+  return frame;
+};
+
+const pop = (p: Projection, kind: string, frameId: string): void => {
+  const index = p.stack.findIndex((f) => f.id === frameId);
+  if (index < 0) throw new ProjectionDesyncError(kind, frameId);
+  p.stack.splice(index);
+};
+
+const replaceDice = (p: Projection, kind: string, frameId: string, rollId: string, replaced: readonly DieReplacement[]): void => {
+  const step = frameOf(p, kind, frameId).steps.find((st) => st.rolls.some((r) => r.id === rollId));
+  if (step === undefined) throw new ProjectionDesyncError(kind, rollId);
+  const i = step.rolls.findIndex((r) => r.id === rollId);
+  const dice = [...step.rolls[i]!.dice];
+  for (const r of replaced) {
+    if (r.index < 0 || r.index >= dice.length) throw new ProjectionDesyncError(kind, rollId);
+    dice[r.index] = r.new;
+  }
+  step.rolls[i] = { ...step.rolls[i]!, dice };
 };
 
 export function applyChange(p: Projection, change: StateChange): void {
@@ -167,16 +204,23 @@ export function applyTo(p: Projection, event: GameEvent): void {
       for (const change of payload.changes) applyChange(p, change);
       break;
     case 'phase_started': p.scheduler.phase = payload.phase; break;
-    case 'step_completed': for (const change of payload.changes) applyChange(p, change); break;
+    case 'sequence_started':
+      p.stack.push({ id: payload.frameId, sequence: payload.sequence, context: payload.context, outline: payload.outline ?? [], steps: [] });
+      break;
+    case 'step_completed': {
+      const frame = frameOf(p, payload.kind, payload.frameId);
+      frame.steps.push({
+        step: payload.step, answer: payload.answer, rolls: [...payload.rolls], changes: payload.changes,
+        values: payload.values, applied: payload.applied,
+      });
+      for (const change of payload.changes) applyChange(p, change);
+      break;
+    }
+    case 'sequence_finished': case 'sequence_abandoned': pop(p, payload.kind, payload.frameId); break;
+    case 'dice_rerolled': case 'dice_edited': replaceDice(p, payload.kind, payload.frameId, payload.rollId, payload.replaced); break;
     case 'ask_opened': p.openAsks.set(payload.ask.id, { ask: payload.ask, answers: new Map() }); break;
     case 'ask_answered': askIn(p, payload.kind, payload.askId).answers.set(payload.teamId, payload.answer); break;
     case 'ask_closed': p.openAsks.delete(payload.askId); break;
-    // The frame stack is not ported: RecordedFrame carries no stack, and its rolls come from the
-    // step_completed payload, so these five change nothing any field of a frame records.
-    // Unported stack-site faults: Pop on sequence_finished/sequence_abandoned, FrameOf,
-    // ReplaceDice's roll and die-index lookups.
-    case 'sequence_started': case 'sequence_finished': case 'sequence_abandoned':
-    case 'dice_rerolled': case 'dice_edited': break;
     case 'undone': throw new Error('undone is applied by rebuilding; use Applier.apply');
     default: {
       const unreachable: never = payload;
@@ -198,6 +242,18 @@ export function effectiveLog(log: readonly GameEvent[]): readonly GameEvent[] {
   return live;
 }
 
+function rebuild(board: Board, game: GameInfo, live: readonly GameEvent[], lastSeq: number): Projection {
+  const p = initialProjection(board, game);
+  for (const e of live) applyTo(p, e);
+  p.lastSeq = lastSeq;
+  return p;
+}
+
+/** EventApplier.ProjectTo: the effective log's events with seq <= `seq`, rebuilt on the board; what the client shows while an Undo travels. */
+export function projectTo(board: Board, game: GameInfo, log: readonly GameEvent[], seq: number): Projection {
+  return rebuild(board, game, effectiveLog(log).filter((e) => e.seq <= seq), seq);
+}
+
 export class Applier {
   readonly #board: Board;
   readonly #game: GameInfo;
@@ -216,12 +272,11 @@ export class Applier {
   apply(event: GameEvent): void {
     this.#log.push(event);
     if (event.payload.kind === 'undone') {
-      const rebuilt = initialProjection(this.#board, this.#game);
-      for (const live of effectiveLog(this.#log)) applyTo(rebuilt, live);
-      rebuilt.lastSeq = event.seq;
-      this.#projection = rebuilt;
+      this.#projection = rebuild(this.#board, this.#game, effectiveLog(this.#log), event.seq);
     } else applyTo(this.#projection, event);
   }
+
+  projectTo(seq: number): Projection { return projectTo(this.#board, this.#game, this.#log, seq); }
 
   applyAll(events: Iterable<GameEvent>): void { for (const event of events) this.apply(event); }
 }

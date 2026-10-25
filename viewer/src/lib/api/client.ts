@@ -6,7 +6,7 @@ import { ManagementError } from '../live/management';
 import { PROTOCOL_VERSION } from '../protocol/wire.generated';
 import type { TableState, TerrainVolume } from '../protocol/wire.generated';
 import type {
-  ArmySummary, AssetDto, CreateGameRequest, GameInfo, LayoutSummary, Page, PropertiesSummary, RandomTable, RandomTableRequest,
+  ArmySummary, AssetDto, CreateGameRequest, GameInfo, GrantableEffectDto, LayoutSummary, Page, PropertiesSummary, RandomTable, RandomTableRequest, RuleTextDto,
 } from './types';
 
 export interface Api {
@@ -30,6 +30,10 @@ export interface Api {
   deleteLayout(id: string): Promise<void>;
   /** GET /v1/layouts/builtin: the predefined tables. */
   builtinLayouts(): Promise<TableState[]>;
+  /** GET /v1/properties/{hash}/rules: the pinned set's rule texts. */
+  ruleTexts(hash: string): Promise<RuleTextDto[]>;
+  /** GET /v1/properties/{hash}/grants: the pinned set's grantable effects. */
+  grantableEffects(hash: string): Promise<GrantableEffectDto[]>;
   /** POST /v1/layouts/random. */
   randomTable(request: RandomTableRequest): Promise<RandomTable>;
 }
@@ -63,6 +67,8 @@ export function apiOf(jwt: () => Promise<string>, base: string = defaultBase(), 
     endGame: (id) => none('POST', `/v1/games/${id}/end`),
     deleteGame: (id) => none('DELETE', `/v1/games/${id}`),
     listProperties: () => read('GET', '/v1/properties'),
+    ruleTexts: (hash) => read('GET', `/v1/properties/${hash}/rules`),
+    grantableEffects: (hash) => read('GET', `/v1/properties/${hash}/grants`),
     builtinCatalog: () => maybe('/v1/builtin'),
     async terrainAssets() {
       const assets: AssetDto[] = [];

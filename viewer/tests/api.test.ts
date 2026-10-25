@@ -27,6 +27,17 @@ describe('the management api', () => {
     expect(calls[0]!.headers.get('tabletop-client-version')).toBe(String(PROTOCOL_VERSION));
   });
 
+  it('ruleTexts and grantableEffects get the pinned set\'s rows with the bearer', async () => {
+    const calls: Call[] = [];
+    const rules = [{ name: 'Tough', kind: 'unit', takesParameter: true, ruleText: 'T.' }];
+    const grants = [{ entryName: 'Hex', effectId: 'e', duration: 'once' }];
+    const api = apiOf(jwt, '', fake((c) => json(c.url.endsWith('/rules') ? rules : grants), calls));
+    expect(await api.ruleTexts('sha256:abc')).toEqual(rules);
+    expect(await api.grantableEffects('sha256:abc')).toEqual(grants);
+    expect(calls.map((c) => [c.method, c.url])).toEqual([['GET', '/v1/properties/sha256:abc/rules'], ['GET', '/v1/properties/sha256:abc/grants']]);
+    expect(calls[0]!.headers.get('authorization')).toBe('Bearer tok');
+  });
+
   it('listArmies follows next until it is absent', async () => {
     const calls: Call[] = [];
     const api = apiOf(jwt, '', fake((c) => c.url.endsWith('after=a1')

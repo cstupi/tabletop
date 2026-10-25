@@ -1,6 +1,7 @@
 import type { Scene, Shape } from './frame';
 import type { Overlay } from './interaction';
-import { markerColour, teamColour, terrainStroke } from './palette';
+import { GLOW, markerColour, teamColour, terrainStroke } from './palette';
+import type { Glow } from '../play/decisionBox';
 import { type View, type Viewport, gridStep, toScreen } from './transform';
 
 export type DrawOptions = {
@@ -13,6 +14,10 @@ export type DrawOptions = {
   readonly showGrid: boolean;
   readonly showZones: boolean;
   readonly showLabels: boolean;
+  /** What a model glows in (the open Ask's pieces, a hovered option's, a pick's ghost); null draws none. */
+  readonly glow?: ((modelId: string, unitId: string) => Glow | null) | undefined;
+  /** A label over a model's base: a casualty pick's ✕. */
+  readonly marks?: ReadonlyMap<string, string> | undefined;
 };
 
 export function draw(
@@ -101,10 +106,27 @@ export function draw(
     if (model.elevated) ctx.setLineDash([2, 2]);
     ctx.stroke();
     ctx.setLineDash([]);
+    const glow = options.glow?.(model.id, model.unitId) ?? null;
+    if (glow !== null) {
+      const c = at(model.centre.x, model.centre.y);
+      ctx.strokeStyle = GLOW[glow];
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, Math.max(5, (model.circle.kind === 'circle' ? model.circle.radius : 0.5) * view.scale + 3), 0, 2 * Math.PI);
+      ctx.stroke();
+    }
     if (model.facing !== null) {
       ctx.strokeStyle = colour;
       ctx.lineWidth = 1.5;
       line(ctx, at(model.facing[0].x, model.facing[0].y), at(...tickEnd(model, circles)));
+    }
+    const mark = options.marks?.get(model.id);
+    if (mark !== undefined) {
+      const c = at(model.centre.x, model.centre.y);
+      ctx.fillStyle = '#ff6b5c';
+      ctx.font = 'bold 14px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(mark, c.x, c.y + 5);
     }
     if (model.z > 0.01 && view.scale > 6) {
       const p = at(model.centre.x, model.centre.y);

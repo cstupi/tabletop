@@ -1,3 +1,8 @@
+import type { Glow } from '../play/decisionBox';
+
+/** Palette.Selected, Hovered and Ghost (client/src/Table/Palette.cs): what a model glows in for the open Ask. */
+export const GLOW: Record<Glow, string> = { selected: '#ffffff', hovered: '#40e6ff', ghost: 'rgba(230, 230, 255, 0.35)' };
+
 /** One per team ordinal, 1-based; ordinals past the end wrap. */
 export const TEAM_COLOURS = ['#4ea1ff', '#ff6b5c', '#ffc44e', '#6ddf7c', '#c98cff', '#4ee0d0'] as const;
 
