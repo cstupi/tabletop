@@ -7,6 +7,7 @@ import type { Edit, GameStatus } from '../protocol/wire.generated';
 import { STATUS_LABEL } from '../games/present';
 import { endSetupText } from '../lobby/lobbyView';
 import { waitingFor } from '../lobby/lobbyPage';
+import { endSetup } from '../lobby/lobbyEdits';
 
 export const WATCHER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -32,7 +33,7 @@ export function headerOf(snap: ConnectionState | null, creator: boolean): Header
   const watcher = snap === null || snap.participantId === null || snap.participantId === WATCHER_ID;
   const early = status === 'lobby' || status === 'setup';
   // The lobby's Start setup sits at the foot of its Game panel; setup's End setup is the strip's.
-  const primary = creator && status === 'setup' ? { label: endSetupText(snap!.draft), edit: { kind: 'end_setup' } as Edit } : null;
+  const primary = creator && status === 'setup' ? { label: endSetupText(snap!.draft), edit: endSetup() as Edit } : null;
   return {
     title: game?.name ?? 'Game',
     status,

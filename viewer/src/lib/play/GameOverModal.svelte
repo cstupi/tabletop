@@ -7,7 +7,7 @@
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { playingAs } from '../lobby/seats';
   import type { Refused } from '../protocol/wire.generated';
-  import { gameOverOf } from './gameOverView';
+  import { answerOf, gameOverOf } from './gameOverView';
   import { headerOf } from './headerView';
   import { Names } from './names';
 
@@ -56,7 +56,7 @@
     const stop = connection.onRefused((r) => { seen.push(r); if (id !== null && r.messageId === id) fail(r); });
     setTimeout(stop, 10_000);
     try {
-      const outcome = await connection.sendCommand({ kind: 'answer_ask', askId: m.askId, answer: { kind: 'chosen', optionId }, ...(team === null ? {} : { teamId: team }) });
+      const outcome = await connection.sendCommand(answerOf(m, optionId, team));
       id = outcome.id;
       const refused = outcome.refused ?? seen.find((r) => r.messageId === outcome.id);
       if (refused !== undefined) fail(refused);

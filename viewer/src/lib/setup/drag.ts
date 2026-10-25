@@ -15,6 +15,13 @@ const SAME = 1e-6;
 const same = (a: Point3, b: Point3): boolean => Math.abs(a.x - b.x) < SAME && Math.abs(a.y - b.y) < SAME && Math.abs(a.z - b.z) < SAME;
 const wrap = (degrees: number): number => ((degrees % 360) + 360) % 360;
 
+/** HandMoves.Drop's setup half: a draft terrain piece's MoveTerrain, a draft marker's MoveSetupMarker, anything else null. */
+export function dropEdit(draft: TableState, pieceId: string, position: Point3, yaw: Yaw): MoveTerrain | MoveSetupMarker | null {
+  if (draft.terrain.some((t) => t.id === pieceId)) return { kind: 'move_terrain', placementId: pieceId, position, yaw };
+  if (draft.markers.some((m) => m.id === pieceId)) return { kind: 'move_setup_marker', markerId: pieceId, position, yaw };
+  return null;
+}
+
 export class SetupDrag {
   #held: Held | null = null;
   #cursor: XY = { x: 0, y: 0 };
@@ -78,11 +85,11 @@ export class SetupDrag {
     if (held.kind === 'terrain') {
       const piece = draft.terrain.find((t) => t.id === held.id)!;
       if (same(held.end.lands, piece.position) && wrap(held.yaw.degrees) === wrap(piece.yaw.degrees)) return null;
-      return { kind: 'move_terrain', placementId: held.id, position: held.end.lands, yaw: held.yaw };
+      return dropEdit(draft, held.id, held.end.lands, held.yaw);
     }
     const marker = draft.markers.find((m) => m.id === held.id)!;
     if (same(held.at, marker.position) && wrap(held.yaw.degrees) === wrap(marker.yaw.degrees)) return null;
-    return { kind: 'move_setup_marker', markerId: held.id, position: held.at, yaw: held.yaw };
+    return dropEdit(draft, held.id, held.at, held.yaw);
   }
 
   cancel(): void {
