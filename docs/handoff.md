@@ -2,7 +2,7 @@
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.24 is the latest tag; *Next* holds what is on `main` since. What each
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.25 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -84,9 +84,9 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
 
-### 2026-10-25, after v0.1.24
+### 2026-10-25, v0.1.25
 
-On `main`, not pushed, not tagged.
+Released as v0.1.25.
 
 - **The play UI** (spec `2026-10-25-play-ui-design.md`), after the owner found the browser viewer broken (*"completely broken
   and has horrific ux"*, the replay's Play button dead):
