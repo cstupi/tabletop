@@ -1,11 +1,12 @@
 # libs/Tabletop.Geometry.Wasm
 
-`Tabletop.Geometry` for the browser: `Microsoft.NET.Sdk.WebAssembly`, `net10.0`, `browser-wasm`, no workload. References `Tabletop.Geometry` only. The viewer calls it through `viewer/src/lib/geometry/`.
+`Tabletop.Geometry` for the browser: `Microsoft.NET.Sdk.WebAssembly`, `net10.0`, `browser-wasm`; compiled ahead of time with the `wasm-tools` workload (`scripts/geometry-wasm`), else run on the runtime's interpreter. References `Tabletop.Geometry` only. The viewer calls it through `viewer/src/lib/geometry/`.
 
 ## Layout
 
 - `Requests.cs`: the request and answer records, the wire's own shapes (`Piece` reads a wire `TerrainPlacement`; its `mesh` is ignored).
 - `FacadeJson.cs`: `FacadeJsonContext` (System.Text.Json source generation, trim-safe) and `FacadeJson.Options` (camelCase, nulls omitted, enums as snake_case names, integers refused, as `ContentJson`).
+- `FacadeReaders.cs`: hand-written converters for `Point2`, `Point3`, `Yaw`, `Base`, `ModelBody`, `Placement`, `PlacedModel` and `ContactBody`, the values a request carries per model. The generated metadata reads a record through its constructor-parameter path, which costs the browser several times more. They read and write what the generated contract does; `FacadeReadersTests` checks both against `FacadeJson.Build(readers: false)`.
 - `Facade.cs`: one `string -> string` static method per call, JSON in and JSON out.
 - `Exports.cs`: one `[JSExport]` per `Facade` method, same name, body `=> Facade.X(json)`.
 - `Program.cs`: `return;`; the runtime needs an entry assembly, the browser never runs `Main`.
@@ -14,7 +15,8 @@
 
 - Held pieces are always lifted: `LandModels` and `LandPiece` are `DragBodies.Models` and `DragBodies.Piece` with `free` false and no level, `within` null. A landing past a move's allowance is the server's to refuse. `Slide`, `Follow`, `Separate`, `MoveReach`, `Movement.Region` and line of sight are not exported.
 - A JSON that does not read throws `JsonException`, which reaches JavaScript as an `Error` with its message.
-- `scripts/geometry-wasm` publishes the project and copies `_framework/` to `viewer/public/geometry/_framework/` (git-ignored); publish writes `.br` and `.gz` beside each file.
+- `scripts/geometry-wasm` publishes the project and copies `_framework/` to `viewer/public/geometry/_framework/` (git-ignored); publish writes `.br` and `.gz` beside each file. With the `wasm-tools` workload it publishes with `RunAOTCompilation` in its own build slot (`TabletopBuildSlot` `-aot`): an AOT publish over the interpreter's `obj/` gives a runtime that does not load. `web/Dockerfile` installs the workload and `python3`.
+- Sizes and speed, with 150 models on the table: ahead of time, `_framework` is 2.4 MB brotli (10.9 MB raw), `Contacts` 2.2-2.7 ms and `LandModels` 1.8 ms per call; on the interpreter, 1.7 MB brotli (5.3 MB raw), 8-9 ms and 6.5-7 ms. Reading the request JSON is most of either.
 
 ## Commands
 
@@ -26,5 +28,6 @@ TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Geometry.Wasm.Tests        
 
 ## Conventions and pitfalls
 
+- The WSL SDK at `/usr/lib/dotnet` takes no workload without root; an SDK put in a user directory by `dotnet-install.sh` does (`dotnet workload install wasm-tools`).
 - A new facade method needs its `[JSExport]`, a `[JsonSerializable]` entry for every new request and answer type, an agreement case in `tests/Tabletop.Geometry.Wasm.Tests/AgreementCases.cs` and a method on the viewer's `Geometry`. A new enum needs a `JsonStringEnumConverter<T>` in `FacadeJson`.
 - Nothing here names a rule; Ask parameters arrive in the request.

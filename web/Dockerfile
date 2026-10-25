@@ -14,6 +14,9 @@ RUN test -n "$TABLETOP_BLOB_ORIGIN" || { echo "the TABLETOP_BLOB_ORIGIN build ar
 
 # Tabletop.Geometry as WebAssembly (libs/Tabletop.Geometry.Wasm): the viewer's geometry runtime, fetched by the page on first use.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS geometry
+# The wasm-tools workload (its Emscripten needs python3): scripts/geometry-wasm then compiles it ahead of time (RunAOTCompilation).
+RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/* \
+    && dotnet workload install wasm-tools
 WORKDIR /src
 COPY Directory.Build.props global.json ./
 COPY libs/Tabletop.Geometry/ libs/Tabletop.Geometry/
