@@ -15,5 +15,5 @@ export function reserveOf(p: Projection, u: UnitInPlay): string | null {
   return at === undefined ? `Reserve: ${r.property}` : `Reserve: ${r.property} (${at})`;
 }
 
-/** A server name as shown: first letter capitalised, the rest as sent. */
-export const words = (name: string): string => (name.length === 0 ? name : name[0]!.toUpperCase() + name.slice(1));
+/** A server name as shown: first letter capitalised, a hyphen as a space. */
+export const words = (name: string): string => (name.length === 0 ? name : name[0]!.toUpperCase() + name.slice(1).replaceAll('-', ' '));

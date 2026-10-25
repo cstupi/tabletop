@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Contact, ContactBody, ContactTerms, Geometry, Placement } from '../src/lib/geometry';
-import { allWords, bodiesOf, move, placement, words } from '../src/lib/play/contactCheck';
+import { allWords, bodiesOf, move, placement, sentence, words } from '../src/lib/play/contactCheck';
 import { Applier } from '../src/lib/live/apply';
 import type { MoveRegion } from '../src/lib/protocol/wire.generated';
 import { sample } from './play';
@@ -54,5 +54,14 @@ describe('contactCheck', () => {
     expect(words({ modelId: 'm', kind: 'too_close', unitId: 'o' }, 1, name)).toBe('within 1" of Orc Boyz');
     expect(words({ modelId: 'm', kind: 'too_close' }, 1.25, name)).toBe('within 1.3" of another unit');
     expect(allWords(new Map([['m', { modelId: 'm', kind: 'crosses' } as Contact]]), undefined, name)).toEqual(new Map([['m', 'path crosses a model']]));
+  });
+
+  it('a sentence names the model, as the server\'s reasons do', () => {
+    expect(sentence('within 1" of Storm Troopers', 'APC 1')).toBe('APC 1 would end within 1" of Storm Troopers (p.7)');
+    expect(sentence('within 9" of Orcs', 'APC 1')).toBe('APC 1 would end within 9" of Orcs');
+    expect(sentence('overlaps a base', 'APC 1')).toBe('APC 1 would be placed on another model\'s base (p.7)');
+    expect(sentence('path crosses a model', 'APC 1')).toBe('APC 1 would move through another model (p.7)');
+    expect(sentence('ends in impassable terrain', 'APC 1')).toBe('APC 1 would end its move in impassable terrain (p.11, p.7)');
+    expect(sentence('something else', 'APC 1')).toBe('something else');
   });
 });

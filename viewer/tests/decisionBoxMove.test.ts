@@ -211,6 +211,32 @@ describe('the move Ask', () => {
     expect(r.violations.marked.size).toBe(0);
   });
 
+  it('a refusal shows its reason once, over the gate\'s line of the same words', async () => {
+    const r = moveRig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.box.dragged(a, at(14, 12));
+    r.box.enter();
+    r.refuse(0, 'Squad (S1) would move through another model');
+    await tick();
+    expect(r.panel.refusal).toBe('The server refused: Squad (S1) would move through another model');
+    expect(r.reason()).toBe('');
+  });
+
+  it('a refusal clears once a ghost is dragged again', async () => {
+    const r = moveRig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.box.dragged(a, at(14, 12));
+    r.box.enter();
+    r.refuse(0, 'no');
+    await tick();
+    expect(r.panel.refusal).toBe('The server refused: no');
+    r.box.dragged(a, at(15, 12));
+    expect(r.panel.refusal).toBeNull();
+    expect(r.panel.visible).toBe(true);
+  });
+
   it('a failed send frees the drop and shows why', async () => {
     const r = moveRig();
     const [a] = r.ids as [string, string];

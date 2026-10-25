@@ -16,5 +16,6 @@ public class RosterViewTests
         Assert.Equal(("Reserve", true), (r[1].Rows[1].Name, r[1].Rows[1].OffTable));
         Assert.Equal((1, 1, false), (r[0].Rows[0].Left, r[0].Rows[0].Max, r[0].Rows[0].Activated));                  // a one-wound unit counts alive models
         Assert.Equal(("●●○", "Shaken"), (RosterView.Pips(2, 3), RosterView.Words("shaken")));
+        Assert.Equal("Set aside", RosterView.Words("set-aside"));
     }
 }

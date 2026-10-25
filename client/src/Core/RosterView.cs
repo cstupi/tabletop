@@ -36,6 +36,6 @@ public static class RosterView
     }
 
     public static string Pips(int left, int max) => new string('●', left) + new string('○', Math.Max(0, max - left));
-    /// <summary>A server name as shown: first letter capitalised, the rest as sent.</summary>
-    public static string Words(string name) => name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
+    /// <summary>A server name as shown: first letter capitalised, a hyphen as a space.</summary>
+    public static string Words(string name) => name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..].Replace('-', ' ');
 }

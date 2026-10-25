@@ -54,15 +54,16 @@
         {#if model.turn !== ''}<span class:round={model.round === 0}>{words(model.turn)}</span>{:else if model.round === 0}<span class="round">Deployment</span>{/if}
         {#if as !== null}<span class="chip">{as}</span>{/if}
       </p>
-      {#if model.activeUnit !== null}
-        <p class="activation">
+      <!-- Every line keeps its row, filled or not, so the bar's height never changes and the board under it never moves. -->
+      <p class="activation">
+        {#if model.activeUnit !== null}
           <span class="who">{activation ?? model.activeUnit}</span>
           {#each model.outline as item, i (i)}
             <span class="step {item.state}">{#if item.state === 'done'}<span aria-hidden="true">✓ </span>{/if}{item.label}</span>
           {/each}
-        </p>
-      {/if}
-      {#if wait !== null}<p class="wait">{wait}</p>{/if}
+        {/if}
+      </p>
+      <p class="wait" title={wait ?? undefined}>{wait ?? ''}</p>
     </div>
     <div class="score">
       {#each teams as team (team.id)}
@@ -91,22 +92,24 @@
 {/if}
 
 <style>
-  .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s5);
-    padding: var(--s2) var(--s4); background: var(--panel-solid); border-bottom: 1px solid var(--rule); min-height: 3.75rem; }
-  p { margin: 0; }
+  /* One height whatever it says: three single-line rows (the turn, the activation, the wait), each cut short with an ellipsis. */
+  .bar { --line: 1.5rem; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--s5);
+    box-sizing: border-box; height: calc(3 * var(--line) + 4px + 2 * var(--s2)); overflow: hidden;
+    padding: var(--s2) var(--s4); background: var(--panel-solid); border-bottom: 1px solid var(--rule); }
+  p { margin: 0; height: var(--line); line-height: var(--line); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .state { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 18rem; }
-  .turn { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2); font-family: var(--font-display); font-weight: var(--display-weight);
+  .turn { display: flex; flex-wrap: nowrap; align-items: baseline; gap: var(--s2); font-family: var(--font-display); font-weight: var(--display-weight);
     text-transform: var(--display-case); letter-spacing: var(--display-tracking); font-size: .95rem; }
   .round { color: var(--accent); }
   .sep { color: var(--dim); }
   .turn .chip { font-family: var(--font-body); text-transform: none; letter-spacing: 0; }
-  .activation { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); font-size: .95rem; }
+  .activation { display: flex; flex-wrap: nowrap; align-items: baseline; gap: var(--s3); font-size: .95rem; }
   .who { font-weight: 700; }
   .step { color: var(--dim); white-space: nowrap; }
   .step.done { color: var(--success); }
   .step.current { color: var(--text); border-bottom: 2px solid var(--accent); }
   .wait { color: var(--warning); font-size: .95rem; }
-  .score { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); }
+  .score { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--s4); flex: none; }
   .team { display: grid; grid-template-columns: auto auto; grid-template-areas: 'name points' 'left points'; column-gap: var(--s3);
     align-items: center; padding: 0 0 0 var(--s3); border-left: 4px solid var(--team); cursor: context-menu; line-height: 1.2; }
   .name { grid-area: name; font-weight: 700; color: var(--text); }
