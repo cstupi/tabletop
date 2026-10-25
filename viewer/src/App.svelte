@@ -1,7 +1,7 @@
 <!-- viewer/src/App.svelte -->
 <script lang="ts">
   import PlaybackView from './lib/components/PlaybackView.svelte';
-  import ReplayPage from './lib/components/ReplayPage.svelte';
+  import ReplayPage from './lib/replay/ReplayPage.svelte';
   import SourcePicker from './lib/components/SourcePicker.svelte';
   import GamePage from './lib/game/GamePage.svelte';
   import GamesPage from './lib/games/GamesPage.svelte';
