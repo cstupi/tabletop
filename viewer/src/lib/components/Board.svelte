@@ -9,7 +9,7 @@
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true, glow, marks, warned,
+    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed,
   }: {
     scene: Scene;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
@@ -26,6 +26,8 @@
     marks?: ReadonlyMap<string, string> | undefined;
     /** Models in breach, drawn in the warning colour. */
     warned?: ReadonlySet<string> | undefined;
+    /** Models darkened by the sight check. */
+    dimmed?: ReadonlySet<string> | undefined;
   } = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -45,7 +47,7 @@
     canvas.height = Math.round(box.height * dpr);
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned });
+    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned, dimmed });
   });
 
   $effect(() => {

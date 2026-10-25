@@ -23,6 +23,7 @@
   import { rollOffBannerOf, type Banner as BannerModel } from './rollOffBanners';
   import { intentOf, textFocused } from './keys';
   import { RangeRingCache, ringsOverlay } from './rangeRings';
+  import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts } from './ruleTexts';
   import { sceneOfPlay } from './scene';
@@ -224,6 +225,22 @@
     return ringsOverlay(ringCache.of(geometry, p, unit), teamColour(ordinal));
   });
 
+  // D4: the sight check — L held with a unit selected, or the shooter of my open target pick, over the hovered unit.
+  let sightHeld = $state(false);
+  let sightTick = $state(0);
+  const sight = new SightCheck((observer, target) => connection.querySight(observer, target));
+  $effect(() => sight.subscribe(() => { sightTick++; }));
+  $effect(() => {
+    void panel; void hoveredUnit; void sightHeld;
+    const s = snap, b = box, sel = selection;
+    untrack(() => { if (s?.projection != null && s.game !== null && b !== null) sight.update(s.projection, s.game, b, hoveredUnit, sel?.pieceId ?? null, sightHeld); });
+  });
+  const sightView = $derived.by(() => {
+    void sightTick; void panel;
+    return shown === null || snap?.game == null ? null : sight.view(shown, snap.game, new Names(snap.game, shown), box?.targets != null);
+  });
+  const sightDrawn = $derived(sightView === null || scene === null ? null : sightOverlay(sightView, scene));
+
   /** The roster's and header's unit pick selects the unit as a click on its model does. */
   function pickUnit(unit: string): void {
     const p = snap?.projection;
@@ -273,6 +290,7 @@
     const intent = intentOf(e.key, mods);
     if (intent === null) return;
     if (drags.onKey(intent, e.shiftKey)) { e.preventDefault(); return; }   // D2: Q/E, 1–5 and Enter while a drag is in hand
+    if (intent.kind === 'sight') { sightHeld = true; e.preventDefault(); return; }
     if (intent.kind === 'toggleRangeRings') { changeSettings((x) => ({ ...x, rangeRings: !x.rangeRings })); e.preventDefault(); return; }
     const used = intent.kind === 'option' ? box.number(intent.key)
       : intent.kind === 'confirm' ? box.enter()
@@ -283,14 +301,14 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onkeyup={(e) => { if (e.key === 'l' || e.key === 'L') sightHeld = false; }} onblur={() => { sightHeld = false; }} />
 
 <div class="play">
   <div class="stage">
     {#if scene === null || snap === null}
       <p class="muted pad">Loading the game…</p>
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
     {#if snap !== null && shown !== null && snap.game !== null}
       <div class="hud top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={() => {}} /></div>
