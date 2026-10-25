@@ -163,10 +163,22 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         await CloseAsync(socket, WebSocketCloseStatus.NormalClosure, reason.ToString());
     }
 
-    private static async Task CloseAsync(WebSocket socket, WebSocketCloseStatus status, string reason)
+    static readonly TimeSpan CloseGrace = TimeSpan.FromSeconds(2);
+
+    private static Task CloseAsync(WebSocket socket, WebSocketCloseStatus status, string reason) => CloseAsync(socket, status, reason, CloseGrace);
+
+    /// <summary>Sends the close frame, then waits up to <paramref name="grace"/> for the peer's, so the connection is not torn down under a
+    /// frame the peer is still reading: Node's WebSocket inflates a compressed frame asynchronously and drops it when the TCP connection ends first.</summary>
+    public static async Task CloseAsync(WebSocket socket, WebSocketCloseStatus status, string reason, TimeSpan grace)
     {
-        try { if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await socket.CloseOutputAsync(status, SocketConnection.Truncate(reason), CancellationToken.None); }
-        catch (Exception ex) when (ex is WebSocketException or System.IO.IOException) { }
+        try
+        {
+            if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await socket.CloseOutputAsync(status, SocketConnection.Truncate(reason), CancellationToken.None);
+            using var wait = new CancellationTokenSource(grace);
+            var buffer = new byte[256];
+            while (socket.State == WebSocketState.CloseSent && (await socket.ReceiveAsync(buffer, wait.Token)).MessageType != WebSocketMessageType.Close) { }
+        }
+        catch (Exception ex) when (ex is WebSocketException or System.IO.IOException or OperationCanceledException) { }
     }
 }
 
