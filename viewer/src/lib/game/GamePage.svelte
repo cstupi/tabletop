@@ -7,6 +7,8 @@
   import { connectGame, type ConnectionState, type GameConnection } from '../connection/gameConnection';
   import type { Feed } from '../feed/feed';
   import LobbyPanel from '../lobby/LobbyPanel.svelte';
+  import { isCreator } from '../lobby/seats';
+  import SetupPage from '../setup/SetupPage.svelte';
   import type { View } from '../board/transform';
   import type { Auth } from '../shell/auth';
   import { connectionFeed } from './connectionFeed';
@@ -66,7 +68,11 @@
       <div class="side"><LobbyPanel {connection} {snap} {api} onLeave={leave} /></div>
     {:else if status === 'setup'}
       <div class="split">
-        <div class="side"><LobbyPanel {connection} {snap} {api} onLeave={leave} /></div>
+        <details class="side">
+          <summary class="pad">Lobby</summary>
+          <LobbyPanel {connection} {snap} {api} onLeave={leave} />
+        </details>
+        <SetupPage {connection} {snap} {api} bind:view creator={isCreator(snap.game, snap.participantId)} />
       </div>
     {:else}
       <PlaybackView {feed} models="circles" />
@@ -80,5 +86,6 @@
   .game { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
   .bar { display: flex; gap: 0.75rem; align-items: baseline; border-bottom: 1px solid var(--line); }
   .side { overflow: auto; max-width: 32rem; }
-  .split { display: grid; grid-template-columns: 22rem minmax(0, 1fr); min-height: 0; }
+  .split { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 0; }
+  details.side { max-width: 22rem; border-right: 1px solid var(--line); }
 </style>
