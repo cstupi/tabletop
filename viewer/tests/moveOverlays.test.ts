@@ -8,14 +8,20 @@ const O = { x: 0, y: 0 };
 
 describe('move overlays', () => {
   it('rulerLines read RulerNode\'s text and turn red out of range', () => {
-    const lines = rulerLines([
-      { from: O, to: { x: 6, y: 0 }, readout: read(O, { x: 6, y: 0 }, 7.5) },
-      { from: O, to: { x: 7.5, y: 0 }, readout: read(O, { x: 7.5, y: 0 }, 7.5) },
-      { from: O, to: { x: 9, y: 0 }, readout: read(O, { x: 9, y: 0 }, 7.5) },
-    ]);
-    expect(lines[0]).toMatchObject({ text: '6.0"  (1.5" left)', outOfRange: false });
-    expect(lines[1]).toMatchObject({ text: '7.5"  (0.0" left)', outOfRange: false });
-    expect(lines[2]).toMatchObject({ text: '9.0"  (0.0" left)', outOfRange: true });
+    const one = (x: number) => rulerLines([{ from: O, to: { x, y: 0 }, readout: read(O, { x, y: 0 }, 7.5) }])[0];
+    expect(one(6)).toMatchObject({ text: '6.0"  (1.5" left)', outOfRange: false });
+    expect(one(7.5)).toMatchObject({ text: '7.5"  (0.0" left)', outOfRange: false });
+    expect(one(9)).toMatchObject({ text: '9.0"  (0.0" left)', outOfRange: true });
+  });
+
+  it('a unit drag reads once, on the model that moved farthest; every model keeps its line', () => {
+    const lines = rulerLines([4, 6.5, 5, 6, 6.2].map((d, i) => {
+      const from = { x: 2 * i, y: 0 }, to = { x: 2 * i, y: d };
+      return { from, to, readout: read(from, to, 6) };
+    }));
+    expect(lines).toHaveLength(5);
+    expect(lines.map((l) => l.text)).toEqual(['', '6.5"  (0.0" left)', '', '', '']);
+    expect(lines.map((l) => l.outOfRange)).toEqual([false, true, false, false, true]);
   });
 
   it('a landing ring shows only while drawn and landing differ', () => {

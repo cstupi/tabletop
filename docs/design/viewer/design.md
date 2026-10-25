@@ -361,7 +361,8 @@ flowchart LR
     selected --> draw
 ```
 
-Draw order is also z order. `pickAt` walks models last-drawn first, then terrain, so the visible
+Draw order is also z order. `pickAt` walks models last-drawn first (each by what the board draws: its base, or its circle
+when the board draws circles), then terrain, so the visible
 shape is the one that is picked.
 
 `contains(shape, point)` is boundary-inclusive, accepts any vertex order and allows a concave ring,
@@ -706,7 +707,7 @@ connection state: the projection is mutated in place, so a derivation keyed on i
 | `board/transform.ts` | `type Point`, `type Table`, `type Viewport`, `type View`, `MARGIN`, `fit`, `toScreen`, `toTable`, `zoomAt`, `panBy`, `gridStep`, `rotate` |
 | `board/palette.ts` | `TEAM_COLOURS`, `teamColour(number)`, `DECLARATIONS`, `declarationColour`, `terrainStroke`, `markerColour` |
 | `board/frame.ts` | `type Shape`, `OVAL_VERTICES`, `type ModelShape`, `type TerrainShape`, `type MarkerShape`, `type ZoneShape`, `type OffTable`, `type Scene`, `sceneOf(RecordedBoard, RecordedFrame): Scene`, `baseOutline`, `volumeOutline` |
-| `board/pick.ts` | `type Hit`, `contains(Shape, Point)`, `pickAt(Scene, Point): Hit \| null` |
+| `board/pick.ts` | `type Hit`, `contains(Shape, Point)`, `pickAt(Scene, Point, models?): Hit \| null` |
 | `board/draw.ts` | `type DrawOptions`, `draw(ctx, Scene, View, Viewport, DrawOptions)` |
 | `timeline/timeline.ts` | `type Timeline`, `EMPTY`, `type TimelineAction`, `reduce`, `indexOfSeq`, `frameOf` |
 | `asks/describe.ts` | `type Addressee`, `type AskView`, `describeAsk`, `describeLegal`, `humanise` |

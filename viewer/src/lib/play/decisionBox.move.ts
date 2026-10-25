@@ -1,7 +1,7 @@
 // viewer/src/lib/play/decisionBox.move.ts
 // client/src/Hud/DecisionBox.Move.cs: the move half of the decision box (a move Ask's ghosts, allowance, contacts, gate, commit, stop,
-// embark and refused commits) and deployment placement. The spec's cuts: no reach outline (MoveRegions is not ported), so a target is not
-// clamped, the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
+// embark and refused commits) and deployment placement. The spec's cuts: no reach outline (MoveRegions is not ported), so a target is held
+// only to the allowance on a straight line (ModelDrag), the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
 // starts its ghosts in rings about the container (DeployView.around) and the server judges p.15. Every ghost is a Placement in
 // `box.ghosts`: its position and the facing the player gave it, which the answer carries.
 
@@ -25,7 +25,8 @@ export interface MoveDeps {
   geometry(): Geometry | null;
   violations: Violations;
   enforcement(): Enforcement;
-  /** A commit's drops, drawn where they were dropped until the move's event (the box unhooks on send, which clears its ghosts). */
+  /** A commit's drops, drawn where they were dropped until the move's step or the answer's settling (the box unhooks on send, which clears
+   *  its ghosts). */
   drops?: PendingDrops;
 }
 
@@ -308,6 +309,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       verdict = { models: held.moved, reason: detail };
     },
     failed(_box, token) { deps.drops?.refuse(token); },
+    settled(_box, token) { deps.drops?.refuse(token); },                    // a model the step did not move (a zero move, a landing it dropped) is held no longer
     dragged(_box, modelId) {
       deps.violations.moved([modelId]);                                     // a refused commit's reason lapses once its models move
       regate?.();

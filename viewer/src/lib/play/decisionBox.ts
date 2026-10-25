@@ -56,6 +56,8 @@ export interface MoveHooks {
   unhook(box: DecisionBox): void;
   /** A send that never reached the server (the socket failed): the token's models are the projection's again. */
   failed?(box: DecisionBox, token: string): void;
+  /** The answer's send settled as accepted: its events are in the projection, so nothing it dropped is held past it. */
+  settled?(box: DecisionBox, token: string): void;
   /** A held ghost landed: its refusal lapses and the move is gated again. */
   dragged?(box: DecisionBox, modelId: string): void;
 }
@@ -416,6 +418,7 @@ export class DecisionBox {
     try {
       const teamId = this.#answering ?? undefined;                           // for the team the Ask was rendered for
       const outcome = await this.#host.send({ kind: 'answer_ask', askId: ask.id, answer, ...(teamId === undefined ? {} : { teamId }) });
+      if (outcome.refused === null) this.#moves?.settled?.(this, String(token));
       if (token !== this.#lastToken) return;
       this.#lastId = outcome.id;
       const refused = outcome.refused ?? this.#seen.get(outcome.id);         // a Refused that landed before the promise settled
