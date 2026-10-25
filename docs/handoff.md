@@ -2,8 +2,7 @@
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.23 is the latest tag; *Next* holds what is
-on `main` since. What each earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.24 is the latest tag. What each earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -98,9 +97,9 @@ process 306/306 and over the socket 305/306: `battle-brothers-re-deployment` sto
 re-deploy in the full socket run and passed three runs alone, so it reads as the socket driver's step timing under load
 (`sim/Run/RunLoop.cs`), not a rule.
 
-### 2026-10-24, after v0.1.23
+### 2026-10-24, v0.1.24
 
-On `main`, not pushed, not tagged.
+Released as v0.1.24.
 
 - **Graphics settings** (spec `2026-10-24-graphics-settings-design.md`): Settings → Graphics: Display (Windowed, Fullscreen
   borderless), Quality (Low, Medium, High: MSAA, shadow splits and atlas, render scale), Render scale 50–100 % (FSR 1 below
