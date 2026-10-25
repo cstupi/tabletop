@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { api } from '$lib/api/client';
   import { errorMessage } from '$lib/api/errors';
   import type { AssetDto, AssetKind, FolderDto, Guid, SharedAssetDto } from '$lib/api/types';
@@ -30,9 +31,10 @@
   let token = 0;
   async function search() {
     const t = ++token; loading = true; error = null;
-    applied = { q: q.trim(), kind };
+    const wanted = { q: q.trim(), kind };
+    applied = wanted;
     try {
-      const p = await api.shared.list({ limit: PAGE, q: applied.q || undefined, kind: applied.kind || undefined }); if (t !== token) return;
+      const p = await api.shared.list({ limit: PAGE, q: wanted.q || undefined, kind: wanted.kind || undefined }); if (t !== token) return;
       items = p.items; next = p.next;
     } catch (e) { if (t === token) error = errorMessage(e); } finally { if (t === token) loading = false; }
   }
@@ -42,7 +44,8 @@
     try { const p = await api.shared.list({ limit: PAGE, after: next, q: applied.q || undefined, kind: applied.kind || undefined }); items = appendPage(items, p.items); next = p.next; }
     catch (e) { error = errorMessage(e); } finally { more = false; }
   }
-  $effect(() => { void loadMine(); void search(); });
+  // Once, on mount: neither load is tracked, so typing in the search box does not reload until Search or Enter.
+  onMount(() => { void loadMine(); void search(); });
 
   const plural = (n: number) => `${n} model${n === 1 ? '' : 's'}`;
   async function copy() {

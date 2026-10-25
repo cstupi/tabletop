@@ -257,7 +257,10 @@ exactly what play saw.
 
 - **Blobs.** Meshes and textures are keyed by hash, deduplicated per user, and served by
   presigned URL straight from the store. A library is private for discovery, not for access:
-  participants download the assets a game uses without any row being created on either side.
+  participants download the assets a game uses without any row being created on either side. An
+  owner may share an asset; another account's copy is its own asset whose blob row names the
+  sharer's object, which goes only when no blob row names it
+  ([shared models](../superpowers/specs/2026-10-25-shared-models-design.md)).
 - **`Properties`.** The data half of a ruleset lives in eight Postgres tables, authored
   in-repo as JSON and seeded by the game server at startup, once per canonical hash. A game
   pins `properties_hash`, so a pack changing between sessions cannot make undo diverge.

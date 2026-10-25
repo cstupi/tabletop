@@ -396,9 +396,10 @@ There is no per-army asset row and no FK from `Asset` to any army: armies reach 
 assets, so deleting an army touches nothing in the library, and deleting an asset degrades
 appearance without affecting play.
 
-**Dedup is per user, not global.** Nobody shares storage with anybody, so cross-user reference
-counting never has to exist. This is unaffected by game participants downloading each other's
-assets, because that creates no library record on either side — it is a download, not a share.
+**Dedup is per user, not global**, and a copy of a shared asset is the one place two accounts' rows
+name the same bytes: the copier's blob row names the sharer's S3 key, so an object is deleted only
+when no blob row names its key ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)). Game participants downloading each other's assets creates no
+library record on either side — it is a download, not a share.
 
 **Scale, orientation and the base it was modelled on live on the Asset** because they are
 facts about the mesh, not about a game. A space marine is a space marine in every army —
@@ -420,8 +421,9 @@ Uploads are per-user, persistent across games, and load at runtime via `GLTFDocu
 through Godot's editor import step. Assets are content-addressed by hash, stored in S3, and
 served by presigned URL straight from S3 — management issues the URLs and the bytes never pass
 through it ([the management API](superpowers/specs/2026-08-29-management-api-design.md)). **A library is private for discovery, not for access**: nobody
-can browse or search another account's assets, but participants in a game download the assets that
-game uses, straight from wherever they live. Nothing enters anyone else's library.
+can browse or search another account's assets except those its owner shares ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)), which any signed-in
+account can copy into its own library. Participants in a game download the assets that game uses,
+straight from wherever they live, and nothing enters anyone else's library by that.
 
 **Upload accepts GLB and rejects STL.** Narrowed from "glTF/GLB" by
 [the management API](superpowers/specs/2026-08-29-management-api-design.md): a `.gltf` with

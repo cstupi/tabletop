@@ -32,8 +32,8 @@ so the shared view shows the owner's folder names on each item and searches them
 - `q`: a case-insensitive substring of the asset name, the owner's name or one of those folder names.
 - `kind`: `miniature`, `terrain` or `texture`, as `GET /v1/assets`.
 
-`GET /v1/shared-assets/{id}/download` presigns the bytes of a shared asset for the preview, as `/v1/assets/{id}/download`
-does for one's own. Not shared, not uploaded or the caller's own is 404.
+`GET /v1/shared-assets/{id}` answers one item, and `GET /v1/shared-assets/{id}/download` presigns its bytes for the
+preview, as `/v1/assets/{id}/download` does for one's own. Not shared, not uploaded or the caller's own is 404.
 
 ## Copying
 
