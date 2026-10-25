@@ -109,6 +109,17 @@ On `main`, not pushed, not tagged.
   the browser's.
 - **Clean dev data.** The viewer's e2e tests use fixed accounts (`viewer-e2e-*`) and delete their games and armies in `finally`;
   the 154 games earlier test runs left in the dev database are deleted (the owner's 10 remain).
+- **Same calls from both clients** (spec `2026-10-25-same-calls-design.md`, plans `2026-10-25-same-calls-{1..5}*.md`), owner: *"we need
+  to be sure the same calls would get made in godot and the web"*. Every message Godot sends is built in `client/src/Core/`
+  (`AskAnswers`, `PiecePick`, `HandMoves`, `Menus`, `LobbyEdits`, `SetupEdits`, `DeployView.Place`, `GameOverView.Answer`,
+  `CombatLog.UndoHere`); `CallsViewerFixtureTests` writes `viewer/tests/fixtures/calls.json` (414 cases over 21 recorded call
+  logs: every Ask mode, deploys and Ambusher placements, moves and disembarks, menus, undo, drops, 43 lobby and setup controls,
+  and 34 that must send nothing) and `calls.agreement.test.ts` replays each through the browser's builders, byte-equal after one
+  normalisation. Fixed on the way: the browser's Undo to here on a roll row and its disembark facing (now `Containment.ExitYaw`
+  through the wasm), and a Godot bug: a disembark onto non-impassable terrain fell back to the container's facing. A new outbound
+  message needs a case (`client/AGENTS.md`, `viewer/AGENTS.md`). `viewer/tests/e2e/ambush.e2e.test.ts` sets a unit aside, plays to
+  the round boundary and places the Ambusher (refused within 9", accepted over 9"), with two accounts and with one holding both
+  teams. Godot's rendering and input stay hand-tested.
 - Checked: viewer 781 unit tests, type check, hosted build and stack tests; client tests; the web image builds with the viewer
   in it. Every page was reviewed by screenshot in both themes at 1440×900 and 1280×720; nobody has clicked through it on screen,
   and Godot's graphics settings, Random table and predefined tables have not been seen in the client. The full unit, E2E and
