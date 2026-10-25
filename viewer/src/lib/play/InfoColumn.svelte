@@ -29,6 +29,10 @@
   import { unitSheetOf } from './unitSheet';
   import { isWatching } from './waiting';
   import type { UndoPrediction } from './undo';
+  import { FILTER_LABELS } from './logRows';
+  import Icon from '../../../../web/src/lib/components/Icon.svelte';
+
+  const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
   let {
     connection, snap, shown, scene, prediction, pendingUndoTo, rules, geometry, selection, hoveredUnit, myTeam, eligible, getSettings, updateSettings,
@@ -115,6 +119,8 @@
   /** The tray hides when the open log holds the same roll, and gives its slot to the decision box. */
   const covered = $derived(logOpen && log?.latest != null && flatten(entries).some((e) => e.type === 'roll' && e.record.id === log.latest?.record.id));
 
+  const tray = $derived(!covered && log?.latest != null);
+
   function setLogOpen(open: boolean): void {
     logOpen = open;
     updateSettings((s) => ({ ...s, logOpen: open }));
@@ -163,25 +169,53 @@
     {#if card !== null}
       <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} onPick={onPickModel} />
     {/if}
-    {#if selectionLine !== null}<p class="selection muted">{selectionLine}</p>{/if}
-    {#if !covered}<DiceTray roll={log?.latest ?? null} onClick={openAt} />{/if}
-    <div class="bar">
-      <button type="button" tabindex="-1" aria-pressed={logOpen} onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}>Log (G)</button>
-      <UndoButton bind:this={undo} plan={log?.undo ?? null} {watching} onUndo={(seq) => void undoTo(seq)} />
-    </div>
-    {#if problem !== null}<p class="error" role="alert">{problem}</p>{/if}
-    {#if logOpen}
-      <CombatLogPanel
-        {entries} filter={logFilter} {pendingUndoTo} {watching} {rules} reveal={revealRoll}
-        onFilter={setFilter} onUndoTo={(seq) => void undoTo(seq)} {onTouch}
-      />
-    {/if}
+    {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}
+    <section class="panel log" class:open={logOpen} aria-label="Combat log">
+      <div class="head">
+        <button type="button" class="toggle" tabindex="-1" aria-expanded={logOpen} title="Show or hide the log (G)"
+          onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}>
+          <span class="chev" class:open={logOpen}><Icon name="chevron" size="1rem" /></span>
+          <h2>Combat log</h2>
+          <kbd>G</kbd>
+        </button>
+        {#if logOpen}
+          <select class="filter" aria-label="Log filter" value={logFilter} onchange={(ev) => setFilter(ev.currentTarget.value as LogFilter)}>
+            {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
+          </select>
+        {/if}
+      </div>
+      {#if logOpen}
+        <CombatLogPanel
+          {entries} filter={logFilter} {pendingUndoTo} {watching} {rules} reveal={revealRoll} showFilter={false}
+          onFilter={setFilter} onUndoTo={(seq) => void undoTo(seq)} {onTouch}
+        />
+      {/if}
+      {#if problem !== null}<p role="alert">{problem}</p>{/if}
+      {#if tray || !watching}
+        <div class="foot">
+          {#if tray}<DiceTray roll={log?.latest ?? null} onClick={openAt} />{:else}<span></span>{/if}
+          <UndoButton bind:this={undo} plan={log?.undo ?? null} {watching} onUndo={(seq) => void undoTo(seq)} />
+        </div>
+      {/if}
+    </section>
   </div>
 {/if}
 
 <style>
-  .info { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
-  .bar { display: flex; gap: 0.4rem; }
-  .bar button[aria-pressed='true'] { border-color: var(--muted); }
-  p { margin: 0; }
+  .info { display: flex; flex-direction: column; gap: var(--s3); flex: 1 1 0; min-height: 0; }
+  .selection { margin: 0; color: var(--dim); font-size: .9rem; }
+  .log { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s3) var(--s4); flex: none; min-height: 0; }
+  .log.open { flex: 1 1 10rem; min-height: 10rem; }
+  :global([data-theme='fantasy']) .log { padding: calc(var(--s3) + 4px) calc(var(--s4) + 4px); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+  .toggle { display: inline-flex; align-items: center; gap: var(--s2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; box-shadow: none;
+    background: none; color: var(--text); }
+  .toggle:hover:not(:disabled) { background: none; color: var(--accent); }
+  .toggle h2 { margin: 0; font-size: .9rem; }
+  .chev { display: inline-flex; transition: transform .12s; }
+  .chev.open { transform: rotate(90deg); }
+  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: 2px 4px; border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
+  .filter { min-height: 2rem; font-size: .9rem; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--rule); }
+  [role='alert'] { margin: 0; }
 </style>

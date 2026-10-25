@@ -15,8 +15,10 @@
 
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
-  let { entries, filter, pendingUndoTo, watching, rules, reveal = null, onFilter, onUndoTo, onTouch }: {
+  let { entries, filter, pendingUndoTo, watching, rules, reveal = null, showFilter = true, onFilter, onUndoTo, onTouch }: {
     entries: readonly LogEntry[]; filter: LogFilter; pendingUndoTo: number | null; watching: boolean; rules: RuleTexts;
+    /** False when the page draws the filter in its own header (FilterSelect). */
+    showFilter?: boolean;
     /** Expand the block and the roll holding this RollRecord and scroll to it; `n` makes a repeat request new. */
     reveal?: { rollId: string; n: number } | null;
     onFilter: (f: LogFilter) => void; onUndoTo: (seq: number) => void; onTouch: (pieceIds: readonly string[]) => void;
@@ -46,6 +48,15 @@
   $effect(() => {
     void entries;
     if (toEnd) void tick().then(() => { if (scroller !== undefined) scroller.scrollTop = scroller.scrollHeight; });
+  });
+
+  // A change of the panel's height (the card above it coming or going) keeps the newest entry in view too.
+  $effect(() => {
+    const el = scroller;
+    if (el === undefined) return;
+    const observer = new ResizeObserver(() => { if (toEnd) el.scrollTop = el.scrollHeight; });
+    observer.observe(el);
+    return () => observer.disconnect();
   });
 
   $effect(() => {
@@ -130,31 +141,43 @@
 {/snippet}
 
 <section class="log" aria-label="Combat log">
-  <select aria-label="Log filter" value={filter} onchange={(ev) => onFilter(ev.currentTarget.value as LogFilter)}>
-    {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
-  </select>
+  {#if showFilter}
+    <select class="filter" aria-label="Log filter" value={filter} onchange={(ev) => onFilter(ev.currentTarget.value as LogFilter)}>
+      {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
+    </select>
+  {/if}
   <div class="rows" bind:this={scroller} onscroll={onScroll}>
     {#each entries as e (keyOf(e))}{@render node(e)}{/each}
+    {#if entries.length === 0}<p class="none">Nothing here yet.</p>{/if}
   </div>
 </section>
 
 <style>
-  .log { display: flex; flex-direction: column; gap: 0.3rem; min-height: 0; }
-  select { align-self: flex-start; }
-  .rows { overflow-y: auto; max-height: 40vh; min-height: 6rem; }
-  .line { display: flex; gap: 0.25rem; align-items: center; }
-  .flat { background: none; border: 0; padding: 0.1rem 0.2rem; text-align: left; }
+  .log { display: flex; flex-direction: column; gap: var(--s2); flex: 1; min-height: 0; font-size: .95rem; line-height: 1.35; }
+  .filter { align-self: flex-start; min-height: 2rem; font-size: .9rem; }
+  .rows { flex: 1; min-height: 0; overflow-y: auto; padding-right: var(--s1); }
+  .none { margin: var(--s2) 0; color: var(--dim); }
+  /* Rows are text, not themed buttons. */
+  .flat { display: inline; min-height: 0; padding: 1px var(--s1); border: 0; border-radius: 0; clip-path: none; box-shadow: none; background: none;
+    color: inherit; text-align: left; white-space: normal; font: inherit; cursor: pointer; }
+  .flat:hover:not(:disabled) { background: var(--rule); color: inherit; }
+  .line { display: flex; gap: var(--s1); align-items: baseline; }
+  .line > .flat:not(.grow) { opacity: 0; }
+  .line:hover > .flat:not(.grow), .line > .flat:not(.grow):focus-visible { opacity: 1; }
+  .line > .flat:not(.grow) { flex: none; color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
   .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .roll { cursor: pointer; padding: 0.1rem 0.2rem; }
-  .faces { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+  .roll { cursor: pointer; padding: 1px var(--s1); }
+  .roll:hover { background: var(--rule); }
+  .faces { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; }
   .words { overflow-wrap: anywhere; }
-  .die { font-size: 1.3rem; line-height: 1; }
-  .die.fail { opacity: 0.45; }
-  .dim { color: var(--muted); opacity: 0.7; }
-  .indent { margin-left: 1rem; }
-  .detail p { margin: 0.1rem 0; }
-  .die-line { display: flex; gap: 0.3rem; align-items: center; }
-  .ok { color: var(--success, #6ddf7c); }
-  .bad { color: var(--failure, #ff6b5c); }
-  .flow { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+  .die { font-size: 1.35rem; line-height: 1; }
+  .die.fail { opacity: 0.4; }
+  .dim { color: var(--dim); }
+  .indent { margin-left: var(--s3); padding-left: var(--s2); border-left: 1px solid var(--rule); }
+  .detail p { margin: 2px 0; }
+  .detail > .flat { color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
+  .die-line { display: flex; gap: var(--s2); align-items: center; }
+  .ok { color: var(--success); }
+  .bad { color: var(--failure); }
+  .flow { display: flex; flex-wrap: wrap; gap: var(--s1); }
 </style>

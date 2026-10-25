@@ -243,7 +243,7 @@ export class DecisionBox {
     this.glow(mine.highlights);
     if (model.autoPass && this.#refusal === null) {   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
       const kind = mine.ask.windowKind!;
-      this.#send(mine.ask, { kind: 'passed' }); this.#note = `auto-passed (muted: ${kind})`;
+      this.#send(mine.ask, { kind: 'passed' }); this.#note = `auto-passed (muted: ${spaced(kind)})`;
       this.add(button('unmute', 'Unmute'), () => this.#host.updateSettings((s) => unmute(s, kind)));
       return;
     }
@@ -260,7 +260,7 @@ export class DecisionBox {
     }
     if (mine.ask.allowPass) this.add(button('pass', 'Pass'), () => this.#send(mine.ask, { kind: 'passed' }));
     const kind = mine.ask.windowKind;
-    if (kind !== undefined) this.add(button('mute', `Mute '${kind}' windows`), () => this.#host.updateSettings((s) => mute(s, kind)));
+    if (kind !== undefined) this.add(button('mute', `Mute ${spaced(kind)} windows`), () => this.#host.updateSettings((s) => mute(s, kind)));
     const who = answeredBy(st.log, mine.ask.id, team, st.participantId, names);
     if (who !== null) this.#note = `${who} answered for your team`;
   }
@@ -549,4 +549,6 @@ export class DecisionBox {
   }
 }
 
+/** A window kind in words: `before_shooting` is "before shooting". */
+const spaced = (kind: string): string => kind.replaceAll('_', ' ');
 const button = (id: string, label: string): Extract<Control, { kind: 'button' }> => ({ kind: 'button', id, label, disabled: false });

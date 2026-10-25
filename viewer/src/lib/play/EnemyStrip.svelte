@@ -18,9 +18,9 @@
 </section>
 
 <style>
-  .strip { padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
+  .strip { margin: 0; padding: var(--s2) var(--s3); background: var(--panel-solid); border: 1px solid var(--rule); border-left: 3px solid var(--warning); font-size: .9rem; }
   p { margin: 0; overflow-wrap: anywhere; }
-  .name { font-weight: 600; }
-  .success { color: var(--success, #6ddf7c); }
-  .warning { color: var(--warning, #ffc44e); }
+  .name { font-weight: 700; }
+  .success { color: var(--success); }
+  .warning { color: var(--warning); }
 </style>

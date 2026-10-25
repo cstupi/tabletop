@@ -79,27 +79,32 @@
   {#if model !== null && model.stage !== 'none'}
     <h2>Game over</h2>
     <p class="result">{model.result ?? 'End or continue?'}</p>
-    <p class="reason">{model.reason}</p>
-    <ul class="scores">
-      {#each scores as [team, score] (team)}<li>{team}  {score}</li>{/each}
-    </ul>
+    {#if model.reason !== ''}<p class="reason">{model.reason}</p>{/if}
+    <table class="scores">
+      <thead><tr><th scope="col">Team</th><th scope="col" class="num">Score</th></tr></thead>
+      <tbody>{#each scores as [team, score] (team)}<tr><td>{team}</td><td class="num">{score}</td></tr>{/each}</tbody>
+    </table>
     {#if note !== null && note !== ''}<p class="note">{note}</p>{/if}
-    {#if problem !== null}<p class="warn" role="alert">{problem}</p>{/if}
-    <div class="buttons">
+    {#if problem !== null}<p role="alert">{problem}</p>{/if}
+    <div class="actions">
       {#if model.stage === 'ended'}
-        <button type="button" onclick={() => dialog?.close()}>Stay</button>
-        <button type="button" onclick={leave}>Leave</button>
+        <button type="button" onclick={leave}>Back to games</button>
+        <button type="button" class="primary" onclick={() => dialog?.close()}>Stay at the table</button>
       {/if}
-      {#each model.choices as choice (choice.id)}
-        <button type="button" disabled={answered} onclick={() => choose(choice.id)}>{choice.label}</button>
+      {#each model.choices as choice, i (choice.id)}
+        <button type="button" class:primary={i === 0} disabled={answered} onclick={() => choose(choice.id)}>{choice.label}</button>
       {/each}
     </div>
   {/if}
 </dialog>
 
 <style>
-  dialog { min-width: 22rem; text-align: center; }
-  .scores { list-style: none; padding: 0; }
-  .buttons { display: flex; gap: 1rem; justify-content: center; }
-  .warn { color: var(--warning, #ffc44e); }
+  dialog { width: min(26rem, calc(100vw - 2rem)); }
+  h2 { margin: 0 0 var(--s2); }
+  .result { margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); text-transform: var(--display-case);
+    letter-spacing: var(--display-tracking); font-size: 1.35rem; color: var(--text); }
+  .reason { color: var(--dim); }
+  .scores { margin: var(--s3) 0; }
+  .note { color: var(--dim); }
+  .actions { justify-content: flex-end; margin-bottom: 0; }
 </style>

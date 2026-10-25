@@ -25,7 +25,7 @@
 </script>
 
 {#if !watching}
-  <button type="button" tabindex="-1" disabled={plan === null} title={plan?.tooltip ?? NOTHING_TO_UNDO} onmousedown={(e) => e.preventDefault()} onclick={press}>Undo (Ctrl+Z)</button>
+  <button type="button" tabindex="-1" disabled={plan === null} title={plan?.tooltip ?? NOTHING_TO_UNDO} class="small" onmousedown={(e) => e.preventDefault()} onclick={press}>Undo <kbd>Ctrl+Z</kbd></button>
 {/if}
 
 <dialog bind:this={dialog} onclose={() => (asking = null)} aria-labelledby="undo-title">
@@ -33,16 +33,16 @@
     <h2 id="undo-title">Undo dice rolls?</h2>
     <p class="rolls">{asking.lostRolls.join('\n')}</p>
     <div class="actions">
-      <button type="button" onclick={confirmed}>Undo</button>
       <button type="button" onclick={() => (asking = null)}>Cancel</button>
+      <button type="button" class="danger" onclick={confirmed}>Undo</button>
     </div>
   {/if}
 </dialog>
 
 <style>
-  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); max-width: 34rem; }
-  dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
-  h2 { margin-top: 0; font-size: 1rem; }
+  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: 2px 4px; border: 1px solid currentColor; border-radius: 3px; opacity: .7; }
+  dialog { max-width: 30rem; }
+  h2 { margin-top: 0; }
   .rolls { white-space: pre-line; overflow-wrap: anywhere; }
-  .actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  .actions { justify-content: flex-end; margin-bottom: 0; }
 </style>

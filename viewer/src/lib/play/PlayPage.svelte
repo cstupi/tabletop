@@ -26,7 +26,6 @@
   import type { MenuItem } from './menuModel';
   import PieceMenu from './PieceMenu.svelte';
   import WaitingPanel from './WaitingPanel.svelte';
-  import { rollOffBannerOf, type Banner as BannerModel } from './rollOffBanners';
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay } from './rangeRings';
@@ -71,29 +70,6 @@
     return () => { for (const stop of stops) stop(); prediction.reset(); };
   });
   // --- end D3 ---
-
-  // --- D4: the roll-off banner (live batches only; the queue shows one after another) ---
-  let banner = $state.raw<BannerModel | null>(null);
-  $effect(() => {
-    const conn = connection;
-    const queue: BannerModel[] = [];
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const next = (): void => {
-      timer = null;
-      banner = queue.shift() ?? null;
-      if (banner !== null) timer = setTimeout(next, banner.seconds * 1000);
-    };
-    const stop = conn.onEvents((events) => {
-      const s = conn.state;
-      if (s.game === null) return;
-      const b = rollOffBannerOf(events, new Names(s.game, s.projection), s.catchingUp);
-      if (b === null) return;
-      queue.push(b);
-      if (timer === null) next();
-    });
-    return () => { stop(); if (timer !== null) clearTimeout(timer); banner = null; };
-  });
-  // --- end D4 banner ---
 
   /** localStorage can throw (a private window, blocked site data): the settings then live for the page only. */
   function browserStorage(): StorageLike | null {
@@ -373,21 +349,25 @@
 <svelte:window onpointerdowncapture={(e) => { pointerAt = { x: e.clientX, y: e.clientY }; }} onkeydown={onKeydown} onkeyup={(e) => { if (e.key === 'l' || e.key === 'L') sightHeld = false; }} onblur={() => { sightHeld = false; }} />
 
 <div class="play">
+  {#if snap !== null && shown !== null && snap.game !== null}
+    <div class="top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
+    <div class="roster"><Roster {snap} {shown} myTeam={actingTeam} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
+  {/if}
   <div class="stage">
     {#if scene === null || snap === null}
-      <p class="muted pad">Loading the game…</p>
+      <p class="loading" role="status">Loading the game…</p>
     {:else}
       <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
-    {#if snap !== null && shown !== null && snap.game !== null}
-      <div class="hud top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
-      <div class="hud left"><Roster {snap} {shown} myTeam={actingTeam} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
+    <div class="float banner"><Banner {connection} /></div>
+    {#if pending !== null || problem !== null}
+      <div class="float foot">
+        {#if pending !== null}<p class="notice" role="status">{pending.item.label}: {pending.what === 'piece' ? 'click a piece' : 'click the table'}. Esc cancels.</p>{/if}
+        {#if problem !== null}<p role="alert">{problem}</p>{/if}
+      </div>
     {/if}
-    <div class="hud banner"><Banner {banner} /></div>
-    {#if pending !== null}<div class="hud hint" role="status">{pending.item.label}: {pending.what === 'piece' ? 'click a piece' : 'click the table'} (Esc cancels)</div>{/if}
-    {#if problem !== null}<div class="hud alert" role="alert">{problem}</div>{/if}
   </div>
-  <aside class="side">
+  <aside class="side" aria-label="Decision, unit and log">
     {#if snap !== null}<WaitingPanel {connection} {api} {snap} />{/if}
     {#if box !== null}<DecisionBoxView {box} {panel} />{/if}
     {#if snap !== null && box !== null}
@@ -405,13 +385,26 @@
 </div>
 
 <style>
-  .play { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; height: 100%; min-height: 0; }
-  .stage { position: relative; min-height: 0; min-width: 0; }
-  .hud { position: absolute; z-index: 2; pointer-events: none; }
-  .hud.top { top: 0.4rem; left: 50%; transform: translateX(-50%); width: min(46rem, calc(100% - 17rem)); display: flex; justify-content: center; }
-  .hud.left { top: 0.4rem; left: 0.4rem; bottom: 0.4rem; display: flex; align-items: flex-start; }
-  .hud.hint { bottom: 2.4rem; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 0.2rem 0.6rem; }
-  .hud.alert { bottom: 0.4rem; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid #ff6b5c; padding: 0.2rem 0.6rem; }
-  .hud.banner { top: 20%; left: 50%; transform: translateX(-50%); }
-  .side { overflow: auto; border-left: 1px solid var(--line); padding: 0.5rem 0.6rem; }
+  /* The top bar over the roster and the board; the right column the full height. Nothing floats over the board but the banner and the
+     pick hint or refusal at its foot. */
+  .play { display: grid; height: 100%; min-height: 0; grid-template-columns: auto minmax(0, 1fr) 23rem; grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: 'top top side' 'roster stage side'; }
+  .top { grid-area: top; min-width: 0; }
+  .roster { grid-area: roster; min-height: 0; }
+  .stage { grid-area: stage; position: relative; min-height: 0; min-width: 0; }
+  .stage > .loading { padding: var(--s4); }
+  .float { position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); pointer-events: none; max-width: calc(100% - 2 * var(--s4)); }
+  .float.banner { top: 20%; }
+  .float.foot { bottom: var(--s4); display: flex; flex-direction: column; gap: var(--s2); align-items: center; }
+  .float.foot p { margin: 0; box-shadow: 0 2px 10px #0000004d; }
+  .side { grid-area: side; display: flex; flex-direction: column; gap: var(--s3); min-height: 0; overflow: hidden; padding: var(--s3);
+    border-left: 1px solid var(--rule); background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
+  @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
+  /* A short window: the column scrolls as a whole, each part at its own height, the log at least 24rem. */
+  @media (max-height: 52rem) {
+    .side { overflow-y: auto; }
+    .side :global(:is(.decision, .card)) { flex: none; max-height: none; }
+    .side :global(.info) { flex: 1 0 auto; }
+    .side :global(.log.open) { flex: 1 0 24rem; height: 24rem; }
+  }
 </style>

@@ -38,14 +38,14 @@
 </script>
 
 {#if shown !== null}
-  <section class="waiting" aria-label="Waiting for players">
-    <h3>Waiting for players</h3>
-    <p>{WAITING_TITLE}</p>
+  <section class="panel waiting" aria-label="Waiting for players">
+    <h2>Waiting for players</h2>
+    <p class="dim">{WAITING_TITLE}</p>
     {#each shown as line, i (i)}
       <p class="warn">{line.text}</p>
       {#if line.join !== null}
         {@const join = line.join}
-        <button type="button" title={join.why} onclick={() => send(join.edit)}>{join.text}</button>
+        <button type="button" class="primary small" title={join.why} onclick={() => send(join.edit)}>{join.text}</button>
       {/if}
       {#if line.army !== null}
         {@const seat = line.army}
@@ -57,14 +57,15 @@
         </label>
       {/if}
     {/each}
-    {#if problem !== null}<p class="warn" role="alert">{problem}</p>{/if}
+    {#if problem !== null}<p role="alert">{problem}</p>{/if}
   </section>
 {/if}
 
 <style>
-  .waiting { border: 1px solid var(--line); border-radius: 4px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
-  h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
-  p { margin: 0.2rem 0; }
-  .warn { color: #ffc44e; }
-  label { display: grid; gap: 0.2rem; margin: 0.2rem 0; opacity: 0.9; }
+  .waiting { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2); margin: 0; padding: var(--s4); flex: none; }
+  h2 { margin: 0; font-size: .95rem; }
+  p { margin: 0; }
+  .warn { color: var(--warning); }
+  label { display: grid; gap: var(--s1); width: 100%; }
+  select { width: 100%; }
 </style>
