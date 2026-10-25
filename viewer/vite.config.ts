@@ -6,8 +6,11 @@ import { defineConfig } from 'vitest/config';
 const api = process.env.TABLETOP_API_PROXY_TARGET ?? 'http://localhost:5100';
 // The runner service behind /suite and /runs (sim serve; it sends no CORS headers).
 const suite = process.env.TABLETOP_SUITE_PROXY_TARGET ?? 'http://localhost:5180';
+// The website's fonts and theme assets (web/static/themes), so the viewer's own dev server draws in the site's theme too.
+const web = process.env.TABLETOP_WEB_PROXY_TARGET ?? 'http://127.0.0.1:5173';
 const proxy = {
   '/v1': { target: api, changeOrigin: false },
+  '/themes': { target: web, changeOrigin: false },
   '/suite': { target: suite, changeOrigin: false },
   '/runs': { target: suite, changeOrigin: false },
 };
