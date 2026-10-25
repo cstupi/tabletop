@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Applier, ProjectionDesyncError, effectiveLog, initialProjection } from '../src/lib/live/apply';
+import { loadFixture } from './fixture';
+import { Applier, ProjectionDesyncError, effectiveLog, initialProjection, projectTo } from '../src/lib/live/apply';
 import { lineOf } from '../src/lib/live/logLines';
 import { FrameProjector, declarationsOf } from '../src/lib/live/project';
 import type { Board, GameEvent, GameInfo } from '../src/lib/protocol/wire.generated';
@@ -45,6 +46,8 @@ const board = {
 } as unknown as Board;
 
 const ev = (seq: number, payload: unknown): GameEvent => ({ seq, payload } as unknown as GameEvent);
+const die = (raw: number, success = false) => ({ raw, modified: raw, success });
+const roll = (id: string, dice: unknown[]) => ({ id, roll: 'to-hit', modifiers: [], dice });
 const ordinals = new Map([[T1, 1], [T2, 2]]);
 
 describe('the ported applier', () => {
@@ -110,11 +113,11 @@ describe('the ported applier', () => {
     expect(a.projection.openAsks.size).toBe(0);
   });
 
-  it('treats a reroll and an edit as changing nothing a frame records', () => {
+  it('treats a reroll and an edit as changing nothing but the replaced faces', () => {
     const a = new Applier(board, game);
     a.applyAll([
       ev(1, { kind: 'sequence_started', frameId: F1, sequence: 'attack-sequence', context: { actorUnitId: U1, targetUnitIds: [], weaponIds: [] } }),
-      ev(2, { kind: 'step_completed', frameId: F1, step: 'roll-to-hit', rolls: [], changes: [{ kind: 'wounds_set', modelId: M1, wounds: 1 }] }),
+      ev(2, { kind: 'step_completed', frameId: F1, step: 'roll-to-hit', rolls: [roll(R1, [die(2)])], changes: [{ kind: 'wounds_set', modelId: M1, wounds: 1 }] }),
       ev(4, { kind: 'dice_rerolled', frameId: F1, rollId: R1, replaced: [] }),
       ev(5, { kind: 'dice_edited', frameId: F1, rollId: R1, replaced: [] }),
       ev(6, { kind: 'sequence_finished', frameId: F1 }),
@@ -245,12 +248,13 @@ describe('the ported board projection', () => {
     expect(first.models).toHaveLength(1);
     expect(first.models[0]).toEqual({ id: M1, where: 'shelf', wounds: 0, spellTokens: 0, conditions: [] });
     expect(first.units[0]).toEqual({ id: U1, actions: [], conditions: [], grants: [], woundsThisActivation: 0 });
-    const second = projector.add(ev(2, { kind: 'step_completed', frameId: F1, step: 's', rolls: [
+    projector.add(ev(2, { kind: 'sequence_started', frameId: F1, sequence: 'attack-sequence', context: { actorUnitId: U1, targetUnitIds: [], weaponIds: [] } }));
+    const second = projector.add(ev(3, { kind: 'step_completed', frameId: F1, step: 's', rolls: [
       { id: R1, roll: 'hit', threshold: 4, modifiers: [{ source: 'AP', amount: -1 }], dice: [{ raw: 3, modified: 4, success: true }, { raw: 1, modified: 2, success: false }] },
     ], changes: [] }));
-    expect(second.index).toBe(1);
+    expect(second.index).toBe(2);
     expect(second.rolls[0]).toEqual({ id: R1, roll: 'hit', threshold: 4, net: 1, raw: [3, 1], modified: [4, 2], success: [true, false], modifiers: [{ source: 'AP', amount: -1 }] });
-    expect(projector.frames).toHaveLength(2);
+    expect(projector.frames).toHaveLength(3);
   });
 
   it('carries the score, the passed teams and a marker dropped during play, all as whole state', () => {
@@ -260,6 +264,7 @@ describe('the ported board projection', () => {
     expect(opening.passed).toEqual([]);
     expect(opening.markers.map((m) => m.id)).toEqual([K1]);  // the board's setup markers lead every frame
 
+    projector.add(ev(2, { kind: 'sequence_started', frameId: F1, sequence: 'attack-sequence', context: { actorUnitId: U1, targetUnitIds: [], weaponIds: [] } }));
     projector.add(ev(2, { kind: 'score_set', teamId: T2, score: 4 }));
     const dropped = projector.add(ev(3, { kind: 'step_completed', frameId: F1, step: 'drop', rolls: [], changes: [
       { kind: 'marker_placed', marker: { id: K9, kind: 'token', position: { x: 4, y: 4, z: 0 },
@@ -322,5 +327,103 @@ describe('the frame projector lists markers', () => {
     expect(frame.markers.map((m) => m.id)).toEqual([K1, K9]);
     expect(frame.markers[0]!.controlledBy).toBe(T2);
     expect('controlledBy' in frame.markers[1]!).toBe(false);
+  });
+});
+
+
+describe('the frame stack', () => {
+  const F2 = '0198b7ac-0000-7000-8000-000000000062';
+  const F3 = '0198b7ac-0000-7000-8000-000000000063';
+  const ctx = { actorUnitId: U1, targetUnitIds: [], weaponIds: [] };
+  const started = (seq: number, frameId: string, outline?: unknown) =>
+    ev(seq, { kind: 'sequence_started', frameId, sequence: 'attack-sequence', context: ctx, ...(outline ? { outline } : {}) });
+
+  it('sequence_started pushes a frame with its context and outline', () => {
+    const a = new Applier(board, game);
+    const outline = [{ step: 'roll-to-hit', label: 'Hit' }];
+    a.apply(started(1, F1, outline));
+    expect(a.projection.stack).toHaveLength(1);
+    expect(a.projection.stack[0]).toMatchObject({ id: F1, sequence: 'attack-sequence', context: ctx, outline, steps: [] });
+    const b = new Applier(board, game);
+    b.apply(started(1, F1));
+    expect(b.projection.stack[0]!.outline).toEqual([]);
+  });
+
+  it('step_completed records step, answer, rolls, changes, values and applied on its frame and applies the changes', () => {
+    const a = new Applier(board, game);
+    const rolls = [roll(R1, [die(4, true)])];
+    const changes = [{ kind: 'wounds_set', modelId: M1, wounds: 2 }];
+    a.applyAll([started(1, F1), ev(2, { kind: 'step_completed', frameId: F1, step: 'roll-to-hit', answer: { kind: 'confirmed' }, rolls, changes,
+      values: { hits: 1 }, applied: ['Rending'] })]);
+    const step = a.projection.stack[0]!.steps[0]!;
+    expect(step).toMatchObject({ step: 'roll-to-hit', answer: { kind: 'confirmed' }, changes, values: { hits: 1 }, applied: ['Rending'] });
+    expect(step.rolls).toEqual(rolls);
+    expect(step.rolls).not.toBe(rolls);
+    expect(a.projection.models.get(M1)!.wounds).toBe(2);
+  });
+
+  it('sequence_finished pops the frame and every frame above it', () => {
+    const a = new Applier(board, game);
+    a.applyAll([started(1, F1), started(2, F2), started(3, F3)]);
+    a.apply(ev(4, { kind: 'sequence_finished', frameId: F2 }));
+    expect(a.projection.stack.map((f) => f.id)).toEqual([F1]);
+  });
+
+  it('sequence_abandoned pops the same way', () => {
+    const a = new Applier(board, game);
+    a.applyAll([started(1, F1), started(2, F2), started(3, F3)]);
+    a.apply(ev(4, { kind: 'sequence_abandoned', frameId: F2 }));
+    expect(a.projection.stack.map((f) => f.id)).toEqual([F1]);
+  });
+
+  it('dice_rerolled replaces the faces at their indices in the frame\'s step, and dice_edited too', () => {
+    const a = new Applier(board, game);
+    const stepEvent = { kind: 'step_completed', frameId: F1, step: 'roll-to-hit', rolls: [roll(R1, [die(1), die(2), die(3)])], changes: [] };
+    a.applyAll([started(1, F1), ev(2, stepEvent)]);
+    a.apply(ev(3, { kind: 'dice_rerolled', frameId: F1, rollId: R1, replaced: [{ index: 1, old: die(2), new: die(6, true) }] }));
+    expect(a.projection.stack[0]!.steps[0]!.rolls[0]!.dice.map((d) => d.raw)).toEqual([1, 6, 3]);
+    a.apply(ev(4, { kind: 'dice_edited', frameId: F1, rollId: R1, replaced: [{ index: 0, old: die(1), new: die(5, true) }] }));
+    expect(a.projection.stack[0]!.steps[0]!.rolls[0]!.dice.map((d) => d.raw)).toEqual([5, 6, 3]);
+    expect((stepEvent.rolls[0] as { dice: { raw: number }[] }).dice[1]!.raw).toBe(2);
+  });
+
+  it('a step for an unknown frame throws ProjectionDesyncError naming the frame', () => {
+    const a = new Applier(board, game);
+    expect(() => a.apply(ev(1, { kind: 'step_completed', frameId: F1, step: 's', rolls: [], changes: [] }))).toThrow(ProjectionDesyncError);
+    try { new Applier(board, game).apply(ev(1, { kind: 'sequence_finished', frameId: F1 })); expect.unreachable(); } catch (error) {
+      expect(error).toMatchObject({ kind: 'sequence_finished', unknownId: F1 });
+    }
+  });
+
+  it('a die index out of range throws naming the roll', () => {
+    const a = new Applier(board, game);
+    a.applyAll([started(1, F1), ev(2, { kind: 'step_completed', frameId: F1, step: 's', rolls: [roll(R1, [die(1)])], changes: [] })]);
+    try { a.apply(ev(3, { kind: 'dice_rerolled', frameId: F1, rollId: R1, replaced: [{ index: 3, old: die(1), new: die(2) }] })); expect.unreachable(); }
+    catch (error) { expect(error).toMatchObject({ kind: 'dice_rerolled', unknownId: R1 }); }
+  });
+
+  it('projectTo rebuilds the effective log up to seq', () => {
+    const f = loadFixture('skirmish');
+    const events = f.events.slice(0, 80);
+    const at = events[39]!.seq;
+    const applier = new Applier(f.board, f.game);
+    applier.applyAll(events);
+    const projected = projectTo(f.board, f.game, events, at);
+    const fresh = new Applier(f.board, f.game);
+    fresh.applyAll(events.slice(0, 40));
+    expect(projected.lastSeq).toBe(at);
+    expect([...projected.models.values()].map((m) => m.wounds)).toEqual([...fresh.projection.models.values()].map((m) => m.wounds));
+    expect(projected.stack.map((fr) => fr.id)).toEqual(fresh.projection.stack.map((fr) => fr.id));
+    expect(applier.projectTo(at).lastSeq).toBe(at);
+  });
+
+  it('projectTo skips an undone range', () => {
+    const log = [
+      ev(1, { kind: 'score_set', teamId: T1, score: 1 }), ev(2, { kind: 'score_set', teamId: T1, score: 2 }),
+      ev(3, { kind: 'undone', toSeq: 1 }), ev(4, { kind: 'score_set', teamId: T1, score: 7 }),
+    ];
+    expect(projectTo(board, game, log, 2).scores.get(T1)).toBe(1);
+    expect(projectTo(board, game, log, 4).scores.get(T1)).toBe(7);
+    expect(projectTo(board, game, log, 4).lastSeq).toBe(4);
   });
 });
