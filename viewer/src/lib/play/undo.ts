@@ -57,9 +57,9 @@ export class UndoPrediction {
   get pendingUndoTo(): number | null { return this.#pending; }
 
   /** Session.UndoToAsync: predict, send Undo(seq); a refusal or a failed send drops the prediction and rethrows the failure. A
-   * watcher, whose state holds no board, predicts nothing and sends nothing. */
-  async undoTo(state: ConnectionState, seq: number, send: (c: Command) => Promise<SendOutcome>): Promise<void> {
-    if (state.board === null || state.game === null || state.projection === null) return;
+   * watcher, whose state holds no board, predicts nothing and sends nothing (null). */
+  async undoTo(state: ConnectionState, seq: number, send: (c: Command) => Promise<SendOutcome>): Promise<SendOutcome | null> {
+    if (state.board === null || state.game === null || state.projection === null) return null;
     this.#predicted = projectTo(state.board, state.game, state.log, seq);
     this.#pending = seq;
     this.#command = null;
@@ -72,6 +72,7 @@ export class UndoPrediction {
     }
     if (outcome.refused !== null) this.#clear(); else this.#command = outcome.id;
     this.#changed();
+    return outcome;
   }
 
   /** Each events batch: an undone whose toSeq is the pending one ends the prediction (ClearPrediction). */
