@@ -112,9 +112,9 @@ describe('GameConnection', () => {
     const lobby = track(h.conn.sendEdit(edit('create_team')));
     expect(s.frames().slice(1).map((f) => (f.edit as { kind: string }).kind)).toEqual(['set_table_size', 'create_team']);
     s.deliver({ kind: 'game', game: lobbyGame });
-    await expect(lobby).resolves.toEqual({ refused: null });
+    await expect(lobby).resolves.toMatchObject({ refused: null });
     s.deliver({ kind: 'board', board: fixture.board });
-    await expect(setup).resolves.toEqual({ refused: null });
+    await expect(setup).resolves.toMatchObject({ refused: null });
   });
 
   it('a refused edit settles with its Refused and reaches onRefused with Godot\'s text', async () => {
@@ -136,7 +136,7 @@ describe('GameConnection', () => {
     const sent = track(h.conn.sendCommand(command('undo', { toSeq: 1 })));
     expect(lastFrame(s)).toMatchObject({ kind: 'command', command: { kind: 'undo' } });
     s.deliver({ kind: 'at_rest', seq: 4 });
-    await expect(sent).resolves.toEqual({ refused: null });
+    await expect(sent).resolves.toMatchObject({ refused: null });
   });
 
   it('a refused command settles on the Refused, not the at_rest after it', async () => {
@@ -153,7 +153,40 @@ describe('GameConnection', () => {
     await tick();
     expect(settled).toBe(false);
     s.deliver({ kind: 'at_rest', seq: 5 });
-    await expect(second).resolves.toEqual({ refused: null });
+    await expect(second).resolves.toMatchObject({ refused: null });
+  });
+
+  it('a Refused after its send settled on another frame still reaches onRefused and names the send', async () => {
+    const h = harness();
+    const seen: Refused[] = [];
+    h.conn.onRefused((r) => seen.push(r));
+    const s = await welcomed(h, setupWelcome);
+    const sent = track(h.conn.sendEdit(edit('set_table_size', { size: { width: 72, length: 48 } })));
+    const id = lastFrame(s).editId as string;
+    s.deliver({ kind: 'board', board: fixture.board });            // someone else's broadcast settles it as accepted
+    const outcome = await sent;
+    expect(outcome).toEqual({ id, refused: null });
+    const refused: SocketMessage = { kind: 'refused', messageId: id, reason: 'illegal', detail: 'late' };
+    s.deliver(refused);
+    expect(seen).toEqual([refused]);
+  });
+
+  it('a late Refused for a command swallows the at_rest that follows it', async () => {
+    const h = harness();
+    const s = await welcomed(h);
+    const first = track(h.conn.sendCommand(command('undo', { toSeq: 1 })));
+    const id = lastFrame(s).commandId as string;
+    s.deliver({ kind: 'at_rest', seq: 4 });                         // another player's command settles it
+    await first;
+    s.deliver({ kind: 'refused', messageId: id, reason: 'illegal', detail: 'no' });
+    const second = track(h.conn.sendCommand(command('undo', { toSeq: 2 })));
+    let settled = false;
+    void second.then(() => { settled = true; });
+    s.deliver({ kind: 'at_rest', seq: 5 });                         // the refused command's own at_rest
+    await tick();
+    expect(settled).toBe(false);
+    s.deliver({ kind: 'at_rest', seq: 6 });
+    await expect(second).resolves.toMatchObject({ refused: null });
   });
 
   it('querySight resolves on its answer', async () => {
@@ -185,9 +218,9 @@ describe('GameConnection', () => {
     expect(second.frames().map((f) => f.kind)).toEqual(['connect', 'edit', 'edit']);
     expect(second.frames().slice(1).map((f) => (f.edit as { kind: string }).kind)).toEqual(['create_team', 'pick_team']);
     second.deliver({ kind: 'game', game: lobbyGame });
-    await expect(a).resolves.toEqual({ refused: null });
+    await expect(a).resolves.toMatchObject({ refused: null });
     second.deliver({ kind: 'game', game: lobbyGame });
-    await expect(b).resolves.toEqual({ refused: null });
+    await expect(b).resolves.toMatchObject({ refused: null });
   });
 
   it('the seventeenth queued send throws queue_full', async () => {

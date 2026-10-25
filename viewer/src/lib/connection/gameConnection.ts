@@ -35,8 +35,12 @@ export interface ConnectionState {
   readonly closeReason: string | null;
 }
 
-/** How a send ended: its Refused, or null once the next frame of its kind arrived. */
-export interface SendOutcome { readonly refused: Refused | null }
+/**
+ * How a send ended: its Refused, or null once the next frame of its kind arrived. `id` is the message id its Refused names. A
+ * broadcast from another player can settle a send as accepted before its own Refused arrives, so a caller that needs the true
+ * result treats a later onRefused with this id as the result, as Session matches Refused by id.
+ */
+export interface SendOutcome { readonly id: string; readonly refused: Refused | null }
 
 export class SendError extends Error {
   constructor(message: string, readonly why: 'not_connected' | 'queue_full' | 'disconnected' | 'closed') {
@@ -52,7 +56,7 @@ export interface GameConnection {
   subscribe(listener: (state: ConnectionState) => void): () => void;
   /** Each events batch after it is applied and published. */
   onEvents(listener: (events: readonly GameEvent[]) => void): () => void;
-  /** Every Refused, with Feedback.Refusal's text (null for a watcher's refused presence). */
+  /** Every Refused, with Feedback.Refusal's text (null for a watcher's refused presence), even one for a send that already settled. */
   onRefused(listener: (refused: Refused, text: string | null) => void): () => void;
   /** Sends now when welcomed, queues while reconnecting (16 at most), else rejects with SendError('not_connected'). */
   sendEdit(edit: Edit): Promise<SendOutcome>;
@@ -77,6 +81,7 @@ export interface ConnectionOptions {
 
 const WELCOME_TIMEOUT_MS = 10_000;
 const QUEUE_LIMIT = 16;
+const SETTLED_LIMIT = 64;
 const BACKOFF = [1000, 2000, 5000, 10000];
 const NO_OPTIONS: RulesOptionCatalog = { options: [], presets: [] };
 /** The edits the server answers with a `game` frame; every other edit is a setup edit and is answered with a `board` frame. */
@@ -118,6 +123,8 @@ export function connectGame(options: ConnectionOptions): GameConnection {
   let reauthTimer: ReturnType<typeof setInterval> | undefined;
   const queue: Send[] = [];
   let pending: Send[] = [];
+  /** The last sends that settled as accepted: a Refused can still name one. */
+  const settled = new Map<string, boolean>();
 
   function publish(patch: Partial<ConnectionState>): void {
     state = { ...state, ...patch };
@@ -134,6 +141,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
   function reset(): void {
     applier = null;
     swallowAtRest = 0;
+    settled.clear();
     publish({
       game: null, participantId: null, draft: null, board: null, log: [], projection: null,
       maxWounds: new Map(), deployInside: new Map(), catchingUp: true,
@@ -231,7 +239,14 @@ export function connectGame(options: ConnectionOptions): GameConnection {
     const index = pending.findIndex((p) => p.kind === kind && (key === undefined || p.id === key));
     if (index < 0) return;
     const [send] = pending.splice(index, 1);
-    (send!.resolve as (v: SendOutcome) => void)({ refused: null });
+    remember(send!);
+    (send!.resolve as (v: SendOutcome) => void)({ id: send!.id, refused: null });
+  }
+
+  function remember(send: Send): void {
+    if (send.kind === 'sight') return;
+    settled.set(send.id, send.isCommand);
+    if (settled.size > SETTLED_LIMIT) settled.delete(settled.keys().next().value!);
   }
 
   function handle(frame: SocketMessage): void {
@@ -289,7 +304,11 @@ export function connectGame(options: ConnectionOptions): GameConnection {
           const [send] = pending.splice(index, 1);
           // The command's own at_rest follows its Refused and settles nothing.
           if (send!.isCommand) swallowAtRest++;
-          (send!.resolve as (v: SendOutcome) => void)({ refused: frame });
+          (send!.resolve as (v: SendOutcome) => void)({ id: send!.id, refused: frame });
+        } else if (settled.has(frame.messageId)) {
+          // A broadcast settled this send first; the command's own at_rest still follows its Refused.
+          if (settled.get(frame.messageId)) swallowAtRest++;
+          settled.delete(frame.messageId);
         }
         const text = refusalText(frame);
         for (const listener of [...refusedListeners]) listener(frame, text);

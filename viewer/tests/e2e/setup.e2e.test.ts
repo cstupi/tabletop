@@ -59,11 +59,14 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playin
       await Promise.all([waitFor(a, (s) => s.phase === 'connected', 'A connected'), waitFor(b, (s) => s.phase === 'connected', 'B connected')]);
 
       const sendOk = async (conn: GameConnection, edit: Edit) => expect((await conn.sendEdit(edit)).refused).toBeNull();
-      // A send settles on its Refused or on the next frame of its kind, so a broadcast still in flight from someone else's edit would
-      // settle it as accepted before the Refused arrives: let the frames go quiet before a send that must be refused.
       const refusal = async (conn: GameConnection, edit: Edit) => {
-        await new Promise((r) => setTimeout(r, 300));
-        return (await conn.sendEdit(edit)).refused?.reason;
+        // A broadcast from another player's edit can settle the send before its own Refused: the Refused by id is the result.
+        const outcome = await conn.sendEdit(edit);
+        if (outcome.refused !== null) return outcome.refused.reason;
+        return new Promise<string | undefined>((resolve) => {
+          const stop = conn.onRefused((r) => { if (r.messageId === outcome.id) { stop(); resolve(r.reason); } });
+          setTimeout(() => { stop(); resolve(undefined); }, 1000);
+        });
       };
       const teams = (s: ConnectionState) => s.game?.teams ?? [];
 
