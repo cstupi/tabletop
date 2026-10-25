@@ -69,7 +69,7 @@ public static partial class CallCases
                 if (take("choose/option"))
                     yield return Make("choose/option", Choice("option", ("optionId", ch.OptionId)), s => Send(s, new Chosen(ch.OptionId)), answerOf: _ => ch);
                 var numbered = (CallState s) => DecisionView.Of(s.P!, s.Game, s.Names, s.Acting, s.MutedSet).Numbered;
-                if (take("choose/key") && numbered(CallState.Playing(log, upTo, player)).FirstOrDefault(n => n.OptionId == ch.OptionId) is { } entry)
+                if (Reachable(numbered(CallState.Playing(log, upTo, player)), ch.OptionId) is { } entry && take("choose/key"))
                     yield return Make("choose/key", Choice("key", ("key", entry.Key)), s => Send(s, new Chosen(ch.OptionId)),
                         (s, d) => d["numbered"] = NumberedOf(numbered(s)), answerOf: _ => ch);
                 var shared = o.Choices.Count(c => c.Pieces.Intersect(picked.Pieces).Any()) > 1;
@@ -79,7 +79,7 @@ public static partial class CallCases
                     var unit = state.P!.Units.ContainsKey(picked.Pieces[0]) ? picked.Pieces[0] : state.P.Models[picked.Pieces[0]].UnitId;
                     var here = DecisionView.ChoicesOf(o, state.P, unit);
                     var narrowed = DecisionView.Number(here);
-                    if (take("choose/unitKey"))
+                    if (Reachable(narrowed, ch.OptionId) is not null && take("choose/unitKey"))
                         yield return Make("choose/unitKey", Choice("unitKey", ("unitId", S(unit)), ("key", narrowed.First(n => n.OptionId == ch.OptionId).Key)),
                             s => Send(s, new Chosen(ch.OptionId)), (s, d) => d["numbered"] = NumberedOf(DecisionView.Number(DecisionView.ChoicesOf(o, s.P!, unit))),
                             answerOf: _ => ch);
@@ -122,9 +122,9 @@ public static partial class CallCases
                 if (take(kind))
                     yield return Make(kind, Choice("pick", ("clicks", Ids(chosen.PieceIds)), ("done", done)), s => SendOrNull(s, Pick(s, done)),
                         (s, d) => d["pickable"] = Ids(DeployView.Pickable(s.P!, ask)), answerOf: s => Pick(s, done));
-                if (deploy && chosen.PieceIds.Count == 1 && take("pickKey")
+                if (deploy && chosen.PieceIds.Count == 1
                     && DecisionView.Of(CallState.Playing(log, upTo, player).P!, log.Game, CallState.Playing(log, upTo, player).Names, CallState.Playing(log, upTo, player).Acting, new HashSet<string>())
-                        .Numbered.FirstOrDefault(n => n.OptionId == chosen.PieceIds[0].ToString()) is { } key)
+                        .Numbered is var keyed && Reachable(keyed, chosen.PieceIds[0].ToString()) is { } key && take("pickKey"))
                     yield return Make("pickKey", Choice("pickKey", ("key", key.Key)), s => SendOrNull(s, Pick(s, false)),
                         (s, d) => { d["numbered"] = NumberedOf(DecisionView.Of(s.P!, s.Game, s.Names, s.Acting, s.MutedSet).Numbered); d["pickable"] = Ids(DeployView.Pickable(s.P!, ask)); },
                         answerOf: s => Pick(s, false));
@@ -204,6 +204,14 @@ public static partial class CallCases
         var kind = disembark ? "move/disembark" : "move";
         if (take(kind))
             yield return make(kind, Choose(dest.Continues), s => Send(s, Move(s, dest.Continues)), null, null, s => Move(s, dest.Continues));
+        if (disembark && take("move/disembark/turned"))
+        {
+            // A ghost the player turned: Godot answers the facing that fits at the drop (p.7), never the ghost's.
+            var turned = ghosts.ToDictionary(kv => kv.Key, kv => kv.Value with { Yaw = new Yaw(135) });
+            AskAnswer Turned(CallState s) => AskAnswers.Move(s.P!, region, turned.ToDictionary(kv => kv.Key, kv => kv.Value.Position),
+                turned.ToDictionary(kv => kv.Key, kv => kv.Value.Yaw), false, Exit(s));
+            yield return make("move/disembark", Choice("move", ("ghosts", J(turned)), ("stop", false)), s => Send(s, Turned(s)), null, null, null, "turned");
+        }
         if (region.Stoppable && !disembark && take("move/stop"))
             yield return make("move/stop", Choose(true), s => Send(s, Move(s, true)), null, null, null);
     }
@@ -224,6 +232,13 @@ public static partial class CallCases
                 yield return c;
             }
         }
+    }
+
+    /// <summary>The numbered entry for this option, when its key reaches it: entries past nine all carry key 0 and the key picks the first.</summary>
+    static (int Key, string Label, string OptionId)? Reachable(IEnumerable<(int Key, string Label, string OptionId)> numbered, string optionId)
+    {
+        var list = numbered.ToList();
+        return list.FirstOrDefault(n => n.OptionId == optionId) is { OptionId: not null } e && list.First(n => n.Key == e.Key).OptionId == optionId ? e : null;
     }
 
     /// <summary>Equal answers; a disembarking model's facing is not compared (Godot answers the exit facing, not the logged one).</summary>
