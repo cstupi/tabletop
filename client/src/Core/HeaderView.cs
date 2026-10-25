@@ -33,9 +33,13 @@ public static class HeaderView
     /// <summary>The activation's top frame: the outermost one whose context names an action. Nested frames run under it.</summary>
     public static Frame? ActionFrame(Projection p) => p.Stack.FirstOrDefault(f => f.Context.Action is not null);
 
-    /// <summary>Per team: units with a model on the table and no action recorded this round. Who may activate is the scheduler's, not this count's.</summary>
+    /// <summary>Per team: units in play (a model on the table, or inside a container on the table: p.15 "units may enter/exit by using any move
+    /// action") with no action recorded this round. Who may activate is the scheduler's, not this count's.</summary>
     public static IReadOnlyDictionary<Guid, int> NotActivated(Projection p, GameInfo game) => game.Teams.ToDictionary(t => t.Id, t => p.Units.Values.Count(u =>
-        u.Actions.Count == 0 && game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id) && p.Models.Values.Any(m => m.UnitId == u.Id && m.Location is OnTable)));
+        u.Actions.Count == 0 && game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id) && p.Models.Values.Any(m => m.UnitId == u.Id && InPlay(p, m.Location))));
+
+    static bool InPlay(Projection p, Location at) =>
+        at is OnTable || at is Inside { ContainerId: var c } && p.Models.GetValueOrDefault(c)?.Location is OnTable;
 
     /// <summary>Objective markers, setup's then play's, with their controller (Projection.Control); null is neutral.</summary>
     public static IReadOnlyList<(Guid MarkerId, Guid? TeamId)> Objectives(Projection p) => p.Board.Table.Markers.Concat(p.Markers.Values)
@@ -90,9 +94,9 @@ public static class HeaderView
         waiting.Count == 0 ? null : "Deployment waits: " + string.Join(" · ", waiting.Select(w => w.Text));
 
     /// <summary>The header's line for a client the server answers as a watcher (Session.IsWatching).</summary>
-    public const string Watching = "Watching: you have no team in this game, so you see everything and change nothing.";
+    public const string Watching = "Watching: you have no team in this game";
     /// <summary>The header's line in a replay (Session.Replaying).</summary>
-    public const string Replaying = "Replay: the table as it stood at this point in the game. Nothing here changes the game.";
+    public const string Replaying = "Replay: the table as it stood at this point in the game";
 
     static string? Result(GameEnded? ended, Names n) => ended is null ? null : "Game over · " + Outcome(ended, n);
 

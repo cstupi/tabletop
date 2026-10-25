@@ -7,12 +7,15 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// hand-move judge (IGameRules.PlacementBreach).</summary>
 public sealed partial class GrimdarkFutureRules
 {
-    public AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) =>
-        ask.Legal is MoveRegion region && answer is Destinations moves
-            ? GfMoves.NotOfferedBreach(state, region, moves) ?? GfMoves.PathBreach(state, region, moves)
-              ?? GfMoves.MinimumBreach(state, region, moves) ?? GfMoves.DifficultCapBreach(state, ask, region, moves)
-              ?? GfMoves.ContactBreach(state, region, moves)
-            : PassBreach(ask, answer) ?? DeployInsideBreach(state, ask, answer);
+    public AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) => ask.Legal switch
+    {
+        MoveRegion region when answer is Destinations moves =>
+            GfMoves.NotOfferedBreach(state, region, moves) ?? GfMoves.PathBreach(state, region, moves)
+            ?? GfMoves.MinimumBreach(state, region, moves) ?? GfMoves.DifficultCapBreach(state, ask, region, moves)
+            ?? GfMoves.ContactBreach(state, region, moves) ?? GfMoves.CoherencyBreach(state, region, moves) ?? GfMoves.ChargeContactBreach(state, region, moves),
+        MoveRegion region when answer is Passed => GfMoves.ChargeContactBreach(state, region, null),
+        _ => PassBreach(ask, answer) ?? DeployInsideBreach(state, ask, answer),
+    };
 
     /// <summary>
     /// p.15: "units inside Transports are deployed at the same time as the Transport". A deploy Ask lists units with every model on the shelf; one

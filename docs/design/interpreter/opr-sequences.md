@@ -136,7 +136,7 @@ instead (p.14: *"resolved as if it was a unit of [1]"*), so its own `Defense` is
 (p.11). The verdict travels with it as `Values["cover_models"]`, `Values["cover_of"]` and, when Indirect's dropped sight half
 lost the majority, `Values["cover_indirect"]`; `roll-to-block` puts the one verdict on every group's defense roll as
 `RollRecord.Cover`, with a cover suppressor (Blast) named as `IgnoredBy`. p.11's one majority lives in that call: more than half of the target's living models are
-in cover terrain, screened by a sight blocker, or unseen. `Battlefield` supplies only the two
+in cover terrain, screened by a sight blocker or by cover terrain on the line that does not block sight (a wall or fence, a barricade), or unseen. `Battlefield` supplies only the two
 model lists, `ModelsInCoverTerrain` and `ModelsBehindSightBlockers`, and the fraction is the size
 of their union, because the fraction is a ruleset number. Sight is measured from the whole
 eligible attacker set, not from one vantage model. Indirect drops the sight list. Each defense die carries what it set off on the
@@ -280,8 +280,8 @@ locations"* still hold its landing (`GfMoves.LandsInImpassable`). An Aircraft's 
 (`GfMoves.PlacementRegion`), sets `IgnoresTerrain` (p.13 *"ignore all units and terrain when moving and stopping"*), so its landing is not judged. p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
 `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`, both between bodies in
 three dimensions (`Movement.Check`'s `CrossesModels` along the path, `Distance.BodyToBody`), so a model passing above another does not move through it; 1 except the Charge
-move, the close-in, consolidation and an Aircraft's move or placement (move step, forced move, reposition); a disembark keeps it). Coherency is not judged, per
-`architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
+move, the close-in, consolidation and an Aircraft's move or placement (move step, forced move, reposition); a disembark keeps it). Coherency is `GfMoves.CoherencyBreach` (`move_coherency`, p.7): a unit in coherency before the answer stays in it,
+per `architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
 
 How a unit treats terrain is read once, from its live set, by `GfMoves.TerrainFor`: Aircraft (no volume listed or swept, no
 cap, no dangerous terrain test), Flying (p.13 *"may move through units and terrain, and ignore terrain effects whilst moving"*:
@@ -408,7 +408,10 @@ that causes a wound would be counted twice.
 
 `charge-target` offers enemy units with a model a charger model reaches in base contact within `StatReader.ActionDistance(Charge)`
 along a path round every impassable volume (`Movement.ContactDistance`; p.9 *"has a clear path to reach it"*, *"charge moves
-don't have to be in a straight line"*); a Flying charger's path is not blocked (p.13). Two containment consequences fall out:
+don't have to be in a straight line"*); a Flying charger's path is not blocked (p.13). The charge move's `MoveRegion.ContactWith` is the
+target's models on the table, and `GfMoves.ChargeContactBreach` (`charge_contact`) holds the move to p.9 *"must move by up to 12” to get into
+base contact with an enemy model from the target unit, or as close as possible"*: when contact is reachable, an answer that leaves no charging
+model in base contact is a breach. Two containment consequences fall out:
 
 - **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is

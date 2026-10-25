@@ -1,16 +1,27 @@
 // viewer/src/lib/play/modelDrag.ts
 // TableInput's model drag (OnLeftDown's pick-up, Place, Arrange, Turn, OnLeftUp) over DragBodies, in the browser: held models are always
 // lifted (spec → Heights: no level keys), each landed by Geometry.landModels against the stationary models, the walls and the terrain. Alt
-// places freely: straight to the cursor, resting on the highest surface. There is no reach outline (spec): a target is not clamped.
+// places freely: straight to the cursor, resting on the highest surface. There is no reach outline (spec): inside a move's Ask (not a
+// disembark or a shelf placement) each held model's target is held to the Ask's allowance from its origin on the straight line (clampToReach)
+// before it lands.
 
 import type { Geometry, HeldEnd, HeldModel, PlacedModel, Placement, Point3, XY } from '../geometry';
 import { wallsOf } from '../geometry';
 import type { Projection } from '../live/apply';
 import type { MoveRegion } from '../protocol/wire.generated';
 import { arrange as formation } from './formation';
+import { isDisembark } from './moveRuler';
 
 const wrap = (degrees: number): number => ((degrees % 360) + 360) % 360;
 const EPS = 1e-6;
+
+/** MoveRegions.Clamp without paths: the target, or the point `allowance` from the origin on the straight line towards it. Exact on open
+ *  ground; never farther than the server allows. */
+export function clampToReach(origin: XY, target: XY, allowance: number): XY {
+  const dx = target.x - origin.x, dy = target.y - origin.y, d = Math.hypot(dx, dy), reach = Math.max(0, allowance);
+  if (d <= reach) return target;
+  return { x: origin.x + (dx / d) * reach, y: origin.y + (dy / d) * reach };
+}
 
 /** DragBodies.Stationary: every model not held, where it stands: a ghost where it is drawn, any other model on the table. */
 export function stationary(p: Projection, held: ReadonlySet<string>, ghosts: ReadonlyMap<string, Placement> = new Map()): PlacedModel[] {
@@ -148,6 +159,11 @@ export class ModelDrag {
     }
     const to = targets();
     const now = this.#held!;                                                    // formation targets set the yaws
+    if (!alt && region !== null && !isDisembark(region))
+      for (const [id, target] of to) {
+        const origin = now.origins.get(id);
+        if (origin !== undefined) to.set(id, clampToReach(origin.position, target, region.allowance));
+      }
     const terrain = p.board.table.terrain;
     const bodyOf = (id: string, at: Point3): PlacedModel => {
       const slot = p.models.get(id)!.slot;

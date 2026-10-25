@@ -15,7 +15,7 @@ export const NO_MODIFIERS: Modifiers = { shift: false, ctrl: false, alt: false }
 
 /** Every handler is optional; without onDragStart a press pans. */
 export interface BoardInteraction {
-  /** Hit testing; default pickAt(scene, at): models, then markers, then terrain, last drawn first. */
+  /** Hit testing; default pickAt(scene, at, the board's model style): models, then markers, then terrain, last drawn first. */
   pick?(at: Point): BoardHit | null;
   onHover?(hit: BoardHit | null, at: Point): void;
   /** A press and release under the drag threshold (3 px); `at` is where the pointer came up, in table inches. */

@@ -74,9 +74,12 @@ public static class GfRolls
     /// The terrain test follows the book's wording for the unit's size: whole base inside ("fully inside") for a
     /// multi-model unit, base centre inside (standing for "mostly inside") for a single-model unit, sized by starting size so a
     /// squad reduced to one model is still judged as a squad. The sight test is the same for both sizes: every attacking model
-    /// with a clear line to the model has a sight blocker along it, or none sees it at all (`Battlefield.ModelsBehindSightBlockers`).
-    /// p.14 Indirect *"ignores cover from sight obstructions"*, which is the sight test only: `ignoresSightObstructions` drops it and
-    /// the terrain test stands. Blast's *"Ignores cover"* (p.13) is the whole modifier and is suppressed in the roll instead.
+    /// with a clear line to the model has a sight blocker or cover terrain it does not stand in along it (a wall or fence, a barricade:
+    /// p.11 *"Terrain features that models can hide in or behind ... count as cover terrain"*), or none sees it at all
+    /// (`Battlefield.ModelsBehindSightBlockers`). p.14 Indirect *"May target enemies that are not in line of sight as if in line of
+    /// sight, and ignores cover from sight obstructions"*, which is the sight test only: cover from something on the line between, a
+    /// wall or fence included, is cover from a sight obstruction, so `ignoresSightObstructions` drops it and the terrain test (standing
+    /// in cover terrain) stands. Blast's *"Ignores cover"* (p.13) is the whole modifier and is suppressed in the roll instead.
     /// The fraction is a ruleset number, so it is here and `Battlefield` only lists.
     /// </summary>
     public static bool InCover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions) =>

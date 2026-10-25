@@ -56,6 +56,8 @@ export interface MoveHooks {
   unhook(box: DecisionBox): void;
   /** A send that never reached the server (the socket failed): the token's models are the projection's again. */
   failed?(box: DecisionBox, token: string): void;
+  /** The answer's send settled as accepted: its events are in the projection, so nothing it dropped is held past it. */
+  settled?(box: DecisionBox, token: string): void;
   /** Held ghosts landed: their refusal lapses and the move is gated again, once. */
   dragged?(box: DecisionBox, modelIds: readonly string[]): void;
 }
@@ -100,6 +102,8 @@ export class DecisionBox {
   #refusalAsk: string | null = null;
   #revealed: string | null = null;
   #refusal: string | null = null;
+  /** The server's words in #refusal, for the gate's line that says the same. */
+  #refusalDetail: string | null = null;
   #lastToken = 0;
   #lastId: string | null = null;
   #lit: readonly string[] | null = null;
@@ -152,7 +156,10 @@ export class DecisionBox {
   draggedAll(landed: Iterable<readonly [string, Placement]>): void {
     const moved: string[] = [];
     for (const [id, at] of landed) if (this.ghosts.has(id)) { this.ghosts.set(id, at); moved.push(id); }
-    if (moved.length > 0) this.#moves?.dragged?.(this, moved);
+    if (moved.length === 0) return;
+    if (this.#refusal !== null) { this.#refusal = null; this.#refusalDetail = null; }   // the player changed the proposal: the refusal is spent
+    this.#moves?.dragged?.(this, moved);
+    this.#publish();
   }
   /** A click on the table while a deploy waits for one. */
   placeAt(at: Point3): boolean {
@@ -204,8 +211,13 @@ export class DecisionBox {
   }
 
   #publish(): void {
+    if (this.#refusal === null) this.#refusalDetail = null;
+    const said = this.#refusalDetail;
+    // A reason line that repeats the server's refusal is shown once, as the refusal.
+    const controls = said === null || said === '' ? [...this.#controls]
+      : this.#controls.map((c) => (c.kind === 'reason' && c.text.includes(said) ? { ...c, text: '' } : c));
     this.#panel = {
-      seat: this.#seat, title: this.#title, revealed: this.#revealed, note: this.#note, controls: [...this.#controls], refusal: this.#refusal,
+      seat: this.#seat, title: this.#title, revealed: this.#revealed, note: this.#note, controls, refusal: this.#refusal,
       hint: this.#hint, visible: this.#title !== '' || this.#note !== '' || this.#refusal !== null || this.#revealed !== null,
     };
     for (const l of [...this.#listeners]) l(this.#panel);
@@ -418,6 +430,7 @@ export class DecisionBox {
     try {
       const teamId = this.#answering ?? undefined;                           // for the team the Ask was rendered for
       const outcome = await this.#host.send({ kind: 'answer_ask', askId: ask.id, answer, ...(teamId === undefined ? {} : { teamId }) });
+      if (outcome.refused === null) this.#moves?.settled?.(this, String(token));
       if (token !== this.#lastToken) return;
       this.#lastId = outcome.id;
       const refused = outcome.refused ?? this.#seen.get(outcome.id);         // a Refused that landed before the promise settled
@@ -438,7 +451,7 @@ export class DecisionBox {
   #refused(token: string, r: Refused): void {
     if (this.#lastId === null || r.messageId !== this.#lastId) return;
     this.#lastId = null;                                                      // a Refused answers once
-    this.#refusal = `The server refused: ${r.detail}`; this.#refusalAsk = this.#renderedAsk;
+    this.#refusal = `The server refused: ${r.detail}`; this.#refusalAsk = this.#renderedAsk; this.#refusalDetail = r.detail ?? null;
     this.#moves?.refused(this, token, r.detail ?? '');                        // a refused move or placement comes back where it was dropped, marked
     this.#reset(); this.#renderedAsk = null; this.render();
   }
@@ -474,7 +487,7 @@ export class DecisionBox {
     const shelved = offTable(p, eligible);
     const refresh = () => {
       const items: Array<readonly [Control, (() => void)?]> = [
-        [{ kind: 'label', text: sel.max === 1 && picked.length === 1 ? names.piece(picked[0]!) : `${picked.length} of ${sel.min}–${sel.max}` }],
+        [{ kind: 'label', text: sel.max === 1 && picked.length === 1 ? names.piece(picked[0]!) : `${picked.length} of ${sel.min === sel.max ? sel.min : `${sel.min}–${sel.max}`}` }],
       ];
       for (const id of shelved) {
         const key = this.#numbered.find((n) => n.optionId === id)?.key ?? 0;

@@ -113,6 +113,21 @@ public class GrantRowTests
     }
 
     [Fact]
+    public void A_move_that_goes_nowhere_keeps_the_speed_grant_and_does_not_list_it_as_applied()
+    {
+        // "Once (next time the effect would apply)": a unit that stands still has not moved the extra inches.
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])]), GrimdarkFutureRules.Instance, Props, new ScriptedDice(4));
+        Grant(sim.State, a.Id, "Shock Speed", a.Id);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance));
+        var m = a.Models[0].Id;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, sim.Model(m).Location)]));
+        sim.Run();
+        Assert.Equal(3, sim.Unit(a.Id).Grants.Count);
+        Assert.DoesNotContain(sim.State.Applier.Log.Select(e => e.Payload).OfType<StepCompleted>(), s => s.Applied?.Contains("Shock Speed") ?? false);
+    }
+
+    [Fact]
     public void Offering_charge_reads_a_speed_grant_without_consuming_it()
     {
         var a = Unit("A", "4+", "4+", [], 1, []); var b = Unit("B", "4+", "4+", [], 1, []);

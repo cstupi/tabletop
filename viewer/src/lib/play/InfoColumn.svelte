@@ -1,5 +1,5 @@
 <!-- viewer/src/lib/play/InfoColumn.svelte -->
-<!-- Plan D3 on the play page: the hovered enemy's strip and the unit card (SheetFocus), the latest roll's tray, the combat log (G and its
+<!-- Plan D3 on the play page: the hovered enemy's strip and the unit card (SheetFocus) or the selected terrain piece's card, the latest roll's tray, the combat log (G and its
      button) and Undo (Ctrl+Z). PlayPage holds the selection, the hover and the undo prediction; this reads them and the connection's
      log. A watcher sees the log and the card and no Undo. -->
 <script lang="ts">
@@ -26,6 +26,9 @@
   import UndoButton from './UndoButton.svelte';
   import { sameCard, unitCardOf, type UnitCardContent } from './unitCard';
   import UnitCard from './UnitCard.svelte';
+  import TerrainCard from './TerrainCard.svelte';
+  import type { Catalog } from '../setup/catalog';
+  import { terrainCardOf } from '../setup/terrainCard';
   import { unitSheetOf } from './unitSheet';
   import { isWatching } from './waiting';
   import type { UndoPrediction } from './undo';
@@ -35,7 +38,7 @@
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
   let {
-    connection, snap, shown, scene, prediction, pendingUndoTo, rules, geometry, selection, hoveredUnit, myTeam, eligible, getSettings, updateSettings,
+    connection, snap, shown, scene, prediction, pendingUndoTo, rules, geometry, selection, hoveredUnit, catalog, myTeam, eligible, getSettings, updateSettings,
     onPickModel, onTouch, overlay = $bindable(null),
   }: {
     connection: GameConnection; snap: ConnectionState;
@@ -43,6 +46,8 @@
     shown: Projection | null; scene: Scene | null;
     prediction: UndoPrediction; pendingUndoTo: number | null; rules: RuleTexts; geometry: Geometry | null;
     selection: Selection | null; hoveredUnit: string | null; myTeam: string | null;
+    /** The terrain names and the terrain card's catalog. */
+    catalog: Catalog;
     /** The open Ask's clickable pieces. */
     eligible: ReadonlySet<string>;
     getSettings: () => PlaySettings; updateSettings: (change: (s: PlaySettings) => PlaySettings) => void;
@@ -111,6 +116,10 @@
     overlay = hoverOverlay(sc, info, isEligible);
   });
 
+  /** A selected terrain piece takes the unit card's place (SheetFocus names no unit then); read-only in play. */
+  const terrainCard = $derived(shown !== null && snap.game !== null && playing
+    ? terrainCardOf(shown.board.table, snap.game.status, selection?.pieceId ?? null, catalog) : null);
+
   const selectionLine = $derived(shown !== null && snap.game !== null && playing ? describeSelection(new Names(snap.game, shown), shown, selection) : null);
 
   const entries = $derived.by(() => {
@@ -171,6 +180,7 @@
     {#if card !== null}
       <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} onPick={onPickModel} />
     {/if}
+    {#if terrainCard !== null}<TerrainCard card={terrainCard} />{/if}
     {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}
     <section class="panel log" class:open={logOpen} aria-label="Combat log">
       <div class="head">

@@ -30,12 +30,12 @@ export function seatLine(game: GameInfo, participantId: string | null): string {
   const ordinals = byOrdinal(game).filter((t) => seats.some((s) => s.teamId === t.id)).map((t) => `Team ${t.ordinal}`);
   if (ordinals.length === 0) return 'You have no team: join one, or stay without one to watch once play starts.';
   const army = seats.some((s) => s.teamId !== undefined && s.armyId === undefined) ? ' Pick your army below.' : '';
-  const both = ordinals.length > 1 ? ' You play every side you hold, one Ask at a time.' : '';
+  const both = ordinals.length > 1 ? ' You play every side you hold.' : '';
   const mates = [...new Set(game.participants
     .filter((p) => p.teamId !== undefined && seats.some((s) => s.teamId === p.teamId) && seats.every((s) => s.accountId !== p.accountId))
     .map((p) => p.name))];
   const withMates = mates.length === 0 ? ''
-    : ` Teammates: ${mates.join(', ')}; each of you brings an army and activates your own units on your team's turns.`;
+    : ` Teammates: ${mates.join(', ')}.`;
   return `You are on ${ordinals.join(' and ')}.${army}${both}${withMates}`;
 }
 
@@ -57,7 +57,7 @@ export function teamChoices(game: GameInfo, participantId: string | null, creato
     }
     return {
       teamId: t.id, text: `Team ${t.ordinal}: ${holders.join(', ')} · ask the creator to add you`, enabled: false,
-      why: `${holders.join(', ')} holds this team. A team may hold several players, each with their own army: the creator adds you from the Players list.`,
+      why: `${holders.join(', ')} holds this team; the creator adds you from the Players list.`,
       edit: { kind: 'pick_team', teamId: t.id },
     };
   });
@@ -116,12 +116,13 @@ export function waitingForCreator(game: GameInfo, creator: boolean): string | nu
   return null;
 }
 
-/** LobbyPanel.EndText: the game server's DropOffSlab rule counts a piece whose centre is off the slab (edge inclusive). */
+/** LobbyView.EndSetupText: the game server's DropOffSlab rule removes each piece whose centre is off the table (edge inclusive). */
 export function endSetupText(draft: TableState | null): string {
   const off = draft === null ? 0 : draft.terrain.filter((t) => {
     const { x, y } = t.position;
     const { width, length } = draft.size;
     return !(x >= -1e-9 && x <= width + 1e-9 && y >= -1e-9 && y <= length + 1e-9);
   }).length;
-  return off === 0 ? 'End setup' : `End setup (${off} off-slab pieces will be dropped)`;
+  if (off === 0) return 'End setup';
+  return off === 1 ? 'End setup (1 piece off the table will be removed)' : `End setup (${off} pieces off the table will be removed)`;
 }

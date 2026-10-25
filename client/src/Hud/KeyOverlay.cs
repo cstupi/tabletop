@@ -17,7 +17,7 @@ public partial class KeyOverlay : PanelContainer
         ("C", "stop the move here (cast or pick), when the move box offers it"),
         ("Esc", "cancel, innermost first: a drag, the target assignments, the selection"),
         ("Shift (held)", "one model: click selects, drag moves"),
-        ("PageDown / PageUp (while holding)", "lower or raise the held models or terrain piece one surface, to go under a bridge; above the highest, lifted over everything again"),
+        ("PageDown / PageUp (while holding)", "lower or raise the held models or terrain piece one surface; above the highest, lifted over everything again"),
         ("Alt (while dragging)", "place freely: no lifting, sliding, stopping or allowance"),
         ("L (held)", "sight check on the hovered unit"),
         ("M", "measure tool: click, then click again (or drag) to fix the line"),

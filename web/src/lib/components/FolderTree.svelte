@@ -63,7 +63,7 @@
     <button class="folder quiet" class:selected={selected === null} aria-current={selected === null ? 'true' : undefined} onclick={() => onselect(null)}><Icon name="library" />All assets</button>
     <button onclick={() => create(null)}><Icon name="plus" />New folder</button>
   </div>
-  {#if tree.length === 0}<p class="none"><small>No folders yet. Folders group assets for you; they change nothing in a game.</small></p>{/if}
+  {#if tree.length === 0}<p class="none"><small>No folders yet.</small></p>{/if}
   <ul>{#each tree as n (n.folder.id)}{@render node(n)}{/each}</ul>
 </nav>
 <style>

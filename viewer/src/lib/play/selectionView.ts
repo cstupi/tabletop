@@ -1,6 +1,6 @@
 // viewer/src/lib/play/selectionView.ts
 // client/src/Core/SelectionView.cs: what a selection shows: the models to light and the line naming them. A plain click selects the unit
-// (no model ids); shift selects one model.
+// (no model ids); shift selects one model. A terrain piece has no line: the terrain card names it.
 
 import type { Projection } from '../live/apply';
 import type { Names } from './names';
@@ -16,6 +16,7 @@ export function selectedModels(p: Projection, s: Selection | null): string[] {
 export function describeSelection(n: Names, p: Projection, s: Selection | null): string | null {
   if (s === null) return null;
   if (s.modelIds.length > 0) return s.modelIds.map((id) => n.model(id)).join(', ');
+  if (p.board.table.terrain.some((t) => t.id === s.pieceId)) return null;     // the terrain card shows it
   if (!p.units.has(s.pieceId)) return n.piece(s.pieceId);
   const models = [...p.models.values()].filter((m) => m.unitId === s.pieceId);
   return `${n.unit(s.pieceId)}: ${models.filter((m) => m.location.kind === 'table').length} of ${models.length} models on the table`;

@@ -527,6 +527,7 @@ blockers (for single-model units), they get +1 to Defense rolls"*.
 | --- | --- | --- |
 | *fully inside a piece of cover terrain* | `Cover.InsideCoverVolumes` non-empty | geometry |
 | *behind a sight blocker* | `LineOfSight.Check` clear **and** `Cover.SightBlockersBetween` non-empty | geometry |
+| *hide ... behind* cover terrain (a wall or fence, a barricade) | `LineOfSight.Check` clear **and** `Cover.CoverTerrainBetween` non-empty | geometry |
 | *mostly inside cover terrain* | `Containment.VolumesContaining` filtered to `Cover` | geometry |
 | *the majority of models*, *+1 to Defense* | — | `GameRules` |
 
@@ -540,6 +541,13 @@ takes a fraction, so the union, the counting and the comparison are the ruleset'
 stopped at least one of them, whether or not sight is clear overall. That is the only way to
 express *behind*. A wall that blocks nothing is not cover, and a wall that blocks everything is
 a failed shot rather than cover.
+
+`CoverTerrainBetween` reads p.11's *"Terrain features that models can hide in or behind"* for cover
+terrain that does not block sight: the `Cover` volumes without `BlocksLineOfSight` that one of the
+same twenty-seven rays passes through, less those either model stands in
+(`Containment.VolumesContaining`, which the inside test reads). Each ray stops `Cover.Contact`
+(0.01") short of the target point, so a base touching a fence on the shooter's side is not behind
+it. A wall or fence never blocks the shot; it screens it.
 
 Two consequences. The server calls `Check` and `SightBlockersBetween` back to back for the same
 pair, doing the ray work twice. A combined call returning both would halve it. And the
@@ -584,7 +592,7 @@ implemented: *can fit* is undefined in the book, and testing it would need a rul
 this library cannot make. Applying the allowance unconditionally is safe because the precondition
 only ever widens the allowance
 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)), and
-coherency is not judged: `Coherency.Check` has no production caller. The
+the server judges coherency on a move answer with `Coherency.Check(models, 1, 3, 9)` (`move_coherency`). The
 spread stays at one distance: p.7's 9" has no elevation clause.
 
 ### 11. The slab
@@ -828,7 +836,7 @@ plan.
 | `static class Distance` | `double EdgeToEdge(PlacedModel, PlacedModel)`, `double EdgeToEdge(PlacedModel, Point2)`; *added:* `double EdgeToEdge(PlacedModel, WorldVolume)`, `double EdgeToMarker(PlacedModel, Point2 centre, double diameter)`, `(Point3 OnA, Point3 OnB) ClosestPoints(PlacedModel, PlacedModel)`, `bool InRange(PlacedModel, PlacedModel, double range)`, `double Vertical(PlacedModel, PlacedModel)`, `double BodyToBody(PlacedModel, PlacedModel)` |
 | `sealed record LineOfSightResult(bool Clear, IRL<Guid> ObstructedBy)` | unchanged |
 | `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)`; *added:* `IRL<bool> VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume>)`, `const int RimSamples = 8` |
-| `static class Cover` *added* | `IRL<Guid> InsideCoverVolumes(PlacedModel, IRL<WorldVolume>)`, `IRL<Guid> SightBlockersBetween(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
+| `static class Cover` *added* | `IRL<Guid> InsideCoverVolumes(PlacedModel, IRL<WorldVolume>)`, `IRL<Guid> SightBlockersBetween(PlacedModel from, PlacedModel to, IRL<WorldVolume>)`, `IRL<Guid> CoverTerrainBetween(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
 | `static partial class Collision` | `double RestHeight(PlacedModel, IRL<WorldVolume>)`, `RestHeight(IRL<WorldVolume> piece, IRL<WorldVolume>)`, `RestHeight(Point2, IRL<WorldVolume>)`; `Point3 Slide(PlacedModel, Point2, IRL<PlacedModel>, IRL<WorldVolume> walls, IRL<WorldVolume>)`, `TerrainTransform Slide(IRL<WorldVolume> piece, Point2, walls, volumes)`, `IRL<Point3> Separate(...)`, `bool Crosses(PlacedModel, Point2, IRL<PlacedModel>, IRL<WorldVolume>)`, `const double Step = 0.1` |
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)`; *added:* `IRL<Guid> VolumesFullyContaining(PlacedModel, IRL<WorldVolume>)`, `bool BaseFullyWithin(PlacedModel model, PlacedModel container, double inches)` |
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
@@ -863,7 +871,7 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 | Module | Obligation |
 | --- | --- |
 | Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
-| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer on its open surface nearest the client's `To.Z` (`Collision.RestNear`, `Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
+| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer on its open surface nearest the client's `To.Z` (`Collision.RestNear`, `Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` or `CoverTerrainBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
 | Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `MoveReach.Triangles`; hold a drag with `MoveReach.Clamp`; show `MoveReach.Route` as the ruler, its length as the readout; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
 
 ## Sequences
@@ -912,6 +920,8 @@ sequenceDiagram
     Geo-->>GR: LineOfSightResult(Clear, ObstructedBy)
     GR->>Geo: Cover.SightBlockersBetween(shooter, target, volumes)
     Geo-->>GR: blocker ids, in input order
+    GR->>Geo: Cover.CoverTerrainBetween(shooter, target, volumes)
+    Geo-->>GR: cover volume ids on the line, in input order
     GR->>Geo: Cover.InsideCoverVolumes(target, volumes)
     Geo-->>GR: cover volume ids
     GR->>GR: per target model: in cover terrain, or behind a sight blocker from every shooter
@@ -979,8 +989,9 @@ account), so a model crossing above a model on a lower level neither moves throu
 more above it, comes within 1" of it. It warns under `warn` and refuses only under `strict`. Every placement the
 server appends is rested (`Battlefield.Settle` → `Collision.RestNear`, nearest the Z sent), so no stored model is
 inside a Solid and `Overlap.WithSolid` has no production caller; crossing or landing on an
-Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is not judged:
-`Coherency.Check` has no production caller. Its two hazards: `OutOfCoherency` holds
+Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is judged on a move answer
+(`GfMoves.CoherencyBreach`, `move_coherency`: a unit in coherency before that is out of it after), and `UnitFormation` forms a unit up
+in contact and coherency for the charge's `charge_contact` and the simulator. `Coherency.Check`'s two hazards: `OutOfCoherency` holds
 **positional indices**, so the caller must pass models in a stable order and zip the result
 back itself. And the spread test flags both ends of an over-long chain rather than naming the
 model to move.
@@ -1071,7 +1082,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | An unknown `BaseShape` or `FootprintKind` | `ArgumentOutOfRangeException` from the switch's default arm | Yes |
 | An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.shape` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
-| Base overlap, a path through a model, a model off the slab, broken coherency | The client's drag slides a body clear of other bases and Impassable Solids (Alt overrides); the server judges a move answer's overlap, path, separation and slab (`move_overlap`, `move_through_models`, `move_separation`, `move_off_table`) under the enforcement setting, and a hand placement's overlap only (`PlacementBreach`); coherency is not judged (`Coherency.Check` has no production caller) | Yes |
+| Base overlap, a path through a model, a model off the slab, broken coherency | The client's drag slides a body clear of other bases and Impassable Solids (Alt overrides); the server judges a move answer's overlap, path, separation, slab and coherency (`move_overlap`, `move_through_models`, `move_separation`, `move_off_table`, `move_coherency`) under the enforcement setting, and a hand placement's overlap only (`PlacementBreach`) | Yes |
 | A move whose straight line crosses something it may not, but which a path round it reaches | Judged along the shortest legal path (`Movement.Check`); the answer carries the destination only, and each side computes the same path (`movement.md`) | Yes |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
@@ -1118,7 +1129,7 @@ What the tests are for, by class:
 | `ContainmentTests` | centre versus whole base, a model on a hill under a canopy in both, ground beneath a second storey in neither, `BaseFullyWithin` measured from the container's *edge* |
 | `OverlapTests` | touching is not overlapping, different storeys, standing on a hill, a tall model reaching a slab, Area never intersecting |
 | `LineOfSightTests` | a low wall shot over, blocking declared not derived, a forest blocking through but not in/out/within, the first of two forests, a wall off the line, tall versus short bodies, another unit as a blocker, partly hidden still clear, the 27/15 sample counts with the centre among them, `VisibleModels` reporting one boolean per model, a second observer seeing what the first cannot |
-| `CoverTests` | fully inside, a low wall as a sight blocker while sight is clear, a transparent wall is not one, another unit is one |
+| `CoverTests` | fully inside, a low wall as a sight blocker while sight is clear, a transparent wall is not one, another unit is one; a fence the lines pass through is cover terrain between, one beside the target or in contact on the shooter's side is not, nor cover either model stands in |
 | `CoherencyTests` | a straggler, equal groups keeping the earliest, a long chain breaking the spread, exactly one inch counting |
 | `TableTests` | the corner frame's bounds, edge inclusivity, a base wholly on the slab, **a rect base rotated 45° off it** |
 | `MovementTests`, `MovementPathTests` | a disc on open ground, going round an impassable volume, a base standing in one heading out but not along or through, a Rush round a wood not capped and one into a big wood capped, round other models and through a solid line of them (`CrossesModels`), above a lower model, round a pit, the table edge, a minimum's ring, `Clamp`, `Route` agreeing with `Check`, `ContactDistance` round a block, `VolumesCrossed` naming what containment cannot; distances against the exact geodesics |

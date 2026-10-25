@@ -45,7 +45,7 @@ export function describeAsk(ask: RecordedAsk, teamLabels: ReadonlyMap<string, st
   }));
   const notes: string[] = [];
   if (ask.allowPass) notes.push('a pass is allowed');
-  if (ask.sealed) notes.push('sealed — answers stay hidden until it closes');
+  if (ask.sealed) notes.push('sealed: answers hidden until it closes');
   if (ask.windowKind !== undefined) notes.push(`reaction window: ${ask.windowKind}`);
   if (ask.frameId !== undefined) notes.push(`in frame ${ask.frameId.slice(0, 8)}`);
 

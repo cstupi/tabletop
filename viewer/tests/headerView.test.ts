@@ -4,7 +4,7 @@ import {
 } from '../src/lib/play/headerView';
 import { Names } from '../src/lib/play/names';
 import type { EventPayload, OutlineStep } from '../src/lib/protocol/wire.generated';
-import { FRAME, TEAM1, TEAM2, askOf, at, boardOf, emptyTable, gameOf, markerOf, newId, projectionOf, sample, P1 } from './play';
+import { FRAME, TEAM1, TEAM2, askOf, at, boardOf, emptyTable, gameOf, markerOf, newId, projectionOf, sample, slotOf, unitOf, P1 } from './play';
 
 const NESTED = '0198b7ac-4444-7000-8000-000000000004';
 const OUTLINE: OutlineStep[] = [{ step: 'move', label: 'Move' }, { step: 'shoot', label: 'Shoot' }, { step: 'end', label: 'End' }];
@@ -77,8 +77,8 @@ describe('HeaderView', () => {
   });
 
   it('a watcher is told they watch and a replay that it changes nothing', () => {
-    expect(WATCHING).toBe('Watching: you have no team in this game, so you see everything and change nothing.');
-    expect(REPLAYING).toBe('Replay: the table as it stood at this point in the game. Nothing here changes the game.');
+    expect(WATCHING).toBe('Watching: you have no team in this game');
+    expect(REPLAYING).toBe('Replay: the table as it stood at this point in the game');
   });
 
   it('game over carries the result', () => {
@@ -103,6 +103,15 @@ describe('HeaderView', () => {
     expect(objectives(p)).toEqual([{ markerId: objective.id, teamId: null }]);
     const taken = projectionOf(s.game, board, [{ kind: 'objective_control_set', markerId: objective.id, teamId: TEAM2 }]).projection;
     expect(objectives(taken)).toEqual([{ markerId: objective.id, teamId: TEAM2 }]);
+  });
+
+  it('not activated counts a unit inside a transport on the table, not one inside a shelved transport', () => {
+    const passengers = unitOf('Passengers', [slotOf({ name: 'Passenger' })]);
+    const board = boardOf([{ participantId: P1, units: [s.squad, passengers] }, { participantId: s.game.participants[1]!.id, units: [s.rivals] }]);
+    const aboard: EventPayload = { kind: 'models_moved', moves: [{ modelId: passengers.models[0]!.id, from: { kind: 'shelf' }, to: { kind: 'inside', containerId: s.model.id } }] };
+    const deploy: EventPayload = { kind: 'models_moved', moves: [{ modelId: s.model.id, from: { kind: 'shelf' }, to: { kind: 'table', placement: at(10, 10) } }] };
+    expect(notActivated(projectionOf(s.game, board, [aboard, deploy]).projection, s.game).get(TEAM1)).toBe(2);
+    expect(notActivated(projectionOf(s.game, board, [aboard]).projection, s.game).get(TEAM1)).toBe(0);
   });
 
   it('another team\'s activation is named on the action line', () => {

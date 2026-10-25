@@ -126,6 +126,17 @@ public class ContactCheckTests
     }
 
     [Fact]
+    public void A_sentence_names_the_model_as_the_servers_reasons_do()
+    {
+        Assert.Equal("APC 1 would end within 1\" of Storm Troopers (p.7)", ContactCheck.Sentence("within 1\" of Storm Troopers", "APC 1"));
+        Assert.Equal("APC 1 would end within 9\" of Orcs", ContactCheck.Sentence("within 9\" of Orcs", "APC 1"));
+        Assert.Equal("APC 1 would be placed on another model's base (p.7)", ContactCheck.Sentence("overlaps a base", "APC 1"));
+        Assert.Equal("APC 1 would move through another model (p.7)", ContactCheck.Sentence("path crosses a model", "APC 1"));
+        Assert.Equal("APC 1 would end its move in impassable terrain (p.11, p.7)", ContactCheck.Sentence("ends in impassable terrain", "APC 1"));
+        Assert.Equal("something else", ContactCheck.Sentence("something else", "APC 1"));
+    }
+
+    [Fact]
     public void A_landing_is_judged_on_its_open_surface_nearest_its_z()
     {
         // A deck x 36..44, Z 3..4, over the Orc at (40, 30): a landing sent on the deck stands over the Orc, one sent at the table meets it.

@@ -17,7 +17,7 @@ describe('LobbyView', () => {
     const g = game([row('p1', 'a1', 'Ann', { teamId: T1 })]);
     expect(seatLine(g, 'p1')).toBe('You are on Team 1. Pick your army below.');
     const both = game([row('p1', 'a1', 'Ann', { teamId: T1, armyId: 'x' }), row('p2', 'a1', 'Ann', { teamId: T2, armyId: 'y' })]);
-    expect(seatLine(both, 'p1')).toBe('You are on Team 1 and Team 2. You play every side you hold, one Ask at a time.');
+    expect(seatLine(both, 'p1')).toBe('You are on Team 1 and Team 2. You play every side you hold.');
   });
 
   it("a watcher's seat line", () => {
@@ -82,7 +82,10 @@ describe('LobbyView', () => {
   it('endSetupText counts pieces whose centre is off the slab', () => {
     const piece = (x: number, y: number) => ({ id: `${x}`, position: { x, y, z: 0 } });
     const draft = { size: { width: 72, length: 48 }, terrain: [piece(76, 4), piece(72, 48), piece(10, 10)] } as unknown as TableState;
-    expect(endSetupText(draft)).toBe('End setup (1 off-slab pieces will be dropped)');
+    expect(endSetupText(draft)).toBe('End setup (1 piece off the table will be removed)');
+    const three = { ...draft, terrain: [piece(76, 4), piece(-1, 4), piece(10, 49)] } as unknown as TableState;
+    expect(endSetupText(three)).toBe('End setup (3 pieces off the table will be removed)');
+    expect(endSetupText({ ...draft, terrain: [piece(10, 10)] } as unknown as TableState)).toBe('End setup');
     expect(endSetupText(null)).toBe('End setup');
   });
 });

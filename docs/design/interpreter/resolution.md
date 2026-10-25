@@ -456,8 +456,9 @@ transport on the table.
 of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"*: one
 majority over the models that pass either test. A majority is strictly more than half, so five of
 ten is not one. A model counts when it is in cover terrain, when it is screened (every attacking
-model with a clear line to it has a sight blocker along that line), or when no attacking model sees
-it. The terrain test follows the book's wording for the unit's size: the whole base inside a `Cover`
+model with a clear line to it has along that line a sight blocker, or cover terrain that does not
+block sight and that neither model stands in: p.11's terrain *"models can hide in or behind"*, a
+wall or fence, a barricade), or when no attacking model sees it. The terrain test follows the book's wording for the unit's size: the whole base inside a `Cover`
 volume for a multi-model unit ("fully inside"), the base centre for a single-model unit ("mostly
 inside"), sized by starting size. `Battlefield` lists models and never judges:
 `ModelsInCoverTerrain(state, unit, wholeBase)` and `ModelsBehindSightBlockers(state, unit,
@@ -468,8 +469,9 @@ The sight test reads every eligible attacker model, not one of them, so the answ
 on the order models sit in the army snapshot. Its blockers are terrain and every unit except the
 target's and the attacker's own: p.11's other units *"are sight blockers that can provide other
 units with cover"*, so a model takes no cover behind its own unit, and the attackers ignore their
-own (p.8). p.14's Indirect *"ignores cover from sight obstructions"* drops the sight test only; the
-terrain test stands. Blast's *"Ignores cover"* (p.13) suppresses the whole modifier in the roll.
+own (p.8). p.14's Indirect *"ignores cover from sight obstructions"* drops the sight test only, a
+wall or fence on the line included, since that is cover from something between the two models; the
+terrain test (standing in cover terrain) stands. Blast's *"Ignores cover"* (p.13) suppresses the whole modifier in the roll.
 
 ## The generalisation budget: nine constraints
 

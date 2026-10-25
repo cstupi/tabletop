@@ -28,8 +28,9 @@ public interface ISightPolicy
 /// Sight lines drawn from one unit's models, with the blocking volumes built once: the terrain that declares `BlocksLineOfSight`
 /// and the body of every model on the table outside the observing unit (p.8: a unit ignores its own models; p.11: other units
 /// block), with each other unit's perimeter in place of its bodies when the ruleset's ISightPolicy says so. Per pair the target's
-/// own body, its unit's perimeter (its models block per model) and every unit the policy sees through are left out. A caller that
-/// checks many pairs builds one `Sight` and asks it each pair, so no pair rebuilds the table.
+/// own body, its unit's perimeter (its models block per model) and every unit the policy sees through are left out. The terrain that
+/// declares `Cover` and does not block sight (a wall or fence, a barricade) never blocks a line; it screens one it crosses
+/// (`Cover.CoverTerrainBetween`). A caller that checks many pairs builds one `Sight` and asks it each pair, so no pair rebuilds the table.
 /// </summary>
 public sealed class Sight
 {
@@ -40,21 +41,24 @@ public sealed class Sight
     readonly Dictionary<Guid, Guid> bodies;
     /// <summary>The units whose perimeter is a blocker, keyed by their own id.</summary>
     readonly HashSet<Guid> perimeters;
+    /// <summary>The cover-declared terrain that does not block sight: it screens a line, never blocks it.</summary>
+    readonly IReadOnlyList<WorldVolume> cover;
 
-    Sight(GameState state, SightBlockers blockers, ISightPolicy policy, Dictionary<Guid, Guid> bodies, HashSet<Guid> perimeters) =>
-        (this.state, this.blockers, this.policy, this.bodies, this.perimeters) = (state, blockers, policy, bodies, perimeters);
+    Sight(GameState state, SightBlockers blockers, ISightPolicy policy, Dictionary<Guid, Guid> bodies, HashSet<Guid> perimeters, IReadOnlyList<WorldVolume> cover) =>
+        (this.state, this.blockers, this.policy, this.bodies, this.perimeters, this.cover) = (state, blockers, policy, bodies, perimeters, cover);
 
     /// <summary>`alsoIgnoring` leaves a second unit out as well (bodies and perimeter), for a question that must not count that unit as a blocker.</summary>
     public static Sight From(GameState state, Guid observerUnit, Guid? alsoIgnoring = null)
     {
         var policy = state.Rules.SightPolicy(state);
         var terrain = Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight));
+        var cover = Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Cover) && !v.Volume.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight)).ToList();
         var models = state.Projection.Models.Values.Where(m => m.UnitId != observerUnit && m.UnitId != alsoIgnoring && m.Location is OnTable).ToList();
         var volumes = terrain.Concat(models.Select(m => Bodies.AsBlockingVolume(m.Id, Battlefield.Placed(state, m.Id)!.Value))).ToList();
         var prisms = policy.Perimeters
             ? models.GroupBy(m => m.UnitId).Select(g => Bodies.Perimeter(g.Key, g.Select(m => Battlefield.Placed(state, m.Id)!.Value).ToList())).ToList()
             : [];
-        return new(state, new SightBlockers(volumes, prisms), policy, models.ToDictionary(m => m.Id, m => m.UnitId), prisms.Select(p => p.Id).ToHashSet());
+        return new(state, new SightBlockers(volumes, prisms), policy, models.ToDictionary(m => m.Id, m => m.UnitId), prisms.Select(p => p.Id).ToHashSet(), cover);
     }
 
     /// <summary>`Look`'s Clear, drawing lines only until one is clear.</summary>
@@ -65,8 +69,8 @@ public sealed class Sight
     }
 
     /// <summary>
-    /// One sight line measured: `Clear` is `LineOfSight.Check`, and `Screened` is `Cover.SightBlockersBetween` non-empty along a
-    /// clear line, so it is false whenever `Clear` is. The target's own body is never its own blocker. Null when either model is off the table.
+    /// One sight line measured: `Clear` is `LineOfSight.Check`, and `Screened` is `Cover.SightBlockersBetween` or
+    /// `Cover.CoverTerrainBetween` non-empty along a clear line, so it is false whenever `Clear` is. The target's own body is never its own blocker. Null when either model is off the table.
     /// </summary>
     public (bool Clear, bool Screened)? Look(Guid fromModel, Guid toModel) => Line(fromModel, toModel) is { } line ? (line.Clear, line.Screened) : null;
 
@@ -80,7 +84,7 @@ public sealed class Sight
         if (from is null || to is null) return null;
         var reading = blockers.Measure(from.Value, to.Value, Ignored(fromModel, toModel));
         return reading.Clear
-            ? new SightLine(fromModel, toModel, true, reading.Blockers.Count > 0, [])
+            ? new SightLine(fromModel, toModel, true, reading.Blockers.Count > 0 || (cover.Count > 0 && Cover.CoverTerrainBetween(from.Value, to.Value, cover).Count > 0), [])
             : new SightLine(fromModel, toModel, false, false, reading.Blockers);
     }
 

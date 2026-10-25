@@ -36,6 +36,12 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   when none passes.
 - `AnswerPolicy.Clear` mirrors `GfMoves.Contact`: a sampled landing is on no other base, has a path round the standing models within the allowance (`Movement.Check`'s `CrossesModels`, in three dimensions over the terrain; a sample whose straight line crosses a model passes when the way round fits) unless the region `PassesModels`, and keeps the region's `Separation` (`Distance.BodyToBody`). A repair pass after the sample cap redraws any landing no longer Clear. `PolicyView.RestOf(modelId, at, yaw?)` rests a landing on the terrain; `HandPlacement` anchors clear of other bases, within the zone (when 40 random draws miss, a 0.25" scan of the zone's
   bounding box; the zone's centre only when nothing fits), and an Ambusher anywhere over 9" from every enemy model (p.13), or the distance `GfAmbush` gives (Infiltrate 3", Repel Ambushers 12"), within 6" of a friendly Ambush Beacon first.
+- A charge move (`MoveRegion.ContactWith`, p.9) answers with `UnitFormation.InContact` over the Ask's own parameters, the search the server's
+  `charge_contact` makes, so a charge that could reach contact in coherency does; when there is none it is sampled as any move.
+- Coherency (p.7, the server's `move_coherency`; `AnswerPolicy.Coherency.cs`): a sampled answer that takes a unit in coherency out of it
+  is formed up (`FormUp`): a sampled model keeps its landing and each other takes its start moved as the lead moved, else a spot beside a
+  model of its unit (`Movement.ContactPoints` at 0.3" and 0.7"; with a goal, the passing one nearest it), each sampled model in turn as the
+  lead, then the first at half and a quarter of its move; failing all, every model stands.
 - `AnswerPolicy` reads only `PolicyView`'s geometry members. A policy that reads other state is a second `IAnswerSource`.
 - The one opt-in exception is a `MoveGoal` (`Scenario.Goal`, `ScenarioBuilder.Seeking`). It names a point per model and only ranks
   the destinations the uniform sampler already found legal: all `MoveSamples` are drawn and the passing one nearest the point wins.

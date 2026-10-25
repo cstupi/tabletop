@@ -28,11 +28,11 @@
   const signUp = () => run('Creating your account…', async () => { session.accept(await api.auth.signup(email.trim(), password)); await finish(); });
   const sendCode = () => run('Sending the code…', async () => {
     methodId = (await api.auth.sendOtp(email.trim())).methodId; code = '';
-    notice = `We sent a 6-digit code to ${email.trim()}. It may take a minute to arrive.`;
+    notice = `We sent a 6-digit code to ${email.trim()}.`;
     await tick(); codeInput?.focus();
   });
   const verifyCode = () => run('Checking the code…', async () => { session.accept(await api.auth.verifyOtp(methodId!, code.trim())); await finish(); });
-  const forgot = () => run('Sending the reset link…', async () => { await api.auth.startReset(email.trim()); notice = `If ${email.trim()} has a password, a reset link is on its way. Check your inbox.`; });
+  const forgot = () => run('Sending the reset link…', async () => { await api.auth.startReset(email.trim()); notice = `If ${email.trim()} has a password, a reset link is on its way.`; });
   function choose(m: 'password' | 'code') { method = m; error = null; notice = null; methodId = null; }
   const submit = (fn: () => void) => (e: SubmitEvent) => { e.preventDefault(); fn(); };
   const emailOk = $derived(/^\S+@\S+\.\S+$/.test(email.trim()));
@@ -43,7 +43,7 @@
 <div class="auth">
 <section class="panel" aria-labelledby="sign-in-heading">
 <h1 id="sign-in-heading">Sign in</h1>
-{#if expired}<p class="notice" role="status">Your session has ended. Sign in again to carry on.</p>{/if}
+{#if expired}<p class="notice" role="status">Your session has ended. Sign in again.</p>{/if}
 
 <div class="seg method" role="group" aria-label="Sign-in method">
   <button type="button" aria-pressed={method === 'password'} onclick={() => choose('password')}>Password</button>
@@ -59,7 +59,7 @@
       <button type="button" onclick={signUp} disabled={!!busy || !emailOk || !password}>Create account</button>
       <button type="button" class="quiet" onclick={forgot} disabled={!!busy || !emailOk}>Forgot password</button>
     </div>
-    <p><small>New here? Enter your email and a password, then Create account. Forgot password emails a reset link to the address above.</small></p>
+    <p><small>Create account signs up with the email and password above. Forgot password emails a reset link to that address.</small></p>
   </form>
 {:else if methodId === null}
   <form class="stack" onsubmit={submit(sendCode)}>

@@ -269,6 +269,8 @@ public class ViewModelTests
         Assert.Equal("Game ended: 4 rounds have been played; Team 1 won", Line(Samples.Team1));
         Assert.Equal("Game ended: 4 rounds have been played; tied between Team 1, Team 2", Line(Samples.Team1, Samples.Team2));
         Assert.Equal("Game ended: 4 rounds have been played", Line());
+        var held = LogText.Describe(new GameEvent(9, null, new GameEnded("Markers held: Team 1: 0, Team 2: 0.", [Samples.Team1, Samples.Team2]), null), names);
+        Assert.Equal("Game ended: Markers held: Team 1: 0, Team 2: 0; tied between Team 1, Team 2", held);
     }
 
     [Fact]

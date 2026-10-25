@@ -136,6 +136,18 @@ describe('the move Ask', () => {
     expect(r.box.ghosts.size).toBe(0);
   });
 
+  it('an accepted commit holds no drop past its settling, so a model the step did not move is drawn where the projection has it', async () => {
+    const r = moveRig();
+    const [a, b] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.box.dragged(a, at(13, 12));
+    r.box.enter();
+    expect(r.drops.holds(a) && r.drops.holds(b)).toBe(true);
+    r.accept(0);
+    await tick();
+    expect(r.drops.all.size).toBe(0);
+  });
+
   it('the stop sends continues true', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, stoppable: true }));
@@ -197,6 +209,32 @@ describe('the move Ask', () => {
     expect(r.violations.marked.size).toBe(1);
     r.box.dragged(a, at(15, 12));
     expect(r.violations.marked.size).toBe(0);
+  });
+
+  it('a refusal shows its reason once, over the gate\'s line of the same words', async () => {
+    const r = moveRig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.box.dragged(a, at(14, 12));
+    r.box.enter();
+    r.refuse(0, 'Squad (S1) would move through another model');
+    await tick();
+    expect(r.panel.refusal).toBe('The server refused: Squad (S1) would move through another model');
+    expect(r.reason()).toBe('');
+  });
+
+  it('a refusal clears once a ghost is dragged again', async () => {
+    const r = moveRig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.box.dragged(a, at(14, 12));
+    r.box.enter();
+    r.refuse(0, 'no');
+    await tick();
+    expect(r.panel.refusal).toBe('The server refused: no');
+    r.box.dragged(a, at(15, 12));
+    expect(r.panel.refusal).toBeNull();
+    expect(r.panel.visible).toBe(true);
   });
 
   it('a failed send frees the drop and shows why', async () => {

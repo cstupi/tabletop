@@ -64,6 +64,20 @@ public class ViolationsTests
     }
 
     [Fact]
+    public void With_a_subject_a_mark_reads_as_a_sentence_naming_the_first_model_with_it_and_the_labels_keep_the_words()
+    {
+        var v = new Violations { Subject = id => id == A ? "APC 1" : id == B ? "APC 2" : null };
+        v.Measure([A, B, C], new Dictionary<Guid, string> { [A] = "within 1\" of Orcs", [B] = "within 1\" of Orcs", [C] = "overlaps a base" });
+        Assert.Equal("APC 1 would end within 1\" of Orcs (p.7)", v.Marked[A]);
+        Assert.Equal("APC 1 would end within 1\" of Orcs (p.7)", v.Marked[B]);
+        Assert.Equal("overlaps a base", v.Marked[C]);
+        Assert.Equal([(B, "within 1\" of Orcs"), (C, "overlaps a base")], v.Labels([B, A, C]));
+        v.Refused([C], "C would be placed outside its deployment zone (p.6)");
+        v.Measure([C], new Dictionary<Guid, string>());
+        Assert.Equal("C would be placed outside its deployment zone (p.6)", v.Marked[C]);
+    }
+
+    [Fact]
     public void Labels_name_each_reason_once_over_its_first_model()
     {
         var v = new Violations();

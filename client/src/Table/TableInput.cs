@@ -101,6 +101,7 @@ public partial class TableInput : Node
     public void Bind(TableView view, Session session)
     {
         _view = view; _session = session;
+        Violations.Subject = id => session.Projection?.Models.GetValueOrDefault(id)?.Slot.Name;   // the decision box names the model, as the server does
         view.Camera.Holding = () => HoldingTurnable;
         view.AddChild(_ruler = new RulerNode()); view.AddChild(_marks = new LandingMarks()); AddChild(_presenceTimer);
         _tape.Mode = session.Settings.MeasureMode;

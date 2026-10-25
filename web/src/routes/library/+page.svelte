@@ -167,9 +167,9 @@
     {#if loading}
       <p class="loading" role="status">Loading…</p>
     {:else if assets.length === 0}
-      <div class="empty"><Icon name="library" size="2.5rem" /><p>Your library is empty. Add an STL (or several parts of one kit), a GLB, or a board texture to get started.</p></div>
+      <div class="empty"><Icon name="library" size="2.5rem" /><p>Your library is empty. Add an STL (or several parts of one kit), a GLB or a board texture.</p></div>
     {:else if shown.length === 0}
-      <div class="empty"><p>Nothing here matches. {#if selected}This folder and its sub-folders hold no matching assets; select assets under All assets and add them to it, or upload while it is open.{:else}Change the kind or base filter.{/if}</p></div>
+      <div class="empty"><p>Nothing here matches. {#if selected}This folder and its sub-folders hold no matching assets.{:else}Change the kind or base filter.{/if}</p></div>
     {:else}
       <div class="grid" role="grid" aria-label="Assets" aria-multiselectable="true" bind:this={grid}>
         {#each shown as a, i (a.id)}

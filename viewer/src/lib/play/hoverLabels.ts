@@ -6,6 +6,7 @@
 import { teamColour } from '../board/palette';
 import type { Scene } from '../board/frame';
 import type { Overlay } from '../board/interaction';
+import { drawLabel } from '../board/labelPlacement';
 import { hoverLabel } from './cardText';
 import type { HoverInfo } from './hoverView';
 
@@ -21,7 +22,7 @@ export function hoverOverlay(scene: Scene, info: HoverInfo, eligible: boolean): 
     ctx.textBaseline = 'bottom';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-    const text = (s: string, x: number, y: number, fill: string) => { ctx.strokeText(s, x, y); ctx.fillStyle = fill; ctx.fillText(s, x, y); };
+    const text = (s: string, x: number, y: number, fill: string) => drawLabel(ctx, s, { x, y }, fill, { lineHeight: 16, grow: 'up', halo: 'rgba(0, 0, 0, 0.85)' });
     const at = project(first.centre);
     text(hoverLabel(info, eligible), at.x, at.y - (radiusOf(first.circle) * pixelsPerInch + 8), teamColour(info.teamOrdinal));
     for (const w of info.wounds) {

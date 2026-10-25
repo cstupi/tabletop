@@ -91,6 +91,18 @@ public class DeployViewTests
     }
 
     [Fact]
+    public void Oval_bases_lay_out_in_coherency_a_row_spaced_by_their_width_across_the_facing()
+    {
+        // 60x35mm bikes: 2.36" along the facing (A), 1.38" across it (B). Spaced by A, side by side the edges sat 1.2" apart, out of p.7's 1".
+        var bike = Base.Oval(2.362, 1.378);
+        var models = Enumerable.Range(1, 8).Select(i => Model(i, bike)).ToList();
+        var placed = DeployView.Layout(models, new Point3(36, 24, 0), new TableSize(72, 48))
+            .Select(m => new PlacedModel(new ModelBody(bike, 1), ((OnTable)m.To).Placement)).ToList();
+        Assert.True(Coherency.Check(placed, 1, 3, 9).Coherent);
+        Assert.All(placed, p => Assert.All(placed.Where(q => q != p), q => Assert.True(Distance.EdgeToEdge(p, q) > 0)));
+    }
+
+    [Fact]
     public void A_large_unit_wraps_to_rows_of_five_and_stays_on_the_table()
     {
         var models = Enumerable.Range(1, 12).Select(i => Model(i, Base.Circle(1))).ToList();

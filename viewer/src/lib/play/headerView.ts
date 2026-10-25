@@ -4,7 +4,7 @@
 
 import type { Frame, Projection } from '../live/apply';
 import { byId } from '../lobby/seats';
-import type { GameEnded, GameInfo } from '../protocol/wire.generated';
+import type { GameEnded, GameInfo, Location } from '../protocol/wire.generated';
 import { Names } from './names';
 import type { TeamWaiting } from './waiting';
 
@@ -36,14 +36,19 @@ export function headerOf(p: Projection, game: GameInfo, n: Names): HeaderModel {
 /** The activation's top frame: the outermost one whose context names an action. Nested frames run under it. */
 export function actionFrame(p: Projection): Frame | null { return p.stack.find((f) => f.context.action !== undefined) ?? null; }
 
-/** Per team: units with a model on the table and no action recorded this round. Who may activate is the scheduler's, not this count's. */
+/** Per team: units in play (a model on the table, or inside a container on the table: p.15 "units may enter/exit by using any move
+ * action") with no action recorded this round. Who may activate is the scheduler's, not this count's. */
 export function notActivated(p: Projection, game: GameInfo): Map<string, number> {
   const out = new Map<string, number>();
   for (const t of game.teams)
     out.set(t.id, [...p.units.values()].filter((u) => u.actions.size === 0
       && game.participants.some((x) => x.id === u.participantId && x.teamId === t.id)
-      && [...p.models.values()].some((m) => m.unitId === u.id && m.location.kind === 'table')).length);
+      && [...p.models.values()].some((m) => m.unitId === u.id && inPlay(p, m.location))).length);
   return out;
+}
+
+function inPlay(p: Projection, at: Location): boolean {
+  return at.kind === 'table' || (at.kind === 'inside' && p.models.get(at.containerId)?.location.kind === 'table');
 }
 
 /** Objective markers, setup's then play's, with their controller (Projection.control); null is neutral. */
@@ -103,9 +108,9 @@ export function waitingForPlayers(waiting: readonly TeamWaiting[]): string | nul
 }
 
 /** The header's line for a client the server answers as a watcher (Session.IsWatching). */
-export const WATCHING = 'Watching: you have no team in this game, so you see everything and change nothing.';
+export const WATCHING = 'Watching: you have no team in this game';
 /** The header's line in a replay (Session.Replaying). */
-export const REPLAYING = 'Replay: the table as it stood at this point in the game. Nothing here changes the game.';
+export const REPLAYING = 'Replay: the table as it stood at this point in the game';
 
 /** One winner wins, several draw, none is no result. */
 export function outcome(ended: GameEnded, n: Names): string {

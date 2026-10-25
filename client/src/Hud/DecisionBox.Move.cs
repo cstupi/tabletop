@@ -113,7 +113,7 @@ public partial class DecisionBox
             _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit));
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
-            reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
+            reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };
         _regate();
     }
@@ -180,12 +180,17 @@ public partial class DecisionBox
         _regate?.Invoke();
     }
 
+    /// <summary>The gate's line says what the server's refusal over it says: the refusal alone shows it.</summary>
+    bool RepeatsRefusal(string reason) => _refusalDetail is { Length: > 0 } d && _refusal == $"The server refused: {d}" && reason.Contains(d);
+
     /// <summary>A drag frame's held models: every ghost takes its place, then the commit is gated once.</summary>
     void OnDragged(IReadOnlyList<(Guid Id, Point3 At)> moved)
     {
         var changed = false;
         foreach (var (modelId, position) in moved)
         {
+            if (_refusal is not null && (_proposed?.ContainsKey(modelId) == true || _deployAt?.ContainsKey(modelId) == true))
+            { _refusal = null; _refusalLabel.Visible = false; }                    // the player changed the proposal: the refusal is spent
             if (_proposed is not null && _proposed.ContainsKey(modelId)) { _proposed[modelId] = position; changed = true; }
             if (_deployAt is not null && _deployAt.ContainsKey(modelId)) { _deployAt[modelId] = position; changed = true; }
             if ((_proposed?.ContainsKey(modelId) == true || _deployAt?.ContainsKey(modelId) == true) && NodeYaw(modelId) is { } yaw) _turned[modelId] = yaw;
@@ -260,7 +265,7 @@ public partial class DecisionBox
             _input.Violations.Measure(at.Keys, ContactCheck.Words(ContactCheck.Placement(p, placed, _view.Volumes), null, new Names(game, p).Unit));
             _gate = MoveRuler.Gate([], game.Enforcement, MarkedOf(at.Keys));
             place.Disabled = !_gate.Allowed;
-            reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
+            reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };
         _regate();
         ApplyVerdict();

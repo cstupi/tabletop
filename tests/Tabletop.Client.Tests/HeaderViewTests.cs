@@ -99,7 +99,7 @@ public class HeaderViewTests
 
     [Fact]
     public void A_watcher_is_told_they_watch() =>
-        Assert.Equal("Watching: you have no team in this game, so you see everything and change nothing.", HeaderView.Watching);
+        Assert.Equal("Watching: you have no team in this game", HeaderView.Watching);
 
     [Fact]
     public void Game_over_carries_the_result()

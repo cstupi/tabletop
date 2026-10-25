@@ -41,17 +41,18 @@ public static class DeployView
     }
 
     /// <summary>
-    /// One relocation per model to a tight grid at yaw 0 — rows of five, spaced by the widest base plus a small gap — centred on the point
+    /// One relocation per model to a tight grid at yaw 0 — rows of five, a row spaced by the widest base across the facing (B) and the rows by
+    /// the longest along it (A), each plus a small gap, so an oval or oblong base sits within p.7's 1" of its neighbours — centred on the point
     /// and pushed in so the whole grid is on the table. The player drags the models into position afterwards.
     /// </summary>
     public static IReadOnlyList<ModelRelocation> Layout(IReadOnlyList<ModelInPlay> models, Point3 at, TableSize size)
     {
         if (models.Count == 0) return [];
-        var pitch = models.Max(m => Math.Max(m.Slot.Base.A, m.Slot.Base.B)) + Gap;
+        var across = models.Max(m => m.Slot.Base.B) + Gap; var along = models.Max(m => m.Slot.Base.A) + Gap;   // yaw 0: B runs along X, A along Y
         var cols = Math.Min(models.Count, PerRow); var rows = (models.Count + cols - 1) / cols;
-        var cx = Fit(at.X, cols * pitch / 2, size.Width); var cy = Fit(at.Y, rows * pitch / 2, size.Length);
+        var cx = Fit(at.X, cols * across / 2, size.Width); var cy = Fit(at.Y, rows * along / 2, size.Length);
         return models.Select((m, i) => new ModelRelocation(m.Id, m.Location,
-            new OnTable(new Placement(new Point3(cx + (i % cols - (cols - 1) / 2.0) * pitch, cy - (i / cols - (rows - 1) / 2.0) * pitch, at.Z), new Yaw(0))))).ToList();
+            new OnTable(new Placement(new Point3(cx + (i % cols - (cols - 1) / 2.0) * across, cy - (i / cols - (rows - 1) / 2.0) * along, at.Z), new Yaw(0))))).ToList();
     }
 
     /// <summary>

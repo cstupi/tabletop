@@ -13,7 +13,7 @@ describe('refusalText', () => {
     expect(refusalText(refused('unknown', 'boom'))).toBe('Refused: boom.');
   });
   it('a watcher is told so, except for its id-less presence', () => {
-    expect(refusalText(refused('watcher', 'x'))).toBe('You are watching this game: a watcher cannot change it.');
+    expect(refusalText(refused('watcher', 'x'))).toBe('You are watching this game.');
     expect(refusalText(refused('watcher', 'x', '00000000-0000-0000-0000-000000000000'))).toBeNull();
   });
 });

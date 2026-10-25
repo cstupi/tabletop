@@ -4,6 +4,7 @@
 // none. The label is the printed value; a rule that changes a range is not shown.
 
 import type { Overlay } from '../board/interaction';
+import { drawLabel } from '../board/labelPlacement';
 import { placed, type Geometry, type Placement, type Segment } from '../geometry';
 import type { ModelInPlay, Projection } from '../live/apply';
 
@@ -79,8 +80,8 @@ export const ringsOverlay = (rings: readonly RangeRing[], colour: string): Overl
     ctx.stroke();
     const far = r.segments.reduce((best, s) => (s.a.y > best.y ? s.a : best), r.segments[0]!.a);
     const at = project(far);
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.strokeText(r.label, at.x, at.y - 4);
-    ctx.lineWidth = 2; ctx.fillStyle = colour; ctx.fillText(r.label, at.x, at.y - 4);
+    ctx.lineWidth = 3;
+    drawLabel(ctx, r.label, { x: at.x, y: at.y - 4 }, colour, { lineHeight: 16, grow: 'up', halo: 'rgba(0, 0, 0, 0.85)' });
   }
   ctx.restore();
 };

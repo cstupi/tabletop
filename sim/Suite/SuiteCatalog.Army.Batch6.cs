@@ -44,7 +44,7 @@ public static partial class SuiteCatalog
             Rallying(TitanLords, "Honor Code"),
             Game(WarDaemons, "wormhole-daemons-of-war-defensive-frenzy", Play.Moves, ["Defensive Frenzy"], [R(1, "Defensive Frenzy"), R(2, "Defensive Frenzy")], [],
                 [PerMarker("Defensive Frenzy", "defense", 1, onTarget: true, "\"If all models in this unit have this rule, place one marker on this unit when it fully destroys an enemy unit … For each marker this unit gets +1 to Defense rolls\"")],
-                enemyUnits: 4, enemyModels: 1),
+                enemyUnits: 4, enemyModels: 1, seed: 12),
             Game(DarkElves, "dark-elf-raiders-piercing-frenzy", Play.Moves, ["Piercing Frenzy"], [R(1, "Piercing Frenzy"), R(2, "Piercing Frenzy")], [],
                 [PerMarker("Piercing Frenzy", "defense", -1, onTarget: false, FrenzyText + " all models with this rule in this unit get AP(+1)\"", ap: true)], enemyUnits: 4, enemyModels: 1),
             Game(Dwarves, "dwarf-guilds-precision-frenzy", Play.Moves, ["Precision Frenzy"], [R(1, "Precision Frenzy"), R(2, "Precision Frenzy")], [],

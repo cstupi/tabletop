@@ -18,12 +18,6 @@ public partial class LobbyPanel : VBoxContainer
         _session.BoardChanged -= _onBoard;
     }
 
-    static string EndText(Session s)
-    {
-        var off = s.Draft is { } d ? d.Terrain.Count(t => !Tabletop.Geometry.Table.ContainsPoint(d.Size, t.Position.Horizontal)) : 0;   // the game server's DropOffSlab rule
-        return off == 0 ? "End setup" : $"End setup ({off} off-slab pieces will be dropped)";
-    }
-
     public override void _Ready()
     {
         var s = _session = Main.Instance.Session; var game = s.Game!;
@@ -83,8 +77,8 @@ public partial class LobbyPanel : VBoxContainer
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, LobbyEdits.StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
-            AddChild(_endSetup = Btn(EndText(s), () => Guarded.Send(s, LobbyEdits.EndSetup()))); _endSetup.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = EndText(s); };
+            AddChild(_endSetup = Btn(LobbyView.EndSetupText(s.Draft), () => Guarded.Send(s, LobbyEdits.EndSetup()))); _endSetup.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+            _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = LobbyView.EndSetupText(s.Draft); };
             s.BoardChanged += _onBoard;
         }
     }

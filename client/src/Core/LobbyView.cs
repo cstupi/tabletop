@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
@@ -34,9 +35,9 @@ public static class LobbyView
         var ordinals = game.Teams.Where(t => seats.Any(s => s.TeamId == t.Id)).OrderBy(t => t.Ordinal).Select(t => $"Team {t.Ordinal}").ToList();
         if (ordinals.Count == 0) return "You have no team: join one, or stay without one to watch once play starts.";
         var army = seats.Any(s => s.TeamId is not null && s.ArmyId is null) ? " Pick your army below." : "";
-        var both = ordinals.Count > 1 ? " You play every side you hold, one Ask at a time." : "";
+        var both = ordinals.Count > 1 ? " You play every side you hold." : "";
         var mates = game.Participants.Where(p => p.TeamId is { } t && seats.Any(s => s.TeamId == t) && seats.All(s => s.AccountId != p.AccountId)).Select(p => p.Name).Distinct().ToList();
-        var with = mates.Count == 0 ? "" : $" Teammates: {string.Join(", ", mates)}; each of you brings an army and activates your own units on your team's turns.";
+        var with = mates.Count == 0 ? "" : $" Teammates: {string.Join(", ", mates)}.";
         return $"You are on {string.Join(" and ", ordinals)}.{army}{both}{with}";
     }
 
@@ -52,7 +53,7 @@ public static class LobbyView
             var too = playing ? " You keep your other team and play both sides." : "";
             if (holders.Count == 0 || isCreator) return new TeamChoice(t.Id, $"Join team {t.Ordinal}", true, (holders.Count == 0 ? "" : $"Held by {string.Join(", ", holders)}; as the creator you may join it.") + too);
             return new TeamChoice(t.Id, $"Team {t.Ordinal}: {string.Join(", ", holders)} · ask the creator to add you", false,
-                $"{string.Join(", ", holders)} holds this team. A team may hold several players, each with their own army: the creator adds you from the Players list.");
+                $"{string.Join(", ", holders)} holds this team; the creator adds you from the Players list.");
         }).ToList();
     }
 
@@ -104,4 +105,16 @@ public static class LobbyView
         GameStatus.Setup => "Anyone may edit the table. Waiting for the creator to end setup.",
         _ => null,
     };
+
+    /// <summary>The End setup button: the game server's DropOffSlab rule removes each piece whose centre is off the table (edge inclusive).</summary>
+    public static string EndSetupText(TableState? draft)
+    {
+        var off = draft is { } d ? d.Terrain.Count(t => !Tabletop.Geometry.Table.ContainsPoint(d.Size, t.Position.Horizontal)) : 0;
+        return off switch
+        {
+            0 => "End setup",
+            1 => "End setup (1 piece off the table will be removed)",
+            _ => $"End setup ({off} pieces off the table will be removed)",
+        };
+    }
 }

@@ -94,7 +94,7 @@
         <a class="button primary small" href={hrefOf({ page: 'replay', gameId: game.id })}><Icon name="replay" />Replay</a>
       {:else}
         <button class="primary small" disabled={busy !== null} onclick={() => open(game)}>{main.label}</button>
-        {#if can.canReplay}<a class="button small" href={hrefOf({ page: 'replay', gameId: game.id })} title="Replay from the start; nothing you do there changes the game">Replay</a>{/if}
+        {#if can.canReplay}<a class="button small" href={hrefOf({ page: 'replay', gameId: game.id })} title="Replay from the start">Replay</a>{/if}
       {/if}
       {#if !joinable}
         {#if can.canEnd}<button class="small" disabled={busy !== null} onclick={() => end(game)}>End</button>{/if}
@@ -130,7 +130,7 @@
     <section class="panel">
       <h2>Open games</h2>
       {#if lists.open.length === 0}
-        <p class="dim">No games are waiting for players right now.</p>
+        <p class="dim">No games are waiting for players.</p>
       {:else}
         <ul class="rows">{#each lists.open as game (game.id)}{@render row(game, true)}{/each}</ul>
       {/if}

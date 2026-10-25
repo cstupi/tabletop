@@ -30,6 +30,17 @@ public static class ContactCheck
         _ => $"within {separation ?? 0:0.#}\" of {(c.UnitId is { } u ? unitName(u) : "another unit")}",
     };
 
+    /// <summary>The words as the decision box's sentence about `subject` (the model's name), as the server words its own refusals; words that
+    /// are not a contact's stay as they are.</summary>
+    public static string Sentence(string words, string subject) => words switch
+    {
+        "overlaps a base" => $"{subject} would be placed on another model's base (p.7)",
+        "path crosses a model" => $"{subject} would move through another model (p.7)",
+        "ends in impassable terrain" => $"{subject} would end its move in impassable terrain (p.11, p.7)",
+        _ when words.StartsWith("within ", StringComparison.Ordinal) => $"{subject} would end {words}{(words.StartsWith("within 1\"", StringComparison.Ordinal) ? " (p.7)" : "")}",
+        _ => words,
+    };
+
     /// <summary>Each contact as words, by model.</summary>
     public static IReadOnlyDictionary<Guid, string> Words(IReadOnlyDictionary<Guid, Contact> found, double? separation, Func<Guid, string> unitName) =>
         found.ToDictionary(kv => kv.Key, kv => Words(kv.Value, separation, unitName));

@@ -79,9 +79,13 @@ describe('PlayDrags', () => {
     expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 14, y: 12, z: 0 });
     expect(r.box.ghosts.get(b)!.position).toMatchObject({ x: 16, y: 12 });
     expect(r.reason()).toBe('');
-    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);                                                      // 14" past the 6" allowance
+    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);                                                      // 14" against a 6" allowance
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 16, y: 10 });                                  // held to its reach
+    expect(r.box.ghosts.get(b)!.position).toMatchObject({ x: 18, y: 10 });
+    expect(r.reason()).toBe('');
+    r.drags.onDragMove({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });                                    // Alt places freely
     expect(r.reason()).toBe('2 models past their allowance.');
-    r.drags.onDragEnd({ x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });
     expect(r.sent).toHaveLength(0);
     expect(r.drags.held).toBeNull();
     expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 24, y: 10 });
@@ -97,10 +101,10 @@ describe('PlayDrags', () => {
     r.openMove(region({ modelIds: r.ids }));
     r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
     const before = r.contactCalls.length;
-    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });                                    // Alt: not held to the allowance
     expect(r.contactCalls.length - before).toBe(1);
     expect(r.reason()).toBe('4 models past their allowance.');
-    r.drags.onDragEnd({ x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });
     expect(r.contactCalls.length - before).toBe(2);
     r.drags.onDragStart(model(a), { x: 24, y: 10 }, NO_MODIFIERS);
     r.drags.onDragCancel();
@@ -126,9 +130,9 @@ describe('PlayDrags', () => {
     expect(r.drags.onKey({ kind: 'turnLeft' }, false)).toBe(true);                                           // the key turns at the latest point
     expect(r.box.ghosts.get(a)).toMatchObject({ position: { x: 14, y: 12 }, yaw: { degrees: 15 } });
     r.drags.onDragMove({ x: 15, y: 12 }, NO_MODIFIERS);
-    r.drags.onDragEnd({ x: 16, y: 12 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 15.5, y: 12 }, NO_MODIFIERS);                                                    // inside the 6" allowance
     for (const run of frames.splice(0)) run();                                                               // a frame after the drop does nothing
-    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 16, y: 12 });
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 15.5, y: 12 });
     expect(r.drags.held).toBeNull();
   });
 

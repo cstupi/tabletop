@@ -6,6 +6,7 @@
 
 import type { Scene } from '../board/frame';
 import type { Overlay } from '../board/interaction';
+import { drawLabel } from '../board/labelPlacement';
 import type { Projection } from '../live/apply';
 import type { AskOption, GameInfo, SightAnswer } from '../protocol/wire.generated';
 import type { Names } from './names';
@@ -125,14 +126,15 @@ export class SightCheck {
     const targets = [...p.models.values()].filter((m) => m.unitId === hovered.target).map((m) => centre(m.id)).filter((c): c is XY => c !== null);
     void game;
     const summary = targets.length === 0 ? null : {
-      at: { x: targets.reduce((a, c) => a + c.x, 0) / targets.length, y: Math.max(...targets.map((c) => c.y)) + 2 },
+      // Under the target, 2" below its lowest model: the hover label sits over its first model, so the two never share a line.
+      at: { x: targets.reduce((a, c) => a + c.x, 0) / targets.length, y: Math.min(...targets.map((c) => c.y)) - 2 },
       text: summaryText(hovered.answer, n.unit(hovered.target), shooting),
     };
     return { lines, blockers, summary, dimmed: dim };
   }
 }
 
-/** The lines, the blockers outlined (model circles, or a volume's outline) at 35 % and the summary over the target. */
+/** The lines, the blockers outlined (model circles, or a volume's outline) at 35 % and the summary under the target. */
 export function sightOverlay(view: SightView, scene: Scene): Overlay {
   return (ctx, project) => {
     ctx.save();
@@ -161,9 +163,8 @@ export function sightOverlay(view: SightView, scene: Scene): Overlay {
     if (view.summary !== null) {
       const at = project(view.summary.at);
       ctx.font = '600 13px ui-monospace, SFMono-Regular, Menlo, monospace';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'; ctx.strokeText(view.summary.text, at.x, at.y);
-      ctx.fillStyle = '#ffffff'; ctx.fillText(view.summary.text, at.x, at.y);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.lineWidth = 3;
+      drawLabel(ctx, view.summary.text, at, '#ffffff', { lineHeight: 16, grow: 'down', halo: 'rgba(0, 0, 0, 0.85)' });
     }
     ctx.restore();
   };

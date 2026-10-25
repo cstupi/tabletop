@@ -30,7 +30,7 @@ public class FeedbackTests
     [Fact]
     public void A_watcher_s_command_is_explained_and_its_refused_presence_is_silent()
     {
-        Assert.Equal("You are watching this game: a watcher cannot change it.", Feedback.Refusal(new Refused(Guid.NewGuid(), RefusalReason.Watcher, "a watcher sends nothing that changes the game")));
+        Assert.Equal("You are watching this game.", Feedback.Refusal(new Refused(Guid.NewGuid(), RefusalReason.Watcher, "a watcher sends nothing that changes the game")));
         Assert.Null(Feedback.Refusal(new Refused(Guid.Empty, RefusalReason.Watcher, "a watcher sends nothing that changes the game")));
     }
 

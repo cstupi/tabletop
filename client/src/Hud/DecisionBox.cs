@@ -23,7 +23,7 @@ public partial class DecisionBox : PanelContainer
     MoveRegionNode? _region;
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
-    Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly SealedReveals _reveals = new();
+    Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _revealed, _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
     Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit;
@@ -56,7 +56,7 @@ public partial class DecisionBox : PanelContainer
         _onRefused = r =>
         {
             if (r.MessageId != _lastCommand) return;
-            _refusal = $"The server refused: {r.Detail}"; _refusalAsk = _renderedAsk;
+            _refusal = $"The server refused: {r.Detail}"; _refusalDetail = r.Detail; _refusalAsk = _renderedAsk;
             KeepRefused(r);                                              // a refused move or placement comes back where it was dropped, marked
             Reset(); _renderedAsk = null; Render();
         };

@@ -124,13 +124,13 @@ public class ScenarioTests
     public async Task The_objectives_scenario_meets_its_expectations_on_seeds_1_to_10(ulong seed) =>
         AssertPasses(await RunAsync(ScenarioCatalog.Get("objectives").WithSeed(seed)));
 
-    // A scored win end to end on one known game: the uniform policy's seed 1, pinned for the answers, the placement and the game's dice
-    // alike. Blue's unit ends round 2 within 3" of Blue home, round_ended records it, and the 1–0 is a win. A seed-specific fact, so it
+    // A scored win end to end on one known game: the uniform policy's seed 3, pinned for the answers, the placement and the game's dice
+    // alike. Blue's unit ends a round within 3" of a marker, round_ended records it, and the 1–0 is a win. A seed-specific fact, so it
     // lives here and not in the catalog's expectations.
     [Fact]
-    public async Task Objectives_seed_1_seizes_a_marker_and_scores_a_win()
+    public async Task Objectives_seed_3_seizes_a_marker_and_scores_a_win()
     {
-        var scenario = ScenarioCatalog.Get("objectives").WithSeed(1) with
+        var scenario = ScenarioCatalog.Get("objectives").WithSeed(3) with
         {
             Goal = null,
             Expectations = [new Expectation.EventOfKind("round_ended"), new Expectation.Won(2), new Expectation.MostMarkersWin()],
