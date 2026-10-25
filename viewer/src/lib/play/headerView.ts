@@ -108,7 +108,7 @@ export function waitingForPlayers(waiting: readonly TeamWaiting[]): string | nul
 }
 
 /** The header's line for a client the server answers as a watcher (Session.IsWatching). */
-export const WATCHING = 'Watching: you have no team in this game, so you see everything and change nothing.';
+export const WATCHING = 'Watching: you have no team in this game';
 /** The header's line in a replay (Session.Replaying). */
 export const REPLAYING = 'Replay: the table as it stood at this point in the game. Nothing here changes the game.';
 
