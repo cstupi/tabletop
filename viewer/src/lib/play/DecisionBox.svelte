@@ -21,7 +21,7 @@
     {#if panel.seat !== ''}<p class="seat">{panel.seat}</p>{/if}
     {#if panel.title !== ''}<h2 class="title">{panel.title}</h2>{/if}
     {#if panel.revealed !== null}<p class="revealed">{panel.revealed}</p>{/if}
-    {#if panel.note !== ''}<p class="warn">{panel.note}</p>{/if}
+    {#if panel.note !== ''}<p class="note">{panel.note}</p>{/if}
     {#if panel.controls.length > 0}
       <div class="controls">
         {#each panel.controls as control, i (i)}
@@ -66,7 +66,10 @@
 {/if}
 
 <style>
-  .decision { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); flex: 0 1 auto; min-height: 0; max-height: 45%; overflow: hidden; }
+  /* The box takes its full height, up to most of the column (the unit card and the log below give way); past that the whole box scrolls,
+     so no part of it, the main action least, is squeezed away. */
+  .decision { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); flex: none; min-height: 0; max-height: 70%; overflow-y: auto; }
+  .decision > * { flex: none; }
   :global([data-theme='fantasy']) .decision { padding: calc(var(--s4) + 4px); }
   .decision.waiting { opacity: .85; }
   p { margin: 0; white-space: pre-line; }
@@ -74,12 +77,13 @@
   .title { margin: 0; font-size: 1.1rem; color: var(--text); }
   .waiting .title { font-size: .95rem; color: var(--dim); }
   .revealed { color: var(--accent); }
-  .controls { display: flex; flex-direction: column; gap: var(--s2); min-height: 0; overflow-y: auto; margin: 0 calc(-1 * var(--s1)); padding: 2px var(--s1); }
+  .controls { display: flex; flex-direction: column; gap: var(--s2); margin: 0 calc(-1 * var(--s1)); padding: 2px var(--s1); }
   .controls > button { justify-content: flex-start; width: 100%; flex: none; text-align: left; white-space: normal; }
   .controls > button .text { flex: 1; min-width: 0; }
   .controls > button.quiet { align-self: flex-start; width: auto; font-size: .9rem; }
   .controls > .toggle { align-self: flex-start; width: auto; }
   kbd { font-family: var(--font-num); font-size: .75rem; line-height: 1; padding: 3px 5px; border: 1px solid currentColor; border-radius: 3px; opacity: .7; flex: none; }
+  .note { color: var(--text); }
   .warn { color: var(--warning); }
   .reason { font-size: .85rem; line-height: 1.3; margin-top: calc(-1 * var(--s1)); }
   .label { color: var(--text); }

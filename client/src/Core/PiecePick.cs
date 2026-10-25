@@ -24,5 +24,5 @@ public sealed class PiecePick(PieceSelection selection, IReadOnlyList<Guid> elig
     public bool AnswersAtOnce => selection.Max == 1 && _picked.Count == 1;
     public bool Ready => _picked.Count >= selection.Min && _picked.Count <= selection.Max;
     public SelectedPieces? Answer() => Ready ? new SelectedPieces(_picked.ToList()) : null;
-    public string Count(Names names) => AnswersAtOnce ? names.Piece(_picked[0]) : $"{_picked.Count} of {selection.Min}–{selection.Max}";
+    public string Count(Names names) => AnswersAtOnce ? names.Piece(_picked[0]) : $"{_picked.Count} of {(selection.Min == selection.Max ? $"{selection.Min}" : $"{selection.Min}–{selection.Max}")}";
 }

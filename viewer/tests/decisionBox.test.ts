@@ -200,6 +200,7 @@ describe('the decision box controller', () => {
     const one = rig();
     one.apply(open(askOf({ kind: 'pieces', eligible: [one.s.rivals.id], min: 1, max: 1 }, { question: 'charge_target', allowPass: false })));
     one.box.render();
+    expect(one.labels()[0]).toBe('0 of 1');
     one.box.target(one.s.rival.id);
     expect(answerOf(one.sent[0]!)).toEqual({ kind: 'selected_pieces', pieceIds: [one.s.rivals.id] });
   });
