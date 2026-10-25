@@ -18,9 +18,17 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
-	@immutable path /_app/immutable/* /viewer/assets/*
+	# Content-hashed names: SvelteKit's and Vite's bundles, and the geometry runtime's _framework files (every one carries a hash
+	# but dotnet.js, which names the others).
+	@immutable {
+		path /_app/immutable/* /viewer/assets/* /viewer/geometry/_framework/*
+		not path /viewer/geometry/_framework/dotnet.js
+	}
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
-	@mutable not path /_app/immutable/* /viewer/assets/*
+	@mutable not {
+		path /_app/immutable/* /viewer/assets/* /viewer/geometry/_framework/*
+		not path /viewer/geometry/_framework/dotnet.js
+	}
 	header @mutable Cache-Control "no-cache"
 	redir /viewer /viewer/ 308
 	# The viewer's hosted build (the admin Replays tool): one page with no routes of its own. A plain Vite build carries no

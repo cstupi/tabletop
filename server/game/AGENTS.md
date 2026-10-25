@@ -5,7 +5,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 
 ## Layout
 
-- `Program.cs`: DI, `StartupGuard.Enforce`, `PropertiesSeeder` at startup (not in the `Test` environment), `/ws`, `/healthz`, listens on `127.0.0.1:5200` (`appsettings.json`; `Kestrel__Endpoints__Http__Url` overrides).
+- `Program.cs`: DI, `StartupGuard.Enforce`, `PropertiesSeeder` at startup (not in the `Test` environment), `/ws` (permessage-deflate with context takeover when the client offers it; `docs/architecture.md` → Transport), `/healthz`, listens on `127.0.0.1:5200` (`appsettings.json`; `Kestrel__Endpoints__Http__Url` overrides).
 - `Dockerfile`: the production image (see `deploy/README.md`).
 - `Auth/SessionVerification.cs`: `ISessionVerifier`, `StytchJwtVerifier`, `HttpJwksSource` (cached 10 minutes; an unknown `kid` refetches at most once per 30 s, one shared fetch, 5 s timeout; on failure the held keys serve at most 1 h past their fetch, then fail closed).
 - `Configuration/`: `GameServerOptions` (from `TABLETOP_*`), `DotEnv` (the working directory's `.env`, Development only), `StartupGuard`: dev mode is

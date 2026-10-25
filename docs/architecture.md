@@ -488,6 +488,16 @@ presence both ways and discarded, and during setup only the setup edits that wri
 (`MultiplayerAPI`, `[Rpc]`, `MultiplayerSynchronizer`) is not used: it assumes Godot on both
 ends and node-tree replication, which is the wrong model for discrete board state.
 
+**Compressed both ways.** `/ws` negotiates permessage-deflate (RFC 7692) with context takeover whenever the client offers it: browsers always
+do, and the Godot client and the sim offer it (`SocketCompression.Offer`). A game's JSON repeats its names and ids, so one socket's game is
+about 11x smaller on the wire (1,950 → 176 KiB) and a reconnect's whole-log catch-up 13x (1,864 → 144 KiB); each compressing socket holds
+about 300 KB of zlib state. `Connect` and `Reauth`, the frames carrying the session JWT, go uncompressed from the Godot client and the sim
+(`SocketCompression.FlagsFor`), so the token never enters the client's deflate window; a browser compresses them, which is safe
+because nothing another party writes is echoed in a client's outbound frames (commands and presence come from the player's own input
+and server-issued ids), so no attacker can grow a guess next to the token. Server-to-client frames carry no secret. Management
+answers JSON in Brotli or gzip except the `/v1/auth` and `/v1/dev` routes, the only ones carrying a session token
+(`Tabletop.Management.Http.Compression`).
+
 Turn-based play means no prediction of authoritative state and no rollback netcode. The
 client's geometry is a cosmetic prediction, overwritten by the event, per Geometry above.
 

@@ -53,7 +53,9 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Map("/ws", async context =>
 {
     if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = StatusCodes.Status400BadRequest; return; }
-    using var socket = await context.WebSockets.AcceptWebSocketAsync();
+    // permessage-deflate when the client offers it (browsers always do; the Godot client and the sim do), with context takeover: a game's
+    // JSON repeats its names and ids, so one socket's game is 11x smaller. About 300 KB of zlib state per compressing socket.
+    using var socket = await context.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext { DangerousEnableCompression = true });
     var watchOnly = context.Request.Query["watch"] == "1";       // a read-only socket: a replay, or an admin's watch
     await context.RequestServices.GetRequiredService<ConnectionHandshake>().RunAsync(socket, watchOnly, context.RequestAborted);
 });

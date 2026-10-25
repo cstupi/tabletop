@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text.Json;
+using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
 
 namespace Tabletop.Sim.Drivers;
@@ -16,7 +17,7 @@ public sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector
 {
     public async Task<WebSocket> ConnectAsync(CancellationToken ct)
     {
-        var socket = new ClientWebSocket();
+        var socket = new ClientWebSocket { Options = { DangerousDeflateOptions = SocketCompression.Offer() } };   // as the Godot client offers it
         try { await socket.ConnectAsync(uri, ct); }
         catch { socket.Dispose(); throw; }
         return socket;

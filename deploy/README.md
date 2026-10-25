@@ -163,6 +163,9 @@ compose` needs it in `home.env`. Every container on `gateway_default` can then s
   (mesh uploads and client zips go straight to MinIO).
 - `/v1/dev/*` does not exist in Production; nothing to block. `/healthz` on management and game need not be public.
 - The web container sends `frame-ancestors 'none'`, `X-Frame-Options`, `nosniff` and `Referrer-Policy`; HSTS is Caddy's.
+- Compression is end to end: `/ws` negotiates permessage-deflate between the client and the game server (Caddy's `reverse_proxy` passes
+  `Sec-WebSocket-Extensions` through), management compresses `/v1` itself, and the web container its files; Caddy's `encode` leaves an
+  encoded answer alone.
 
 **Backups.** A dump now: `docker exec tabletop-pg-backup /scripts/backup.sh once`. Restore into the running stack:
 `docker exec -i tabletop-postgres pg_restore -U postgres -d tabletop --clean --if-exists --no-owner --role=tabletop_owner

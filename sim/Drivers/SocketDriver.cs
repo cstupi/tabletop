@@ -114,7 +114,7 @@ public sealed class SocketDriver : IGameDriver
         var peer = new Peer(participantId, socket);
         _all.Add(peer);
         peer.Reader = Task.Run(() => ReadLoopAsync(peer), CancellationToken.None);
-        await peer.Socket.SendAsync(connect, WebSocketMessageType.Text, true, CancellationToken.None);
+        await peer.Socket.SendAsync(connect, WebSocketMessageType.Text, SocketCompression.Uncompressed, CancellationToken.None);
         var welcome = await ReadAsync(peer, ct);
         if (welcome is Rejected rejected) throw new InvalidOperationException($"the server rejected the connection: {rejected.Reason}");
         if (welcome is not Welcome w) throw new InvalidOperationException($"expected a welcome, got {welcome.GetType().Name}");
@@ -280,7 +280,7 @@ public sealed class SocketDriver : IGameDriver
     {
         var frame = Frame(message);
         await peer.Sending.WaitAsync();
-        try { await peer.Socket.SendAsync(frame, WebSocketMessageType.Text, true, CancellationToken.None); }
+        try { await peer.Socket.SendAsync(frame, WebSocketMessageType.Text, SocketCompression.FlagsFor(message), CancellationToken.None); }
         finally { peer.Sending.Release(); }
     }
 

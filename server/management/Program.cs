@@ -32,6 +32,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 });
 builder.Services.AddProblemDetails();
 builder.Services.AddCors();
+builder.Services.AddJsonCompression();
 builder.Services.AddStytchJwt();
 builder.Services.AddProxyAndRateLimits();
 builder.Services.AddSingleton<IAccountRepository, AccountRepository>();
@@ -69,6 +70,7 @@ if (devMode) migrator.Run();
 else if (migrator.Pending() is { Count: > 0 } pending)
     throw new InvalidOperationException($"The database is behind this build ({string.Join(", ", pending)}); run `Tabletop.Management --migrate` with the owner role's TABLETOP_DB_CONNECTION first.");
 app.UseForwardedHeaders();       // first: everything after sees the client's address, from a trusted proxy only
+app.UseJsonCompression();        // Brotli or gzip on every answer but the auth routes'
 app.UseExceptionHandler(h => h.Run(ctx => Results.Problem(
     statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error switch
     {

@@ -64,7 +64,9 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   (the presigned URLs' origin) for the CSP; Caddy serves `web/build` (`deploy/README.md`).
 - `web/Dockerfile` (context: repo root, build arg `TABLETOP_BLOB_ORIGIN`): the same build served by Caddy on :8080 with SPA
   fallback and the `frame-ancestors` header (`web/Caddyfile`), plus the viewer's hosted build (`npm run build:hosted` in `viewer/`)
-  at `/viewer/` with its own CSP header; the home-server stack's `web` service.
+  at `/viewer/` with its own CSP header; the home-server stack's `web` service. Base image `caddy:2.11-alpine` (2.10 answered 206 to a
+  plain request for a precompressed file). Content-hashed files (`/_app/immutable/*`, `/viewer/assets/*`, `/viewer/geometry/_framework/*`
+  but `dotnet.js`) are `public, max-age=31536000, immutable`; everything else `no-cache`.
 - `docker compose` sets `PUBLIC_VIEWER_URL=http://127.0.0.1:5174/` so the dev Play link opens the dev viewer (its own login).
 - `cd web && npm run fixtures`: regenerates the STL fixtures.
 
