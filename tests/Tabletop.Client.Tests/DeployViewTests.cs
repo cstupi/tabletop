@@ -110,4 +110,15 @@ public class DeployViewTests
         var onTable = Applier(new ModelsMoved([Placed]));
         Assert.Empty(DeployView.OffTable(onTable.Projection, [Samples.Unit, Samples.Model]));
     }
+
+    [Fact]
+    public void Place_moves_each_ghost_from_the_shelf_in_the_ghosts_order()
+    {
+        var p = TableUx.After();                                            // nothing deployed: every model on the shelf
+        var m0 = TableUx.ModelOf(TableUx.Squad); var m2 = TableUx.ModelOf(TableUx.Squad, 2);
+        var mm = DeployView.Place(p, [(m2, new Placement(new Point3(14, 10, 0), new Yaw(0))), (m0, new Placement(new Point3(10, 10, 0), new Yaw(30)))]);
+        Assert.Equal([m2, m0], mm.Moves.Select(m => m.ModelId));
+        Assert.All(mm.Moves, m => Assert.IsType<OnShelf>(m.From));
+        Assert.Equal(new OnTable(new Placement(new Point3(10, 10, 0), new Yaw(30))), mm.Moves[1].To);
+    }
 }

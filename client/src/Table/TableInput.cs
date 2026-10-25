@@ -377,20 +377,17 @@ public partial class TableInput : Node
         var held = Guid.CreateVersion7(); var freeMove = false;
         try
         {
-            if (p is not null && drag.ModelIds.All(p.Models.ContainsKey))
+            switch (HandMoves.Drop(status, p, draft, new HeldDrop(drag.PieceId, drag.ModelIds, drag.Grabs, drag.Current, drag.Yaws)))
             {
-                // The nodes stay where they were dropped until the server's event (or a refusal) lands; the Animator skips this move.
-                var moves = drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(drag.Grabs[m]), new OnTable(new Placement(drag.Current[m], drag.Yaws[m])))).ToList();
-                freeMove = true; _drops.Add(held, moves);
-                await _session.SendCommandAsync(new MoveModels(moves), held);
-                HandMoved?.Invoke(drag.ModelIds);                         // the undo button waits for this move's event
+                case { Command: MoveModels mm }:
+                    // The nodes stay where they were dropped until the server's event (or a refusal) lands; the Animator skips this move.
+                    freeMove = true; _drops.Add(held, mm.Moves);
+                    await _session.SendCommandAsync(mm, held);
+                    HandMoved?.Invoke(drag.ModelIds);                         // the undo button waits for this move's event
+                    break;
+                case { Edit: { } edit }: await _session.SendEditAsync(edit); break;
+                case { Command: { } command }: await _session.SendCommandAsync(command); break;
             }
-            else if (status == GameStatus.Setup && draft is not null && draft.Terrain.Any(t => t.Id == drag.PieceId))
-                await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaws[drag.PieceId]));
-            else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
-                await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaws[drag.PieceId]));
-            else if (p is not null && (p.Markers.ContainsKey(drag.PieceId) || p.Board.Table.Markers.Any(m => m.Id == drag.PieceId)))   // a play marker, or a setup one (an unlocked objective)
-                await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaws[drag.PieceId]));
         }
         catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); _drops.Refuse(held); freeMove = false; }
         if (!freeMove && IsInstanceValid(this) && IsInstanceValid(_view)) _view.Redraw();   // an edit or a marker move still snaps back until its event lands; a free move waits for its event or a refusal
