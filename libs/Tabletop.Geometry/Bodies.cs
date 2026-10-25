@@ -30,6 +30,22 @@ public static class Bodies
         return new WorldVolume(id, volume, new TerrainTransform(m.Placement.Position, m.Placement.Yaw, 1));
     }
 
+    /// <summary>The radius about the base centre that holds the whole base (an oval's polygon included), for broad-phase culls.</summary>
+    internal static double Reach(this ModelBody body)
+    {
+        var b = body.Base;
+        return b.Shape switch
+        {
+            BaseShape.Circle => b.A / 2,
+            BaseShape.Rect => Math.Sqrt(b.A * b.A + b.B * b.B) / 2,
+            _ => Math.Max(b.A, b.B) / 2,
+        };
+    }
+
+    /// <summary>The two bases are too far apart, centre to centre, for their outlines to come within `gap` of each other (broad phase).</summary>
+    internal static bool Apart(PlacedModel a, PlacedModel b, double gap) =>
+        a.Placement.Position.Horizontal.DistanceTo(b.Placement.Position.Horizontal) > a.Body.Reach() + b.Body.Reach() + gap + 1e-6;
+
     internal static Outline BaseOutline(this PlacedModel m)
     {
         var centre = m.Placement.Position.Horizontal;

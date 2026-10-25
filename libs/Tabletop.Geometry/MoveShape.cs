@@ -39,6 +39,10 @@ internal sealed class MoveShape
         return new MoveShape(core, oRadius + mRadius);
     }
 
+    /// <summary>The Centre and Bound <see cref="Of"/> gives two circles, without building the shape; null for any other pair.</summary>
+    public static (Point2 Centre, double Bound)? CircleBounds(Outline obstacle, Outline mover, Point2 origin) =>
+        obstacle is CircleOutline o && mover is CircleOutline m ? (o.Centre + (m.Centre - origin) * -1, 0 + (o.Radius + m.Radius)) : null;
+
     /// <summary>An outline as a core and a radius, relative to `origin`.</summary>
     static (Point2[] Core, double Radius) Split(Outline outline, Point2 origin) => outline switch
     {
@@ -152,6 +156,16 @@ internal sealed class MoveShape
             return inside;
         }
         return (Cross(0, deepest), Cross(1, deepest));
+    }
+
+    /// <summary>
+    /// Interval(a, b) is not null, known without its search: the segment comes inside by clearly more than the search's own error (its deepest
+    /// point found to 1e-9 of the length). False only says "not known".
+    /// </summary>
+    public bool SurelyEnters(Point2 a, Point2 b)
+    {
+        if (Radius <= Tolerance.Distance) return Core.Length >= 3 && Clip(a, b) is not null;
+        return SegmentDistance(a, b) < Radius - Tolerance.Distance - 1e-6 - 1e-8 * (b - a).Length;
     }
 
     /// <summary>Unsigned distance from the segment to the core: 0 when they meet.</summary>

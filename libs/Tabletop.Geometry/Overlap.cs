@@ -5,7 +5,7 @@ public static class Overlap
 {
     /// <summary>Two bases share area and a vertical extent. Touching is not overlapping.</summary>
     public static bool Bases(PlacedModel a, PlacedModel b) =>
-        IntervalsOverlap(a.Bottom(), a.Top(), b.Bottom(), b.Top()) && Outline.InteriorsIntersect(a.BaseOutline(), b.BaseOutline());
+        !Bodies.Apart(a, b, 0) && IntervalsOverlap(a.Bottom(), a.Top(), b.Bottom(), b.Top()) && Outline.InteriorsIntersect(a.BaseOutline(), b.BaseOutline());
 
     /// <summary>The body is inside a Solid volume. Standing on its top is not; Area volumes never intersect.</summary>
     public static bool WithSolid(PlacedModel model, WorldVolume volume) =>

@@ -94,7 +94,7 @@ cd web && npm ci && TABLETOP_BLOB_ORIGIN=https://blobs.tabletop.example.org npm 
 ```
 
 The viewer's hosted build is the browser play and replay app, open to every signed-in player: same origin as the web app, so it reuses the website's session
-`scripts/geometry-wasm` publishes `Tabletop.Geometry` as WebAssembly (the .NET SDK, no workload) into `viewer/public/geometry/`, which the build copies into `dist/`; `web/Dockerfile` does it in its own stage. `/viewer/`'s CSP carries `script-src 'self' 'wasm-unsafe-eval'` so the runtime can compile, and the file server serves the precompressed `.br`/`.gz` files.
+`scripts/geometry-wasm` publishes `Tabletop.Geometry` as WebAssembly into `viewer/public/geometry/`, which the build copies into `dist/`: compiled ahead of time when the SDK has the `wasm-tools` workload, else on the runtime's interpreter (the same answers, 3-4x slower per call). `web/Dockerfile` does it in its own stage, which installs the workload and the `python3` its Emscripten needs. `/viewer/`'s CSP carries `script-src 'self' 'wasm-unsafe-eval'` so the runtime can compile, and the file server serves the precompressed `.br`/`.gz` files.
 
 (`localStorage`) and `/v1`, and opens the socket at `wss://<host>/ws`. It goes under `/viewer/` beside `web/build`
 (`scripts/release` installs it to `$TABLETOP_WEB_ROOT/viewer/`); `/viewer/` falls back to `/viewer/index.html`, not the

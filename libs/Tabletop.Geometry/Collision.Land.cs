@@ -54,7 +54,7 @@ public static partial class Collision
     {
         var outline = at.BaseOutline();
         return Lift + volumes.Where(v => Outline.InteriorsIntersect(outline, v.WorldOutline())).Select(v => v.WorldTop())
-            .Concat(models.Where(m => Outline.InteriorsIntersect(outline, m.BaseOutline())).Select(m => m.Top())).DefaultIfEmpty(0).Max();
+            .Concat(models.Where(m => !Bodies.Apart(at, m, 0) && Outline.InteriorsIntersect(outline, m.BaseOutline())).Select(m => m.Top())).DefaultIfEmpty(0).Max();
     }
 
     /// <summary>Where a lifted terrain piece is drawn: <see cref="Lift"/> over the highest top of any other volume under its footprints.</summary>

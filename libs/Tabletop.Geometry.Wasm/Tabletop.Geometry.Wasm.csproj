@@ -10,6 +10,7 @@
     <RootNamespace>Tabletop.Geometry.Wasm</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Tabletop.Geometry.Wasm.Tests" />
     <SupportedPlatform Include="browser" />
   </ItemGroup>
   <ItemGroup>

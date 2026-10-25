@@ -38,9 +38,10 @@ internal partial class FacadeJsonContext : JsonSerializerContext;
 public static class FacadeJson
 {
     /// <summary>The context's resolver, camelCase, nulls omitted, and enums as snake_case names (integers refused), as ContentJson reads and writes them.</summary>
-    public static JsonSerializerOptions Options { get; } = Build();
+    public static JsonSerializerOptions Options { get; } = Build(readers: true);
 
-    static JsonSerializerOptions Build()
+    /// <summary>`readers`: the hand-written converters (FacadeReaders) for the bulk values; without them, the generated metadata reads everything.</summary>
+    internal static JsonSerializerOptions Build(bool readers)
     {
         var o = new JsonSerializerOptions
         {
@@ -53,6 +54,7 @@ public static class FacadeJson
         o.Converters.Add(new JsonStringEnumConverter<VolumeKind>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
         o.Converters.Add(new JsonStringEnumConverter<TerrainDeclarations>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
         o.Converters.Add(new JsonStringEnumConverter<ContactKind>(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
+        if (readers) FacadeReaders.AddTo(o.Converters);
         o.MakeReadOnly();
         return o;
     }

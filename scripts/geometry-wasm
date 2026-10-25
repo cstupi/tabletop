@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Publish libs/Tabletop.Geometry.Wasm (Release) and put its _framework/ where Vite serves it.
+# Publish libs/Tabletop.Geometry.Wasm (Release; AOT with the wasm-tools workload) and put its _framework/ where Vite serves it.
 #   scripts/geometry-wasm [--out DIR]     DIR defaults to viewer/public/geometry
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd); out=$root/viewer/public/geometry
 if [[ ${1:-} == --out ]]; then out=${2:?--out needs a directory}; fi
-dotnet publish "$root/libs/Tabletop.Geometry.Wasm" -c Release -o "$root/build/geometry-wasm" --nologo
+# Ahead of time when the SDK has the wasm-tools workload (web/Dockerfile installs it): the same answers, about 2-3x faster per call.
+aot=()
+# AOT builds in obj/ and bin/ of its own (Directory.Build.props' slot): over the interpreter's intermediates it publishes a runtime that does not load.
+if dotnet workload list 2>/dev/null | grep -q '^wasm-tools '; then aot=(-p:RunAOTCompilation=true); export TabletopBuildSlot="${TabletopBuildSlot:-}-aot"; fi
+rm -rf "$root/build/geometry-wasm"   # a publish leaves the other mode's files behind
+dotnet publish "$root/libs/Tabletop.Geometry.Wasm" -c Release -o "$root/build/geometry-wasm" --nologo "${aot[@]}"
 rm -rf "$out/_framework"; mkdir -p "$out"
 cp -r "$root/build/geometry-wasm/wwwroot/_framework" "$out/_framework"
