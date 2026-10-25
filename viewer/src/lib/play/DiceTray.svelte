@@ -23,9 +23,13 @@
 {/if}
 
 <style>
-  .tray { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; width: 100%; text-align: left; padding: 0.3rem 0.5rem; }
-  .die { font-size: 1.6rem; line-height: 1; }
-  .die.fail { opacity: 0.45; }
-  .ok { color: var(--success, #6ddf7c); }
-  .dim { color: var(--muted); }
+  /* The latest roll, a line of the log's footer: text, not a themed button. */
+  .tray { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2); align-items: center; flex: 1; min-width: 0; min-height: 2rem; padding: 2px var(--s1);
+    border: 0; border-radius: 0; clip-path: none; box-shadow: none; background: none; color: var(--text); text-align: left; white-space: normal; font-size: .9rem; }
+  .tray:hover:not(:disabled) { background: var(--rule); color: var(--text); }
+  .title { color: var(--dim); }
+  .die { font-size: 1.5rem; line-height: 1; }
+  .die.fail { opacity: 0.4; }
+  .ok { color: var(--success); }
+  .dim { color: var(--dim); }
 </style>

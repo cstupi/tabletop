@@ -13,7 +13,7 @@ export interface PlaySettings {
 
 export interface StorageLike { getItem(key: string): string | null; setItem(key: string, value: string): void }
 
-export const DEFAULT_SETTINGS: PlaySettings = { mutedWindowKinds: [], rangeRings: false, logOpen: false, logFilter: 'all' };
+export const DEFAULT_SETTINGS: PlaySettings = { mutedWindowKinds: [], rangeRings: false, logOpen: true, logFilter: 'all' };
 
 const KEY = 'tabletop.play';
 const FILTERS: readonly string[] = ['all', 'rolls', 'mine', 'unit'];
