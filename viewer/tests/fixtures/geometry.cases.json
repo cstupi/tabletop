@@ -6417,5 +6417,433 @@
       }
     },
     "expected": false
+  },
+  {
+    "name": "exit_yaw_round_base_within_reach",
+    "method": "ExitYaw",
+    "request": {
+      "body": {
+        "base": {
+          "shape": "circle",
+          "a": 1,
+          "b": 1
+        },
+        "height": 1
+      },
+      "container": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 4,
+            "b": 4
+          },
+          "height": 2
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "within": 6,
+      "at": {
+        "x": 12,
+        "y": 10,
+        "length": 15.620499351813308
+      },
+      "impassable": [],
+      "terrain": [
+        {
+          "id": "00000027-0000-0000-0000-000000000001",
+          "position": {
+            "x": 14,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000026-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ],
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": {
+      "degrees": 0
+    }
+  },
+  {
+    "name": "exit_yaw_in_a_named_impassable_volume",
+    "method": "ExitYaw",
+    "request": {
+      "body": {
+        "base": {
+          "shape": "circle",
+          "a": 1,
+          "b": 1
+        },
+        "height": 1
+      },
+      "container": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 4,
+            "b": 4
+          },
+          "height": 2
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "within": 6,
+      "at": {
+        "x": 14,
+        "y": 10,
+        "length": 17.204650534085253
+      },
+      "impassable": [
+        "00000026-0000-0000-0000-000000000001"
+      ],
+      "terrain": [
+        {
+          "id": "00000027-0000-0000-0000-000000000001",
+          "position": {
+            "x": 14,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000026-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ],
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": null
+  },
+  {
+    "name": "exit_yaw_in_a_volume_not_named",
+    "method": "ExitYaw",
+    "request": {
+      "body": {
+        "base": {
+          "shape": "circle",
+          "a": 1,
+          "b": 1
+        },
+        "height": 1
+      },
+      "container": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 4,
+            "b": 4
+          },
+          "height": 2
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "within": 6,
+      "at": {
+        "x": 14,
+        "y": 10,
+        "length": 17.204650534085253
+      },
+      "impassable": [],
+      "terrain": [
+        {
+          "id": "00000027-0000-0000-0000-000000000001",
+          "position": {
+            "x": 14,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000026-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ],
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": {
+      "degrees": 0
+    }
+  },
+  {
+    "name": "exit_yaw_oval_within_reach",
+    "method": "ExitYaw",
+    "request": {
+      "body": {
+        "base": {
+          "shape": "oval",
+          "a": 3,
+          "b": 1
+        },
+        "height": 1
+      },
+      "container": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 4,
+            "b": 4
+          },
+          "height": 2
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "within": 6,
+      "at": {
+        "x": 12,
+        "y": 11,
+        "length": 16.278820596099706
+      },
+      "impassable": [],
+      "terrain": [
+        {
+          "id": "00000027-0000-0000-0000-000000000001",
+          "position": {
+            "x": 14,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000026-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ],
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": {
+      "degrees": 0
+    }
+  },
+  {
+    "name": "exit_yaw_beyond_reach",
+    "method": "ExitYaw",
+    "request": {
+      "body": {
+        "base": {
+          "shape": "circle",
+          "a": 1,
+          "b": 1
+        },
+        "height": 1
+      },
+      "container": {
+        "body": {
+          "base": {
+            "shape": "circle",
+            "a": 4,
+            "b": 4
+          },
+          "height": 2
+        },
+        "placement": {
+          "position": {
+            "x": 10,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          }
+        }
+      },
+      "within": 6,
+      "at": {
+        "x": 30,
+        "y": 10,
+        "length": 31.622776601683793
+      },
+      "impassable": [],
+      "terrain": [
+        {
+          "id": "00000027-0000-0000-0000-000000000001",
+          "position": {
+            "x": 14,
+            "y": 10,
+            "z": 0
+          },
+          "yaw": {
+            "degrees": 0
+          },
+          "scale": 1,
+          "volumes": [
+            {
+              "id": "00000026-0000-0000-0000-000000000001",
+              "volume": {
+                "kind": "solid",
+                "footprint": {
+                  "kind": "rect",
+                  "a": 4,
+                  "b": 4
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0,
+                  "length": 0
+                },
+                "yaw": {
+                  "degrees": 0
+                },
+                "bottom": 0,
+                "top": 3,
+                "declarations": "impassable"
+              }
+            }
+          ]
+        }
+      ],
+      "size": {
+        "width": 72,
+        "length": 48
+      }
+    },
+    "expected": null
   }
 ]

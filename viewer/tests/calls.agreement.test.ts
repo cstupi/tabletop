@@ -11,11 +11,7 @@ import { loadTestGeometry } from './geometry';
 const fixture = JSON.parse(readFileSync('tests/fixtures/calls.json', 'utf8')) as { logs: string[]; cases: CallCase[] };
 
 /** Tests that still disagree (a case's title): each runs as it.fails and is removed when its fix lands. */
-const pinned: readonly string[] = [
-  'move/disembark calls/transport@476 turned: the browser sends what Godot sends',
-  'move/disembark calls/passengers@54 turned: the browser sends what Godot sends',
-  'move/disembark calls/passengers@121 turned: the browser sends what Godot sends',
-];
+const pinned: readonly string[] = [];
 
 let g: Geometry;
 beforeAll(async () => { g = await loadTestGeometry(); });

@@ -83,6 +83,26 @@ public class AskAnswersTests
     }
 
     [Fact]
+    public void Move_judges_a_disembarks_facing_against_the_volumes_the_ask_names_impassable()
+    {
+        // The site carries every volume of the board; only the ones the Ask names Impassable can refuse a facing, as the exit region it drew does.
+        var from = new OnTable(new Placement(new Point3(12, 10, 0), new Yaw(0)));
+        var p = TableUx.After(TableUx.Deploy, new ModelsMoved([new ModelRelocation(M1, from, new Inside(M0))]));
+        var at0 = ((OnTable)p.Models[M0].Location).Placement;
+        var forest = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(4, 4), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.Cover, null),
+            new TerrainTransform(new Point3(13, 10, 0), new Yaw(0), 1));
+        var site = new ExitSite(6, [forest], new TableSize(72, 48));
+        var proposed = new Dictionary<Guid, Point3> { [M1] = new(13, 10, 0) };
+        var ghost = new Dictionary<Guid, Yaw> { [M1] = new Yaw(135) };
+        MoveRegion Named(params Guid[] impassable) => new([M1], 0, impassable, [], null, new MoveContainment([], M0, 6));
+        var free = AskAnswers.Move(p, Named(), proposed, ghost, false, site);
+        var blocked = AskAnswers.Move(p, Named(forest.Id), proposed, ghost, false, site);
+        Assert.Equal(MoveRuler.ExitYawAt(Body(p, M1), new PlacedModel(Body(p, M0), at0), 6, new Point2(13, 10), [], site.Size),
+            ((OnTable)free.Moves[0].To).Placement.Yaw);                                        // not named: only terrain
+        Assert.Equal(at0.Yaw, ((OnTable)blocked.Moves[0].To).Placement.Yaw);                   // named: no facing fits, the container's
+    }
+
+    [Fact]
     public void Facing_of_a_shelf_model_is_its_ghosts_or_zero()
     {
         var p = P; var reserve = TableUx.ModelOf(TableUx.Reserve);

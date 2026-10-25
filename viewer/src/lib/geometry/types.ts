@@ -54,6 +54,8 @@ export interface Geometry {
   /** The whole base inside one of the zone's polygons (p.6 "fully within"). */
   zoneHoldsBase(shape: string, size: TableSize, model: PlacedModel): boolean;
   tableHoldsBase(size: TableSize, model: PlacedModel): boolean;
+  /** Containment.ExitYaw (p.7, p.15): a facing a disembarking model's position is legal at, or null; `impassable` are the volume ids the Ask names. */
+  exitYaw(body: ModelBody, container: PlacedModel, within: number, at: XY, terrain: Terrain, impassable: readonly string[], size: TableSize): Yaw | null;
   /** One facade method by name on a JSON request: the agreement test's door. */
   call(method: string, json: string): string;
 }

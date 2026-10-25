@@ -46,4 +46,27 @@ public class ContainmentTests
         Assert.True(Containment.BaseFullyWithin(Fx.Model(Base.Rect(2, 2), 5.9, 0), bus, 6));
         Assert.False(Containment.BaseFullyWithin(Fx.Model(Base.Rect(2, 2), 6.1, 0), bus, 6));
     }
+
+    static readonly TableSize Slab = new(72, 48);
+    static PlacedModel Truck(double x, double y) => new(new ModelBody(Base.Circle(4), 2), new Placement(new Point3(x, y, 0), new Yaw(0)));
+
+    [Fact] public void Exit_yaw_of_a_round_base_within_reach_is_zero() =>
+        Assert.Equal(new Yaw(0), Containment.ExitYaw(new ModelBody(Base.Circle(1), 1), Truck(10, 10), 6, new Point2(14, 10), [], Slab));
+
+    [Fact] public void Exit_yaw_beyond_reach_is_null() =>
+        Assert.Null(Containment.ExitYaw(new ModelBody(Base.Circle(1), 1), Truck(10, 10), 6, new Point2(30, 10), [], Slab));
+
+    [Fact] public void Exit_yaw_of_an_oval_is_the_first_of_eight_facings_that_fits()
+    {
+        Assert.Equal(8, Containment.ExitYaws);
+        var oval = new ModelBody(Base.Oval(3, 1), 1);
+        Assert.Equal(new Yaw(0), Containment.ExitYaw(oval, Truck(10, 10), 6, new Point2(14, 10), [], Slab));
+        Assert.Null(Containment.ExitYaw(oval, Truck(10, 10), 6, new Point2(30, 10), [], Slab));
+    }
+
+    [Fact] public void Exit_yaw_refuses_a_position_in_an_impassable_volume()
+    {
+        var wall = Fx.Box(14, 10, 2, 2, 0, 3);
+        Assert.Null(Containment.ExitYaw(new ModelBody(Base.Circle(1), 1), Truck(10, 10), 6, new Point2(14, 10), [wall], Slab));
+    }
 }

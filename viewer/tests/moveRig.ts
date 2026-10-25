@@ -9,7 +9,7 @@ import { PendingDrops } from '../src/lib/play/pendingDrops';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
 import { DEFAULT_SETTINGS } from '../src/lib/play/settings';
 import { Violations } from '../src/lib/play/violations';
-import type { Command, Enforcement, EventPayload, GameInfo, Location, MoveRegion, Participant, Placement, Refused } from '../src/lib/protocol/wire.generated';
+import type { Command, Enforcement, Yaw, EventPayload, GameInfo, Location, MoveRegion, Participant, Placement, Refused } from '../src/lib/protocol/wire.generated';
 import { P1, P2, askOf, boardOf, emptyTable, gameOf, slotOf, unitOf } from './play';
 
 export const at = (x: number, y: number, yaw = 0): Placement => ({ position: { x, y, z: 0 }, yaw: { degrees: yaw } });
@@ -44,8 +44,11 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const drops = new PendingDrops();
   let found = new Map<string, Contact>();
   const contactCalls: unknown[][] = [];
+  let exit: Yaw | null = null;
+  const exitCalls: unknown[][] = [];
   const geometry = {
     contacts: (...args: unknown[]) => { contactCalls.push(args); return found; },
+    exitYaw: (...args: unknown[]) => { exitCalls.push(args); return exit; },
   } as unknown as Geometry;
   let reconnecting = false;
   let enforcement = game.enforcement;
@@ -63,7 +66,8 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const r = {
     game, applier, box, hooks, violations, drops, sent, squad, rivals, transport, reserve, ids, apply,
     rival: rivals.models[0]!.id, truck: transport.models[0]!.id, reserveIds: reserve.models.map((m) => m.id),
-    contactCalls,
+    contactCalls, exitCalls,
+    setExit(next: Yaw | null) { exit = next; },
     setFound(next: Map<string, Contact>) { found = next; },
     setEnforcement(e: Enforcement) { enforcement = e; },
     reconnect(on: boolean) { reconnecting = on; },

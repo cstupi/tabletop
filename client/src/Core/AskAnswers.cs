@@ -3,7 +3,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>What a disembark's facing is judged against: the Ask's exit distance and the board's volumes and size.</summary>
+/// <summary>What a disembark's facing is judged against: the Ask's exit distance and the board's volumes and size. Move judges it against the
+/// volumes the Ask names Impassable, as the region it drew does.</summary>
 public sealed record ExitSite(double Within, IReadOnlyList<WorldVolume> Volumes, TableSize Size);
 
 /// <summary>The decision box's answers as messages: what the player's choice sends. The browser's decisionBox.ts builds the same.</summary>
@@ -47,6 +48,7 @@ public static class AskAnswers
     public static Destinations Move(Projection p, MoveRegion legal, IReadOnlyDictionary<Guid, Point3> proposed,
         IReadOnlyDictionary<Guid, Yaw> ghostYaws, bool continues, ExitSite? exit)
     {
+        if (exit is not null) exit = exit with { Volumes = exit.Volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList() };
         var moves = legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location,
             new OnTable(new Placement(proposed[id], FacingOf(p, id, ghostYaws.TryGetValue(id, out var y) ? y : null, proposed[id].Horizontal, exit))))).ToList();
         return new Destinations(moves, continues);

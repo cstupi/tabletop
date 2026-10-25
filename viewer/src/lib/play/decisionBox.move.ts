@@ -157,7 +157,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       if (!current.allowed) return;
       const moves: ModelRelocation[] = legal.modelIds.map((id) => {
         const from = p.models.get(id)!.location;
-        return { modelId: id, from, to: { kind: 'table', placement: box.ghosts.get(id) ?? (from.kind === 'table' ? from.placement : ZERO) } };
+        const ghost = box.ghosts.get(id) ?? (from.kind === 'table' ? from.placement : ZERO);
+        return { modelId: id, from, to: { kind: 'table', placement: { position: ghost.position, yaw: facingOf(p, legal, id, ghost) } } };
       });
       hold.remember(ask.id, moves);
       const token = box.answer(ask, { kind: 'destinations', moves, continues });
@@ -192,6 +193,25 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     regate();
     restore(box, ask.id);
     applyVerdict();
+  }
+
+  /** AskAnswers.FacingOf: a model on the table takes its ghost's facing; a disembarking one whatever fits at the drop (p.7; the container's facing
+   *  when none does or the geometry is not loaded); a reserve placed from the shelf its ghost's. */
+  function facingOf(p: Projection, legal: MoveRegion, id: string, ghost: Placement): Yaw {
+    const model = p.models.get(id)!;
+    switch (model.location.kind) {
+      case 'table': return ghost.yaw;
+      case 'shelf': return ghost.yaw;
+      case 'inside': {
+        const container = p.models.get(model.location.containerId);
+        if (container === undefined || container.location.kind !== 'table') return { degrees: 0 };
+        const g = deps.geometry();
+        if (g === null) return container.location.placement.yaw;
+        const body = (m: typeof model) => ({ base: m.slot.base, height: m.slot.height });
+        return g.exitYaw(body(model), { body: body(container), placement: container.location.placement }, legal.containment?.exitWithin ?? 0,
+          xy(ghost.position), p.board.table.terrain, legal.impassableVolumeIds, p.board.table.size) ?? container.location.placement.yaw;
+      }
+    }
   }
 
   /** p.15: "only one model needs to reach the Transport for everyone to embark". A click on a listed container answers the whole unit into it. */

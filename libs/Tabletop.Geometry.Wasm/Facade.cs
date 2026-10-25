@@ -127,5 +127,13 @@ public static class Facade
         return Write(ZoneStyles.BaseFullyWithin(r.Shape, r.Size, r.Model ?? throw new JsonException("ZoneHoldsBase needs a model.")));
     }
 
+    /// <summary>Containment.ExitYaw over the terrain's volumes the Ask names Impassable: a facing the exit position is legal at, or null.</summary>
+    public static string ExitYaw(string json)
+    {
+        var r = Read<ExitRequest>(json);
+        var impassable = Volumes(r.Terrain).Where(v => r.Impassable.Contains(v.Id)).ToList();
+        return Containment.ExitYaw(r.Body, r.Container, r.Within, r.At, impassable, r.Size) is { } yaw ? Write(yaw) : "null";
+    }
+
     public static string TableHoldsBase(string json) { var r = Read<TableRequest>(json); return Write(Table.ContainsBase(r.Size, r.Model)); }
 }
