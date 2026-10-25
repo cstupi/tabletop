@@ -132,8 +132,8 @@ Released as v0.1.24.
   the window. Redesigned: the games list, lobby (team cards, Game panel), setup (tools sidebar, terrain search, piece card), play
   (top bar, roster column, decision box leading the right column, unit card, log), replay (the play page's parts read-only, a
   playback bar; Play now works: the old one opened on the last frame), and the board (theme colours, terrain fills, names only
-  when zoomed or selected). The viewer's e2e tests delete what they create. About 110 games earlier test runs left in the dev
-  database still clutter Open games; deleting them waits on the owner (the bulk delete was refused by a permission check).
+  when zoomed or selected). The viewer's e2e tests delete what they create; the 154 games earlier test runs left in the dev
+  database are deleted (the owner's 10 remain).
 - Next: the easy computer player (brainstormed: sensible single decisions scored on the game server, deterministic,
   difficulty levels later with combos, blocking and screening); its design is the next step.
 
