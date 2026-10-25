@@ -67,19 +67,22 @@
         {/each}
       </ul>
     {/if}
-    <div class="actions"><button type="submit">OK</button><button type="button" onclick={onClose}>Cancel</button></div>
+    <div class="actions"><button type="button" class="small" onclick={onClose}>Cancel</button><button type="submit" class="primary small">OK</button></div>
   </form>
 {/if}
 
 <style>
-  .piece-menu, .menu-dialog { position: fixed; z-index: 20; margin: 0; padding: 0.2rem; background: var(--panel); color: var(--ink);
-    border: 1px solid var(--line); border-radius: 3px; min-width: 9rem; }
+  .piece-menu, .menu-dialog { position: fixed; z-index: 20; margin: 0; padding: var(--s1); background: var(--panel-solid); color: var(--text);
+    border: 1px solid var(--panel-border); min-width: 11rem; box-shadow: 0 4px 16px #0000004d; }
+  :global([data-theme='fantasy']) .piece-menu, :global([data-theme='fantasy']) .menu-dialog { border: 2px solid var(--wood); border-radius: 4px; }
   .piece-menu { list-style: none; }
-  .piece-menu button { display: block; width: 100%; text-align: left; border: 0; }
-  .menu-dialog { padding: 0.5rem; display: grid; gap: 0.4rem; min-width: 15rem; }
-  .menu-dialog label { display: grid; gap: 0.2rem; }
-  .choices { list-style: none; margin: 0; padding: 0; max-height: 14rem; overflow: auto; border: 1px solid var(--line); }
-  .choices button { display: block; width: 100%; text-align: left; border: 0; }
-  .choices button.on { background: color-mix(in srgb, var(--ink) 18%, transparent); }
-  .actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+  /* Menu items are rows, not themed buttons. */
+  .piece-menu button, .choices button { display: block; width: 100%; min-height: 2rem; padding: var(--s1) var(--s3); text-align: left; border: 0; border-radius: 0;
+    clip-path: none; box-shadow: none; background: none; color: var(--text); }
+  .piece-menu button:hover:not(:disabled), .choices button:hover:not(:disabled) { background: var(--rule); color: var(--text); }
+  .menu-dialog { padding: var(--s3); display: grid; gap: var(--s2); min-width: 16rem; }
+  .menu-dialog label { display: grid; gap: var(--s1); }
+  .choices { list-style: none; margin: 0; padding: 0; max-height: 14rem; overflow: auto; border: 1px solid var(--rule); }
+  .choices button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .actions { display: flex; gap: var(--s2); justify-content: flex-end; }
 </style>
