@@ -40,7 +40,7 @@
           </label>
         {:else if control.kind === 'label'}
           <p>{control.text}</p>
-        {:else}
+        {:else if control.text !== ''}
           <p class="warn">{control.text}</p>
         {/if}
       {/each}

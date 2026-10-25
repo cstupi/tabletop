@@ -12,7 +12,7 @@ export type PointerInput =
 
 export type PointerEffect =
   | { readonly type: 'hover'; readonly hit: BoardHit | null; readonly at: Point }
-  | { readonly type: 'select'; readonly hit: BoardHit | null; readonly mods: Modifiers }
+  | { readonly type: 'select'; readonly hit: BoardHit | null; readonly mods: Modifiers; readonly at: Point }
   | { readonly type: 'dragStart' | 'dragMove' | 'dragEnd'; readonly at: Point; readonly mods: Modifiers }
   | { readonly type: 'dragCancel' }
   | { readonly type: 'pan'; readonly dx: number; readonly dy: number }
@@ -45,7 +45,7 @@ export function step(
       }
       return stay;
     case 'pressed': {
-      if (input.type === 'up') return { state: IDLE_POINTER, effects: [{ type: 'select', hit: state.hit, mods: input.mods }] };
+      if (input.type === 'up') return { state: IDLE_POINTER, effects: [{ type: 'select', hit: state.hit, mods: input.mods, at: input.at }] };
       if (input.type !== 'move') return stay;
       const dx = input.screen.x - state.screen.x;
       const dy = input.screen.y - state.screen.y;

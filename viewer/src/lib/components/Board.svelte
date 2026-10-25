@@ -9,7 +9,7 @@
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true, glow, marks,
+    showGrid = true, showZones = true, showLabels = true, glow, marks, warned,
   }: {
     scene: Scene;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
@@ -24,6 +24,8 @@
     /** The open Ask's glow per model, and the labels over models (play only). */
     glow?: ((modelId: string, unitId: string) => Glow | null) | undefined;
     marks?: ReadonlyMap<string, string> | undefined;
+    /** Models in breach, drawn in the warning colour. */
+    warned?: ReadonlySet<string> | undefined;
   } = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -43,7 +45,7 @@
     canvas.height = Math.round(box.height * dpr);
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks });
+    draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned });
   });
 
   $effect(() => {
@@ -71,7 +73,7 @@
           hovered = effect.hit?.kind === 'model' ? effect.hit.id : undefined;
           interaction?.onHover?.(effect.hit, effect.at);
           break;
-        case 'select': interaction?.onSelect?.(effect.hit, effect.mods); break;
+        case 'select': interaction?.onSelect?.(effect.hit, effect.mods, effect.at); break;
         case 'dragStart': break;                                  // taken in `takesDrag`, which is onDragStart itself
         case 'dragMove': interaction?.onDragMove?.(effect.at, effect.mods); break;
         case 'dragEnd': interaction?.onDragEnd?.(effect.at, effect.mods); break;

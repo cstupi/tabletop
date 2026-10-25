@@ -36,6 +36,8 @@ export type MoveBoxHooks = MoveHooks & {
   readouts(held: Held | null): { modelId: string; from: XY; to: XY; readout: RulerReadout }[];
   /** TableInput.PickedUp: the rings follow the models now in hand. */
   picked(ids: readonly string[]): void;
+  /** TableInput.Region: the open move's Ask, null outside one. */
+  region(): MoveRegion | null;
 };
 
 const fixed = (n: number): string => n.toFixed(1);
@@ -312,6 +314,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
         return [{ modelId: id, from, to, readout: read(from, to, m.allowance, minimum) }];
       });
     },
+    region() { return moving?.legal ?? null; },
     picked(ids) {
       if (rings !== null) rings = { ...rings, ids: [...new Set([...rings.ids.slice(0, 1), ...ids])].filter((id) => rings!.legal.modelIds.includes(id)) };
     },
