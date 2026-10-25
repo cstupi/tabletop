@@ -40,7 +40,7 @@ internal static partial class CoreGames
                         // Each team: certainly within 3" (a margin either side), certainly not, or too close to call. Shaken units count for no one.
                         var near = at.Where(kv => kv.Value is OnTable && log.TeamOf(log.UnitOf(kv.Key)) is not null && !log.HasCondition(log.UnitOf(kv.Key), "shaken", e.Seq))
                             .Select(kv => (Team: log.TeamOf(log.UnitOf(kv.Key))!.Value,
-                                Edge: Distance.EdgeToMarker(new PlacedModel(log.Body(kv.Key), ((OnTable)kv.Value).Placement), marker.Position.Horizontal, marker.Diameter)))
+                                Edge: Distance.EdgeToEdge(new PlacedModel(log.Body(kv.Key), ((OnTable)kv.Value).Placement), marker.Position.Horizontal)))
                             .GroupBy(x => x.Team)
                             .ToDictionary(g => g.Key, g => g.Any(x => x.Edge <= 3 - 0.01) ? true : g.All(x => x.Edge > 3 + 0.01) ? false : (bool?)null);
                         var before = control.GetValueOrDefault(marker.Id);

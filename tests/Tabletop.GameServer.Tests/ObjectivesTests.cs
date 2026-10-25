@@ -27,7 +27,7 @@ public class ObjectivesTests
     public void One_team_alone_within_three_inches_seizes_and_keeps_it_when_it_leaves()
     {
         var s = Game();
-        Put(s, Red, 36, 28);
+        Put(s, Red, 36, 27);
         Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team1)], Seize(s));
         Seized(s);
         Assert.Empty(Seize(s));                                          // already held: no change to write
@@ -41,7 +41,7 @@ public class ObjectivesTests
     {
         var s = Game();
         Apply(s, new MarkerMoved(Objective(s), new Point3(10, 10, 0), new Yaw(0)));
-        Put(s, Red, 36, 28);
+        Put(s, Red, 36, 27);
         Assert.Empty(Seize(s));                                          // where it stood at setup: nothing there now
         Put(s, Red, 10, 12);
         Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team1)], Seize(s));
@@ -57,10 +57,12 @@ public class ObjectivesTests
     }
 
     [Fact]
-    public void Three_inches_edge_to_edge_seizes_and_a_hundredth_more_does_not()
+    public void Three_inches_from_the_base_edge_to_the_markers_centre_seizes_and_a_hundredth_more_does_not()
     {
-        // A diameter-2 objective at (10,10) and a 1.26" base (radius 0.63): edge distance is the centre distance less 1.63.
-        foreach (var (y, seizes) in new[] { (14.63, true), (14.64, false) })
+        // Owner ruling: "Within 3" of the CENTER of the marker". A diameter-2 objective at (10,10) and a 1.26" base (radius 0.63):
+        // the base edge is the centre distance less 0.63 from the marker's centre; its size changes nothing. At 14.63 the base is 1" from
+        // the marker's rim, which a rim measure would seize.
+        foreach (var (y, seizes) in new[] { (13.63, true), (13.64, false), (14.63, false) })
         {
             var s = Game();
             var placed = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10, 10, 0), new Yaw(0), 2, "B", VisualRef.OfBuiltin("objective-ring"));
@@ -74,7 +76,7 @@ public class ObjectivesTests
     public void Both_sides_within_range_make_a_held_marker_neutral_and_leave_a_neutral_one_neutral()
     {
         var s = Game();
-        Put(s, Blue, 36, 20); Put(s, Red, 36, 28);
+        Put(s, Blue, 36, 21); Put(s, Red, 36, 27);
         Assert.Empty(Seize(s));                                          // neutral and contested: still neutral
         Apply(s, new ObjectiveControlSet(Objective(s), Samples.Team1));
         Assert.Equal([new ObjectiveControlSet(Objective(s), null)], Seize(s));
@@ -84,7 +86,7 @@ public class ObjectivesTests
     public void Shaken_and_Aircraft_neither_seize_nor_contest()
     {
         var s = Game();
-        Put(s, Red, 36, 28); Put(s, Flyer, 37, 28); Put(s, Blue, 36, 20);
+        Put(s, Red, 36, 27); Put(s, Flyer, 37, 27); Put(s, Blue, 36, 21);
         Apply(s, new ConditionSet(new Subject(SubjectKind.Unit, Red.Id), GfNames.Shaken, true));
         Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team2)], Seize(s));   // Red is Shaken and Flyer is an Aircraft: Blue is alone
     }
@@ -96,7 +98,7 @@ public class ObjectivesTests
         var ask = new Ask(Guid.CreateVersion7(), AskQuestions.DeployAmbusher, "Deploy an Ambusher or pass", [Samples.Team1],
             new PieceSelection([Red.Id], 1, 1), true, false, null, null);
         Apply(s, new RoundStarted(2, [Samples.Team1, Samples.Team2], []), new AskOpened(ask), new AskClosed(ask.Id, [new TeamAnswer(Samples.Team1, new SelectedPieces([Red.Id]))]));
-        Put(s, Red, 36, 28); Put(s, Blue, 36, 20);
+        Put(s, Red, 36, 27); Put(s, Blue, 36, 21);
         Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team2)], Seize(s));   // Red arrived this round
         Apply(s, new RoundStarted(3, [Samples.Team1, Samples.Team2], []));
         Assert.Empty(Seize(s));                                          // round 3: Red counts again, both teams contest a marker nobody holds
@@ -106,7 +108,7 @@ public class ObjectivesTests
     public void A_model_inside_a_transport_is_nowhere_near_a_marker()
     {
         var s = Game();
-        Put(s, Blue, 36, 28);
+        Put(s, Blue, 36, 27);
         Apply(s, new ModelsMoved([new ModelRelocation(Red.Models[0].Id, s.Projection.Models[Red.Models[0].Id].Location, new Inside(Blue.Models[0].Id))]));
         Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team2)], Seize(s));
     }
@@ -147,7 +149,7 @@ public class ObjectivesTests
         return h;
     }
 
-    /// <summary>Every model of team 0's unit onto the setup objective's edge (36, 26.5): 2.5" from its centre, well inside 3" of its edge.
+    /// <summary>Every model of team 0's unit onto the setup objective's edge (36, 26.5): 2.5" from its centre, its base edge well inside 3" of it.
     /// Appended, not dispatched: under strict a hand move mid-round is refused, and these tests are about seizing, not moving.</summary>
     static void OntoTheObjective(SchedulerHarness h)
     {

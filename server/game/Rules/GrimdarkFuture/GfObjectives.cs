@@ -14,6 +14,8 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// round, then it becomes neutral again. After 4 rounds have been played, the game ends, and the player that controls most markers wins."
 /// Shaken units (p.10), Aircraft (p.13) and units that deployed via Ambush this round (p.13) "can't seize or contest objectives".
 /// "Both sides" is more than one team: p.50 plays a free-for-all by the regular rules, and every other team is an enemy.
+/// "Within 3" of a marker" is from a model's base edge (p.5: "from/to the closest point of their bases") to the marker's centre (owner
+/// ruling, 2026-10-25: "Within 3" of the CENTER of the marker"), whatever the marker's size.
 /// </summary>
 public static class GfObjectives
 {
@@ -41,7 +43,7 @@ public static class GfObjectives
         foreach (var marker in Markers(state))
         {
             var centre = marker.Position.Horizontal;
-            var near = placedByTeam.Where(kv => kv.Value.Any(m => Distance.EdgeToMarker(m, centre, marker.Diameter) <= SeizeRange + Epsilon))
+            var near = placedByTeam.Where(kv => kv.Value.Any(m => Distance.EdgeToEdge(m, centre) <= SeizeRange + Epsilon))
                 .Select(kv => kv.Key).ToList();
             Guid? now = state.Projection.Control.TryGetValue(marker.Id, out var held) ? held : null;
             var next = near.Count switch { 0 => now, 1 => near[0], _ => (Guid?)null };

@@ -101,10 +101,10 @@ public class FourTeamGameTests
     {
         var g = FourTeamState();
         var objective = g.State.Board.Table.Markers.First(m => m.Kind == MarkerKind.Objective).Id;
-        Put(g, UnitOfSeat(g, 6), 36, 28);                                                // team 3's second player
+        Put(g, UnitOfSeat(g, 6), 36, 27);                                                // team 3's second player
         Assert.Equal([new ObjectiveControlSet(objective, g.Teams[2])], GfObjectives.Seize(g.State, TestProperties.Core));
         TestGames.Apply(g, GfObjectives.Seize(g.State, TestProperties.Core).ToArray());
-        Put(g, UnitOfSeat(g, 3), 36, 20);                                                // team 4 arrives: "if units from both sides contest a marker"
+        Put(g, UnitOfSeat(g, 3), 36, 21);                                                // team 4 arrives: "if units from both sides contest a marker"
         Assert.Equal([new ObjectiveControlSet(objective, null)], GfObjectives.Seize(g.State, TestProperties.Core));
     }
 

@@ -101,6 +101,10 @@ On `main`, not pushed, not tagged.
     one opened on the last frame, so Play did nothing); the board (theme colours read at draw time, filled terrain, zone bands,
     objective tokens, names only when zoomed or selected, never ids or snake_case).
   - The top bar used to stay on "Round 0" all game (it never redrew); fixed.
+- **Objectives are points** (owner ruling: *"Within 3" of the CENTER of the marker"*, *"the marker is a point"*): the seize measures from a
+  model's base edge to the marker's centre (`GfObjectives.Seize`, `Distance.EdgeToEdge(model, centre)`), not to the token's rim, which
+  had let a unit 4.25" from a 3"-wide objective seize it. The objectives spec, the geometry design and the suite's mission check say so.
+  Logs already written keep the seizes they recorded.
 - **Objective names.** A marker with no label reads as its kind and place ("Objective 2"), never an id, in Godot's `Names` and
   the browser's.
 - **Clean dev data.** The viewer's e2e tests use fixed accounts (`viewer-e2e-*`) and delete their games and armies in `finally`;

@@ -110,7 +110,7 @@ is the one type that never crosses the wire. A deployment zone travels as a shap
 `Movement.Region` takes those as plain parameters, so the library never references the protocol
 record. `GameRules` supplies every OPR constant at the call site: coherency `(1, 9)`, the 1"
 separation, the 6" cap, melee reach `EdgeToEdge <= 2 && Vertical <= 4`, objectives
-`EdgeToMarker <= 3`, Ambush `> 9`, and for Scouts the deployment zone grown by 12", which is
+`EdgeToEdge(model, marker centre) <= 3`, Ambush `> 9`, and for Scouts the deployment zone grown by 12", which is
 p.14's *"fully within 12" of their deployment zone"* and not a distance from a placed position:
 3.4.1 had a Scout deploy and then reposition *"anywhere within 12" of their position"*. The game
 server's deployment check (`GrimdarkFutureRules.ZoneBreach`) reads it as `ZoneStyles.BaseFullyWithin(shapeId, table, model, 12)`. Ambush's is `GrimdarkFutureRules.AmbushBreach`: `Distance.EdgeToEdge` from every placed base to every enemy model over 9.
@@ -325,7 +325,7 @@ two inches.
 | `EdgeToEdge(PlacedModel, PlacedModel)` | base edge to base edge, 0 when touching or overlapping | table domain model |
 | `EdgeToEdge(PlacedModel, Point2)` | base edge to a bare point, 0 when the point is inside | contracts plan |
 | `EdgeToEdge(PlacedModel, WorldVolume)` | base edge to a footprint edge | added |
-| `EdgeToMarker(PlacedModel, Point2, double diameter)` | base edge to a marker's rim | p.6, *within 3" of a marker*; geometry values → Marker size |
+| `EdgeToMarker(PlacedModel, Point2, double diameter)` | base edge to a disc's rim | not the seize: an objective is a point, measured with `EdgeToEdge(PlacedModel, Point2)` (owner ruling, p.6) |
 | `ClosestPoints(PlacedModel, PlacedModel)` | the two witness points, each carrying its own base's Z | presence → A measurement is two points |
 | `InRange(PlacedModel, PlacedModel, double)` | inclusive, with tolerance | p.8 |
 | `Vertical(PlacedModel, PlacedModel)` | difference of base heights | p.9, *within 2" horizontally and 4" vertically* |

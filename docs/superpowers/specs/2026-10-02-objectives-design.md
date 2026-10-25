@@ -36,10 +36,10 @@ What each part means here:
   snapshot's rows) or placed in play (`Projection.Markers`, written by `marker_placed`). Where both hold
   an id, the projection's wins. `GfObjectives.Markers(state)` is that union, and it is the one list the
   seize, the menu check and the count read. Tokens are not objectives.
-- **Within 3"** is the closest living model of the unit on the table, base edge to marker edge,
-  `Geometry.Distance.EdgeToMarker(model, centre, diameter) <= 3 + 1e-6`, the 1e-6 being the geometry library's own distance tolerance, which it keeps internal. Marker edge
-  rather than centre because a marker is a disc of a diameter (geometry values → *Marker size*), as a
-  base is. Height is not measured: markers ignore terrain.
+- **Within 3"** is the closest living model of the unit on the table, base edge to the marker's centre: the marker is a point
+  (owner ruling, 2026-10-25: *"Within 3" of the CENTER of the marker"*, *"the marker is a point"*), so its drawn size changes
+  nothing. `Geometry.Distance.EdgeToEdge(model, centre) <= 3 + 1e-6`, the 1e-6 being the geometry library's own distance
+  tolerance, which it keeps internal. Height is not measured: markers ignore terrain.
 - **A unit that can seize or contest** has a living model on the table, is not Shaken, has no Aircraft
   rule, and did not arrive by Ambush in the round that is ending. A model inside a transport has no
   position (`Inside`), so it is never within 3" of anything.
