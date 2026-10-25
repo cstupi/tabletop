@@ -18,6 +18,13 @@ public class GameOverViewTests
     }
 
     [Fact]
+    public void Answer_is_the_chosen_option_for_the_game_over_ask_and_team()
+    {
+        var model = GameOverView.Of(After(new AskOpened(Asked)), Game, Samples.Team1);
+        Assert.Equivalent(new AnswerAsk(Samples.AskId, new Chosen(GameOverChoices.End), Samples.Team1), GameOverView.Answer(model, GameOverChoices.End, Samples.Team1));
+    }
+
+    [Fact]
     public void Nothing_shows_while_the_game_runs_and_no_game_over_ask_is_open()
     {
         Assert.Equal(GameOverStage.None, GameOverView.Of(After(new RoundStarted(4, [], [])), Game, Samples.Team1).Stage);

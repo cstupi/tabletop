@@ -114,7 +114,7 @@ public static class MenuModel
     {
         if (ask?.Legal is not MoveRegion { Containment.Enterable: { Count: > 0 } enterable } region || !region.ModelIds.Contains(modelId)) return [];
         return enterable.Where(p.Models.ContainsKey).Select(c => new MenuItem($"Board transport: {p.Units[p.Models[c].UnitId].Definition.Name}", MenuInput.None,
-            _ => new AnswerAsk(ask.Id, new Destinations(region.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(c))).ToList())))).ToList();
+            _ => new AnswerAsk(ask.Id, AskAnswers.Embark(p, region, c)))).ToList();
     }
 
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>

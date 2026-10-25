@@ -55,7 +55,7 @@ public partial class DecisionBox
         }
         _onNumber = option => { if (Guid.TryParse(option, out var id) && eligible.Contains(id)) Toggle(id); };
         _input.Eligible = eligible.ToHashSet();
-        _onTarget = clicked => { if (Resolve(clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
+        _onTarget = clicked => { if (AskAnswers.Resolve(p, clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
         _onEnter = Done;
         Add(done); Refresh();
     }
@@ -85,7 +85,7 @@ public partial class DecisionBox
             fire.Disabled = t.Answer() is null;
             TargetsChanged?.Invoke();
         }
-        _onTarget = clicked => { if (Resolve(clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
+        _onTarget = clicked => { if (_s.Projection is { } p && AskAnswers.Resolve(p, clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
         _onEnter = Fire;
         _onCancel = () => { if (t.Assigned.Count == 0) return false; t.Clear(); Show(); return true; };
         Add(fire); Show();

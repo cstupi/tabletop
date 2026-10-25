@@ -14,7 +14,7 @@ public partial class DecisionBox
     Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit;
     /// <summary>The facings the player gave the ghosts, read at each drop, and the ghosts kept across a reconnect.</summary>
     readonly Dictionary<Guid, Yaw> _turned = new(); readonly GhostStash _stash = new();
-    // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
+    // What AskAnswers.FacingOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
     /// <summary>The open move's per-model regions and the team colour they draw in; null outside a move and for a disembark.</summary>
     MoveRegions? _regions; Color _regionColour;
@@ -85,9 +85,10 @@ public partial class DecisionBox
         void Relocate(bool continues)
         {
             if (_proposed is not { } proposed || !_gate.Allowed) return;
-            var moves = legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(proposed[id], YawOf(p, id))))).ToList();
-            _sent.Remember(ask.Id, moves);
-            Send(ask, new Destinations(moves, continues));
+            var ghostYaws = legal.ModelIds.Select(id => (id, yaw: NodeYaw(id))).Where(x => x.yaw is not null).ToDictionary(x => x.id, x => x.yaw!.Value);
+            var answer = AskAnswers.Move(p, legal, proposed, ghostYaws, continues, MoveRuler.IsDisembark(legal) ? new ExitSite(_exitWithin, _volumes, _size) : null);
+            _sent.Remember(ask.Id, answer.Moves);
+            Send(ask, answer);
         }
         void Commit() => Relocate(false);
         _onEnter = Commit;
@@ -127,23 +128,11 @@ public partial class DecisionBox
         _input.Eligible = enterable.ToHashSet();
         _onTarget = clicked =>
         {
-            if (Resolve(clicked, enterable) is not { } container || !p.Models.ContainsKey(container)) return;
+            if (AskAnswers.Resolve(p, clicked, enterable) is not { } container || !p.Models.ContainsKey(container)) return;
             _input.CancelDrag();
-            Send(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(container))).ToList()));
+            Send(ask, AskAnswers.Embark(p, legal, container));
         };
     }
-
-    /// <summary>The facing the answer carries. A model on the table takes its node's facing. A disembarking model takes whatever fits at
-    /// the point it was dropped (p.7), from the same search that drew the region; the container's facing is the fallback.</summary>
-    Yaw YawOf(Projection p, Guid modelId) => p.Models[modelId].Location switch
-    {
-        OnTable on => NodeYaw(modelId) ?? on.Placement.Yaw,
-        Inside i when p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnTable c =>
-            MoveRuler.ExitYawAt(BodyOf(p, modelId), new PlacedModel(BodyOf(p, i.ContainerId), c.Placement),
-                _exitWithin, _proposed![modelId].Horizontal, _volumes, _size) ?? c.Placement.Yaw,
-        OnShelf => NodeYaw(modelId) ?? new Yaw(0),                                 // a reserve placed from the shelf faces as its ghost does (Q/E)
-        _ => new Yaw(0),
-    };
 
     Yaw? NodeYaw(Guid modelId) => _view.PieceAt(modelId) is { } n && IsInstanceValid(n) ? WorldFrame.YawFrom(n.Rotation.Y) : null;
 
