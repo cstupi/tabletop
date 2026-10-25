@@ -34,7 +34,8 @@ COPY client/content/builtin/catalog.json /src/client/content/builtin/catalog.jso
 COPY --from=geometry /out/_framework public/geometry/_framework
 RUN npm run build:hosted
 
-FROM caddy:2-alpine
+# 2.11: 2.10.2 answered 206 to a plain request for a precompressed file, so browsers fetched the geometry runtime again on every load.
+FROM caddy:2.11-alpine
 # The image grants the binary cap_net_bind_service as a file capability, which no-new-privileges refuses to exec; :8080
 # needs none.
 RUN setcap -r /usr/bin/caddy

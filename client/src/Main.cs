@@ -13,7 +13,7 @@ public partial class Main : Node
     public static Main Instance { get; private set; } = null!;
     public Session Session { get; private set; } = null!;
     public AssetCache Cache { get; private set; } = null!;
-    public HttpClient Http { get; } = new();
+    public HttpClient Http { get; } = ClientHttp.Create();
     Node? _screen;
     string _settingsPath = "";
     readonly GodotDispatcher _dispatcher = new();

@@ -76,4 +76,19 @@ public class SightKeyTests
         cache.Keep([]);                                                                       // no longer assigned
         Assert.True(cache.NeedsAsk(Target, SightKey.Of(p, Observer, Target)));
     }
+
+    [Fact]
+    public void Slot_asks_the_hovered_pair_once_then_only_after_a_change_or_a_forget()
+    {
+        var slot = new SightSlot();
+        var p = TableUx.After(TableUx.Deploy);
+        Assert.True(slot.NeedsAsk(SightKey.Of(p, Observer, Target)));
+        slot.Asked(SightKey.Of(p, Observer, Target));
+        Assert.False(slot.NeedsAsk(SightKey.Of(TableUx.After(TableUx.Deploy), Observer, Target)));   // a render with events that moved nothing
+        Assert.True(slot.NeedsAsk(SightKey.Of(p, TableUx.Reserve.Id, Target)));                       // another pair
+        var rifle = TableUx.ModelOf(TableUx.Squad);
+        Assert.True(slot.NeedsAsk(SightKey.Of(TableUx.After(TableUx.Deploy, new ModelsMoved([Move(rifle, At(p, rifle), 11, 10)])), Observer, Target)));
+        slot.Forget();                                                                                   // the hover cleared, or the send failed
+        Assert.True(slot.NeedsAsk(SightKey.Of(p, Observer, Target)));
+    }
 }

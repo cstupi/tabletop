@@ -19,6 +19,7 @@ public partial class SightLines : Node3D
     readonly Dictionary<Guid, Guid> _assignedQueries = new();                         // assigned target → its newest query
     readonly Dictionary<Guid, SightAnswer> _assignedAnswers = new();
     readonly SightCache _assignedKeys = new();                                        // assigned target → the placements its newest query was sent for
+    readonly SightSlot _hoveredKey = new();                                           // the placements the hovered pair's newest query was sent for
     IReadOnlyList<AskOption> _groups = []; IReadOnlyDictionary<string, Guid> _assigned = new Dictionary<string, Guid>();
     Action<Guid?>? _onHover; Action? _onChanged; Action<RenderCause>? _onFrame; Action<SightAnswer>? _onAnswer;
 
@@ -48,12 +49,15 @@ public partial class SightLines : Node3D
 
     void Ask()
     {
-        if (_s.Projection is not { } p || _s.Game is not { } game) { _query = null; _shown = null; Draw(); return; }
+        if (_s.Projection is not { } p || _s.Game is not { } game) { _query = null; _shown = null; _hoveredKey.Forget(); Draw(); return; }
         var observer = Shooter(p, game) ?? (_input.SightHeld ? _input.Selected?.PieceId : null);
-        if (observer is not { } from || _hovered is not { } to || from == to || !p.Units.ContainsKey(from)) { _query = null; _shown = null; Draw(); return; }
+        if (observer is not { } from || _hovered is not { } to || from == to || !p.Units.ContainsKey(from)) { _query = null; _shown = null; _hoveredKey.Forget(); Draw(); return; }
+        var key = SightKey.Of(p, from, to);
+        if (_query is not null && !_hoveredKey.NeedsAsk(key)) return;                 // nothing the answer depends on moved: it stands
         var id = Guid.CreateVersion7();
         _query = (id, to);
-        Send(id, from, to);
+        _hoveredKey.Asked(key);
+        Send(id, from, to, () => { if (_query?.Id == id) _hoveredKey.Forget(); });
     }
 
     /// <summary>Ask about each assigned target that is new or whose pair's model placements or terrain changed since its last query; the other answers stand.</summary>

@@ -7,7 +7,7 @@ namespace Tabletop.Client.Core;
 public sealed class ClientGameSocket : IGameSocket
 {
     const int MaxFrameBytes = 4 * 1024 * 1024;
-    readonly ClientWebSocket _socket = new();
+    readonly ClientWebSocket _socket = new() { Options = { DangerousDeflateOptions = SocketCompression.Offer() } };
     readonly SemaphoreSlim _sendGate = new(1, 1);
     readonly CancellationTokenSource _stop = new();
     int _closedRaised;
@@ -25,7 +25,7 @@ public sealed class ClientGameSocket : IGameSocket
     {
         var bytes = Encoding.UTF8.GetBytes(WireJson.Serialize(frame));
         await _sendGate.WaitAsync();
-        try { if (_socket.State == WebSocketState.Open) await _socket.SendAsync(bytes, WebSocketMessageType.Text, true, _stop.Token); }
+        try { if (_socket.State == WebSocketState.Open) await _socket.SendAsync(bytes, WebSocketMessageType.Text, SocketCompression.FlagsFor(frame), _stop.Token); }
         finally { _sendGate.Release(); }
     }
 

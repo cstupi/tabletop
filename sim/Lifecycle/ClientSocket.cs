@@ -57,7 +57,7 @@ public sealed class ClientSocket : IAsyncDisposable
         var client = new ClientSocket(await connector.ConnectAsync(ct), name);
         try
         {
-            await client._socket.SendAsync(connect, WebSocketMessageType.Text, true, ct);
+            await client._socket.SendAsync(connect, WebSocketMessageType.Text, SocketCompression.Uncompressed, ct);
             var first = await client.ReadAsync("the welcome", ct);
             if (first is Rejected rejected) throw new InvalidOperationException($"{name}'s connect was rejected: {rejected.Reason}");
             if (first is not Welcome welcome) throw new InvalidOperationException($"{name} expected a welcome, got {first.GetType().Name}");
@@ -120,7 +120,7 @@ public sealed class ClientSocket : IAsyncDisposable
     }
 
     Task SendAsync(SocketMessage message) =>
-        _socket.SendAsync(Encoding.UTF8.GetBytes(WireJson.Serialize(message)), WebSocketMessageType.Text, true, CancellationToken.None);
+        _socket.SendAsync(Encoding.UTF8.GetBytes(WireJson.Serialize(message)), WebSocketMessageType.Text, SocketCompression.FlagsFor(message), CancellationToken.None).AsTask();
 
     Refused? Take(SocketMessage frame)
     {

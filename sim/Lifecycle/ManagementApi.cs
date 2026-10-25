@@ -43,7 +43,8 @@ public sealed class ManagementApi : IDisposable
 
     public static async Task<ManagementApi> SignInAsync(Uri management, string name, CancellationToken ct)
     {
-        var http = new HttpClient { BaseAddress = management, Timeout = TimeSpan.FromSeconds(30) };
+        // As the Godot client: it asks for compressed responses and decodes them.
+        var http = new HttpClient(new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { BaseAddress = management, Timeout = TimeSpan.FromSeconds(30) };
         try { return new ManagementApi(http, name, await SocketCredentials.MintOneAsync(http, name, ct)); }
         catch { http.Dispose(); throw; }
     }

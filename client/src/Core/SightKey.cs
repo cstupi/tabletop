@@ -33,3 +33,13 @@ public sealed class SightCache
     /// <summary>Drops every target not in <paramref name="targets"/>.</summary>
     public void Keep(IReadOnlyCollection<Guid> targets) { foreach (var gone in _asked.Keys.Where(t => !targets.Contains(t)).ToList()) _asked.Remove(gone); }
 }
+
+/// <summary>The key the hovered pair was last asked about: a render with events asks again only when the pair, a model's placement or the terrain changed.</summary>
+public sealed class SightSlot
+{
+    SightKey? _asked;
+
+    public bool NeedsAsk(SightKey key) => _asked is null || !_asked.Equals(key);
+    public void Asked(SightKey key) => _asked = key;
+    public void Forget() => _asked = null;
+}

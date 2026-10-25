@@ -154,8 +154,8 @@ do. Measured, Release, 20 carriers of a 24" weapon packed in a 5 × 4 grid (`Ran
 (`CombatLogRows.Kept`) and rebuilds from the first that differs: an append rebuilds the open block and adds the new rows, an
 undo rebuilds from the first entry it strikes; a fold, a reveal, the filter, the focus, the theme, a pending undo or new rule
 texts rebuild all. Grants find their effect row through `PropertySet.EffectById` (one dictionary per set), the menu's
-`AddGrant` check included; `Battlefield.Terrain` builds a table's world volumes once per `TableState`. `SightLines` re-sends an assigned target's sight
-query only when a model placement or the terrain changed (`SightKey`, `SightCache`).
+`AddGrant` check included; `Battlefield.Terrain` builds a table's world volumes once per `TableState`. `SightLines` re-sends the hovered unit's and an assigned
+target's sight query only when the pair, a model placement or the terrain changed (`SightKey`, `SightSlot`, `SightCache`).
 
 **Open from the review:** the Release play profile for the dev stack and client (finding 1). Risks to watch: GLB parsing off the main
 thread, template copies of rigged or animated models.
