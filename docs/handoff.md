@@ -157,8 +157,18 @@ texts rebuild all. Grants find their effect row through `PropertySet.EffectById`
 `AddGrant` check included; `Battlefield.Terrain` builds a table's world volumes once per `TableState`. `SightLines` re-sends the hovered unit's and an assigned
 target's sight query only when the pair, a model placement or the terrain changed (`SightKey`, `SightSlot`, `SightCache`).
 
-**Open from the review:** the Release play profile for the dev stack and client (finding 1). Risks to watch: GLB parsing off the main
-thread, template copies of rigged or animated models.
+`docs/superpowers/specs/2026-10-25-performance-and-network.md` is the Release play profile of the server, the client's Core
+and the viewer, and the wire for remote play. Built: `/ws` negotiates permessage-deflate (a game 1,950 → 176 KiB per
+socket, a reconnect 1,864 → 144 KiB; `Connect` and `Reauth` go uncompressed from Godot and the sim); management compresses
+JSON and caches the content-hash routes immutable; the web image's Caddy is 2.11 and the hashed `_framework` files are
+immutable. A unit's pickup in a move Ask draws its areas in 5.5 ms (117-126 ms: `MoveSpace.MeetsAtEveryRest`,
+`MoveShape.SurelyEnters`, bounding-circle culls). The browser's Geometry is AOT-compiled in the web image with hand-written
+facade readers (`Contacts` 11 → 2.5 ms); the viewer gates a drag once per landing and once per frame (51 → 20 ms on the
+interpreter), reuses the session JWT, mounts the Watch picker only for admins, and caches hover distances and zone polygons.
+The harnesses that measure all this are in `.superpowers/perf/` (not in the repo). Left alone, with numbers in the spec: the
+whole log on every connect, one `EventsMessage` per batch, the combat log's full rebuild per log state, the server's cold
+first game. Risks to watch: GLB parsing off the main thread, template copies of rigged or animated models; the host SDK has
+no `wasm-tools` workload, so a host or CI build of the geometry runs on the interpreter.
 
 ### 1. Open items from the defect fixes
 
