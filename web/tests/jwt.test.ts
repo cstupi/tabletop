@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeExp, decodeRoles, isAdmin, refreshDelayMs } from '../src/lib/session/jwt';
+import { decodeExp, decodeRoles, refreshDelayMs } from '../src/lib/session/jwt';
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (exp: number) => `${b64({ alg: 'RS256' })}.${b64({ sub: 'u', exp })}.sig`;
@@ -26,12 +26,5 @@ describe('jwt', () => {
     expect(decodeRoles(withRoles([1, 'admin']))).toEqual(['admin']);
     expect(decodeRoles(jwt(1))).toEqual([]);
     expect(decodeRoles('not a jwt')).toEqual([]);
-  });
-
-  it('is admin only with the admin role', () => {
-    expect(isAdmin(withRoles(['admin']))).toBe(true);
-    expect(isAdmin(withRoles(['player']))).toBe(false);
-    expect(isAdmin(jwt(1))).toBe(false);
-    expect(isAdmin(null)).toBe(false);
   });
 });

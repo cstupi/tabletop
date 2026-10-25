@@ -6,8 +6,8 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 
 - `src/routes/` pages: `login`, `reset-password`, `account`, `library` (+ `[id]`), `armies` (+ `[id]`), `download`; `+layout.ts` sets `ssr`/`prerender`.
 - `src/lib/api/` typed client: `client.ts` (`api`, one function per endpoint), `http.ts` (`http`, `ApiError` with `retryAfter`, `API_BASE`, `setTokenProvider`), `types.ts` (DTOs), `errors.ts` (`errorMessage(e, context)`: every failure as one sentence).
-- `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry, refresh delay, `decodeRoles`, `isAdmin`), `messages.ts` (`loginErrorMessage`), `redirect.ts` (`safeNext`, `loginHref`).
-- `src/lib/replays.ts` `REPLAYS_URL`: the admin Replays link, `PUBLIC_VIEWER_URL` or `/viewer/`.
+- `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry, refresh delay, `decodeRoles`), `messages.ts` (`loginErrorMessage`), `redirect.ts` (`safeNext`, `loginHref`).
+- `src/lib/replays.ts` `REPLAYS_URL`: where the header's Play link goes, `PUBLIC_VIEWER_URL` or `/viewer/`.
 - `src/lib/validation.ts` `nameProblem`, `sizeProblem`, `MAX_NAME`, `MAX_BYTES`, `ASSET_QUOTA`, `libraryUsage`, `formatBytes`: management's limits, checked before sending.
 - `src/lib/mesh/` STL to GLB: `stl.ts` (parse, `mergeSoups`), `weld.ts`, `decimate.ts` (`BUDGETS`), `normals.ts` (creased), `glb.ts`, `supports.ts`, `bounds.ts` (`terrainVolume`), `guess.ts`, `size.ts` (`GLB_DEFAULTS`, `suggestUnit`, `describeSize`, `toggleUpright`), `three-frame.ts` (`eulerFor`), `convert.ts` (`convert`, `convertInWorker`, `describeGlb`), `convert.worker.ts`.
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`, `UNIT_SCALES`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (seven declarations, `defaultVolume`).
@@ -44,7 +44,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   what a `401` and a `502` say. Names go through `nameProblem` and files through `sizeProblem` before a request.
 - Orientation is `{ pitch, yaw, roll }` in degrees, stored on the asset with the scale; `eulerFor` maps it to a three.js `ZYX` Euler.
 - `http.ts` sends requests to `API_BASE + path`; `API_BASE` is `PUBLIC_API_BASE` or empty, so dev is same-origin through the Vite proxy.
-- Replays: the header shows a Replays link (`data-sveltekit-reload`, a full page load) when the session JWT's `roles` claim holds `admin`.
+- Play: the header shows a Play link (`data-sveltekit-reload`, a full page load) to every signed-in account.
   It opens the viewer's hosted build at `/viewer/` (`viewer/AGENTS.md`), which reads this app's `tabletop.session` entry and sends
   a signed-out reader to `/login?next=/viewer/`; changing that entry's key or shape changes `viewer/src/lib/hosted/hosted.ts`.
 - `session.svelte.ts` refreshes the JWT before expiry through `/v1/auth/session/refresh`. A bearer `401`, or a refresh refused with any
@@ -65,7 +65,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `web/Dockerfile` (context: repo root, build arg `TABLETOP_BLOB_ORIGIN`): the same build served by Caddy on :8080 with SPA
   fallback and the `frame-ancestors` header (`web/Caddyfile`), plus the viewer's hosted build (`npm run build:hosted` in `viewer/`)
   at `/viewer/` with its own CSP header; the home-server stack's `web` service.
-- `docker compose` sets `PUBLIC_VIEWER_URL=http://127.0.0.1:5174/` so the dev Replays link opens the dev viewer (its own login).
+- `docker compose` sets `PUBLIC_VIEWER_URL=http://127.0.0.1:5174/` so the dev Play link opens the dev viewer (its own login).
 - `cd web && npm run fixtures`: regenerates the STL fixtures.
 
 ## Conventions and pitfalls

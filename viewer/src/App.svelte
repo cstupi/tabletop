@@ -1,190 +1,104 @@
 <!-- viewer/src/App.svelte -->
 <script lang="ts">
-  import Board from './lib/components/Board.svelte';
-  import Timeline from './lib/components/Timeline.svelte';
-  import LogPanel from './lib/components/LogPanel.svelte';
-  import AskPanel from './lib/components/AskPanel.svelte';
-  import RollPanel from './lib/components/RollPanel.svelte';
+  import PlaybackView from './lib/components/PlaybackView.svelte';
+  import ReplayPage from './lib/components/ReplayPage.svelte';
   import SourcePicker from './lib/components/SourcePicker.svelte';
+  import GamesPage from './lib/games/GamesPage.svelte';
   import TestsPage from './lib/components/TestsPage.svelte';
-  import Scoreboard from './lib/components/Scoreboard.svelte';
-  import { sceneOf } from './lib/board/frame';
-  import type { Hit } from './lib/board/pick';
-  import { attachFeed, detachFeed, IDLE, type Feed, type FeedState } from './lib/feed/feed';
+  import type { Feed } from './lib/feed/feed';
   import { recordingFeed } from './lib/feed/recordingFeed';
   import { fromUrl, recordingUrlFrom } from './lib/recording/source';
-  import { EMPTY, frameOf, reduce, type Timeline as TimelineState, type TimelineAction } from './lib/timeline/timeline';
-  import { configOf, hostedSession, signInHref, type Access } from './lib/hosted/hosted';
+  import { configOf, signInHref } from './lib/hosted/hosted';
   import { refreshSession } from './lib/live/management';
+  import { devAuth, hostedAuth, type Auth, type DevAuth } from './lib/shell/auth';
+  import { hrefOf, parseRoute, tabsOf, type Route } from './lib/shell/route';
 
   const config = configOf(import.meta.env, window.location);
-  // Hosted: the website's session decides what the page shows; the developer build is always open.
-  let access: Access | 'checking' = $state(config.hosted ? 'checking' : 'admin');
-
   // Lazy, so a blocked localStorage throws inside hostedSession's own try/catch.
   const storage = {
     getItem: (key: string) => window.localStorage.getItem(key),
     setItem: (key: string, value: string) => window.localStorage.setItem(key, value),
   };
+  const dev: DevAuth | null = config.hosted ? null : devAuth((jwt) => refreshSession(jwt));
+  const auth: Auth = dev ?? hostedAuth(storage, (jwt) => refreshSession(jwt));
+  // Hosted opens to the games list; the developer build to its recording flow.
+  const home: Route = config.hosted ? { page: 'games' } : { page: 'watch' };
+  const LABELS = { games: 'Games', watch: 'Watch', tests: 'Tests' } as const;
 
-  async function hostedJwt(): Promise<string> {
-    const result = await hostedSession(storage, (jwt) => refreshSession(jwt));
-    access = result.access;
-    if (result.sessionJwt === null || result.access !== 'admin') throw new Error('signed out of Tabletop');
-    return result.sessionJwt;
-  }
+  let route: Route = $state(parseRoute(window.location.hash, home));
+  // Hosted: the website's session decides what the page shows; the developer build is always open.
+  let access: Auth['access'] = $state(config.hosted ? 'checking' : 'admin');
+  let error: string | null = $state(null);
+  // The feed the Watch page plays: a recording, a live game, or a run from the Tests page.
+  let watchFeed: Feed | null = $state.raw(null);
 
   $effect(() => {
-    if (config.hosted) hostedJwt().catch((e: Error) => { if (access === 'checking') error = e.message; });
+    const onHash = () => { route = parseRoute(window.location.hash, home); };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
   });
 
-  let feed: Feed | null = $state.raw(null);
-  let unsubscribe: (() => void) | null = null;
-  let feedState: FeedState = $state.raw(IDLE);
-  let timeline: TimelineState = $state(EMPTY);
-  let error: string | null = $state(null);
-  let selected: string | null = $state(null);
-  let tab: 'log' | 'ask' | 'dice' | 'meta' = $state('log');
-  let view: 'viewer' | 'tests' = $state('viewer');
-  let showGrid = $state(true), showZones = $state(true), showLabels = $state(true);
-
-  function attach(next: Feed) {
-    error = null;
-    selected = null;
-    // Set before subscribing: a feed emits its current state to a new listener synchronously.
-    timeline = next.kind === 'live' ? { ...EMPTY, follow: true } : EMPTY;
-    // attachFeed owns the order — old listener, then old feed, then the new subscription — and hands
-    // back the unsubscribe function, which this component holds and passes back on the next swap.
-    unsubscribe = attachFeed(feed, unsubscribe, next, (s) => {
-      feedState = s;
-      timeline = reduce(timeline, { type: 'frames', count: s.frames.length });
-    });
-    feed = next;
-    view = 'viewer';
-  }
-
-  const dispatch = (action: TimelineAction) => { timeline = reduce(timeline, action); };
-  const frame = $derived(frameOf(feedState.frames, timeline));
-  const scene = $derived(feedState.board !== null && frame !== null ? sceneOf(feedState.board, frame) : null);
-  const teamLabels = $derived(new Map((feedState.meta?.teams ?? []).map((t) => [t.id, t.name])));
-  const seqs = $derived(feedState.frames.map((f) => f.seq));
-  const picked = $derived(scene?.models.find((m) => m.id === selected) ?? null);
+  $effect(() => {
+    if (!config.hosted) return;
+    auth.jwt().catch((e: Error) => { if (auth.access === 'checking') error = e.message; }).finally(() => { access = auth.access; });
+  });
 
   $effect(() => {
     const url = recordingUrlFrom(window.location.search);
-    if (url !== null) fromUrl(url).then((s) => attach(recordingFeed(s))).catch((e: Error) => (error = e.message));
+    if (url !== null) fromUrl(url).then((s) => show(recordingFeed(s))).catch((e: Error) => (error = e.message));
   });
 
-  // Tearing the page down is the same discipline as swapping, and the same module owns it.
-  $effect(() => () => {
-    detachFeed(feed, unsubscribe);
-    unsubscribe = null;
-    feed = null;
-  });
-
-  function pick(hit: Hit | null) {
-    selected = hit?.kind === 'model' ? hit.id : null;
+  function show(feed: Feed) {
+    error = null;
+    watchFeed = feed;
+    window.location.hash = hrefOf({ page: 'watch' });
   }
 </script>
 
 {#if access === 'checking'}
 <main class="gate">
-  <h1>Replays</h1>
+  <h1>Tabletop</h1>
   {#if error === null}<p class="muted">Checking your Tabletop session…</p>{:else}<p class="error">{error}</p>{/if}
 </main>
 {:else if access === 'signed-out'}
 <main class="gate">
   <h1>Signed out</h1>
-  <p>Sign in to Tabletop to open Replays.</p>
+  <p>Sign in to Tabletop to play.</p>
   <p><a href={signInHref(window.location.pathname)}>Sign in</a></p>
-</main>
-{:else if access === 'not-admin'}
-<main class="gate">
-  <h1>Not authorised</h1>
-  <p>Replays are open to admin accounts only.</p>
-  <p><a href="/">Back to Tabletop</a></p>
 </main>
 {:else}
 <header>
-  <strong>{config.hosted ? 'Tabletop replays' : 'Tabletop viewer'}</strong>
+  <strong>{config.hosted ? 'Tabletop' : 'Tabletop viewer'}</strong>
   {#if config.hosted}<a href="/">Back to Tabletop</a>{/if}
-  {#if config.runner}
-    <nav class="views">
-      <button class:active={view === 'viewer'} onclick={() => (view = 'viewer')}>Viewer</button>
-      <button class:active={view === 'tests'} onclick={() => (view = 'tests')}>Tests</button>
-    </nav>
-  {/if}
-  <SourcePicker onFeed={attach} onError={(m) => (error = m)} socketUrl={config.socketUrl}
-    hostedJwt={config.hosted ? hostedJwt : null} />
-  <span class="muted">
-    {feedState.status === 'idle' ? 'no recording loaded' : `${feedState.label} · ${feedState.status} · ${feedState.frames.length} frames`}
-  </span>
-  {#if error !== null}<span class="error">{error}</span>{/if}
-  {#if feedState.detail !== null}<span class="error">{feedState.detail}</span>{/if}
-  <Scoreboard teams={feedState.meta?.teams ?? []} {frame} />
+  <nav class="views">
+    {#each tabsOf(access, config.runner) as page (page)}
+      <a class="tab-link" class:active={route.page === page} href={hrefOf({ page })}>{LABELS[page]}</a>
+    {/each}
+  </nav>
+  {#if error !== null}<span class="error" role="alert">{error}</span>{/if}
 </header>
 
-<div class="panes" hidden={view !== 'viewer'}>
-  <div class="left">
-    {#if scene === null}
-      <p class="muted pad">Load a recording to draw it.</p>
-    {:else}
-      <Board {scene} {selected} onPick={pick} {showGrid} {showZones} {showLabels} />
-    {/if}
+<main class="page">
+  {#if route.page === 'games'}
+    <GamesPage {auth} />
+  {:else if route.page === 'game'}
+    <p class="muted pad">Game {route.gameId}</p>
+  {:else if route.page === 'replay'}
+    {#key route.gameId}<ReplayPage gameId={route.gameId} socketUrl={config.socketUrl} {auth} />{/key}
+  {/if}
+  <!-- Watch and Tests stay mounted while hidden: leaving them must not close the feed or lose a run. -->
+  <div class="watch" hidden={route.page !== 'watch'}>
+    <SourcePicker onFeed={show} onError={(m) => (error = m)} socketUrl={config.socketUrl} {auth} {dev} />
+    <PlaybackView feed={watchFeed} />
   </div>
-  <aside class="right">
-    <nav>
-      {#each ['log', 'ask', 'dice', 'meta'] as const as name (name)}
-        <button class:active={tab === name} onclick={() => (tab = name)}>{name}</button>
-      {/each}
-    </nav>
-    <div class="tab">
-      {#if tab === 'log'}
-        <LogPanel frames={feedState.frames} index={timeline.index} onJump={(seq) => dispatch({ type: 'jump', seq, seqs })} />
-      {:else if tab === 'ask'}
-        <AskPanel asks={frame?.openAsks ?? []} {teamLabels} />
-      {:else if tab === 'dice'}
-        <RollPanel rolls={frame?.rolls ?? []} />
-      {:else}
-        <div class="pad">
-          {#if feedState.meta !== null}
-            <p>{feedState.meta.scenario} · seed {feedState.meta.seed} · {feedState.meta.driver}</p>
-            <p class="muted">{feedState.meta.gameRules} · {feedState.meta.schedulerShape} · {feedState.meta.enforcement}</p>
-            <p>outcome: <strong>{feedState.meta.outcome}</strong>{feedState.meta.outcomeDetail === undefined ? '' : ` — ${feedState.meta.outcomeDetail}`}</p>
-            <p class="muted">{feedState.meta.rounds} round(s), last seq {feedState.meta.lastSeq}, {Math.round(feedState.meta.durationMs)} ms</p>
-            {#each feedState.meta.teams as team (team.id)}<p>Team {team.ordinal}: {team.name}</p>{/each}
-          {/if}
-          {#if scene !== null}
-            <p class="muted">{scene.offTable.length} model(s) off the table</p>
-            {#each scene.offTable as m (m.id)}
-              <p class="muted">{m.label} — {m.where}{m.containerLabel === undefined ? '' : ` ${m.containerLabel}`}</p>
-            {/each}
-            {#each scene.zones as z (z.id)}<p class="muted">zone {z.shape} → team {z.teamOrdinal}</p>{/each}
-          {/if}
-          <label><input type="checkbox" bind:checked={showGrid} /> grid</label>
-          <label><input type="checkbox" bind:checked={showZones} /> zones</label>
-          <label><input type="checkbox" bind:checked={showLabels} /> labels</label>
-        </div>
-      {/if}
+  {#if config.runner}
+    <div hidden={route.page !== 'tests'}>
+      <TestsPage onFeed={show} onError={(m) => (error = m)} socketUrl={config.socketUrl} />
     </div>
-    {#if picked !== null}
-      <div class="pad selected">
-        <strong>{picked.label}</strong> <span class="muted">{picked.unitName}</span>
-        <p class="muted">team {picked.teamOrdinal} · {picked.centre.x.toFixed(1)}, {picked.centre.y.toFixed(1)}
-          · {picked.wounds} wound(s){picked.spellTokens > 0 ? ` · ${picked.spellTokens} token(s)` : ''}</p>
-        {#if picked.conditions.length > 0}<p class="muted">{picked.conditions.join(', ')}</p>{/if}
-      </div>
-    {/if}
-  </aside>
-</div>
-
-{#if config.runner}
-<div class="tests-view" hidden={view !== 'tests'}>
-  <TestsPage onFeed={attach} onError={(m) => (error = m)} socketUrl={config.socketUrl} />
-</div>
+  {/if}
+</main>
 {/if}
 
-<div hidden={view !== 'viewer'}>
-  <Timeline {timeline} {dispatch} seq={frame?.seq ?? null} line={frame?.line ?? ''} />
-</div>
-{/if}
+<style>
+  .watch { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+</style>

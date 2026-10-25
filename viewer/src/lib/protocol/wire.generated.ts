@@ -3,6 +3,11 @@
 
 export const PROTOCOL_VERSION = 4;
 
+export interface AbandonSequence {
+  readonly kind: 'abandon_sequence';
+  readonly frameId: string;
+}
+
 export interface ActionRecordCleared {
   readonly kind: 'action_record_cleared';
   readonly unitId: string;
@@ -12,6 +17,22 @@ export interface ActionRecorded {
   readonly kind: 'action_recorded';
   readonly unitId: string;
   readonly action: string;
+}
+
+export interface AddGrant {
+  readonly kind: 'add_grant';
+  readonly unitId: string;
+  readonly grant: Grant;
+}
+
+export interface AddSetupMarker {
+  readonly kind: 'add_setup_marker';
+  readonly marker: Marker;
+}
+
+export interface AddTerrain {
+  readonly kind: 'add_terrain';
+  readonly placement: TerrainPlacement;
 }
 
 export interface Allocated {
@@ -24,6 +45,13 @@ export interface Allocation {
   readonly targets: readonly string[];
   readonly amount: number;
   readonly maxTargets?: number;
+}
+
+export interface AnswerAsk {
+  readonly kind: 'answer_ask';
+  readonly askId: string;
+  readonly answer: AskAnswer;
+  readonly teamId?: string;
 }
 
 export interface ArmyInPlay {
@@ -92,6 +120,11 @@ export interface Assignment {
   readonly targetsByItem?: { readonly [key: string]: readonly string[] };
 }
 
+export interface AtRest {
+  readonly kind: 'at_rest';
+  readonly seq: number;
+}
+
 export interface Base {
   readonly shape: BaseShape;
   readonly a: number;
@@ -113,6 +146,19 @@ export interface BoardMessage {
 export interface Chosen {
   readonly kind: 'chosen';
   readonly optionId: string;
+}
+
+export interface ClearActionRecord {
+  readonly kind: 'clear_action_record';
+  readonly unitId: string;
+}
+
+export type Command = AnswerAsk | MoveModels | PlaceMarker | MoveMarker | RemoveMarker | SetWounds | SetCondition | RecordAction | ClearActionRecord | AddGrant | RemoveGrant | SetSpellTokens | SetWoundsThisActivation | SetScore | SetObjectiveControl | SetActiveTeam | SetRound | Undo | AbandonSequence | SetDice;
+
+export interface CommandMessage {
+  readonly kind: 'command';
+  readonly commandId: string;
+  readonly command: Command;
 }
 
 export interface ConditionSet {
@@ -142,6 +188,10 @@ export interface CoverVerdict {
   readonly models: number;
   readonly of: number;
   readonly ignoredBy?: string;
+}
+
+export interface CreateTeam {
+  readonly kind: 'create_team';
 }
 
 export interface DeploymentZone {
@@ -181,6 +231,23 @@ export interface DieReplacement {
   readonly index: number;
   readonly old: Die;
   readonly new: Die;
+}
+
+export interface DieValue {
+  readonly index: number;
+  readonly raw: number;
+}
+
+export type Edit = CreateTeam | PickTeam | PickArmy | LeaveTeam | SetConfiguration | StartSetup | EndSetup | SetTableSize | SetTexture | AddTerrain | MoveTerrain | ScaleTerrain | RemoveTerrain | OverrideTerrainVolumes | SwapTerrainMesh | AddSetupMarker | MoveSetupMarker | RemoveSetupMarker | SetZoneStyle | SwapZones | ReplaceDraft;
+
+export interface EditMessage {
+  readonly kind: 'edit';
+  readonly editId: string;
+  readonly edit: Edit;
+}
+
+export interface EndSetup {
+  readonly kind: 'end_setup';
 }
 
 export type Enforcement = 'silent' | 'warn' | 'strict';
@@ -265,6 +332,11 @@ export interface Inside {
   readonly containerId: string;
 }
 
+export interface LeaveTeam {
+  readonly kind: 'leave_team';
+  readonly teamId: string;
+}
+
 export type LegalSet = Options | PieceSelection | Allocation | Assignment | MoveRegion | TokenSpend | Confirmation;
 
 export type Location = OnTable | OnShelf | Inside;
@@ -298,6 +370,12 @@ export interface MarkerRemoved {
   readonly markerId: string;
 }
 
+export interface ModelFacts {
+  readonly kind: 'model_facts';
+  readonly maxWounds: { readonly [key: string]: number };
+  readonly deployInside?: { readonly [key: string]: readonly string[] };
+}
+
 export interface ModelRelocation {
   readonly modelId: string;
   readonly from: Location;
@@ -328,6 +406,18 @@ export interface MoveContainment {
   readonly exitWithin?: number;
 }
 
+export interface MoveMarker {
+  readonly kind: 'move_marker';
+  readonly markerId: string;
+  readonly position: Point3;
+  readonly yaw: Yaw;
+}
+
+export interface MoveModels {
+  readonly kind: 'move_models';
+  readonly moves: readonly ModelRelocation[];
+}
+
 export interface MoveRegion {
   readonly kind: 'move_region';
   readonly modelIds: readonly string[];
@@ -341,6 +431,20 @@ export interface MoveRegion {
   readonly separation?: number;
   readonly passesModels: boolean;
   readonly ignoresTerrain: boolean;
+}
+
+export interface MoveSetupMarker {
+  readonly kind: 'move_setup_marker';
+  readonly markerId: string;
+  readonly position: Point3;
+  readonly yaw: Yaw;
+}
+
+export interface MoveTerrain {
+  readonly kind: 'move_terrain';
+  readonly placementId: string;
+  readonly position: Point3;
+  readonly yaw: Yaw;
 }
 
 export interface ObjectiveControlSet {
@@ -368,6 +472,12 @@ export interface OutlineStep {
   readonly label: string;
 }
 
+export interface OverrideTerrainVolumes {
+  readonly kind: 'override_terrain_volumes';
+  readonly placementId: string;
+  readonly volumes: readonly TerrainVolume[];
+}
+
 export interface Participant {
   readonly id: string;
   readonly accountId: string;
@@ -386,11 +496,28 @@ export interface PhaseStarted {
   readonly phase: string;
 }
 
+export interface PickArmy {
+  readonly kind: 'pick_army';
+  readonly armyId?: string;
+  readonly teamId?: string;
+}
+
+export interface PickTeam {
+  readonly kind: 'pick_team';
+  readonly teamId?: string;
+  readonly participantId?: string;
+}
+
 export interface PieceSelection {
   readonly kind: 'pieces';
   readonly eligible: readonly string[];
   readonly min: number;
   readonly max: number;
+}
+
+export interface PlaceMarker {
+  readonly kind: 'place_marker';
+  readonly marker: Marker;
 }
 
 export interface Placement {
@@ -415,6 +542,18 @@ export interface PropertyInstance {
   readonly parameter?: number;
 }
 
+export interface Reauth {
+  readonly kind: 'reauth';
+  readonly reauthId: string;
+  readonly sessionJwt: string;
+}
+
+export interface RecordAction {
+  readonly kind: 'record_action';
+  readonly unitId: string;
+  readonly action: string;
+}
+
 export type RefusalReason = 'outside_legal_set' | 'illegal' | 'wrong_status' | 'not_permitted' | 'unknown' | 'watcher';
 
 export interface Refused {
@@ -429,6 +568,32 @@ export type RejectReason = 'upgrade_required' | 'invalid_session' | 'not_a_parti
 export interface Rejected {
   readonly kind: 'rejected';
   readonly reason: RejectReason;
+}
+
+export interface RemoveGrant {
+  readonly kind: 'remove_grant';
+  readonly unitId: string;
+  readonly grantId: string;
+}
+
+export interface RemoveMarker {
+  readonly kind: 'remove_marker';
+  readonly markerId: string;
+}
+
+export interface RemoveSetupMarker {
+  readonly kind: 'remove_setup_marker';
+  readonly markerId: string;
+}
+
+export interface RemoveTerrain {
+  readonly kind: 'remove_terrain';
+  readonly placementId: string;
+}
+
+export interface ReplaceDraft {
+  readonly kind: 'replace_draft';
+  readonly draft: TableState;
 }
 
 export interface RollModifier {
@@ -486,6 +651,12 @@ export interface RulesPreset {
   readonly enforcement?: Enforcement;
 }
 
+export interface ScaleTerrain {
+  readonly kind: 'scale_terrain';
+  readonly placementId: string;
+  readonly scale: number;
+}
+
 export type SchedulerShape = 'player-turn' | 'alternating-activation';
 
 export interface ScoreSet {
@@ -524,12 +695,118 @@ export interface SequenceStarted {
   readonly outline?: readonly OutlineStep[];
 }
 
-export type SocketMessage = Connect | Welcome | GameInfoMessage | BoardMessage | EventsMessage | Refused | Rejected;
+export interface SetActiveTeam {
+  readonly kind: 'set_active_team';
+  readonly teamId: string;
+}
+
+export interface SetCondition {
+  readonly kind: 'set_condition';
+  readonly subject: Subject;
+  readonly condition: string;
+  readonly present: boolean;
+}
+
+export interface SetConfiguration {
+  readonly kind: 'set_configuration';
+  readonly name: string;
+  readonly propertiesHash: string;
+  readonly schedulerShape: SchedulerShape;
+  readonly enforcement: Enforcement;
+  readonly waitsBetweenSteps: boolean;
+  readonly optionalRules: { readonly [key: string]: string };
+}
+
+export interface SetDice {
+  readonly kind: 'set_dice';
+  readonly frameId: string;
+  readonly rollId: string;
+  readonly dice: readonly DieValue[];
+}
+
+export interface SetObjectiveControl {
+  readonly kind: 'set_objective_control';
+  readonly markerId: string;
+  readonly teamId?: string;
+}
+
+export interface SetRound {
+  readonly kind: 'set_round';
+  readonly round: number;
+}
+
+export interface SetScore {
+  readonly kind: 'set_score';
+  readonly teamId: string;
+  readonly score: number;
+}
+
+export interface SetSpellTokens {
+  readonly kind: 'set_spell_tokens';
+  readonly modelId: string;
+  readonly tokens: number;
+}
+
+export interface SetTableSize {
+  readonly kind: 'set_table_size';
+  readonly size: TableSize;
+}
+
+export interface SetTexture {
+  readonly kind: 'set_texture';
+  readonly texture: VisualRef;
+}
+
+export interface SetWounds {
+  readonly kind: 'set_wounds';
+  readonly modelId: string;
+  readonly wounds: number;
+}
+
+export interface SetWoundsThisActivation {
+  readonly kind: 'set_wounds_this_activation';
+  readonly unitId: string;
+  readonly wounds: number;
+}
+
+export interface SetZoneStyle {
+  readonly kind: 'set_zone_style';
+  readonly style: string;
+  readonly shapes: readonly string[];
+}
+
+export interface SightAnswer {
+  readonly kind: 'sight_answer';
+  readonly queryId: string;
+  readonly lines: readonly SightLine[];
+  readonly canShoot: readonly string[];
+}
+
+export interface SightLine {
+  readonly fromModelId: string;
+  readonly toModelId: string;
+  readonly clear: boolean;
+  readonly screened: boolean;
+  readonly blockedBy: readonly string[];
+}
+
+export interface SightQuery {
+  readonly kind: 'sight_query';
+  readonly queryId: string;
+  readonly observerUnitId: string;
+  readonly targetUnitId: string;
+}
+
+export type SocketMessage = Connect | Welcome | GameInfoMessage | BoardMessage | EventsMessage | Refused | Rejected | CommandMessage | EditMessage | AtRest | Reauth | SightQuery | SightAnswer | ModelFacts;
 
 export interface SpellTokensSet {
   readonly kind: 'spell_tokens_set';
   readonly modelId: string;
   readonly tokens: number;
+}
+
+export interface StartSetup {
+  readonly kind: 'start_setup';
 }
 
 export type StateChange = ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
@@ -551,6 +828,18 @@ export interface Subject {
 }
 
 export type SubjectKind = 'unit' | 'model';
+
+export interface SwapTerrainMesh {
+  readonly kind: 'swap_terrain_mesh';
+  readonly placementId: string;
+  readonly mesh: VisualRef;
+}
+
+export interface SwapZones {
+  readonly kind: 'swap_zones';
+  readonly teamOrdinalA: number;
+  readonly teamOrdinalB: number;
+}
 
 export interface TableSize {
   readonly width: number;
@@ -626,6 +915,11 @@ export interface TurnEnded {
 export interface TurnStarted {
   readonly kind: 'turn_started';
   readonly teamId: string;
+}
+
+export interface Undo {
+  readonly kind: 'undo';
+  readonly toSeq: number;
 }
 
 export interface Undone {

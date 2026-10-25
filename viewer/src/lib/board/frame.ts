@@ -16,6 +16,8 @@ export type ModelShape = {
   readonly centre: Point; readonly shape: Shape; readonly facing: readonly [Point, Point] | null;
   readonly wounds: number; readonly spellTokens: number; readonly conditions: readonly string[];
   readonly elevated: boolean;
+  /** The model as a circle at its centre (radius: the base's longer side / 2), and its height above the table. */
+  readonly circle: Shape; readonly z: number;
 };
 export type TerrainShape = {
   readonly id: string; readonly volumeId: string; readonly label: string;
@@ -108,7 +110,8 @@ export function sceneOf(board: RecordedBoard, frame: RecordedFrame): Scene {
       centre, shape: baseOutline(definition, centre, yaw),
       facing: [centre, { x: centre.x + reach.x, y: centre.y + reach.y }],
       wounds: state.wounds, spellTokens: state.spellTokens, conditions: state.conditions,
-      elevated: (state.z ?? 0) > 0.01,
+      elevated: (state.z ?? 0) > 0.01, z: state.z ?? 0,
+      circle: { kind: 'circle', centre, radius: Math.max(definition.baseA, definition.baseB) / 2 },
     });
   }
 

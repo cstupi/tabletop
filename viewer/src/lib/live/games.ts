@@ -3,16 +3,19 @@
 // An admin watches any game it lists; a non-admin is refused at connect unless it plays in it.
 
 import { ManagementError } from './management';
+import type { GameStatus } from '../protocol/wire.generated';
 
 /** management's `GameSummary` (server/management/Games/GameDtos.cs), as the browser receives it. */
 export type GameSummary = {
   readonly id: string;
   readonly name: string;
-  readonly status: string;
+  readonly status: GameStatus;
   readonly createdBy: string;
   readonly createdAt: string;
   readonly participants: number;
   readonly participantNames: readonly string[];
+  /** The signed-in account is a participant. */
+  readonly joined: boolean;
 };
 
 /** Management leaves `next` out of the last page. */
@@ -24,11 +27,13 @@ export type GameRow = { readonly id: string; readonly name: string; readonly sta
 const defaultBase = (): string => import.meta.env.VITE_API_BASE ?? '';
 
 /** Every page of the keyset, newest game first. */
-export async function listGames(sessionJwt: string, base: string = defaultBase(), fetchFn: typeof fetch = fetch): Promise<GameSummary[]> {
+export async function listGames(
+  sessionJwt: string, options: { readonly joined?: boolean } = {}, base: string = defaultBase(), fetchFn: typeof fetch = fetch,
+): Promise<GameSummary[]> {
   const games: GameSummary[] = [];
   let after: string | null = null;
   do {
-    const path: string = `/v1/games?limit=200${after === null ? '' : `&after=${after}`}`;
+    const path: string = `/v1/games?limit=200${options.joined === true ? '&joined=true' : ''}${after === null ? '' : `&after=${after}`}`;
     const response = await fetchFn(`${base}${path}`, { headers: { authorization: `Bearer ${sessionJwt}` } });
     if (!response.ok) {
       const problem = (await response.json().catch(() => ({}))) as { title?: string; detail?: string };

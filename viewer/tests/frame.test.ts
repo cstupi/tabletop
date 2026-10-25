@@ -67,6 +67,20 @@ describe('sceneOf', () => {
     expect(sceneOf(board, frame).models.find((m) => m.id === 'm2')!.facing![1].x).toBeCloseTo(12 - 1.5);
   });
 
+  it('a model\'s circle is as wide as its base\'s longer side', () => {
+    const scene = sceneOf(board, frame);
+    expect(scene.models.find((m) => m.id === 'm1')!.circle).toEqual({ kind: 'circle', centre: { x: 10, y: 20 }, radius: 0.5 });
+    expect(scene.models.find((m) => m.id === 'm2')!.circle).toEqual({ kind: 'circle', centre: { x: 12, y: 20 }, radius: 1.5 });
+    const oblong = { ...board, models: board.models.map((m) => (m.id === 'm1' ? { ...m, baseShape: 'rect', baseA: 1, baseB: 2 } : m)) };
+    expect(sceneOf(oblong, frame).models.find((m) => m.id === 'm1')!.circle).toMatchObject({ radius: 1 });
+  });
+
+  it('carries a model\'s height above the table', () => {
+    const scene = sceneOf(board, frame);
+    expect(scene.models.find((m) => m.id === 'm1')!.z).toBe(0);
+    expect(scene.models.find((m) => m.id === 'm2')!.z).toBe(2);
+  });
+
   it('leaves a model with no position off the table and says where it is', () => {
     const scene = sceneOf(board, frame);
     expect(scene.models.map((m) => m.id)).toEqual(['m1', 'm2']);

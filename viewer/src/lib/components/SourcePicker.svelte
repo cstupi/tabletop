@@ -5,15 +5,17 @@
   import type { Feed } from '../feed/feed';
   import { recordingFeed } from '../feed/recordingFeed';
   import { liveFeed } from '../feed/liveFeed';
-  import { logIn, refreshSession } from '../live/management';
   import { listGames, rowOf, type GameRow } from '../live/games';
+  import type { Auth, DevAuth } from '../shell/auth';
+  import { watchUrl } from '../shell/route';
 
-  let { onFeed, onError, socketUrl, hostedJwt = null }: {
+  let { onFeed, onError, socketUrl, auth, dev = null }: {
     onFeed: (feed: Feed) => void;
     onError: (message: string) => void;
     socketUrl: string;
-    /** The hosted build: a fresh JWT from the website's session, in place of the login form. */
-    hostedJwt?: (() => Promise<string>) | null;
+    auth: Auth;
+    /** The developer build: the login form signs in here. The hosted build has none and borrows the website's session. */
+    dev?: DevAuth | null;
   } = $props();
   let url = $state('');
 
@@ -24,38 +26,34 @@
   let email = $state('');
   let password = $state('');
   let pasted = $state('');
-  // The login, kept for the page's session. A JWT lasts five minutes, so each use refreshes it first.
-  let session: string | null = $state(null);
+  let signedInDev = $state(false);
+  const signedIn = $derived(dev === null || signedInDev);
   let games: GameRow[] = $state([]);
   let open = $state(false);
   let loaded = false;
-
-  async function fresh(): Promise<string> {
-    if (hostedJwt !== null) return hostedJwt();
-    if (session === null) throw new Error('not logged in');
-    session = (await refreshSession(session)).sessionJwt;
-    return session;
-  }
 
   async function run(work: () => Promise<void>) {
     try { await work(); } catch (error) { onError((error as Error).message); }
   }
 
   const login = () => run(async () => {
-    session = pasted.length > 0 ? pasted : (await logIn(email, password)).sessionJwt;
+    if (dev === null) return;
+    if (pasted.length > 0) dev.usePasted(pasted); else await dev.signIn(email, password);
+    signedInDev = true;
     password = '';
-    games = (await listGames(await fresh())).map(rowOf);
+    games = (await listGames(await auth.jwt())).map(rowOf);
   });
 
-  const reload = () => run(async () => { games = (await listGames(await fresh())).map(rowOf); });
+  const reload = () => run(async () => { games = (await listGames(await auth.jwt())).map(rowOf); });
 
   // Hosted: the website's session is already there, so the panel opens with the list loaded.
   $effect(() => {
-    if (hostedJwt !== null && !loaded) { loaded = true; open = true; untrack(reload); }
+    if (dev === null && !loaded) { loaded = true; open = true; untrack(reload); }
   });
 
+  // A watcher's socket: the same URL with watch=1, so it never replaces the account's play socket.
   const watch = (game: GameRow) => run(async () => {
-    onFeed(liveFeed({ url: socketUrl, gameId: game.id, sessionJwt: await fresh(), label: `${game.name} · ${game.status}` }));
+    onFeed(liveFeed({ url: watchUrl(socketUrl), gameId: game.id, sessionJwt: await auth.jwt(), label: `${game.name} · ${game.status}` }));
   });
 </script>
 
@@ -71,7 +69,7 @@
   <button disabled={url.length === 0} onclick={() => load(async () => recordingFeed(await fromUrl(url)))}>Load</button>
   <details class="live" bind:open>
     <summary>Games</summary>
-    {#if hostedJwt === null && session === null}
+    {#if !signedIn}
       <p class="muted">Log in as an admin to watch any game on {socketUrl}; the viewer only watches.</p>
       <input type="email" placeholder="email" bind:value={email} />
       <input type="password" placeholder="password" bind:value={password} />
@@ -79,7 +77,6 @@
       <button disabled={pasted.length === 0 && email.length === 0} onclick={login}>Log in</button>
     {:else}
       <button onclick={reload}>Refresh</button>
-      {#if hostedJwt === null}<button onclick={() => { session = null; games = []; }}>Log out</button>{/if}
       <table>
         <thead><tr><th>Name</th><th>Status</th><th>Players</th><th>Created (UTC)</th></tr></thead>
         <tbody>
@@ -97,7 +94,7 @@
 </div>
 
 <style>
-  .picker { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .picker { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; padding: 0.3rem 0.6rem; }
   .game { cursor: pointer; }
   .game:hover { text-decoration: underline; }
   td, th { padding: 0 0.5rem; text-align: left; }

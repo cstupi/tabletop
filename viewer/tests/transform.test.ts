@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MARGIN, fit, gridStep, panBy, rotate, toScreen, toTable, zoomAt } from '../src/lib/board/transform';
+import { MARGIN, fit, fitBox, gridStep, panBy, rotate, toScreen, toTable, zoomAt } from '../src/lib/board/transform';
 
 const opr = { width: 72, length: 48 };
 
@@ -44,5 +44,30 @@ describe('the view transform', () => {
     const turned = rotate({ x: 0, y: 1 }, 90);
     expect(turned.x).toBeCloseTo(-1);
     expect(turned.y).toBeCloseTo(0);
+  });
+});
+
+describe('fitBox', () => {
+  it('fitBox keeps a beside strip in view', () => {
+    const viewport = { width: 800, height: 400 };
+    const view = fitBox({ minX: 0, minY: 0, maxX: 100, maxY: 48 }, opr, viewport);
+    for (const point of [{ x: 100, y: 24 }, { x: 0, y: 0 }, { x: 100, y: 48 }]) {
+      const s = toScreen(view, opr, point);
+      expect(s.x).toBeGreaterThanOrEqual(0);
+      expect(s.x).toBeLessThanOrEqual(viewport.width);
+      expect(s.y).toBeGreaterThanOrEqual(0);
+      expect(s.y).toBeLessThanOrEqual(viewport.height);
+    }
+    expect(view.scale).toBeLessThan(fit(opr, viewport).scale);
+    expect(toScreen(view, opr, { x: 100, y: 24 }).x).toBeCloseTo(viewport.width - MARGIN);
+  });
+
+  it('with the table as its box it is fit', () => {
+    const viewport = { width: 800, height: 600 };
+    const a = fitBox({ minX: 0, minY: 0, maxX: 72, maxY: 48 }, opr, viewport);
+    const b = fit(opr, viewport);
+    expect(a.scale).toBeCloseTo(b.scale);
+    expect(a.panX).toBeCloseTo(b.panX);
+    expect(a.panY).toBeCloseTo(b.panY);
   });
 });
