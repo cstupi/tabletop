@@ -15,12 +15,18 @@ public partial class SlabNode : Node3D
     const string TableWood = "res://content/table/wood.png";
     static readonly Shader BoardShader = GD.Load<Shader>("res://content/shaders/board.gdshader"), TableShader = GD.Load<Shader>("res://content/shaders/table.gdshader");
     MeshInstance3D? _mesh, _table;
+    int _version;
 
-    public void Set(TableSize size, VisualRef texture)
+    /// <summary>The board and the table for a size and print. The prints load off the main thread; the slab drawn before stays until
+    /// the new one is built. Completes when it is drawn, or when a later call replaced it.</summary>
+    public async Task Set(TableSize size, VisualRef texture)
     {
+        var version = ++_version;
+        var print = texture.IsBuiltin ? await PrintTextures.LoadAsync(Core.BuiltinContent.TextureFile(texture.Builtin!), BoardRelief / BoardPixel) : null;
+        var wood = await PrintTextures.LoadAsync(TableWood, WoodRelief / WoodPixel);
+        if (version != _version || !IsInstanceValid(this)) return;
         _mesh?.QueueFree(); _table?.QueueFree();
         float w = (float)size.Width, l = (float)size.Length;
-        var print = texture.IsBuiltin ? PrintTextures.Load(Core.BuiltinContent.TextureFile(texture.Builtin!), BoardRelief / BoardPixel) : null;
         var edge = print is null ? new Color(0.22f, 0.24f, 0.2f) : print.Mean.Darkened(0.45f);
         _mesh = new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(w, Thickness, l) }, Position = WorldFrame.ToGodot(new Point3(size.Width / 2, size.Length / 2, -Thickness / 2)),
             MaterialOverride = new StandardMaterial3D { AlbedoColor = edge, Roughness = 0.9f } };
@@ -31,14 +37,14 @@ public partial class SlabNode : Node3D
             _mesh.AddChild(new MeshInstance3D { Mesh = new PlaneMesh { Size = new Vector2(w, l) }, Position = new Vector3(0, Thickness / 2 + 0.002f, 0), MaterialOverride = top });
         }
         AddChild(_mesh);
-        _table = Table(w, l);
+        _table = Table(w, l, wood);
         if (_table is not null) AddChild(_table);
     }
 
     /// <summary>The table under the board, 60" past each edge, its wood fading to the clear colour from 3" to 30" out.</summary>
-    static MeshInstance3D? Table(float w, float l)
+    static MeshInstance3D? Table(float w, float l, PrintTextures.Print? wood)
     {
-        if (PrintTextures.Load(TableWood, WoodRelief / WoodPixel) is not { } wood) return null;
+        if (wood is null) return null;
         const float margin = 60;
         var material = new ShaderMaterial { Shader = TableShader };
         material.SetShaderParameter("wood", wood.Albedo); material.SetShaderParameter("wood_normal", wood.Normal);

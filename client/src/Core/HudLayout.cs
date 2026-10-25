@@ -1,6 +1,6 @@
 namespace Tabletop.Client.Core;
 
-public enum HudPart { Corner, Toasts, Header, Roster, UnitCard, Decision, Dice, LogButton, UndoButton, LogPanel, Banner, EndMessage, Replay }
+public enum HudPart { Corner, Toasts, Header, Roster, UnitCard, Decision, Dice, LogButton, UndoButton, LogPanel, Banner, EndMessage, Replay, Loading }
 
 public readonly record struct HudRect(float X, float Y, float W, float H)
 {
@@ -18,7 +18,7 @@ public sealed record HudVisible(bool Roster, bool UnitCard, bool Decision, bool 
 public static class HudLayout
 {
     public const float M = 8, Column = 420, CornerH = 40, HeaderW = 760, HeaderH = 96, ToastW = 360, ToastH = 120, DecisionW = 480,
-        DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, BannerH = 136, EndW = 480, EndH = 360;
+        DiceH = 96, ReplayH = 112, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, LoadingW = 280, BannerH = 136, EndW = 480, EndH = 360;
 
     public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
 
@@ -39,6 +39,8 @@ public static class HudLayout
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
         var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - bh, LogButtonW, bh);
         r[HudPart.UndoButton] = new(button.X - M - UndoButtonW, button.Y, UndoButtonW, bh);
+        // The loading strip (models, a reconnect): the button row's height at the foot's centre, clear of both columns.
+        r[HudPart.Loading] = new(MathF.Floor(w / 2 - LoadingW / 2), button.Y, LoadingW, bh);
         // The right column, below the toasts and the header down to the buttons: the decision box at its foot, the dice above it,
         // and the open log over them. With the decision box showing, the log takes the upper half.
         var span = new HudRect(w - M - Math.Max(LogW, DecisionW), 0, Math.Max(LogW, DecisionW), h);

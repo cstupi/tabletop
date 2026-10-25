@@ -11,7 +11,10 @@
   import { teamColour } from '../board/palette';
   import type { View } from '../board/transform';
   import { connectGame, type ConnectionState, type GameConnection } from '../connection/gameConnection';
-  import { loadGeometry, type Geometry } from '../geometry';
+  import { geometryDownload, loadGeometry, type Geometry } from '../geometry';
+  import Loading from '../components/Loading.svelte';
+  import { tableToolsText } from '../components/loading';
+  import { waitText } from '../game/header';
   import { filter as filterEntries } from '../play/combatLog';
   import CombatLogPanel from '../play/CombatLogPanel.svelte';
   import { CombatLogCache } from '../play/combatLogState';
@@ -39,6 +42,7 @@
   /** Bumped on every change of the player (position, playing, speed) and of the log; everything below reads through it. */
   let version = $state(0);
   let geometry = $state.raw<Geometry | null>(null);
+  const tools = geometryDownload();
   let rules = $state.raw(RuleTexts.empty);
   let view: View | null = $state(null);
   let selectedUnit = $state<string | null>(null);
@@ -163,12 +167,13 @@
 
   <div class="body">
     <div class="stage">
+      {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
       {#if scene !== null}
         <Board {scene} bind:view {extent} models="circles" selected={drawnSelection} interaction={{ onSelect: (hit) => select(hit) }} />
       {:else if snap?.closeReason != null}
         <p class="pad" role="alert">{snap.closeReason}</p>
       {:else if loading}
-        <p class="pad loading" role="status">Loading the game…</p>
+        <Loading text={waitText(snap)} />
       {/if}
     </div>
     <aside class="side" aria-label="Unit and log">

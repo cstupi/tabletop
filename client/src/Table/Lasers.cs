@@ -57,7 +57,7 @@ public partial class Lasers : Node3D
         tween.TweenCallback(Callable.From(pivot.QueueFree));
     }
 
-    static StandardMaterial3D Glow(Color c, float alpha) => new()
+    internal static StandardMaterial3D Glow(Color c, float alpha) => new()
     {
         AlbedoColor = c with { A = alpha }, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
         EmissionEnabled = true, Emission = c, CullMode = BaseMaterial3D.CullModeEnum.Disabled,

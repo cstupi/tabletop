@@ -43,6 +43,10 @@ public static class ThemeBuilder
         foreach (var name in new[] { "font_pressed_color", "font_hover_pressed_color" }) t.SetColor(name, Variation.FlatButton, C(u.Accent));
         t.SetColor("font_disabled_color", Variation.FlatButton, C(u.DimText));
         t.SetColor("font_selected_color", "ItemList", C(u.Accent)); t.SetColor("font_selected_color", "TabContainer", C(u.ButtonText));
+        // The loading bar (LoadingPanel): a thin track in the panel's border colour, filled in the accent.
+        var track = Flat(s, C(u.Background), C(u.PanelBorder), 1, 0); track.SetCornerRadiusAll(Math.Min(s.CornerRadius, 3));
+        var fill = Flat(s, C(u.Accent), C(u.Accent), 0, 0); fill.SetCornerRadiusAll(Math.Min(s.CornerRadius, 3));
+        t.SetStylebox("background", "ProgressBar", track); t.SetStylebox("fill", "ProgressBar", fill);
         Variant(t, Variation.Badge, "PanelContainer", "panel", Flat(s, C(u.Panel), C(u.Accent), 2));
         Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, 4));
         Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, 2));

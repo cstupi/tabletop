@@ -198,8 +198,16 @@ only what changed (roster rows, header, dice tray, unit markers, the decision bo
 pool (`MoveRegions.OutlinesAsync`, up to 1.5 s on the main thread before); one gate and a `MoveReach.Reaches` landing test per
 drag frame; shared materials and body meshes, an id index for `TableView.PieceAt`. Whole game at Medium 1280×720 on Vulkan:
 p99 15.3 → 2.4 ms, frames over 33 ms 133 → 2 (the host's); a five-model drag (Compatibility) p50 55 → 9.6 ms. `PerfProbe` records frames
-in a development build. Left: the first game after an install compiles its runtime materials' shaders in three frames of 1–2 s;
-entering a game takes one frame of about 400 ms.
+in a development build.
+
+Loading feedback (spec `2026-10-25-loading-design.md`): a first start, or a new GPU driver, Godot or client version, runs a shader
+warm-up behind "Preparing graphics…" (7.3 s cold on the RX 6900 XT) that draws every material the table makes under each Quality, so
+a game's first frames compile nothing (before: frames of 1.8 and 1.7 s with the table shown). Entering a game shows "Connecting…" and
+"Loading game…" over the screen until the table stands, with the work spread over frames (12 ms of posted work a frame, prints on the
+thread pool): warm, the longest frame 0.6-1.1 s → 0.2 s; the first game after a cold warm-up still has one frame of 0.7-1.0 s behind
+the curtain. Other players' models load behind a strip, "Loading models 3 of 12", over bases already on the table; a reconnect
+shows "Reconnecting…" there. The browser has the same texts through one `Loading` component, and the WebAssembly geometry download
+shows "Loading table tools 3 of 13".
 
 ### 1. Open items from the defect fixes
 

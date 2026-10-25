@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Screens;
 using Tabletop.Geometry;
 using Orientation = Tabletop.Geometry.Orientation;
 
@@ -15,6 +16,11 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     /// <summary>The editor's import default: normals within this angle merge while a level of detail is simplified.</summary>
     const float LodNormalMergeAngle = 60;
     readonly Dictionary<string, Task<Node3D?>> _templates = new();
+    /// <summary>The built-in meshes' templates, shared by every game and the shader warm-up: a built-in file never changes, so it is parsed
+    /// once per run. Never freed.</summary>
+    static readonly Dictionary<string, Task<Node3D?>> Builtins = new();
+    /// <summary>The files this table is loading, for the loading strip ("Loading models 3 of 12").</summary>
+    public AssetProgress Progress { get; } = new();
     bool _disposed;
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
     readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, long Cap, TaskCompletionSource<string?> Done), float> _queue = new();
@@ -46,7 +52,11 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     {
         if (!_resolved.TryGetValue(assetId, out var resolved) || resolved.IsCompleted && resolved.Result is null)
             _resolved[assetId] = resolved = Resolve(assetId, cameraPosition, piecePosition);
-        return await resolved is { } file ? await Build(file.Path, file.Scale, file.Orientation) : null;
+        var key = assetId.ToString();
+        var ready = resolved.IsCompletedSuccessfully && resolved.Result is { } known && _templates.TryGetValue(known.Path, out var t) && t.IsCompleted;
+        if (!ready) Progress.Started(key);
+        try { return await resolved is { } file ? await Build(file.Path, file.Scale, file.Orientation) : null; }
+        finally { if (!ready) Progress.Finished(key); }
     }
 
     async Task<(string Path, double Scale, Orientation Orientation)?> Resolve(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)
@@ -95,9 +105,17 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         // works from the editor and from an exported .pck alike, which GlobalizePath would not. A missing file returns null,
         // and TerrainNode keeps its proxies visible.
         if (file is null || !Godot.FileAccess.FileExists(file)) return null;
-        var scene = await Build(file, 1, BuiltinContent.MeshOrientation);
-        if (scene is null) return null;
-        TerrainLook.Apply(scene);
+        var ready = Builtins.TryGetValue(file, out var t) && t.IsCompleted;
+        if (!ready) Progress.Started(file);
+        Node3D? scene;
+        try
+        {
+            scene = await Build(file, 1, BuiltinContent.MeshOrientation, builtin: true);
+            if (scene is null) return null;
+            await TerrainLook.ApplyAsync(scene);
+        }
+        finally { if (!ready) Progress.Finished(file); }
+        if (_disposed) { scene.QueueFree(); return null; }
         if (fit is null) return scene;
         // One mesh serves a group of built-ins (Task 6), so it is authored in the unit box — table-frame x and y in
         // [-0.5, 0.5], z in [0, 1] — and fitted here to the volume it is decorating. A circle footprint's A is a radius,
@@ -113,9 +131,10 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     }
 
     /// <summary>A duplicate of the file's template, with the asset's corrections applied to its root. Null when the file does not parse.</summary>
-    async Task<Node3D?> Build(string path, double scale, Orientation orientation)
+    async Task<Node3D?> Build(string path, double scale, Orientation orientation, bool builtin = false)
     {
-        if (!_templates.TryGetValue(path, out var template)) _templates[path] = template = Template(path);
+        var templates = builtin ? Builtins : _templates;
+        if (!templates.TryGetValue(path, out var template)) templates[path] = template = Template(path, builtin);
         if (await template is not { } root || _disposed) return null;
         var scene = (Node3D)root.Duplicate();
         Orient(scene, scale, orientation);
@@ -124,7 +143,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
 
     /// <summary>The file read and parsed on the thread pool; the scene tree generated on the main thread the await resumes on.
     /// A path is a content hash or a built-in that ships in the build, so its template never goes stale.</summary>
-    async Task<Node3D?> Template(string path)
+    async Task<Node3D?> Template(string path, bool builtin)
     {
         var parsed = await Task.Run(() =>
         {
@@ -145,8 +164,10 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             return (doc, state);
         });
         if (parsed is not var (d, s)) return null;
-        var generated = d.GenerateScene(s);
-        if (generated is not Node3D scene || _disposed) { generated?.Free(); return null; }
+        // The scene is made on the main thread, within the frame's budget: a table's files arrive together.
+        await FrameBudget.Turn();
+        var generated = FrameBudget.Use(() => d.GenerateScene(s));
+        if (generated is not Node3D scene || _disposed && !builtin) { generated?.Free(); return null; }
         Settle(scene);
         return scene;
     }
@@ -154,7 +175,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     /// <summary>Two things Godot's runtime glTF import leaves out. COLOR_0 multiplies the base colour (glTF 2.0, Meshes), but the
     /// import turns vertex colours on for every primitive except a mesh's first. And a node whose every surface is alpha-blended
     /// (the built-ins' smog and water surfaces) would still cast an opaque shadow.</summary>
-    static void Settle(Node node)
+    internal static void Settle(Node node)
     {
         if (node is MeshInstance3D { Mesh: { } mesh } instance)
         {
@@ -168,6 +189,13 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             if (translucent) instance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
         }
         foreach (var child in node.GetChildren()) Settle(child);
+    }
+
+    /// <summary>At exit: frees the built-in templates, which outlive every game, before Godot's servers shut down.</summary>
+    public static void FreeBuiltins()
+    {
+        foreach (var t in Builtins.Values) if (t.IsCompletedSuccessfully && t.Result is { } root && GodotObject.IsInstanceValid(root)) root.Free();
+        Builtins.Clear();
     }
 
     /// <summary>Frees the templates, which are never in the tree; the duplicates belong to their pieces.</summary>

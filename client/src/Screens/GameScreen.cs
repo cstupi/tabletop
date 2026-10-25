@@ -16,6 +16,7 @@ public partial class GameScreen : Control
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; WaitingPanel? _waiting; readonly List<TeamPanel> _teams = new(); bool _wasWaiting;
     Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
+    LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
     public override void _Ready()
@@ -43,6 +44,7 @@ public partial class GameScreen : Control
         top.AddChild(_status = new Label { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Pass });
         top.AddChild(_statusTail = new Label());
         _hud.AddChild(_toasts = new Toasts());
+        _hud.AddChild(_strip = new LoadingPanel { Strip = true, Visible = false });
         _onLayout = QueueLayout;
         _hud.Resized += _onLayout; _sidePanel.Resized += _onLayout; _sidePanel.VisibilityChanged += _onLayout;
         _corner.MinimumSizeChanged += QueueLayout; _toasts.MinimumSizeChanged += QueueLayout;   // children of the screen: they die with it
@@ -69,7 +71,26 @@ public partial class GameScreen : Control
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
         _onTheme = OnTheme; Ui.Changed += _onTheme;
         Rebuild();
+        // Over everything, the Hud included, until the game's first table stands (LoadingView.Entry).
+        AddChild(_curtain = new LoadingCurtain());
+        UpdateLoading();
         QueueLayout();
+    }
+
+    public override void _Process(double delta) => UpdateLoading();
+
+    /// <summary>The curtain while entering the game, then the strip over the table: a reconnect, the models still loading.</summary>
+    void UpdateLoading()
+    {
+        var entry = LoadingView.Entry(new EntryState(_session.Phase, _session.Game?.Status, _session.Draft is not null, _session.Projection is not null,
+            _session.CatchingUp, _session.GameId is null || Table.SlabReady, _entered));
+        if (entry is null && _session.Phase == SessionPhase.Connected) _entered = true;
+        _curtain.Set(entry);
+        var meshes = _session.GameId is null ? null : Table.MeshProgress;
+        var strip = LoadingView.Strip(_session.Phase, _entered, meshes?.Done ?? 0, meshes?.Total ?? 0);
+        var shown = _stripGate.Update(strip is not null, TimeSpan.FromMilliseconds(Time.GetTicksMsec()));
+        if (strip is not null) _strip.Set(strip);
+        if (shown != _strip.Visible) { _strip.Visible = shown; QueueLayout(); }
     }
 
     public override void _ExitTree()

@@ -5,6 +5,7 @@
   import { nameProblem } from '../api/names';
   import type { ArmySummary, CreateGameRequest, Enforcement, PropertiesSummary, SchedulerShape } from '../api/types';
   import { createDefaults } from './listModel';
+  import Loading from '../components/Loading.svelte';
   import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL } from '../lobby/lobbyPage';
 
   let { api, onCreated, onClose }: {
@@ -57,7 +58,7 @@
   <form onsubmit={create}>
     <h2 id="create-title">Create game</h2>
     {#if !loaded}
-      <p class="loading" role="status">Loading rule sets and armies…</p>
+      <Loading text="Loading rule sets and armies…" inline />
     {:else}
       <label>Name
         <input type="text" bind:value={name} maxlength="64" placeholder="Friday night skirmish" />

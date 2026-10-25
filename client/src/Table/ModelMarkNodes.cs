@@ -36,13 +36,13 @@ public partial class ModelMarkNodes : Node3D
 
     void Add(Guid model, Node3D mark, Vector3 fallback, float lift) { AddChild(mark); _marks.Add((model, mark, fallback, lift)); }
 
-    static Label3D Dots(int n, Color colour) => new()
+    internal static Label3D Dots(int n, Color colour) => new()
     {
         Text = new string('●', n), Modulate = colour, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 28, PixelSize = 0.01f, OutlineSize = 6, NoDepthTest = true,
     };
 
     /// <summary>A flat band between the base's outline and the star: two triangles per sample, wire (x, y) to Godot (x, 0, -y).</summary>
-    static MeshInstance3D Ring(Base b)
+    internal static MeshInstance3D Ring(Base b)
     {
         var ring = ModelMarks.StarRing(b);
         var st = new SurfaceTool(); st.Begin(Mesh.PrimitiveType.Triangles);

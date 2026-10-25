@@ -5,6 +5,7 @@
   import SourcePicker from './lib/components/SourcePicker.svelte';
   import GamePage from './lib/game/GamePage.svelte';
   import GamesPage from './lib/games/GamesPage.svelte';
+  import Loading from './lib/components/Loading.svelte';
   import TestsPage from './lib/components/TestsPage.svelte';
   import type { Feed } from './lib/feed/feed';
   import { recordingFeed } from './lib/feed/recordingFeed';
@@ -62,7 +63,7 @@
 <SiteHeader account={accountName} />
 {#if access === 'checking'}
 <main class="viewer"><div class="doc"><div class="inner">
-  {#if error === null}<p class="loading" role="status">Checking your Tabletop session…</p>{:else}<p role="alert">{error}</p>{/if}
+  {#if error === null}<Loading text="Checking your Tabletop session…" inline />{:else}<p role="alert">{error}</p>{/if}
 </div></div></main>
 {:else if access === 'signed-out'}
 <main class="viewer"><div class="doc"><div class="inner">

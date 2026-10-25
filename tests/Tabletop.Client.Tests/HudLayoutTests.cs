@@ -26,6 +26,7 @@ public class HudLayoutTests
             if (r.TryGetValue(HudPart.LogPanel, out var log)) Assert.True(log.W == 640 && log.H >= 240, $"{v}: log {log}");
             if (v.Decision && v.Dice && !v.LogOpen)
                 Assert.True(r[HudPart.Dice].Bottom + 8 == r[HudPart.Decision].Y && r[HudPart.Dice].X == r[HudPart.Decision].X);
+            Assert.True(r[HudPart.Loading] is { W: 280 } strip && strip.Y == r[HudPart.LogButton].Y && strip.H == r[HudPart.LogButton].H, $"{v}: loading {r[HudPart.Loading]}");
             if (v.Roster && v.UnitCard)
                 Assert.True(r[HudPart.Roster].Bottom + 8 == r[HudPart.UnitCard].Y && r[HudPart.Roster].H == r[HudPart.UnitCard].H);
         }

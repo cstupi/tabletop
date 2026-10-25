@@ -1,25 +1,40 @@
 import type { Contact, Geometry, Nearest, PieceEnd, Segment, XY, HeldEnd } from './types';
 import type { Point3, Yaw } from './types';
+import { DownloadProgress } from './progress';
 
 interface Exports { [method: string]: (json: string) => string }
 
 const loads = new Map<string, Promise<Geometry>>();
+const downloads = new Map<string, DownloadProgress>();
+const defaultBase = (): string => `${import.meta.env.BASE_URL}geometry/_framework/`;
+
+/** The download of `base`'s runtime: counts while loadGeometry(base) fetches, finished once it has settled. */
+export function geometryDownload(base: string = defaultBase()): DownloadProgress {
+  let p = downloads.get(base);
+  if (!p) { p = new DownloadProgress(); downloads.set(base, p); }
+  return p;
+}
 
 /** Fetches the .NET runtime and the facade from `base` (default `${import.meta.env.BASE_URL}geometry/_framework/`) on the
  *  first call, once per base; a failed load is forgotten so the next call retries. */
-export function loadGeometry(base: string = `${import.meta.env.BASE_URL}geometry/_framework/`): Promise<Geometry> {
+export function loadGeometry(base: string = defaultBase()): Promise<Geometry> {
   let load = loads.get(base);
   if (!load) {
-    load = fetchRuntime(base);
+    const progress = geometryDownload(base);
+    progress.restart();
+    load = fetchRuntime(base, progress);
     loads.set(base, load);
-    load.catch(() => { if (loads.get(base) === load) loads.delete(base); });
+    load.then(() => progress.finish(), () => { progress.finish(); if (loads.get(base) === load) loads.delete(base); });
   }
   return load;
 }
 
-async function fetchRuntime(base: string): Promise<Geometry> {
+async function fetchRuntime(base: string, progress: DownloadProgress): Promise<Geometry> {
   const { dotnet } = await import(/* @vite-ignore */ `${base}dotnet.js`);
-  const runtime = await dotnet.create();
+  // dotnet.js counts each resource as it arrives against those requested so far.
+  const runtime = await dotnet
+    .withModuleConfig({ onDownloadResourceProgress: (done: number, total: number) => progress.report(done, total) })
+    .create();
   const exports = (await runtime.getAssemblyExports('Tabletop.Geometry.Wasm')).Tabletop.Geometry.Wasm.Exports as Exports;
   return wrap(exports);
 }
