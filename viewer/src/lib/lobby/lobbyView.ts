@@ -116,12 +116,13 @@ export function waitingForCreator(game: GameInfo, creator: boolean): string | nu
   return null;
 }
 
-/** LobbyPanel.EndText: the game server's DropOffSlab rule counts a piece whose centre is off the slab (edge inclusive). */
+/** LobbyView.EndSetupText: the game server's DropOffSlab rule removes each piece whose centre is off the table (edge inclusive). */
 export function endSetupText(draft: TableState | null): string {
   const off = draft === null ? 0 : draft.terrain.filter((t) => {
     const { x, y } = t.position;
     const { width, length } = draft.size;
     return !(x >= -1e-9 && x <= width + 1e-9 && y >= -1e-9 && y <= length + 1e-9);
   }).length;
-  return off === 0 ? 'End setup' : `End setup (${off} off-slab pieces will be dropped)`;
+  if (off === 0) return 'End setup';
+  return off === 1 ? 'End setup (1 piece off the table will be removed)' : `End setup (${off} pieces off the table will be removed)`;
 }

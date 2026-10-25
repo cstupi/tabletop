@@ -33,6 +33,9 @@
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
   import { sceneOfPlay } from './scene';
+  import { terrainHoverOverlay, terrainHoverText } from './terrainHover';
+  import packedCatalog from '@builtin-catalog';
+  import { loadCatalog, nameOf, parseCatalog, type Catalog } from '../setup/catalog';
   import type { Selection } from './selectionView';
   import { loadSettings, saveSettings, type PlaySettings, type StorageLike } from './settings';
   import { UndoPrediction } from './undo';
@@ -56,6 +59,10 @@
   // --- D3 (info): the selection and hover the card reads, the log's table highlight, the undo prediction ---
   let selection = $state.raw<Selection | null>(null);
   let hoveredUnit = $state<string | null>(null);
+  let hoveredTerrain = $state<string | null>(null);
+  // The terrain's names and the terrain card read the catalog in use: the server's, else the packed one.
+  let catalog = $state.raw<Catalog>((() => { try { return parseCatalog(packedCatalog); } catch { return { terrain: new Map(), textures: [] }; } })());
+  $effect(() => { void loadCatalog(api).then((c) => { catalog = c; }).catch(() => {}); });
   let touchedIds = $state.raw<ReadonlySet<string>>(new Set());
   let infoOverlay = $state.raw<Overlay | null>(null);
   const prediction = new UndoPrediction();
@@ -157,7 +164,7 @@
     });
   });
 
-  const meshName = (piece: { mesh: { builtin?: string | undefined; assetId?: string | undefined } }): string => piece.mesh.builtin ?? piece.mesh.assetId ?? 'terrain';
+  const meshName = (piece: Parameters<typeof nameOf>[0]): string => nameOf(piece, catalog);
   // D2: the box's ghosts, the drops waiting for their events and the models in hand, as the board draws them.
   const ghostsDrawn = $derived.by(() => { void panel; void version; return new Map([...(box?.ghosts ?? []), ...drags.drawn()]); });
   // D3: the board and every part show the prediction while an undo travels.
@@ -299,6 +306,8 @@
     onHover(hit: BoardHit | null) {                           // D3: the hovered unit, for the enemy strip and the hover label
       const unit = hit?.kind === 'model' ? snap?.projection?.models.get(hit.id)?.unitId ?? null : null;
       if (unit !== hoveredUnit) hoveredUnit = unit;
+      const terrain = hit?.kind === 'terrain' ? hit.id : null;
+      if (terrain !== hoveredTerrain) hoveredTerrain = terrain;
     },
     onDragStart: (hit, at, mods) => drags.onDragStart(hit, at, mods),    // D2: a model, or a marker, in hand; anything else pans
     onDragMove: (at, mods) => drags.onDragMove(at, mods),
@@ -316,6 +325,11 @@
 
   // --- D3 helpers: what the card and the log hand back to the page ---
   /** The table lights the selection and what a clicked log row touched. */
+  /** HoverLabels.DrawTerrain: the hovered terrain piece's label, not the selected one's. */
+  const terrainDrawn = $derived.by(() => {
+    const lines = shown === null ? null : terrainHoverText(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null);
+    return lines === null || scene === null || hoveredTerrain === null ? null : terrainHoverOverlay(scene, hoveredTerrain, lines);
+  });
   const drawnSelection = $derived(touchedIds.size === 0 ? selected : new Set([...selected, ...touchedIds]));
   const infoEligible = $derived.by(() => { void panel; return box?.eligible ?? new Set<string>(); });
   function changeSettings(change: (s: PlaySettings) => PlaySettings): void { settings = change(settings); saveSettings(browserStorage(), settings); }
@@ -357,7 +371,7 @@
     {#if scene === null || snap === null}
       <p class="loading" role="status">Loading the game…</p>
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
     <div class="float banner"><Banner {connection} /></div>
     {#if pending !== null || problem !== null}
@@ -373,7 +387,7 @@
     {#if snap !== null && box !== null}
       <InfoColumn
         {connection} {snap} {shown} {scene} {prediction} pendingUndoTo={pendingUndo} {rules} {geometry}
-        {selection} {hoveredUnit} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
+        {selection} {hoveredUnit} {catalog} myTeam={actingTeam} eligible={infoEligible} getSettings={() => settings} updateSettings={changeSettings}
         onPickModel={pickModel} onTouch={(ids) => { touchedIds = new Set(ids); }} bind:overlay={infoOverlay}
       />
     {/if}

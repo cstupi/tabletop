@@ -65,6 +65,19 @@ public class LobbyViewTests
     }
 
     [Fact]
+    public void End_setup_counts_the_pieces_off_the_table_in_table_words()
+    {
+        var table = Tabletop.Content.Tests.TableStateTests.Sample();
+        var piece = table.Terrain[0];
+        Tabletop.Content.TableState With(params (double X, double Y)[] at) =>
+            table with { Terrain = at.Select(p => piece with { Id = Guid.CreateVersion7(), Position = new Tabletop.Geometry.Point3(p.X, p.Y, 0) }).ToList() };
+        Assert.Equal("End setup", LobbyView.EndSetupText(null));
+        Assert.Equal("End setup", LobbyView.EndSetupText(With((72, 48), (10, 10))));      // the edge is on the table
+        Assert.Equal("End setup (1 piece off the table will be removed)", LobbyView.EndSetupText(With((76, 4), (10, 10))));
+        Assert.Equal("End setup (3 pieces off the table will be removed)", LobbyView.EndSetupText(With((76, 4), (-1, 4), (10, 49))));
+    }
+
+    [Fact]
     public void A_team_card_lists_each_player_with_their_army_or_says_it_has_none()
     {
         var game = Lobby(Samples.Team1, Samples.Team1, myArmy: Guid.CreateVersion7());
