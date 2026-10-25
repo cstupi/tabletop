@@ -568,6 +568,30 @@ not scored for, which `noUncheckedIndexedAccess` makes visible.
 
 The score is not geometry. `Scene` is unchanged by it.
 
+### The play page
+
+`PlayPage.svelte` is a grid under the site header and the game strip: the top bar (`HeaderBar`) over the roster and the
+board, the right column the full height. Nothing floats over the board but the roll-off banner (`Banner`) and, at its foot,
+a menu item's pick hint or a refused hand action; the piece menu (`PieceMenu`) opens at the pointer.
+
+- **Top bar**: the round (*Deployment* in round 0) and whose turn; the activation and its step strip, or the waiting line;
+  each team's name, score and units still to activate (right-click: the team menu); the objectives in their holder's
+  colour; after the end, the result as the button that reopens the Game over modal.
+- **Roster** (`Roster`): a column of team headings and unit rows (name, activated mark, wounds, conditions, transport or
+  reserve); the selected unit's row is lit; its button or R collapses it to a rail.
+- **Right column**: the decision box (`DecisionBox.svelte`, a `.panel`) first, at most 58% of the column, its options
+  scrolling inside; the confirming control (`commit`, `place`, `enter`, `spend`, `done`, `fire`, `confirm`) is `.primary`
+  and `decisionLabels.ts` draws a label's number key and trailing key as keys. A box with nothing to answer only names whom
+  the game waits on, dimmed. Then `InfoColumn`: the hovered enemy's strip, the unit card, and the combat log panel, open by
+  default, which takes the rest and scrolls, with the latest roll and Undo at its foot. Below 52rem of window height the
+  column scrolls as a whole and the log takes a fixed 24rem.
+- **Game over** (`GameOverModal`): a site `dialog`: the result, the reason, the scores as a table; *Stay at the table* is
+  the primary action after the end, the Ask's first choice before it.
+
+The page uses the website's classes and tokens only (`.panel`, `.primary`, `.quiet`, `.small`, `.notice`, `[role='alert']`,
+`--s1`…`--s7`, the colour tokens) and reads in both themes. `HeaderBar` reads every line inside one derivation of the
+connection state: the projection is mutated in place, so a derivation keyed on its identity alone would not rerun.
+
 ## Key decisions
 
 **(plan)** marks a decision stated in the plan and in no spec.
@@ -629,7 +653,7 @@ The score is not geometry. `Scene` is unchanged by it.
 | `hosted/hosted.ts` | `WEB_SESSION_KEY`, `type ViewerConfig`, `configOf(env, location)`, `readWebSession`, `writeWebSession`, `rolesOf`, `type Access`, `accessOf`, `signInHref`, `hostedSession(storage, refresh)` |
 | `connection/gameConnection.ts` | `connectGame(options): GameConnection`: the participant socket (sends, refusals, queue of 16, reconnect, `Reauth`, resync) |
 | `game/` | `GamePage.svelte`, `sendEdit`, `Confirm.svelte` |
-| `play/` | ports of Godot core files, one module each (`names`, `logText`, `ruleTexts`, `spellText`, `askView`, `headerView`, `waiting`, `decisionView`, `deployView`, `targetAssignment`, `casualtyPick`, `sealedReveals`, `gameOverView`), `settings`, `scene` (`sceneOfPlay`), `keys`, `decisionBox` (`DecisionBox`: the controller, `DecisionPanel`, `MoveHooks`), the moves (`contactCheck`, `violations`, `moveRuler`, `commitHold`, `ghostStash`, `formation`, `pendingDrops`, `markerLocks`, `modelDrag`, `handMove`, `moveOverlays`, `playDrag`), the combat log and card (`combatLog`, `undo`, `unitCard`, `selectionView`, `hoverView`, `enemyStrip`), around the board (`rosterView`, `rollOffBanners`, `headerText`, `rangeRings`, `sightKey`, `sightSummary`, `sightCheck`, `menuModel`, `menus`), `PlayPage.svelte`, `DecisionBox.svelte`, `GameOverModal.svelte`, `InfoColumn.svelte`, `HeaderBar.svelte`, `Roster.svelte`, `Banner.svelte`, `PieceMenu.svelte`, `WaitingPanel.svelte` |
+| `play/` | ports of Godot core files, one module each (`names`, `logText`, `ruleTexts`, `spellText`, `askView`, `headerView`, `waiting`, `decisionView`, `deployView`, `targetAssignment`, `casualtyPick`, `sealedReveals`, `gameOverView`), `settings`, `scene` (`sceneOfPlay`), `keys`, `decisionBox` (`DecisionBox`: the controller, `DecisionPanel`, `MoveHooks`), the moves (`contactCheck`, `violations`, `moveRuler`, `commitHold`, `ghostStash`, `formation`, `pendingDrops`, `markerLocks`, `modelDrag`, `handMove`, `moveOverlays`, `playDrag`), the combat log and card (`combatLog`, `undo`, `unitCard`, `selectionView`, `hoverView`, `enemyStrip`), around the board (`rosterView`, `rollOffBanners`, `headerText`, `rangeRings`, `sightKey`, `sightSummary`, `sightCheck`, `menuModel`, `menus`), `decisionLabels`, `PlayPage.svelte`, `DecisionBox.svelte`, `GameOverModal.svelte`, `InfoColumn.svelte`, `HeaderBar.svelte`, `Roster.svelte`, `Banner.svelte`, `PieceMenu.svelte`, `WaitingPanel.svelte` |
 | `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `LobbyPanel.svelte` |
 | `setup/` | `catalog`, `limits`, `edits`, `terrainCard`, `layouts`, `SetupDrag` (`drag.ts`), `SetupPage.svelte`, `SetupToolbar.svelte`, `TerrainCard.svelte`, `PieceMenu.svelte`, `LayoutsSection.svelte` |
 | `board/table.ts` | `sceneOfTable(TableState, zones, name): Scene`, `extentOf`, `pieceOutlines`, `ghostOverlay` |
@@ -1009,6 +1033,7 @@ threshold for the same reason.
 | --- | --- |
 | [`2026-09-06-simulation-design.md`](../../superpowers/specs/2026-09-06-simulation-design.md) | primary: the recording as a projection per event, `viewer/` as a fifth deliverable separate from `web/`, the two feeds, interactive debugging as a door, what is tested |
 | [`2026-10-09-admin-watch-design.md`](../../superpowers/specs/2026-10-09-admin-watch-design.md) | the viewer as an admin tool: one login, the game list, watching any game as an admin watcher |
+| [`2026-10-25-play-ui-design.md`](../../superpowers/specs/2026-10-25-play-ui-design.md) | the play page's layout: top bar, roster, board, right column; site classes only; words, not ids |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | a participant with no team is a spectator |
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | a participant with no team is never addressed by an Ask, which is what a spectator is |
 | [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed seven terrain declarations the palette colours |
