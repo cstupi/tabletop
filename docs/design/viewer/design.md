@@ -579,12 +579,12 @@ a menu item's pick hint or a refused hand action; the piece menu (`PieceMenu`) o
   colour; after the end, the result as the button that reopens the Game over modal.
 - **Roster** (`Roster`): a column of team headings and unit rows (name, activated mark, wounds, conditions, transport or
   reserve); the selected unit's row is lit; its button or R collapses it to a rail.
-- **Right column**: the decision box (`DecisionBox.svelte`, a `.panel`) first, at most 58% of the column, its options
+- **Right column**: the decision box (`DecisionBox.svelte`, a `.panel`) first, at most 45% of the column, its options
   scrolling inside; the confirming control (`commit`, `place`, `enter`, `spend`, `done`, `fire`, `confirm`) is `.primary`
   and `decisionLabels.ts` draws a label's number key and trailing key as keys. A box with nothing to answer only names whom
   the game waits on, dimmed. Then `InfoColumn`: the hovered enemy's strip, the unit card, and the combat log panel, open by
   default, which takes the rest and scrolls, with the latest roll and Undo at its foot. Below 52rem of window height the
-  column scrolls as a whole and the log takes a fixed 24rem.
+  column scrolls as a whole and the log takes at least 24rem.
 - **Game over** (`GameOverModal`): a site `dialog`: the result, the reason, the scores as a table; *Stay at the table* is
   the primary action after the end, the Ask's first choice before it.
 

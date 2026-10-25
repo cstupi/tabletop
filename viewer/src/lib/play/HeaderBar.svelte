@@ -10,6 +10,7 @@
   import { waitingLine } from './headerText';
   import { activationLine, headerOf, notActivated, objectives } from './headerView';
   import { Names } from './names';
+  import { words } from './rosterView';
   import { isWatching, waitHolds, waitingTeams } from './waiting';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
@@ -49,8 +50,8 @@
   <header class="bar" aria-label="Game status">
     <div class="state">
       <p class="turn">
-        <span class="round">{model.round === 0 ? 'Deployment' : `Round ${model.round}`}</span>
-        {#if model.turn !== ''}<span class="sep" aria-hidden="true">·</span><span>{model.turn}</span>{/if}
+        {#if model.round > 0}<span class="round">Round {model.round}</span>{#if model.turn !== ''}<span class="sep" aria-hidden="true">·</span>{/if}{/if}
+        {#if model.turn !== ''}<span class:round={model.round === 0}>{words(model.turn)}</span>{:else if model.round === 0}<span class="round">Deployment</span>{/if}
         {#if as !== null}<span class="chip">{as}</span>{/if}
       </p>
       {#if model.activeUnit !== null}

@@ -64,7 +64,7 @@
 </section>
 
 <style>
-  .card { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s3) var(--s4); border-top: 4px solid var(--team); overflow-y: auto; flex: 0 1 auto; max-height: 55%;
+  .card { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s3) var(--s4); border-top: 4px solid var(--team); overflow-y: auto; flex: 0 1 auto; max-height: 45%;
     min-height: 6rem; font-size: .95rem; }
   :global([data-theme='fantasy']) .card { padding: calc(var(--s3) + 4px) calc(var(--s4) + 4px); border-top: 6px solid var(--team); }
   p { margin: 0; }

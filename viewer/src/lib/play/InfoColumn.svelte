@@ -205,7 +205,7 @@
   .info { display: flex; flex-direction: column; gap: var(--s3); flex: 1 1 0; min-height: 0; }
   .selection { margin: 0; color: var(--dim); font-size: .9rem; }
   .log { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s3) var(--s4); flex: none; min-height: 0; }
-  .log.open { flex: 1 1 8rem; min-height: 8rem; }
+  .log.open { flex: 1 1 10rem; min-height: 10rem; }
   :global([data-theme='fantasy']) .log { padding: calc(var(--s3) + 4px) calc(var(--s4) + 4px); }
   .head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
   .toggle { display: inline-flex; align-items: center; gap: var(--s2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; box-shadow: none;

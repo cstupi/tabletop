@@ -66,7 +66,7 @@
 {/if}
 
 <style>
-  .decision { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); flex: 0 1 auto; min-height: 0; max-height: 58%; overflow: hidden; }
+  .decision { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); flex: 0 1 auto; min-height: 0; max-height: 45%; overflow: hidden; }
   :global([data-theme='fantasy']) .decision { padding: calc(var(--s4) + 4px); }
   .decision.waiting { opacity: .85; }
   p { margin: 0; white-space: pre-line; }

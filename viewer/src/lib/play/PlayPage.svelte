@@ -400,10 +400,11 @@
   .side { grid-area: side; display: flex; flex-direction: column; gap: var(--s3); min-height: 0; overflow: hidden; padding: var(--s3);
     border-left: 1px solid var(--rule); background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
   @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
-  /* A short window: the column scrolls as a whole, each part at its own height, the log a fixed height. */
+  /* A short window: the column scrolls as a whole, each part at its own height, the log at least 24rem. */
   @media (max-height: 52rem) {
     .side { overflow-y: auto; }
-    .side :global(:is(.decision, .card, .info)) { flex: none; max-height: none; }
-    .side :global(.log.open) { flex: none; height: 24rem; }
+    .side :global(:is(.decision, .card)) { flex: none; max-height: none; }
+    .side :global(.info) { flex: 1 0 auto; }
+    .side :global(.log.open) { flex: 1 0 24rem; height: 24rem; }
   }
 </style>
