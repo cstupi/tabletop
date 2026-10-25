@@ -18,7 +18,7 @@ export interface MarkerCard { readonly pieceId: string; readonly name: string; r
 
 /** TerrainLabel's order: the seven declarations with their words (spelled out, never the wire's names). */
 export const DECLARATION_WORDS: readonly (readonly [string, string])[] = [
-  ['cover', 'Cover'], ['difficult', 'Difficult'], ['dangerous', 'Dangerous'], ['dangerous_on_rush_charge', 'Dangerous on Rush/Charge'],
+  ['cover', 'Cover'], ['difficult', 'Difficult'], ['dangerous', 'Dangerous'], ['dangerous_on_rush_charge', 'Dangerous when rushing or charging'],
   ['impassable', 'Impassable'], ['blocks_line_of_sight', 'Blocks line of sight'], ['see_in_and_out', 'See in and out'],
 ];
 

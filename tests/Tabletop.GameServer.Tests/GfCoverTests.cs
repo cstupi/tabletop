@@ -205,4 +205,80 @@ public class GfCoverTests
         sim.Start(GfNames.AttackSequence, new SequenceContext(fighter.Id, [target.Id], fighter.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Charge));
         Assert.Null(Blocks(sim).Single().Cover);
     }
+    // p.11 "Terrain features that models can hide in or behind, or that could stop projectiles, count as cover terrain"; p.18 "Wall or
+    // Fence: Counts as Cover"; p.12 "Barricades - Cover". The built-in wall-or-fence: a solid 0.5" x 6" fence, 1.5" tall, declaring cover
+    // and difficult and not blocking line of sight, across x -0.25..0.25, y -3..3, between the shooter at (-10, 0) and (10, 0).
+    static readonly Point3 BehindFence = new(0.88, 0, 0), BesideFence = new(1, 5, 0), InFrontOfFence = new(-0.88, 0, 0);
+
+    static TerrainPlacement Fence() => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("wall"), new Point3(0, 0, 0), new Yaw(0), 1,
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(0.5, 6), new Point2(0, 0), new Yaw(0), 0, 1.5,
+            TerrainDeclarations.Cover | TerrainDeclarations.Difficult, null))]);
+
+    static Sim Fenced(Unit shooter, Unit target, Point3 at, params int[] dice)
+    {
+        var sim = Sim.Gf(State([shooter], [target], terrain: [Fence()]), dice);
+        sim.Append([new ModelsMoved([Move(sim, shooter.Models[0].Id, Shooter), Move(sim, target.Models[0].Id, at)])]);
+        return sim;
+    }
+
+    [Theory]
+    [InlineData(true, 0)]            // behind the fence from the shooter, in base contact
+    [InlineData(false, 1)]           // beside the fence's end: no line passes through it
+    [InlineData(false, 2)]           // in base contact on the shooter's side: the fence is behind the model
+    public void A_model_behind_a_fence_is_in_cover_and_one_beside_or_in_front_of_it_is_not(bool inCover, int where)
+    {
+        var (shooter, target) = (Rifle(), Unit("Lone", "4+", "4+", [], 1, []));
+        var sim = Fenced(shooter, target, new[] { BehindFence, BesideFence, InFrontOfFence }[where]);
+        Assert.True(Battlefield.CanSee(sim.State, shooter.Models[0].Id, target.Models[0].Id));           // a fence never blocks the shot
+        Assert.Empty(Battlefield.ModelsInCoverTerrain(sim.State, target.Id, wholeBase: false));          // nobody stands in a solid fence
+        Assert.Equal(inCover, GfRolls.InCover(sim.State, target.Id, [shooter.Models[0].Id], ignoresSightObstructions: false));
+    }
+
+    [Fact]
+    public void A_model_behind_a_fence_blocks_with_the_cover_bonus()
+    {
+        var (shooter, target) = (Rifle(), Unit("Lone", "4+", "6+", [], 1, []));
+        var sim = Fenced(shooter, target, BehindFence, 6, 5);                                            // a hit, then a 5 that blocks only with the cover bonus
+        sim.Start(GfNames.AttackSequence, Fire(shooter, target));
+        var block = sim.Steps("roll-to-block").Single();
+        Assert.Equal(new CoverVerdict(true, 1, 1), block.Rolls.Single().Cover);
+        Assert.Contains(block.Rolls.Single().Modifiers, m => m.Source == "cover" && m.Amount == 1);
+        Assert.Equal(0, block.Values!["wounds"]);
+    }
+
+    [Fact]
+    public void A_model_beside_a_fence_blocks_without_the_cover_bonus()
+    {
+        var (shooter, target) = (Rifle(), Unit("Lone", "4+", "6+", [], 1, []));
+        var sim = Fenced(shooter, target, BesideFence, 6, 5);
+        sim.Start(GfNames.AttackSequence, Fire(shooter, target));
+        var block = sim.Steps("roll-to-block").Single();
+        Assert.Equal(new CoverVerdict(false, 0, 1), block.Rolls.Single().Cover);
+        Assert.DoesNotContain(block.Rolls.Single().Modifiers, m => m.Source == "cover");
+        Assert.Equal(1, block.Values!["wounds"]);
+    }
+
+    [Fact]
+    public void Indirect_ignores_the_cover_of_a_fence_it_fires_over()
+    {
+        // p.14 Indirect "ignores cover from sight obstructions": being behind a fence is cover from something on the line, not from standing in terrain.
+        var mortar = Unit("Mortar", "4+", "4+", [], 1, [], Gun("Mortar", "36\"", 1, P("Indirect")));
+        var target = Unit("Lone", "4+", "6+", [], 1, []);
+        var sim = Fenced(mortar, target, BehindFence, 6, 5);
+        sim.Start(GfNames.AttackSequence, Fire(mortar, target));
+        var block = Blocks(sim).Single();
+        Assert.Equal(new CoverVerdict(true, 1, 1, "Indirect"), block.Cover);
+        Assert.DoesNotContain(block.Modifiers, m => m.Source == "cover");
+    }
+
+    [Fact]
+    public void The_sight_answer_marks_a_line_past_a_fence_screened()
+    {
+        var (shooter, target) = (Rifle(), Unit("Lone", "4+", "4+", [], 1, []));
+        var line = Sight.From(Fenced(shooter, target, BehindFence).State, shooter.Id).Line(shooter.Models[0].Id, target.Models[0].Id)!;
+        Assert.Equal((true, true), (line.Clear, line.Screened));
+        Assert.Empty(line.BlockedBy);
+        var beside = Sight.From(Fenced(shooter, target, BesideFence).State, shooter.Id).Line(shooter.Models[0].Id, target.Models[0].Id)!;
+        Assert.Equal((true, false), (beside.Clear, beside.Screened));
+    }
 }

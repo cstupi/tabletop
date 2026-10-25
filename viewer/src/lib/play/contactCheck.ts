@@ -46,6 +46,17 @@ export function words(c: Contact, separation: number | undefined, unitName: (id:
   }
 }
 
+/** The words as the decision box's sentence about `subject` (the model's name), as the server words its own refusals; words that are not
+ *  a contact's stay as they are. */
+export function sentence(words: string, subject: string): string {
+  switch (words) {
+    case 'overlaps a base': return `${subject} would be placed on another model's base (p.7)`;
+    case 'path crosses a model': return `${subject} would move through another model (p.7)`;
+    case 'ends in impassable terrain': return `${subject} would end its move in impassable terrain (p.11, p.7)`;
+    default: return words.startsWith('within ') ? `${subject} would end ${words}${words.startsWith('within 1"') ? ' (p.7)' : ''}` : words;
+  }
+}
+
 /** Each contact as words, by model. */
 export function allWords(found: ReadonlyMap<string, Contact>, separation: number | undefined, unitName: (id: string) => string): Map<string, string> {
   return new Map([...found].map(([id, c]) => [id, words(c, separation, unitName)] as const));

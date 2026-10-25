@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
@@ -104,4 +105,16 @@ public static class LobbyView
         GameStatus.Setup => "Anyone may edit the table. Waiting for the creator to end setup.",
         _ => null,
     };
+
+    /// <summary>The End setup button: the game server's DropOffSlab rule removes each piece whose centre is off the table (edge inclusive).</summary>
+    public static string EndSetupText(TableState? draft)
+    {
+        var off = draft is { } d ? d.Terrain.Count(t => !Tabletop.Geometry.Table.ContainsPoint(d.Size, t.Position.Horizontal)) : 0;
+        return off switch
+        {
+            0 => "End setup",
+            1 => "End setup (1 piece off the table will be removed)",
+            _ => $"End setup ({off} pieces off the table will be removed)",
+        };
+    }
 }

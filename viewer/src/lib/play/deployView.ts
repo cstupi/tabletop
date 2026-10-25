@@ -44,20 +44,22 @@ const fit = (centre: number, half: number, extent: number): number => (extent <=
 const widest = (models: readonly ModelInPlay[]): number => Math.max(...models.map((m) => Math.max(m.slot.base.a, m.slot.base.b)));
 
 /**
- * One relocation per model to a tight grid at yaw 0 — rows of five, spaced by the widest base plus a small gap — centred on the point and
- * pushed in so the whole grid is on the table. The player drags the models into position afterwards.
+ * One relocation per model to a tight grid at yaw 0 — rows of five, a row spaced by the widest base across the facing (b) and the rows by
+ * the longest along it (a), each plus a small gap, so an oval or oblong base sits within p.7's 1" of its neighbours — centred on the point
+ * and pushed in so the whole grid is on the table. The player drags the models into position afterwards.
  */
 export function layout(models: readonly ModelInPlay[], at: Point3, size: TableSize): ModelRelocation[] {
   if (models.length === 0) return [];
-  const pitch = widest(models) + GAP;
+  const across = Math.max(...models.map((m) => m.slot.base.b)) + GAP;   // yaw 0: b runs along x, a along y
+  const along = Math.max(...models.map((m) => m.slot.base.a)) + GAP;
   const cols = Math.min(models.length, PER_ROW);
   const rows = Math.floor((models.length + cols - 1) / cols);
-  const cx = fit(at.x, cols * pitch / 2, size.width);
-  const cy = fit(at.y, rows * pitch / 2, size.length);
+  const cx = fit(at.x, cols * across / 2, size.width);
+  const cy = fit(at.y, rows * along / 2, size.length);
   return models.map((m, i): ModelRelocation => ({
     modelId: m.id, from: m.location,
     to: { kind: 'table', placement: {
-      position: { x: cx + ((i % cols) - (cols - 1) / 2) * pitch, y: cy - (Math.floor(i / cols) - (rows - 1) / 2) * pitch, z: at.z },
+      position: { x: cx + ((i % cols) - (cols - 1) / 2) * across, y: cy - (Math.floor(i / cols) - (rows - 1) / 2) * along, z: at.z },
       yaw: { degrees: 0 } } },
   }));
 }

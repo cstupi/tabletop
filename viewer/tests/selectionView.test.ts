@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Applier } from '../src/lib/live/apply';
 import { Names } from '../src/lib/play/names';
 import { describeSelection, selectedModels } from '../src/lib/play/selectionView';
-import type { EventPayload } from '../src/lib/protocol/wire.generated';
+import type { EventPayload, TerrainPlacement } from '../src/lib/protocol/wire.generated';
 import { BoardSample, GameSample, Model, Unit } from './logSamples';
 import { P1, at, ev, newId } from './play';
 
@@ -26,6 +26,14 @@ describe('SelectionView', () => {
     const p = projectionOf(placed), names = new Names(GameSample, p);
     expect(describeSelection(names, p, { pieceId: Unit, modelIds: [Model] })).toBe('Battle Brothers (Battle Brother)');
     expect(describeSelection(names, p, null)).toBeNull();
+  });
+
+  it('a selected terrain piece has no line: the terrain card names it', () => {
+    const piece = {
+      id: newId(), mesh: { builtin: 'forest' }, position: { x: 10, y: 10, z: 0 }, yaw: { degrees: 0 }, scale: 1, volumes: [],
+    } as unknown as TerrainPlacement;
+    const p = new Applier({ ...BoardSample, table: { ...BoardSample.table, terrain: [piece] } }, GameSample).projection;
+    expect(describeSelection(new Names(GameSample, p), p, { pieceId: piece.id, modelIds: [] })).toBeNull();
   });
 
   it('a selection lights the listed models or else every model of the unit', () => {

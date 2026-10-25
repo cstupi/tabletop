@@ -300,10 +300,11 @@ pass and answered the same day.
 2. **Cover is p.11's one majority, strictly more than half.** p.11's *"the majority of models in
    a unit are fully inside a piece of cover terrain or behind a sight blocker"* is one majority over
    the models that pass either test. A model counts when it is in cover terrain, when every
-   attacking model that sees it does so past a sight blocker (screened), or when no attacking
-   model sees it. Five of ten such models is not a majority and gives nothing. A model's own unit
+   attacking model that sees it does so past a sight blocker or through cover terrain that does not
+   block sight and that it does not stand in, a wall or fence or a barricade (screened; p.11 *"Terrain
+   features that models can hide in or behind"*), or when no attacking model sees it. Five of ten such models is not a majority and gives nothing. A model's own unit
    does not screen it (p.11, *"other units"*). Indirect's *"ignores cover from sight
-   obstructions"* (p.14) drops the sight half only. `GfRolls.InCover` is `union * 2 > models`.
+   obstructions"* (p.14) drops the sight half only, a wall or fence on the line included. `GfRolls.InCover` is `union * 2 > models`.
 3. **`Artillery` aggregates `all`.** Every model in the unit must carry it for the -2 to apply.
    Decided after `Stealth`, which is the same to-hit penalty at the same range band and reads
    *"units where all models have this rule"* in both books; cover's majority was the alternative,

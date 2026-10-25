@@ -115,6 +115,8 @@ describe('SightCheck', () => {
     expect(v.lines.map((l) => l.tone)).toEqual(['clear', 'screened', 'blocked']);
     expect(v.blockers).toEqual(['wall']);
     expect(v.summary?.text).toBe('2 of 2 models can see Orcs · 1 of 2 clear lines screened · 1 can shoot');
+    const orc = p.models.get(o)!.location as { placement: { position: { y: number } } };
+    expect(v.summary?.at.y).toBe(orc.placement.position.y - 2);                       // under the target, clear of the hover label over it
     expect(v.dimmed).toEqual(new Set([b]));
   });
 });

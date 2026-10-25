@@ -15,6 +15,14 @@ public class HeaderAdditionsTests
     }
 
     [Fact]
+    public void Not_activated_counts_a_unit_inside_a_transport_on_the_table_and_not_one_inside_a_shelved_one()
+    {
+        var aboard = new ModelsMoved([new ModelRelocation(TableUx.ModelOf(TableUx.Reserve), new OnShelf(), new Inside(TableUx.ModelOf(TableUx.Squad)))]);
+        Assert.Equal(2, HeaderView.NotActivated(TableUx.After(TableUx.Deploy, aboard), TableUx.Game)[TableUx.T1]);
+        Assert.Equal(0, HeaderView.NotActivated(TableUx.After(aboard), TableUx.Game)[TableUx.T1]);   // the Squad still on the shelf
+    }
+
+    [Fact]
     public void Another_team_s_activation_is_named_on_the_action_line()
     {
         var p = TableUx.After(TableUx.Deploy, new SequenceStarted(Guid.CreateVersion7(), "charge", new SequenceContext(TableUx.Orcs.Id, [], [], "Charge")));

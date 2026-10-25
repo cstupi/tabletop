@@ -57,11 +57,16 @@ export function describe(e: GameEvent, n: Names): string {
     // a menu edit; inside round_ended the same change reads "took"
     case 'objective_control_set':
       text = p.teamId !== undefined ? `gave ${n.marker(p.markerId)} to ${n.team(p.teamId)}` : `made ${n.marker(p.markerId)} neutral`; break;
-    case 'game_ended': text = `Game ended: ${p.reason}${result(p.winners, n)}`; break;
+    case 'game_ended': text = `Game ended: ${endReason(p)}${result(p.winners, n)}`; break;
     default: text = (p as { kind: string }).kind;
   }
   const line = p.kind === 'game_ended' ? text : `${who} ${text}`;   // the end has no actor; the sim and viewer lines read "Game ended: …"
   return line + (e.warning === undefined ? '' : ` — ${e.warning}`);
+}
+
+/** The reason, its closing full stop dropped when a result follows it ("… Markers held: Team 1: 0, Team 2: 0; tied between …"). */
+function endReason(g: { reason: string; winners: readonly string[] }): string {
+  return g.winners.length === 0 ? g.reason : g.reason.replace(/\.+$/, '');
 }
 
 /** One winner, a tie, or nothing when the ruleset recorded no result. */

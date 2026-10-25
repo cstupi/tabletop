@@ -2,6 +2,7 @@
 // What RulerNode, LandingMarks, MoveRegionNode (as a circle) and ViolationMarks draw, as data and then as board Overlays.
 
 import type { Overlay } from '../board/interaction';
+import { drawLabel } from '../board/labelPlacement';
 import type { XY } from '../geometry';
 import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
@@ -11,9 +12,11 @@ export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: 
 export interface Ring { readonly centre: XY; readonly radius: number }
 export interface Label { readonly at: XY; readonly text: string }
 
-/** RulerNode: the line from where a piece started to where it is, with its reading. */
+/** RulerNode: the line from where each piece started to where it is. One reading for the drag: the model that moved farthest, which binds
+ *  the allowance; the other lines carry none. */
 export function rulerLines(readouts: readonly { from: XY; to: XY; readout: RulerReadout }[]): RulerLine[] {
-  return readouts.map((r) => ({ from: r.from, to: r.to, text: readoutText(r.readout), outOfRange: r.readout.outOfRange }));
+  const far = readouts.reduce((best, r, i) => (best < 0 || r.readout.distance > readouts[best]!.readout.distance ? i : best), -1);
+  return readouts.map((r, i) => ({ from: r.from, to: r.to, text: i === far ? readoutText(r.readout) : '', outOfRange: r.readout.outOfRange }));
 }
 
 const apart = (a: number, b: number): boolean => Math.abs(a - b) > 1e-6;
@@ -57,7 +60,7 @@ export const rulerOverlay = (lines: readonly RulerLine[]): Overlay => (ctx, proj
     const colour = line.outOfRange ? RED : '#ffffff';
     ctx.strokeStyle = colour; ctx.fillStyle = colour;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.fillText(line.text, (a.x + b.x) / 2, (a.y + b.y) / 2 - 6);
+    if (line.text !== '') drawLabel(ctx, line.text, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 }, colour, { lineHeight: 13, grow: 'up' });
   }
 };
 
@@ -68,5 +71,5 @@ export const landingOverlay = (rings: readonly Ring[]): Overlay => (ctx, project
 
 export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project) => {
   ctx.fillStyle = colour; ctx.font = 'bold 11px ui-monospace, monospace'; ctx.textAlign = 'center';
-  for (const label of labels) { const p = project(label.at); ctx.fillText(label.text, p.x, p.y - 16); }
+  for (const label of labels) { const p = project(label.at); drawLabel(ctx, label.text, { x: p.x, y: p.y - 16 }, colour, { lineHeight: 13, grow: 'up' }); }
 };

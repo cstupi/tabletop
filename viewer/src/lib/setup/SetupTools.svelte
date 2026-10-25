@@ -15,6 +15,8 @@
     MARKERS, MAX_EDGE, MIN_EDGE, TERRAIN, cannotAddMarker, cannotAddTerrain, cannotClearTerrain,
   } from './limits';
   import { terrainGroups, terrainSummary, textureLabel, zoneStyleLabel } from './terrainGroups';
+  import { SizeFields } from './sizeFields';
+  import { untrack } from 'svelte';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
   let { draft, catalog, api, snap, creator, send, report }: {
@@ -22,10 +24,13 @@
     send: (edit: Edit) => Promise<void>; report: (text: string | null) => void;
   } = $props();
 
-  let width = $state(72), length = $state(48);
-  let typing = $state(false);
-  // The size fields follow the draft (another player's change shows) unless one is being typed in.
-  $effect(() => { const s = draft.size; if (!typing) { width = s.width; length = s.length; } });
+  // The size fields follow the draft when its size changes (another player's Set shows) and keep what was typed otherwise.
+  const fields = new SizeFields(untrack(() => draft.size));
+  let width = $state(fields.width), length = $state(fields.length);
+  $effect(() => {
+    const s = { width: draft.size.width, length: draft.size.length };
+    untrack(() => { fields.width = width; fields.length = length; fields.follow(s); width = fields.width; length = fields.length; });
+  });
   const sizeChanged = $derived(width !== draft.size.width || length !== draft.size.length);
 
   let query = $state('');
@@ -77,9 +82,9 @@
     <summary><span>Table</span><span class="meta">{draft.size.width} × {draft.size.length}"</span></summary>
     <div class="body">
       <div class="size">
-        <label>Width <input type="number" min={MIN_EDGE} max={MAX_EDGE} bind:value={width} onfocus={() => (typing = true)} onblur={() => (typing = false)} /></label>
+        <label>Width <input type="number" min={MIN_EDGE} max={MAX_EDGE} bind:value={width} /></label>
         <span class="x" aria-hidden="true">×</span>
-        <label>Length <input type="number" min={MIN_EDGE} max={MAX_EDGE} bind:value={length} onfocus={() => (typing = true)} onblur={() => (typing = false)} /></label>
+        <label>Length <input type="number" min={MIN_EDGE} max={MAX_EDGE} bind:value={length} /></label>
         <button class="small" disabled={!sizeChanged} onclick={() => send(tableSize(width, length))}>Set</button>
       </div>
       <small class="dim">Inches, {MIN_EDGE}–{MAX_EDGE}" a side.</small>

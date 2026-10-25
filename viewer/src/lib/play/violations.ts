@@ -3,15 +3,22 @@
 // for a commit it refused, which stands on the models it sent until one of them moves again. Under strict a mark holds the commit.
 
 import type { Enforcement } from '../protocol/wire.generated';
+import { sentence } from './contactCheck';
 
 export class Violations {
   readonly #measured = new Map<string, string>();
   readonly #refused = new Set<string>();
   readonly #listeners = new Set<() => void>();
+  readonly #subject: ((modelId: string) => string | null) | null;
   #refusal: string | null = null;
+  #words: ReadonlyMap<string, string> = new Map();
   #marked: ReadonlyMap<string, string> = new Map();
 
-  /** Each marked model's reason: the client's own, else the server's refusal. */
+  /** `subject` names a model for the decision box's sentences (contactCheck's `sentence`); without it a mark is its words. */
+  constructor(subject: ((modelId: string) => string | null) | null = null) { this.#subject = subject; }
+
+  /** Each marked model's reason for the decision box: the client's own as a sentence naming the first model with it, else the server's
+   *  refusal. */
   get marked(): ReadonlyMap<string, string> { return this.#marked; }
 
   /** Changed. */
@@ -47,12 +54,12 @@ export class Violations {
   /** Under strict a marked model holds the commit; under warn and silent it goes and the server judges. */
   blocks(enforcement: Enforcement): boolean { return enforcement === 'strict' && this.#marked.size > 0; }
 
-  /** One label per reason, over the first model in this order that has it. */
+  /** One label per reason, over the first model in this order that has it: the words, since the label stands over the model. */
   labels(order: Iterable<string>): { modelId: string; reason: string }[] {
     const seen = new Set<string>();
     const out: { modelId: string; reason: string }[] = [];
     for (const id of order) {
-      const reason = this.#marked.get(id);
+      const reason = this.#words.get(id);
       if (reason === undefined || seen.has(reason)) continue;
       seen.add(reason); out.push({ modelId: id, reason });
     }
@@ -60,10 +67,20 @@ export class Violations {
   }
 
   #update(): void {
-    const next = new Map(this.#measured);
-    if (this.#refusal !== null) for (const id of this.#refused) if (!next.has(id)) next.set(id, this.#refusal);
-    if (next.size === this.#marked.size && [...next].every(([k, v]) => this.#marked.get(k) === v)) return;
-    this.#marked = next;
+    const words = new Map(this.#measured);
+    if (this.#refusal !== null) for (const id of this.#refused) if (!words.has(id)) words.set(id, this.#refusal);
+    const said = new Map<string, string>();                               // each measured reason's sentence, about its first model
+    for (const [id, w] of this.#measured) {
+      if (said.has(w)) continue;
+      const name = this.#subject?.(id) ?? null;
+      said.set(w, name === null ? w : sentence(w, name));
+    }
+    const marked = new Map([...words].map(([id, w]) => [id, this.#measured.has(id) ? said.get(w)! : w] as const));
+    if (same(words, this.#words) && same(marked, this.#marked)) return;
+    this.#words = words; this.#marked = marked;
     for (const l of [...this.#listeners]) l();
   }
 }
+
+const same = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
+  a.size === b.size && [...a].every(([k, v]) => b.get(k) === v);

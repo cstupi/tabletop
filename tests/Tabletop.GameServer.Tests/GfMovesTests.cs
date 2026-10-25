@@ -45,11 +45,13 @@ public class GfMovesTests
         var outcome = Move(sim, Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -9));
         var refused = Assert.IsType<Refused>(outcome);
         Assert.Equal(RefusalReason.Illegal, refused.Reason);
-        Assert.Contains("6\"", refused.Detail);
+        // The player reads the rule, not the Ask's question name; distances to a tenth.
+        Assert.StartsWith("the unit moved in or through difficult terrain, so no model may move more than 6\" (p.11); ", refused.Detail);
+        Assert.Matches(@" moved \d+\.\d""$", refused.Detail);
         var ask = sim.AskFor(Samples.Team1);
         Assert.Equal(GfNames.DifficultCapRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, ask,
             new Destinations([Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -9)]))!.Rule);
-        Assert.IsType<Applied>(Move(sim, Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -6)));
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, 5)));
     }
 
     [Fact]
@@ -69,7 +71,7 @@ public class GfMovesTests
         var open = Rush(Enforcement.Strict, [], out var unit);
         Assert.IsType<Applied>(Move(open, Shifted(open, unit.Models[0].Id, -9), Shifted(open, unit.Models[1].Id, -9)));
         var strider = Rush(Enforcement.Strict, [P("Strider")], out var striders);
-        Assert.IsType<Applied>(Move(strider, Shifted(strider, striders.Models[0].Id, 9), Shifted(strider, striders.Models[1].Id, -9)));
+        Assert.IsType<Applied>(Move(strider, Shifted(strider, striders.Models[0].Id, 9), Shifted(strider, striders.Models[1].Id, 9)));
     }
 
     // ---- A move a cast splits (p.11 "for that movement") ------------------------------------------------------------------------------

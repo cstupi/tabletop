@@ -50,12 +50,15 @@ public static class LogText
             RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => RoundChange(c, n)))}")}",
             ObjectiveControlSet { TeamId: { } team } o => $"gave {n.Marker(o.MarkerId)} to {n.Team(team)}",   // a menu edit; inside round_ended the same change reads "took"
             ObjectiveControlSet o => $"made {n.Marker(o.MarkerId)} neutral",
-            GameEnded g => $"Game ended: {g.Reason}{Result(g.Winners, n)}",
+            GameEnded g => $"Game ended: {Reason(g)}{Result(g.Winners, n)}",
             var other => other.GetType().Name,
         };
         var line = e.Payload is GameEnded ? text : $"{who} {text}";   // the end has no actor; the sim and viewer lines read "Game ended: …"
         return line + (e.Warning is null ? "" : $" — {e.Warning}");
     }
+
+    /// <summary>The reason, its closing full stop dropped when a result follows it ("… Markers held: Team 1: 0, Team 2: 0; tied between …").</summary>
+    static string Reason(GameEnded g) => g.Winners.Count == 0 ? g.Reason : g.Reason.TrimEnd('.');
 
     /// <summary>One winner, a tie, or nothing when the ruleset recorded no result.</summary>
     static string Result(IReadOnlyList<Guid> winners, Names n) => winners.Count switch

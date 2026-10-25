@@ -50,6 +50,15 @@ public static class GfNames
         MoveExitRule = "move_exit", MoveNotOfferedRule = "move_not_offered";
     /// <summary>p.7's contact clauses (GfMoves.ContactBreach): a landing on another model's base, a path through a model, a landing within 1" of another unit.</summary>
     public const string MoveOverlapRule = "move_overlap", MoveThroughModelsRule = "move_through_models", MoveSeparationRule = "move_separation";
+    /// <summary>p.7 UNIT COHERENCY (GfMoves.CoherencyBreach): a move answer that takes a unit in coherency out of it.</summary>
+    public const string MoveCoherencyRule = "move_coherency";
+    /// <summary>p.7: "within 1” of at least one other model, and ... within 9” of all other models"; p.11: "a coherency of 3” is allowed to models at different elevation".</summary>
+    public const double CoherencyChain = 1, CoherencyElevated = 3, CoherencySpread = 9;
+    /// <summary>p.9 Charge moves (GfMoves.ChargeContactBreach): no charging model ended in base contact with the target unit though a path reached it.</summary>
+    public const string ChargeContactRule = "charge_contact";
+    /// <summary>How far apart two bases may be and still count as in base contact for ChargeContactBreach: a dropped model lands at the nearest free
+    /// spot on rings 0.25" apart (Tabletop.Geometry.Collision.Land), so a model dropped onto an enemy rests up to that far from touching it.</summary>
+    public const double BaseContactSlack = 0.25;
     /// <summary>IGameRules.PlacementBreach rule name for a deployment placement outside the team's zone (p.6), or beyond a Scout's 12" of it (p.14).</summary>
     public const string DeployZoneRule = "deploy_zone";
     /// <summary>IGameRules.PlacementBreach rule name for an Ambusher placed within 9" of an enemy unit (p.13: "over 9” away from enemy units").</summary>

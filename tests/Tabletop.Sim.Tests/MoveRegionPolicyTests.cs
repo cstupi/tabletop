@@ -45,6 +45,21 @@ public class MoveRegionPolicyTests
     }
 
     [Fact]
+    public void A_charge_move_ends_in_base_contact_with_the_target()
+    {
+        // p.9: "Charging models must move by up to 12” to get into base contact with an enemy model from the target unit".
+        var (view, model) = Standing(new Point3(20, 24, 0), blocker: new Point3(30, 26, 0));
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Charge", [Team], new MoveRegion([model], 12, [], [], 6, ContactWith: [Other]), true, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 10; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var to = Assert.IsType<OnTable>(Assert.Single(answer.Moves).To).Placement;
+            var landed = new PlacedModel(view.BodyOf(model), to);
+            Assert.InRange(Distance.EdgeToEdge(landed, view.PlacedOf(Other)!.Value), 0, 0.25);
+        }
+    }
+
+    [Fact]
     public void A_minimum_move_with_little_room_for_it_is_always_met_on_the_table()
     {
         // p.13 Aircraft: a 30" minimum on a 24" table from near a corner, where only bearings close to the far diagonal have room (just over 30").
@@ -226,12 +241,14 @@ public class MoveRegionPolicyTests
     {
         var wreck = Guid.CreateVersion7(); var rider = Guid.CreateVersion7();
         ModelSlot Slot(Guid id) => new(id, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
-        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(wreck), Slot(rider)]);
+        // The transport is a unit of its own: the rider's unit is judged for coherency on its own models (p.7).
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(rider)]);
+        var hull = new Unit(Guid.CreateVersion7(), 2, "w", new Dictionary<string, string>(), [], [Slot(wreck)]);
         var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
         var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
             SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
             [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
-        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit, hull]))]);
         var applier = new EventApplier(board, info);
         var at = new Point3(30, 20, 0);
         applier.Apply(new GameEvent(1, null, new ModelsMoved([
@@ -247,12 +264,14 @@ public class MoveRegionPolicyTests
     {
         var wreck = Guid.CreateVersion7(); var rider = Guid.CreateVersion7();
         ModelSlot Slot(Guid id) => new(id, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
-        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(wreck), Slot(rider)]);
+        // The transport is a unit of its own: the rider's unit is judged for coherency on its own models (p.7).
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(rider)]);
+        var hull = new Unit(Guid.CreateVersion7(), 2, "w", new Dictionary<string, string>(), [], [Slot(wreck)]);
         var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
         var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
             SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
             [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
-        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit, hull]))]);
         var applier = new EventApplier(board, info);
         var at = new Point3(30, 20, 0);
         applier.Apply(new GameEvent(1, null, new ModelsMoved([

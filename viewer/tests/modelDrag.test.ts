@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Geometry, HeldEnd, HeldModel, PlacedModel, Placement } from '../src/lib/geometry';
 import { Applier } from '../src/lib/live/apply';
-import { ModelDrag, grabs, stationary } from '../src/lib/play/modelDrag';
+import { ModelDrag, clampToReach, grabs, stationary } from '../src/lib/play/modelDrag';
 import type { MoveRegion, TerrainPlacement } from '../src/lib/protocol/wire.generated';
 import { P1, P2, boardOf, emptyTable, gameOf, slotOf, unitOf } from './play';
 
@@ -90,6 +90,28 @@ describe('ModelDrag', () => {
     const region: MoveRegion = { kind: 'move_region', modelIds: [r.a], allowance: 6, impassableVolumeIds: ['v2'], difficultVolumeIds: [], stoppable: false, passesModels: false, ignoresTerrain: false };
     drag.move(r.p, { x: 12, y: 10 }, false, region, none);
     expect(lands[1]!.walls).toEqual(['v2']);
+  });
+
+  it('clampToReach holds a target to the allowance on the straight line from the origin', () => {
+    expect(clampToReach({ x: 0, y: 0 }, { x: 3, y: 4 }, 6)).toEqual({ x: 3, y: 4 });
+    expect(clampToReach({ x: 0, y: 0 }, { x: 6, y: 8 }, 5)).toEqual({ x: 3, y: 4 });
+    expect(clampToReach({ x: 1, y: 1 }, { x: 9, y: 1 }, 0)).toEqual({ x: 1, y: 1 });
+  });
+
+  it('inside a move each held model lands at most the allowance from its origin; Alt, a hand move and a disembark are not held', () => {
+    const r = rig();
+    const { g, lands } = fake();
+    const drag = new ModelDrag(g);
+    const region: MoveRegion = { kind: 'move_region', modelIds: [r.a, r.b], allowance: 6, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false, ignoresTerrain: false };
+    drag.start(r.p, r.a, { x: 10, y: 10 }, false, new Set([r.a, r.b]), none);
+    const held = drag.move(r.p, { x: 20, y: 10 }, false, region, none)!;          // 10" to the right
+    expect(lands[0]!.held.map((h) => [h.id, h.to])).toEqual([[r.a, { x: 16, y: 10 }], [r.b, { x: 18, y: 10 }]]);
+    expect(held.ends.get(r.a)!.lands).toEqual({ x: 16, y: 10, z: 0 });
+    drag.move(r.p, { x: 20, y: 10 }, false, null, none);                             // a hand move
+    expect(lands[1]!.held[0]!.to).toEqual({ x: 20, y: 10 });
+    drag.move(r.p, { x: 20, y: 10 }, false, { ...region, containment: { enterable: [], exitingId: r.rival, exitWithin: 6 } }, none);
+    expect(lands[2]!.held[0]!.to).toEqual({ x: 20, y: 10 });
+    expect(drag.move(r.p, { x: 20, y: 10 }, true, region, none)!.ends.get(r.a)!.lands).toMatchObject({ x: 20, y: 10 });
   });
 
   it('alt places straight at the cursor resting on the highest surface', () => {

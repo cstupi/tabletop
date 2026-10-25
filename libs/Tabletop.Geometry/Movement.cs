@@ -125,6 +125,30 @@ public static class Movement
     }
 
     /// <summary>
+    /// Where the start's base (its own facing) stands `gap` clear of the target's base, one point on each of `bearings` directions about the
+    /// target's centre: the direction facing the start first, then alternately either side of it. A charge's landings in base contact (p.9);
+    /// the caller judges each as a move.
+    /// </summary>
+    public static IReadOnlyList<Point2> ContactPoints(PlacedModel start, PlacedModel target, double gap, int bearings = 32)
+    {
+        var centre = target.Placement.Position.Horizontal;
+        var facing = start.Placement.Position.Horizontal - centre;
+        var bearing = facing.Length > 1e-9 ? Math.Atan2(facing.Y, facing.X) : 0;
+        var points = new List<Point2>(bearings);
+        for (var k = 0; k < bearings; k++)
+        {
+            var angle = bearing + (k + 1) / 2 * (k % 2 == 0 ? -1 : 1) * Math.Tau / bearings;
+            var dir = new Point2(Math.Cos(angle), Math.Sin(angle));
+            PlacedModel There(double r) => start with { Placement = start.Placement with { Position = new Point3(centre.X + dir.X * r, centre.Y + dir.Y * r, start.Placement.Position.Z) } };
+            double lo = 0, hi = 1;
+            while (Distance.EdgeToEdge(There(hi), target) < gap && hi < 1024) hi *= 2;
+            for (var i = 0; i < 40; i++) { var mid = (lo + hi) / 2; if (Distance.EdgeToEdge(There(mid), target) < gap) lo = mid; else hi = mid; }
+            points.Add(centre + dir * hi);
+        }
+        return points;
+    }
+
+    /// <summary>
     /// The farthest the base centre can go from its start in a straight line with the whole base still on the table: the corner of the
     /// slab inset by the base's bounding radius that lies farthest from the start, and its distance. A minimum move the table has no room
     /// for is held to this. The start itself, at distance zero, when the base is wider than the slab.

@@ -37,6 +37,7 @@ describe('RosterView', () => {
     expect(out[1]!.rows[1]).toMatchObject({ name: 'Reserve', offTable: true });
     expect(out[0]!.rows[0]).toMatchObject({ left: 1, max: 1, activated: false });
     expect([pips(2, 3), words('shaken')]).toEqual(['●●○', 'Shaken']);
+    expect(words('set-aside')).toBe('Set aside');
   });
 
   it('the roster marks a passenger and dims it while its Transport is off the table', () => {

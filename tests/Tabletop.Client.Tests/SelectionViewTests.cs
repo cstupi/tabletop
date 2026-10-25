@@ -29,6 +29,14 @@ public class SelectionViewTests
     }
 
     [Fact]
+    public void A_selected_terrain_piece_has_no_line_since_the_terrain_card_names_it()
+    {
+        var p = Applier().Projection; var names = new Names(Samples.Game, p);
+        Assert.Null(SelectionView.Describe(names, p, new Selection(p.Board.Table.Terrain[0].Id, [])));
+        Assert.Equal("Objective 1", SelectionView.Describe(names, p, new Selection(p.Board.Table.Markers[0].Id, [])));
+    }
+
+    [Fact]
     public void A_selection_lights_the_listed_models_or_else_every_model_of_the_unit()
     {
         var p = Applier().Projection;

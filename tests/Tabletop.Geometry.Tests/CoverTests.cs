@@ -36,4 +36,26 @@ public class CoverTests
         Assert.True(LineOfSight.Check(Fx.Model(0, 0), Fx.Model(10, 0), [screen]).Clear);
         Assert.Equal(new[] { screen.Id }, Cover.SightBlockersBetween(Fx.Model(0, 0), Fx.Model(10, 0), [screen]));
     }
+    // p.11 "Terrain features that models can hide in or behind ... count as cover terrain"; p.18 "Wall or Fence: Counts as Cover".
+    // A fence 0.5" thick across x 4.75..5.25, y -3..3, 1.5" tall, declaring cover and not blocking line of sight.
+    static WorldVolume Fence() => Fx.Box(5, 0, 0.5, 6, 0, 1.5, d: TerrainDeclarations.Cover | TerrainDeclarations.Difficult);
+
+    [Fact] public void A_fence_the_lines_pass_through_is_cover_terrain_between()
+    {
+        var fence = Fence();
+        Assert.True(LineOfSight.Check(Fx.Model(0, 0), Fx.Model(5.88, 0), [fence]).Clear);              // a fence does not block line of sight
+        Assert.Equal(new[] { fence.Id }, Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(5.88, 0), [fence]));   // in base contact behind it
+        Assert.Equal(new[] { fence.Id }, Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(10, 0), [fence]));
+    }
+    [Fact] public void A_model_beside_the_fence_is_not_behind_it() => Assert.Empty(Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(6, 5), [Fence()]));
+    [Fact] public void A_model_in_contact_on_the_shooters_side_is_not_behind_it() => Assert.Empty(Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(4.12, 0), [Fence()]));
+    [Fact] public void A_model_standing_on_the_cover_is_not_behind_it() => Assert.Empty(Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(5, 0, z: 1.5), [Fence()]));
+    [Fact] public void Cover_the_shooter_stands_in_is_not_between()
+    {
+        var field = Fx.Box(2, 0, 6, 6, 0, 1, kind: VolumeKind.Area, d: TerrainDeclarations.Cover);
+        Assert.Empty(Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(10, 0), [field]));
+        Assert.Equal(new[] { field.Id }, Cover.CoverTerrainBetween(Fx.Model(-10, 0), Fx.Model(10, 0), [field]));
+    }
+    [Fact] public void Cover_that_blocks_line_of_sight_is_left_to_the_sight_blocker_test() =>
+        Assert.Empty(Cover.CoverTerrainBetween(Fx.Model(0, 0), Fx.Model(10, 0), [Fx.Box(5, 0, 0.5, 6, 0, 1.5, d: TerrainDeclarations.Cover | Fx.Blocks)]));
 }

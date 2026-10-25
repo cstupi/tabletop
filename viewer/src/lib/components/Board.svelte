@@ -76,7 +76,7 @@
   }
   const modsOf = (event: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean }): Modifiers =>
     ({ shift: event.shiftKey, ctrl: event.ctrlKey || false, alt: event.altKey });
-  const pick = (at: Point): BoardHit | null => interaction?.pick?.(at) ?? pickAt(scene, at);
+  const pick = (at: Point): BoardHit | null => interaction?.pick?.(at) ?? pickAt(scene, at, models);
 
   function apply(effects: readonly PointerEffect[]): void {
     for (const effect of effects) {

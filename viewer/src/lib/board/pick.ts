@@ -26,11 +26,12 @@ export function contains(shape: Shape, p: Point): boolean {
   return inside;
 }
 
-/** Models first, then markers, then terrain; the last drawn wins within each. Table inches in, never screen pixels. */
-export function pickAt(scene: Scene, p: Point): Hit | null {
+/** Models first, then markers, then terrain; the last drawn wins within each. Table inches in, never screen pixels. A model is tested by
+ *  what the board draws for it: its base, or its circle when the board draws circles. */
+export function pickAt(scene: Scene, p: Point, models: 'bases' | 'circles' = 'bases'): Hit | null {
   for (let i = scene.models.length - 1; i >= 0; i--) {
     const model = scene.models[i]!;
-    if (contains(model.shape, p)) return { kind: 'model', id: model.id };
+    if (contains(models === 'circles' ? model.circle : model.shape, p)) return { kind: 'model', id: model.id };
   }
   for (let i = scene.markers.length - 1; i >= 0; i--) {
     const marker = scene.markers[i]!;

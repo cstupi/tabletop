@@ -90,7 +90,7 @@ a *current* column means the event spine has been broken.
   cannot cross.
 - **Capacity is never enforced.** `Transport(X)`'s parameter is carried by the catalog entry and
   read by nothing. Game flow rules it explicitly.
-- **Unit coherency is never enforced.** Nothing judges it. The 1-inch separation, base overlap and a path through a model are
+- **Unit coherency is judged on a move answer:** a move answer that takes a unit in coherency out of it is `move_coherency` (`GfMoves.CoherencyBreach`, p.7 with p.11's 3" at different elevation); a hand move or a placement is not judged for it. The 1-inch separation, base overlap and a path through a model are
   judged by `GfMoves.ContactBreach` and `OverlapBreach` under the enforcement setting; `MoveRegion.Separation` and
   `PassesModels` carry the Ask's terms (Separation 1 except the Charge move, close-in, consolidation and an Aircraft's
   move (move step, forced move, reposition); PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask;

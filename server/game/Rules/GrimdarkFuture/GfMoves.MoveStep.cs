@@ -30,6 +30,11 @@ public static partial class GfMoves
             var allowance = (target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
                 ? StatReader.ActionDistance(ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Party.Whole(ctx.State, target), AttackKind.Melee, GfNames.Charge, null, [])), Side.Attacker, action)
                 : own) + (aircraft ? GfNames.AircraftMove : 0);
+            // A once grant read here acts when the unit moves, where the segment spends it: listed as applied there, not on every run of the step
+            // (a window, a dangerous test, a segment that went nowhere and keeps it).
+            var granted = live.GrantsRead.Select(r => ctx.Projection.Units.GetValueOrDefault(r.UnitId)?.Grants.FirstOrDefault(g => g.Id == r.GrantId)?.EntryName)
+                .OfType<string>().Distinct().ToList();
+            foreach (var name in granted) ctx.Applied.Remove(name);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
             var strider = rules.IgnoresDifficult;
             if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
@@ -59,7 +64,8 @@ public static partial class GfMoves
                     var stoppable = !aircraft && ctx.Rules.ReactionsAt(ctx.State, ctx.Properties, GfNames.BeforeAttacking, ctx.Frame).Any(r => r.TeamId == ctx.ActorTeam);
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
-                            ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain), allowPass: !aircraft)]);
+                            ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
+                            ContactWith(ctx, target)), allowPass: !aircraft)]);
                 case 0:
                 {
                     var answered = ctx.History.LastClosed("move")!;
@@ -76,6 +82,7 @@ public static partial class GfMoves
                     {
                         var (spent, held) = ConsumeKeepingFlying(live);
                         changes.AddRange(spent);
+                        foreach (var name in granted) ctx.Applied.Add(name);
                         foreach (var (key, value) in held) values[key] = value;
                     }
                     return new Complete(changes, values, Repeat: true);
@@ -93,6 +100,12 @@ public static partial class GfMoves
                     return new Complete([], new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }, Repeat: reacted || stopped);
             }
         }
+
+        /// <summary>p.9 Charge moves: the charge target's models on the table, which ChargeContactBreach holds the charge to reach; null for every other move.</summary>
+        static IReadOnlyList<Guid>? ContactWith(StepContext ctx, Guid target) =>
+            target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
+                ? Lookup.LivingModels(ctx.State, target).Where(m => ctx.Projection.Models[m].Location is OnTable).ToList()
+                : null;
 
         /// <summary>A stop's relocation that leaves a model on the table where it stands, facing as it faces: no part of a move.</summary>
         static bool Unmoved(StepContext ctx, ModelRelocation m) =>

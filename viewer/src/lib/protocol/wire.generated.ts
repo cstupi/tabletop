@@ -431,6 +431,7 @@ export interface MoveRegion {
   readonly separation?: number;
   readonly passesModels: boolean;
   readonly ignoresTerrain: boolean;
+  readonly contactWith?: readonly string[];
 }
 
 export interface MoveSetupMarker {

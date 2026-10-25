@@ -43,6 +43,14 @@ public class PiecePickTests
     }
 
     [Fact]
+    public void A_fixed_count_reads_without_a_range()
+    {
+        var pick = new PiecePick(new PieceSelection([A, B, C], 2, 2), [A, B, C]);
+        Assert.Equal("0 of 2", pick.Count(NamesOf()));
+        Assert.Equal("0 of 1", new PiecePick(new PieceSelection([A, B], 1, 1), [A, B]).Count(NamesOf()));
+    }
+
+    [Fact]
     public void One_pick_at_max_one_counts_as_its_name()
     {
         var names = NamesOf();

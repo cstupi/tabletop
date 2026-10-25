@@ -137,8 +137,9 @@ volumes)` is how many of a unit's models an attacker can see, one boolean per mo
 is per model, and the threshold is `GameRules`'. p.11's *"majority of models in a unit"* is one
 majority over the models that pass either test: strictly more than half of a unit's models must
 be inside cover terrain, behind a sight blocker, or unseen. A screened model counts: its sight
-line is clear but passes another unit or a blocking volume, and p.11 makes other units sight
-blockers that provide cover. The +1 to Defense is the ruleset's too.
+line is clear but passes another unit, a blocking volume, or cover terrain that does not block sight
+and that neither model stands in (a wall or fence, a barricade: p.11 *"Terrain features that models
+can hide in or behind"*), and p.11 makes other units sight blockers that provide cover. The +1 to Defense is the ruleset's too.
 
 **What geometry answers about the other declarations.** `Movement.Region` and
 `Movement.Check` read impassable and difficult from the volumes the server names.

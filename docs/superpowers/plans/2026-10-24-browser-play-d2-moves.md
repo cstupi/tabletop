@@ -27,7 +27,7 @@ B's `Contacts.Of`), `Violations.cs`, `MoveRuler.cs` (`Read`, `Gate`, `UsedInFram
 ## Findings that shape the plan
 
 - **No reach outline, by the spec.** `MoveRegions` (`Outline`, `Clamp`, `Route`, `Allowance`, `Minimum`) is not ported and B
-  exports no `Movement.Region`. So a target is not clamped to its reach, the ruler is straight (start centre to landing, GF p.7's
+  exports no `Movement.Region`. So a target is held to the allowance only on the straight line from its origin (`clampToReach`), the ruler is straight (start centre to landing, GF p.7's
   displacement, `MoveRuler.Read(start, current, …)`), the allowance is the Ask's (`MoveRegion.allowance`, already what the
   segment has left), the minimum is the Ask's `minDistance`, and the difficult cap is the server's to judge.
 - **The disembark region is not ported either** (`MoveRuler.ExitRegion`, `ExitYawAt` sweep `Movement.Check` and
