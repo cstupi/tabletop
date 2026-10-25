@@ -83,7 +83,7 @@
   // page's: they outlive a box, and each change of them redraws the board through `version`.
   let version = $state(0);
   const bump = (): void => { version++; };
-  const violations = new Violations();
+  const violations = new Violations((id) => connection.state.projection?.models.get(id)?.slot.name ?? null);   // the box names the model, as the server does
   const drops = new PendingDrops();
   const locks = new MarkerLocks();
   const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops });
