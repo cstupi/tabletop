@@ -1575,7 +1575,7 @@ every type in the tree stays immutable. Nothing enforces that.
 ### Left to break
 
 - **Base overlap, an Impassable Solid and a path through a model are prevented by the client's drag and judged by the
-  server; coherency is not judged** (`architecture.md` → Rules enforcement). `Overlap.Bases` returns a bool the server's
+  server; a move answer's coherency is judged by the server (`move_coherency`)** (`architecture.md` → Rules enforcement). `Overlap.Bases` returns a bool the server's
   `move_overlap` breach reads.
 - **Nothing recorded is an invariant.** A dead model can stand on the table, a unit that has moved
   can move again, a score can be any integer, `Transport(X)` capacity is not checked and a building's

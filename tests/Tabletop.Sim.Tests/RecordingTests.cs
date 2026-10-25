@@ -228,6 +228,8 @@ public class RecordingTests
         Assert.Equal("Game ended: over; Team 1 won", Line(c.TeamIds[0]));
         Assert.Equal("Game ended: over; tied between Team 1, Team 2", Line(c.TeamIds[0], c.TeamIds[1]));
         Assert.Equal("Game ended: over", Line());
+        Assert.Equal("Game ended: Markers held: Team 1: 0, Team 2: 0; tied between Team 1, Team 2",
+            Recording.LogLines.Of(new GameEvent(9, null, new GameEnded("Markers held: Team 1: 0, Team 2: 0.", [c.TeamIds[0], c.TeamIds[1]]), null), after, ordinals));
     }
 
     [Fact]

@@ -584,7 +584,7 @@ implemented: *can fit* is undefined in the book, and testing it would need a rul
 this library cannot make. Applying the allowance unconditionally is safe because the precondition
 only ever widens the allowance
 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)), and
-coherency is not judged: `Coherency.Check` has no production caller. The
+the server judges coherency on a move answer with `Coherency.Check(models, 1, 3, 9)` (`move_coherency`). The
 spread stays at one distance: p.7's 9" has no elevation clause.
 
 ### 11. The slab
@@ -979,8 +979,9 @@ account), so a model crossing above a model on a lower level neither moves throu
 more above it, comes within 1" of it. It warns under `warn` and refuses only under `strict`. Every placement the
 server appends is rested (`Battlefield.Settle` → `Collision.RestNear`, nearest the Z sent), so no stored model is
 inside a Solid and `Overlap.WithSolid` has no production caller; crossing or landing on an
-Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is not judged:
-`Coherency.Check` has no production caller. Its two hazards: `OutOfCoherency` holds
+Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is judged on a move answer
+(`GfMoves.CoherencyBreach`, `move_coherency`: a unit in coherency before that is out of it after), and `UnitFormation` forms a unit up
+in contact and coherency for the charge's `charge_contact` and the simulator. `Coherency.Check`'s two hazards: `OutOfCoherency` holds
 **positional indices**, so the caller must pass models in a stable order and zip the result
 back itself. And the spread test flags both ends of an over-long chain rather than naming the
 model to move.
@@ -1071,7 +1072,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | An unknown `BaseShape` or `FootprintKind` | `ArgumentOutOfRangeException` from the switch's default arm | Yes |
 | An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.shape` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
-| Base overlap, a path through a model, a model off the slab, broken coherency | The client's drag slides a body clear of other bases and Impassable Solids (Alt overrides); the server judges a move answer's overlap, path, separation and slab (`move_overlap`, `move_through_models`, `move_separation`, `move_off_table`) under the enforcement setting, and a hand placement's overlap only (`PlacementBreach`); coherency is not judged (`Coherency.Check` has no production caller) | Yes |
+| Base overlap, a path through a model, a model off the slab, broken coherency | The client's drag slides a body clear of other bases and Impassable Solids (Alt overrides); the server judges a move answer's overlap, path, separation, slab and coherency (`move_overlap`, `move_through_models`, `move_separation`, `move_off_table`, `move_coherency`) under the enforcement setting, and a hand placement's overlap only (`PlacementBreach`) | Yes |
 | A move whose straight line crosses something it may not, but which a path round it reaches | Judged along the shortest legal path (`Movement.Check`); the answer carries the destination only, and each side computes the same path (`movement.md`) | Yes |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |

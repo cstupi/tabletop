@@ -41,7 +41,7 @@ public static class LogLines
         RoundEnded r => $"Round {r.Round} ended",
         ObjectiveControlSet { TeamId: { } team } o => $"{Marker(after, o.MarkerId)} to {Team(ordinals, team)}",
         ObjectiveControlSet o => $"{Marker(after, o.MarkerId)} neutral",
-        GameEnded g => $"Game ended: {g.Reason}{Result(ordinals, g.Winners)}",
+        GameEnded g => $"Game ended: {(g.Winners.Count == 0 ? g.Reason : g.Reason.TrimEnd('.'))}{Result(ordinals, g.Winners)}",   // no ".;" when a result follows
         _ => EventKinds.Of(e.Payload),
     };
 

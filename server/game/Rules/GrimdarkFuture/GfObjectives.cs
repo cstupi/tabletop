@@ -61,9 +61,9 @@ public static class GfObjectives
         return held.Where(h => h.Count == most).Select(h => h.Team.Id).ToList();
     }
 
-    /// <summary>"Markers held: team 1: 2, team 2: 1." Teams by ordinal: the server holds no team names.</summary>
+    /// <summary>"Markers held: Team 1: 2, Team 2: 1." Teams by ordinal: the server holds no team names.</summary>
     public static string Standing(GameState state) =>
-        $"Markers held: {string.Join(", ", Held(state).Select(h => $"team {h.Team.Ordinal}: {h.Count}"))}.";
+        $"Markers held: {string.Join(", ", Held(state).Select(h => $"Team {h.Team.Ordinal}: {h.Count}"))}.";
 
     static IReadOnlyList<(Team Team, int Count)> Held(GameState state)
     {

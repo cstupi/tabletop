@@ -82,7 +82,7 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'round_ended': return `Round ${e.round} ended`;
     case 'objective_control_set':
       return e.teamId === undefined ? `${marker(after, e.markerId)} neutral` : `${marker(after, e.markerId)} to ${team(ordinals, e.teamId)}`;
-    case 'game_ended': return `Game ended: ${e.reason}${result(ordinals, e.winners)}`;
+    case 'game_ended': return `Game ended: ${e.winners.length === 0 ? e.reason : e.reason.replace(/\.+$/, '')}${result(ordinals, e.winners)}`;   // no ".;" when a result follows
     default: { const unreachable: never = e; return (unreachable as { kind: string }).kind; }
   }
 }

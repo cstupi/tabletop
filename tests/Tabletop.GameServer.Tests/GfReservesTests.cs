@@ -21,6 +21,10 @@ public class GfReservesTests
     static Destinations Ring(Unit unit, double x, double y, double r) =>
         new(unit.Models.Select((m, i) => new ModelRelocation(m.Id, new OnShelf(), new OnTable(new Placement(new Point3(x + r * Math.Cos(i * 2 * Math.PI / unit.Models.Count), y + r * Math.Sin(i * 2 * Math.PI / unit.Models.Count), 0), new Yaw(0))))).ToList());
 
+    /// <summary>The unit in a row from (x, y), 1.5" between centres: in coherency.</summary>
+    static Destinations Row(Unit unit, double x, double y) =>
+        new(unit.Models.Select((m, i) => new ModelRelocation(m.Id, new OnShelf(), new OnTable(new Placement(new Point3(x + 1.5 * i, y, 0), new Yaw(0))))).ToList());
+
     static IReadOnlyList<AskOption> Offered(Sim sim) => sim.AskForOrNull(Samples.Team1) is { Question: AskQuestions.React, Legal: Options o } ? o.Choices : [];
 
     [Fact]
@@ -39,8 +43,8 @@ public class GfReservesTests
         var region = Assert.IsType<MoveRegion>(ask.Legal);
         Assert.Equal((lord.Models[0].Id, 6.0), (region.Containment!.ExitingId!.Value, region.Containment.ExitWithin!.Value));
         Assert.NotNull(GrimdarkFutureRules.Instance.AnswerBreach(sim.State, ask, Ring(swarm, 30, 24, 9)));            // beyond 6"
-        Assert.Null(GrimdarkFutureRules.Instance.AnswerBreach(sim.State, ask, Ring(swarm, 30, 24, 3.5)));
-        sim.Answer(Samples.Team1, Ring(swarm, 30, 24, 3.5));
+        Assert.Null(GrimdarkFutureRules.Instance.AnswerBreach(sim.State, ask, Row(swarm, 32.3, 24)));   // over 1" from the Lord, in coherency (p.7)
+        sim.Answer(Samples.Team1, Row(swarm, 32.3, 24));
         Assert.All(swarm.Models, m => Assert.IsType<OnTable>(sim.Model(m.Id).Location));
         Assert.Contains("Spawn", Applied(sim, "place"));
         Assert.Empty(GfReserves.SpawnOffers(sim.State, lord.Id));                                                     // "Once per game"

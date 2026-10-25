@@ -229,7 +229,7 @@ What the suite does not check or report today.
 - **Fired is generous for suppressors.** `LiveProperties.ReadRemoved` (`server/game/Effects/LiveProperties.cs:59`) records a
   suppressor in `Applied` whenever a property it removed had an effect of the kind read, without checking that removed row's
   conditions. A suppressor can read as fired where the removed effect would not have applied.
-- **Core clauses no game checks:** p.7 coherency and the 1" separation from enemy models; p.9 base contact and which models can
+- **Core clauses no game checks:** p.7 coherency (judged on every move answer, `move_coherency`) and the 1" separation from enemy models; p.9 base contact (`charge_contact`) and which models can
   strike; p.8 which models can shoot; p.11 impassable and elevated terrain; a unit activated in dangerous terrain; morale for a
   single model by its Tough.
 - **The exit code cannot gate CI.** `SuiteReport.Passed` (`sim/Suite/SuiteRunner.cs`) is false whenever a pinned game fails, so a

@@ -131,12 +131,12 @@ public class ObjectivesTests
         var placed = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10, 10, 0), new Yaw(0), 2, "B", VisualRef.OfBuiltin("objective-ring"));
         Apply(s, new MarkerPlaced(placed));
         Assert.Equal([Samples.Team1, Samples.Team2], GfObjectives.Winners(s));               // nobody holds anything: every team at none
-        Assert.Equal("Markers held: team 1: 0, team 2: 0.", GfObjectives.Standing(s));
+        Assert.Equal("Markers held: Team 1: 0, Team 2: 0.", GfObjectives.Standing(s));
         Apply(s, new ObjectiveControlSet(Objective(s), Samples.Team2));
         Assert.Equal([Samples.Team2], GfObjectives.Winners(s));
         Apply(s, new ObjectiveControlSet(placed.Id, Samples.Team1));
         Assert.Equal([Samples.Team1, Samples.Team2], GfObjectives.Winners(s));
-        Assert.Equal("Markers held: team 1: 1, team 2: 1.", GfObjectives.Standing(s));
+        Assert.Equal("Markers held: Team 1: 1, Team 2: 1.", GfObjectives.Standing(s));
     }
 
     static SchedulerHarness Seizing(Enforcement enforcement = Enforcement.Warn, bool judge = false)
@@ -215,7 +215,7 @@ public class ObjectivesTests
         Assert.Equal(["ask_answered", "ask_closed", "round_ended", "game_ended"], h.Kinds(seq));
         var end = Assert.IsType<GameEnded>(h.Log[^1].Payload);
         Assert.Equal([h.Teams[0]], end.Winners);
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", end.Reason);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: Team 1: 1, Team 2: 0.", end.Reason);
     }
 
     [Fact]
@@ -232,10 +232,10 @@ public class ObjectivesTests
         var h = Seizing(Enforcement.Warn, judge: true);
         OntoTheObjective(h);
         for (var r = 0; r < 4; r++) { PlayTurns(h); h.EndRound(); }
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", h.Open.Prompt);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: Team 1: 1, Team 2: 0.", h.Open.Prompt);
         h.Answer(0, new Chosen(GameOverChoices.Continue)); h.Answer(1, new Chosen(GameOverChoices.Continue));
         var fifth = h.Log.Last(e => e.Payload is RoundStarted);
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", fifth.Warning);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: Team 1: 1, Team 2: 0.", fifth.Warning);
         Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
         Assert.Equal(h.Teams[0], Assert.Single(h.P.Control).Value);
     }

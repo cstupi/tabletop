@@ -84,7 +84,10 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   against every impassable volume, which a Flying unit's Ask does not list, unless the region `IgnoresTerrain`: an Aircraft, p.13), `difficult_cap`
   (`GfMoves.DifficultCapBreach`: p.11 holds every model of a `MoveRegion` to its `DifficultCap` once any model's path, or an earlier segment of the
   move, enters difficult ground), `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13) and p.7's contact clauses
-  (`GfMoves.ContactBreach`: `move_overlap` on a base, `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`). All read the
+  (`GfMoves.ContactBreach`: `move_overlap` on a base, `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`),
+  then p.7's `move_coherency` (`GfMoves.CoherencyBreach`: a unit in coherency before the answer and out of it after, `Coherency.Check(1, 3, 9)`),
+  then p.9's `charge_contact` (`GfMoves.ChargeContactBreach`: a charge move, or its pass, that leaves no charging model within `GfNames.BaseContactSlack` of a
+  `MoveRegion.ContactWith` model when the unit could reach contact in coherency: `UnitFormation.InContact` over the Ask's own parameters). All read the
   answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.
   Each move is judged along the shortest path its base can take (`Movement.Check`, `GfMoves.Route`; p.5): round the impassable volumes the Ask lists and
   the models the answer does not move, and round difficult and dangerous ground when that fits the allowance, so a Rush round a wood is not capped;

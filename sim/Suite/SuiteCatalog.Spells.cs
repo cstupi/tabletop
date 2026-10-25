@@ -68,6 +68,10 @@ public static partial class SuiteCatalog
                 BlueAction: j => j == 1 ? "Advance" : "Rush"),
             // Cursed Stride first, at target unit 1 (the default enemy target).
             ["7o6om21wxlvvy3hq"] = new(First: ["Cursed Stride"]),
+            // Psychic Terror ("Pick one enemy unit within 6"") first: unit 1's lane is the one nearest target unit 1's.
+            ["78qp9l5alslt6yj8"] = new(First: ["Psychic Terror"]),
+            ["rvvb3kdn2x2pqkki"] = new(First: ["Psychic Terror"]),
+            ["xp5zwh73lg1uaym4"] = new(First: ["Psychic Terror"]),
             // Every spare token on the roll (+3 to +5), so an unmodified 1 is lifted to 4+ and the natural casting die check has a case.
             ["z65fgu0l29i4lnlu"] = new(Bonus: 6),
         };
