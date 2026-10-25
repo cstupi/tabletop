@@ -611,6 +611,30 @@ the scrubber, the caption and the speed. Space plays and pauses, the arrows step
 page it loads the geometry for the zones, so it lives in `replay/`, outside the playback modules `geometry.lazy.test.ts` checks.
 `PlaybackView` stays the developer Watch tab.
 
+### The game page: lobby and setup
+
+`GamePage` puts a header strip over every state: back to the games, the game's name and status chip, the connection while it is
+not connected, Leave game (lobby and setup, not for a watcher), and in setup the creator's **End setup** (`endSetupText`, counting
+off-slab pieces) or, for everyone else, what they wait for (`header.ts`). The play spec (`2026-10-25-play-ui-design.md`) settles the
+layouts.
+
+The lobby (`LobbyPage`) fills the window: the teams scroll on the left, the Game panel stays whole on the right. A team card
+(`TeamCards`, models from `lobbyPage.ts`) lists its players with their armies, my army picker on a team I hold, and my one team
+action (Join team, Leave team, or held by another account, with LobbyView's reason as its title); the creator gets a placing control
+on every player; the players without a team have a card of their own with Watch instead. The Game panel is the creator's form
+(name, activation, enforcement with what it does, the optional rules and their preset); Apply changes and Undo appear only while
+the form differs from the game (`configChanged`), and **Start setup** is the primary action at its foot, disabled until they are
+applied. Everyone else sees the settings in words (`settingsSummary`) and who they wait for (`waitingFor`, naming the creator).
+
+Setup (`SetupPage`) is a grid: the tools sidebar (18rem), the board, and the selected piece's card (20rem) when a terrain piece or
+marker is selected, an overlay drawer below 70rem. `SetupTools` holds collapsible sections: Table (size, surface), Terrain (a search
+box over the catalog, grouped by what a piece does: blocks line of sight, impassable, dangerous, cover, difficult, open ground, in
+that order; a click adds the piece beside the table; Your library loads the account's terrain into the same list; Clear terrain),
+Markers, Deployment zones (rulebook style names, swap two teams' zones), Layouts (predefined, a random table by planet, the
+account's own, Save) and Players (the team cards in one column: lobby edits stay open in setup). A refusal shows as a banner over
+the top of the board. Ids never show: textures, zone styles, meshes and declarations are named in words (`terrainGroups.ts`,
+`DECLARATION_WORDS`).
+
 ## Key decisions
 
 **(plan)** marks a decision stated in the plan and in no spec.
@@ -671,10 +695,10 @@ page it loads the geometry for the zones, so it lives in `replay/`, outside the 
 | `live/management.ts` | `class ManagementError` with `status`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
 | `hosted/hosted.ts` | `WEB_SESSION_KEY`, `type ViewerConfig`, `configOf(env, location)`, `readWebSession`, `writeWebSession`, `rolesOf`, `type Access`, `accessOf`, `signInHref`, `hostedSession(storage, refresh)` |
 | `connection/gameConnection.ts` | `connectGame(options): GameConnection`: the participant socket (sends, refusals, queue of 16, reconnect, `Reauth`, resync) |
-| `game/` | `GamePage.svelte`, `sendEdit`, `Confirm.svelte` |
+| `game/` | `GamePage.svelte` (the header strip over the lobby, setup or play), `header` (`headerOf`: the strip's title, status, connection, Leave, End setup or the wait), `sendEdit`, `Confirm.svelte` |
 | `play/` | ports of Godot core files, one module each (`names`, `logText`, `ruleTexts`, `spellText`, `askView`, `headerView`, `waiting`, `decisionView`, `deployView`, `targetAssignment`, `casualtyPick`, `sealedReveals`, `gameOverView`), `settings`, `scene` (`sceneOfPlay`), `keys`, `decisionBox` (`DecisionBox`: the controller, `DecisionPanel`, `MoveHooks`), the moves (`contactCheck`, `violations`, `moveRuler`, `commitHold`, `ghostStash`, `formation`, `pendingDrops`, `markerLocks`, `modelDrag`, `handMove`, `moveOverlays`, `playDrag`), the combat log and card (`combatLog`, `undo`, `unitCard`, `selectionView`, `hoverView`, `enemyStrip`), around the board (`rosterView`, `rollOffBanners`, `headerText`, `rangeRings`, `sightKey`, `sightSummary`, `sightCheck`, `menuModel`, `menus`), `PlayPage.svelte`, `DecisionBox.svelte`, `GameOverModal.svelte`, `InfoColumn.svelte`, `HeaderBar.svelte`, `Roster.svelte`, `Banner.svelte`, `PieceMenu.svelte`, `WaitingPanel.svelte` |
-| `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `LobbyPanel.svelte` |
-| `setup/` | `catalog`, `limits`, `edits`, `terrainCard`, `layouts`, `SetupDrag` (`drag.ts`), `SetupPage.svelte`, `SetupToolbar.svelte`, `TerrainCard.svelte`, `PieceMenu.svelte`, `LayoutsSection.svelte` |
+| `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `lobbyPage` (`teamCards`, `unassigned`, `settingsSummary`, `configChanged`, `waitingFor`, `creatorName`, the activation and enforcement words), `LobbyPage.svelte`, `TeamCards.svelte` |
+| `setup/` | `catalog`, `limits`, `edits`, `terrainCard`, `layouts`, `terrainGroups` (`terrainGroups`, `matches`, `terrainSummary`, `textureLabel`, `zoneStyleLabel`), `SetupDrag` (`drag.ts`), `SetupPage.svelte`, `SetupTools.svelte`, `TerrainCard.svelte`, `PieceMenu.svelte`, `LayoutsSection.svelte` |
 | `board/table.ts` | `sceneOfTable(TableState, zones, name): Scene`, `extentOf`, `pieceOutlines`, `ghostOverlay` |
 | `components/` | `Board.svelte`, `Timeline.svelte`, `LogPanel.svelte`, `AskPanel.svelte`, `RollPanel.svelte`, `SourcePicker.svelte`, `Scoreboard.svelte` |
 
@@ -981,6 +1005,7 @@ needs a build of `sim/` and `libs/Tabletop.Protocol`.
 | Vitest, hosted build | `hosted.test.ts` | the two configs (socket from the page origin, no runner); reading and writing back `tabletop.session`, a blocked store; roles as a list or one id; admin, not admin, signed out; the sign-in link; a refreshed token judged and stored, a refused refresh signed out, a 429, 5xx or network failure passed on |
 | Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the reroll, edit and modifier no-ops, undo by rebuild, `ProjectionDesyncError` on an unknown unit, model, marker or Ask id; then every frame of two real recordings, field for field, and the shared desync case |
 | xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order and the absence of `AtRest`; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces, and their events replayed through the C# `FrameProjector` reproduce the recorded board and every frame; the C# applier throws `ProjectionDesyncException` on the event the TypeScript one throws on |
+| Vitest, e2e (`TABLETOP_E2E=1`) | `tests/e2e/*.e2e.test.ts` | lobby to playing and a whole round on the running stack; each suite signs in fixed accounts (`viewer-e2e-<label>-<seat>`), sweeps what they made before it starts, and deletes its games, armies and layout in `finally` |
 | By hand | the page | the board, the zones, the terrain declarations, the team colours, the facing ticks, the scoreboard, play, step, scrub, and a live game watched while `sim/` plays it |
 
 **Nothing needs Docker.** `sim/`'s in-process driver has no Postgres, so the fixture writer runs a
@@ -1052,6 +1077,7 @@ threshold for the same reason.
 | --- | --- |
 | [`2026-09-06-simulation-design.md`](../../superpowers/specs/2026-09-06-simulation-design.md) | primary: the recording as a projection per event, `viewer/` as a fifth deliverable separate from `web/`, the two feeds, interactive debugging as a door, what is tested |
 | [`2026-10-09-admin-watch-design.md`](../../superpowers/specs/2026-10-09-admin-watch-design.md) | the viewer as an admin tool: one login, the game list, watching any game as an admin watcher |
+| [`2026-10-25-play-ui-design.md`](../../superpowers/specs/2026-10-25-play-ui-design.md) | the page layouts (games, lobby, setup, play, replay), the site's classes and tokens, one primary action per state, words not ids |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | a participant with no team is a spectator |
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | a participant with no team is never addressed by an Ask, which is what a spectator is |
 | [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed seven terrain declarations the palette colours |

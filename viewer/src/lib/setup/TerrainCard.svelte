@@ -14,19 +14,20 @@
   import { NOTES } from './limits';
   import { DECLARATION_WORDS, markerCardOf, terrainCardOf } from './terrainCard';
   import { declarationsOf } from '../live/project';
+  import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
-  let { draft, catalog, geometry, api, selected, send, report }: {
+  let { draft, catalog, geometry, api, selected, send, report, onClose }: {
     draft: TableState; catalog: Catalog; geometry: Geometry; api: Api; selected: string | null;
-    send: (edit: Edit) => Promise<void>; report: (text: string | null) => void;
+    send: (edit: Edit) => Promise<void>; report: (text: string | null) => void; onClose: () => void;
   } = $props();
 
   const card = $derived(terrainCardOf(draft, 'setup', selected, catalog));
   const marker = $derived(markerCardOf(draft, 'setup', selected));
   const piece = $derived(card === null ? undefined : draft.terrain.find((t) => t.id === card.pieceId));
-  const names = $derived([...catalog.terrain.keys()].sort());
+  const meshes = $derived([...catalog.terrain.values()].sort((a, b) => a.label.localeCompare(b.label)));
 
   let swap = $state('');
-  $effect(() => { swap = piece?.mesh.builtin !== undefined && names.includes(piece.mesh.builtin) ? piece.mesh.builtin : names[0] ?? ''; });
+  $effect(() => { swap = piece?.mesh.builtin !== undefined && catalog.terrain.has(piece.mesh.builtin) ? piece.mesh.builtin : meshes[0]?.id ?? ''; });
   let assets: AssetDto[] | null = $state(null);
   let asset = $state('');
 
@@ -39,7 +40,7 @@
     report(null);
     try {
       const list = await api.terrainAssets();
-      if (list.length === 0) { report('No terrain in your library; upload some in the web app.'); return; }
+      if (list.length === 0) { report('Your library has no terrain yet: upload some on the website\'s Library page.'); return; }
       assets = list;
       asset = list[0]!.id;
     } catch (e) { report((e as Error).message); }
@@ -63,81 +64,125 @@
 
 {#if card !== null && piece !== undefined}
   <section class="card" aria-label="Terrain card">
-    <p><strong>{card.name}</strong></p>
-    <p class="muted">{card.source}</p>
-    {#if card.height !== ''}<p>Height {card.height}</p>{/if}
-
-    <div class="flow">
-      <span>Facing</span>
-      <input type="number" min="0" max="359" step="1" value={card.facing} title="Degrees counter-clockwise from above" onchange={(e) => turnTo(num(e))} />°
-      <button onclick={() => turnTo(piece.yaw.degrees + TERRAIN_TURN)}>⟲ {TERRAIN_TURN}°</button>
-      <button onclick={() => turnTo(piece.yaw.degrees - TERRAIN_TURN)}>⟳ {TERRAIN_TURN}°</button>
-    </div>
-    <div class="flow">
-      <span>Scale</span>
-      ×<input type="number" min={SCALE_MIN} max={SCALE_MAX} step={SCALE_STEP} value={piece.scale}
-        onchange={(e) => send({ kind: 'scale_terrain', placementId: piece.id, scale: num(e) })} />
-    </div>
-    <div class="flow">
-      <select aria-label="Mesh" bind:value={swap}>{#each names as n (n)}<option value={n}>{n}</option>{/each}</select>
-      <button onclick={() => send({ kind: 'swap_terrain_mesh', placementId: piece.id, mesh: { builtin: swap } })}>Swap mesh (keeps volumes)</button>
-    </div>
-    <div class="flow">
-      <button onclick={swapForAsset}>Swap for my asset…</button>
-      <button onclick={resetVolumes}>Reset volumes</button>
-      <button onclick={() => send({ kind: 'remove_terrain', placementId: piece.id })}>Remove</button>
-    </div>
-    {#if assets !== null}
-      <div class="flow">
-        <select aria-label="My terrain" bind:value={asset}>{#each assets as a (a.id)}<option value={a.id}>{a.name}</option>{/each}</select>
-        <button onclick={() => { assets = null; void send({ kind: 'swap_terrain_mesh', placementId: piece.id, mesh: { assetId: asset } }); }}>Swap</button>
-        <button onclick={() => (assets = null)}>Cancel</button>
+    <header>
+      <div class="title">
+        <h2>{card.name}</h2>
+        <span class="dim">{card.source}{card.height === '' ? '' : ` · ${card.height} high`}</span>
       </div>
-    {/if}
+      <button class="icon-btn" aria-label="Close the card" title="Close" onclick={onClose}><Icon name="close" /></button>
+    </header>
+
+    <div class="group">
+      <h3>Placement</h3>
+      <div class="grid2">
+        <label>Facing (degrees)
+          <input type="number" min="0" max="359" step="1" value={card.facing} title="Degrees counter-clockwise from above" onchange={(e) => turnTo(num(e))} />
+        </label>
+        <label>Scale
+          <input type="number" min={SCALE_MIN} max={SCALE_MAX} step={SCALE_STEP} value={piece.scale}
+            onchange={(e) => send({ kind: 'scale_terrain', placementId: piece.id, scale: num(e) })} />
+        </label>
+      </div>
+      <div class="pair">
+        <button class="small" title="Q" onclick={() => turnTo(piece.yaw.degrees + TERRAIN_TURN)}>⟲ {TERRAIN_TURN}°</button>
+        <button class="small" title="E" onclick={() => turnTo(piece.yaw.degrees - TERRAIN_TURN)}>⟳ {TERRAIN_TURN}°</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Look</h3>
+      <div class="inline">
+        <select aria-label="Mesh" bind:value={swap}>{#each meshes as m (m.id)}<option value={m.id}>{m.label}</option>{/each}</select>
+        <button class="small" title="Swap the mesh; the volumes stay" onclick={() => send({ kind: 'swap_terrain_mesh', placementId: piece.id, mesh: { builtin: swap } })}>Swap</button>
+      </div>
+      {#if assets === null}
+        <button class="quiet left" onclick={swapForAsset}>Use a mesh from your library…</button>
+      {:else}
+        <div class="inline">
+          <select aria-label="Your terrain" bind:value={asset}>{#each assets as a (a.id)}<option value={a.id}>{a.name}</option>{/each}</select>
+          <button class="small" onclick={() => { assets = null; void send({ kind: 'swap_terrain_mesh', placementId: piece.id, mesh: { assetId: asset } }); }}>Swap</button>
+          <button class="quiet" onclick={() => (assets = null)}>Cancel</button>
+        </div>
+      {/if}
+    </div>
 
     {#each piece.volumes as tv, i (tv.id)}
       {@const v = tv.volume}
       {@const shown = card.volumes[i]}
       {@const on = new Set(declarationsOf(v.declarations))}
-      <hr />
-      <p>Volume {i + 1} · {shown?.kind} · {shown?.footprint} · {shown?.heights}</p>
-      <div class="flow">
-        <select aria-label="Kind" value={v.kind} onchange={(e) => edit(tv.id, withKind(e.currentTarget.value as 'solid' | 'area'))}>
-          <option value="solid">Solid</option><option value="area">Area</option>
-        </select>
-        <span>{v.footprint.kind === 'circle' ? 'radius' : 'w×l'}</span>
-        <input type="number" min="0" max="144" step="0.25" value={v.footprint.a} onchange={(e) => edit(tv.id, withFootprint('a', num(e)))} />
-        {#if v.footprint.kind === 'rect'}
-          <input type="number" min="0" max="144" step="0.25" value={v.footprint.b} onchange={(e) => edit(tv.id, withFootprint('b', num(e)))} />
-        {/if}
+      <div class="group">
+        <h3>{piece.volumes.length === 1 ? 'Volume' : `Volume ${i + 1}`} <span class="dim sub">{shown?.footprint} · {shown?.heights}</span></h3>
+        <div class="grid2">
+          <label class="full">Kind
+            <select value={v.kind} onchange={(e) => edit(tv.id, withKind(e.currentTarget.value as 'solid' | 'area'))}>
+              <option value="solid">Solid</option><option value="area">Area</option>
+            </select>
+          </label>
+          {#if v.footprint.kind === 'circle'}
+            <label>Radius <input type="number" min="0" max="144" step="0.25" value={v.footprint.a} onchange={(e) => edit(tv.id, withFootprint('a', num(e)))} /></label>
+          {:else}
+            <label>Width <input type="number" min="0" max="144" step="0.25" value={v.footprint.a} onchange={(e) => edit(tv.id, withFootprint('a', num(e)))} /></label>
+          {/if}
+          {#if v.footprint.kind === 'rect'}
+            <label>Length <input type="number" min="0" max="144" step="0.25" value={v.footprint.b} onchange={(e) => edit(tv.id, withFootprint('b', num(e)))} /></label>
+          {/if}
+          <label>Bottom (inches) <input type="number" min="0" max="60" step="0.25" value={v.bottom} onchange={(e) => edit(tv.id, withBottom(num(e)))} /></label>
+          <label>Top (inches) <input type="number" min="0" max="60" step="0.25" value={v.top} onchange={(e) => edit(tv.id, withTop(num(e)))} /></label>
+        </div>
+        <fieldset>
+          <legend>Rules</legend>
+          {#each DECLARATION_WORDS as [name, word] (name)}
+            <label class="check"><input type="checkbox" checked={on.has(name)} onchange={(e) => edit(tv.id, withDeclaration(name, e.currentTarget.checked))} />{word}</label>
+          {/each}
+        </fieldset>
+        <label>Notes
+          <input maxlength={NOTES} value={v.notes ?? ''} placeholder="Enter saves"
+            onkeydown={(e) => { if (e.key === 'Enter') edit(tv.id, withNotes(e.currentTarget.value)); }} />
+        </label>
       </div>
-      <div class="flow">
-        <span>from</span><input type="number" min="0" max="60" step="0.25" value={v.bottom} onchange={(e) => edit(tv.id, withBottom(num(e)))} />
-        <span>to</span><input type="number" min="0" max="60" step="0.25" value={v.top} onchange={(e) => edit(tv.id, withTop(num(e)))} />
-      </div>
-      <div class="flow">
-        {#each DECLARATION_WORDS as [name, word] (name)}
-          <label><input type="checkbox" checked={on.has(name)} onchange={(e) => edit(tv.id, withDeclaration(name, e.currentTarget.checked))} /> {word}</label>
-        {/each}
-      </div>
-      <input class="notes" maxlength={NOTES} value={v.notes ?? ''} placeholder={`notes, Enter to save (at most ${NOTES} characters)`}
-        onkeydown={(e) => { if (e.key === 'Enter') edit(tv.id, withNotes(e.currentTarget.value)); }} />
     {/each}
+
+    <div class="actions-row">
+      <button class="small" onclick={resetVolumes} title="Back to the catalog's or the asset's volumes">Reset volumes</button>
+      <button class="small danger" onclick={() => send({ kind: 'remove_terrain', placementId: piece.id })}>Remove</button>
+    </div>
   </section>
 {:else if marker !== null}
   <section class="card" aria-label="Marker card">
-    <p><strong>{marker.label === null ? marker.name : `${marker.name} · ${marker.label}`}</strong></p>
-    <p>{marker.diameter}</p>
-    <button onclick={() => send({ kind: 'remove_setup_marker', markerId: marker.pieceId })}>Remove marker</button>
+    <header>
+      <div class="title">
+        <h2>{marker.label === null ? marker.name : `${marker.name}: ${marker.label}`}</h2>
+        <span class="dim">{marker.diameter}</span>
+      </div>
+      <button class="icon-btn" aria-label="Close the card" title="Close" onclick={onClose}><Icon name="close" /></button>
+    </header>
+    <div class="actions-row">
+      <button class="small danger" onclick={() => send({ kind: 'remove_setup_marker', markerId: marker.pieceId })}>Remove marker</button>
+    </div>
   </section>
 {/if}
 
 <style>
-  .card { border: 1px solid var(--line); padding: 0.4rem; margin-bottom: 0.6rem; background: var(--panel); }
-  p { margin: 0.15rem 0; }
-  .flow { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin: 0.3rem 0; }
-  input[type='number'] { width: 4.5rem; }
-  .notes { width: 100%; }
-  hr { border: 0; border-top: 1px solid var(--line); }
-  label { display: inline-flex; gap: 0.2rem; align-items: center; }
+  .card { display: flex; flex-direction: column; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s2); padding: var(--s4); border-bottom: 1px solid var(--rule); }
+  .title { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+  h2 { margin: 0; font-size: 1.05rem; color: var(--text); }
+  .title .dim { font-size: .9rem; }
+  .group { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule); }
+  h3 { margin: 0; font-size: .75rem; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-family: var(--font-body); }
+  :global([data-theme='fantasy']) h3 { font-family: var(--font-display); text-transform: none; letter-spacing: .03em; font-size: .85rem; color: var(--wood); }
+  .sub { text-transform: none; letter-spacing: 0; font-weight: normal; margin-left: var(--s1); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+  label { display: flex; flex-direction: column; gap: var(--s1); color: var(--dim); font-size: .85rem; min-width: 0; }
+  label input:not([type='checkbox']), label select { width: 100%; color: var(--text); font-size: 1rem; }
+  .full { grid-column: 1 / -1; }
+  input[type='number'] { width: 100%; }
+  .pair { display: flex; gap: var(--s2); }
+  .pair > button { flex: 1; }
+  .inline { display: flex; gap: var(--s2); align-items: center; }
+  .inline select { flex: 1; min-width: 0; }
+  .left { align-self: flex-start; }
+  fieldset { display: grid; grid-template-columns: 1fr; gap: var(--s1); padding: var(--s2) var(--s3); }
+  .check { flex-direction: row; align-items: center; gap: var(--s2); color: var(--text); font-size: .95rem; margin: 0; }
+  .actions-row { display: flex; gap: var(--s2); justify-content: space-between; padding: var(--s3) var(--s4) var(--s4); }
 </style>

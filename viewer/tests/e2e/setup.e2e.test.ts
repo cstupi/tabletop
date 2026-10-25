@@ -14,24 +14,7 @@ import { SetupDrag } from '../../src/lib/setup/drag';
 import { objective, overrideVolume, withDeclaration, zoneShapes } from '../../src/lib/setup/edits';
 import { loadEdit, randomEdit, randomRequest } from '../../src/lib/setup/layouts';
 import { loadTestGeometry } from '../geometry';
-
-const MANAGEMENT = 'http://127.0.0.1:5100';
-const SOCKET = 'ws://127.0.0.1:5200/ws';
-
-async function session(name: string): Promise<string> {
-  const response = await fetch(`${MANAGEMENT}/v1/dev/sessions`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
-  });
-  if (!response.ok) throw new Error(`dev session for ${name}: ${response.status}`);
-  return ((await response.json()) as { sessionJwt: string }).sessionJwt;
-}
-
-function waitFor(conn: GameConnection, ready: (s: ConnectionState) => boolean, what: string, ms = 10_000): Promise<ConnectionState> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { stop(); reject(new Error(`timed out waiting for ${what}`)); }, ms);
-    const stop = conn.subscribe((s) => { if (ready(s)) { clearTimeout(timer); queueMicrotask(() => stop()); resolve(s); } });
-  });
-}
+import { MANAGEMENT, SOCKET, accountName, session, sweep, waitFor } from './harness';
 
 describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playing', () => {
   let geometry: Geometry;
@@ -39,23 +22,28 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playin
   beforeAll(async () => { geometry = await loadTestGeometry(); }, 60_000);
 
   it('a game goes from lobby to playing from the browser modules', async () => {
-    const stamp = Date.now();
-    const jwts = await Promise.all([`c2-a-${stamp}`, `c2-b-${stamp}`, `c2-c-${stamp}`].map(session));
+    const jwts = await Promise.all(['a', 'b', 'c'].map((seat) => session(accountName('c2', seat))));
     const [jwtA, jwtB, jwtC] = [jwts[0]!, jwts[1]!, jwts[2]!];
     const apiA = apiOf(async () => jwtA, MANAGEMENT);
     const apiB = apiOf(async () => jwtB, MANAGEMENT);
-    catalog = await loadCatalog(apiA);
-
-    const properties = (await apiA.listProperties())[0]!;
-    const created = await apiA.createGame({
-      name: `c2 e2e ${stamp}`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation',
-      enforcement: 'warn', waitsBetweenSteps: false,
-    });
-    await apiB.joinGame(created.id);
-
-    const a = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtA });
-    const b = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtB });
+    const name = 'viewer e2e layout';
+    const removeLayouts = async () => {
+      for (const l of await apiA.listLayouts().catch(() => [])) if (l.name === name) await apiA.deleteLayout(l.id).catch(() => undefined);
+    };
+    await Promise.all([sweep(jwtA), sweep(jwtB), removeLayouts()]);
+    const conns: GameConnection[] = [];
     try {
+      catalog = await loadCatalog(apiA);
+      const properties = (await apiA.listProperties())[0]!;
+      const created = await apiA.createGame({
+        name: 'c2 e2e', propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation',
+        enforcement: 'warn', waitsBetweenSteps: false,
+      });
+      await apiB.joinGame(created.id);
+
+      const a = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtA });
+      const b = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtB });
+      conns.push(a, b);
       await Promise.all([waitFor(a, (s) => s.phase === 'connected', 'A connected'), waitFor(b, (s) => s.phase === 'connected', 'B connected')]);
 
       const sendOk = async (conn: GameConnection, edit: Edit) => expect((await conn.sendEdit(edit)).refused).toBeNull();
@@ -134,7 +122,6 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playin
       expect(random.draft!.zones.map((z) => z.shape).sort()).toEqual(['spearhead/1', 'spearhead/2']);
 
       // Save as, then delete: the list lacks it.
-      const name = `e2e-${stamp}`;
       await apiA.saveLayout({ ...a.state.draft!, name });
       const listed = await apiA.listLayouts();
       const row = listed.find((l) => l.name === name);
@@ -158,6 +145,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playin
 
       // A stranger is turned away; B's replay socket opens while B's play socket stays connected.
       const c = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtC });
+      conns.push(c);
       const closed = await waitFor(c, (s) => s.phase === 'closed', 'C closed');
       expect(closed.closeReason).toBe('You are not in that game: join it from the list.');
 
@@ -170,8 +158,8 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playin
       stop();
       feed.close();
     } finally {
-      a.close();
-      b.close();
+      for (const conn of conns) conn.close();
+      await Promise.all([sweep(jwtA), sweep(jwtB), removeLayouts()]);
     }
   }, 90_000);
 });

@@ -16,12 +16,13 @@ import { UndoPrediction, undoPlanOf } from '../../src/lib/play/undo';
 import { waitHolds } from '../../src/lib/play/waiting';
 import { refusalText } from '../../src/lib/connection/feedback';
 import type { Refused } from '../../src/lib/protocol/wire.generated';
-import { MANAGEMENT, boxOf, playerOf, playingGame, until } from './harness';
+import { boxOf, playerOf, playingGame, until } from './harness';
 import { step, type Seat } from './driver';
 
 describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, the decision box on the real server', () => {
   it('answers the Asks the server puts to each team and shows its refusals', async () => {
-    const { a, b, t1 } = await playingGame('d1');
+    const game = await playingGame('d1');
+    const { a, b, t1 } = game;
     try {
       const boxA = boxOf(a), boxB = boxOf(b);
       // Somebody is asked first; the box of the team addressed shows the Ask and the other shows who the game waits on.
@@ -51,8 +52,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, the decision bo
       expect(a.state.projection!.lastSeq).toBeGreaterThan(firstSeq);
       expect(addressed.panel.refusal).toBeNull();
     } finally {
-      a.close();
-      b.close();
+      await game.cleanup();
     }
   }, 90_000);
 });
@@ -60,7 +60,8 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, the decision bo
 describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, deployment and moves on the real server', () => {
   it('places units by dragging, commits a move and is refused an illegal one', async () => {
     const g = await loadTestGeometry();
-    const { a, b, t1, t2 } = await playingGame('d2');
+    const game = await playingGame('d2');
+    const { a, b, t1, t2 } = game;
     try {
       const players = new Map([[t1.id, playerOf(a, g)], [t2.id, playerOf(b, g)]]);
       const ordinals = new Map([[t1.id, t1.ordinal], [t2.id, t2.ordinal]]);
@@ -169,8 +170,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, deployment and 
       expect(second.box.cancel()).toBe(true);                             // Esc puts the ghosts back and clears the marks
       expect(second.violations.marked.size).toBe(0);
     } finally {
-      a.close();
-      b.close();
+      await game.cleanup();
     }
   }, 120_000);
 });
@@ -258,12 +258,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, a whole round o
       expect(headerOf(a.state.projection!, a.state.game!, new Names(a.state.game!, a.state.projection!)).round).toBe(2);
       expect(refusals.filter((r) => !deliberate.has(r.messageId)).map((r) => refusalText(r))).toEqual([]);
     } finally {
-      a.close();
-      b.close();
-      const auth = (jwt: string) => ({ authorization: `Bearer ${jwt}` });
-      await game.apiA.deleteGame(game.gameId).catch(() => undefined);
-      await Promise.all([[game.jwtA, game.armyA], [game.jwtB, game.armyB]].map(([jwt, id]) =>
-        fetch(`${MANAGEMENT}/v1/armies/${id}`, { method: 'DELETE', headers: auth(jwt!) }).catch(() => undefined)));
+      await game.cleanup();
     }
   }, 300_000);
 });

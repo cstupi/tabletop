@@ -1,9 +1,11 @@
-// What the end-to-end suites share: dev sessions, army import over the dev route, a game taken from the lobby to playing by two accounts
-// through the same modules the pages use, and a player's decision box with D2's move hooks.
+// What the end-to-end suites share: dev sessions under fixed names, army import over the dev route, the sweep that deletes what a suite's
+// accounts made, a game taken from the lobby to playing by two accounts through the same modules the pages use, and a player's decision
+// box with D2's move hooks. Every suite deletes its games and armies in `finally`, so the Open games list stays clean.
 
 import { readFileSync } from 'node:fs';
 import { expect } from 'vitest';
 import { apiOf } from '../../src/lib/api/client';
+import { listGames } from '../../src/lib/live/games';
 import { connectGame, type ConnectionState, type GameConnection } from '../../src/lib/connection/gameConnection';
 import { acting, teamsOf } from '../../src/lib/lobby/seats';
 import type { Geometry } from '../../src/lib/geometry';
@@ -34,6 +36,24 @@ export async function importArmy(jwt: string, book: string): Promise<string> {
   return ((await response.json()) as { id: string }).id;
 }
 
+export async function deleteArmy(jwt: string, id: string): Promise<void> {
+  await fetch(`${MANAGEMENT}/v1/armies/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${jwt}` } });
+}
+
+/** A fixed e2e account's name: the same account every run, so a sweep finds what an interrupted run left behind. */
+export const accountName = (label: string, seat: string): string => `viewer-e2e-${label}-${seat}`;
+
+/** Deletes every game the account created and every army it owns; errors are swallowed (cleanup never fails a test). */
+export async function sweep(jwt: string): Promise<void> {
+  try {
+    const me = ((await (await fetch(`${MANAGEMENT}/v1/account`, { headers: { authorization: `Bearer ${jwt}` } })).json()) as { id: string }).id;
+    const api = apiOf(async () => jwt, MANAGEMENT);
+    const games = await listGames(jwt, {}, MANAGEMENT);
+    await Promise.all(games.filter((g) => g.createdBy === me).map((g) => api.deleteGame(g.id).catch(() => undefined)));
+    await Promise.all((await api.listArmies()).map((a) => deleteArmy(jwt, a.id).catch(() => undefined)));
+  } catch { /* the stack is down or the account is new: nothing to sweep */ }
+}
+
 export function waitFor(conn: GameConnection, ready: (s: ConnectionState) => boolean, what: string, ms = 15_000): Promise<ConnectionState> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { stop(); reject(new Error(`timed out waiting for ${what}`)); }, ms);
@@ -60,22 +80,27 @@ export const boxOf = (conn: GameConnection, hooks: ReturnType<typeof moveHooks> 
   return box;
 };
 
-/** Two accounts take a team each in a new game and end setup: both connections are playing. */
+/** Two accounts take a team each in a new game and end setup: both connections are playing. `cleanup` closes them and deletes the game and
+ *  both armies; call it in `finally`. A failure on the way cleans up before it throws. */
 export async function playingGame(label: string, enforcement: 'strict' | 'warn' | 'silent' = 'strict', options: { layout?: boolean } = {}) {
-  const stamp = Date.now();
-  const [jwtA, jwtB] = await Promise.all([`${label}-a-${stamp}`, `${label}-b-${stamp}`].map(session)) as [string, string];
+  const [jwtA, jwtB] = await Promise.all([accountName(label, 'a'), accountName(label, 'b')].map(session)) as [string, string];
+  await Promise.all([sweep(jwtA), sweep(jwtB)]);
+  const cleanup = async () => { a?.close(); b?.close(); await Promise.all([sweep(jwtA), sweep(jwtB)]); };
   const apiA = apiOf(async () => jwtA, MANAGEMENT);
   const apiB = apiOf(async () => jwtB, MANAGEMENT);
-  const [armyA, armyB] = await Promise.all([importArmy(jwtA, BOOKS[0]!), importArmy(jwtB, BOOKS[1]!)]);
-  const properties = (await apiA.listProperties())[0]!;
-  const created = await apiA.createGame({
-    name: `${label} e2e ${stamp}`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement, waitsBetweenSteps: false,
-  });
-  await apiB.joinGame(created.id);
-  const a = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtA });
-  const b = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtB });
+  let a: GameConnection | undefined, b: GameConnection | undefined;
   let t1!: Team, t2!: Team;
+  let armyA!: string, armyB!: string, gameId!: string;
   try {
+    [armyA, armyB] = await Promise.all([importArmy(jwtA, BOOKS[0]!), importArmy(jwtB, BOOKS[1]!)]);
+    const properties = (await apiA.listProperties())[0]!;
+    const created = await apiA.createGame({
+      name: `${label} e2e`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement, waitsBetweenSteps: false,
+    });
+    gameId = created.id;
+    await apiB.joinGame(created.id);
+    a = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtA });
+    b = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwtB });
     await Promise.all([waitFor(a, (s) => s.phase === 'connected', 'A connected'), waitFor(b, (s) => s.phase === 'connected', 'B connected')]);
     const sendOk = async (conn: GameConnection, edit: Edit) => expect((await conn.sendEdit(edit)).refused).toBeNull();
     while ((a.state.game?.teams.length ?? 0) < 2) await sendOk(a, { kind: 'create_team' });
@@ -94,8 +119,8 @@ export async function playingGame(label: string, enforcement: 'strict' | 'warn' 
     }
     await sendOk(a, { kind: 'end_setup' });
     await Promise.all([waitFor(a, (s) => s.game?.status === 'playing' && s.projection !== null, 'A playing'), waitFor(b, (s) => s.game?.status === 'playing' && s.projection !== null, 'B playing')]);
-  } catch (e) { a.close(); b.close(); throw e; }
-  return { a, b, t1, t2, jwtA, jwtB, apiA, apiB, armyA, armyB, gameId: created.id };
+  } catch (e) { await cleanup(); throw e; }
+  return { a: a!, b: b!, t1, t2, jwtA, jwtB, apiA, apiB, armyA, armyB, gameId, cleanup };
 }
 
 export const until = async (what: string, cond: () => boolean, ms = 10_000) => {

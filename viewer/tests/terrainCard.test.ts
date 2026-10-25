@@ -20,7 +20,7 @@ const table = (): TableState => ({
 describe('the terrain card', () => {
   it('the card shows facing 0–359, heights and Open for no declaration', () => {
     const card = terrainCardOf(table(), 'setup', 'p1', catalog)!;
-    expect(card).toMatchObject({ name: 'Barricade', source: 'Built-in barricade', facing: 345, scale: 2, height: '1–7"' });
+    expect(card).toMatchObject({ name: 'Barricade', source: 'Built-in terrain', facing: 345, scale: 2, height: '1–7"' });
     expect(card.volumes[0]).toMatchObject({ kind: 'Solid', footprint: '6 × 2"', heights: '1–7"', declarations: ['Cover', 'Difficult'], notes: null });
     expect(card.volumes[1]).toMatchObject({ footprint: '8" across', declarations: ['Open'], notes: 'n' });
   });
@@ -34,12 +34,19 @@ describe('the terrain card', () => {
   });
 
   it('a marker card is setup only', () => {
-    expect(markerCardOf(table(), 'setup', 'm1')).toEqual({ pieceId: 'm1', name: 'Token', diameter: '1" across', label: 'token' });
+    expect(markerCardOf(table(), 'setup', 'm1')).toEqual({ pieceId: 'm1', name: 'Token', diameter: '1" across', label: null });
+    const base = table();
+    const named: TableState = { ...base, markers: [{ ...base.markers[0]!, label: 'Relic' }] };
+    expect(markerCardOf(named, 'setup', 'm1')!.label).toBe('Relic');
     expect(markerCardOf(table(), 'playing', 'm1')).toBeNull();
   });
 
   it('words, inches and facing', () => {
     expect(DECLARATION_WORDS).toHaveLength(7);
+    expect(DECLARATION_WORDS.map(([, w]) => w)).toContain('Blocks line of sight');
+    const plain = table();
+    const library: TableState = { ...plain, terrain: [{ ...plain.terrain[0]!, mesh: { assetId: '0198-abcd' } }] };
+    expect(terrainCardOf(library, 'setup', 'p1', catalog)!.source).toBe("From a player's library");
     expect(inches(2.25)).toBe('2.3');
     expect(inches(3)).toBe('3');
     expect(facingOf({ degrees: 360 })).toBe(0);

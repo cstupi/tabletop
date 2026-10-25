@@ -5,6 +5,7 @@
   import { nameProblem } from '../api/names';
   import type { ArmySummary, CreateGameRequest, Enforcement, PropertiesSummary, SchedulerShape } from '../api/types';
   import { createDefaults } from './listModel';
+  import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL } from '../lobby/lobbyPage';
 
   let { api, onCreated, onClose }: {
     api: Api;
@@ -56,50 +57,56 @@
   <form onsubmit={create}>
     <h2 id="create-title">Create game</h2>
     {#if !loaded}
-      <p class="muted">Loading rule sets and armies…</p>
+      <p class="loading" role="status">Loading rule sets and armies…</p>
     {:else}
-      <label>Game name
-        <input type="text" bind:value={name} maxlength="64" placeholder="at most 64 characters" />
+      <label>Name
+        <input type="text" bind:value={name} maxlength="64" placeholder="Friday night skirmish" />
       </label>
-      {#if name !== '' && problem !== null}<p class="warn" role="alert">{problem}</p>{/if}
-      <label>Rule set
-        <select bind:value={hash}>
-          {#each packs as pack (pack.contentHash)}<option value={pack.contentHash}>{pack.name} ({pack.gameRules})</option>{/each}
-        </select>
-      </label>
-      <label>Activation
-        <select bind:value={shape}>
-          <option value="alternating-activation">Alternating activation</option>
-          <option value="player-turn">Player turn</option>
-        </select>
-      </label>
-      <label>Enforcement
-        <select bind:value={enforcement}>
-          <option value="silent">Silent</option><option value="warn">Warn</option><option value="strict">Strict</option>
-        </select>
-      </label>
-      <label>Army
+      {#if name !== '' && problem !== null}<small class="warn">{problem}</small>{/if}
+      {#if packs.length > 1}
+        <label>Rule set
+          <select bind:value={hash}>
+            {#each packs as pack (pack.contentHash)}<option value={pack.contentHash}>{pack.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
+      <div class="two">
+        <label>Activation
+          <select bind:value={shape}>
+            {#each Object.entries(SHAPE_LABEL) as [value, label] (value)}<option {value}>{label}</option>{/each}
+          </select>
+        </label>
+        <label>Enforcement
+          <select bind:value={enforcement}>
+            {#each Object.entries(ENFORCEMENT_LABEL) as [value, label] (value)}<option {value}>{label}</option>{/each}
+          </select>
+        </label>
+      </div>
+      <small class="dim">{ENFORCEMENT_HINT[enforcement]}</small>
+      <label>Your army
         <select bind:value={armyId}>
-          <option value="">No army (pick one in the lobby)</option>
-          {#each armies as army (army.id)}<option value={army.id}>{army.name} ({army.units} units)</option>{/each}
+          <option value="">Choose in the lobby</option>
+          {#each armies as army (army.id)}<option value={army.id}>{army.name} · {army.units} units</option>{/each}
         </select>
       </label>
-      {#if armies.length === 0}<p class="muted">You have no armies yet: import one in the web app.</p>{/if}
+      {#if armies.length === 0}<small class="dim">You have no armies yet: import one on the website's Armies page.</small>{/if}
     {/if}
-    {#if failure !== null}<p class="error" role="alert">{failure}</p>{/if}
+    {#if failure !== null}<p role="alert">{failure}</p>{/if}
     <div class="actions">
-      <button type="submit" disabled={!loaded || packs.length === 0 || problem !== null || busy}>{busy ? 'Creating…' : 'Create'}</button>
       <button type="button" onclick={() => dialog?.close()}>Cancel</button>
+      <button type="submit" class="primary" disabled={!loaded || packs.length === 0 || problem !== null || busy}>{busy ? 'Creating…' : 'Create game'}</button>
     </div>
   </form>
 </dialog>
 
 <style>
-  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); min-width: 22rem; }
-  dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
-  form { display: grid; gap: 0.5rem; }
-  h2 { margin: 0; font-size: 1.05rem; }
-  label { display: grid; gap: 0.15rem; }
-  .actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-  .warn { color: #e0a04a; }
+  dialog { width: min(30rem, calc(100vw - 2rem)); }
+  form { display: flex; flex-direction: column; gap: var(--s3); }
+  h2 { margin: 0 0 var(--s1); }
+  label { display: flex; flex-direction: column; gap: var(--s1); color: var(--dim); font-size: .95rem; }
+  label input, label select { width: 100%; color: var(--text); font-size: 1rem; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+  small { font-size: .85rem; margin-top: calc(-1 * var(--s2)); }
+  .warn { color: var(--warning); }
+  .actions { justify-content: flex-end; margin: var(--s2) 0 0; }
 </style>
