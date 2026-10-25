@@ -31,6 +31,18 @@ describe('the draft as a scene', () => {
     expect(scene.models).toEqual([]);
   });
 
+  it('zone polygons are asked once per shape and table size for the same source', () => {
+    const asked: string[] = [];
+    const zones = (shape: string, size: { width: number; length: number }) => { asked.push(`${shape} ${size.width}x${size.length}`); return [[{ x: 0, y: 0 }]]; };
+    const draft = { ...table([]), zones: [{ id: 'a', shape: 'frontline/1', teamOrdinal: 1 }, { id: 'b', shape: 'frontline/2', teamOrdinal: 2 }] };
+    const first = sceneOfTable(draft, zones, () => '');
+    const again = sceneOfTable(draft, zones, () => '');
+    expect(again.zones[0]!.polygons).toEqual(first.zones[0]!.polygons);
+    expect(asked).toEqual(['frontline/1 72x48', 'frontline/2 72x48']);
+    sceneOfTable({ ...draft, size: { width: 44, length: 30 } }, zones, () => '');
+    expect(asked).toHaveLength(4);
+  });
+
   it('declarations read from the wire string', () => {
     const scene = sceneOfTable(table([piece(10, 10, 0), piece(1, 1, 0, volume({ declarations: 'none' }))]), () => [], () => '');
     expect(scene.terrain[0]!.declarations).toEqual(['cover', 'difficult']);

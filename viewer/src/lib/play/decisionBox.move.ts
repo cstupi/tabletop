@@ -308,8 +308,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       verdict = { models: held.moved, reason: detail };
     },
     failed(_box, token) { deps.drops?.refuse(token); },
-    dragged(_box, modelId) {
-      deps.violations.moved([modelId]);                                     // a refused commit's reason lapses once its models move
+    dragged(_box, modelIds) {
+      deps.violations.moved(modelIds);                                      // a refused commit's reason lapses once its models move
       regate?.();
     },
     unhook() {

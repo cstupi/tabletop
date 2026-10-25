@@ -13,7 +13,7 @@ const geometry = {
   contacts: () => new Map(), restModel: () => 0, edgeToEdge: () => 1,
 } as unknown as Geometry;
 
-function rig(over: Parameters<typeof moveRig>[0] = {}) {
+function rig(over: Parameters<typeof moveRig>[0] & { frame?: (run: () => void) => void } = {}) {
   const r = moveRig(over);
   const sent: Command[] = [];
   let outcome: Promise<SendOutcome> = Promise.resolve({ id: 'x', refused: null });
@@ -22,6 +22,7 @@ function rig(over: Parameters<typeof moveRig>[0] = {}) {
     state: () => r.box.host.state(), box: () => r.box, hooks: () => r.hooks, geometry: () => geometry,
     violations: r.violations, drops: r.drops, locks: new MarkerLocks(),
     send: (command) => { sent.push(command); return outcome; }, select: () => {}, changed: () => { changes++; },
+    ...(over.frame !== undefined ? { frame: over.frame } : {}),
   });
   return { ...r, drags, sent, get panel() { return r.box.panel; }, setOutcome(o: Promise<SendOutcome>) { outcome = o; }, get changes() { return changes; } };
 }
@@ -88,6 +89,47 @@ describe('PlayDrags', () => {
     r.drags.onDragMove({ x: 26, y: 10 }, NO_MODIFIERS);
     r.drags.onDragCancel();
     expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 24, y: 10 });                                  // back where it was picked up
+  });
+
+  it('a landing of every held ghost regates once: one Contacts per pointer move, the gate over all of them', () => {
+    const r = rig({ squad: 4 });
+    const [a] = r.ids as [string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
+    const before = r.contactCalls.length;
+    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);
+    expect(r.contactCalls.length - before).toBe(1);
+    expect(r.reason()).toBe('4 models past their allowance.');
+    r.drags.onDragEnd({ x: 24, y: 10 }, NO_MODIFIERS);
+    expect(r.contactCalls.length - before).toBe(2);
+    r.drags.onDragStart(model(a), { x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragCancel();
+    expect(r.contactCalls.length - before).toBe(3);
+  });
+
+  it('pointer moves wait for the next frame and only the last one lands; a drop or a key takes the latest at once', () => {
+    const frames: (() => void)[] = [];
+    const r = rig({ frame: (run) => { frames.push(run); } });
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
+    const before = r.contactCalls.length;
+    r.drags.onDragMove({ x: 11, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 12, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 13, y: 11 }, NO_MODIFIERS);
+    expect(frames).toHaveLength(1);
+    expect(r.contactCalls.length).toBe(before);
+    frames.shift()!();
+    expect(r.contactCalls.length - before).toBe(1);
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 13, y: 11 });
+    r.drags.onDragMove({ x: 14, y: 12 }, NO_MODIFIERS);
+    expect(r.drags.onKey({ kind: 'turnLeft' }, false)).toBe(true);                                           // the key turns at the latest point
+    expect(r.box.ghosts.get(a)).toMatchObject({ position: { x: 14, y: 12 }, yaw: { degrees: 15 } });
+    r.drags.onDragMove({ x: 15, y: 12 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 16, y: 12 }, NO_MODIFIERS);
+    for (const run of frames.splice(0)) run();                                                               // a frame after the drop does nothing
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 16, y: 12 });
+    expect(r.drags.held).toBeNull();
   });
 
   it('Q and E turn the held models, 1 to 5 arrange them, and Enter is held off', () => {

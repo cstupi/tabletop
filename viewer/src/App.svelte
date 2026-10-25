@@ -32,6 +32,9 @@
   // The feed the Watch page plays: a recording, a live game, or a run from the Tests page.
   let watchFeed: Feed | null = $state.raw(null);
   let accountName: string | null = $state(null);
+  // The source picker lists the games (a refresh and GET /v1/games), so it mounts the first time Watch is shown, then stays.
+  let watchShown = $state(false);
+  $effect(() => { if (route.page === 'watch') watchShown = true; });
 
   $effect(() => {
     const onHash = () => { route = parseRoute(window.location.hash, home); };
@@ -87,7 +90,9 @@
   {/if}
   <!-- Watch and Tests stay mounted while hidden: leaving them must not close the feed or lose a run. -->
   <div class="watch" hidden={route.page !== 'watch'}>
-    <SourcePicker onFeed={show} onError={(m) => (error = m)} socketUrl={config.socketUrl} {auth} />
+    {#if watchShown && tabsOf(access, config.runner).includes('watch')}
+      <SourcePicker onFeed={show} onError={(m) => (error = m)} socketUrl={config.socketUrl} {auth} />
+    {/if}
     <PlaybackView feed={watchFeed} />
   </div>
   {#if config.runner}

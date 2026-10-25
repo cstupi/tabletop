@@ -98,6 +98,7 @@
       box?.unit(unit);
     },
     changed: bump,
+    frame: (run) => { requestAnimationFrame(run); },                       // one landing and one gate per frame, not per pointer move
   });
   $effect(() => {
     const conn = connection;

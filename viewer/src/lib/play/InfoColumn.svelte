@@ -15,7 +15,7 @@
   import DiceTray from './DiceTray.svelte';
   import { enemyStripOf, stripShows } from './enemyStrip';
   import EnemyStrip from './EnemyStrip.svelte';
-  import { hoverOf } from './hoverView';
+  import { HoverDistances, hoverOf } from './hoverView';
   import { hoverOverlay } from './hoverLabels';
   import { intentOf, textFocused } from './keys';
   import { Names } from './names';
@@ -60,6 +60,8 @@
   let revealRoll = $state<{ rollId: string; n: number } | null>(null);
   let undo: UndoButton | undefined = $state();
   let lastCard: UnitCardContent | null = null;
+  /** The strip's and the overlay's hover distance, kept per placements: a batch that moved neither unit asks the geometry nothing. */
+  const distances = new HoverDistances();
 
   const playing = $derived(snap.game !== null && (snap.game.status === 'playing' || snap.game.status === 'ended'));
   const watching = $derived(isWatching(snap));
@@ -88,7 +90,7 @@
     if (p === null || game === null || sheet === null || focus === null || hoveredUnit === null || !p.units.has(hoveredUnit)) return null;
     if (!stripShows(p, game, myTeam, focus, hoveredUnit)) return null;
     const names = new Names(game, p);
-    const distance = hoverOf(geometry, p, game, names, hoveredUnit, focus, snap.maxWounds)?.distance ?? null;
+    const distance = hoverOf(geometry, p, game, names, hoveredUnit, focus, snap.maxWounds, distances)?.distance ?? null;
     return enemyStripOf(sheet, unitSheetOf(p, names, hoveredUnit, rules, snap.maxWounds), distance);
   });
 
@@ -103,7 +105,7 @@
   $effect(() => {
     const p = shown, game = snap.game, hovered = hoveredUnit, sc = scene;
     if (p === null || game === null || hovered === null || sc === null || !playing) { overlay = null; return; }
-    const info = hoverOf(geometry, p, game, new Names(game, p), hovered, mySelected, snap.maxWounds);
+    const info = hoverOf(geometry, p, game, new Names(game, p), hovered, mySelected, snap.maxWounds, distances);
     if (info === null) { overlay = null; return; }
     const isEligible = eligible.has(hovered) || [...p.models.values()].some((m) => m.unitId === hovered && eligible.has(m.id));
     overlay = hoverOverlay(sc, info, isEligible);

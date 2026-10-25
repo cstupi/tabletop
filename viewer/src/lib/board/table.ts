@@ -23,6 +23,17 @@ const outlines = (piece: TerrainPlacement, at: Placement): Shape[] => piece.volu
 /** One terrain piece's outlines at a placement other than its own: the drag's ghost. */
 export const pieceOutlines = (piece: TerrainPlacement, at: Placement): Shape[] => outlines(piece, at);
 
+/** A zone's polygons are fixed by its shape and the table's size: each source is asked once per pair, not on every scene rebuild. */
+const zoneMemo = new WeakMap<ZonePolygons, Map<string, readonly (readonly Point[])[]>>();
+function zonePolygonsOf(zones: ZonePolygons, shape: string, size: TableSize): readonly (readonly Point[])[] {
+  let kept = zoneMemo.get(zones);
+  if (kept === undefined) { kept = new Map(); zoneMemo.set(zones, kept); }
+  const key = `${shape}|${size.width}|${size.length}`;
+  let polygons = kept.get(key);
+  if (polygons === undefined) { polygons = zones(shape, size); kept.set(key, polygons); }
+  return polygons;
+}
+
 /** A TableState as a Scene: terrain outlines labelled with `name`, markers, zones resolved by `zones`, no models. */
 export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piece: TerrainPlacement) => string): Scene {
   const terrain: TerrainShape[] = table.terrain.flatMap((piece) => {
@@ -38,7 +49,7 @@ export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piec
     terrain,
     zones: table.zones.map((z) => ({
       id: z.id, shape: z.shape, teamOrdinal: z.teamOrdinal,
-      polygons: zones(z.shape, table.size).map((points): Shape => ({ kind: 'polygon', points })),
+      polygons: zonePolygonsOf(zones, z.shape, table.size).map((points): Shape => ({ kind: 'polygon', points })),
     })),
     markers: table.markers.map((m) => ({
       id: m.id, kind: m.kind, label: m.label ?? m.kind, centre: { x: m.position.x, y: m.position.y }, radius: m.diameter / 2,

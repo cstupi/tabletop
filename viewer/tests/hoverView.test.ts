@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Applier } from '../src/lib/live/apply';
 import type { Geometry, PlacedModel } from '../src/lib/geometry';
-import { hoverOf } from '../src/lib/play/hoverView';
+import { HoverDistances, hoverOf } from '../src/lib/play/hoverView';
 import { Names } from '../src/lib/play/names';
 import type { EventPayload, GameInfo, ModelRelocation, ModelSlot } from '../src/lib/protocol/wire.generated';
 import { at, boardOf, ev, gameOf, newId, slotOf, unitOf } from './play';
@@ -19,9 +19,18 @@ const game: GameInfo = gameOf({ teams: [{ id: TA, ordinal: 1 }, { id: TB, ordina
 const board = boardOf([{ participantId: PA, units: [blue] }, { participantId: PB, units: [red] }, { participantId: PW, units: [loose] }]);
 
 /** Circles: the base's `a` is its diameter, as Base.Circle(1) is. */
+const edgeToEdge = (a: PlacedModel, b: PlacedModel) =>
+  Math.hypot(a.placement.position.x - b.placement.position.x, a.placement.position.y - b.placement.position.y) - (a.body.base.a + b.body.base.a) / 2;
+let nearestCalls = 0;
+/** The facade's NearestPair: the first least EdgeToEdge over the pairs, by index. */
 const geometry = {
-  edgeToEdge: (a: PlacedModel, b: PlacedModel) =>
-    Math.hypot(a.placement.position.x - b.placement.position.x, a.placement.position.y - b.placement.position.y) - (a.body.base.a + b.body.base.a) / 2,
+  edgeToEdge,
+  nearestPair: (from: readonly PlacedModel[], to: readonly PlacedModel[]) => {
+    nearestCalls++;
+    let best = { distance: Infinity, from: -1, to: -1 };
+    from.forEach((a, i) => to.forEach((b, j) => { const d = edgeToEdge(a, b); if (d < best.distance) best = { distance: d, from: i, to: j }; }));
+    return best.from < 0 ? null : best;
+  },
 } as unknown as Geometry;
 
 const put = (s: ModelSlot, x: number, y: number): ModelRelocation => ({ modelId: s.id, from: { kind: 'shelf' }, to: { kind: 'table', placement: at(x, y) } });
@@ -51,6 +60,20 @@ describe('HoverView', () => {
     const p = table();
     const info = hoverOf(geometry, p, game, new Names(game, p), red.id, blue.id, noFacts)!;
     expect(info.distance).toBeCloseTo(9.0, 6);
+  });
+
+  it('one NearestPair per pair of units and placements: the same placements ask again for nothing', () => {
+    const p = table();
+    const distances = new HoverDistances();
+    nearestCalls = 0;
+    const ask = (q: typeof p) => hoverOf(geometry, q, game, new Names(game, q), red.id, blue.id, noFacts, distances)!.distance;
+    expect(ask(p)).toBeCloseTo(9.0, 6);
+    expect(ask(p)).toBeCloseTo(9.0, 6);
+    expect(hoverOf(geometry, p, game, new Names(game, p), blue.id, red.id, noFacts, distances)!.distance).toBeCloseTo(9.0, 6);
+    expect(nearestCalls).toBe(2);                                              // red from blue, blue from red
+    const moved = table({ kind: 'models_moved', moves: [{ modelId: red.models[0]!.id, from: { kind: 'table', placement: at(10, 20) }, to: { kind: 'table', placement: at(10, 15) } }] });
+    expect(ask(moved)).toBeCloseTo(4.0, 6);
+    expect(nearestCalls).toBe(3);
   });
 
   it('no distance to itself or from a unit off the table', () => {

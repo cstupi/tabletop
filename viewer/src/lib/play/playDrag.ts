@@ -32,6 +32,8 @@ export interface DragDeps {
   select(modelIds: ReadonlySet<string>, unitId: string | null): void;
   /** Something the board draws changed. */
   changed(): void;
+  /** Runs a pointer move's landing once per animation frame (the page passes requestAnimationFrame); without it each move lands at once. */
+  frame?(run: () => void): void;
 }
 
 interface HeldMarker { readonly id: string; readonly offset: XY; readonly grab: Point3; readonly yaw: Yaw; readonly radius: number; at: Point3 }
@@ -47,6 +49,9 @@ export class PlayDrags {
   #proposing = false;
   #marker: HeldMarker | null = null;
   #tokens = 0;
+  /** The latest pointer move not yet landed, and whether a frame is due to land it. */
+  #pending: { readonly at: XY; readonly mods: Modifiers } | null = null;
+  #scheduled = false;
   readonly #byId = new Map<string, string>();
 
   constructor(deps: DragDeps) { this.#deps = deps; }
@@ -88,7 +93,7 @@ export class PlayDrags {
         drag.cancel();
         return false;
       }
-      this.#held = held; this.#proposing = proposing; this.#marker = null;
+      this.#held = held; this.#proposing = proposing; this.#marker = null; this.#pending = null;
       this.#deps.select(new Set(mods.shift ? [hit.id] : held.ids), unit ?? null);
       this.#deps.hooks()?.picked(held.ids);
       this.#deps.changed();
@@ -107,6 +112,22 @@ export class PlayDrags {
   }
 
   onDragMove(at: XY, mods: Modifiers): void {
+    const frame = this.#deps.frame;
+    if (frame === undefined) { this.#move(at, mods); return; }
+    this.#pending = { at, mods };
+    if (this.#scheduled) return;
+    this.#scheduled = true;
+    frame(() => { this.#scheduled = false; this.#flush(); });
+  }
+
+  /** The waiting pointer move lands now: before a key acts on the drag. A drop or a cancel drops it instead. */
+  #flush(): void {
+    const pending = this.#pending;
+    this.#pending = null;
+    if (pending !== null) this.#move(pending.at, pending.mods);
+  }
+
+  #move(at: XY, mods: Modifiers): void {
     const marker = this.#marker;
     if (marker !== null) { marker.at = { x: at.x - marker.offset.x, y: at.y - marker.offset.y, z: 0 }; this.#deps.changed(); return; }
     const p = this.#deps.state().projection, drag = this.#drag, box = this.#deps.box();
@@ -115,6 +136,7 @@ export class PlayDrags {
   }
 
   onDragEnd(at: XY, mods: Modifiers): void {
+    this.#pending = null;                                                  // the drop lands at its own point
     const marker = this.#marker;
     if (marker !== null) {
       this.#marker = null;
@@ -132,19 +154,20 @@ export class PlayDrags {
     this.#held = null;
     if (!proposing) this.#deps.violations.measure(ids, new Map());          // a hand move's marks end with its drag: the server judges the drop
     if (landed !== null) {
-      if (proposing) for (const [id, placement] of landed) box.dragged(id, placement);   // the ghosts stay; the box gates the commit
+      if (proposing) box.draggedAll(landed);                              // the ghosts stay; the box gates the commit
       else if (ids.every((id) => p.models.has(id))) this.#handMove(handMoveCommand(grabs, landed));
     }
     this.#deps.changed();
   }
 
   onDragCancel(): void {
+    this.#pending = null;
     const box = this.#deps.box(), held = this.#held;
     this.#marker = null;
     this.#drag?.cancel();
     this.#held = null;
     if (held !== null) {
-      if (this.#proposing && box !== null) for (const id of held.ids) box.dragged(id, held.grabs.get(id)!);   // the held ones go back
+      if (this.#proposing && box !== null) box.draggedAll(held.ids.map((id) => [id, held.grabs.get(id)!] as const));   // the held ones go back
       else this.#deps.violations.measure(held.ids, new Map());
     }
     this.#deps.changed();
@@ -154,7 +177,7 @@ export class PlayDrags {
   boxChanged(): void {
     const box = this.#deps.box();
     if (this.#held !== null && this.#proposing && box !== null && !this.#held.ids.every((id) => box.proposing.has(id))) {
-      this.#drag?.cancel(); this.#held = null; this.#deps.changed();
+      this.#drag?.cancel(); this.#held = null; this.#pending = null; this.#deps.changed();
     }
   }
 
@@ -162,6 +185,8 @@ export class PlayDrags {
   onKey(intent: { readonly kind: string; readonly key?: number }, shift: boolean): boolean {
     if (this.#held === null) return false;
     if (intent.kind === 'confirm') return true;                            // Enter is held off mid-drag, as the box's _Input does
+    this.#flush();
+    if (this.#held === null) return false;
     const p = this.#deps.state().projection, drag = this.#drag, box = this.#deps.box();
     if (p === null || drag === null || box === null) return false;
     if (intent.kind === 'turnLeft' || intent.kind === 'turnRight') {
@@ -217,7 +242,7 @@ export class PlayDrags {
     this.#held = held;
     const box = this.#deps.box(), st = this.#deps.state(), g = this.#deps.geometry();
     if (box !== null) {
-      if (this.#proposing) for (const id of held.ids) box.dragged(id, { position: held.ends.get(id)!.lands, yaw: held.yaws.get(id)! });
+      if (this.#proposing) box.draggedAll(held.ids.map((id) => [id, { position: held.ends.get(id)!.lands, yaw: held.yaws.get(id)! }] as const));
       else if (st.projection !== null && st.game !== null && g !== null) {
         this.#deps.violations.moved(held.ids);
         const placements = new Map(held.ids.map((id) => [id, { position: held.ends.get(id)!.lands, yaw: held.yaws.get(id)! }] as const));

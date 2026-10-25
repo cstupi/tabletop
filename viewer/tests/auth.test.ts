@@ -14,7 +14,7 @@ function store(initial: Record<string, string> = {}) {
 const webSession = (sessionJwt: string) => JSON.stringify({ sessionJwt, account: { id: 'a', name: 'Ann' } });
 
 describe('hostedAuth', () => {
-  it('refreshes on each jwt() and writes the token back', async () => {
+  it('refreshes an expired JWT on each jwt() and writes the token back', async () => {
     const s = store({ [WEB_SESSION_KEY]: webSession(player) });
     const seen: string[] = [];
     const auth = hostedAuth(s, async (j) => { seen.push(j); return { sessionJwt: j === player ? admin : player }; });
@@ -25,6 +25,26 @@ describe('hostedAuth', () => {
     expect(auth.access).toBe('player');
     expect(seen).toEqual([player, admin]);
     expect(readWebSession(s)).toBe(player);
+  });
+
+  it('reuses the stored JWT until 60 s before its exp, then refreshes once for concurrent callers', async () => {
+    let now = 1_000_000_000;
+    const live = jwt({ roles: [], exp: now / 1000 + 300 });
+    const next = jwt({ roles: ['admin'], exp: now / 1000 + 600 });
+    const s = store({ [WEB_SESSION_KEY]: webSession(live) });
+    const seen: string[] = [];
+    const auth = hostedAuth(s, async (j) => { seen.push(j); return { sessionJwt: next }; }, fetch, () => now);
+    expect(await auth.jwt()).toBe(live);
+    expect(await auth.jwt()).toBe(live);
+    expect(auth.access).toBe('player');
+    expect(seen).toEqual([]);
+    now += 241_000;                                                          // 59 s left
+    expect(await Promise.all([auth.jwt(), auth.jwt(), auth.jwt()])).toEqual([next, next, next]);
+    expect(seen).toEqual([live]);
+    expect(auth.access).toBe('admin');
+    expect(readWebSession(s)).toBe(next);
+    expect(await auth.jwt()).toBe(next);                                     // the new one serves until its own margin
+    expect(seen).toHaveLength(1);
   });
 
   it('is signed out with nothing stored', async () => {

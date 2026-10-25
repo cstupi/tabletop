@@ -238,13 +238,13 @@ export async function replay(c: CallCase, st: ConnectionState, g: Geometry, log:
       }
       box.enter(); break;
     case 'move':
-      for (const [id, placement] of Object.entries<any>(choice.ghosts)) box.dragged(id, placement);
+      box.draggedAll(Object.entries<any>(choice.ghosts));
       if (choice.stop) box.stop(); else box.enter();
       break;
     case 'embark': box.target(choice.containerId); break;
     case 'deploy':
       box.placeAt(choice.at);
-      for (const [id, placement] of Object.entries<any>(choice.ghosts ?? {})) box.dragged(id, placement);
+      box.draggedAll(Object.entries<any>(choice.ghosts ?? {}));
       box.enter(); break;
     default: throw new Error(`no replay for choice ${choice.kind}`);
   }

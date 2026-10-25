@@ -44,13 +44,24 @@ export function writeWebSession(storage: StorageLike, sessionJwt: string): void 
 
 /** The Stytch role ids management stamps in the `roles` claim (admin watch spec). Read, never verified: the servers verify. */
 export function rolesOf(jwt: string): string[] {
+  const roles = claimsOf(jwt)?.roles;
+  if (typeof roles === 'string') return [roles];
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
+}
+
+/** The JWT's `exp` in seconds since the epoch, or null. Read, never verified. */
+export function expOf(jwt: string): number | null {
+  const exp = claimsOf(jwt)?.exp;
+  return typeof exp === 'number' ? exp : null;
+}
+
+function claimsOf(jwt: string): Record<string, unknown> | null {
   const parts = jwt.split('.');
-  if (parts.length !== 3) return [];
+  if (parts.length !== 3) return null;
   try {
-    const roles = (JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as { roles?: unknown }).roles;
-    if (typeof roles === 'string') return [roles];
-    return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
-  } catch { return []; }
+    const claims: unknown = JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof claims === 'object' && claims !== null ? (claims as Record<string, unknown>) : null;
+  } catch { return null; }
 }
 
 export type Access = 'signed-out' | 'player' | 'admin';

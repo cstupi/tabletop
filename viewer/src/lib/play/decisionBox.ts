@@ -56,8 +56,8 @@ export interface MoveHooks {
   unhook(box: DecisionBox): void;
   /** A send that never reached the server (the socket failed): the token's models are the projection's again. */
   failed?(box: DecisionBox, token: string): void;
-  /** A held ghost landed: its refusal lapses and the move is gated again. */
-  dragged?(box: DecisionBox, modelId: string): void;
+  /** Held ghosts landed: their refusal lapses and the move is gated again, once. */
+  dragged?(box: DecisionBox, modelIds: readonly string[]): void;
 }
 
 /** The open Ask's handlers: set by its render, dropped by unhook whenever the Ask ends by any route. */
@@ -147,10 +147,12 @@ export class DecisionBox {
     this.#publish();
   }
   /** A held proposed model landed at `at`: the ghost moves there, and the move is gated again. */
-  dragged(modelId: string, at: Placement): void {
-    if (!this.ghosts.has(modelId)) return;
-    this.ghosts.set(modelId, at);
-    this.#moves?.dragged?.(this, modelId);
+  dragged(modelId: string, at: Placement): void { this.draggedAll([[modelId, at]]); }
+  /** Held proposed models landed together: every ghost moves first, then the move is gated once over all of them. */
+  draggedAll(landed: Iterable<readonly [string, Placement]>): void {
+    const moved: string[] = [];
+    for (const [id, at] of landed) if (this.ghosts.has(id)) { this.ghosts.set(id, at); moved.push(id); }
+    if (moved.length > 0) this.#moves?.dragged?.(this, moved);
   }
   /** A click on the table while a deploy waits for one. */
   placeAt(at: Point3): boolean {
