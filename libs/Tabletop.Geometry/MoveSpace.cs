@@ -12,7 +12,9 @@ internal sealed partial class MoveSpace
     /// <summary>How far outside an obstacle its graph corners stand.</summary>
     const double Margin = 1e-3;
 
-    internal sealed record Obstacle(MoveShape Shape, int Group, Guid Id, double Bottom, double Top, bool StartInside);
+    /// <summary>`AlwaysMeets`: a body whose height interval meets the base's at every height the base can rest at inside its shape, so no
+    /// position there needs the base rested to know (MeetsInHeight is true wherever Holds is).</summary>
+    internal sealed record Obstacle(MoveShape Shape, int Group, Guid Id, double Bottom, double Top, bool StartInside, bool AlwaysMeets = false);
 
     /// <summary>A graph corner: its point, the obstacle it rounds and its two neighbours on that obstacle's ring, the groups whose obstacles hold it.</summary>
     internal readonly record struct Node(Point2 At, Point2 Prev, Point2 Next, int Inside);
@@ -64,9 +66,30 @@ internal sealed partial class MoveSpace
         {
             var shape = MoveShape.Of(m.BaseOutline(), _base, Origin);
             if (shape.Centre.DistanceTo(Origin) > reach + shape.Bound + Tolerance.Distance || Overlap.Bases(start, m)) continue;
-            _obstacles.Add(new Obstacle(shape, Bodies, Guid.Empty, m.Bottom(), m.Top(), false));
+            _obstacles.Add(new Obstacle(shape, Bodies, Guid.Empty, m.Bottom(), m.Top(), false, MeetsAtEveryRest(shape, m.Bottom(), m.Top())));
             Present |= Bodies;
         }
+    }
+
+    /// <summary>
+    /// The base centred anywhere inside `shape` meets a body between these heights whatever it rests on there: it rests at 0 or at the height of a
+    /// surface its base meets (Collision.Rest), and only a surface whose bounding circle comes within the base's reach of the shape's can be met.
+    /// </summary>
+    bool MeetsAtEveryRest(MoveShape shape, double bottom, double top)
+    {
+        var height = _mover.Body.Height;
+        if (!Overlap.IntervalsOverlap(0, 0 + height, bottom, top)) return false;
+        var (bc, br) = _base.BoundingCircle();
+        var reach = shape.Bound + bc.DistanceTo(Origin) + br;
+        foreach (var v in _surfaces)
+        {
+            var h = v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom();
+            if (h <= 0) continue;
+            var (c, r) = v.WorldOutline().BoundingCircle();
+            if (c.DistanceTo(shape.Centre) > reach + r + Tolerance.Distance) continue;
+            if (!Overlap.IntervalsOverlap(h, h + height, bottom, top)) return false;
+        }
+        return true;
     }
 
     /// <summary>The ring corners, built on first use: a move whose straight line is clear never needs them.</summary>
@@ -110,7 +133,7 @@ internal sealed partial class MoveSpace
     public bool HasTable => _box is not null;
 
     /// <summary>The base centred at p meets this obstacle: in plan, and for a body in height too.</summary>
-    bool HoldsAt(Obstacle o, Point2 p) => o.Shape.Holds(p) && (o.Group != Bodies || MeetsInHeight(o, p));
+    bool HoldsAt(Obstacle o, Point2 p) => o.Shape.Holds(p) && (o.Group != Bodies || o.AlwaysMeets || MeetsInHeight(o, p));
 
     bool MeetsInHeight(Obstacle o, Point2 p)
     {
@@ -178,6 +201,8 @@ internal sealed partial class MoveSpace
     /// <summary>A body the segment's plan meets is met where, at some sample of the part inside it, the heights overlap too.</summary>
     bool Crosses(Obstacle o, Point2 a, Point2 b)
     {
+        // Every sample lies inside the shape, where such a body always meets the base: met as soon as some part is surely inside.
+        if (o.AlwaysMeets && (_surfaces.Count == 0 || o.Shape.SurelyEnters(a, b))) return true;
         if (_surfaces.Count == 0) return MeetsInHeight(o, a);
         if (o.Shape.Interval(a, b) is not { } span) return false;
         var d = b - a;

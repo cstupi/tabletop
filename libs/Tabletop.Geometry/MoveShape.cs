@@ -154,6 +154,16 @@ internal sealed class MoveShape
         return (Cross(0, deepest), Cross(1, deepest));
     }
 
+    /// <summary>
+    /// Interval(a, b) is not null, known without its search: the segment comes inside by clearly more than the search's own error (its deepest
+    /// point found to 1e-9 of the length). False only says "not known".
+    /// </summary>
+    public bool SurelyEnters(Point2 a, Point2 b)
+    {
+        if (Radius <= Tolerance.Distance) return Core.Length >= 3 && Clip(a, b) is not null;
+        return SegmentDistance(a, b) < Radius - Tolerance.Distance - 1e-6 - 1e-8 * (b - a).Length;
+    }
+
     /// <summary>Unsigned distance from the segment to the core: 0 when they meet.</summary>
     double SegmentDistance(Point2 a, Point2 b)
     {
