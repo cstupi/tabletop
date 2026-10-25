@@ -25,7 +25,8 @@ export interface MoveDeps {
   geometry(): Geometry | null;
   violations: Violations;
   enforcement(): Enforcement;
-  /** A commit's drops, drawn where they were dropped until the move's event (the box unhooks on send, which clears its ghosts). */
+  /** A commit's drops, drawn where they were dropped until the move's step or the answer's settling (the box unhooks on send, which clears
+   *  its ghosts). */
   drops?: PendingDrops;
 }
 
@@ -308,6 +309,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       verdict = { models: held.moved, reason: detail };
     },
     failed(_box, token) { deps.drops?.refuse(token); },
+    settled(_box, token) { deps.drops?.refuse(token); },                    // a model the step did not move (a zero move, a landing it dropped) is held no longer
     dragged(_box, modelId) {
       deps.violations.moved([modelId]);                                     // a refused commit's reason lapses once its models move
       regate?.();

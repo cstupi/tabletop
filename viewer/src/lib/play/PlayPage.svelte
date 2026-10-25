@@ -39,6 +39,7 @@
   // D2: moves, deploys and hand moves
   import { MarkerLocks } from './markerLocks';
   import { PendingDrops } from './pendingDrops';
+  import { relocations } from './relocations';
   import { PlayDrags } from './playDrag';
   import { Violations } from './violations';
 
@@ -103,8 +104,8 @@
     const conn = connection;
     const stops = [
       violations.subscribe(bump), locks.subscribe(bump),
-      conn.onEvents((events) => {                                         // a move's event ends the hold on its drops
-        for (const e of events) if (e.payload.kind === 'models_moved') for (const m of e.payload.moves) drops.consume(m);
+      conn.onEvents((events) => {                                         // a move's event (a hand move's, or a step's for an answer) ends the hold
+        for (const e of events) for (const m of relocations(e)) drops.consume(m);
         bump();
       }),
       conn.onRefused((refused) => { drags.refused(refused); }),

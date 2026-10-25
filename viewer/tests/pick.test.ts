@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { contains, pickAt } from '../src/lib/board/pick';
-import type { Scene } from '../src/lib/board/frame';
+import { baseOutline, type Scene } from '../src/lib/board/frame';
 
 const scene: Scene = {
   table: { width: 72, length: 48 },
@@ -43,6 +43,17 @@ describe('picking', () => {
     expect(pickAt(withMarker, { x: 4, y: 8 })).toEqual({ kind: 'marker', id: 'k1' });      // over terrain
     expect(pickAt(withMarker, { x: 5, y: 5.9 })).toEqual({ kind: 'model', id: 'm1' });     // models first
     expect(pickAt(withMarker, { x: 4, y: 6.7 })).toEqual({ kind: 'marker', id: 'k1' });
+  });
+
+  it('a board drawing circles picks an oval-based model anywhere in its drawn circle', () => {
+    // A 60x35 mm oval facing +y: 0.69" wide each side of its centre, drawn as a circle of 1.18".
+    const oval = baseOutline({ baseShape: 'oval', baseA: 2.36, baseB: 1.38 } as never, { x: 8, y: 5 }, 0);
+    const bike: Scene = { ...scene, terrain: [{ ...scene.terrain[0]!, shape: { kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }] } }],
+      models: [{ ...scene.models[0]!, id: 'bike', centre: { x: 8, y: 5 }, shape: oval, circle: { kind: 'circle', centre: { x: 8, y: 5 }, radius: 1.18 } }] };
+    const side = { x: 8.9, y: 5 };
+    expect(contains(oval, side)).toBe(false);
+    expect(pickAt(bike, side)).toEqual({ kind: 'terrain', id: 'tp1', volumeId: 'v1' });
+    expect(pickAt(bike, side, 'circles')).toEqual({ kind: 'model', id: 'bike' });
   });
 
   it('falls through to terrain and then to nothing', () => {

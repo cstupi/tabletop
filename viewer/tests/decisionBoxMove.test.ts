@@ -136,6 +136,18 @@ describe('the move Ask', () => {
     expect(r.box.ghosts.size).toBe(0);
   });
 
+  it('an accepted commit holds no drop past its settling, so a model the step did not move is drawn where the projection has it', async () => {
+    const r = moveRig();
+    const [a, b] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.box.dragged(a, at(13, 12));
+    r.box.enter();
+    expect(r.drops.holds(a) && r.drops.holds(b)).toBe(true);
+    r.accept(0);
+    await tick();
+    expect(r.drops.all.size).toBe(0);
+  });
+
   it('the stop sends continues true', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, stoppable: true }));
