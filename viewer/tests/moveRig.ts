@@ -9,7 +9,7 @@ import { PendingDrops } from '../src/lib/play/pendingDrops';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
 import { DEFAULT_SETTINGS } from '../src/lib/play/settings';
 import { Violations } from '../src/lib/play/violations';
-import type { Command, Enforcement, EventPayload, GameInfo, Location, MoveRegion, Placement, Refused } from '../src/lib/protocol/wire.generated';
+import type { Command, Enforcement, EventPayload, GameInfo, Location, MoveRegion, Participant, Placement, Refused } from '../src/lib/protocol/wire.generated';
 import { P1, P2, askOf, boardOf, emptyTable, gameOf, slotOf, unitOf } from './play';
 
 export const at = (x: number, y: number, yaw = 0): Placement => ({ position: { x, y, z: 0 }, yaw: { degrees: yaw } });
@@ -19,12 +19,13 @@ export function region(over: Partial<MoveRegion> & { modelIds: string[] }): Move
   return { kind: 'move_region', allowance: 6, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false, ignoresTerrain: false, ...over };
 }
 
-export function moveRig(over: { enforcement?: Enforcement; squad?: number } = {}) {
+export function moveRig(over: { enforcement?: Enforcement; squad?: number; participantId?: string; participants?: Participant[] } = {}) {
   const squad = unitOf('Squad', Array.from({ length: over.squad ?? 2 }, (_, i) => slotOf({ name: `S${i + 1}`, ordinal: i + 1 })));
   const rivals = unitOf('Rivals', [slotOf({ name: 'Rival' })]);
   const transport = unitOf('Truck', [slotOf({ name: 'Truck', base: { shape: 'circle', a: 4, b: 4 } })]);
   const reserve = unitOf('Reserve', [slotOf({ name: 'R1', ordinal: 1 }), slotOf({ name: 'R2', ordinal: 2 })]);
-  const game: GameInfo = gameOf({ enforcement: over.enforcement ?? 'warn' });
+  const game: GameInfo = gameOf({ enforcement: over.enforcement ?? 'warn' }, over.participants);
+  const me = over.participantId ?? P1;
   const board = boardOf([{ participantId: P1, units: [squad, transport, reserve] }, { participantId: P2, units: [rivals] }], emptyTable());
   const applier = new Applier(board, game);
   let seq = 0;
@@ -49,11 +50,11 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number } = {}
   let reconnecting = false;
   let enforcement = game.enforcement;
   const state = (): ConnectionState => (reconnecting
-    ? { phase: 'reconnecting', game: null, participantId: P1, board: null, projection: null, log: [], maxWounds: new Map() }
-    : { phase: 'connected', game, participantId: P1, board: applier.projection.board, projection: applier.projection, log: applier.log, maxWounds: new Map() }) as unknown as ConnectionState;
+    ? { phase: 'reconnecting', game: null, participantId: me, board: null, projection: null, log: [], maxWounds: new Map() }
+    : { phase: 'connected', game, participantId: me, board: applier.projection.board, projection: applier.projection, log: applier.log, maxWounds: new Map() }) as unknown as ConnectionState;
   const hooks = moveHooks({ geometry: () => geometry, violations, enforcement: () => enforcement, drops });
   const box = new DecisionBox({
-    state, myTeams: () => teamsOf(game, P1), acting: () => acting(applier.projection, teamsOf(game, P1), applier.log),
+    state, myTeams: () => teamsOf(game, me), acting: () => acting(applier.projection, teamsOf(game, me), applier.log),
     settings: () => DEFAULT_SETTINGS, updateSettings: () => {}, rules: () => RuleTexts.empty,
     send: (command) => new Promise<SendOutcome>((resolve, reject) => { sent.push(command); pending.push({ id: `m${sent.length}`, resolve, reject }); }),
     onRefused: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
@@ -69,6 +70,14 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number } = {}
     openMove(legal: MoveRegion, over: Parameters<typeof askOf>[1] = {}) {
       const ask = askOf(legal, { question: 'advance', prompt: 'Advance', ...over });
       apply({ kind: 'ask_opened', ask });
+      box.render();
+      return ask;
+    },
+    /** A deploy pick of the Reserve unit for team 1 that has closed: the unit's models are still on the shelf. */
+    openDeployPick() {
+      const ask = askOf({ kind: 'pieces', eligible: [reserve.id], min: 1, max: 1 }, { question: 'deploy', prompt: 'Deploy a unit' });
+      apply({ kind: 'ask_opened', ask });
+      apply({ kind: 'ask_closed', askId: ask.id, answers: [{ teamId: ask.teams[0]!, answer: { kind: 'selected_pieces', pieceIds: [reserve.id] } }] } as never);
       box.render();
       return ask;
     },
