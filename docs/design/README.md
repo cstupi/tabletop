@@ -209,7 +209,7 @@ an out-of-set answer or illegal command is refused.
 
 The menu is exempt at every setting. A right-click edit of any property is accepted, logged
 and visible to opponents. Base overlap, an Impassable Solid and a path through a model are
-prevented by the client while dragging (Alt overrides) and judged by the server; coherency is not judged.
+prevented by the client while dragging (Alt overrides) and judged by the server; a move answer that takes a unit in coherency out of it is `move_coherency` (`GfMoves.CoherencyBreach`, p.7 with p.11's 3" at different elevation); a hand move or a placement is not judged for it.
 The override is what makes it a simulator rather than a referee, and it removes the
 need for an admin mode.
 

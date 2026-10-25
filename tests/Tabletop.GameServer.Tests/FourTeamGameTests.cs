@@ -117,7 +117,7 @@ public class FourTeamGameTests
         var t = g.Teams;
         TestGames.Apply(g, new ObjectiveControlSet(markers[0].Id, t[3]), new ObjectiveControlSet(markers[1].Id, t[3]), new ObjectiveControlSet(markers[2].Id, t[1]));
         Assert.Equal([t[3]], GfObjectives.Winners(g.State));                             // "the player that controls most markers wins"
-        Assert.Equal("Markers held: team 1: 0, team 2: 1, team 3: 0, team 4: 2.", GfObjectives.Standing(g.State));
+        Assert.Equal("Markers held: Team 1: 0, Team 2: 1, Team 3: 0, Team 4: 2.", GfObjectives.Standing(g.State));
         var setup = g.State.Board.Table.Markers.First(m => m.Kind == MarkerKind.Objective).Id;
         TestGames.Apply(g, new ObjectiveControlSet(setup, t[1]));
         Assert.Equal([t[1], t[3]], GfObjectives.Winners(g.State));                       // two of the four tie; teams 1 and 3 hold none

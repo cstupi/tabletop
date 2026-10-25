@@ -11,6 +11,9 @@ public sealed class AppliedEntries
         if (!_names.Contains(entry)) _names.Add(entry);
     }
 
+    /// <summary>Takes back an entry a step read but that did not act after all (a once grant a move that went nowhere keeps).</summary>
+    public void Remove(string entry) => _names.Remove(entry);
+
     /// <summary>Null when nothing acted, so a step no entry changed writes no list.</summary>
     public IReadOnlyList<string>? Names => _names.Count == 0 ? null : _names.ToList();
 }

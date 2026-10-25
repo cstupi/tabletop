@@ -136,7 +136,7 @@ public static class GfObjectives
     /// <summary>The teams with the most controlled markers, in ordinal order: one is the winner, several are a tie.</summary>
     public static IReadOnlyList<Guid> Winners(GameState state);
 
-    /// <summary>"Markers held: team 1: 2, team 2: 1." for the mission-length detail.</summary>
+    /// <summary>"Markers held: Team 1: 2, Team 2: 1." for the mission-length detail.</summary>
     public static string Standing(GameState state);
 }
 ```
@@ -164,7 +164,7 @@ alike, and `Projection.Control` holds the standing at every moment of every game
 | Setting | After round 4 |
 | --- | --- |
 | `silent` | Round 5 starts. The standing is the projection's control; nothing else is written. |
-| `warn` | The `game_over` Ask's prompt reads "4 rounds have been played: the game ends after 4 (p.7). Markers held: team 1: 2, team 2: 1." End: `game_ended` as under `strict`. Every team's Continue: round 5 starts with that sentence as its `round_started` warning; seizing continues in later rounds and each later boundary asks again with its own standing. |
+| `warn` | The `game_over` Ask's prompt reads "4 rounds have been played: the game ends after 4 (p.7). Markers held: Team 1: 2, Team 2: 1." End: `game_ended` as under `strict`. Every team's Continue: round 5 starts with that sentence as its `round_started` warning; seizing continues in later rounds and each later boundary asks again with its own standing. |
 | `strict` | `game_ended` with `Winners`, and the same sentence as its `Reason`. |
 
 No winner is recorded under `silent`, or under `warn` when every team continues: the game has not ended, so

@@ -32,7 +32,7 @@ public delegate Point2? MoveGoal(Guid modelId, PolicyView view);
 /// goal is the state-reading part; the sampling and the legality check are the uniform policy's own. Without a goal, or for a model the
 /// goal returns null for, the move is exactly the uniform one.
 /// </summary>
-public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null, MoveGoal? goal = null)
+public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options = null, MoveGoal? goal = null)
 {
     private readonly PolicyOptions _o = options ?? new PolicyOptions();
 
@@ -139,6 +139,11 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             return new Destinations(m.ModelIds.Select(id => new ModelRelocation(id, view.LocationOf(id), new Inside(container))).ToList());
         }
 
+        // p.9: a charge forms up in base contact and coherency when it can, as the server looks for it (UnitFormation.InContact).
+        if (m.ContactWith is { Count: > 0 } && m.Containment?.ExitingId is null && ChargeFormation(m, view) is { } formed)
+            return new Destinations(m.ModelIds.Where(formed.ContainsKey)
+                .Select(id => new ModelRelocation(id, view.LocationOf(id), new OnTable(Landing(id, view.PlacedOf(id), formed[id], view).Placement))).ToList());
+
         var impassable = view.VolumesById(m.ImpassableVolumeIds);
         var difficult = view.VolumesById(m.DifficultVolumeIds);
         // An Ask may list no impassable volume to sweep and still not let a model end in one, so every sample lands clear of them all.
@@ -188,6 +193,21 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
                 ? Sample(s, reach, impassable, difficult, view, goal?.Invoke(bad, view), landing, at => Clear(bad, s, at, m, view, taken))
                 : null, p);
         }
+        // p.7 UNIT COHERENCY (the server's move_coherency): a unit in coherency stays in it. A model sampled keeps its landing and the rest form
+        // up on it (FormUp), each sampled model in turn as the lead, then the first one at half and a quarter of its move; failing that, every
+        // model stands.
+        if (!Coherent(m, view, destinations))
+        {
+            var sampledIds = m.ModelIds.Where(id => destinations[id] is not null).ToList();
+            var leads = sampledIds.Select(id => (Id: id, At: destinations[id]!.Value)).ToList();
+            if (sampledIds.FirstOrDefault(id => view.PlacedOf(id) is not null) is var first && first != Guid.Empty)
+            {
+                var from = view.PlacedOf(first)!.Value.Placement.Position.Horizontal;
+                leads.AddRange(new[] { 0.5, 0.25 }.Select(f => (first, from + (destinations[first]!.Value - from) * f)));
+            }
+            destinations = leads.Select(l => FormUp(m, view, l.Id, l.At, impassable, difficult, landing)).FirstOrDefault(f => f is not null)
+                ?? m.ModelIds.ToDictionary(id => id, _ => (Point2?)null);
+        }
         var moves = new List<ModelRelocation>();
         var sampled = false;
         foreach (var id in m.ModelIds)
@@ -233,6 +253,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         return null;
     }
 
+
     /// <summary>Whether the base, landed at the point, touches one of the volumes.</summary>
     private static bool Lands(PlacedModel start, Point2 at, IReadOnlyList<WorldVolume> volumes)
     {
@@ -258,17 +279,10 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         var room = m.MinDistance is not { } min || Movement.FarthestOnTable(start, view.Table).Distance >= min;
         (double Least, double Most) Span(Point2 dir) => m.MinDistance is not { } minimum ? (0, m.Allowance)
             : room ? (minimum, m.Allowance) : (Math.Max(0, Movement.RoomAlong(start, origin + dir, view.Table) - 1e-7), Math.Max(0, Movement.RoomAlong(start, origin + dir, view.Table) - 1e-7));
-        bool Passes(Point2 candidate)
-        {
-            var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
-            if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return false;
-            if (landing is { Count: > 0 } && Lands(start, candidate, landing)) return false;
-            return clear is null || clear(candidate);
-        }
         Point2? best = null;
         void Consider(Point2 candidate)
         {
-            if (!Passes(candidate)) return;
+            if (!Passes(start, candidate, m, impassable, difficult, view, landing, clear)) return;
             if (best is null || target is { } goal && candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
         }
         for (var i = 0; i < _o.MoveSamples && (best is null || target is not null); i++)
@@ -293,6 +307,17 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             if (best is not null && target is null) break;
         }
         return best;
+    }
+
+    /// <summary>A sample's checks: within the allowance along its path with the server-stated cap, through no impassable volume, on the table, landed clear
+    /// of every <paramref name="landing"/> volume, and <paramref name="clear"/>.</summary>
+    private static bool Passes(PlacedModel start, Point2 candidate, MoveRegion m, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult,
+        PolicyView view, IReadOnlyList<WorldVolume>? landing, Func<Point2, bool>? clear)
+    {
+        var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
+        if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return false;
+        if (landing is { Count: > 0 } && Lands(start, candidate, landing)) return false;
+        return clear is null || clear(candidate);
     }
 
     /// <summary>A move along the path its base takes (Movement.Check), as GfMoves.Route judges it: the region's impassable volumes, these difficult

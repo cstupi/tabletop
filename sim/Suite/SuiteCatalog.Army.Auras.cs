@@ -30,7 +30,7 @@ public static partial class SuiteCatalog
                 GrantedModifier("Indirect when Shooting Aura", (run, a) => Carrying("Indirect when Shooting Aura", When.Shooting)(run, a) && a.Hit?.Nearest("advance") is not null,
                     "Indirect", "hit", -1, "\"This model and its unit get Indirect when shooting.\": p.14 Indirect, \"Gets -1 to hit rolls when shooting after moving\""), play: Play.Moves),
             Melee(Guerrillas, "rebel-guerrillas-rending-in-melee-aura", "Rending in Melee Aura",
-                PerDieAp("Rending in Melee Aura", Carrying("Rending in Melee Aura", When.Charging), 4, "\"This model and its unit get Rending in melee.\": p.14 Rending, \"those hits get AP(+4)\""), seed: 2),
+                PerDieAp("Rending in Melee Aura", Carrying("Rending in Melee Aura", When.Charging), 4, "\"This model and its unit get Rending in melee.\": p.14 Rending, \"those hits get AP(+4)\""), seed: 1),
             Shooting(MachineCults, "machine-cults-rending-when-shooting-aura", "Rending when Shooting Aura",
                 PerDieAp("Rending when Shooting Aura", Carrying("Rending when Shooting Aura", When.Shooting), 4, "\"This model and its unit get Rending when shooting.\": p.14 Rending, \"those hits get AP(+4)\"")),
             Melee(Sisters, "blessed-sisters-shred-in-melee-aura", "Shred in Melee Aura",

@@ -84,7 +84,7 @@ public static partial class SuiteCatalog
                 more: s => s.Match("crossing_target", (ask, _) => ask.Legal is PieceSelection p && p.Eligible.Count > 0 ? new SelectedPieces([p.Eligible[0]]) : null)),
             Game(MachineCults, "machine-cults-strafing", Play.Moves, ["Strafing"], [R(1, "Flying"), R(2, "Flying")], [],
                 [Crossing("Strafing", "\"when this model moves through enemy units, pick one of them and attack it with this weapon as if it was shooting\"")],
-                weapon: [R(0, "Strafing")], seed: 2,
+                weapon: [R(0, "Strafing")], seed: 3,
                 more: s => s.Match("crossing_target", (ask, _) => ask.Legal is PieceSelection p && p.Eligible.Count > 0 ? new SelectedPieces([p.Eligible[0]]) : null)),
         ];
     }

@@ -53,7 +53,7 @@ public static partial class GfMoves
         var limit = Math.Min(region.Allowance, cap);
         foreach (var (id, start, to) in starts)
             if (Route(state, region, start, to, standing, limit) is { } check && check.Distance > limit + 1e-6)
-                return new(GfNames.DifficultCapRule, $"the unit moved in or through difficult terrain, so no model may move more than {limit:0.#}\" more (p.11), and {state.Projection.Models[id].Slot.Name} moved {check.Distance:0.##}\"");
+                return new(GfNames.DifficultCapRule, $"the unit moved in or through difficult terrain, so no model may move more than {limit:0.#}\"{(cap < GfNames.DifficultCap - 1e-6 ? " more" : "")} (p.11); {state.Projection.Models[id].Slot.Name} moved {check.Distance:0.0}\"");
         return null;
     }
 

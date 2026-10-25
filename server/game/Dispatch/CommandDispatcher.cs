@@ -88,7 +88,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         var breach = inSet && readable ? state.Rules.AnswerBreach(state, ask, command.Answer) : null;
         var legal = inSet && readable && breach is null;
         var verdict = breach is not null
-            ? EnforcementPolicy.Decide(state.Info.Enforcement, new Breach(breach.Rule, $"answer to '{ask.Question}': {breach.Detail}", new StrictRefuses(RefusalReason.Illegal)))
+            ? EnforcementPolicy.Decide(state.Info.Enforcement, new Breach(breach.Rule, breach.Detail, new StrictRefuses(RefusalReason.Illegal)))
             : EnforcementPolicy.Decide(state.Info.Enforcement, legal ? Legality.Legal : Legality.OutsideLegalSet, detail);
         switch (verdict)
         {

@@ -11,7 +11,7 @@ static partial class SpecialGames
     static TestGame Regrowth()
     {
         const string name = "special-regrowth-under-rending-fire";
-        return Game(name, new ScenarioBuilder(name, 17).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 64).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
                 .Army("Red", 1, 5, modelRules: [new(1, "Regeneration")],
                     weapons: [Gun("Bane Rifle", 24, 1, Rule("Bane")), Gun("Rending Rifle", 24, 1, Rule("Rending"))], unitStats: Stats(4, 4))
                 .Army("Blue", 1, 5, modelRules: [new(1, "Regeneration")], weapons: [Gun("AP Rifle", 24, 1, Rule("AP", 2))], unitStats: Stats(4, 4))
@@ -130,7 +130,7 @@ static partial class SpecialGames
     static TestGame TakedownPicksOne()
     {
         const string name = "special-takedown-picks-one";
-        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(24, 30).Scripted(PickTheHero)
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(4).Table(24, 30).Scripted(PickTheHero)
                 .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Seeker Launcher", 24, 2, Rule("Blast", 3), Rule("Takedown")), Gun("Frag Launcher", 24, 1, Rule("Blast", 3))], unitStats: Stats(4, 4))
                 .Army("Blue", 1, 5, weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5),
                     models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(3, 2))])
@@ -218,7 +218,7 @@ static partial class SpecialGames
     static TestGame Artillery()
     {
         const string name = "special-artillery-emplacement";
-        return Game(name, new ScenarioBuilder(name, 219).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 122).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
                 .Army("Red", 2, 2, modelRules: [new(1, "Artillery"), new(1, "Tough", 3), new(2, "Immobile"), new(2, "Tough", 3)],
                     weapons: [Gun("Missile Pod", 48, 2, Rule("Limited")), Gun("Autocannon", 48, 1)], unitStats: Stats(4, 4))
                 .Army("Blue", 3, 2, weapons: [Gun("Rail Rifle", 48, 1, Rule("Unstoppable")), Gun("Mortar", 48, 1, Rule("Indirect"))], unitStats: Stats(4, 5))

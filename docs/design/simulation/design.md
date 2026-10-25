@@ -340,7 +340,10 @@ base, has a path round the standing models within the allowance (`Movement.Check
 a repair pass after the sample cap redraws any landing no longer Clear, so a sampled move does not breach under `strict`. Standing still is the fallback and is always legal, because it
 is where the model already is. The retry budget is per model rather than per Ask, so a unit of
 five gets five independent budgets and one model that cannot find a destination does not freeze
-the others.
+the others. A sampled answer that would take a unit in coherency out of it (p.7, the server's
+`move_coherency`) is formed up on one sampled model (`FormUp`: the others moved as it moved, else
+beside a model of the unit), and a charge (`MoveRegion.ContactWith`, p.9) answers with
+`UnitFormation.InContact`, the search the server's `charge_contact` makes.
 
 Containment is handled from `MoveRegion.Containment`, which carries every id and radius an
 embark needs. With probability `PolicyOptions.EmbarkProbability` (0.25) the whole unit goes
@@ -530,7 +533,7 @@ That is geometry from a library, not a rules outcome the engine should have comp
 no base touches a model already on the table and every base is fully within the zone; an Ambusher (a set-aside unit placed
 once rounds have begun) is anchored anywhere on the table with every base over 9" (plus a quarter inch) from every enemy model.
 A hand placement is judged for overlap, zone and Ambush distance (`IGameRules.PlacementBreach`: `move_overlap`, `deploy_zone`,
-`ambush_distance`; `architecture.md` → Rules enforcement), and coherency is not judged.
+`ambush_distance`; `architecture.md` → Rules enforcement); coherency is judged on move answers only (`move_coherency`).
 
 `HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` rests on the open surface
 nearest the `Z` sent, and 0 is not open on a hill), so a model deployed onto a hill stands on it.
@@ -1431,7 +1434,7 @@ compares the two drivers run for run, and a socket step costs what the server ta
 - `docs/architecture.md` → Contracts to freeze: nobody instantiates a game session, which is why
   the in-process driver goes through `Hydrator`.
 - `docs/architecture.md` → Rules enforcement: the client prevents base overlap, an Impassable
-  Solid and a path through a model, the server judges them, and coherency is not judged.
+  Solid and a path through a model, the server judges them, and a move answer's coherency (`move_coherency`).
 - `docs/architecture.md` → Undo: replay to sequence N from the initial state, and the RNG as part
   of game state, which is invariant 2.
 - `docs/schema.md` → `GAME`, `TEAM`, `PARTICIPANT`, `GAME_EVENT`.

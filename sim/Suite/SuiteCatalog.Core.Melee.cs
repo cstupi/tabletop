@@ -18,7 +18,7 @@ internal static partial class CoreGames
     public static TestGame ChargeAndStrikeBack()
     {
         const string name = "core-charge-and-strike-back";
-        var scenario = new ScenarioBuilder(name, seed: 2)
+        var scenario = new ScenarioBuilder(name, seed: 4)
             .Enforcing(Enforcement.Warn).RoundCap(5).Table(36, 30)
             .Army("Red", 4, 3, weapons: [HandWeapon(2)])
             .Army("Blue", 4, 3, weapons: [HandWeapon(2)])
@@ -104,7 +104,7 @@ internal static partial class CoreGames
     public static TestGame MoraleBreak()
     {
         const string name = "core-morale-break";
-        var scenario = new ScenarioBuilder(name, seed: 1)
+        var scenario = new ScenarioBuilder(name, seed: 3)
             .Enforcing(Enforcement.Silent).RoundCap(5).Table(48, 36)
             .Army("Red", 3, 5, weapons: [Rifle(2)])
             .Army("Blue", 3, 5, weapons: [Rifle(2)])

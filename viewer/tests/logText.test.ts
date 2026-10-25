@@ -72,6 +72,8 @@ describe('LogText', () => {
     expect(line(TEAM1)).toBe('Game ended: 4 rounds have been played; Team 1 won');
     expect(line(TEAM1, TEAM2)).toBe('Game ended: 4 rounds have been played; tied between Team 1, Team 2');
     expect(line()).toBe('Game ended: 4 rounds have been played');
+    expect(describeEvent(ev(9, { kind: 'game_ended', reason: 'Markers held: Team 1: 0, Team 2: 0.', winners: [TEAM1, TEAM2] }), n))
+      .toBe('Game ended: Markers held: Team 1: 0, Team 2: 0; tied between Team 1, Team 2');
   });
 
   it('an answer that broke a named rule is labelled with it', () => {

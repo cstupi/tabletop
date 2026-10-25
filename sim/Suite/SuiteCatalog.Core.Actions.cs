@@ -127,12 +127,19 @@ internal static partial class CoreGames
     public static TestGame TransportRun()
     {
         const string name = "core-transport-run";
-        var scenario = new ScenarioBuilder(name, seed: 164)
+        var scenario = new ScenarioBuilder(name, seed: 31)
             .RoundCap(4).Table(24, 36)
             .Army("Red", 3, 1, modelRules: [new ScenarioRule(1, "Transport", 6), new ScenarioRule(1, "Tough", 3)], weapons: [Rifle(), HandWeapon()],
                 unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "5+" })
             .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])
             .Seeking(ToTheTransport)
+            // Blue Advances and shoots rather than charging (a charge into base contact, p.9, would end the infantry before it rides).
+            // and Red's infantry boards the transport whenever a move reaches it (p.15 "units may enter/exit by using any move action").
+            .Scripted(AnswerScript.Build()
+                .Match(AskQuestions.Activate, (ask, _) => AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Advance", StringComparison.Ordinal)))
+                .Match("move", (ask, p) => ask.Legal is MoveRegion { Containment.Enterable: [var transport, ..] } m
+                    ? new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(transport)))]) : null)
+                .Build())
             .Build();
         return Game(name, scenario,
         [

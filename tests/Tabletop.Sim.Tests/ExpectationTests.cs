@@ -119,8 +119,8 @@ public class ExpectationTests
     }
 
     [Theory]
-    [InlineData(2UL)]   // team 2 holds one marker at the end: a win
-    [InlineData(3UL)]   // nobody holds a marker: every team tied at none
+    [InlineData(3UL)]   // team 2 holds one marker at the end: a win
+    [InlineData(1UL)]   // nobody holds a marker: every team tied at none
     public async Task MostMarkersWin_holds_for_the_engines_own_end_win_or_tie(ulong seed)
     {
         var (compiled, projection, log, outcome) = await Objectives(seed);
@@ -130,8 +130,8 @@ public class ExpectationTests
     [Fact]
     public async Task MostMarkersWin_fails_when_game_ended_names_other_teams_than_hold_the_most_markers()
     {
-        var (compiled, projection, log, outcome) = await Objectives(2);
-        Assert.Single(projection.Control);                                              // seed 2: team 2 holds one marker
+        var (compiled, projection, log, outcome) = await Objectives(3);
+        Assert.Single(projection.Control);                                              // seed 3: team 2 holds one marker
         var team1 = compiled.Info.Teams.Single(t => t.Ordinal == 1).Id;
         var team2 = compiled.Info.Teams.Single(t => t.Ordinal == 2).Id;
         foreach (var winners in new[] { [team1], [team1, team2], Array.Empty<Guid>() })
@@ -148,7 +148,7 @@ public class ExpectationTests
     [Fact]
     public async Task MostMarkersWin_counts_only_objective_markers()
     {
-        var (compiled, _, log, outcome) = await Objectives(2);                         // seed 2: team 2 holds one marker and wins
+        var (compiled, _, log, outcome) = await Objectives(3);                         // seed 3: team 2 holds one marker and wins
         var applier = new EventApplier(compiled.Board, compiled.Info);
         foreach (var e in log) applier.Apply(e);
         var team1 = compiled.Info.Teams.Single(t => t.Ordinal == 1).Id;

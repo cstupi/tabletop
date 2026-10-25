@@ -51,7 +51,7 @@ public class ScriptMatchTests
     /// Red unit 1's first model is a Caster(2); the unit and is activated first with Hold; it reacts with its cast, picks Calculated Foresight and targets Blue unit 2
     /// whenever those are offered. Everything else is the policy's. Seed 6 passes a casting roll, so a spell_targets Ask opens.
     /// </summary>
-    static Scenario Casting(ulong seed) => new ScenarioBuilder("named-cast", seed).Table(36, 36).RoundCap(2)
+    static Scenario Casting(ulong seed) => new ScenarioBuilder("named-cast", seed).Table(24, 24).RoundCap(2)
         .Army("Red", 2, 2, models: [new ScenarioModel(1, 1, [new ScenarioRule(0, "Caster", 2)])], armyBook: Book)
         .Army("Blue", 2, 2)
         .Scripted(AnswerScript.Build()

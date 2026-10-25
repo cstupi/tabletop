@@ -197,6 +197,18 @@ public class MovementPathTests
         Assert.Equal(17 - 10 - 1.26, Movement.ContactDistance(Start, enemy, 12, [], Opr)!.Value, 6);
     }
 
+    [Fact]
+    public void Contact_points_stand_the_gap_clear_of_the_target_nearest_side_first()
+    {
+        var enemy = Fx.Model(17, 10);
+        var points = Movement.ContactPoints(Start, enemy, 0.05, 8);
+        Assert.Equal(8, points.Count);
+        Assert.Equal(17 - 1.26 - 0.05, points[0].X, 6);                                     // facing the start
+        Assert.Equal(10, points[0].Y, 6);
+        Assert.All(points, p => Assert.Equal(0.05, Distance.EdgeToEdge(Fx.Model(p.X, p.Y), enemy), 6));
+        Assert.Equal(17 + 1.26 + 0.05, points[^1].X, 6);                                    // the far side last
+    }
+
     static bool Inside(MovementRegion region, Point2 p)
     {
         var t = region.Triangles;

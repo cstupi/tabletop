@@ -219,6 +219,8 @@ describe('game_ended', () => {
     expect(line([T1])).toBe('Game ended: over; Team 1 won');
     expect(line([T1, T2])).toBe('Game ended: over; tied between Team 1, Team 2');
     expect(line([])).toBe('Game ended: over');
+    expect(lineOf(ev(9, { kind: 'game_ended', reason: 'Markers held: Team 1: 0, Team 2: 0.', winners: [T1, T2] }), p, ordinals))
+      .toBe('Game ended: Markers held: Team 1: 0, Team 2: 0; tied between Team 1, Team 2');
   });
 });
 
