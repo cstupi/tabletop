@@ -1,7 +1,7 @@
 <!-- viewer/src/lib/game/Confirm.svelte -->
-<!-- "Asked first": a modal question with one confirming button. `ask` null closes it. -->
+<!-- "Asked first": a modal question with one confirming button (`danger` for what cannot be taken back). `ask` null closes it. -->
 <script module lang="ts">
-  export interface Question { title: string; text: string; ok: string; run: () => void | Promise<void> }
+  export interface Question { title: string; text: string; ok: string; danger?: boolean; run: () => void | Promise<void> }
 </script>
 
 <script lang="ts">
@@ -22,15 +22,13 @@
     <h2 id="confirm-title">{ask.title}</h2>
     <p>{ask.text}</p>
     <div class="actions">
-      <button onclick={confirmed}>{ask.ok}</button>
       <button onclick={() => (ask = null)}>Cancel</button>
+      <button class={ask.danger ? 'danger' : 'primary'} onclick={confirmed}>{ask.ok}</button>
     </div>
   {/if}
 </dialog>
 
 <style>
-  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); max-width: 26rem; }
-  dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
-  h2 { margin-top: 0; font-size: 1rem; }
-  .actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  dialog { max-width: 28rem; }
+  .actions { justify-content: flex-end; margin-bottom: 0; }
 </style>

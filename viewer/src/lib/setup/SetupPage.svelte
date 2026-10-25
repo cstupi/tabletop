@@ -1,6 +1,6 @@
 <!-- viewer/src/lib/setup/SetupPage.svelte -->
-<!-- Setup on the 2D board: the draft as a scene, solid drags through Geometry, and the toolbar and card beside it. Every control sends
-     one edit Godot sends; the server judges. -->
+<!-- Setup on the 2D board: the tools sidebar on the left, the draft as a scene in the centre (solid drags through Geometry), the
+     selected piece's card on the right. Every control sends one edit Godot sends; the server judges. -->
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../api/client';
@@ -11,13 +11,12 @@
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { sendEdit } from '../game/send';
   import { loadGeometry, type Geometry } from '../geometry';
-  import { endSetupText } from '../lobby/lobbyView';
   import type { Edit } from '../protocol/wire.generated';
   import { type Catalog, loadCatalog, nameOf } from './catalog';
   import { SetupDrag, type Held } from './drag';
   import { removeFromDraft, setupMenu, turnInDraft, type MenuItem, TERRAIN_TURN } from './edits';
   import PieceMenu from './PieceMenu.svelte';
-  import SetupToolbar from './SetupToolbar.svelte';
+  import SetupTools from './SetupTools.svelte';
   import TerrainCard from './TerrainCard.svelte';
 
   let { connection, snap, api, view = $bindable(null), creator }: {
@@ -35,6 +34,8 @@
   const draft = $derived(snap.draft);
   const drag = $derived(geometry === null ? null : new SetupDrag(geometry));
   const picked: ReadonlySet<string> = $derived(new Set(selected === null ? [] : [selected]));
+  const carded = $derived(selected !== null && draft !== null
+    && (draft.terrain.some((t) => t.id === selected) || draft.markers.some((m) => m.id === selected)));
 
   $effect(() => {
     loadGeometry().then((g) => { geometry = g; }).catch((e: Error) => { loadError = `The table tools did not load: ${e.message}`; });
@@ -135,38 +136,51 @@
   }
 </script>
 
-<div class="setup">
+<div class="setup" class:carded>
+  <aside class="tools" aria-label="Setup tools">
+    {#if draft !== null && catalog !== null}
+      <SetupTools {draft} {catalog} {api} {snap} {creator} {send} {report} />
+    {/if}
+    <p class="help dim">Drag terrain and markers. <kbd>Q</kbd> <kbd>E</kbd> turn, <kbd>Del</kbd> removes, right-click for more.</p>
+  </aside>
   <div class="stage">
-    <div class="bar">
-      <span class="muted">Drag terrain and markers; Q and E turn, Delete removes, right-click for the menu.</span>
-      {#if creator}<button onclick={() => send({ kind: 'end_setup' })}>{endSetupText(draft)}</button>{/if}
-    </div>
     {#if loadError !== null}
-      <p class="error pad" role="alert">{loadError}</p>
+      <p role="alert" class="pad">{loadError}</p>
     {:else if scene === null}
-      <p class="muted pad">Loading the table tools…</p>
+      <p class="loading pad" role="status">Loading the table tools…</p>
     {:else}
-      <div class="board">
-        <Board {scene} bind:view {extent} {interaction} {overlays} selected={picked} />
-        {#if menu !== null}
-          <PieceMenu items={menu.items} at={menu.at} onPick={runMenu} onClose={() => (menu = null)} />
-        {/if}
-      </div>
+      <Board {scene} bind:view {extent} {interaction} {overlays} selected={picked} />
+      {#if menu !== null}
+        <PieceMenu items={menu.items} at={menu.at} onPick={runMenu} onClose={() => (menu = null)} />
+      {/if}
+    {/if}
+    {#if problem !== null}
+      <div class="banner" role="alert">{problem} <button class="quiet" onclick={() => (problem = null)}>Dismiss</button></div>
     {/if}
   </div>
-  <aside class="side">
-    {#if problem !== null}<p class="error" role="alert">{problem}</p>{/if}
-    {#if draft !== null && catalog !== null && geometry !== null}
-      <TerrainCard {draft} {catalog} {geometry} {api} {selected} {send} {report} />
-      <SetupToolbar {draft} {catalog} {api} {send} {report} />
-    {/if}
-  </aside>
+  {#if carded && draft !== null && catalog !== null && geometry !== null}
+    <aside class="card-col" aria-label="Selected piece">
+      <TerrainCard {draft} {catalog} {geometry} {api} {selected} {send} {report} onClose={() => (selected = null)} />
+    </aside>
+  {/if}
 </div>
 
 <style>
-  .setup { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; height: 100%; min-height: 0; }
-  .stage { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
-  .bar { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--line); }
-  .board { position: relative; min-height: 0; }
-  .side { overflow: auto; border-left: 1px solid var(--line); padding: 0.4rem 0.6rem; }
+  .setup { display: grid; grid-template-columns: 18rem minmax(0, 1fr); height: 100%; min-height: 0; }
+  .setup.carded { grid-template-columns: 18rem minmax(0, 1fr) 20rem; }
+  .tools, .card-col { min-height: 0; overflow-y: auto; background: var(--panel-solid); }
+  .tools { border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
+  .card-col { border-left: 1px solid var(--rule); }
+  .help { margin: auto 0 0; padding: var(--s3) var(--s4); font-size: .85rem; border-top: 1px solid var(--rule); }
+  kbd { font-family: var(--font-num); font-size: .8em; padding: 0 .3em; border: 1px solid var(--rule); color: var(--text); }
+  .stage { position: relative; min-height: 0; min-width: 0; background: var(--board-bg); }
+  .pad { margin: var(--s4); }
+  .banner { position: absolute; top: var(--s3); left: 50%; transform: translateX(-50%); max-width: min(36rem, calc(100% - 2 * var(--s4)));
+    display: flex; gap: var(--s2); align-items: baseline; padding: var(--s2) var(--s3); background: var(--panel-solid); color: var(--text);
+    border-left: 3px solid var(--failure); box-shadow: 0 2px 8px #0006; z-index: 4; }
+  @media (max-width: 70rem) {
+    .setup, .setup.carded { grid-template-columns: 16rem minmax(0, 1fr); }
+    .card-col { position: absolute; right: 0; top: 0; bottom: 0; width: 20rem; z-index: 5; box-shadow: -4px 0 12px #0005; }
+    .setup { position: relative; }
+  }
 </style>
