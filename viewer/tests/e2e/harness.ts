@@ -27,8 +27,16 @@ export async function session(name: string): Promise<string> {
   return ((await response.json()) as { sessionJwt: string }).sessionJwt;
 }
 
-export async function importArmy(jwt: string, book: string): Promise<string> {
-  const list = JSON.parse(readFileSync(`../sim/Lifecycle/Armies/${book}.json`, 'utf8')) as unknown;
+export const AMBUSHER = 'Veterans';
+
+/** The book's list; `ambush` names a unit that also carries Ambush (p.13), added as the list names its rules. */
+export async function importArmy(jwt: string, book: string, ambush?: string): Promise<string> {
+  const list = JSON.parse(readFileSync(`../sim/Lifecycle/Armies/${book}.json`, 'utf8')) as { units: { name: string; rules: unknown[] }[] };
+  if (ambush !== undefined) {
+    const unit = list.units.find((u) => u.name === ambush);
+    if (unit === undefined) throw new Error(`book ${book} has no unit named ${ambush}`);
+    unit.rules.push({ name: 'Ambush', label: 'Ambush' });
+  }
   const response = await fetch(`${MANAGEMENT}/v1/dev/armies/import`, {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${jwt}` }, body: JSON.stringify({ source: 'lifecycle', list }),
   });
@@ -82,7 +90,7 @@ export const boxOf = (conn: GameConnection, hooks: ReturnType<typeof moveHooks> 
 
 /** Two accounts take a team each in a new game and end setup: both connections are playing. `cleanup` closes them and deletes the game and
  *  both armies; call it in `finally`. A failure on the way cleans up before it throws. */
-export async function playingGame(label: string, enforcement: 'strict' | 'warn' | 'silent' = 'strict', options: { layout?: boolean } = {}) {
+export async function playingGame(label: string, enforcement: 'strict' | 'warn' | 'silent' = 'strict', options: { layout?: boolean; ambush?: string } = {}) {
   const [jwtA, jwtB] = await Promise.all([accountName(label, 'a'), accountName(label, 'b')].map(session)) as [string, string];
   await Promise.all([sweep(jwtA), sweep(jwtB)]);
   const cleanup = async () => { a?.close(); b?.close(); await Promise.all([sweep(jwtA), sweep(jwtB)]); };
@@ -92,7 +100,7 @@ export async function playingGame(label: string, enforcement: 'strict' | 'warn' 
   let t1!: Team, t2!: Team;
   let armyA!: string, armyB!: string, gameId!: string;
   try {
-    [armyA, armyB] = await Promise.all([importArmy(jwtA, BOOKS[0]!), importArmy(jwtB, BOOKS[1]!)]);
+    [armyA, armyB] = await Promise.all([importArmy(jwtA, BOOKS[0]!, options.ambush), importArmy(jwtB, BOOKS[1]!)]);
     const properties = (await apiA.listProperties())[0]!;
     const created = await apiA.createGame({
       name: `${label} e2e`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement, waitsBetweenSteps: false,
@@ -121,6 +129,38 @@ export async function playingGame(label: string, enforcement: 'strict' | 'warn' 
     await Promise.all([waitFor(a, (s) => s.game?.status === 'playing' && s.projection !== null, 'A playing'), waitFor(b, (s) => s.game?.status === 'playing' && s.projection !== null, 'B playing')]);
   } catch (e) { await cleanup(); throw e; }
   return { a: a!, b: b!, t1, t2, jwtA, jwtB, apiA, apiB, armyA, armyB, gameId, cleanup };
+}
+
+/** One account takes both teams, an army each (team 1's carrying `ambush`), and ends setup: one connection, playing. */
+export async function oneAccountGame(label: string, options: { ambush?: string } = {}) {
+  const jwt = await session(accountName(label, 'a'));
+  await sweep(jwt);
+  const api = apiOf(async () => jwt, MANAGEMENT);
+  let a: GameConnection | undefined;
+  const cleanup = async () => { a?.close(); await sweep(jwt); };
+  let t1!: Team, t2!: Team;
+  try {
+    const army1 = await importArmy(jwt, BOOKS[0]!, options.ambush);
+    const army2 = await importArmy(jwt, BOOKS[1]!);
+    const properties = (await api.listProperties())[0]!;
+    const created = await api.createGame({
+      name: `${label} e2e`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement: 'strict', waitsBetweenSteps: false,
+    });
+    a = connectGame({ url: SOCKET, gameId: created.id, jwt: async () => jwt });
+    await waitFor(a, (s) => s.phase === 'connected', 'connected');
+    const sendOk = async (edit: Edit) => expect((await a!.sendEdit(edit)).refused).toBeNull();
+    while ((a.state.game?.teams.length ?? 0) < 2) await sendOk({ kind: 'create_team' });
+    [t1, t2] = [...a.state.game!.teams].sort((x, y) => x.ordinal - y.ordinal) as [Team, Team];
+    await sendOk({ kind: 'pick_team', teamId: t1.id });
+    await sendOk({ kind: 'pick_team', teamId: t2.id });           // the second keeps the first: one account plays both sides
+    await sendOk({ kind: 'pick_army', armyId: army1, teamId: t1.id });
+    await sendOk({ kind: 'pick_army', armyId: army2, teamId: t2.id });
+    await sendOk({ kind: 'start_setup' });
+    await waitFor(a, (s) => s.game?.status === 'setup' && s.draft !== null, 'in setup');
+    await sendOk({ kind: 'end_setup' });
+    await waitFor(a, (s) => s.game?.status === 'playing' && s.projection !== null, 'playing');
+  } catch (e) { await cleanup(); throw e; }
+  return { a: a!, t1, t2, jwt, api, cleanup };
 }
 
 export const until = async (what: string, cond: () => boolean, ms = 10_000) => {
