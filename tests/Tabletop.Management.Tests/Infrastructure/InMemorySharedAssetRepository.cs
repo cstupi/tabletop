@@ -12,6 +12,12 @@ public sealed class InMemorySharedAssetRepository(InMemoryRows rows) : ISharedAs
     private IEnumerable<string> FolderNames(Guid assetId) =>
         rows.Filed.Where(f => f.AssetId == assetId).Select(f => rows.Folders[f.FolderId].Name).Order(StringComparer.Ordinal);
 
+    private SharedAssetDto Dto(Guid id, InMemoryRows.AssetRow a)
+    {
+        var b = rows.Blobs[(a.Owner, a.Hash)];
+        return new SharedAssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, a.Scale, a.Orientation, a.ModelledBase, rows.Accounts[a.Owner].Name, FolderNames(id).ToList(), a.SharedAt!.Value);
+    }
+
     public Task<IReadOnlyList<SharedAssetDto>> List(Guid callerId, Keyset page, AssetKind? kind, string? q)
     {
         bool Match(string s) => s.Contains(q!, StringComparison.OrdinalIgnoreCase);
@@ -19,13 +25,12 @@ public sealed class InMemorySharedAssetRepository(InMemoryRows rows) : ISharedAs
             return Task.FromResult<IReadOnlyList<SharedAssetDto>>(rows.Assets
                 .Where(e => Visible(callerId, e.Value) && (page.After is null || e.Key.CompareTo(page.After.Value) > 0) && (kind is null || e.Value.Kind == kind)
                     && (string.IsNullOrEmpty(q) || Match(e.Value.Name) || Match(rows.Accounts[e.Value.Owner].Name) || FolderNames(e.Key).Any(Match)))
-                .OrderBy(e => e.Key).Take(page.Limit)
-                .Select(e =>
-                {
-                    var (a, b) = (e.Value, rows.Blobs[(e.Value.Owner, e.Value.Hash)]);
-                    return new SharedAssetDto(e.Key, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, a.Scale, a.Orientation, a.ModelledBase,
-                        rows.Accounts[a.Owner].Name, FolderNames(e.Key).ToList(), a.SharedAt!.Value);
-                }).ToList());
+                .OrderBy(e => e.Key).Take(page.Limit).Select(e => Dto(e.Key, e.Value)).ToList());
+    }
+
+    public Task<SharedAssetDto?> Get(Guid callerId, Guid id)
+    {
+        lock (rows.Gate) return Task.FromResult(rows.Assets.TryGetValue(id, out var a) && Visible(callerId, a) ? Dto(id, a) : null);
     }
 
     public Task<string?> BlobKey(Guid callerId, Guid id)
@@ -44,16 +49,23 @@ public sealed class InMemorySharedAssetRepository(InMemoryRows rows) : ISharedAs
             var notFound = wanted.Except(found).ToList();
             if (found.Count == 0) return Task.FromResult(new CopyResult([], notFound));
             var sources = found.Select(id => rows.Assets[id]).ToList();
+            var hashes = sources.Select(s => s.Hash).ToHashSet();
+            bool Uploaded(string hash) => rows.Blobs.TryGetValue((callerId, hash), out var b) && b.Uploaded;
+            bool PendingOnSource((Guid Owner, string Hash) k, InMemoryRows.BlobRow b) => k.Owner == callerId && !b.Uploaded && hashes.Contains(k.Hash);
+            if (rows.Assets.Values.Any(a => a.Owner == callerId && hashes.Contains(a.Hash) && !Uploaded(a.Hash)
+                    && !AssetRules.ContentTypes[a.Kind].Contains(sources.First(s => s.Hash == a.Hash) is var s ? rows.Blobs[(s.Owner, s.Hash)].ContentType : "")))
+                return Task.FromResult(new CopyResult([], [], PendingConflict: true));
             if (rows.Assets.Values.Count(a => a.Owner == callerId) + found.Count > quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
-            var added = sources.Where(s => !rows.Blobs.ContainsKey((callerId, s.Hash))).DistinctBy(s => s.Hash).Sum(s => rows.Blobs[(s.Owner, s.Hash)].ByteSize);
-            if (rows.Blobs.Where(b => b.Key.Owner == callerId).Sum(b => b.Value.ByteSize) + added > quota.Bytes) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+            var added = sources.Where(s => !Uploaded(s.Hash)).DistinctBy(s => s.Hash).Sum(s => rows.Blobs[(s.Owner, s.Hash)].ByteSize);
+            if (rows.Blobs.Where(b => b.Key.Owner == callerId && !PendingOnSource(b.Key, b.Value)).Sum(b => b.Value.ByteSize) + added > quota.Bytes)
+                throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
 
             foreach (var s in sources.DistinctBy(s => s.Hash))
             {
                 var source = rows.Blobs[(s.Owner, s.Hash)];
                 if (!rows.Blobs.TryGetValue((callerId, s.Hash), out var mine))
                     rows.Blobs.Add((callerId, s.Hash), new InMemoryRows.BlobRow { Key = source.Key, ByteSize = source.ByteSize, ContentType = source.ContentType, Uploaded = true });
-                else if (!mine.Uploaded) { mine.Key = source.Key; mine.Uploaded = true; }
+                else if (!mine.Uploaded) { mine.Key = source.Key; mine.ByteSize = source.ByteSize; mine.ContentType = source.ContentType; mine.Uploaded = true; }
             }
             var copied = new List<Guid>();
             foreach (var s in sources)

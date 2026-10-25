@@ -52,6 +52,8 @@ public class SharedAssetTests : IClassFixture<ManagementFactory>
         Assert.Equal((mesh.Id, "Dread", "Sharer", 1.5), (item.Id, item.Name, item.OwnerName, item.Scale));
         Assert.Empty((await b.GetJson<Page<SharedAssetDto>>("/v1/shared-assets?q=private")).Items);
         Assert.Empty((await a.GetJson<Page<SharedAssetDto>>("/v1/shared-assets?q=dread")).Items);         // never one's own
+        Assert.Equal("Dread", (await b.GetJson<SharedAssetDto>($"/v1/shared-assets/{mesh.Id}")).Name);
+        Assert.Equal(HttpStatusCode.NotFound, (await b.GetAsync($"/v1/shared-assets/{kept.Id}")).StatusCode);
         Assert.Equal(glb, await Download(b, $"/v1/shared-assets/{mesh.Id}/download"));
         Assert.Equal(HttpStatusCode.NotFound, (await b.GetAsync($"/v1/shared-assets/{kept.Id}/download")).StatusCode);
 
@@ -118,6 +120,8 @@ public class SharedAssetTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await b.PostAsync("/v1/shared-assets/copy", JsonContent(new CopySharedRequest([], null)))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await b.PostAsync("/v1/shared-assets/copy", JsonContent(new CopySharedRequest([mesh.Id], theirs.Id)))).StatusCode);
         Assert.Equal([mesh.Id], (await b.PostJson<BulkAssetsResponse>("/v1/assets/share", new BulkAssetsRequest([mesh.Id]))).NotFound);   // not B's to share
+        await b.PostJson<CreateAssetResponse>("/v1/assets", new CreateAssetRequest("Not a texture", AssetKind.Texture, mesh.Hash, 10, "image/png", 1, new Orientation(0, 0, 0), null));
+        Assert.Equal(HttpStatusCode.Conflict, (await b.PostAsync("/v1/shared-assets/copy", JsonContent(new CopySharedRequest([mesh.Id], null)))).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await _f.CreateClient().GetAsync("/v1/shared-assets")).StatusCode);
     }
 

@@ -27,6 +27,9 @@ public static class SharedAssetEndpoints
             return Results.Ok(Page<SharedAssetDto>.Of(await shared.List(CurrentAccount.Id(user), page, k, q), page.Limit, a => a.Id));
         });
 
+        g.MapGet("/{id:guid}", async (ClaimsPrincipal user, Guid id, ISharedAssetRepository shared) =>
+            await shared.Get(CurrentAccount.Id(user), id) is { } a ? Results.Ok(a) : Problems.NotFound());
+
         g.MapGet("/{id:guid}/download", async (ClaimsPrincipal user, Guid id, ISharedAssetRepository shared, IBlobStore blobs) =>
             await shared.BlobKey(CurrentAccount.Id(user), id) is { } key
                 ? Results.Ok(new DownloadResponse(await blobs.PresignDownload(key, DownloadTtl), DateTimeOffset.UtcNow.Add(DownloadTtl)))
@@ -45,6 +48,7 @@ public static class SharedAssetEndpoints
                     : $"An account holds at most {UploadLimits.AccountBytes >> 30} GiB of uploads.");
             }
             if (result.FolderMissing) return Problems.NotFound();
+            if (result.PendingConflict) return Problems.Conflict("An unfinished upload of the same file is in your library as a different kind. Delete it, then copy again.");
             var copied = new List<AssetDto>();
             foreach (var id in result.Copied) if (await assets.Get(caller, id) is { } a) copied.Add(a);
             return Results.Ok(new CopySharedResponse(copied, result.NotFound));

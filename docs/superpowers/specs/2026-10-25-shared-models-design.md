@@ -44,12 +44,15 @@ account:
 - the caller gets an asset row of their own: the source's name, kind, scale, orientation and modelled base, unshared,
   in no folder but `folderId`; a terrain source's volumes are copied as new `asset_volume` rows.
 - the caller gets a blob row for the hash unless they already have an uploaded one. Its `s3_key` is the source blob's
-  key, so no bytes are copied. A pending blob row of the caller's for the same hash takes the source's key and becomes
-  uploaded.
+  key, so no bytes are copied.
+- a pending (not uploaded) blob row of the caller's for the same hash carries a declared, unverified size and content
+  type. It takes the source's key, size and content type and becomes uploaded. If one of the caller's assets on it is of
+  a kind those bytes do not fit (a pending texture on a mesh's hash), the copy is 409 and nothing is written.
 
-`folderId` must be the caller's folder (else 404). The quota is the upload quota, counted the same way: the copy is
-500 assets and 1 GiB of the caller's own blob rows, so a copied 20 MB mesh counts 20 MB against the copier. Over quota
-is 422 and nothing is written.
+`folderId` must be the caller's folder (else 404). The quota is the upload quota (500 assets, 1 GiB) over the caller's
+blob rows, so a copied 20 MB mesh counts 20 MB against the copier; a hash the caller already has uploaded adds nothing,
+and a pending row on a source hash counts at the source's size, not its declared one. Over quota is 422 and nothing is
+written.
 
 After the copy the asset is the copier's in every way: renamed, rescaled, filed, shared, deleted, assigned to army
 slots and layouts (`AssetReferences` checks the caller's own uploaded assets, which a copy is), listed in a game's

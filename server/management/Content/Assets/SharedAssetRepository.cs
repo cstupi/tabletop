@@ -28,21 +28,29 @@ public sealed class SharedAssetRepository(Database db) : ISharedAssetRepository
     /// <summary>q as an ILIKE substring pattern, its wildcards escaped.</summary>
     public static string Pattern(string q) => "%" + q.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_") + "%";
 
-    public async Task<IReadOnlyList<SharedAssetDto>> List(Guid callerId, Http.Keyset page, AssetKind? kind, string? q)
-    {
-        await using var c = await db.Open();
-        var rows = await c.QueryAsync<Row>($@"select a.id as Id, a.name as Name, a.kind as Kind, a.blob_hash as Hash, b.byte_size as ByteSize, b.content_type as ContentType,
+    private const string SelectRows = @"select a.id as Id, a.name as Name, a.kind as Kind, a.blob_hash as Hash, b.byte_size as ByteSize, b.content_type as ContentType,
                 a.scale::float8 as Scale, a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw, a.orientation_roll::float8 as Roll,
                 a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB, o.name as OwnerName,
                 array(select f.name from asset_folder af join folder f on f.id = af.folder_id where af.asset_id = a.id order by f.name) as Folders,
                 a.shared_at as SharedAt
             from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash join account o on o.id = a.owner_id
-            where {Visible} and (@after::uuid is null or a.id > @after::uuid) and (@kind::text is null or a.kind = @kind::text)
+            where " + Visible;
+
+    public async Task<IReadOnlyList<SharedAssetDto>> List(Guid callerId, Http.Keyset page, AssetKind? kind, string? q)
+    {
+        await using var c = await db.Open();
+        var rows = await c.QueryAsync<Row>(SelectRows + @" and (@after::uuid is null or a.id > @after::uuid) and (@kind::text is null or a.kind = @kind::text)
               and (@pattern::text is null or a.name ilike @pattern or o.name ilike @pattern
                    or exists (select 1 from asset_folder af join folder f on f.id = af.folder_id where af.asset_id = a.id and f.name ilike @pattern))
             order by a.id limit @limit",
             new { callerId, after = page.After, kind = kind is null ? null : AssetRules.Kind(kind.Value), pattern = string.IsNullOrEmpty(q) ? null : Pattern(q), limit = page.Limit });
         return rows.Select(r => r.ToDto()).ToList();
+    }
+
+    public async Task<SharedAssetDto?> Get(Guid callerId, Guid id)
+    {
+        await using var c = await db.Open();
+        return (await c.QuerySingleOrDefaultAsync<Row>(SelectRows + " and a.id = @id", new { callerId, id }))?.ToDto();
     }
 
     public async Task<string?> BlobKey(Guid callerId, Guid id)
@@ -70,16 +78,26 @@ public sealed class SharedAssetRepository(Database db) : ISharedAssetRepository
         var notFound = wanted.Where(id => !sources.ContainsKey(id)).ToList();
         if (found.Count == 0) return new CopyResult([], notFound);
 
+        var hashes = found.Select(s => s.Hash).Distinct().ToArray();
+        // A pending row of the caller's for a source hash carries a declared, unverified size and content type: it is replaced by the
+        // source's below, so the quota counts the source's size in its place, and its asset rows must be of a kind the bytes fit.
+        var mine = (await c.QueryAsync<(string Hash, bool Uploaded)>("select hash, uploaded from blob where owner_id = @callerId and hash = any(@hashes)",
+            new { callerId, hashes }, tx)).ToDictionary(r => r.Hash, r => r.Uploaded);
+        var pending = mine.Where(m => !m.Value).Select(m => m.Key).ToArray();
+        var pendingKinds = await c.QueryAsync<(string Hash, string Kind)>("select distinct blob_hash, kind from asset where owner_id = @callerId and blob_hash = any(@pending)",
+            new { callerId, pending }, tx);
+        var contentType = found.DistinctBy(s => s.Hash).ToDictionary(s => s.Hash, s => s.ContentType);
+        if (pendingKinds.Any(p => !AssetRules.ContentTypes[AssetRules.Kind(p.Kind)].Contains(contentType[p.Hash]))) return new CopyResult([], [], PendingConflict: true);
+
         var (assets, bytes) = await c.QuerySingleAsync<(int, long)>(@"select (select count(*) from asset where owner_id = @callerId)::int,
-            (select coalesce(sum(byte_size), 0) from blob where owner_id = @callerId)::bigint", new { callerId }, tx);
-        var known = (await c.QueryAsync<string>("select hash from blob where owner_id = @callerId and hash = any(@hashes)",
-            new { callerId, hashes = found.Select(s => s.Hash).Distinct().ToArray() }, tx)).ToHashSet();
+            (select coalesce(sum(byte_size), 0) from blob where owner_id = @callerId and not (not uploaded and hash = any(@pending)))::bigint", new { callerId, pending }, tx);
         if (assets + found.Count > quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
-        if (bytes + found.Where(s => !known.Contains(s.Hash)).DistinctBy(s => s.Hash).Sum(s => s.ByteSize) > quota.Bytes) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+        if (bytes + found.Where(s => !mine.GetValueOrDefault(s.Hash)).DistinctBy(s => s.Hash).Sum(s => s.ByteSize) > quota.Bytes) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
 
         foreach (var s in found.DistinctBy(s => s.Hash))
             await c.ExecuteAsync(@"insert into blob (owner_id, hash, s3_key, byte_size, content_type, uploaded) values (@callerId, @hash, @key, @size, @ct, true)
-                on conflict (owner_id, hash) do update set s3_key = excluded.s3_key, uploaded = true where not blob.uploaded",
+                on conflict (owner_id, hash) do update set s3_key = excluded.s3_key, byte_size = excluded.byte_size, content_type = excluded.content_type, uploaded = true
+                where not blob.uploaded",
                 new { callerId, hash = s.Hash, key = s.Key, size = s.ByteSize, ct = s.ContentType }, tx);
         var copied = new List<Guid>();
         foreach (var s in found)

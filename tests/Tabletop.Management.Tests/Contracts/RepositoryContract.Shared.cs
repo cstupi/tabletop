@@ -45,6 +45,10 @@ public abstract partial class RepositoryContract
         Assert.Single(await SharedBy(me, owner, "sharer"));
         Assert.Empty(await SharedBy(me, owner, "%"));
         Assert.Empty(await SharedBy(me, owner, kind: AssetKind.Texture));
+        Assert.Equal(listed, await Shared.Get(me, orks.Id) is { } got ? got with { Folders = listed.Folders } : null);
+        Assert.Equal(["Greenskins"], (await Shared.Get(me, orks.Id))!.Folders);
+        Assert.Null(await Shared.Get(owner, orks.Id));
+        Assert.Null(await Shared.Get(me, hidden.Id));
         Assert.Equal(IBlobStore.Key(owner, orks.Hash), await Shared.BlobKey(me, orks.Id));
         Assert.Null(await Shared.BlobKey(owner, orks.Id));
         Assert.Null(await Shared.BlobKey(me, hidden.Id));
@@ -95,6 +99,36 @@ public abstract partial class RepositoryContract
         Assert.Equal(AssetQuotaExceeded.Limit.Assets, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Shared.Copy(me, [other.Id], null, new AssetQuota(2, 1L << 30)))).Which);
         Assert.Equal(AssetQuotaExceeded.Limit.Bytes, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Shared.Copy(me, [other.Id], null, new AssetQuota(500, 500)))).Which);
         Assert.Equal(2, (await Assets.List(me, new Keyset(200, null), null)).Count);
+    }
+
+    [Fact]
+    public async Task A_pending_row_on_the_hash_takes_the_sources_size_and_type_and_is_charged_for_it()
+    {
+        var (owner, me) = (await NewAccount(), await NewAccount());
+        var source = await Uploaded(owner, Mini(size: 1000));
+        await Assets.SetShared(owner, [source.Id], true);
+        var pending = await Assets.Create(me, Mini(source.Hash, "declared small", 1));
+
+        // Charged at the source's 1000 bytes, not the 1 the pending row declared.
+        Assert.Equal(AssetQuotaExceeded.Limit.Bytes, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Shared.Copy(me, [source.Id], null, new AssetQuota(500, 999)))).Which);
+        var copy = (await Shared.Copy(me, [source.Id], null, new AssetQuota(500, 1000))).Copied.Single();
+        var mine = (await Assets.Get(me, pending.Id))!;
+        Assert.Equal((true, 1000L, "model/gltf-binary"), (mine.Uploaded, mine.ByteSize, mine.ContentType));
+        Assert.Equal(IBlobStore.Key(owner, source.Hash), await Assets.BlobKey(me, copy));
+    }
+
+    [Fact]
+    public async Task A_pending_asset_of_a_kind_the_sources_bytes_do_not_fit_refuses_the_copy()
+    {
+        var (owner, me) = (await NewAccount(), await NewAccount());
+        var source = await Uploaded(owner, Mini());
+        await Assets.SetShared(owner, [source.Id], true);
+        var pending = await Assets.Create(me, Texture() with { Hash = source.Hash });
+
+        Assert.True((await Shared.Copy(me, [source.Id], null, Plenty)).PendingConflict);
+        var still = (await Assets.Get(me, pending.Id))!;
+        Assert.Equal((false, "image/png"), (still.Uploaded, still.ContentType));
+        Assert.Single(await Assets.List(me, new Keyset(200, null), null));
     }
 
     [Fact]
