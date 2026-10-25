@@ -68,13 +68,23 @@ export function baseOutline(model: RecordedModel, centre: Point, yaw: number): S
 
 /** Tabletop.Geometry.WorldVolumes.WorldOutline, ported: the piece's position, yaw and uniform scale applied. */
 export function volumeOutline(terrain: RecordedTerrain, volume: RecordedVolume): Shape {
-  const s = terrain.scale;
-  const offset = rotate({ x: volume.offsetX * s, y: volume.offsetY * s }, terrain.yaw);
-  const centre = { x: terrain.x + offset.x, y: terrain.y + offset.y };
-  if (volume.footprint === 'circle') return { kind: 'circle', centre, radius: volume.a * s };
-  const hw = (volume.a * s) / 2;
-  const hl = (volume.b * s) / 2;
-  const yaw = terrain.yaw + volume.yaw;
+  return worldOutline({ x: terrain.x, y: terrain.y }, terrain.yaw, terrain.scale, {
+    circle: volume.footprint === 'circle', a: volume.a, b: volume.b, offsetX: volume.offsetX, offsetY: volume.offsetY, yaw: volume.yaw,
+  });
+}
+
+/** The wire-shaped core of WorldOutline: a piece at `at` (inches, yaw degrees, uniform scale) and one volume's footprint, offset and
+ *  own yaw. Recordings and setup drafts both come through here. */
+export function worldOutline(
+  at: Point, pieceYaw: number, scale: number,
+  volume: { readonly circle: boolean; readonly a: number; readonly b: number; readonly offsetX: number; readonly offsetY: number; readonly yaw: number },
+): Shape {
+  const offset = rotate({ x: volume.offsetX * scale, y: volume.offsetY * scale }, pieceYaw);
+  const centre = { x: at.x + offset.x, y: at.y + offset.y };
+  if (volume.circle) return { kind: 'circle', centre, radius: volume.a * scale };
+  const hw = (volume.a * scale) / 2;
+  const hl = (volume.b * scale) / 2;
+  const yaw = pieceYaw + volume.yaw;
   return {
     kind: 'polygon',
     points: [{ x: -hw, y: -hl }, { x: hw, y: -hl }, { x: hw, y: hl }, { x: -hw, y: hl }].map((p) => {
