@@ -76,6 +76,18 @@ describe('DeployView', () => {
     expect(placements[1]!.position.x).toBeCloseTo(36, 9);
   });
 
+  it('oval bases space a row by their width across the facing and the rows by their length, within 1" (p.7)', () => {
+    // 60x35mm bikes: a = 2.362" along the facing, b = 1.378" across it. Spaced by a, side by side the edges sat 1.2" apart.
+    const bike = (ordinal: number): ModelInPlay => ({ ...model(ordinal, 1), slot: slotOf({ name: `b${ordinal}`, ordinal, base: { shape: 'oval', a: 2.362, b: 1.378 } }) });
+    const ps = layout(Array.from({ length: 8 }, (_, i) => bike(i + 1)), { x: 36, y: 24, z: 0 }, SIZE)
+      .map((m) => (m.to as { placement: { position: { x: number; y: number } } }).placement.position);
+    const across = ps[1]!.x - ps[0]!.x, along = ps[0]!.y - ps[5]!.y;
+    expect(across - 1.378).toBeGreaterThan(0);
+    expect(across - 1.378).toBeLessThanOrEqual(1);
+    expect(along - 2.362).toBeGreaterThan(0);
+    expect(along - 2.362).toBeLessThanOrEqual(1);
+  });
+
   it('a large unit wraps to rows of five and stays on the table', () => {
     const models = Array.from({ length: 12 }, (_, i) => model(i + 1, 1));
     const at2 = layout(models, { x: 0.5, y: 0.5, z: 0 }, SIZE).map((m) => (m.to as { placement: { position: { x: number; y: number } } }).placement.position);
