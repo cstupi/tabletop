@@ -6,7 +6,7 @@ const folders: FolderDto[] = [
   { id: 'orks', name: 'Orks', assetIds: ['a'] }, { id: 'boyz', parentId: 'orks', name: 'Boyz', assetIds: ['b'] },
   { id: 'winter', name: 'Winter', assetIds: ['b'] }, { id: 'nobz', parentId: 'orks', name: 'Nobz', assetIds: [] },
 ];
-const asset = (id: string, kind: AssetDto['kind'] = 'miniature', a = 1.26): AssetDto => ({ id, name: id, kind, hash: id, byteSize: 1, contentType: 'model/gltf-binary', uploaded: true, scale: 1, orientation: { pitch: 0, yaw: 0, roll: 0 }, modelledBase: kind === 'miniature' ? { shape: 'circle', a, b: a } : undefined });
+const asset = (id: string, kind: AssetDto['kind'] = 'miniature', a = 1.26): AssetDto => ({ id, name: id, kind, hash: id, byteSize: 1, contentType: 'model/gltf-binary', uploaded: true, scale: 1, orientation: { pitch: 0, yaw: 0, roll: 0 }, shared: false, modelledBase: kind === 'miniature' ? { shape: 'circle', a, b: a } : undefined });
 
 describe('folders', () => {
   it('builds a sorted tree and finds descendants', () => {

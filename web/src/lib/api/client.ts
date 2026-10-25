@@ -25,10 +25,18 @@ export const api = {
     patch: (id: T.Guid, r: T.PatchAssetRequest) => http.patch<T.AssetDto>(`/v1/assets/${id}`, r),
     delete: (id: T.Guid) => http.del(`/v1/assets/${id}`),
     deleteMany: (assetIds: T.Guid[]) => http.post<T.BulkAssetsResponse>('/v1/assets/delete', { assetIds }),
+    share: (assetIds: T.Guid[]) => http.post<T.BulkAssetsResponse>('/v1/assets/share', { assetIds }),
+    unshare: (assetIds: T.Guid[]) => http.post<T.BulkAssetsResponse>('/v1/assets/unshare', { assetIds }),
     confirm: (id: T.Guid) => http.post<T.ConfirmResponse>(`/v1/assets/${id}/confirm`),
     download: (id: T.Guid) => http.get<T.DownloadResponse>(`/v1/assets/${id}/download`),
     getVolumes: (id: T.Guid) => http.get<T.TerrainVolume[]>(`/v1/assets/${id}/volumes`),
     putVolumes: (id: T.Guid, volumes: T.Volume[]) => http.put<T.TerrainVolume[]>(`/v1/assets/${id}/volumes`, volumes),
+  },
+  shared: {
+    list: (p: { limit?: number; after?: T.Guid; kind?: T.AssetKind; q?: string }) => http.get<T.Page<T.SharedAssetDto>>(`/v1/shared-assets${query(p)}`),
+    get: (id: T.Guid) => http.get<T.SharedAssetDto>(`/v1/shared-assets/${id}`),
+    download: (id: T.Guid) => http.get<T.DownloadResponse>(`/v1/shared-assets/${id}/download`),
+    copy: (assetIds: T.Guid[], folderId: T.Guid | null) => http.post<T.CopySharedResponse>('/v1/shared-assets/copy', { assetIds, folderId } satisfies T.CopySharedRequest),
   },
   folders: {
     list: () => http.get<T.FolderDto[]>('/v1/folders'),

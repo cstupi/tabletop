@@ -42,6 +42,8 @@ export type ContentType = 'model/gltf-binary' | 'image/png' | 'image/jpeg' | 'im
 export interface AssetDto {
   id: Guid; name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType; uploaded: boolean;
   scale: number; orientation: Orientation; modelledBase?: Base;
+  /** Every signed-in account can list and copy it (`/v1/shared-assets`). */
+  shared: boolean;
 }
 export interface CreateAssetRequest {
   name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType;
@@ -51,6 +53,15 @@ export interface CreateAssetResponse { asset: AssetDto; uploadUrl?: string }
 export interface ConfirmResponse { asset: AssetDto; triangles?: number; warning?: string }
 export interface PatchAssetRequest { name?: string; scale?: number; orientation?: Orientation; modelledBase?: Base }
 export interface DownloadResponse { url: string; expiresAt: string }
+
+// Shared assets (GET /v1/shared-assets): another account's shared, uploaded asset; `folders` are the owner's folders holding it.
+export interface SharedAssetDto {
+  id: Guid; name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType;
+  scale: number; orientation: Orientation; modelledBase?: Base; ownerName: string; folders: string[]; sharedAt: string;
+}
+export interface CopySharedRequest { assetIds: Guid[]; folderId: Guid | null }
+/** `copied`: the caller's new assets; `notFound`: ids no longer shared. */
+export interface CopySharedResponse { copied: AssetDto[]; notFound: Guid[] }
 
 // Client releases (GET /v1/client/latest)
 export type ClientPlatform = 'windows' | 'macos' | 'linux';
