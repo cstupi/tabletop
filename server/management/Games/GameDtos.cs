@@ -13,4 +13,5 @@ public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid C
 public sealed record ManifestEntry(Guid AssetId, AssetKind Kind, string Hash, Uri Url, double Scale, Orientation Orientation);
 public sealed record Manifest(IReadOnlyList<ManifestEntry> Assets, DateTimeOffset ExpiresAt);
 /// <summary>What the manifest query returns per asset, before presigning.</summary>
-public sealed record ManifestRow(Guid AssetId, Guid OwnerId, string Kind, string Hash, double Scale, double Pitch, double Yaw, double Roll);
+/// <summary><c>Key</c> is the blob row's S3 key: a copy of a shared asset names the sharer's object.</summary>
+public sealed record ManifestRow(Guid AssetId, Guid OwnerId, string Kind, string Hash, string Key, double Scale, double Pitch, double Yaw, double Roll);

@@ -14,7 +14,7 @@ public static class ManifestEndpoint
             if (!await games.IsParticipant(id, CurrentAccount.Id(u))) return Problems.NotFound();
             var entries = new List<ManifestEntry>();
             foreach (var r in await games.ManifestAssets(id))
-                entries.Add(new ManifestEntry(r.AssetId, AssetRules.Kind(r.Kind), r.Hash, await blobs.PresignDownload(IBlobStore.Key(r.OwnerId, r.Hash), Ttl), r.Scale, new Tabletop.Geometry.Orientation(r.Pitch, r.Yaw, r.Roll)));
+                entries.Add(new ManifestEntry(r.AssetId, AssetRules.Kind(r.Kind), r.Hash, await blobs.PresignDownload(r.Key, Ttl), r.Scale, new Tabletop.Geometry.Orientation(r.Pitch, r.Yaw, r.Roll)));
             return Results.Ok(new Manifest(entries, DateTimeOffset.UtcNow.Add(Ttl)));
         }).RequireAuthorization();
 }

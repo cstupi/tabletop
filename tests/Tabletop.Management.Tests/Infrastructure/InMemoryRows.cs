@@ -20,7 +20,7 @@ public sealed class InMemoryRows
     public sealed class AssetRow
     {
         public required Guid Owner; public required string Hash; public required string Name; public AssetKind Kind;
-        public double Scale; public Orientation Orientation; public Base? ModelledBase;
+        public double Scale; public Orientation Orientation; public Base? ModelledBase; public DateTimeOffset? SharedAt;
         public List<TerrainVolume> Volumes = [];
     }
     public sealed class FolderRow { public required Guid Owner; public Guid? ParentId; public required string Name; }

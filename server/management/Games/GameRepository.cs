@@ -171,7 +171,7 @@ public sealed class GameRepository(Database db) : IGameRepository
             union select tp.asset_id from terrain_placement tp join table_state t on t.id = tp.table_state_id where t.game_id = @id and tp.asset_id is not null
             union select m.visual_asset_id from marker m join table_state t on t.id = m.table_state_id where t.game_id = @id and m.visual_asset_id is not null", new { id }));
         if (ids.Count == 0) return [];
-        return (await c.QueryAsync<ManifestRow>(@"select a.id as AssetId, a.owner_id as OwnerId, a.kind as Kind, a.blob_hash as Hash, a.scale::float8 as Scale,
+        return (await c.QueryAsync<ManifestRow>(@"select a.id as AssetId, a.owner_id as OwnerId, a.kind as Kind, a.blob_hash as Hash, b.s3_key as Key, a.scale::float8 as Scale,
             a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw, a.orientation_roll::float8 as Roll
             from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash
             where a.id = any(@ids) and b.uploaded and a.owner_id in (select account_id from participant where game_id = @id)", new { ids = ids.ToArray(), id })).ToList();

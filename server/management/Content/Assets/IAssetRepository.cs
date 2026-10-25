@@ -29,13 +29,21 @@ public interface IAssetRepository
     Task<bool> MarkUploaded(Guid ownerId, string hash);
     /// <summary>The kind of each of these ids that is an asset of the owner with its bytes uploaded; other ids are absent.</summary>
     Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids);
-    /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too and returns its S3 key.</summary>
+    /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too, and when no blob row
+    /// of any owner still names its S3 key (a copy names the sharer's), returns that key.</summary>
     Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id);
+    /// <summary>Sets or clears shared_at on each of these ids that is an asset of the owner (sharing an already shared asset keeps its
+    /// time); returns those ids.</summary>
+    Task<IReadOnlyList<Guid>> SetShared(Guid ownerId, IReadOnlyList<Guid> ids, bool shared);
+    /// <summary>The S3 key the asset's blob row names; null when the owner has no such asset.</summary>
+    Task<string?> BlobKey(Guid ownerId, Guid id);
+    /// <summary>The keys no blob row of any owner names: what may be deleted from the store.</summary>
+    Task<IReadOnlyList<string>> Unreferenced(IReadOnlyList<string> keys);
     Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId);
     /// <summary>Replaces the asset's volumes with fresh ids. The caller has checked ownership.</summary>
     Task<IReadOnlyList<TerrainVolume>> PutVolumes(Guid assetId, IReadOnlyList<Volume> volumes);
     /// <summary>Deletes every blob row not uploaded and created before the cutoff, with the asset rows on it, across owners;
-    /// returns the deleted rows' S3 keys.</summary>
+    /// returns the deleted rows' S3 keys that no remaining blob row names.</summary>
     Task<IReadOnlyList<string>> DeleteAbandoned(DateTimeOffset cutoff);
     /// <summary>account.starter_seeded_at is set.</summary>
     Task<bool> StarterSeeded(Guid ownerId);

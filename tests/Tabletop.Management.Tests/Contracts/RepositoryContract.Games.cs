@@ -200,8 +200,8 @@ public abstract partial class RepositoryContract
 
         var rows = await Games.ManifestAssets(game);
         Assert.Equal(new HashSet<Guid> { aMesh.Id, bMesh.Id, texture.Id }, rows.Select(r => r.AssetId).ToHashSet());
-        Assert.Equal(new ManifestRow(bMesh.Id, b, "miniature", bMesh.Hash, 2.5, 90, 0, 0), rows.Single(r => r.AssetId == bMesh.Id));
-        Assert.Equal(new ManifestRow(texture.Id, b, "texture", texture.Hash, 1, 0, 0, 0), rows.Single(r => r.AssetId == texture.Id));
+        Assert.Equal(new ManifestRow(bMesh.Id, b, "miniature", bMesh.Hash, IBlobStore.Key(b, bMesh.Hash), 2.5, 90, 0, 0), rows.Single(r => r.AssetId == bMesh.Id));
+        Assert.Equal(new ManifestRow(texture.Id, b, "texture", texture.Hash, IBlobStore.Key(b, texture.Hash), 1, 0, 0, 0), rows.Single(r => r.AssetId == texture.Id));
         Assert.Empty(await Games.ManifestAssets((await Games.Create(a, GameRequest(hash)))!.Id));
     }
 }
