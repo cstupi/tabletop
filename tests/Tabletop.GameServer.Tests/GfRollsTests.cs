@@ -340,7 +340,8 @@ public class GfRollsTests
     public void Cover_terrain_is_counted_by_centre_or_by_whole_base_and_in_cover_needs_a_strict_majority(double edgeY, int byCentre, int byBase, bool inCover)
     {
         var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 4, []);
-        var state = State([a], [b], x1: -12, x2: 0, terrain: [CoverUpTo(edgeY)]);
+        // The shooter at x -3 stands in the area itself, so the models outside it are not behind it from the shooter (Cover.CoverTerrainBetween): only the terrain test counts.
+        var state = State([a], [b], x1: -3, x2: 0, terrain: [CoverUpTo(edgeY)]);
         Assert.Equal((byCentre, byBase), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false).Count, Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true).Count));
         Assert.Equal(inCover, GfRolls.InCover(state, b.Id, [a.Models[0].Id], ignoresSightObstructions: false));   // a multi-model unit is judged by whole bases: 2 of 4 is not a majority, 3 of 4 is
     }

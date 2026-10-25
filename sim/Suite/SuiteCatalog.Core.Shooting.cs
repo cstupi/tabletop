@@ -168,6 +168,48 @@ internal static partial class CoreGames
         ], dice: [new DiceFix("defense", 2, [3, 2])]);
     }
 
+    // ---- core-fence-cover ------------------------------------------------------------------------------------------------------------
+
+    // 48" by 36": the built-in wall-or-fence (solid, 6" by 0.5", 1.5" tall, cover and difficult, not blocking sight) across x 13–19, y 9.25–9.75.
+    // Red's two shooters hold at (14, 34) and (18, 34). Blue 1 stands behind the fence at (16, 8.57), every line to it through the fence;
+    // Blue 2 beside its east end at (20.5, 8.57), every line to it crossing y 9.75 east of x 19.5.
+    const double FenceY = 9.5;
+
+    /// <summary>p.11 "Terrain features that models can hide in or behind ... count as cover terrain"; p.18 "Wall or Fence: Counts as Cover".</summary>
+    public static TestGame FenceCover()
+    {
+        const string name = "core-fence-cover";
+        var below = FenceY - 0.25 - ModelRadius - 0.05;
+        var scenario = new ScenarioBuilder(name, seed: 1)
+            .RoundCap(5).Table(48, 36)
+            .Army("Red", 2, 1, weapons: [new ScenarioWeapon("Long Rifle", new Dictionary<string, string> { ["Range"] = "36\"", ["Attacks"] = "3" }, [])],
+                anchors: new Dictionary<int, Point2> { [1] = new(14, 34), [2] = new(18, 34) })
+            .Army("Blue", 2, 1, weapons: [HandWeapon()], modelRules: [new ScenarioRule(1, "Tough", 12), new ScenarioRule(2, "Tough", 12)],
+                anchors: new Dictionary<int, Point2> { [1] = new(16, below), [2] = new(20.5, below) })
+            .Terrain("wall", new Point3(16, FenceY, 0), volumes:
+                [new Volume(VolumeKind.Solid, Footprint.Rect(6, 0.5), new Point2(0, 0), new Yaw(0), 0, 1.5, TerrainDeclarations.Cover | TerrainDeclarations.Difficult, null)])
+            .Scripted(EveryoneHolds())
+            .Build();
+        string? Shots(CoreLog log, string unit, bool cover)
+        {
+            var target = UnitNamed(log, unit);
+            var rolls = (from attack in log.Frames where attack.Sequence == "attack-sequence" && attack.Targets[0] == target && log.Frame(attack.Parent)?.Sequence == "shooting"
+                         from c in log.Children(attack) where c.Sequence == "resolve-hits"
+                         from st in c.Steps from r in st.Step.Rolls where r.Roll == "defense" select (attack.StartSeq, r)).ToList();
+            if (rolls.Count == 0) return $"{unit} was never shot";
+            foreach (var (seq, r) in rolls)
+                if (r.Modifiers.Any(m => m is { Source: "cover", Amount: 1 }) != cover) return $"{unit} blocked {(cover ? "without" : "with")} cover at seq {seq}";
+            return null;
+        }
+        return Game(name, scenario,
+        [
+            Check("p.11: \"Terrain features that models can hide in or behind ... count as cover terrain\"; p.18: \"Wall or Fence: Counts as Cover\" (Blue 1, behind the fence from both shooters, blocks with +1 every time)",
+                log => Shots(log, "Blue unit 1", cover: true)),
+            Check("p.11: cover is terrain models are \"in or behind\" (Blue 2, beside the fence and not behind it from either shooter, never blocks with cover)",
+                log => Shots(log, "Blue unit 2", cover: false)),
+        ]);
+    }
+
     /// <summary>Every line between the two bases crosses the wall's footprint: they stand on opposite sides of it, both within its width.</summary>
     static bool BehindWall(Point2 a, Point2 b)
     {

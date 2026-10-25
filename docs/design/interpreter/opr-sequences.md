@@ -136,7 +136,7 @@ instead (p.14: *"resolved as if it was a unit of [1]"*), so its own `Defense` is
 (p.11). The verdict travels with it as `Values["cover_models"]`, `Values["cover_of"]` and, when Indirect's dropped sight half
 lost the majority, `Values["cover_indirect"]`; `roll-to-block` puts the one verdict on every group's defense roll as
 `RollRecord.Cover`, with a cover suppressor (Blast) named as `IgnoredBy`. p.11's one majority lives in that call: more than half of the target's living models are
-in cover terrain, screened by a sight blocker, or unseen. `Battlefield` supplies only the two
+in cover terrain, screened by a sight blocker or by cover terrain on the line that does not block sight (a wall or fence, a barricade), or unseen. `Battlefield` supplies only the two
 model lists, `ModelsInCoverTerrain` and `ModelsBehindSightBlockers`, and the fraction is the size
 of their union, because the fraction is a ruleset number. Sight is measured from the whole
 eligible attacker set, not from one vantage model. Indirect drops the sight list. Each defense die carries what it set off on the

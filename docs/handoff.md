@@ -53,7 +53,7 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 306 of 306 games pass in process with no pin, 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 307 of 307 games pass in process with no pin, 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
@@ -220,7 +220,7 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 
 ## Defects the rules suite found
 
-D1-D16 are fixed; the suite has 306 games and passes with no pin. What stays open is in *Next* 1.
+D1-D16 are fixed; the suite has 307 games and passes with no pin. What stays open is in *Next* 1.
 
 ## Rules-suite gaps
 
