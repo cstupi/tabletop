@@ -9,7 +9,7 @@ import { SendError, type ConnectionState } from '../connection/gameConnection';
 import type { Projection } from '../live/apply';
 import { playingAs } from '../lobby/seats';
 import type {
-  Ask, AskAnswer, AskOption, Assignment, Allocation, Command, GameEvent, Options, PieceSelection, Refused, TokenSpend,
+  Ask, AskAnswer, AskOption, Assignment, Allocation, Command, GameEvent, Options, PieceSelection, Placement, Point3, Refused, TokenSpend,
 } from '../protocol/wire.generated';
 import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } from './askView';
 import { CasualtyPick } from './casualtyPick';
@@ -27,7 +27,7 @@ import { waitHolds, waitingTeams } from './waiting';
 export type Control =
   | { readonly kind: 'button'; readonly id: string; readonly label: string; readonly disabled: boolean;
       readonly tooltip?: string; readonly pieces?: readonly string[] }        // pieces: lit while the pointer is on it
-  | { readonly kind: 'note' | 'label' | 'reason'; readonly text: string }   // note and reason in warning colour
+  | { readonly kind: 'note' | 'label' | 'reason'; readonly text: string; readonly id?: string }   // note and reason in warning colour; a reason with no text draws nothing
   | { readonly kind: 'chip'; readonly id: string; readonly label: string; readonly pressed: boolean; readonly disabled?: boolean }
   | { readonly kind: 'spin'; readonly id: string; readonly label: string; readonly max: number; readonly value: number };
 
@@ -54,6 +54,10 @@ export interface MoveHooks {
   keepGhosts(box: DecisionBox): void;
   refused(box: DecisionBox, token: string, detail: string): void;
   unhook(box: DecisionBox): void;
+  /** A send that never reached the server (the socket failed): the token's models are the projection's again. */
+  failed?(box: DecisionBox, token: string): void;
+  /** A held ghost landed: its refusal lapses and the move is gated again. */
+  dragged?(box: DecisionBox, modelId: string): void;
 }
 
 /** The open Ask's handlers: set by its render, dropped by unhook whenever the Ask ends by any route. */
@@ -68,6 +72,12 @@ const MAX_SEEN = 16;
 export class DecisionBox {
   /** What D2's move rendering sets, as the Godot partial class sets its fields. */
   readonly handlers: Handlers = noHandlers();
+  /** TableInput.Proposing: the models being positioned (a move step's, a placement's ghosts). */
+  proposing: ReadonlySet<string> = new Set();
+  /** The proposed models' placements as the board draws them (a ghost's position and the facing the player gave it). */
+  readonly ghosts = new Map<string, Placement>();
+  /** TableInput.PlacementPoint: a deploy's click on the table, its own slot so a menu pick cannot take it. */
+  placementPoint: ((at: Point3) => void) | null = null;
   readonly #host: DecisionHost;
   readonly #moves: MoveHooks | null;
   readonly #listeners = new Set<(panel: DecisionPanel) => void>();
@@ -127,8 +137,53 @@ export class DecisionBox {
   }
   add(control: Control, action?: () => void): void {
     this.#controls.push(control);
-    if (action !== undefined && 'id' in control) this.#actions.set(control.id, action);
+    if (action !== undefined && control.id !== undefined) this.#actions.set(control.id, action);
   }
+  /** Replace(id): the control with this id, in place. */
+  replace(id: string, control: Control | ((old: Control) => Control)): void {
+    const i = this.#controls.findIndex((c) => 'id' in c && c.id === id);
+    if (i < 0) return;
+    this.#controls[i] = typeof control === 'function' ? control(this.#controls[i]!) : control;
+    this.#publish();
+  }
+  /** A held proposed model landed at `at`: the ghost moves there, and the move is gated again. */
+  dragged(modelId: string, at: Placement): void {
+    if (!this.ghosts.has(modelId)) return;
+    this.ghosts.set(modelId, at);
+    this.#moves?.dragged?.(this, modelId);
+  }
+  /** A click on the table while a deploy waits for one. */
+  placeAt(at: Point3): boolean {
+    const place = this.placementPoint;
+    if (place === null) return false;
+    place(at);
+    return true;
+  }
+  /** Reset and Render: an Esc that starts the Ask or the placement over. */
+  rebuild(): void { this.#reset(); this.#renderedAsk = null; this.render(); }
+  /** AnswerAsk for the open Ask, as the box answers it; the token a refusal arrives under. */
+  answer(ask: Ask, answer: AskAnswer): string { void this.#answer(ask, answer); return String(this.#lastToken); }
+  /** A command that is no answer (a placement's MoveModels); `failed` words a send that never reached the server. Returns its token. */
+  sendCommand(command: Command, failed: (message: string) => string): string {
+    this.#controls = this.#controls.map((c) => (c.kind === 'button' || c.kind === 'chip' ? { ...c, disabled: true } : c));
+    this.handlers.onEnter = null; this.handlers.onCancel = null; this.#moves?.unhook(this);
+    const token = ++this.#lastToken;
+    this.#lastId = null;
+    this.#publish();
+    this.#host.send(command).then((outcome) => {
+      if (token !== this.#lastToken) return;
+      this.#lastId = outcome.id;
+      const refused = outcome.refused ?? this.#seen.get(outcome.id);
+      if (refused !== undefined) this.#refused(String(token), refused);
+    }, (e: unknown) => {
+      if (token !== this.#lastToken) return;
+      this.#moves?.failed?.(this, String(token));
+      this.#refusal = failed(e instanceof SendError || e instanceof Error ? e.message : String(e)); this.#refusalAsk = null;
+      this.#reset(); this.render();
+    });
+    return String(token);
+  }
+
   /** Glow(ids): the open Ask's glow, a unit id lighting each of the unit's models. */
   glow(ids: Iterable<string>): void { this.#glow.clear(); for (const id of ids) this.#glow.add(id); }
   /** Reports a failed send, or a refusal, the way Godot's Report does. */
@@ -167,7 +222,7 @@ export class DecisionBox {
     const muted = new Set(this.#host.settings().mutedWindowKinds);
     const team = this.#host.acting();
     const mine = myAsk(p, game, team, muted);
-    if (mine?.ask.id !== this.#refusalAsk) this.#refusal = null;           // a different Ask, or none: the refusal is spent
+    if ((mine?.ask.id ?? null) !== this.#refusalAsk) this.#refusal = null;           // a different Ask, or none: the refusal is spent
     const names = new Names(game, p);
     const model = decisionOf(p, game, names, team, muted);
     if (mine === null) {
@@ -214,7 +269,7 @@ export class DecisionBox {
   #segment(items: ReadonlyArray<readonly [Control, (() => void)?]>): void {
     this.#controls.splice(0, this.#segmentLength, ...items.map((i) => i[0]));
     this.#segmentLength = items.length;
-    for (const [c, a] of items) if (a !== undefined && 'id' in c) this.#actions.set(c.id, a);
+    for (const [c, a] of items) if (a !== undefined && c.id !== undefined) this.#actions.set(c.id, a);
     this.#publish();
   }
 
@@ -366,6 +421,7 @@ export class DecisionBox {
       const refused = outcome.refused ?? this.#seen.get(outcome.id);         // a Refused that landed before the promise settled
       if (refused !== undefined) this.#refused(String(token), refused);
     } catch (e) {
+      this.#moves?.failed?.(this, String(token));
       this.#report(ask.id, e instanceof SendError || e instanceof Error ? e.message : String(e));
     }
   }
@@ -390,7 +446,7 @@ export class DecisionBox {
     Object.assign(this.handlers, noHandlers());
     this.#glow.clear(); this.#lit = null; this.#ghost.clear(); this.#deployUnit = null;
     this.#targets = null; this.#marks = new Map(); this.#spins = null;
-    this.#eligible = new Set();
+    this.#eligible = new Set(); this.proposing = new Set(); this.ghosts.clear(); this.placementPoint = null;
     this.#moves?.unhook(this);
   }
 
