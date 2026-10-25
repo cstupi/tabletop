@@ -22,8 +22,8 @@ export const faded = (e: LogEntry, pendingUndoTo: number | null): boolean => e.u
 /** A Button has no strike style: U+0336 after each character. */
 export const strike = (s: string): string => Array.from(s).map((c) => `${c}̶`).join('');
 
-/** A live non-roll line or block, not an undo marker, for a player (not a watcher). */
-export const undoHere = (e: LogEntry, watching: boolean): boolean => !watching && e.type !== 'roll' && !e.undone && e.event.payload.kind !== 'undone';
+/** CombatLog.UndoHere: a live row, not an undo marker, for a player (not a watcher). A roll offers it in its expansion, a block or line on the row. */
+export const undoHere = (e: LogEntry, watching: boolean): boolean => !watching && !e.undone && e.event.payload.kind !== 'undone';
 
 export interface TrayLines { title: string; faces: readonly DieView[]; result: string | null; success: boolean; tooltip: string }
 

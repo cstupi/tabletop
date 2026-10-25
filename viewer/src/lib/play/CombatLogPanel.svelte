@@ -104,7 +104,7 @@
     {#if r.applied.length > 0}
       <p class="flow">{#each r.applied as name (name)}<button type="button" class="flat" tabindex="-1" title={rules.textOf(name) ?? name} onmousedown={noFocus}>{name}</button>{/each}</p>
     {/if}
-    {#if !r.undone && !watching}
+    {#if undoHere(r, watching)}
       <button type="button" class="flat" tabindex="-1" onmousedown={noFocus} onclick={() => onUndoTo(r.seq)}>Undo to here</button>
     {/if}
   </div>
