@@ -126,6 +126,14 @@ Released as v0.1.24.
     banners beyond the roll-off.
 - Validated on `main` after the last merge: unit suite all green, E2E 425/425, viewer 744 unit and 4 stack tests, web 128,
   rules suite 306/306 in process. Nothing has been looked at on screen yet.
+- **The play UI** (spec `2026-10-25-play-ui-design.md`), after the owner found the viewer broken: the viewer is served under
+  `/viewer/` in development too, through the website's dev server (`http://127.0.0.1:5173/viewer/`), and shares the website's
+  session; the developer sign-in and pasted JWT are gone. It loads the website's `themes.css`, `app.css`, header and icons and fills
+  the window. Redesigned: the games list, lobby (team cards, Game panel), setup (tools sidebar, terrain search, piece card), play
+  (top bar, roster column, decision box leading the right column, unit card, log), replay (the play page's parts read-only, a
+  playback bar; Play now works: the old one opened on the last frame), and the board (theme colours, terrain fills, names only
+  when zoomed or selected). The viewer's e2e tests delete what they create. About 110 games earlier test runs left in the dev
+  database still clutter Open games; deleting them waits on the owner (the bulk delete was refused by a permission check).
 - Next: the easy computer player (brainstormed: sensible single decisions scored on the game server, deterministic,
   difficulty levels later with combos, blocking and screening); its design is the next step.
 
