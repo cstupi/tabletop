@@ -10,7 +10,8 @@
     "preview": "vite preview --host 0.0.0.0 --port 5174",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "TABLETOP_E2E=1 vitest run tests/e2e"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.0",

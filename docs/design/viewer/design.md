@@ -582,7 +582,7 @@ The score is not geometry. `Scene` is unchanged by it.
 | Generated files checked in, guarded by a test, not produced by a build step | `viewer/` needs no .NET SDK to build; drift is caught by the `dotnet test` every plan already runs | a codegen step in `npm run build`, or a `dotnet` invocation from Vite | plan Task 2, answering spec → *Still open* |
 | The emitter lives in `tests/Tabletop.Viewer.Tests`, not in `viewer/` and not in a new directory | keeps `viewer/` a pure npm project and adds no top-level directory | a `tools/` project, or an MSBuild task | **(plan)** plan → *File Structure* |
 | Canvas, not SVG | whole-state frames invalidate every model per step, so retained-mode diffing buys nothing; picking is a point test in inches | SVG, which pays layout for the whole document at pointer rate; WebGL and drawing libraries, which the workload does not need | plan Task 5; spec → *`viewer/` is a developer web app* |
-| Playback only; `Feed.control` declared and `null` | building on the seam makes the viewer a second thin client | shipping interactive control in version one | spec → *Interactive debugging is a door, not a room* |
+| Playback (`Feed`) sends no command; `Feed.control` declared and `null`. Play is a separate `GameConnection` | a replay must never change a game; play and playback are siblings | one connection type that both plays and replays | browser play spec |
 | The viewer watches as an admin, without joining | the viewer is an admin tool; an admin watches any game, finished or running; admin is a Stytch role carried in the session's `roles` claim | joining each game as a participant with no team | admin watch spec |
 | A session JWT is the whole of the live feed's auth | the server matches the JWT's account against a `participant` row, admits an admin non-participant as a watcher, and answers anyone else `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | admin watch spec → *The watcher* |
 | Deployment-zone rings are resolved in C# and recorded | `ZoneStyles` is C# geometry and the frontline inset is absolute, so a browser cannot recover it from the shape id and the table size | porting `ZoneStyles`, a second geometry implementation | plan → *Interfaces needed*, item 1; simulation plan → *Applied from the viewer plan*, item 1 |
@@ -627,6 +627,11 @@ The score is not geometry. `Scene` is unchanged by it.
 | `live/project.ts` | `declarationsOf(string)`, `recordedBoardOf(Board, GameInfo): RecordedBoard`, `class FrameProjector` |
 | `live/management.ts` | `class ManagementError` with `status`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
 | `hosted/hosted.ts` | `WEB_SESSION_KEY`, `type ViewerConfig`, `configOf(env, location)`, `readWebSession`, `writeWebSession`, `rolesOf`, `type Access`, `accessOf`, `signInHref`, `hostedSession(storage, refresh)` |
+| `connection/gameConnection.ts` | `connectGame(options): GameConnection`: the participant socket (sends, refusals, queue of 16, reconnect, `Reauth`, resync) |
+| `game/` | `GamePage.svelte`, `connectionFeed(connection): Feed`, `sendEdit`, `Confirm.svelte` |
+| `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `LobbyPanel.svelte` |
+| `setup/` | `catalog`, `limits`, `edits`, `terrainCard`, `layouts`, `SetupDrag` (`drag.ts`), `SetupPage.svelte`, `SetupToolbar.svelte`, `TerrainCard.svelte`, `PieceMenu.svelte`, `LayoutsSection.svelte` |
+| `board/table.ts` | `sceneOfTable(TableState, zones, name): Scene`, `extentOf`, `pieceOutlines`, `ghostOverlay` |
 | `components/` | `Board.svelte`, `Timeline.svelte`, `LogPanel.svelte`, `AskPanel.svelte`, `RollPanel.svelte`, `SourcePicker.svelte`, `Scoreboard.svelte` |
 
 ### Produced: `tests/Tabletop.Viewer.Tests`
