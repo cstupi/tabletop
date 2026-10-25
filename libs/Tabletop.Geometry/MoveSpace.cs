@@ -64,7 +64,9 @@ internal sealed partial class MoveSpace
         Add(dangerous, Dangerous);
         foreach (var m in models ?? [])
         {
-            var shape = MoveShape.Of(m.BaseOutline(), _base, Origin);
+            var outline = m.BaseOutline();
+            if (MoveShape.CircleBounds(outline, _base, Origin) is { } far && far.Centre.DistanceTo(Origin) > reach + far.Bound + Tolerance.Distance) continue;
+            var shape = MoveShape.Of(outline, _base, Origin);
             if (shape.Centre.DistanceTo(Origin) > reach + shape.Bound + Tolerance.Distance || Overlap.Bases(start, m)) continue;
             _obstacles.Add(new Obstacle(shape, Bodies, Guid.Empty, m.Bottom(), m.Top(), false, MeetsAtEveryRest(shape, m.Bottom(), m.Top())));
             Present |= Bodies;

@@ -51,10 +51,13 @@ public static class Contacts
                     capped ? null : legal.DifficultCap, size, bodies, volumes).CrossesModels)
             { found[id] = new Contact(ContactKind.Crosses, null); continue; }
             if (separation is not { } gap) continue;
-            var near = start is { } was ? models.Where(o => o.UnitId != m.UnitId && Standing(o) is { } there && Distance.BodyToBody(was, there) < gap - 1e-6).Select(o => o.UnitId).ToHashSet() : [];
-            if (everyone.FirstOrDefault(o => o.UnitId != m.UnitId && !near.Contains(o.UnitId) && Distance.BodyToBody(at, o.At) < gap - 1e-6) is { Id: var close } && close != Guid.Empty)
+            var near = start is { } was ? models.Where(o => o.UnitId != m.UnitId && Standing(o) is { } there && Closer(was, there, gap)).Select(o => o.UnitId).ToHashSet() : [];
+            if (everyone.FirstOrDefault(o => o.UnitId != m.UnitId && !near.Contains(o.UnitId) && Closer(at, o.At, gap)) is { Id: var close } && close != Guid.Empty)
                 found[id] = new Contact(ContactKind.TooClose, byId[close].UnitId);
         }
         return found;
     }
+
+    /// <summary>Body to body under `gap`; bases farther apart in plan than that are never measured (the plan gap is no more than the 3D one).</summary>
+    static bool Closer(PlacedModel a, PlacedModel b, double gap) => !Bodies.Apart(a, b, gap) && Distance.BodyToBody(a, b) < gap - 1e-6;
 }
