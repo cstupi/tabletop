@@ -4,7 +4,7 @@ using Tabletop.Client.Core;
 namespace Tabletop.Client.Table;
 
 /// <summary>Sets Settings → Graphics on Godot: the window (mode, VSync, windowed rect) and the global shadow atlas from Main, the
-/// table's SubViewport and key light from TableView. Callers apply on every SettingsChanged; each setter skips an unchanged value.</summary>
+/// table's SubViewport, environment and key light from TableView. Callers apply on every SettingsChanged; each setter skips an unchanged value.</summary>
 public static class GraphicsApplier
 {
     static int _atlas;   // the directional shadow atlas size last set; 0 before the first
@@ -43,13 +43,27 @@ public static class GraphicsApplier
         viewport.Msaa3D = p.MsaaSamples switch { 4 => Viewport.Msaa.Msaa4X, 2 => Viewport.Msaa.Msaa2X, _ => Viewport.Msaa.Disabled };
         viewport.Scaling3DMode = p.Upscaled ? Viewport.Scaling3DModeEnum.Fsr : Viewport.Scaling3DModeEnum.Bilinear;
         viewport.Scaling3DScale = p.RenderScale;
+        viewport.MeshLodThreshold = p.LodThreshold;
     }
+
+    public static void ApplyEnvironment(Godot.Environment environment, GraphicsProfile p) => environment.SsaoEnabled = p.Ssao;
 
     public static void ApplyKeyLight(DirectionalLight3D key, GraphicsProfile p)
     {
         key.DirectionalShadowMode = p.ShadowSplits == 2 ? DirectionalLight3D.ShadowMode.Parallel2Splits : DirectionalLight3D.ShadowMode.Parallel4Splits;
         key.DirectionalShadowMaxDistance = p.ShadowMaxDistance;
+        key.LightAngularDistance = p.SoftShadows ? TableLighting.KeyAngularDistance : 0;
     }
+
+    /// <summary>The GPU the renderer runs on, for the first start's Quality.</summary>
+    public static GpuKind Gpu() => RenderingServer.GetVideoAdapterType() switch
+    {
+        RenderingDevice.DeviceType.IntegratedGpu => GpuKind.Integrated,
+        RenderingDevice.DeviceType.DiscreteGpu => GpuKind.Discrete,
+        RenderingDevice.DeviceType.VirtualGpu => GpuKind.Virtual,
+        RenderingDevice.DeviceType.Cpu => GpuKind.Cpu,
+        _ => GpuKind.Other,
+    };
 
     /// <summary>The usable rect of each screen, in screen pixels.</summary>
     static IReadOnlyList<WindowRect> Screens() => Enumerable.Range(0, DisplayServer.GetScreenCount()).Select(i => DisplayServer.ScreenGetUsableRect(i))

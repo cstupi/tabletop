@@ -19,7 +19,6 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     bool _highlighted, _ghost, _showHitboxes = true;
     Color? _warning;
     Node3D? _ring;
-    readonly StandardMaterial3D _ringMaterial = new() { Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
     Base _footprint = Base.Circle(1);
 
     public void SetBody(Base b, double height)
@@ -27,13 +26,7 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         _proxy?.QueueFree(); _ring?.QueueFree(); _ring = null;
         _footprint = b;
         var h = (float)height;
-        Mesh mesh = b.Shape switch
-        {
-            BaseShape.Circle => new CylinderMesh { TopRadius = (float)b.A / 2, BottomRadius = (float)b.A / 2, Height = h },
-            BaseShape.Rect => new BoxMesh { Size = new Vector3((float)b.B, h, (float)b.A) },      // width across X, length along the facing axis
-            _ => new CylinderMesh { TopRadius = 0.5f, BottomRadius = 0.5f, Height = h },
-        };
-        _proxy = new MeshInstance3D { Mesh = mesh, Position = new Vector3(0, h / 2, 0), MaterialOverride = Palette.Translucent(_base) };
+        _proxy = new MeshInstance3D { Mesh = Palette.Body(b, height), Position = new Vector3(0, h / 2, 0), MaterialOverride = Palette.Translucent(_base) };
         if (b.Shape == BaseShape.Oval) _proxy.Scale = new Vector3((float)b.B, 1, (float)b.A);   // oval length along facing (+Y wire = −Z Godot)
         AddChild(_proxy);
     }
@@ -104,8 +97,9 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         _proxy.Visible = look != PieceProxy.RingOnly;
         _proxy.MaterialOverride = Palette.Translucent(look == PieceProxy.Solid ? _base : _base with { A = 0.12f });
         if (look != PieceProxy.RingOnly) { _ring?.QueueFree(); _ring = null; return; }
-        _ringMaterial.AlbedoColor = _base with { A = 1 };
-        if (_ring is null) AddChild(_ring = Palette.BaseRing(_footprint, _ringMaterial));
+        var ringMaterial = Palette.Unshaded(_base with { A = 1 });
+        if (_ring is null) AddChild(_ring = Palette.BaseRing(_footprint, ringMaterial));
+        else foreach (var n in _ring.GetChildren()) if (n is MeshInstance3D m) m.MaterialOverride = ringMaterial;
     }
 
     public Aabb Bounds => _proxy.GlobalTransform * _proxy.GetAabb();

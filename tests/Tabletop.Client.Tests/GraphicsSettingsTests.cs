@@ -4,12 +4,30 @@ namespace Tabletop.Client.Tests;
 
 public class GraphicsSettingsTests
 {
-    [Fact] public void Medium_is_todays_shadows_with_msaa_2x() =>
-        Assert.Equal(new GraphicsProfile(2, 4, 4096, 220f, 100), GraphicsSettings.Profile(GraphicsQuality.Medium, null));
+    [Fact] public void Medium_is_four_splits_msaa_2x_ssao_and_a_2_pixel_lod() =>
+        Assert.Equal(new GraphicsProfile(2, 4, 4096, 220f, 100, true, true, 2f), GraphicsSettings.Profile(GraphicsQuality.Medium, null));
     [Fact] public void Low_and_high_match_the_spec_table()
     {
-        Assert.Equal(new GraphicsProfile(0, 2, 2048, 120f, 75), GraphicsSettings.Profile(GraphicsQuality.Low, null));
-        Assert.Equal(new GraphicsProfile(4, 4, 8192, 220f, 100), GraphicsSettings.Profile(GraphicsQuality.High, null));
+        Assert.Equal(new GraphicsProfile(0, 2, 2048, 120f, 75, false, false, 4f), GraphicsSettings.Profile(GraphicsQuality.Low, null));
+        Assert.Equal(new GraphicsProfile(4, 4, 8192, 220f, 100, true, true, 1f), GraphicsSettings.Profile(GraphicsQuality.High, null));
+    }
+    [Theory, InlineData(GpuKind.Integrated, GraphicsQuality.Low), InlineData(GpuKind.Cpu, GraphicsQuality.Low), InlineData(GpuKind.Virtual, GraphicsQuality.Low),
+     InlineData(GpuKind.Discrete, GraphicsQuality.Medium), InlineData(GpuKind.Other, GraphicsQuality.Medium)]
+    public void A_first_start_picks_low_on_a_shared_memory_gpu(GpuKind gpu, GraphicsQuality expected) => Assert.Equal(expected, GraphicsSettings.FirstQuality(gpu));
+
+    [Fact]
+    public void Only_a_saved_file_names_a_quality()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"settings-{Guid.NewGuid():N}.json");
+        try
+        {
+            Assert.False(ClientSettings.NamesQuality(path));
+            File.WriteAllText(path, """{ "theme": "scifi" }""");
+            Assert.False(ClientSettings.NamesQuality(path));
+            ClientSettings.Load(path) .Save(path);
+            Assert.True(ClientSettings.NamesQuality(path));
+        }
+        finally { File.Delete(path); }
     }
     [Fact] public void An_override_replaces_only_the_scale() =>
         Assert.Equal(GraphicsSettings.Profile(GraphicsQuality.High, null) with { RenderScalePercent = 60 }, GraphicsSettings.Profile(GraphicsQuality.High, 60));

@@ -27,11 +27,14 @@ public partial class OrbitCamera : Camera3D
     void Pan(Point2 to) { _target = new Vector3((float)to.X, _target.Y, (float)-to.Y); Apply(); }   // WorldFrame: Godot z = −wire Y
 
     /// <summary>WASD and Q/E read held every frame. The heading is the camera's over the table: offset (sin yaw, cos yaw) in Godot x, z looks back along (−sin yaw, cos yaw) in the wire frame.</summary>
+    static readonly Key[] HeldGodotKeys = CameraFocus.HeldKeys.Select(k => Enum.Parse<Key>(k.ToString())).ToArray();
+
     public override void _Process(double delta)
     {
         if (_glide <= CameraFocus.GlideSeconds) { _glide += delta; _target = WorldFrame.ToGodot(CameraFocus.Glide(_glideFrom, _glideTo, _glide)); Apply(); }
         var ctrl = Input.IsKeyPressed(Key.Ctrl);
-        var held = CameraFocus.HeldKeys.Where(k => Input.IsKeyPressed(Enum.Parse<Key>(k.ToString()))).Select(k => Hotkeys.Of(k, false, ctrl)).OfType<Intent>().ToHashSet();
+        if (!HeldGodotKeys.Any(Input.IsKeyPressed)) return;   // most frames: nothing held, nothing allocated
+        var held = CameraFocus.HeldKeys.Where((_, i) => Input.IsKeyPressed(HeldGodotKeys[i])).Select(k => Hotkeys.Of(k, false, ctrl)).OfType<Intent>().ToHashSet();
         if (held.Count == 0) return;
         var (forward, right, orbit) = CameraFocus.Steer(held, Holding(), Typing());
         if (forward == 0 && right == 0 && orbit == 0) return;

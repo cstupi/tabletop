@@ -18,3 +18,35 @@ public class RosterViewTests
         Assert.Equal(("●●○", "Shaken"), (RosterView.Pips(2, 3), RosterView.Words("shaken")));
     }
 }
+
+public class RosterDiffTests
+{
+    static RosterRow Row(Guid id, int left = 3, params string[] conditions) => new(id, "Squad", false, left, 3, false, conditions.ToList());
+    static readonly Guid T = Guid.NewGuid(), A = Guid.NewGuid(), B = Guid.NewGuid();
+
+    [Fact]
+    public void Rows_are_equal_by_value_conditions_included()
+    {
+        Assert.Equal(Row(A, 3, "shaken"), Row(A, 3, "shaken"));
+        Assert.NotEqual(Row(A, 3, "shaken"), Row(A, 3));
+        Assert.Equal(Row(A, 3, "shaken").GetHashCode(), Row(A, 3, "shaken").GetHashCode());
+    }
+
+    [Fact]
+    public void Same_teams_and_units_redraw_only_the_rows_that_changed()
+    {
+        var before = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B)]) };
+        var after = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B, 2)]) };
+        Assert.Equal(new[] { (0, 1) }, RosterView.Changed(before, after));
+        Assert.Empty(RosterView.Changed(after, after)!);
+    }
+
+    [Fact]
+    public void A_new_unit_order_or_team_line_rebuilds_the_whole_list()
+    {
+        var before = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B)]) };
+        Assert.Null(RosterView.Changed(before, [new RosterTeam(T, "Team 1", 1, [Row(B), Row(A)])]));
+        Assert.Null(RosterView.Changed(before, [new RosterTeam(T, "Team 1 (you)", 1, [Row(A), Row(B)])]));
+        Assert.Null(RosterView.Changed(null, before));
+    }
+}

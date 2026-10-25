@@ -47,7 +47,8 @@ public partial class TableInput : Node
     public Guid? HoveredTerrain { get; private set; }
     /// <summary>A drag is armed: past the threshold, models in hand.</summary>
     public bool Holding => _drag is { Armed: true };
-    public event Action<Guid, Point3>? ModelDragged;
+    /// <summary>The held pieces where a drag frame (or Esc) put them, all at once: the decision box gates its ghosts once per frame, not once per model.</summary>
+    public event Action<IReadOnlyList<(Guid Id, Point3 At)>>? ModelsDragged;
     public event Action<Guid, Vector2>? PieceRightClicked;
     public event Action<Vector3>? TableRightClicked;
     public event Action? SelectionChanged;

@@ -18,6 +18,7 @@ public partial class HeaderBar : PanelContainer
     readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
     Action<RenderCause>? _onFrame; Action? _onTheme;
+    string? _drawn;   // what the lines last drew
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
     public event Action? GameOverPressed;
@@ -33,7 +34,7 @@ public partial class HeaderBar : PanelContainer
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
-        _onTheme = Render; Ui.Changed += _onTheme;
+        _onTheme = () => { _drawn = null; Render(); }; Ui.Changed += _onTheme;
         Render();
     }
 
@@ -51,8 +52,17 @@ public partial class HeaderBar : PanelContainer
         if (!Visible) return;
         var names = new Names(game!, p);
         var m = HeaderView.Of(p!, game!, names);
-        Clear(_top, _gameOver, _settings); Clear(_teams); Clear(_activation);
         var waiting = HeaderView.NotActivated(p!, game!);
+        var objectives = HeaderView.Objectives(p!).ToList();
+        var activationLine = m.ActiveUnit is { } active ? HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId) ?? active : null;
+        // Whom the game waits on, my team's move first; a watcher is told they watch.
+        var waitingText = HeaderView.WaitingForPlayers(_s.WaitingTeams) ?? (_s.Replaying ? HeaderView.Replaying : _s.IsWatching ? HeaderView.Watching : HeaderView.Waiting(p!, names, _s.MyTeamIds));
+        // The lines are rebuilt only when something they show changed: most renders leave the header as it was.
+        var key = string.Join("\u001f", (string?[])[m.TopLine, string.Join(",", m.Scores), string.Join(",", waiting.OrderBy(kv => kv.Key)), string.Join(",", objectives),
+            activationLine, string.Join(",", m.Outline), waitingText, m.Result, string.Join(",", game!.Teams.Select(t => $"{t.Id}{names.Team(t.Id)}"))]);
+        if (key == _drawn) return;
+        _drawn = key;
+        Clear(_top, _gameOver, _settings); Clear(_teams); Clear(_activation);
 
         _top.AddChild(new Label { Text = m.TopLine });
         foreach (var team in game!.Teams.OrderBy(t => t.Ordinal))
@@ -67,7 +77,7 @@ public partial class HeaderBar : PanelContainer
             cell.AddChild(new Label { Text = $" · {waiting.GetValueOrDefault(team.Id)} not activated", ThemeTypeVariation = Variation.Dim });
             _teams.AddChild(cell);
         }
-        foreach (var (_, owner) in HeaderView.Objectives(p!))
+        foreach (var (_, owner) in objectives)
         {
             var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, TooltipText = "Objective" };
             chip.AddChild(Roster.Icon("objective"));
@@ -88,7 +98,7 @@ public partial class HeaderBar : PanelContainer
         _activation.Visible = m.ActiveUnit is not null;
         if (m.ActiveUnit is { } unit)
         {
-            _activation.AddChild(new Label { Text = HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId) ?? unit });
+            _activation.AddChild(new Label { Text = activationLine });
             foreach (var item in m.Outline)
                 _activation.AddChild(new Label
                 {
@@ -97,8 +107,6 @@ public partial class HeaderBar : PanelContainer
                 });
         }
 
-        // Whom the game waits on, my team's move first; a watcher is told they watch.
-        var waitingText = HeaderView.WaitingForPlayers(_s.WaitingTeams) ?? (_s.Replaying ? HeaderView.Replaying : _s.IsWatching ? HeaderView.Watching : HeaderView.Waiting(p!, names, _s.MyTeamIds));
         _waiting.Text = waitingText ?? "";
         _waiting.Visible = waitingText is not null;
     }

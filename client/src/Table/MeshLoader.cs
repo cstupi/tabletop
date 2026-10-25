@@ -12,6 +12,8 @@ namespace Tabletop.Client.Table;
 /// </summary>
 public sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId) : IDisposable
 {
+    /// <summary>The editor's import default: normals within this angle merge while a level of detail is simplified.</summary>
+    const float LodNormalMergeAngle = 60;
     readonly Dictionary<string, Task<Node3D?>> _templates = new();
     bool _disposed;
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
@@ -137,6 +139,9 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             var doc = new GltfDocument(); var state = new GltfState();
             var err = doc.AppendFromFile(path, state);
             if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return ((GltfDocument, GltfState)?)null; }
+            // Levels of detail, which Godot's runtime glTF import leaves out: a printed miniature is tens of thousands of
+            // triangles and a table of 150 of them few pixels each, in the camera's view and every shadow split.
+            foreach (var mesh in state.GetMeshes()) mesh.Mesh?.GenerateLods(LodNormalMergeAngle, 0, []);
             return (doc, state);
         });
         if (parsed is not var (d, s)) return null;

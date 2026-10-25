@@ -31,7 +31,7 @@ public partial class DecisionBox : PanelContainer
     readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action<RenderCause>? _onFrame; Action<Refused>? _onRefused;
-    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged; Action<Guid>? _onUnitClicked; Action<IReadOnlyList<Guid>>? _onPickedUp;
+    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<IReadOnlyList<(Guid Id, Geometry.Point3 At)>>? _onDragged; Action<Guid>? _onUnitClicked; Action<IReadOnlyList<Guid>>? _onPickedUp;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
     partial void RenderPicks(AskView mine, Projection p, Names names);
@@ -63,7 +63,7 @@ public partial class DecisionBox : PanelContainer
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
         _onUnitClicked = id => _onUnit?.Invoke(id); _onPickedUp = ShowRegions;
         s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
-        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp;
+        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelsDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp;
         Render();
     }
 
@@ -71,7 +71,7 @@ public partial class DecisionBox : PanelContainer
     {
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.Frame.Render -= _onFrame; _s.RefusedReceived -= _onRefused;
-        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; }
+        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelsDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
     }
@@ -116,7 +116,6 @@ public partial class DecisionBox : PanelContainer
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
         if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         var names = new Names(game, p);
-        var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds);
         if (mine is null)
         {
             var mid = new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);   // a pick by any team of mine is placed
@@ -128,6 +127,7 @@ public partial class DecisionBox : PanelContainer
             return;
         }
         if (_renderedAsk == mine.Ask.Id) return;
+        var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
         if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
         _title.Text = model.Title; _hint.Text = model.Hint; _numbered = model.Numbered;

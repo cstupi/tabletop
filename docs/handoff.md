@@ -58,13 +58,13 @@ Today: 306 of 306 games pass in process with no pin, 545 of 545 entries covered,
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 4 min. Geometry 268, Geometry.Wasm 22, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
-  Protocol 62, Sounds 19, Viewer 9, Client 769, GameServer 1430, Management 293, Sim 307.
+  defect). About 4 min. Geometry 277, Geometry.Wasm 43, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
+  Protocol 64, Sounds 19, Viewer 16, Client 844, GameServer 1432, Management 303, Sim 307.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
   against the compose stack (`LifecycleTests`, about 3 min). Management 47, GameServer 40, Sim 338; about 7 min.
 
-`cd viewer && npm run check && npm test` passes 781 (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
+`cd viewer && npm run check && npm test` passes 1,636 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
 `cd web && npm test` passes 128 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
 dev session (`POST /v1/dev/sessions`, roles admin) and stores it as `tabletop.session` on the website's origin.
@@ -169,6 +169,18 @@ The harnesses that measure all this are in `.superpowers/perf/` (not in the repo
 whole log on every connect, one `EventsMessage` per batch, the combat log's full rebuild per log state, the server's cold
 first game. Risks to watch: GLB parsing off the main thread, template copies of rigged or animated models; the host SDK has
 no `wasm-tools` workload, so a host or CI build of the geometry runs on the interpreter.
+
+The same spec's "The Godot client" section profiles a release export through a whole game (15 units of 5 a side, the Ruins
+table, the owner's 57k-triangle orc on every model) and the team player's actions. Built: LODs for every GLB at load (26 M →
+6 M primitives a frame at Medium; GPU 2.67 → 1.18 ms on the development RX 6900 XT, Low 0.50 ms); the Quality presets also set
+SSAO, soft shadows and the mesh LOD threshold, and a first start on an integrated GPU picks Low; the libs are optimized in an
+export (`Directory.Build.props`: `ExportRelease` was building Geometry, Content and Protocol as debug code); the Hud rebuilds
+only what changed (roster rows, header, dice tray, unit markers, the decision box's view); a move Ask's areas build on the thread
+pool (`MoveRegions.OutlinesAsync`, up to 1.5 s on the main thread before); one gate and a `MoveReach.Reaches` landing test per
+drag frame; shared materials and body meshes, an id index for `TableView.PieceAt`. Whole game at Medium 1280×720 on Vulkan:
+p99 15.3 → 6.1 ms, frames over 33 ms 133 → 0; a five-model drag (Compatibility) p50 55 → 9.6 ms. `PerfProbe` records frames
+in a development build. Left: the first game after an install compiles its runtime materials' shaders in three frames of 1–2 s;
+entering a game takes one frame of about 400 ms.
 
 ### 1. Open items from the defect fixes
 

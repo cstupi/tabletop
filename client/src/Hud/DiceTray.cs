@@ -52,10 +52,12 @@ public partial class DiceTray : PanelContainer
         var latest = _s.Projection is not null ? _s.CombatLog?.Latest : null;
         Visible = latest is not null && !_covered;
         var changed = latest is not null && (_shown is null || _shown.Record.Id != latest.Record.Id || !_shown.Dice.SequenceEqual(latest.Dice));
+        // The row is rebuilt only when what it draws changed: most renders (a move, a step) leave the latest roll as it was.
+        var redraw = changed || latest is not null && latest.Collapsed(CombatLog.Pip) != _shown!.Collapsed(CombatLog.Pip);
         _shown = latest;
         if (latest is null) return;
         if (changed) _tumble = _s.Settings.Animate ? TumbleSeconds : 0;
-        Paint();
+        if (redraw) Paint();
     }
 
     public override void _Process(double delta)

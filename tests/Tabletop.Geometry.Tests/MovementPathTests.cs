@@ -175,6 +175,21 @@ public class MovementPathTests
     }
 
     [Fact]
+    public void A_reach_says_whether_it_takes_a_point_exactly_where_clamp_leaves_the_point_alone()
+    {
+        // The drag's landing test (Collision.Land's `within`) asks only whether a spot is reached, not where the nearest reached spot is.
+        var wall = Fx.Box(13, 10, 1, 6, 0, 3, d: TerrainDeclarations.Impassable);
+        var reach = MoveReach.Build(Start, 11, [wall], [Wood], 6, Opr);
+        for (var x = -2.0; x <= 24; x += 0.7)
+            for (var y = -2.0; y <= 24; y += 0.7)
+                foreach (var cap in new double?[] { null, 4 })
+                {
+                    var p = new Point2(x, y);
+                    Assert.Equal(reach.Clamp(p, cap) == p, reach.Reaches(p, cap));
+                }
+    }
+
+    [Fact]
     public void A_reach_routes_as_check_does()
     {
         var reach = MoveReach.Build(Start, 12, [], [Wood], 6, Opr);

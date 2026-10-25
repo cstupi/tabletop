@@ -56,6 +56,33 @@ public class MoveRulerTests
     }
 
     [Fact]
+    public void Reaches_is_whether_clamp_leaves_the_target_alone()
+    {
+        var regions = One(At(36, 24), new MoveRegion([A], 6, [], [], null), []);
+        Assert.True(regions.Reaches(A, new Point2(40, 24)));
+        Assert.False(regions.Reaches(A, new Point2(50, 24)));
+        Assert.False(regions.Reaches(A, new Point2(40, 24), cap: 3));
+        Assert.True(regions.Reaches(Guid.CreateVersion7(), new Point2(70, 40)));                       // a model the Ask does not move is not held
+    }
+
+    [Fact]
+    public async Task Outlines_computed_on_other_threads_agree_with_the_main_threads_answers()
+    {
+        // The decision box draws a pickup's areas off the main thread while the drag clamps and routes on it (performance spec → The Godot client).
+        var big = Wood(44, 24, 4);
+        MoveRegions Make() => new(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [big.Id], 6), [big], Opr, []);
+        var alone = Make();
+        var (a, b, clamp) = (alone.Outline(A), alone.Outline(B), alone.Clamp(B, new Point2(50, 10)));
+        var shared = Make();
+        var outlines = await shared.OutlinesAsync([A, B]);
+        var raced = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => i % 2 == 0 ? shared.Outline(A).Count : shared.Clamp(B, new Point2(50, 10)).X)));
+        Assert.Equal(a, outlines[0]); Assert.Equal(b, outlines[1]);
+        Assert.Equal(clamp, shared.Clamp(B, new Point2(50, 10)));
+        Assert.All(raced.Where((_, i) => i % 2 == 0), n => Assert.Equal(a.Count, n));
+        Assert.Same(shared.Outline(A), outlines[0]);                                                   // still computed once per model
+    }
+
+    [Fact]
     public void Each_model_has_its_own_area_from_where_it_stands()
     {
         var big = Wood(44, 24, 4);

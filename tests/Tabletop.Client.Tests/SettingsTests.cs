@@ -134,7 +134,7 @@ public class SettingsTests : IDisposable
         var s = d with { Display = DisplayMode.Fullscreen, Quality = GraphicsQuality.Low, RenderScale = 60, VSync = false, Window = new WindowRect(100, 80, 1600, 900) }; s.Save(path);
         var back = ClientSettings.Load(path);
         Assert.Equal(s, back);
-        Assert.Equal(new GraphicsProfile(0, 2, 2048, 120f, 60), back.Graphics);
+        Assert.Equal(new GraphicsProfile(0, 2, 2048, 120f, 60, false, false, 4f), back.Graphics);
     }
 
     [Fact]

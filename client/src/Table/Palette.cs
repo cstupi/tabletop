@@ -39,17 +39,18 @@ public static class Palette
         if (b.Shape == BaseShape.Rect)
         {
             float w = (float)b.B, l = (float)b.A;
-            foreach (var (size, at) in new[] { (new Vector3(w, Line / 2, Line), new Vector3(0, Lift, l / 2)), (new Vector3(w, Line / 2, Line), new Vector3(0, Lift, -l / 2)),
-                         (new Vector3(Line, Line / 2, l), new Vector3(w / 2, Lift, 0)), (new Vector3(Line, Line / 2, l), new Vector3(-w / 2, Lift, 0)) })
-                ring.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, Position = at, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+            var sides = _rings.TryGetValue(b, out var made) ? made : _rings[b] = [new BoxMesh { Size = new Vector3(w, Line / 2, Line) }, new BoxMesh { Size = new Vector3(Line, Line / 2, l) }];
+            foreach (var (mesh, at) in new[] { (sides[0], new Vector3(0, Lift, l / 2)), (sides[0], new Vector3(0, Lift, -l / 2)), (sides[1], new Vector3(w / 2, Lift, 0)), (sides[1], new Vector3(-w / 2, Lift, 0)) })
+                ring.AddChild(new MeshInstance3D { Mesh = mesh, Position = at, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
             return ring;
         }
         float across = (float)(b.Shape == BaseShape.Circle ? b.A : b.B), along = (float)b.A;
         // A torus of outer radius 1 scaled onto the ellipse: the tube is Line wide on the shorter axis.
         var tube = Line / Math.Min(across, along) * 2;
+        var torus = _rings.TryGetValue(b, out var shared) ? shared[0] : (_rings[b] = [new TorusMesh { InnerRadius = 1 - tube, OuterRadius = 1, Rings = 48, RingSegments = 6 }])[0];
         ring.AddChild(new MeshInstance3D
         {
-            Mesh = new TorusMesh { InnerRadius = 1 - tube, OuterRadius = 1, Rings = 48 }, Scale = new Vector3(across / 2, 0.25f, along / 2), Position = new Vector3(0, Lift, 0),
+            Mesh = torus, Scale = new Vector3(across / 2, 0.25f, along / 2), Position = new Vector3(0, Lift, 0),
             MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         });
         return ring;
@@ -70,5 +71,22 @@ public static class Palette
         _ => new(0.7f, 0.7f, 0.7f, 0.4f),
     };
 
-    public static StandardMaterial3D Translucent(Color c) => new() { AlbedoColor = c, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
+    static readonly Dictionary<Color, StandardMaterial3D> _translucent = new(), _unshaded = new();
+    /// <summary>One shared material per colour, never changed after it is made: a highlight or a redraw swaps materials instead of making
+    /// new ones, and the pieces of one look draw with one material.</summary>
+    public static StandardMaterial3D Translucent(Color c) => _translucent.TryGetValue(c, out var m) ? m
+        : _translucent[c] = new() { AlbedoColor = c, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
+    /// <summary>The base ring's material in a colour (opaque, unlit), shared like <see cref="Translucent"/>.</summary>
+    public static StandardMaterial3D Unshaded(Color c) => _unshaded.TryGetValue(c, out var m) ? m
+        : _unshaded[c] = new() { AlbedoColor = c, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
+
+    static readonly Dictionary<(Base, double), Mesh> _bodies = new();
+    static readonly Dictionary<Base, Mesh[]> _rings = new();
+    /// <summary>A model's body: its base extruded to its height, one mesh per base and height, shared by every model with them.</summary>
+    public static Mesh Body(Base b, double height) => _bodies.TryGetValue((b, height), out var mesh) ? mesh : _bodies[(b, height)] = b.Shape switch
+    {
+        BaseShape.Circle => new CylinderMesh { TopRadius = (float)b.A / 2, BottomRadius = (float)b.A / 2, Height = (float)height },
+        BaseShape.Rect => new BoxMesh { Size = new Vector3((float)b.B, (float)height, (float)b.A) },      // width across X, length along the facing axis
+        _ => new CylinderMesh { TopRadius = 0.5f, BottomRadius = 0.5f, Height = (float)height },
+    };
 }

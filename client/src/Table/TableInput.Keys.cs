@@ -70,7 +70,8 @@ public partial class TableInput
     {
         if (_drag is { } drag)
         {
-            foreach (var (id, at) in drag.Grabs) { MoveNode(id, at.Position); Face(id, at.Yaw); ModelDragged?.Invoke(id, at.Position); }
+            foreach (var (id, at) in drag.Grabs) { MoveNode(id, at.Position); Face(id, at.Yaw); }
+            ModelsDragged?.Invoke(drag.Grabs.Select(kv => (kv.Key, kv.Value.Position)).ToList());
             CancelDrag();
             return;
         }

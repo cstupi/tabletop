@@ -136,18 +136,24 @@ public partial class DecisionBox
 
     Yaw? NodeYaw(Guid modelId) => _view.PieceAt(modelId) is { } n && IsInstanceValid(n) ? WorldFrame.YawFrom(n.Rotation.Y) : null;
 
-    /// <summary>Each of these models' own region, those the move holds; the outline stays on the last held models after the drop.</summary>
-    void ShowRegions(IReadOnlyList<Guid> modelIds)
+    /// <summary>Each of these models' own region, those the move holds; the outline stays on the last held models after the drop. Drawn when the
+    /// thread pool has them (MoveRegions.OutlinesAsync): a 12" move among much terrain takes longer than a frame, and the table and the drag keep
+    /// running meanwhile. A newer request, or an Ask that has gone, drops an older answer.</summary>
+    async void ShowRegions(IReadOnlyList<Guid> modelIds)
     {
         if (_regions is not { } regions || _region is null || !IsInstanceValid(_region)) return;
-        var shown = modelIds.Where(regions.Has).Select(regions.Outline).ToList();
-        if (shown.Count > 0) _region.ShowTriangles(shown, _regionColour);
+        var request = ++_regionRequest; var colour = _regionColour;
+        var shown = await regions.OutlinesAsync(modelIds);
+        if (request != _regionRequest || !ReferenceEquals(regions, _regions) || _region is null || !IsInstanceValid(_region)) return;
+        if (shown.Count > 0) _region.ShowTriangles(shown, colour);
     }
+    int _regionRequest;
 
     /// <summary>How far a ghost has moved: along its path round what it may not pass (MoveRegions.Route), else in a straight line.</summary>
     double Moved(Projection p, Guid id, Point2 to, bool capped)
     {
         var from = ((OnTable)p.Models[id].Location).Placement.Position.Horizontal;
+        if (from.DistanceTo(to) <= 1e-9) return 0;   // not moved: no path to find, and the reach is not built on the main thread when the Ask opens
         return _regions?.Route(id, to, capped)?.Distance ?? from.DistanceTo(to);
     }
 
@@ -174,11 +180,17 @@ public partial class DecisionBox
         _regate?.Invoke();
     }
 
-    void OnDragged(Guid modelId, Point3 position)
+    /// <summary>A drag frame's held models: every ghost takes its place, then the commit is gated once.</summary>
+    void OnDragged(IReadOnlyList<(Guid Id, Point3 At)> moved)
     {
-        if (_proposed is not null && _proposed.ContainsKey(modelId)) { _proposed[modelId] = position; _regate?.Invoke(); }
-        if (_deployAt is not null && _deployAt.ContainsKey(modelId)) { _deployAt[modelId] = position; _regate?.Invoke(); }
-        if ((_proposed?.ContainsKey(modelId) == true || _deployAt?.ContainsKey(modelId) == true) && NodeYaw(modelId) is { } yaw) _turned[modelId] = yaw;
+        var changed = false;
+        foreach (var (modelId, position) in moved)
+        {
+            if (_proposed is not null && _proposed.ContainsKey(modelId)) { _proposed[modelId] = position; changed = true; }
+            if (_deployAt is not null && _deployAt.ContainsKey(modelId)) { _deployAt[modelId] = position; changed = true; }
+            if ((_proposed?.ContainsKey(modelId) == true || _deployAt?.ContainsKey(modelId) == true) && NodeYaw(modelId) is { } yaw) _turned[modelId] = yaw;
+        }
+        if (changed) _regate?.Invoke();
     }
 
     /// <summary>A reconnect drops the projection and the table's nodes: the move's or the deploy's ghosts are kept for the same Ask or unit.</summary>

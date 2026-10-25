@@ -24,12 +24,12 @@ public partial class TableView : Node3D
     public override void _Ready()
     {
         foreach (var n in new Node[] { _slab, _pieces, _terrain, _markers, _zones, _ghosts, Camera }) AddChild(n);
-        _key = TableLighting.AddTo(this);
+        (_key, _environment) = TableLighting.AddTo(this);
         ApplyGraphics();
         Camera.Current = true;
     }
 
-    DirectionalLight3D _key = null!; GraphicsProfile? _graphics;
+    DirectionalLight3D _key = null!; Godot.Environment _environment = null!; GraphicsProfile? _graphics;
     Action? _onBoard, _onGame, _onBuiltins, _onSettings; Action<IReadOnlyList<GameEvent>>? _onEvents;
     GameStatus? _status;
 
@@ -64,12 +64,12 @@ public partial class TableView : Node3D
         Redraw(); Camera.FocusOn(Size);
     }
 
-    /// <summary>Settings → Graphics on the table's SubViewport (MSAA, Render scale) and the key light (shadow splits, distance); the Hud is in the root viewport.</summary>
+    /// <summary>Settings → Graphics on the table's SubViewport (MSAA, Render scale, LOD threshold), the environment (SSAO) and the key light (shadow splits, distance, softness); the Hud is in the root viewport.</summary>
     void ApplyGraphics()
     {
         var p = Main.Instance.Session.Settings.Graphics;
         if (p == _graphics) return;
-        GraphicsApplier.ApplyViewport(GetViewport(), p); GraphicsApplier.ApplyKeyLight(_key, p); _graphics = p;
+        GraphicsApplier.ApplyViewport(GetViewport(), p); GraphicsApplier.ApplyKeyLight(_key, p); GraphicsApplier.ApplyEnvironment(_environment, p); _graphics = p;
     }
 
     /// <summary>Show hitboxes, Show terrain hitboxes and the selection, on every drawn model and terrain piece: a setting or selection change applies at once.</summary>
@@ -148,6 +148,7 @@ public partial class TableView : Node3D
         foreach (var item in diff.Kept) if (!IsHeld(id(item))) { var n = nodes[id(item)]; n.Drawn = item; place(n, item); }
         foreach (var item in diff.Added) Add(item);
         void Add(TItem item) { var n = create(item); n.Drawn = item; parent.AddChild(n); }
+        if (parent == _pieces && (diff.Removed.Count > 0 || diff.Reshaped.Count > 0 || diff.Added.Count > 0)) _pieceIndex = null;
     }
 
     /// <summary>Out of the tree now, so a lookup by id this frame finds only the live node; freed at the end of the frame.</summary>
@@ -214,14 +215,21 @@ public partial class TableView : Node3D
     public bool IsExitGhost(Guid modelId) => _ghosts.GetChildren().OfType<PieceNode>().Any(p => p.ModelId == modelId);
 
     /// <summary>The projection's node first, then a disembark ghost — an occupant has only the ghost, and never both at once.</summary>
-    public PieceNode? PieceAt(Guid modelId) => _pieces.GetChildren().OfType<PieceNode>().FirstOrDefault(p => p.ModelId == modelId)
-        ?? _ghosts.GetChildren().OfType<PieceNode>().FirstOrDefault(p => p.ModelId == modelId);
+    public PieceNode? PieceAt(Guid modelId)
+    {
+        if (_pieceIndex is null) { _pieceIndex = new(); foreach (var n in _pieces.GetChildren()) if (n is PieceNode p) _pieceIndex[p.ModelId] = p; }
+        if (_pieceIndex.TryGetValue(modelId, out var piece) && IsInstanceValid(piece) && piece.GetParent() == _pieces) return piece;
+        foreach (var n in _ghosts.GetChildren()) if (n is PieceNode g && g.ModelId == modelId) return g;
+        return null;
+    }
+    /// <summary>The model layer by id, rebuilt on the next lookup after the layer gains or loses a node: callers look pieces up every frame.</summary>
+    Dictionary<Guid, PieceNode>? _pieceIndex;
     public TerrainNode? TerrainAt(Guid id) => _terrain.GetChildren().OfType<TerrainNode>().FirstOrDefault(t => t.PlacementId == id);
     public MarkerNode? MarkerAt(Guid id) => _markers.GetChildren().OfType<MarkerNode>().FirstOrDefault(m => m.MarkerId == id);
     public IEnumerable<Node3D> Pieces => _pieces.GetChildren().OfType<Node3D>().Concat(_ghosts.GetChildren().OfType<Node3D>())
         .Concat(_terrain.GetChildren().OfType<Node3D>()).Concat(_markers.GetChildren().OfType<Node3D>());
 
-    void Clear() { foreach (var parent in new[] { _pieces, _terrain, _markers, _zones, _ghosts }) foreach (var c in parent.GetChildren()) Drop(c); }
+    void Clear() { foreach (var parent in new[] { _pieces, _terrain, _markers, _zones, _ghosts }) foreach (var c in parent.GetChildren()) Drop(c); _pieceIndex = null; }
 }
 
 /// <summary>A table node by its board id, with the item it was last built or placed from.</summary>

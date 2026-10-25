@@ -6,13 +6,17 @@ public enum DisplayMode { Windowed, Fullscreen }
 /// <summary>The Settings dialog's Quality: MSAA, shadows and the default Render scale together (spec 2026-10-24-graphics-settings-design.md).</summary>
 public enum GraphicsQuality { Low, Medium, High }
 
-/// <summary>What a Quality and a Render scale override set: the table viewport's MSAA (samples: 0, 2, 4) and 3D scale, the key light's splits and distance (inches), the directional shadow atlas (px).</summary>
-public sealed record GraphicsProfile(int MsaaSamples, int ShadowSplits, int ShadowAtlasSize, float ShadowMaxDistance, int RenderScalePercent)
+/// <summary>What a Quality and a Render scale override set: the table viewport's MSAA (samples: 0, 2, 4) and 3D scale, the key light's splits and distance (inches), the directional shadow atlas (px),
+/// SSAO, the key light's soft (contact-hardened) shadows, and the viewport's mesh LOD threshold (pixels of error a level of detail may show).</summary>
+public sealed record GraphicsProfile(int MsaaSamples, int ShadowSplits, int ShadowAtlasSize, float ShadowMaxDistance, int RenderScalePercent, bool Ssao, bool SoftShadows, float LodThreshold)
 {
     public float RenderScale => RenderScalePercent / 100f;
     /// <summary>Below 100 % the table renders smaller and FSR 1 upscales it; the Hud is in the root viewport at full resolution.</summary>
     public bool Upscaled => RenderScalePercent < 100;
 }
+
+/// <summary>The kind of GPU the renderer runs on (Godot's RenderingDevice device type): an integrated one shares the CPU's memory.</summary>
+public enum GpuKind { Other, Integrated, Discrete, Virtual, Cpu }
 
 /// <summary>A window's rect in screen pixels, as <c>Window.Position</c> and <c>Window.Size</c> give it.</summary>
 public readonly record struct WindowRect(int X, int Y, int Width, int Height);
@@ -30,11 +34,15 @@ public static class GraphicsSettings
         var scale = ClampScale(renderScale) ?? DefaultScale(quality);
         return quality switch
         {
-            GraphicsQuality.Low => new GraphicsProfile(0, 2, 2048, 120f, scale),
-            GraphicsQuality.High => new GraphicsProfile(4, 4, 8192, 220f, scale),
-            _ => new GraphicsProfile(2, 4, 4096, 220f, scale),
+            GraphicsQuality.Low => new GraphicsProfile(0, 2, 2048, 120f, scale, false, false, 4f),
+            GraphicsQuality.High => new GraphicsProfile(4, 4, 8192, 220f, scale, true, true, 1f),
+            _ => new GraphicsProfile(2, 4, 4096, 220f, scale, true, true, 2f),
         };
     }
+
+    /// <summary>The Quality a first start picks before the player has chosen one: Low on a GPU that shares the CPU's memory (or none),
+    /// Medium on a discrete one.</summary>
+    public static GraphicsQuality FirstQuality(GpuKind gpu) => gpu is GpuKind.Integrated or GpuKind.Cpu or GpuKind.Virtual ? GraphicsQuality.Low : GraphicsQuality.Medium;
 
     public static int? ClampScale(int? percent) => percent is { } p ? Math.Clamp((int)Math.Round(p / (double)ScaleStep, MidpointRounding.AwayFromZero) * ScaleStep, MinScale, MaxScale) : null;
 

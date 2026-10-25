@@ -18,6 +18,11 @@
   <PropertyGroup>
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)tests/default.runsettings</RunSettingsFilePath>
   </PropertyGroup>
+  <!-- A Godot export builds the client in its ExportRelease configuration, and the libs it references in the same one; the SDK
+       optimizes only a configuration named Release, so without this the shipped Geometry, Content and Protocol ran as debug code. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'ExportRelease'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(TabletopBuildSlot)' != ''">
     <BaseOutputPath>bin/$(TabletopBuildSlot)/</BaseOutputPath>
   </PropertyGroup>

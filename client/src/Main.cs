@@ -28,6 +28,8 @@ public partial class Main : Node
         var store = new SessionStore(data.Session);
         var management = new ManagementClient(Http, new Uri(settings.ManagementUrl));
         Session = new Session(management, new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
+        // A first start's Quality follows the GPU: Low where it shares the CPU's memory.
+        if (!ClientSettings.NamesQuality(_settingsPath)) Session.UpdateSettings(s => s with { Quality = GraphicsSettings.FirstQuality(GraphicsApplier.Gpu()) });
         ApplyTheme();
         GetWindow().MinSize = new Vector2I(GraphicsSettings.MinWindowWidth, GraphicsSettings.MinWindowHeight);
         ApplyGraphics(start: true);
@@ -44,6 +46,7 @@ public partial class Main : Node
         refresh.Timeout += () => _ = Session.RefreshAsync();
         AddChild(refresh);
         var rect = new Godot.Timer { WaitTime = 1, Autostart = true }; rect.Timeout += SaveWindowRect; AddChild(rect);
+        if (PerfProbe.OutPath is not null) AddChild(new PerfProbe());
         _ = Boot();
     }
 
@@ -73,6 +76,8 @@ public partial class Main : Node
     {
         try { await Session.TryResumeAsync(); } catch (Exception e) { GD.PushWarning($"resume failed: {e.Message}"); }
         _dispatcher.Post(Route);
+        if (PerfProbe.GameId is { } game && Session.Phase == SessionPhase.LoggedIn)
+            try { await (PerfProbe.Replay ? Session.ReplayAsync(game) : Session.ConnectAsync(game)); } catch (Exception e) { GD.PushWarning($"perf game: {e.Message}"); }
     }
 
     void Route()

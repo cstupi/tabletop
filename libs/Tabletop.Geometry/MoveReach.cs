@@ -75,6 +75,12 @@ public sealed class MoveReach
         return best?.At ?? Origin;
     }
 
+    /// <summary>Whether a path within the allowance (through difficult terrain, within the cap; with `cap`, within it) gets to the point: exactly where
+    /// <see cref="Clamp"/> leaves it as it is, without searching for the nearest point when it does not.</summary>
+    public bool Reaches(Point2 target, double? cap = null) => cap is { } c
+        ? _any.Distance(target) <= Math.Min(Allowance, c) + Tolerance.Distance
+        : Excess(target) <= Tolerance.Distance;
+
     /// <summary>How far past what it may reach a point is: negative inside.</summary>
     double Excess(Point2 p)
     {

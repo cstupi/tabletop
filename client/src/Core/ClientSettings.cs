@@ -30,7 +30,7 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     public GraphicsQuality Quality { get; init; } = GraphicsQuality.Medium;
     public int? RenderScale { get; init; }
     public bool VSync { get; init; } = true;
-    /// <summary>What the applier sets on the table's viewport, its key light and the shadow atlas.</summary>
+    /// <summary>What the applier sets on the table's viewport (MSAA, scale, LOD threshold), its environment (SSAO), its key light and the shadow atlas.</summary>
     public GraphicsProfile Graphics => GraphicsSettings.Profile(Quality, RenderScale);
     /// <summary>The web app's origin: the update-required screen sends the player to its Download page.</summary>
     public string WebUrl { get; init; } = DevWebUrl;
@@ -80,6 +80,9 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     /// <summary>Whether the file at <paramref name="path"/> carries a server address, which only a development build (or a
     /// release before release builds stopped writing them) saves.</summary>
     public static bool NamesServers(string path) => Read(path) is { } d && (d.ManagementUrl ?? d.GameServerUrl ?? d.WebUrl) is not null;
+
+    /// <summary>Whether the file holds a Quality: none means the player has not chosen one, and a first start picks it (GraphicsSettings.FirstQuality).</summary>
+    public static bool NamesQuality(string path) => Read(path)?.Quality is not null;
 
     static Dto? Read(string path)
     {

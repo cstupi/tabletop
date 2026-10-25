@@ -78,7 +78,7 @@ public partial class TableInput
         var capped = Unit(id => Held(id, null)) is { } unit && unit < Allowance ? unit : (double?)null;
         Point2 To(Guid id) => Held(id, capped);
         // Lifted, inside a move step only a spot in the model's reach is a landing (held pieces lift over spec → Landing).
-        Func<Guid, Point2, bool>? within = !free && Reach is { } inReach ? (id, at) => !Proposing.Contains(id) || inReach.Clamp(id, at, capped).DistanceTo(at) <= 1e-3 : null;
+        Func<Guid, Point2, bool>? within = !free && Reach is { } inReach ? (id, at) => !Proposing.Contains(id) || inReach.Reaches(id, at, capped) : null;
         var holdsModels = p is not null && drag.ModelIds.All(p.Models.ContainsKey);
         var ends = holdsModels
             ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p!.Models[id].Slot.Base, p.Models[id].Slot.Height),
@@ -94,7 +94,6 @@ public partial class TableInput
             drag.Current[id] = ends[id].Lands;                                            // the ruler, the proposal, presence and the drop read the landing
             MoveNode(id, ends[id].Drawn);
             Face(id, drag.Yaws[id]);
-            ModelDragged?.Invoke(id, drag.Current[id]);
             // In a move the ruler follows the path the base takes round what it may not pass (MoveRegions.Route, p.5) and reads its length.
             var route = Proposing.Contains(id) ? Reach?.Route(id, drag.Current[id].Horizontal, capped is not null) : null;
             var readout = route is { } r
@@ -103,6 +102,7 @@ public partial class TableInput
             if (Allowance is not null && Proposing.Contains(id) && _view.PieceAt(id) is { } piece) piece.SetHighlight(readout.OutOfRange ? Colors.Red : Palette.Selected);
             lines.Add((route is { } way ? RulerPath.Lift(way.Points, drag.Origins[id], drag.Current[id]) : [drag.Origins[id], drag.Current[id]], readout));
         }
+        ModelsDragged?.Invoke(targets.Keys.Select(id => (id, drag.Current[id])).ToList());
         ShowRulers(lines);
         // A hand move is held to overlap (the server's placement judge); a move's or a deployment's ghosts are the decision box's to measure.
         if (p is not null && _session.Game is { } game && drag.ModelIds.All(p.Models.ContainsKey) && !drag.ModelIds.Any(Proposing.Contains))

@@ -13,7 +13,7 @@ The Settings dialog gains a **Graphics** group, kept in `ClientSettings` and app
 | Setting | Values | Default |
 | --- | --- | --- |
 | Display | Windowed, Fullscreen | Windowed |
-| Quality | Low, Medium, High | Medium |
+| Quality | Low, Medium, High | Low on an integrated, virtual or software GPU, else Medium |
 | Render scale | 50–100 %, step 5 | the Quality's |
 | VSync | on, off | on |
 
@@ -24,11 +24,18 @@ The Settings dialog gains a **Graphics** group, kept in `ClientSettings` and app
   | | Low | Medium | High |
   | --- | --- | --- | --- |
   | MSAA 3D | off | 2× | 4× |
-  | Shadows | 2 splits, atlas 2048, max distance 120" | 4 splits, atlas 4096, 220" (today) | 4 splits, atlas 8192, 220" |
+  | Shadows | 2 splits, atlas 2048, max distance 120", hard | 4 splits, atlas 4096, 220", soft | 4 splits, atlas 8192, 220", soft |
+  | SSAO | off | on | on |
+  | Mesh LOD threshold | 4 px | 2 px | 1 px |
   | Render scale | 75 % | 100 % | 100 % |
 
-  Medium is today's shadows with 2× MSAA on the table. Moving the Render scale slider keeps the Quality and overrides only its scale; picking a
-  Quality resets the scale to that Quality's.
+  Soft shadows are the key light's angular size (1°, contact-hardened); hard is 0°. The LOD threshold is the viewport's `mesh_lod_threshold`: how
+  many pixels of error a mesh's simplified level may show (meshes get their levels at load, `MeshLoader`). Each feature's measured cost is in
+  [2026-10-25-performance-and-network.md](2026-10-25-performance-and-network.md) → The Godot client. Moving the Render scale slider keeps the Quality
+  and overrides only its scale; picking a Quality resets the scale to that Quality's.
+- **First start.** With no Quality in `settings.json` the client picks one from the GPU the renderer runs on
+  (`GraphicsSettings.FirstQuality` over `RenderingServer.GetVideoAdapterType`) and saves it: Low on an integrated, virtual or software GPU, Medium
+  otherwise. The player's choice stands from then on.
 - **Render scale** is the 3D viewport's `Scaling3DScale` with FSR 1 upscaling below 100 %; the Hud renders at full resolution.
 - **VSync** is the window's VSync mode, Enabled or Disabled.
 
