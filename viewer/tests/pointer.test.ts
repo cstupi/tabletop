@@ -24,8 +24,8 @@ const up = (x: number, y = 0): PointerInput => ({ type: 'up', screen: { x: x * 1
 
 describe('the pointer state machine', () => {
   it('a still click selects what is under it', () => {
-    expect(run([down(1), up(1)]).effects).toEqual([{ type: 'select', hit, mods: NO_MODIFIERS }]);
-    expect(run([down(20), up(20)]).effects).toEqual([{ type: 'select', hit: null, mods: NO_MODIFIERS }]);
+    expect(run([down(1), up(1)]).effects).toMatchObject([{ type: 'select', hit, mods: NO_MODIFIERS }]);
+    expect(run([down(20), up(20)]).effects).toMatchObject([{ type: 'select', hit: null, mods: NO_MODIFIERS }]);
   });
 
   it('a wobble under the threshold is still a click', () => {

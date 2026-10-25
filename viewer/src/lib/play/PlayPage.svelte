@@ -12,6 +12,7 @@
   import { loadGeometry, type Geometry } from '../geometry';
   import { acting, teamsOf } from '../lobby/seats';
   import { DecisionBox, type DecisionPanel } from './decisionBox';
+  import { moveHooks } from './decisionBox.move';
   import DecisionBoxView from './DecisionBox.svelte';
   import GameOverModal from './GameOverModal.svelte';
   import InfoColumn from './InfoColumn.svelte';
@@ -21,6 +22,11 @@
   import type { Selection } from './selectionView';
   import { loadSettings, saveSettings, type PlaySettings, type StorageLike } from './settings';
   import { UndoPrediction } from './undo';
+  // D2: moves, deploys and hand moves
+  import { MarkerLocks } from './markerLocks';
+  import { PendingDrops } from './pendingDrops';
+  import { PlayDrags } from './playDrag';
+  import { Violations } from './violations';
 
   let { connection, api, view = $bindable(null) }: { connection: GameConnection; api: Api; view?: View | null } = $props();
 
@@ -57,6 +63,42 @@
 
   const myTeams = (s: ConnectionState): string[] => (s.game === null ? [] : teamsOf(s.game, s.participantId));
 
+  // ---- D2: moves, deploys and hand moves ----
+  // The box's move half (ghosts, gate, commit), the drag over it, and what the board draws for them. Violations, drops and locks are the
+  // page's: they outlive a box, and each change of them redraws the board through `version`.
+  let version = $state(0);
+  const bump = (): void => { version++; };
+  const violations = new Violations();
+  const drops = new PendingDrops();
+  const locks = new MarkerLocks();
+  const moves = moveHooks({ geometry: () => geometry, violations, enforcement: () => connection.state.game?.enforcement ?? 'strict', drops });
+  const drags = new PlayDrags({
+    state: () => connection.state, box: () => box, hooks: () => moves, geometry: () => geometry, violations, drops, locks,
+    send: (command) => connection.sendCommand(command),
+    select: (ids, unit) => {
+      selected = ids;
+      if (unit === null) return;
+      const all = [...(snap?.projection?.models.values() ?? [])].filter((m) => m.unitId === unit).map((m) => m.id);
+      selection = { pieceId: unit, modelIds: all.every((id) => ids.has(id)) ? [] : [...ids] };   // D3's selection: the unit, or the one model
+      box?.unit(unit);
+    },
+    changed: bump,
+  });
+  $effect(() => {
+    const conn = connection;
+    const stops = [
+      violations.subscribe(bump), locks.subscribe(bump),
+      conn.onEvents((events) => {                                         // a move's event ends the hold on its drops
+        for (const e of events) if (e.payload.kind === 'models_moved') for (const m of e.payload.moves) drops.consume(m);
+        bump();
+      }),
+      conn.onRefused((refused) => { drags.refused(refused); }),
+    ];
+    return () => { for (const stop of stops) stop(); };
+  });
+  $effect(() => { void panel; untrack(() => drags.boxChanged()); });      // the Ask ended mid-drag: its ghosts are dropped, not sent
+  // ---- end D2 ----
+
   $effect(() => {
     const conn = connection;
     const b = new DecisionBox({
@@ -68,7 +110,7 @@
       rules: () => rules,
       send: (command) => conn.sendCommand(command),
       onRefused: (listener) => conn.onRefused((refused) => listener(refused)),
-    });
+    }, moves);
     const stops = [
       b.subscribe((p) => { panel = p; }),
       conn.subscribe((s) => { snap = s; b.render(); }),
@@ -100,17 +142,29 @@
   });
 
   const meshName = (piece: { mesh: { builtin?: string | undefined; assetId?: string | undefined } }): string => piece.mesh.builtin ?? piece.mesh.assetId ?? 'terrain';
+  // D2: the box's ghosts, the drops waiting for their events and the models in hand, as the board draws them.
+  const ghostsDrawn = $derived.by(() => { void panel; void version; return new Map([...(box?.ghosts ?? []), ...drags.drawn()]); });
   // D3: the board and every part show the prediction while an undo travels.
   const shown = $derived.by(() => { void predictionTick; return snap === null ? null : prediction.projection(snap); });
   const pendingUndo = $derived.by(() => { void predictionTick; return prediction.pendingUndoTo; });
   const scene = $derived(shown !== null && snap?.game != null
-    ? sceneOfPlay(shown, snap.game, geometry?.zonePolygons ?? (() => []), meshName) : null);
+    ? sceneOfPlay(shown, snap.game, geometry?.zonePolygons ?? (() => []), meshName, ghostsDrawn) : null);
   const extent = $derived(scene === null ? undefined : extentOf(scene));
   // The box's glow and marks are not reactive: a new panel (every change of either publishes one) hands the board new ones to redraw by.
   const glow = $derived.by(() => { void panel; const b = box; return (m: string, u: string) => b?.glowOf(m, u) ?? null; });
   const marks = $derived.by(() => { void panel; return box?.marks; });
   const teams = $derived(snap === null ? [] : myTeams(snap));
   const actingTeam = $derived(snap?.projection != null ? acting(snap.projection, teams, snap.log) : null);
+
+  // D2: the board's overlays (allowance rings, rulers, landing rings, violation labels) and the models in breach.
+  const warned = $derived.by(() => { void version; return new Set(violations.marked.keys()); });
+  const overlays = $derived.by(() => {
+    void panel; void version;
+    if (scene === null) return [];
+    const ordinal = snap?.game?.teams.find((t) => t.id === actingTeam)?.ordinal ?? 1;
+    const centreOf = (id: string) => scene.models.find((m) => m.id === id)?.centre ?? null;
+    return drags.overlays(centreOf, ordinal);
+  });
 
   /** TableInput.OnLeftDown: a click on a model the open Ask offers answers (the model or its unit); any other model click selects its unit. */
   function clickModel(id: string, mods: Modifiers = { shift: false, ctrl: false, alt: false }): void {
@@ -129,7 +183,8 @@
   }
 
   const interaction: BoardInteraction = {
-    onSelect(hit: BoardHit | null, mods: Modifiers) {
+    onSelect(hit: BoardHit | null, mods: Modifiers, at: { x: number; y: number }) {
+      if (drags.placeAt(at)) return;                                       // D2: a deploy's click on the table
       if (hit?.kind === 'model') clickModel(hit.id, mods);
       else { selected = new Set(); selection = hit === null ? null : { pieceId: hit.id, modelIds: [] }; }   // D3: a marker or terrain piece is selectable too
     },
@@ -137,7 +192,10 @@
       const unit = hit?.kind === 'model' ? snap?.projection?.models.get(hit.id)?.unitId ?? null : null;
       if (unit !== hoveredUnit) hoveredUnit = unit;
     },
-    onDragStart() { return false; },                          // hand moves are plan D2's: a drag pans
+    onDragStart: (hit, at, mods) => drags.onDragStart(hit, at, mods),    // D2: a model, or a marker, in hand; anything else pans
+    onDragMove: (at, mods) => drags.onDragMove(at, mods),
+    onDragEnd: (at, mods) => drags.onDragEnd(at, mods),
+    onDragCancel: () => drags.onDragCancel(),
     onContextMenu(hit: BoardHit | null) {
       if (hit?.kind === 'model' && box?.eligible.has(hit.id) === true) box.model(hit.id, true);
     },
@@ -162,6 +220,7 @@
     const mods: Modifiers = { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey };
     const intent = intentOf(e.key, mods);
     if (intent === null) return;
+    if (drags.onKey(intent, e.shiftKey)) { e.preventDefault(); return; }   // D2: Q/E, 1–5 and Enter while a drag is in hand
     const used = intent.kind === 'option' ? box.number(intent.key)
       : intent.kind === 'confirm' ? box.enter()
       : intent.kind === 'cancel' ? box.cancel()
@@ -178,7 +237,7 @@
     {#if scene === null || snap === null}
       <p class="muted pad">Loading the game…</p>
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={infoOverlay === null ? [] : [infoOverlay]} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={infoOverlay === null ? overlays : [...overlays, infoOverlay]} {warned} models="circles" {glow} {marks} />
     {/if}
   </div>
   <aside class="side">

@@ -18,8 +18,8 @@ export interface BoardInteraction {
   /** Hit testing; default pickAt(scene, at): models, then markers, then terrain, last drawn first. */
   pick?(at: Point): BoardHit | null;
   onHover?(hit: BoardHit | null, at: Point): void;
-  /** A press and release under the drag threshold (3 px). */
-  onSelect?(hit: BoardHit | null, mods: Modifiers): void;
+  /** A press and release under the drag threshold (3 px); `at` is where the pointer came up, in table inches. */
+  onSelect?(hit: BoardHit | null, mods: Modifiers, at: Point): void;
   /** Left press on a hit, moved past the threshold: true takes the drag, false pans. */
   onDragStart?(hit: BoardHit, at: Point, mods: Modifiers): boolean;
   onDragMove?(at: Point, mods: Modifiers): void;

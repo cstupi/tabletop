@@ -1,0 +1,146 @@
+import { describe, expect, it } from 'vitest';
+import { NO_MODIFIERS } from '../src/lib/board/interaction';
+import type { SendOutcome } from '../src/lib/connection/gameConnection';
+import type { Geometry, HeldModel } from '../src/lib/geometry';
+import { MarkerLocks } from '../src/lib/play/markerLocks';
+import { PlayDrags } from '../src/lib/play/playDrag';
+import type { Command } from '../src/lib/protocol/wire.generated';
+import { markerOf } from './play';
+import { at, moveRig, region, tick } from './moveRig';
+
+const geometry = {
+  landModels: (held: readonly HeldModel[]) => held.map((h) => ({ id: h.id, drawn: { x: h.to.x, y: h.to.y, z: 0.5 }, lands: { x: h.to.x, y: h.to.y, z: 0 } })),
+  contacts: () => new Map(), restModel: () => 0, edgeToEdge: () => 1,
+} as unknown as Geometry;
+
+function rig(over: Parameters<typeof moveRig>[0] = {}) {
+  const r = moveRig(over);
+  const sent: Command[] = [];
+  let outcome: Promise<SendOutcome> = Promise.resolve({ id: 'x', refused: null });
+  let changes = 0;
+  const drags = new PlayDrags({
+    state: () => r.box.host.state(), box: () => r.box, hooks: () => r.hooks, geometry: () => geometry,
+    violations: r.violations, drops: r.drops, locks: new MarkerLocks(),
+    send: (command) => { sent.push(command); return outcome; }, select: () => {}, changed: () => { changes++; },
+  });
+  return { ...r, drags, sent, get panel() { return r.box.panel; }, setOutcome(o: Promise<SendOutcome>) { outcome = o; }, get changes() { return changes; } };
+}
+const model = (id: string) => ({ kind: 'model', id }) as const;
+
+describe('PlayDrags', () => {
+  it('a hand drag outside an Ask sends MoveModels and is drawn at its drop until the event', async () => {
+    const r = rig();
+    const [a, b] = r.ids as [string, string];
+    r.box.render();
+    expect(r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS)).toBe(true);
+    r.drags.onDragMove({ x: 15, y: 13 }, NO_MODIFIERS);
+    expect(r.drags.drawn().get(a)).toEqual({ position: { x: 15, y: 13, z: 0.5 }, yaw: { degrees: 0 } });      // drawn lifted
+    expect(r.drags.drawn().get(b)!.position).toMatchObject({ x: 17, y: 13 });
+    r.drags.onDragEnd({ x: 15, y: 13 }, NO_MODIFIERS);
+    const command = r.sent[0] as unknown as { kind: string; moves: { modelId: string; to: { placement: unknown } }[] };
+    expect(command.kind).toBe('move_models');
+    expect(command.moves.map((m) => m.modelId)).toEqual([a, b]);
+    expect(command.moves[0]!.to.placement).toEqual(at(15, 13));                                              // the landing, not the lifted spot
+    expect(r.drops.holds(a)).toBe(true);
+    expect(r.drags.drawn().get(a)).toEqual(at(15, 13));
+    await tick();
+    expect(r.drops.holds(a)).toBe(true);                                                                     // waits for the event
+  });
+
+  it('a refused hand move is drawn back and says why', async () => {
+    const r = rig();
+    const [a] = r.ids as [string, string];
+    r.setOutcome(Promise.resolve({ id: 'm9', refused: { kind: 'refused', messageId: 'm9', reason: 'illegal', detail: 'not now' } }));
+    r.box.render();
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, { ...NO_MODIFIERS, shift: true });
+    r.drags.onDragMove({ x: 15, y: 13 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 15, y: 13 }, NO_MODIFIERS);
+    await tick();
+    expect(r.drops.holds(a)).toBe(false);
+    expect(r.panel.refusal).toContain('not now');
+  });
+
+  it('under strict a hand drag does not start, and proposing models still do', () => {
+    const r = rig({ enforcement: 'strict' });
+    const [a] = r.ids as [string, string];
+    r.box.render();
+    expect(r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS)).toBe(false);
+    r.openMove(region({ modelIds: r.ids }));
+    expect(r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS)).toBe(true);
+  });
+
+  it('a drag of proposed models moves their ghosts and sends nothing; Esc puts them back', () => {
+    const r = rig();
+    const [a, b] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    expect(r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS)).toBe(true);
+    r.drags.onDragMove({ x: 14, y: 12 }, NO_MODIFIERS);
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 14, y: 12, z: 0 });
+    expect(r.box.ghosts.get(b)!.position).toMatchObject({ x: 16, y: 12 });
+    expect(r.reason()).toBe('');
+    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);                                                      // 14" past the 6" allowance
+    expect(r.reason()).toBe('2 models past their allowance.');
+    r.drags.onDragEnd({ x: 24, y: 10 }, NO_MODIFIERS);
+    expect(r.sent).toHaveLength(0);
+    expect(r.drags.held).toBeNull();
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 24, y: 10 });
+    r.drags.onDragStart(model(a), { x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 26, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragCancel();
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 24, y: 10 });                                  // back where it was picked up
+  });
+
+  it('Q and E turn the held models, 1 to 5 arrange them, and Enter is held off', () => {
+    const r = rig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    expect(r.drags.onKey({ kind: 'turnLeft' }, false)).toBe(false);                                           // nothing in hand
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 12, y: 10 }, NO_MODIFIERS);
+    expect(r.drags.onKey({ kind: 'turnLeft' }, false)).toBe(true);
+    expect(r.box.ghosts.get(a)!.yaw.degrees).toBe(15);
+    expect(r.drags.onKey({ kind: 'turnRight' }, true)).toBe(true);
+    expect(r.box.ghosts.get(a)!.yaw.degrees).toBe(345);
+    expect(r.drags.onKey({ kind: 'option', key: 2 }, false)).toBe(true);
+    expect(r.drags.held!.rows).toBe(2);
+    expect(r.drags.onKey({ kind: 'confirm' }, false)).toBe(true);
+    expect(r.sent).toHaveLength(0);
+    expect(r.drags.onKey({ kind: 'option', key: 7 }, false)).toBe(false);
+  });
+
+  it('a click on a deploy\'s placement point is the box\'s, and the Ask ending drops a drag of its ghosts', () => {
+    const r = rig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
+    r.box.rebuild();                                                                                         // the Ask re-renders: its ghosts are new
+    r.box.proposing = new Set();
+    r.drags.boxChanged();
+    expect(r.drags.held).toBeNull();
+    expect(r.drags.placeAt({ x: 1, y: 1 })).toBe(false);
+  });
+
+  it('a marker drag sends MoveMarker unless the objective is locked', () => {
+    const r = rig();
+    const token = markerOf('Tok');
+    r.applier.projection.markers.set(token.id, token);
+    const objective = markerOf('Obj', 'objective');
+    r.applier.projection.markers.set(objective.id, objective);
+    r.box.render();
+    expect(r.drags.onDragStart({ kind: 'marker', id: objective.id }, { x: 1, y: 1 }, NO_MODIFIERS)).toBe(false);
+    expect(r.drags.onDragStart({ kind: 'marker', id: token.id }, { x: 1, y: 1 }, NO_MODIFIERS)).toBe(true);
+    r.drags.onDragMove({ x: 5, y: 6 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 5, y: 6 }, NO_MODIFIERS);
+    expect(r.sent[0]).toEqual({ kind: 'move_marker', markerId: token.id, position: { x: 5, y: 6, z: 0 }, yaw: { degrees: 0 } });
+  });
+
+  it('overlays: rings and rulers while a move is in hand', () => {
+    const r = rig();
+    const [a] = r.ids as [string, string];
+    r.openMove(region({ modelIds: r.ids }));
+    expect(r.drags.overlays(() => null, 1)).toHaveLength(1);                                                 // the allowance ring
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragMove({ x: 14, y: 10 }, NO_MODIFIERS);
+    expect(r.drags.overlays(() => null, 1).length).toBe(3);                                                  // ring, rulers, landing rings
+  });
+});

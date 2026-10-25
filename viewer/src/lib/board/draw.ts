@@ -4,6 +4,8 @@ import { GLOW, markerColour, teamColour, terrainStroke } from './palette';
 import type { Glow } from '../play/decisionBox';
 import { type View, type Viewport, gridStep, toScreen } from './transform';
 
+const WARNING = '#ffc44e';
+
 export type DrawOptions = {
   readonly selected: ReadonlySet<string>;
   readonly hovered?: string | undefined;
@@ -18,6 +20,8 @@ export type DrawOptions = {
   readonly glow?: ((modelId: string, unitId: string) => Glow | null) | undefined;
   /** A label over a model's base: a casualty pick's ✕. */
   readonly marks?: ReadonlyMap<string, string> | undefined;
+  /** Models in breach (PieceNode.SetWarning): their circle in the warning colour. */
+  readonly warned?: ReadonlySet<string> | undefined;
 };
 
 export function draw(
@@ -93,7 +97,7 @@ export function draw(
   }
 
   for (const model of scene.models) {
-    const colour = teamColour(model.teamOrdinal);
+    const colour = options.warned?.has(model.id) === true ? WARNING : teamColour(model.teamOrdinal);
     const circles = options.models === 'circles';
     const picked = options.selected.has(model.id);
     path(ctx, circles ? model.circle : model.shape, view, table);
