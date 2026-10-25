@@ -87,7 +87,7 @@ public partial class HomeScreen : Control
         if (!IsInstanceValid(_name)) return;
         var name = Main.Instance.Session.Account?.Name ?? "";
         _name.Text = $"Signed in as {name}";
-        _hint.Text = TextLimits.IsDefaultName(name) ? $"Other players see you as {name}. Rename yourself so they know who you are." : "";
+        _hint.Text = TextLimits.IsDefaultName(name) ? $"Other players see you as {name}." : "";
         _hint.Visible = _hint.Text.Length > 0;
     }
 
@@ -134,7 +134,7 @@ public partial class HomeScreen : Control
         _join.TooltipText = _busy ? "Joining…" : _join.Disabled ? "Select a game first" : "Join the selected game (or double-click it)";
         var actions = GameRowActions.Of(Selected(), Main.Instance.Session.Account?.Id);
         _end.Disabled = _busy || !actions.CanEnd; _delete.Disabled = _busy || !actions.CanDelete; _replay.Disabled = _busy || !actions.CanReplay;
-        _replay.TooltipText = actions.CanReplay ? "Replay the selected game from its start; nothing you do there changes it" : "Replay a game you are in once it is playing or ended";
+        _replay.TooltipText = actions.CanReplay ? "Replay the selected game from its start" : "Replay a game you are in once it is playing or ended";
         _end.TooltipText = actions.CanEnd ? "End the selected game for everyone" : "Only the game's creator ends a game that has not ended";
         _delete.TooltipText = actions.CanDelete ? "Delete the selected game and its log" : "Only the game's creator deletes it";
         _more.Disabled = _busy || _loaded && _next is null;

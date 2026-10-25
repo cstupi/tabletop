@@ -142,7 +142,7 @@
     <div role="status">
       <p class="loading">Converting in your browser: step {Math.max(stepIndex, 1)} of {STEPS.length}, {stepLabel.toLowerCase()}…</p>
       <progress max={STEPS.length} value={stepIndex}></progress>
-      <p><small>Large files can take a minute. Nothing is uploaded until you confirm.</small></p>
+      <p><small>Nothing is uploaded until you confirm.</small></p>
     </div>
   {:else if stage === 'preview' || stage === 'uploading'}
     <div class="preview">
@@ -170,7 +170,7 @@
           <label>Triangle budget <input type="number" step="1000" min="1000" bind:value={budget} onchange={() => void runConversion()} disabled={stage === 'uploading'} /></label>
           <p>Guessed millimetres, {result.proposal.upAxis.toUpperCase()} up. Check the model stands on the ring and faces the arrow.</p>
           {#if result.supports.suspected}
-            <p role="alert">This file looks pre-supported: {result.supports.supportLike} thin, tall pieces stand under it. Supports are never removed here — please drop the unsupported file instead.</p>
+            <p role="alert">This file looks pre-supported: {result.supports.supportLike} thin, tall pieces stand under it. Supports are not removed: drop the unsupported file instead.</p>
           {/if}
         {:else if glbInfo}<p>{glbInfo.triangles.toLocaleString()} triangles, {formatBytes(bytes)}. Read as glTF: metres, Y up, front +Z. Check the size, and that the model stands on the ring and faces the arrow.</p>{/if}
         {#if tooBig}<p role="alert">{tooBig}</p>{/if}
@@ -189,7 +189,7 @@
       </form>
     </div>
   {:else if stage === 'done' && outcome}
-    <p class="notice" role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if filed}{' '}in <strong>{filed}</strong>{/if}{#if outcome.deduplicated}{' '}(these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
+    <p class="notice" role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if filed}{' '}in <strong>{filed}</strong>{/if}{#if outcome.deduplicated}{' '}(already stored; nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
     {#if fileError}<p role="alert">{fileError}</p>{/if}
     {#if outcome.warning}<p role="alert">{outcome.warning}</p>{/if}
     <div class="actions"><button onclick={reset}>Add another</button><a class="button" href="/library/{outcome.asset.id}" onclick={close}>Open it</a><button class="primary" onclick={close}>Done</button></div>

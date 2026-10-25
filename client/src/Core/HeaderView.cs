@@ -96,7 +96,7 @@ public static class HeaderView
     /// <summary>The header's line for a client the server answers as a watcher (Session.IsWatching).</summary>
     public const string Watching = "Watching: you have no team in this game";
     /// <summary>The header's line in a replay (Session.Replaying).</summary>
-    public const string Replaying = "Replay: the table as it stood at this point in the game. Nothing here changes the game.";
+    public const string Replaying = "Replay: the table as it stood at this point in the game";
 
     static string? Result(GameEnded? ended, Names n) => ended is null ? null : "Game over · " + Outcome(ended, n);
 

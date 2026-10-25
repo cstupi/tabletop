@@ -44,7 +44,6 @@
   <div class="panel empty">
     <Icon name="download" size="2.5em" />
     <p><strong>No client build is published yet.</strong></p>
-    <p>Check back once the first release is out.</p>
   </div>
 {:else}
   <section class="panel" aria-labelledby="release-heading">

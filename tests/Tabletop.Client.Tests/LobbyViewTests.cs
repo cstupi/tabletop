@@ -20,7 +20,7 @@ public class LobbyViewTests
         var teams = LobbyView.Teams(Lobby(null, Samples.Team2), Me, isCreator: false);
         Assert.Equal(new TeamChoice(Samples.Team1, "Join team 1", true, ""), teams[0]);
         Assert.Equal(new TeamChoice(Samples.Team2, "Team 2: Ana · ask the creator to add you", false,
-            "Ana holds this team. A team may hold several players, each with their own army: the creator adds you from the Players list."), teams[1]);
+            "Ana holds this team; the creator adds you from the Players list."), teams[1]);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class LobbyViewTests
         var game = Samples.Game with { Status = GameStatus.Lobby, Participants =
             [new Participant(Me, account, "Clay", Samples.Team1, army), new Participant(second, account, "Clay", Samples.Team2, null)] };
         Assert.Equal(["Leave team 1", "Leave team 2"], LobbyView.Teams(game, Me, isCreator: true).Select(t => t.Text));
-        Assert.Equal("You are on Team 1 and Team 2. Pick your army below. You play every side you hold, one Ask at a time.", LobbyView.Seat(game, Me));
+        Assert.Equal("You are on Team 1 and Team 2. Pick your army below. You play every side you hold.", LobbyView.Seat(game, Me));
         var armies = LobbyView.Armies(game, Me);
         Assert.Equal([("Your army for Team 1", (Guid?)army), ("Your army for Team 2", null)], armies.Select(a => (a.Label, a.ArmyId)));
         Assert.Equal(new PickArmy(army, Samples.Team2), armies[1].Pick(army));
@@ -93,7 +93,7 @@ public class LobbyViewTests
         var game = Lobby(Samples.Team1, Samples.Team1);
         Assert.Equal([new ArmySeat(Samples.Team1, "Your army", null)], LobbyView.Armies(game, Me));
         Assert.Equal([new ArmySeat(Samples.Team1, "Your army", null)], LobbyView.Armies(game, Other));
-        Assert.Equal("You are on Team 1. Pick your army below. Teammates: Ana; each of you brings an army and activates your own units on your team's turns.",
+        Assert.Equal("You are on Team 1. Pick your army below. Teammates: Ana.",
             LobbyView.Seat(game, Me));
     }
 }

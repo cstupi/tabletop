@@ -15,7 +15,7 @@ function withDetail(kind: string, detail: string | null | undefined): string {
 
 /** The toast for a refusal. Null for a watcher's refused presence or ping (message id empty). */
 export function refusalText(r: Refused): string | null {
-  if (r.reason === 'watcher') return r.messageId === EMPTY_ID ? null : 'You are watching this game: a watcher cannot change it.';
+  if (r.reason === 'watcher') return r.messageId === EMPTY_ID ? null : 'You are watching this game.';
   const kind = {
     outside_legal_set: 'Not one of the choices offered',
     illegal: 'Against the rules',

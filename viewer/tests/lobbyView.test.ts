@@ -17,7 +17,7 @@ describe('LobbyView', () => {
     const g = game([row('p1', 'a1', 'Ann', { teamId: T1 })]);
     expect(seatLine(g, 'p1')).toBe('You are on Team 1. Pick your army below.');
     const both = game([row('p1', 'a1', 'Ann', { teamId: T1, armyId: 'x' }), row('p2', 'a1', 'Ann', { teamId: T2, armyId: 'y' })]);
-    expect(seatLine(both, 'p1')).toBe('You are on Team 1 and Team 2. You play every side you hold, one Ask at a time.');
+    expect(seatLine(both, 'p1')).toBe('You are on Team 1 and Team 2. You play every side you hold.');
   });
 
   it("a watcher's seat line", () => {

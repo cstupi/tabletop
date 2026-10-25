@@ -12,7 +12,7 @@ public static class Feedback
     /// those once it knows it watches, and a stray one is not news.</summary>
     public static string? Refusal(Refused r)
     {
-        if (r.Reason == RefusalReason.Watcher) return r.MessageId == Guid.Empty ? null : "You are watching this game: a watcher cannot change it.";
+        if (r.Reason == RefusalReason.Watcher) return r.MessageId == Guid.Empty ? null : "You are watching this game.";
         var kind = r.Reason switch
         {
             RefusalReason.OutsideLegalSet => "Not one of the choices offered",

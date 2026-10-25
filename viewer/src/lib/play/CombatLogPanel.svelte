@@ -148,7 +148,7 @@
   {/if}
   <div class="rows" bind:this={scroller} onscroll={onScroll}>
     {#each entries as e (keyOf(e))}{@render node(e)}{/each}
-    {#if entries.length === 0}<p class="none">Nothing here yet.</p>{/if}
+    {#if entries.length === 0}<p class="none">No entries yet.</p>{/if}
   </div>
 </section>
 

@@ -46,7 +46,7 @@ describe('describeAsk', () => {
     );
     expect(view.notes).toEqual([
       'a pass is allowed',
-      'sealed — answers stay hidden until it closes',
+      'sealed: answers hidden until it closes',
       'reaction window: charged',
       'in frame 0198b7ac',
     ]);

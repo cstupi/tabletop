@@ -30,12 +30,12 @@ export function seatLine(game: GameInfo, participantId: string | null): string {
   const ordinals = byOrdinal(game).filter((t) => seats.some((s) => s.teamId === t.id)).map((t) => `Team ${t.ordinal}`);
   if (ordinals.length === 0) return 'You have no team: join one, or stay without one to watch once play starts.';
   const army = seats.some((s) => s.teamId !== undefined && s.armyId === undefined) ? ' Pick your army below.' : '';
-  const both = ordinals.length > 1 ? ' You play every side you hold, one Ask at a time.' : '';
+  const both = ordinals.length > 1 ? ' You play every side you hold.' : '';
   const mates = [...new Set(game.participants
     .filter((p) => p.teamId !== undefined && seats.some((s) => s.teamId === p.teamId) && seats.every((s) => s.accountId !== p.accountId))
     .map((p) => p.name))];
   const withMates = mates.length === 0 ? ''
-    : ` Teammates: ${mates.join(', ')}; each of you brings an army and activates your own units on your team's turns.`;
+    : ` Teammates: ${mates.join(', ')}.`;
   return `You are on ${ordinals.join(' and ')}.${army}${both}${withMates}`;
 }
 
@@ -57,7 +57,7 @@ export function teamChoices(game: GameInfo, participantId: string | null, creato
     }
     return {
       teamId: t.id, text: `Team ${t.ordinal}: ${holders.join(', ')} · ask the creator to add you`, enabled: false,
-      why: `${holders.join(', ')} holds this team. A team may hold several players, each with their own army: the creator adds you from the Players list.`,
+      why: `${holders.join(', ')} holds this team; the creator adds you from the Players list.`,
       edit: { kind: 'pick_team', teamId: t.id },
     };
   });
