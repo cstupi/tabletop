@@ -22,6 +22,8 @@
   import { Names } from './names';
   import { rollOffBannerOf, type Banner as BannerModel } from './rollOffBanners';
   import { intentOf, textFocused } from './keys';
+  import { RangeRingCache, ringsOverlay } from './rangeRings';
+  import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts } from './ruleTexts';
   import { sceneOfPlay } from './scene';
   import type { Selection } from './selectionView';
@@ -41,7 +43,7 @@
   let geometry = $state.raw<Geometry | null>(null);
   let rules = $state.raw(RuleTexts.empty);
   let selected = $state.raw<ReadonlySet<string>>(new Set());
-  let settings: PlaySettings = loadSettings(browserStorage());
+  let settings = $state.raw<PlaySettings>(loadSettings(browserStorage()));
 
   // --- D3 (info): the selection and hover the card reads, the log's table highlight, the undo prediction ---
   let selection = $state.raw<Selection | null>(null);
@@ -210,6 +212,18 @@
     b.unit(unit);
   }
 
+  // D4: range rings for my selected unit when V has them on (RangeRingNode).
+  const ringCache = new RangeRingCache();
+  const ringsDrawn = $derived.by((): Overlay | null => {
+    const p = shown, game = snap?.game, unit = selection?.pieceId;
+    if (!settings.rangeRings || geometry === null || p === null || game == null || unit === undefined) return null;
+    const u = p.units.get(unit);
+    const team = u === undefined ? undefined : game.participants.find((x) => x.id === u.participantId)?.teamId;
+    if (team === undefined || team !== actingTeam) return null;                  // mine only
+    const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
+    return ringsOverlay(ringCache.of(geometry, p, unit), teamColour(ordinal));
+  });
+
   /** The roster's and header's unit pick selects the unit as a click on its model does. */
   function pickUnit(unit: string): void {
     const p = snap?.projection;
@@ -259,6 +273,7 @@
     const intent = intentOf(e.key, mods);
     if (intent === null) return;
     if (drags.onKey(intent, e.shiftKey)) { e.preventDefault(); return; }   // D2: Q/E, 1–5 and Enter while a drag is in hand
+    if (intent.kind === 'toggleRangeRings') { changeSettings((x) => ({ ...x, rangeRings: !x.rangeRings })); e.preventDefault(); return; }
     const used = intent.kind === 'option' ? box.number(intent.key)
       : intent.kind === 'confirm' ? box.enter()
       : intent.kind === 'cancel' ? box.cancel()
@@ -275,7 +290,7 @@
     {#if scene === null || snap === null}
       <p class="muted pad">Loading the game…</p>
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={infoOverlay === null ? overlays : [...overlays, infoOverlay]} {warned} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} models="circles" {glow} {marks} />
     {/if}
     {#if snap !== null && shown !== null && snap.game !== null}
       <div class="hud top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={() => {}} /></div>
