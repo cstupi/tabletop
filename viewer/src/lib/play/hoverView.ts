@@ -24,7 +24,7 @@ function onTable(p: Projection, unitId: string) {
  * base-edge distance over the pairs of models (p.5: from/to the closest model in each unit). Team ordinal 0: the unit's participant has
  * no team. An id absent from `maxWounds` takes one wound. */
 export function hoverOf(
-  g: Geometry, p: Projection, game: GameInfo, n: Names, hovered: string, selected: string | null, maxWounds: ReadonlyMap<string, number>,
+  g: Geometry | null, p: Projection, game: GameInfo, n: Names, hovered: string, selected: string | null, maxWounds: ReadonlyMap<string, number>,
 ): HoverInfo | null {
   const unit = p.units.get(hovered);
   if (unit === undefined) return null;
@@ -34,9 +34,9 @@ export function hoverOf(
   const ordinal = game.teams.find((t) => t.id === teamId)?.ordinal ?? 0;
 
   let distance: number | null = null;
-  const mine = selected !== null && selected !== hovered ? onTable(p, selected) : [];
+  const mine = g !== null && selected !== null && selected !== hovered ? onTable(p, selected) : [];
   for (const a of mine) for (const b of models) {
-    const d = g.edgeToEdge(a.placed, b.placed);
+    const d = g!.edgeToEdge(a.placed, b.placed);
     if (distance === null || d < distance) distance = d;
   }
 
