@@ -78,9 +78,13 @@ describe('PlayDrags', () => {
     expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 14, y: 12, z: 0 });
     expect(r.box.ghosts.get(b)!.position).toMatchObject({ x: 16, y: 12 });
     expect(r.reason()).toBe('');
-    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);                                                      // 14" past the 6" allowance
+    r.drags.onDragMove({ x: 24, y: 10 }, NO_MODIFIERS);                                                      // 14" against a 6" allowance
+    expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 16, y: 10 });                                  // held to its reach
+    expect(r.box.ghosts.get(b)!.position).toMatchObject({ x: 18, y: 10 });
+    expect(r.reason()).toBe('');
+    r.drags.onDragMove({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });                                    // Alt places freely
     expect(r.reason()).toBe('2 models past their allowance.');
-    r.drags.onDragEnd({ x: 24, y: 10 }, NO_MODIFIERS);
+    r.drags.onDragEnd({ x: 24, y: 10 }, { ...NO_MODIFIERS, alt: true });
     expect(r.sent).toHaveLength(0);
     expect(r.drags.held).toBeNull();
     expect(r.box.ghosts.get(a)!.position).toMatchObject({ x: 24, y: 10 });

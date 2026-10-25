@@ -1,7 +1,7 @@
 // viewer/src/lib/play/decisionBox.move.ts
 // client/src/Hud/DecisionBox.Move.cs: the move half of the decision box (a move Ask's ghosts, allowance, contacts, gate, commit, stop,
-// embark and refused commits) and deployment placement. The spec's cuts: no reach outline (MoveRegions is not ported), so a target is not
-// clamped, the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
+// embark and refused commits) and deployment placement. The spec's cuts: no reach outline (MoveRegions is not ported), so a target is held
+// only to the allowance on a straight line (ModelDrag), the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
 // starts its ghosts in rings about the container (DeployView.around) and the server judges p.15. Every ghost is a Placement in
 // `box.ghosts`: its position and the facing the player gave it, which the answer carries.
 
