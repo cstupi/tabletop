@@ -58,13 +58,13 @@ Today: 307 of 307 games pass in process with no pin, 545 of 545 entries covered,
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 4 min. Geometry 277, Geometry.Wasm 43, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
-  Protocol 64, Sounds 19, Viewer 16, Client 844, GameServer 1432, Management 303, Sim 307.
+  defect). About 4 min. Geometry 286, Geometry.Wasm 43, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
+  Protocol 64, Sounds 19, Viewer 16, Client 851, GameServer 1452, Management 303, Sim 308.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
   against the compose stack (`LifecycleTests`, about 3 min). Management 47, GameServer 40, Sim 338; about 7 min.
 
-`cd viewer && npm run check && npm test` passes 1,636 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
+`cd viewer && npm run check && npm test` passes 1,662 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
 `cd web && npm test` passes 128 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
 dev session (`POST /v1/dev/sessions`, roles admin) and stores it as `tabletop.session` on the website's origin.
@@ -178,7 +178,7 @@ export (`Directory.Build.props`: `ExportRelease` was building Geometry, Content 
 only what changed (roster rows, header, dice tray, unit markers, the decision box's view); a move Ask's areas build on the thread
 pool (`MoveRegions.OutlinesAsync`, up to 1.5 s on the main thread before); one gate and a `MoveReach.Reaches` landing test per
 drag frame; shared materials and body meshes, an id index for `TableView.PieceAt`. Whole game at Medium 1280×720 on Vulkan:
-p99 15.3 → 6.1 ms, frames over 33 ms 133 → 0; a five-model drag (Compatibility) p50 55 → 9.6 ms. `PerfProbe` records frames
+p99 15.3 → 2.4 ms, frames over 33 ms 133 → 2 (the host's); a five-model drag (Compatibility) p50 55 → 9.6 ms. `PerfProbe` records frames
 in a development build. Left: the first game after an install compiles its runtime materials' shaders in three frames of 1–2 s;
 entering a game takes one frame of about 400 ms.
 

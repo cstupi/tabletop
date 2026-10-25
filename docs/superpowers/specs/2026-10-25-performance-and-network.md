@@ -167,15 +167,17 @@ Before → after, the game screen only, VSync off.
 
 | Run | fps | frame p50 ms | p99 ms | frames > 33 ms | > 50 ms | max ms | draw calls | primitives (M) | video MB |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Vulkan Low 1280×720 | 336 → 434 | 2.68 → 2.26 | 11.2 → 3.2 | 106 → 0 | 3 → 0 | 55 → 24 | 328 → 215 | 17.0 → 2.0 | 170 → 157 |
-| Vulkan Low 1920×1080 | 310 → 437 | 2.94 → 2.12 | 12.1 → 4.5 | 123 → 0 | 2 → 0 | 75 → 25 | 363 → 246 | 17.0 → 3.1 | 216 → 196 |
-| Vulkan Medium 1280×720 | 263 → 392 | 3.43 → 2.34 | 15.3 → 6.1 | 133 → 0 | 13 → 0 | 1256 → 33 | 390 → 275 | 25.9 → 6.0 | 228 → 221 |
-| Vulkan Medium 1920×1080 | 237 → 360 | 3.87 → 2.52 | 17.8 → 7.9 | 142 → 0 | 6 → 0 | 69 → 25 | 417 → 309 | 25.8 → 6.7 | 318 → 310 |
-| Vulkan High 1280×720 | 243 → 383 | 3.69 → 2.39 | 16.7 → 7.4 | 113 → 5 | 8 → 4 | 3887 → 3906 | 392 → 278 | 25.9 → 7.6 | 358 → 351 |
-| Vulkan High 1920×1080 | 218 → 316 | 4.38 → 3.08 | 18.9 → 8.8 | 133 → 0 | 5 → 0 | 55 → 28 | 418 → 309 | 25.8 → 8.9 | 482 → 474 |
-| Compatibility Medium 1280×720 | 57 → 108 | 16.2 → 9.1 | 76.1 → 16.2 | 334 → 25 | 330 → 0 | 170 → 47 | 2282 → 2281 | 25.8 → 6.0 | 100 → 89 |
+| Vulkan Low 1280×720 | 336 → 1049 | 2.68 → 0.85 | 11.2 → 2.8 | 106 → 0 | 3 → 0 | 55 → 23 | 328 → 214 | 17.0 → 2.0 | 170 → 153 |
+| Vulkan Low 1920×1080 | 310 → 858 | 2.94 → 1.07 | 12.1 → 3.1 | 123 → 1 | 2 → 0 | 75 → 34 | 363 → 246 | 17.0 → 3.2 | 216 → 193 |
+| Vulkan Medium 1280×720 | 263 → 755 | 3.43 → 1.25 | 15.3 → 2.4 | 133 → 2 | 13 → 2 | 1256 → 108 | 390 → 280 | 25.9 → 6.0 | 228 → 218 |
+| Vulkan Medium 1920×1080 | 237 → 539 | 3.87 → 1.80 | 17.8 → 2.8 | 142 → 1 | 6 → 1 | 69 → 82 | 417 → 324 | 25.8 → 7.0 | 318 → 308 |
+| Vulkan High 1280×720 | 243 → 562 | 3.69 → 1.66 | 16.7 → 4.1 | 113 → 0 | 8 → 0 | 3887 → 30 | 392 → 281 | 25.9 → 7.6 | 358 → 347 |
+| Vulkan High 1920×1080 | 218 → 420 | 4.38 → 2.31 | 18.9 → 3.6 | 133 → 0 | 5 → 0 | 55 → 31 | 418 → 305 | 25.8 → 8.9 | 482 → 471 |
+| Compatibility Medium 1280×720 | 57 → 105 | 16.2 → 9.5 | 76.1 → 16.9 | 334 → 26 | 330 → 0 | 170 → 46 | 2282 → 2281 | 25.8 → 6.0 | 100 → 99 |
 
-The High 1280×720 maximum, both times, is the first run of that Quality on a fresh build: shader compiles (below → Loading).
+After, the four frames over 33 ms on Vulkan are frames with no batch, no allocation and the usual GPU time: the host's, not the client's. Before,
+the 1.3 s and 3.9 s maxima are the first run of a Quality: shader compiles (Loading, below). The managed heap peaks at 61 MB; a game
+allocates 4.8 MB/s and spends 68 ms in collections.
 
 ### What each setting costs
 
@@ -254,13 +256,12 @@ of play with the log open and 40 s with it closed.
   normal map) and one of about 160 ms (terrain templates, the surface grains). Left as they are: the screen is changing.
 - The first game after an install (or a driver or Godot update): three frames of 1.8, 1.25 and 0.95 s while the materials made at run time
   (`TerrainLook`, `Palette`, the glTF materials) compile their shaders on first draw; Godot's shader and pipeline caches hold them afterwards,
-  and the first use of another Quality compiles its variants once (the High run above). The export's shader baker (`shader_baker/enabled`) was
+  and the first use of another Quality compiles its variants once. The export's shader baker (`shader_baker/enabled`) was
   measured and changes nothing: it bakes only shaders saved in the pack.
 
 ### Measured and left alone
 
 - **The Compatibility renderer's draw calls** (2,281): it does not batch like pieces. Players get Forward+ unless their GPU has no Vulkan.
 - **The JIT.** Turning quick JIT off (`TieredCompilationQuickJit`) left the interactive frames as they were once the libs were optimized.
-- **Allocation**: 6 MB/s through a game, 61 generation-0 collections, 79 ms of pauses in all.
 - **The remaining play hitches** (Compatibility, a command every 300 ms): frames where a batch's render (about 8 ms of Hud) meets Godot's
   layout of the controls it made and the renderer's own work; at a player's pace and on Vulkan they do not show (the watched games above).
