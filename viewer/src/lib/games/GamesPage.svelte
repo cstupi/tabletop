@@ -2,6 +2,7 @@
 <!-- HomeScreen's list: the account's games (open, replay, leave, end, delete), the open games to join, and Create game. -->
 <script lang="ts">
   import CreateGameDialog from './CreateGameDialog.svelte';
+  import Loading from '../components/Loading.svelte';
   import { apiOf } from '../api/client';
   import { listGames, type GameSummary } from '../live/games';
   import type { Auth } from '../shell/auth';
@@ -116,7 +117,7 @@
   {#if error !== null}<p role="alert">{error}</p>{/if}
 
   {#if !loaded}
-    <p class="loading" role="status">Loading games…</p>
+    <Loading text="Loading games…" inline />
   {:else}
     <section class="panel">
       <h2>Your games</h2>

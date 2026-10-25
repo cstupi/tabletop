@@ -29,21 +29,34 @@ public static class TerrainLook
     const float FoliageLift = 1.4f;
     const string Done = "tabletop_terrain_look";
 
-    public static void Apply(Node node)
+    /// <summary>Dresses every surface of the scene once its grains have loaded (off the main thread, PrintTextures); the scene is
+    /// returned to the caller only after, so a piece never shows undressed.</summary>
+    public static async Task ApplyAsync(Node node)
+    {
+        var materials = new List<StandardMaterial3D>();
+        Collect(node, materials);
+        foreach (var m in materials.Distinct())
+        {
+            if (m.HasMeta(Done)) continue;
+            var family = SurfaceFamilies.Of(m.ResourceName ?? "", m.Metallic, m.Transparency != BaseMaterial3D.TransparencyEnum.Disabled);
+            if (!Grains.TryGetValue(family, out var grain)) { m.SetMeta(Done, true); continue; }
+            var print = await PrintTextures.LoadAsync(grain.File, grain.Relief / (grain.Inches / 512));
+            if (!GodotObject.IsInstanceValid(m) || m.HasMeta(Done)) continue;   // another duplicate of the template dressed it meanwhile
+            m.SetMeta(Done, true);
+            if (print is not null) Dress(m, family, grain, print);
+        }
+    }
+
+    static void Collect(Node node, List<StandardMaterial3D> into)
     {
         if (node is MeshInstance3D { Mesh: { } mesh })
             for (var i = 0; i < mesh.GetSurfaceCount(); i++)
-                if (mesh.SurfaceGetMaterial(i) is StandardMaterial3D material) Dress(material);
-        foreach (var child in node.GetChildren()) Apply(child);
+                if (mesh.SurfaceGetMaterial(i) is StandardMaterial3D material) into.Add(material);
+        foreach (var child in node.GetChildren()) Collect(child, into);
     }
 
-    static void Dress(StandardMaterial3D m)
+    static void Dress(StandardMaterial3D m, SurfaceFamily family, (string File, float Inches, float Relief, float? Roughness, float Depth) grain, PrintTextures.Print print)
     {
-        if (m.HasMeta(Done)) return;
-        m.SetMeta(Done, true);
-        var blended = m.Transparency != BaseMaterial3D.TransparencyEnum.Disabled;
-        var family = SurfaceFamilies.Of(m.ResourceName ?? "", m.Metallic, blended);
-        if (!Grains.TryGetValue(family, out var grain) || PrintTextures.Load(grain.File, grain.Relief / (grain.Inches / 512)) is not { } print) return;
         m.AlbedoTexture = print.Albedo;
         var lift = family == SurfaceFamily.Foliage ? FoliageLift : Lift;
         m.AlbedoColor = new Color(m.AlbedoColor.R * lift, m.AlbedoColor.G * lift, m.AlbedoColor.B * lift, m.AlbedoColor.A);

@@ -1,6 +1,7 @@
 using Godot;
 using HttpClient = System.Net.Http.HttpClient;
 using Tabletop.Client.Core;
+using Tabletop.Client.Hud;
 using Tabletop.Client.Screens;
 using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
@@ -15,7 +16,8 @@ public partial class Main : Node
     public AssetCache Cache { get; private set; } = null!;
     public HttpClient Http { get; } = ClientHttp.Create();
     Node? _screen;
-    string _settingsPath = "";
+    string _settingsPath = "", _warmupPath = "";
+    bool _warming = true;   // no screen until the shader warm-up has run (or was not needed)
     readonly GodotDispatcher _dispatcher = new();
 
     public override void _Ready()
@@ -23,7 +25,7 @@ public partial class Main : Node
         Instance = this;
         GetWindow().Title = BuildInfo.Current.WindowTitle;
         var data = UserData.Open(BuildInfo.Current, OS.GetUserDataDir());
-        _settingsPath = data.Settings;
+        _settingsPath = data.Settings; _warmupPath = Path.Combine(data.Dir, "graphics-warmup.txt");
         var settings = ClientSettings.Load(_settingsPath);
         var store = new SessionStore(data.Session);
         var management = new ManagementClient(Http, new Uri(settings.ManagementUrl));
@@ -64,6 +66,13 @@ public partial class Main : Node
 
     public override void _Notification(int what) { if (what == NotificationWMCloseRequest) SaveWindowRect(); }
 
+    /// <summary>What outlives the screens (the built-in meshes' templates, the prints) goes before Godot's servers do.</summary>
+    public override void _ExitTree()
+    {
+        _screen?.Free(); _screen = null;
+        MeshLoader.FreeBuiltins(); PrintTextures.Clear();
+    }
+
     void ApplyTheme()
     {
         Ui.Apply(UiThemes.Resolve(Session.Settings.Theme));
@@ -74,14 +83,41 @@ public partial class Main : Node
 
     async Task Boot()
     {
-        try { await Session.TryResumeAsync(); } catch (Exception e) { GD.PushWarning($"resume failed: {e.Message}"); }
+        var resume = Session.TryResumeAsync();
+        await WarmUp();
+        try { await resume; } catch (Exception e) { GD.PushWarning($"resume failed: {e.Message}"); }
         _dispatcher.Post(Route);
         if (PerfProbe.GameId is { } game && Session.Phase == SessionPhase.LoggedIn)
             try { await (PerfProbe.Replay ? Session.ReplayAsync(game) : Session.ConnectAsync(game)); } catch (Exception e) { GD.PushWarning($"perf game: {e.Message}"); }
     }
 
+    /// <summary>The shader warm-up behind "Preparing graphics…", when the stamp (Godot, the renderer, the GPU and its driver, the client's
+    /// version) differs from the last one that ran; development builds run it again with <c>TABLETOP_WARMUP=1</c>.</summary>
+    async Task WarmUp()
+    {
+        try
+        {
+            var stamp = GraphicsWarmup.Stamp((string)Engine.GetVersionInfo()["string"], RenderingServer.GetCurrentRenderingMethod(), RenderingServer.GetCurrentRenderingDriverName(),
+                RenderingServer.GetVideoAdapterName(), RenderingServer.GetVideoAdapterApiVersion(), BuildInfo.Current.Version);
+            var saved = File.Exists(_warmupPath) ? await File.ReadAllTextAsync(_warmupPath) : null;
+            var forced = !BuildInfo.Current.IsRelease && System.Environment.GetEnvironmentVariable("TABLETOP_WARMUP") == "1";
+            if (!GraphicsWarmup.Needed(saved, stamp) && !forced) return;
+            var curtain = new LoadingCurtain { Delay = TimeSpan.Zero, Theme = Ui.Theme }; AddChild(curtain);   // a Node parent passes no theme down
+            var scene = new WarmupScene(); AddChild(scene);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            await scene.Run(Session.Settings.Quality, curtain.Set);
+            GD.Print($"graphics warm-up {clock.ElapsedMilliseconds} ms");
+            scene.QueueFree(); curtain.QueueFree();
+            GraphicsApplier.ApplyAtlas(Session.Settings.Graphics);
+            await File.WriteAllTextAsync(_warmupPath, stamp);
+        }
+        catch (Exception e) { GD.PushWarning($"graphics warm-up: {e.Message}"); }
+        finally { _warming = false; }
+    }
+
     void Route()
     {
+        if (_warming) return;
         var path = Session.Phase switch
         {
             SessionPhase.LoggedOut => "res://scenes/Login.tscn",

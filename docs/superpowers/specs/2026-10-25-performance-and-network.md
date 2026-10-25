@@ -252,12 +252,13 @@ of play with the log open and 40 s with it closed.
 
 ### Loading
 
-- Entering a game with warm caches: one frame of about 400 ms (the whole log applied, the first table and Hud built, the board's print and
-  normal map) and one of about 160 ms (terrain templates, the surface grains). Left as they are: the screen is changing.
-- The first game after an install (or a driver or Godot update): three frames of 1.8, 1.25 and 0.95 s while the materials made at run time
-  (`TerrainLook`, `Palette`, the glTF materials) compile their shaders on first draw; Godot's shader and pipeline caches hold them afterwards,
-  and the first use of another Quality compiles its variants once. The export's shader baker (`shader_baker/enabled`) was
-  measured and changes nothing: it bakes only shaders saved in the pack.
+Settled in [2026-10-25-loading-design.md](2026-10-25-loading-design.md). A first start (or a new driver, Godot or client version)
+runs a shader warm-up behind "Preparing graphics…" that draws every material the table makes at run time under each Quality (7.3 s
+cold on the development machine); the game's first frames then compile nothing (before: frames of 1.8 and 1.7 s with the table
+shown). Entering a game is spread over frames behind "Loading game…": posted work runs within 12 ms a frame, prints decode on the
+thread pool, mesh scenes are generated within the same budget (warm: the longest frame 0.6-1.1 s → 0.17-0.20 s). The export's
+shader baker (`shader_baker/enabled`) was measured and changes nothing: it bakes only shaders saved in the pack. ReadyToRun for the
+export was measured: 10 % off the entering frame at twice the assemblies' size; not used.
 
 ### Measured and left alone
 

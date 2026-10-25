@@ -153,6 +153,7 @@ public partial class GameScreen
         if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
         PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
+        if (Shows(_strip)) HudPlacement.Bottom(_strip, r[HudPart.Loading]);
         if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
         if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
         if (r.TryGetValue(HudPart.UnitCard, out var cardSlot))

@@ -10,7 +10,9 @@
   import Board from '../components/Board.svelte';
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { sendEdit } from '../game/send';
-  import { loadGeometry, type Geometry } from '../geometry';
+  import { geometryDownload, loadGeometry, type Geometry } from '../geometry';
+  import Loading from '../components/Loading.svelte';
+  import { tableToolsText } from '../components/loading';
   import type { Edit } from '../protocol/wire.generated';
   import { type Catalog, loadCatalog, nameOf } from './catalog';
   import { SetupDrag, type Held } from './drag';
@@ -24,6 +26,7 @@
   } = $props();
 
   let geometry = $state.raw<Geometry | null>(null);
+  const tools = geometryDownload();
   let catalog = $state.raw<Catalog | null>(null);
   let loadError: string | null = $state(null);
   let problem: string | null = $state(null);
@@ -147,7 +150,7 @@
     {#if loadError !== null}
       <p role="alert" class="pad">{loadError}</p>
     {:else if scene === null}
-      <p class="loading pad" role="status">Loading the table tools…</p>
+      <Loading text={tableToolsText($tools.finished ? null : $tools)} done={$tools.done} total={$tools.finished ? undefined : $tools.total} />
     {:else}
       <Board {scene} bind:view {extent} {interaction} {overlays} selected={picked} />
       {#if menu !== null}

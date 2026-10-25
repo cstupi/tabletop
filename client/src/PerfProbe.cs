@@ -24,7 +24,7 @@ public partial class PerfProbe : Node
     ulong _last, _start;
     long _alloc, _allocAll, _frames; int _gc0, _gc1, _gc2; TimeSpan _pause;
     int _batches, _events; double _quitAfter = double.MaxValue;
-    readonly List<Rid> _viewports = new();
+    readonly List<(Rid Rid, Viewport Node)> _viewports = new();
     string _screen = "";
     Bench? _bench;
 
@@ -32,13 +32,13 @@ public partial class PerfProbe : Node
     {
         ProcessPriority = int.MinValue;   // first in the frame, so each row's interval is frame start to frame start
         _out = new StreamWriter(OutPath!, append: false) { AutoFlush = false };
-        _out.WriteLine("wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench");
+        _out.WriteLine("frame,wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench,compiles_canvas,compiles_mesh,compiles_surface,compiles_draw,compiles_spec");
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_SECONDS"), CultureInfo.InvariantCulture, out var s)) _quitAfter = s;
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_BENCH"), CultureInfo.InvariantCulture, out var b)) _bench = new Bench(b);
         var session = Main.Instance.Session;
         session.EventsApplied += e => { _batches++; _events += e.Count; };
-        GetTree().NodeAdded += n => { if (n is SubViewport v) Measure(v.GetViewportRid()); };
-        Measure(GetViewport().GetViewportRid());
+        GetTree().NodeAdded += n => { if (n is SubViewport v) Measure(v); };
+        Measure(GetViewport());
         _start = _last = Time.GetTicksUsec();
         _alloc = GC.GetAllocatedBytesForCurrentThread(); _allocAll = GC.GetTotalAllocatedBytes(false);
         (_gc0, _gc1, _gc2, _pause) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2), GC.GetTotalPauseDuration());
@@ -56,30 +56,31 @@ public partial class PerfProbe : Node
         GetViewport().GetTexture().GetImage().SavePng(OutPath + ".shot.png");
     }
 
-    void Measure(Rid viewport) { RenderingServer.ViewportSetMeasureRenderTime(viewport, true); _viewports.Add(viewport); }
+    void Measure(Viewport viewport) { RenderingServer.ViewportSetMeasureRenderTime(viewport.GetViewportRid(), true); _viewports.Add((viewport.GetViewportRid(), viewport)); }
 
     public override void _Process(double delta)
     {
         var now = Time.GetTicksUsec();
         var dt = (now - _last) / 1000.0; _last = now;
         double gpu = 0, cpu = 0;
-        _viewports.RemoveAll(v => !RenderingServer.ViewportGetRenderTarget(v).IsValid);
-        foreach (var v in _viewports) { gpu += RenderingServer.ViewportGetMeasuredRenderTimeGpu(v); cpu += RenderingServer.ViewportGetMeasuredRenderTimeCpu(v); }
+        _viewports.RemoveAll(v => !IsInstanceValid(v.Node) || v.Node.IsQueuedForDeletion());
+        foreach (var (v, _) in _viewports) { gpu += RenderingServer.ViewportGetMeasuredRenderTimeGpu(v); cpu += RenderingServer.ViewportGetMeasuredRenderTimeCpu(v); }
         var alloc = GC.GetAllocatedBytesForCurrentThread(); var allocAll = GC.GetTotalAllocatedBytes(false);
         var (g0, g1, g2, pause) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2), GC.GetTotalPauseDuration());
         static double M(Performance.Monitor m) => Performance.GetMonitor(m);
         if (_frames++ % 30 == 0) _screen = GetParent()?.GetChildren().LastOrDefault(c => c is not PerfProbe && c is not Godot.Timer)?.Name.ToString() ?? "";
         var size = GetWindow().Size;
         var bench = _bench?.Step(this, (now - _start) / 1e6) ?? "";
-        if (_frames % 15 == 0) Triggers();
+        if (_frames % 3 == 0) Triggers();
         if (bench.Length == 0) bench = _mark;
-        _row.Clear().Append(CultureInfo.InvariantCulture,
+        _row.Clear().Append(CultureInfo.InvariantCulture, $"{_frames},").Append(CultureInfo.InvariantCulture,
             $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()},{dt:0.###},{gpu:0.###},{cpu:0.###},")
             .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.RenderTotalDrawCallsInFrame)},{M(Performance.Monitor.RenderTotalObjectsInFrame)},{M(Performance.Monitor.RenderTotalPrimitivesInFrame)},")
             .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.ObjectNodeCount)},{M(Performance.Monitor.ObjectOrphanNodeCount)},{GC.GetTotalMemory(false) / 1048576.0:0.#},")
             .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.RenderVideoMemUsed) / 1048576:0.#},{M(Performance.Monitor.RenderTextureMemUsed) / 1048576:0.#},{M(Performance.Monitor.RenderBufferMemUsed) / 1048576:0.#},")
             .Append(CultureInfo.InvariantCulture, $"{(alloc - _alloc) / 1024.0:0.#},{(allocAll - _allocAll) / 1024.0:0.#},{g0 - _gc0},{g1 - _gc1},{g2 - _gc2},{(pause - _pause).TotalMilliseconds:0.###},")
-            .Append(CultureInfo.InvariantCulture, $"{_batches},{_events},{_screen},{size.X}x{size.Y},{bench}");
+            .Append(CultureInfo.InvariantCulture, $"{_batches},{_events},{_screen},{size.X}x{size.Y},{bench},")
+            .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.PipelineCompilationsCanvas)},{M(Performance.Monitor.PipelineCompilationsMesh)},{M(Performance.Monitor.PipelineCompilationsSurface)},{M(Performance.Monitor.PipelineCompilationsDraw)},{M(Performance.Monitor.PipelineCompilationsSpecialization)}");
         _out.WriteLine(_row);
         (_alloc, _allocAll, _gc0, _gc1, _gc2, _pause, _batches, _events) = (alloc, allocAll, g0, g1, g2, pause, 0, 0);
         if ((now - _start) / 1e6 > _quitAfter) { _out.Flush(); GetTree().Quit(); }

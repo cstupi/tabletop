@@ -9,7 +9,10 @@
   import type { View } from '../board/transform';
   import Board from '../components/Board.svelte';
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
-  import { loadGeometry, type Geometry } from '../geometry';
+  import { geometryDownload, loadGeometry, type Geometry } from '../geometry';
+  import Loading from '../components/Loading.svelte';
+  import { tableToolsText } from '../components/loading';
+  import { waitText } from '../game/header';
   import { acting, teamsOf } from '../lobby/seats';
   import { DecisionBox, type DecisionPanel } from './decisionBox';
   import { moveHooks } from './decisionBox.move';
@@ -52,6 +55,7 @@
   let panel = $state.raw<DecisionPanel>({ seat: '', title: '', revealed: null, note: '', controls: [], refusal: null, hint: '', visible: false });
   let box = $state.raw<DecisionBox | null>(null);
   let geometry = $state.raw<Geometry | null>(null);
+  const tools = geometryDownload();
   let rules = $state.raw(RuleTexts.empty);
   let grants = $state.raw<readonly GrantChoice[]>([]);
   let selected = $state.raw<ReadonlySet<string>>(new Set());
@@ -371,10 +375,11 @@
   {/if}
   <div class="stage">
     {#if scene === null || snap === null}
-      <p class="loading" role="status">Loading the game…</p>
+      <Loading text={waitText(snap)} />
     {:else}
       <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
+    {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
     <div class="float banner"><Banner {connection} /></div>
     {#if pending !== null || problem !== null}
       <div class="float foot">
@@ -408,7 +413,6 @@
   .top { grid-area: top; min-width: 0; }
   .roster { grid-area: roster; min-height: 0; }
   .stage { grid-area: stage; position: relative; min-height: 0; min-width: 0; }
-  .stage > .loading { padding: var(--s4); }
   .float { position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); pointer-events: none; max-width: calc(100% - 2 * var(--s4)); }
   .float.banner { top: 20%; }
   .float.foot { bottom: var(--s4); display: flex; flex-direction: column; gap: var(--s2); align-items: center; }

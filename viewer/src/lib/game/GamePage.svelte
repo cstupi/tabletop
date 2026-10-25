@@ -13,7 +13,8 @@
   import type { View } from '../board/transform';
   import type { Auth } from '../shell/auth';
   import Confirm, { type Question } from './Confirm.svelte';
-  import { headerOf } from './header';
+  import { headerOf, waitText } from './header';
+  import Loading from '../components/Loading.svelte';
   import { sendEdit } from './send';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
@@ -89,7 +90,7 @@
       <PlayPage {connection} {api} bind:view />
     {/if}
   {:else}
-    <div class="center"><p class="loading" role="status">Connecting to the game…</p></div>
+    <Loading text={waitText(snap)} />
   {/if}
 </div>
 

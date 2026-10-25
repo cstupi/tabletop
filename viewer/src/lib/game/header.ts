@@ -27,6 +27,13 @@ const CONNECTION: Record<ConnectionState['phase'], string | null> = {
   connecting: 'Connecting…', connected: null, reconnecting: 'Reconnecting…', closed: 'Disconnected',
 };
 
+/** The blocking wait before a game draws: no welcome yet, a reconnect, or welcomed with the board or log not yet applied. */
+export function waitText(snap: ConnectionState | null): string {
+  if (snap === null) return 'Connecting…';
+  if (snap.phase === 'reconnecting') return 'Reconnecting…';
+  return snap.phase === 'connected' && snap.game !== null ? 'Loading game…' : 'Connecting…';
+}
+
 export function headerOf(snap: ConnectionState | null, creator: boolean): HeaderStrip {
   const game = snap?.game ?? null;
   const status = game?.status ?? null;
