@@ -1,7 +1,7 @@
 // viewer/src/lib/api/types.ts
 // Management's DTOs, typed by hand from client/src/Core/ManagementDtos.cs and the server records (they are not generated).
 
-import type { Enforcement, GameInfo, GameStatus, SchedulerShape } from '../protocol/wire.generated';
+import type { DeploymentZone, Enforcement, GameInfo, GameStatus, SchedulerShape, TableSize, TerrainPlacement } from '../protocol/wire.generated';
 
 export type { Enforcement, GameInfo, GameStatus, SchedulerShape };
 
@@ -18,3 +18,16 @@ export interface ArmySummary {
   readonly units: number; readonly models: number;
 }
 export interface Page<T> { readonly items: readonly T[]; readonly next?: string | null }
+
+export interface LayoutSummary { readonly id: string; readonly name: string; readonly size: TableSize; readonly terrain: number; readonly markers: number }
+export interface AssetDto {
+  readonly id: string; readonly name: string; readonly kind: 'model' | 'terrain' | 'texture'; readonly hash: string;
+  readonly byteSize: number; readonly contentType: string; readonly uploaded: boolean; readonly scale: number;
+}
+export type Planet = 'generic' | 'hospitable' | 'wasteland' | 'death' | 'ruins';
+export interface RandomTableRequest {
+  readonly size: TableSize; readonly planet: Planet; readonly zones?: readonly DeploymentZone[]; readonly seed?: number;
+}
+export interface RandomTable {
+  readonly seed: number; readonly terrain: readonly TerrainPlacement[]; readonly unplaced: readonly string[]; readonly unlisted: readonly string[];
+}
