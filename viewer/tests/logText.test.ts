@@ -95,7 +95,7 @@ describe('LogText', () => {
       .toBe('the game ended round 4: Team 1 took smoke');
     expect(line({ kind: 'round_ended', round: 4, changes: [] })).toBe('the game ended round 4');
     expect(line({ kind: 'objective_control_set', markerId: token.id })).toBe('the game made smoke neutral');
-    expect(line({ kind: 'objective_control_set', markerId: setupMarker.id, teamId: TEAM2 })).toBe(`the game gave ${Names.short(setupMarker.id)} to Team 2`);
+    expect(line({ kind: 'objective_control_set', markerId: setupMarker.id, teamId: TEAM2 })).toBe('the game gave Objective 1 to Team 2');
     expect(roundChange({ kind: 'objective_control_set', markerId: token.id }, n)).toBe('smoke became neutral');
 
     const labelled = { ...markerOf('centre', 'objective') };

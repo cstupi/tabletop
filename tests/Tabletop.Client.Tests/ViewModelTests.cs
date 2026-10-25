@@ -291,7 +291,7 @@ public class ViewModelTests
         Assert.Equal("the game ended round 4", Line(new RoundEnded(4, [])));
         Assert.Equal("the game made smoke neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
         var setup = a.Projection.Board.Table.Markers[0].Id;
-        Assert.Equal($"the game gave {Names.Short(setup)} to Team 2", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
+        Assert.Equal("the game gave Objective 1 to Team 2", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label: its kind and place
 
         // A labelled setup marker verifies the setup marker lookup works (would fail if Names.Marker's board lookup were deleted)
         var labelledMarker = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(30, 20, 0), new Yaw(0), 3, "centre", VisualRef.OfBuiltin("objective-ring"));

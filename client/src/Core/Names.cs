@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
@@ -19,8 +20,20 @@ public sealed class Names(GameInfo game, Projection? projection)
     public Guid? TeamOfUnit(Guid unitId) => projection?.Units.GetValueOrDefault(unitId) is { } u ? game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId : null;
     public Guid? UnitOfModel(Guid modelId) => projection?.Models.GetValueOrDefault(modelId)?.UnitId;
     public string Piece(Guid id) => projection is null ? Short(id)
-        : projection.Units.ContainsKey(id) ? Unit(id) : projection.Models.ContainsKey(id) ? Model(id) : projection.Markers.GetValueOrDefault(id)?.Label ?? Short(id);
-    /// <summary>A marker by its label: placed in play, or else from setup.</summary>
-    public string Marker(Guid id) => (projection?.Markers.GetValueOrDefault(id) ?? projection?.Board.Table.Markers.FirstOrDefault(m => m.Id == id))?.Label ?? Short(id);
+        : projection.Units.ContainsKey(id) ? Unit(id) : projection.Models.ContainsKey(id) ? Model(id) : projection.Markers.ContainsKey(id) || projection.Board.Table.Markers.Any(m => m.Id == id) ? Marker(id) : Short(id);
+    /// <summary>
+    /// A marker by its label: placed in play, or else from setup. One with no label is its kind and its place among the markers of
+    /// that kind, setup's order first ("Objective 2"), never an id.
+    /// </summary>
+    public string Marker(Guid id)
+    {
+        var marker = projection?.Markers.GetValueOrDefault(id) ?? projection?.Board.Table.Markers.FirstOrDefault(m => m.Id == id);
+        if (marker is null) return Short(id);
+        if (!string.IsNullOrWhiteSpace(marker.Label)) return marker.Label;
+        var table = projection!.Board.Table.Markers;
+        var kin = table.Concat(projection.Markers.Values.Where(m => table.All(t => t.Id != m.Id)).OrderBy(m => m.Id))
+            .Where(m => m.Kind == marker.Kind).Select(m => m.Id).ToList();
+        return $"{(marker.Kind == MarkerKind.Objective ? "Objective" : "Token")} {kin.IndexOf(id) + 1}";
+    }
     public static string Short(Guid id) => id.ToString("N")[..8];
 }
