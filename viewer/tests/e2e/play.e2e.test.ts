@@ -229,9 +229,14 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, deployment and 
       const first = await advance();
       const models = [...first.box.ghosts.keys()];
       const before = models.map((id) => positionOf(id));
-      nudge(first, before[0]!.y < size().length / 2 ? 2 : -2);
+      for (const dy of [2, -2, 3, -3, 1, -1, 4, -4]) {                  // the first nudge the browser's own contact marks find clear
+        nudge(first, dy);
+        if (first.violations.marked.size === 0) break;
+        first.box.cancel();
+      }
+      expect(first.violations.marked.size).toBe(0);
       first.box.enter();
-      await until('the models to move', () => models.some((id, i) => Math.abs(positionOf(id).y - before[i]!.y) > 1));
+      await until(`the models to move or a refusal`, () => first.box.panel.refusal !== null || models.some((id, i) => Math.abs(positionOf(id).y - before[i]!.y) > 1));
       expect(first.box.panel.refusal).toBeNull();
 
       // An illegal one: far past the allowance. The browser sends it (its gate is off), the server refuses it, and the ghosts come back marked.
