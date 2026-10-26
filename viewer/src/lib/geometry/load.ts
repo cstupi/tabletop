@@ -50,7 +50,8 @@ function wrap(exports: Exports): Geometry {
   const pieces = (terrain: Parameters<Geometry['landPiece']>[0]) =>
     terrain.map((t) => ({ id: t.id, position: t.position, yaw: t.yaw, scale: t.scale, volumes: t.volumes }));
   return {
-    landModels: (held, stationary, walls, terrain) => ask<HeldEnd[]>('LandModels', { held, stationary, walls, terrain: pieces(terrain) }),
+    landModels: (held, stationary, walls, terrain, abut) =>
+      ask<HeldEnd[]>('LandModels', { held, stationary, walls, terrain: pieces(terrain), ...(abut === undefined ? {} : { abut }) }),
     landPiece: (terrain, pieceId, at, to) => ask<PieceEnd>('LandPiece', { terrain: pieces(terrain), pieceId, at, to }),
     turnPiece: (terrain, pieceId, yaw) => ask<Point3>('TurnPiece', { terrain: pieces(terrain), pieceId, yaw }),
     modelSurfaces: (model, terrain) => ask<number[]>('ModelSurfaces', { model, terrain: pieces(terrain) }),

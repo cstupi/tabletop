@@ -30,15 +30,24 @@ public static class DragBodies
         ? volumes.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList()
         : volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
 
+    /// <summary>A charge's landing pull (Collision.Abut): the Ask's ContactWith models where they stand, and its ContactGrace; null for any other
+    /// move (and a disembark, which the server reads as it is).</summary>
+    public static Abutment? Abutment(Projection p, MoveRegion? region) =>
+        region is { ContactWith: { Count: > 0 } contact, ContactGrace: { } grace } && region.Containment?.ExitingId is null
+            ? new Abutment(contact.Where(p.Models.ContainsKey).Select(id => p.Models[id]).Where(m => m.Location is OnTable)
+                .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList(), grace)
+            : null;
+
     /// <summary>
     /// Held pieces lift over spec → Held. Lifted (level null): each held model goes straight to its target, drawn <see cref="Collision.Lift"/> over
     /// the highest top under it, models included (Collision.Hover), and lands at the nearest spot where its base meets no other model's (the held
     /// ones already landed included; a landing on a base is never right, so a region that passes models still counts them) and enters no wall,
-    /// inside a move step only where `within` takes it (Collision.Land). At a level: today's drag at that height (Collision.Separate). Alt
+    /// inside a move step only where `within` takes it (Collision.Land); in a charge (`abut`, <see cref="Abutment"/>) a landing within the grace of a
+    /// target model is drawn flush against it, as the server ends the charge. At a level: today's drag at that height (Collision.Separate). Alt
     /// (`free`): straight to the target, resting on the open surface nearest the level (the highest when lifted).
     /// </summary>
     public static IReadOnlyDictionary<Guid, HeldEnd> Models(IReadOnlyList<HeldBody> held, IReadOnlyList<PlacedModel> stationary, IReadOnlyList<WorldVolume> volumes, MoveRegion? region,
-        bool free, double? level, Func<Guid, Point2, bool>? within = null)
+        bool free, double? level, Func<Guid, Point2, bool>? within = null, Abutment? abut = null)
     {
         static PlacedModel At(HeldBody h) => h.At with { Placement = h.At.Placement with { Position = new Point3(h.To.X, h.To.Y, 0) } };
         if (free)
@@ -48,7 +57,7 @@ public static class DragBodies
             var ends = Collision.Separate(held.Select(h => (h.At, h.To)).ToList(), region is { PassesModels: true } ? [] : stationary, Walls(volumes, region), volumes, l);
             return held.Select((h, i) => (h.Id, End: ends[i])).ToDictionary(x => x.Id, x => new HeldEnd(x.End, x.End));
         }
-        var lands = Collision.Land(held.Select(h => (h.At, h.To, within is null ? null : (Func<Point2, bool>)(p => within(h.Id, p)))).ToList(), stationary, Walls(volumes, region), volumes);
+        var lands = Collision.Land(held.Select(h => (h.At, h.To, within is null ? null : (Func<Point2, bool>)(p => within(h.Id, p)))).ToList(), stationary, Walls(volumes, region), volumes, abut);
         return held.Select((h, i) => (h, Lands: lands[i])).ToDictionary(x => x.h.Id, x => new HeldEnd(new Point3(x.h.To.X, x.h.To.Y, Collision.Hover(At(x.h), volumes, stationary)), x.Lands));
     }
 

@@ -25,7 +25,7 @@ public static class Facade
         var r = Read<LandRequest>(json);
         var volumes = Volumes(r.Terrain);
         var walls = volumes.Where(v => r.Walls.Contains(v.Id)).ToList();
-        var lands = Collision.Land(r.Held.Select(h => (h.At, h.To, (Func<Point2, bool>?)null)).ToList(), r.Stationary, walls, volumes);
+        var lands = Collision.Land(r.Held.Select(h => (h.At, h.To, (Func<Point2, bool>?)null)).ToList(), r.Stationary, walls, volumes, r.Abut);
         return Write(r.Held.Select((h, i) =>
         {
             var at = h.At with { Placement = h.At.Placement with { Position = new Point3(h.To.X, h.To.Y, 0) } };

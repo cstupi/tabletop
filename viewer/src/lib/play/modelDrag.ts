@@ -1,11 +1,12 @@
 // viewer/src/lib/play/modelDrag.ts
 // TableInput's model drag (OnLeftDown's pick-up, Place, Arrange, Turn, OnLeftUp) over DragBodies, in the browser: held models are always
 // lifted (spec → Heights: no level keys), each landed by Geometry.landModels against the stationary models, the walls and the terrain. Alt
-// places freely: straight to the cursor, resting on the highest surface. There is no reach outline (spec): inside a move's Ask (not a
+// places freely: straight to the cursor, resting on the highest surface. In a charge Ask a landing within the Ask's ContactGrace of a target
+// model is drawn flush against it (abutmentOf, Collision.Abut). There is no reach outline (spec): inside a move's Ask (not a
 // disembark or a shelf placement) each held model's target is held to the Ask's allowance from its origin on the straight line (clampToReach)
 // before it lands.
 
-import type { Geometry, HeldEnd, HeldModel, PlacedModel, Placement, Point3, XY } from '../geometry';
+import type { Abutment, Geometry, HeldEnd, HeldModel, PlacedModel, Placement, Point3, XY } from '../geometry';
 import { wallsOf } from '../geometry';
 import type { Projection } from '../live/apply';
 import type { MoveRegion } from '../protocol/wire.generated';
@@ -32,6 +33,19 @@ export function stationary(p: Projection, held: ReadonlySet<string>, ghosts: Rea
     if (at !== undefined) out.push({ body: { base: m.slot.base, height: m.slot.height }, placement: at });
   }
   return out;
+}
+
+/** DragBodies.Abutment: a charge's landing pull, the Ask's ContactWith models where they stand and its ContactGrace; undefined for any other
+ *  move (and a disembark). */
+export function abutmentOf(p: Projection, region: MoveRegion | null): Abutment | undefined {
+  if (region === null || region.contactWith === undefined || region.contactWith.length === 0 || region.contactGrace === undefined || isDisembark(region))
+    return undefined;
+  const models: PlacedModel[] = [];
+  for (const id of region.contactWith) {
+    const m = p.models.get(id);
+    if (m?.location.kind === 'table') models.push({ body: { base: m.slot.base, height: m.slot.height }, placement: m.location.placement });
+  }
+  return { models, within: region.contactGrace };
 }
 
 /** DragBodies.Grabs: where each picked-up model starts: a proposed model where it is drawn, anything else where the projection has it. */
@@ -179,7 +193,9 @@ export class ModelDrag {
       });
     } else {
       const heldModels: HeldModel[] = now.ids.map((id) => ({ id, at: bodyOf(id, now.ends.get(id)!.lands), to: to.get(id)! }));
-      ends = this.#geometry.landModels(heldModels, stationary(p, new Set(now.ids), ghosts), wallsOf(terrain, region?.impassableVolumeIds), terrain);
+      // In a charge every held model is the Ask's: a landing near the target is drawn flush against it, as the server ends the charge.
+      const abut = now.ids.every((id) => this.#proposing.has(id)) ? abutmentOf(p, region) : undefined;
+      ends = this.#geometry.landModels(heldModels, stationary(p, new Set(now.ids), ghosts), wallsOf(terrain, region?.impassableVolumeIds), terrain, abut);
     }
     this.#held = { ...now, ends: new Map(ends.map((e) => [e.id, e] as const)) };
     return this.#held;

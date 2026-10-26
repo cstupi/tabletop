@@ -358,7 +358,10 @@ a physics query, and names no rule: what a body may climb, and what it may not c
   overlap, so it passes under a bridge with room; a wall it starts in stays ground. `Follow`, `Blocked` and `Clear` take the level too.
 - `Land(model, to, models, walls, volumes, within)` is a lifted held model's landing: the nearest spot to `to`, in rings 0.25"
   apart, where its base enters no wall, it overlaps no model rested there and `within` (a move step's reach) takes it, rested on
-  its highest open surface; a group lands in drag order. `Land(piece, …)` is `Clear` at the target. `Hover` is the height a lifted
+  its highest open surface; a group lands in drag order. With an `Abutment` (a charge Ask's `ContactWith` models and `ContactGrace`),
+  a landing whose base ends within `Within` of one of those models is moved straight toward the nearest by the gap between their closest
+  points, so the bases touch, when that spot is as free as a landing's (`Abut`); the game server draws a charge in the same way.
+  `Land(piece, …)` is `Clear` at the target. `Hover` is the height a lifted
   body is drawn at, `Lift` (0.5") over the highest top under it, models included.
 - **Model against model is three-dimensional.** A model's body is its base outline extruded from its settled Z by its height
   (`ModelBody.Height`; the import writes 1.5 × the base's larger dimension). The moving body is rested at each sample on what is
@@ -991,7 +994,8 @@ server appends is rested (`Battlefield.Settle` → `Collision.RestNear`, nearest
 inside a Solid and `Overlap.WithSolid` has no production caller; crossing or landing on an
 Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is judged on a move answer
 (`GfMoves.CoherencyBreach`, `move_coherency`: a unit in coherency before that is out of it after), and `UnitFormation` forms a unit up
-in contact and coherency for the charge's `charge_contact` and the simulator. `Coherency.Check`'s two hazards: `OutOfCoherency` holds
+in contact and coherency for the charge's `charge_contact` and the simulator; `Collision.Abut` draws a charging model flush against the
+target for the client's landing and the server's `GfMoves.ChargeLanding`. `Coherency.Check`'s two hazards: `OutOfCoherency` holds
 **positional indices**, so the caller must pass models in a stable order and zip the result
 back itself. And the spread test flags both ends of an over-long chain rather than naming the
 model to move.

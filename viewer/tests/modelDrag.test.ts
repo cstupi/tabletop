@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import type { Geometry, HeldEnd, HeldModel, PlacedModel, Placement } from '../src/lib/geometry';
+import type { Abutment, Geometry, HeldEnd, HeldModel, PlacedModel, Placement } from '../src/lib/geometry';
 import { Applier } from '../src/lib/live/apply';
-import { ModelDrag, clampToReach, grabs, stationary } from '../src/lib/play/modelDrag';
+import { ModelDrag, abutmentOf, clampToReach, grabs, stationary } from '../src/lib/play/modelDrag';
 import type { MoveRegion, TerrainPlacement } from '../src/lib/protocol/wire.generated';
 import { P1, P2, boardOf, emptyTable, gameOf, slotOf, unitOf } from './play';
 
 const at = (x: number, y: number, yaw = 0): Placement => ({ position: { x, y, z: 0 }, yaw: { degrees: yaw } });
 
-interface Land { held: readonly HeldModel[]; stationary: readonly PlacedModel[]; walls: readonly string[] }
+interface Land { held: readonly HeldModel[]; stationary: readonly PlacedModel[]; walls: readonly string[]; abut?: Abutment }
 function fake(lift = 0.5) {
   const lands: Land[] = [];
   const rests: PlacedModel[] = [];
   const g = {
-    landModels: (held: readonly HeldModel[], stat: readonly PlacedModel[], walls: readonly string[]): HeldEnd[] => {
-      lands.push({ held, stationary: stat, walls });
+    landModels: (held: readonly HeldModel[], stat: readonly PlacedModel[], walls: readonly string[], _terrain: unknown, abut?: Abutment): HeldEnd[] => {
+      lands.push({ held, stationary: stat, walls, ...(abut === undefined ? {} : { abut }) });
       return held.map((h) => ({ id: h.id, drawn: { x: h.to.x, y: h.to.y, z: lift }, lands: { x: h.to.x, y: h.to.y, z: 0 } }));
     },
     restModel: (m: PlacedModel) => { rests.push(m); return 3; },
@@ -112,6 +112,32 @@ describe('ModelDrag', () => {
     drag.move(r.p, { x: 20, y: 10 }, false, { ...region, containment: { enterable: [], exitingId: r.rival, exitWithin: 6 } }, none);
     expect(lands[2]!.held[0]!.to).toEqual({ x: 20, y: 10 });
     expect(drag.move(r.p, { x: 20, y: 10 }, true, region, none)!.ends.get(r.a)!.lands).toMatchObject({ x: 20, y: 10 });
+  });
+
+  it('abutmentOf is a charge Ask target models where they stand and its grace; nothing for any other move or a disembark', () => {
+    const { p, a, rival } = rig();
+    const charge: MoveRegion = { kind: 'move_region', modelIds: [a], allowance: 12, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false,
+      ignoresTerrain: false, contactWith: [rival], contactGrace: 0.5 };
+    expect(abutmentOf(p, charge)).toEqual({ models: [{ body: { base: { shape: 'circle', a: 1, b: 1 }, height: 1 }, placement: at(40, 30) }], within: 0.5 });
+    const { contactWith: _w, contactGrace: _g, ...advance } = charge;
+    expect(abutmentOf(p, advance)).toBeUndefined();
+    expect(abutmentOf(p, { ...charge, containment: { enterable: [], exitingId: rival, exitWithin: 6 } })).toBeUndefined();
+    expect(abutmentOf(p, null)).toBeUndefined();
+  });
+
+  it('a charge drag lands with the pull, a hand move without', () => {
+    const { g, lands } = fake();
+    const { p, a, rival } = rig();
+    const charge: MoveRegion = { kind: 'move_region', modelIds: [a], allowance: 40, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false,
+      ignoresTerrain: false, contactWith: [rival], contactGrace: 0.5 };
+    const drag = new ModelDrag(g);
+    drag.start(p, a, { x: 10, y: 10 }, true, new Set([a]), new Map());
+    drag.move(p, { x: 38.7, y: 30 }, false, charge, new Map());
+    expect(lands.at(-1)!.abut?.within).toBe(0.5);
+    drag.cancel();
+    drag.start(p, a, { x: 10, y: 10 }, true, new Set(), new Map());
+    drag.move(p, { x: 38.7, y: 30 }, false, null, new Map());
+    expect(lands.at(-1)!.abut).toBeUndefined();
   });
 
   it('alt places straight at the cursor resting on the highest surface', () => {

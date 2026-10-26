@@ -82,7 +82,8 @@ public partial class TableInput
         var holdsModels = p is not null && drag.ModelIds.All(p.Models.ContainsKey);
         var ends = holdsModels
             ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p!.Models[id].Slot.Base, p.Models[id].Slot.Height),
-                new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free, drag.Level, within)
+                new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free, drag.Level, within,
+                drag.ModelIds.All(Proposing.Contains) ? DragBodies.Abutment(p, Region) : null)
             : targets.ToDictionary(kv => kv.Key, kv => _session.Draft is { } d && d.Terrain.Any(t => t.Id == kv.Key)
                 ? DragBodies.Piece(d.Terrain, kv.Key, new Placement(drag.Current[kv.Key], drag.Yaws[kv.Key]), kv.Value.Horizontal, free, drag.Level)
                 : Still(new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst))));   // a marker rests on the Solid under its point

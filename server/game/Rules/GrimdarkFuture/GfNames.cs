@@ -56,9 +56,13 @@ public static class GfNames
     public const double CoherencyChain = 1, CoherencyElevated = 3, CoherencySpread = 9;
     /// <summary>p.9 Charge moves (GfMoves.ChargeContactBreach): no charging model ended in base contact with the target unit though a path reached it.</summary>
     public const string ChargeContactRule = "charge_contact";
-    /// <summary>How far apart two bases may be and still count as in base contact for ChargeContactBreach: a dropped model lands at the nearest free
-    /// spot on rings 0.25" apart (Tabletop.Geometry.Collision.Land), so a model dropped onto an enemy rests up to that far from touching it.</summary>
-    public const double BaseContactSlack = 0.25;
+    /// <summary>
+    /// Owner ruling: "charging base to base is TOO strict and requires literally overlapping. It should have a small grace window, and if it had the
+    /// movement to make the charge then it should be accepted." A charging model whose base ends this far or less from a target model counts as
+    /// reaching it and is drawn flush into base contact (GfMoves.ChargeLanding; MoveRegion.ContactGrace, which the clients' landing reads). Half an
+    /// inch: wider than a drop a player can judge by eye on a 32 mm base, and half of p.7's 1", the distance no other move may close to an enemy.
+    /// </summary>
+    public const double ChargeContactGrace = 0.5;
     /// <summary>IGameRules.PlacementBreach rule name for a deployment placement outside the team's zone (p.6), or beyond a Scout's 12" of it (p.14).</summary>
     public const string DeployZoneRule = "deploy_zone";
     /// <summary>IGameRules.PlacementBreach rule name for an Ambusher placed within 9" of an enemy unit (p.13: "over 9” away from enemy units").</summary>

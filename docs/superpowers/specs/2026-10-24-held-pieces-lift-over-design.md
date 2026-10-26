@@ -40,7 +40,8 @@ surface nearest the level. The key help lists both keys.
 `Collision.Clear` searches) where it is clear: a model's base overlaps no other model's base (the held ones already landed,
 in drag order, included) and enters no wall `DragBodies.Walls` lists; a terrain piece's footprint enters no piece declared
 Impassable, as today. Inside a move step only spots inside the model's reach are candidates. It rests on its highest open
-surface there. A piece at a level lands where it was drawn. Alt places freely, as today: straight to the target, no slide, no
+surface there. In a charge Ask a model landing within the Ask's `ContactGrace` of a target model is drawn flush against it
+(`Collision.Abut`), as the server ends the charge. A piece at a level lands where it was drawn. Alt places freely, as today: straight to the target, no slide, no
 clearing; the drop still rests on the open surface nearest the level (the highest when lifted).
 
 ## Server

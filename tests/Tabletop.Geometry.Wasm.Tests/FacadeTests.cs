@@ -37,6 +37,16 @@ public class FacadeTests
     }
 
     [Fact]
+    public void LandModels_draws_a_charger_within_the_abutment_flush_against_its_target()
+    {
+        var target = Model(30, 20);
+        var held = new[] { new HeldModel(Guid.CreateVersion7(), Model(20, 20), new Point2(28.7, 20)) };   // 1" bases: 0.3" short
+        var ends = R<HeldEnd[]>(Facade.LandModels(W(new LandRequest(held, [target], [], [], new Abutment([target], 0.5)))));
+        Assert.Equal(29, ends[0].Lands.X, 9);
+        Assert.Equal(28.7, R<HeldEnd[]>(Facade.LandModels(W(new LandRequest(held, [target], [], [])))) [0].Lands.X, 9);
+    }
+
+    [Fact]
     public void LandModels_ignores_volumes_not_named_walls()
     {
         var block = PieceAt(10, 10, Box(4, 4, 0, 3, TerrainDeclarations.Impassable));

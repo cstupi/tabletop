@@ -47,9 +47,13 @@ public static class GfAnswers
     /// the projection's location, never the answer's, so a forged From cannot skip the distance check. Dropped: a placement with a non-finite
     /// coordinate or yaw, or one farther from where the model stands than the table's diagonal, which no move ending on the table can be (p.7: "never
     /// move outside of the battlefield"; it also bounds what Movement.Check sweeps); a move Inside a piece the Ask did not list as enterable; a move out of a container the Ask is not exiting (p.15:
-    /// "units can't both embark/disembark as part of the same activation"). A model the reading drops has not moved.
+    /// "units can't both embark/disembark as part of the same activation"). A model the reading drops has not moved. A charge's (ContactWith) is
+    /// read as the charge ends it: its models within the grace of the target, or the nearest one, drawn into base contact (GfMoves.ChargeLanding).
     /// </summary>
-    public static IReadOnlyList<ModelRelocation> Moves(GameState state, MoveRegion region, Destinations answer)
+    public static IReadOnlyList<ModelRelocation> Moves(GameState state, MoveRegion region, Destinations answer) =>
+        GfMoves.ChargeLanding(state, region, answer, Read(state, region, answer));
+
+    static List<ModelRelocation> Read(GameState state, MoveRegion region, Destinations answer)
     {
         var enterable = region.Containment?.Enterable ?? [];
         return answer.Moves
