@@ -144,6 +144,20 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   The viewer's Tests page drives it. A kept run writes its report files and recordings to `<serve --out>/<run id>/`; an unkept
   run writes nothing.
 
+### Writing a suite game that holds
+
+Owner, 2026-10-26: *"Why would dice seeds need to change because charge has a leeway?!"* A game must reach its checked situation by
+construction, never by the seed's luck: one extra die anywhere earlier (a model drawn into contact, a dangerous-terrain test on another
+path) shifts every later die, and a seed-dependent game breaks with no rule wrong.
+
+1. Place what the check needs: `Army(...)` sizes, `unitRules`/`modelRules`/`unitStats`, `setAside`, `Table(...)`, terrain, and
+   `Seeking(...)` for where the policy moves.
+2. Script every decision the check depends on with `AnswerScript`: `.Match(question, pick)` by unit name (`AskPicks.Activate`,
+   `AskPicks.Pieces`) rather than `.At(question, ordinal, ...)`, which shifts like a dice index.
+3. Pin only the dice the check reads (`DiceFix`), and only where the roll is reached by steps 1–2, so its ordinal is stable.
+4. Check the game on several seeds (`--seeds 1..5`, with `--only <game>`). It is done when every seed passes.
+5. Never fix a broken game by changing its seed.
+
 ## The lifecycle suite
 
 - Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
