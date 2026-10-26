@@ -41,18 +41,23 @@ public sealed record RollModifier(string Source, int Amount, string? Via = null)
 public sealed record CoverVerdict(bool InCover, int Models, int Of, string? IgnoredBy = null);
 
 /// <summary>Where a threshold came from: the stat it was read from, the value printed in the slot it was read from, and each
-/// replace_stat (SetTo) or modify_stat (Amount) row in the order applied. Null for a threshold no stat gave, and in logs written before it.</summary>
-public sealed record ThresholdBasis(string Stat, int Printed, IReadOnlyList<ThresholdChange> Changes);
+/// replace_stat (SetTo) or modify_stat (Amount) row in the order applied. Ignored: the rows on the stat of rules a suppression removed
+/// (detailed-log spec); null when none, and in logs written before it. Null for a threshold no stat gave, and in logs written before it.</summary>
+public sealed record ThresholdBasis(string Stat, int Printed, IReadOnlyList<ThresholdChange> Changes, IReadOnlyList<IgnoredEffect>? Ignored = null);
 public sealed record ThresholdChange(string Source, int? SetTo, int Amount);   // SetTo for replace_stat, Amount for modify_stat
+/// <summary>A rule's row that would have acted and was taken away (detailed-log spec): Source the rule, By the rule whose row took it away,
+/// Amount its signed amount (a roll or stat modifier; 0 for a whole rule), SetTo the value a replace_stat would have set.</summary>
+public sealed record IgnoredEffect(string Source, string By, int Amount = 0, int? SetTo = null);
 /// <summary>
 /// A roll as it happened. Threshold is null for the roll-off. RequiredRaw is the raw face a roll judged on alone (null for a roll judged
 /// on its modified result), so a reroll or an edit judges the die the way the roll did. Cover is set on a shooting attack's defense rolls
 /// and null elsewhere and in logs written before it. FaceTriggers: what each raw face sets off on this roll (Die.Triggered), one entry per
 /// face that sets anything off, so a die a forced reroll or SetDice replaces carries its new face's; null when no face does and in logs written
-/// before it. Replay applies this; it never re-rolls.
+/// before it. Ignored: the roll modifiers a suppression took away (detailed-log spec), cover aside (Cover says it); null when none and in
+/// logs written before it. Replay applies this; it never re-rolls.
 /// </summary>
 public sealed record RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null,
-    CoverVerdict? Cover = null, IReadOnlyList<FaceTriggers>? FaceTriggers = null)
+    CoverVerdict? Cover = null, IReadOnlyList<FaceTriggers>? FaceTriggers = null, IReadOnlyList<IgnoredEffect>? Ignored = null)
 {
     /// <summary>The die with what its raw face sets off on this roll.</summary>
     public Die Stamp(Die die) => FaceTriggers?.FirstOrDefault(f => f.Raw == die.Raw)?.Triggered is { } t ? die with { Triggered = t } : die with { Triggered = null };

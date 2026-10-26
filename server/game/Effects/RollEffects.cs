@@ -29,9 +29,18 @@ public static class RollEffects
             modifiers.Add(modifier);
             added.Add((modifier, src));
         }
+        // What a suppression took away, for the log (detailed-log spec): the modify_roll rows of removed properties that would have applied, and the
+        // negative hit modifiers a to_hit_penalties suppression drops. Cover's is the CoverVerdict's to say.
+        var ignored = live.RemovedRows(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll)
+            .Select(x => new IgnoredEffect(x.Removed.Entry.Name, x.By.Entry.Name, x.Effect.EffectiveAmount(x.Removed.Parameter))).ToList();
         live.ReadRemoved(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll);
         if (live.SuppressedModifiers.Contains(TargetModifier.Cover) && modifiers.RemoveAll(m => m.Source == "cover") > 0) live.ReadSuppressedModifier(TargetModifier.Cover);
-        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties) && modifiers.RemoveAll(m => m.Amount < 0) > 0) live.ReadSuppressedModifier(TargetModifier.ToHitPenalties);
+        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties))
+        {
+            var by = string.Join(", ", live.Suppressors(TargetModifier.ToHitPenalties));
+            ignored.AddRange(modifiers.Where(m => m.Amount < 0).Select(m => new IgnoredEffect(m.Via is { } via && m.Source == "AP" ? $"{via} {m.Source}" : m.Source, by, m.Amount)));
+            if (modifiers.RemoveAll(m => m.Amount < 0) > 0) live.ReadSuppressedModifier(TargetModifier.ToHitPenalties);
+        }
         foreach (var (modifier, src) in added)
             if (modifiers.Any(m => ReferenceEquals(m, modifier))) live.Read(src); else live.Spend(src);
         // ForceReroll: its roll_result condition names the face, and the die's success when it has a third value; every other condition must hold now.
@@ -45,7 +54,7 @@ public static class RollEffects
                 var successOnly = face.Values.Count == 3;
                 (successOnly ? successful : reroll).Add(n); rerolls.Add((n, successOnly, p)); live.Spend(p);
             }
-        return (new RollPlan(roll, threshold, modifiers, convention, requiredRaw, reroll, successful), rerolls);
+        return (new RollPlan(roll, threshold, modifiers, convention, requiredRaw, reroll, successful, Ignored: ignored.Count == 0 ? null : ignored.Distinct().ToList()), rerolls);
     }
 
     /// <summary>What one die does beyond its success: extra hits and per-hit grants of a rule. A row that adds wounds acts on the die whatever it scored and is

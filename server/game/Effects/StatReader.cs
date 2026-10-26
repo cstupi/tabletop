@@ -52,7 +52,13 @@ public static class StatReader
             changes.Add(new ThresholdChange(src.Entry.Name, null, amount));
             if (account) live.Read(src);
         }
-        return new TargetRead(value, new ThresholdBasis(stat.Name, printed, changes));
+        // The stat rows of rules pass one removed that would have acted here, for the log (detailed-log spec): replace first, then modify, as read above.
+        var ignored = live.RemovedRows(side, EffectKind.ReplaceStat, Acts).Concat(live.RemovedRows(side, EffectKind.ModifyStat, Acts))
+            .Select(x => x.Effect.Kind == EffectKind.ReplaceStat
+                ? new IgnoredEffect(x.Removed.Entry.Name, x.By.Entry.Name, 0, x.Effect.Replacement is { } r ? StatValue.Read(StatKind.TargetNumber, r).TargetNumber : x.Effect.EffectiveAmount(x.Removed.Parameter))
+                : new IgnoredEffect(x.Removed.Entry.Name, x.By.Entry.Name, x.Effect.EffectiveAmount(x.Removed.Parameter)))
+            .Distinct().ToList();
+        return new TargetRead(value, new ThresholdBasis(stat.Name, printed, changes, ignored.Count == 0 ? null : ignored));
     }
 
     public static double? WeaponRange(LiveSet live, Side side, Guid weaponId)

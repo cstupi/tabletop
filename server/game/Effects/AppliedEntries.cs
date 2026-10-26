@@ -5,6 +5,17 @@ namespace Tabletop.GameServer.Effects;
 public sealed class AppliedEntries
 {
     private readonly List<string> _names = [];
+    private readonly List<Tabletop.Protocol.IgnoredEffect> _ignored = [];
+
+    /// <summary>A rule a suppression removed would have been read here (LiveSet.ReadRemoved): StepCompleted.Ignored, each pair once.</summary>
+    public void Ignore(string entry, string by)
+    {
+        var x = new Tabletop.Protocol.IgnoredEffect(entry, by);
+        if (!_ignored.Contains(x)) _ignored.Add(x);
+    }
+
+    /// <summary>Null when nothing was removed where it would have been read.</summary>
+    public IReadOnlyList<Tabletop.Protocol.IgnoredEffect>? Ignored => _ignored.Count == 0 ? null : _ignored.ToList();
 
     public void Add(string entry)
     {

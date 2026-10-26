@@ -76,9 +76,13 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
         _rolls.Add(result.Record);
         if (result.ForcedRerolls is { } f)
         {
-            _forced.Add(f);
             if (_rerolls.TryGetValue(plan, out var by))
+            {
                 foreach (var (face, successOnly, source) in by.Rerolls) if (f.Replaced.Any(d => d.Old.Raw == face && (!successOnly || d.Old.Success))) by.Live.Record(source);
+                // The rule whose row matched each redrawn die, for the log (detailed-log spec): its face, and its success when the row asks for one.
+                f = f with { Replaced = f.Replaced.Select(d => d with { By = by.Rerolls.FirstOrDefault(r => r.Face == d.Old.Raw && (!r.SuccessOnly || d.Old.Success)).Source?.Entry.Name }).ToList() };
+            }
+            _forced.Add(f);
         }
         return result.Record;
     }

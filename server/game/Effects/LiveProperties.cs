@@ -66,8 +66,20 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     public void ReadRemoved(Side side, EffectKind kind, Func<Effect, bool>? filter = null)
     {
         foreach (var (source, removed) in _acts.Removed)
-            if (removed.Holder == side && removed.Effects.Any(e => e.Kind == kind && (filter?.Invoke(e) ?? true))) Read(source);
+            if (removed.Holder == side && removed.Effects.Any(e => e.Kind == kind && (filter?.Invoke(e) ?? true)))
+            {
+                Read(source);
+                recorder?.Ignore(removed.Entry.Name, source.Entry.Name);
+            }
     }
+
+    /// <summary>The rows of one kind acting on a side, from properties pass one removed (or whose rows on a roll it took away), whose conditions
+    /// hold now: what would have applied, and the property that removed it (detailed-log spec). Pure.</summary>
+    public IEnumerable<(LiveProperty Removed, Effect Effect, LiveProperty By)> RemovedRows(Side actedOn, EffectKind kind, Func<Effect, bool>? filter = null) =>
+        _acts.Removed.SelectMany(x => x.Removed.Effects
+            .Where(e => e.Kind == kind && x.Removed.ActedOn(e) == actedOn && (filter?.Invoke(e) ?? true) && Conditions.Hold(Interaction, x.Removed.Holder, e, x.Removed, null))
+            .Select(e => (x.Removed, e, x.Source)))
+            .OrderBy(x => x.e.Ordinal);
     public Interaction Interaction { get; } = interaction;
     public IReadOnlyList<LiveProperty> Live { get; } = live;
     public IReadOnlySet<TargetModifier> SuppressedModifiers { get; } = suppressedModifiers;

@@ -64,6 +64,9 @@ public sealed record OutlineStep(string Step, string Label);
 public sealed record StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IReadOnlyList<RollRecord> Rolls, IReadOnlyList<StateChange> Changes, IReadOnlyList<string>? Applied = null) : EventPayload
 {
     public IReadOnlyDictionary<string, int>? Values { get; init; }
+    /// <summary>The rules a suppression removed that this step would have read, by entry and remover, each once (detailed-log spec); null when none
+    /// and in logs written before it. Read only by the combat log.</summary>
+    public IReadOnlyList<IgnoredEffect>? Ignored { get; init; }
 }
 public sealed record SequenceFinished(Guid FrameId) : EventPayload;
 /// <summary>Pops the frame and everything above it. Applied effects stay applied.</summary>
@@ -77,7 +80,8 @@ public sealed record TeamAnswer(Guid TeamId, AskAnswer Answer);
 public sealed record AskClosed(Guid AskId, IReadOnlyList<TeamAnswer> Answers) : EventPayload;
 
 // Dice
-public sealed record DieReplacement(int Index, Die Old, Die New);
+/// <summary>By: on a forced reroll, the rule that forced it (detailed-log spec); null on an edit and in logs written before it.</summary>
+public sealed record DieReplacement(int Index, Die Old, Die New, string? By = null);
 public sealed record DiceRerolled(Guid FrameId, Guid RollId, IReadOnlyList<DieReplacement> Replaced) : EventPayload;
 public sealed record DiceEdited(Guid FrameId, Guid RollId, IReadOnlyList<DieReplacement> Replaced) : EventPayload;
 
