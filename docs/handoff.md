@@ -2,7 +2,7 @@
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.26 is the latest tag. What each
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.27 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -83,9 +83,10 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
 
-### 2026-10-25, v0.1.26
+### 2026-10-25, v0.1.26 and v0.1.27
 
-Tagged v0.1.26 (migration `020_shared_assets.sql`). Specs `2026-10-25-performance-and-network.md`, `2026-10-25-loading-design.md`,
+v0.1.27 is v0.1.26 plus two `scripts/release` fixes: it builds from a fetched worktree of the tag (`build/source`), and the
+Node checks mount the whole clone (the viewer reads `web/src` and `client/content/builtin/catalog.json`). Tagged v0.1.26 (migration `020_shared_assets.sql`). Specs `2026-10-25-performance-and-network.md`, `2026-10-25-loading-design.md`,
 `2026-10-25-shared-models-design.md`.
 
 - **Network:** permessage-deflate on `/ws` (a game 1,950 → 176 KiB per socket), compressed management JSON, content-hash routes
