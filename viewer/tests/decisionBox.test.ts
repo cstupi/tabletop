@@ -229,7 +229,7 @@ describe('the decision box controller', () => {
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'selected_pieces', pieceIds: [r.s.squad.id] });
   });
 
-  it('targets aim the picked groups, a chip picks its group alone, Enter fires and Esc clears', () => {
+  it('targets aim the picked groups, a chip picks its group alone, Clear targets or Esc clears, Enter fires', () => {
     const r = rig();
     const ask = askOf({ kind: 'assignment', items: [option('g1', 'Rifles', ['w1']), option('g2', 'Pistols', ['w2'])], targets: [r.s.rivals.id], maxDistinctTargets: 2 },
       { question: 'declare_targets', allowPass: false });
@@ -246,6 +246,13 @@ describe('the decision box controller', () => {
     expect(r.box.cancel()).toBe(true);
     expect(r.box.targets!.assigned.size).toBe(0);
     expect(r.box.cancel()).toBe(false);
+    expect(r.button('clear-targets')!.disabled).toBe(true);
+    r.box.target(r.s.rivals.id);
+    expect(r.button('clear-targets')!.disabled).toBe(false);
+    r.box.press('clear-targets');
+    expect(r.box.targets!.assigned.size).toBe(0);
+    expect(r.button('clear-targets')!.disabled).toBe(true);
+    expect(r.sent).toEqual([]);
     r.box.target(r.s.rivals.id);
     expect(r.box.enter()).toBe(true);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'assigned', targets: { g1: r.s.rivals.id, g2: r.s.rivals.id } });

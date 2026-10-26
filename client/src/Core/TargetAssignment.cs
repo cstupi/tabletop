@@ -65,6 +65,10 @@ public sealed class TargetAssignment
         return true;
     }
 
+    /// <summary>Some group has a target: Clear targets (Esc) has something to remove.</summary>
+    public bool CanClear => _assigned.Count > 0;
+
+    /// <summary>Clear targets: every group holds fire and is picked again. Local only; nothing is sent until Fire.</summary>
     public void Clear()
     {
         _assigned.Clear();

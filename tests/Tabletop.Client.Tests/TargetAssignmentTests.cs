@@ -67,6 +67,22 @@ public class TargetAssignmentTests
         Assert.Empty(t.Assigned);
         Assert.Equal(new HashSet<string> { "Rifles", "Plasma Gun" }, t.Picked);
     }
+    [Fact]
+    public void Clear_targets_is_open_only_while_a_group_has_a_target_and_removes_every_target()
+    {
+        var t = new TargetAssignment(Legal("Rifles", "Plasma Gun"));
+        Assert.False(t.CanClear);
+        t.Aim(T1); t.PickOnly("Plasma Gun"); t.Aim(T2);
+        Assert.True(t.CanClear);
+        t.Clear();
+        Assert.False(t.CanClear);
+        Assert.Empty(t.Assigned);
+        Assert.Null(t.Answer());
+        Assert.Equal([T1, T2, T3], t.Candidates);
+        Assert.True(t.Aim(T3));                                         // a fresh start: one click aims every group again
+        Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T3, ["Plasma Gun"] = T3 }, t.Assigned);
+    }
+
     /// <summary>Spec → Shooting targets: with two targets taken (p.8: up to two), no other unit glows.</summary>
     [Fact]
     public void Two_targets_taken_leave_only_those_two_as_candidates()

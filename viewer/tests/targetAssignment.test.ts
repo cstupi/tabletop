@@ -56,6 +56,20 @@ describe('TargetAssignment', () => {
     expect(t.picked).toEqual(new Set(['Rifles', 'Plasma Gun']));
   });
 
+  it('clear targets is open only while a group has a target and removes every target', () => {
+    const t = new TargetAssignment(legal('Rifles', 'Plasma Gun'));
+    expect(t.canClear).toBe(false);
+    t.aim(T1); t.pickOnly('Plasma Gun'); t.aim(T2);
+    expect(t.canClear).toBe(true);
+    t.clear();
+    expect(t.canClear).toBe(false);
+    expect(t.assigned.size).toBe(0);
+    expect(t.answer()).toBeNull();
+    expect(t.candidates).toEqual([T1, T2, T3]);
+    expect(t.aim(T3)).toBe(true);
+    expect(Object.fromEntries(t.assigned)).toEqual({ Rifles: T3, 'Plasma Gun': T3 });
+  });
+
   it('two targets taken leave only those two as candidates', () => {
     const t = new TargetAssignment(legal('Rifles', 'Plasma Gun'));
     expect(t.candidates).toEqual([T1, T2, T3]);
