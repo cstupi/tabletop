@@ -4,7 +4,7 @@
 # workflow runs too. Spec: docs/superpowers/specs/2026-10-17-client-releases-design.md; operator guide: deploy/README.md.
 #
 #   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-builtin]
-#                   [--skip-tests] [--dry-run]
+#                   [--tests] [--dry-run]
 #
 # --version     the tag to release; default the v*.*.* tag on HEAD. The script fetches origin's tags and runs the tag's own
 #               copy of itself from a clean worktree of the tag (build/source), so the clone's checkout and local
@@ -19,7 +19,9 @@
 #               builtin/ in the blob store, which clients fetch when its version changes; spec
 #               docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md). It runs after the deploy, with the
 #               client's upload credentials, on the host with aws and jq or else (and always for home) in the builder container.
-# --skip-tests  no build, tests or checks.  --dry-run  print what would change.
+# --tests       also build and run the unit suite, the rules suite, check-client and the web and viewer checks. Off by
+#               default: CI (.github/workflows/ci.yml) tests every push to main before it is tagged. --skip-tests is accepted
+#               and does nothing.  --dry-run  print what would change.
 #
 # Settings read: TABLETOP_WEB_URL (the client's web origin), TABLETOP_S3_PUBLIC_ENDPOINT (the web build's blob origin),
 # TABLETOP_WEB_ROOT (where the static site goes; required to deploy), RELEASE_S3_* and RELEASE_S3_NETWORK (scripts/release-client;
@@ -30,7 +32,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-version="" deploy=docker env_file="" skip_client=0 skip_builtin=0 skip_tests=0 dry=0
+version="" deploy=docker env_file="" skip_client=0 skip_builtin=0 skip_tests=1 dry=0
 die() { echo "release: $*" >&2; exit 1; }
 step() { printf '\n== %s\n' "$*"; }
 run() { if [[ $dry == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
@@ -44,6 +46,7 @@ while [[ $# -gt 0 ]]; do
     --env-file) env_file=${2:?--env-file needs a path}; shift 2 ;;
     --skip-client) skip_client=1; shift ;;
     --skip-builtin) skip_builtin=1; shift ;;
+    --tests) skip_tests=0; shift ;;
     --skip-tests) skip_tests=1; shift ;;
     --dry-run) dry=1; shift ;;
     -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -324,7 +327,7 @@ fi
 
 step "Done"
 echo "v$version (${head:0:12})"
-[[ $skip_tests == 1 ]] && echo "  tests:   skipped" || echo "  tests:   build, unit suite, rules suite, check-client, web and viewer checks and tests"
+[[ $skip_tests == 1 ]] && echo "  tests:   none (CI tests main; --tests runs them here)" || echo "  tests:   build, unit suite, rules suite, check-client, web and viewer checks and tests"
 [[ $skip_builtin == 1 ]] && echo "  builtin: skipped" || echo "  builtin: s3://${RELEASE_S3_BUCKET:-?}/builtin/catalog.json, version $version"
 [[ $skip_client == 1 ]] && echo "  client:  skipped" || echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"
 if [[ $deploy == home ]]; then echo "  web:     image tabletop-web:$version (viewer under /viewer/)"

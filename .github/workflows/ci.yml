@@ -57,11 +57,15 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: viewer/package-lock.json
+          cache-dependency-path: |
+            viewer/package-lock.json
+            web/package-lock.json
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
       - run: ../scripts/geometry-wasm
+      # The viewer imports web/src (Icon.svelte, the themes), so svelte-check loads web/svelte.config.js and its packages.
+      - run: npm --prefix ../web ci --no-audit --no-fund
       - run: npm ci --no-audit --no-fund
       - run: npm run check
       - run: npm test
