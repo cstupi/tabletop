@@ -22,32 +22,35 @@ Each block header and line stays. Each roll is drawn as monospace lines (its `Wo
 models lists them. One shooting attack:
 
 ```
-R2 · Team 1 · Marksmen · Hold → shoots Raiders
-  Attack: Marksmen (3 models) → Raiders
+R2 · Team 1 · Marksmen · Hold → Blue unit 1
+  Attack: Marksmen (3 models) → Blue unit 1
     Plasma Rifle ×3 (24", A1, AP(4), Unstoppable)
   Hit
-    Quality         4+   printed
-    Bad Shot        -1   ignored: Unstoppable
+    Quality          4+   printed
+    Bad Shot         -1   ignored: Unstoppable
     target 4+
-    rolled    2  6  4
-    hits      ·  ✓  ✓
+    rolled   2  6  4
+    hits     ·  ✓  ✓
+    rules: Unstoppable
     = 2 hits
   Block
-    Defense         5+   printed
-    cover           +1   2/3 models in cover
-    AP(4)           -4
-    target 5+, roll -3
-    rolled    6  3
-    final     3  0
-    blocks    ✓  ·
-    6 always passes, 1 always fails (p.5)
-    = 1 blocked, 1 wound
-  Raider (Raiders) · 1 wound
+    Defense          4+   printed
+    cover            +1   2/3 models in cover
+    AP(4)            -4
+    target 4+, roll -3
+    rolled   2  1
+    final   -1 -2
+    blocks   ·  ·
+    rerolled die 1: 6 → 2 (Bane)
+    = 0 blocked, 2 wounds
+  Regeneration ignored: Unstoppable
+  Blue unit 1 (Blue 1.2) · 1 wound
+  Blue unit 1 (Blue 1.1) · removed
   Morale
-    Quality         5+   printed
-    target 5+
-    rolled    3
-    passes    ·
+    Quality          4+   printed
+    target 4+
+    rolled   3
+    passes   ·
     = failed → Shaken
 ```
 
@@ -60,10 +63,10 @@ R2 · Team 1 · Marksmen · Hold → shoots Raiders
   Unstoppable`); then `target N+` and the net roll modifier. A roll judged on the raw face reads `target unmodified 6`.
 - **Dice,** ten to a row: `rolled` (raw faces in order), `final` (raw plus the net modifier, when it is not zero), and a pass row
   named for the roll (`hits`, `blocks`, `passes`, `ignored` for a roll per wound) with `✓` or `·`. A roll with no target shows
-  `rolled` only; a roll-off one line per team. When a 6 passed or a 1 failed against its final value: `6 always passes, 1 always
-  fails (p.5)`.
+  `rolled` only; a roll-off one line per team. When a 6 passed or a 1 failed against its final value: `a 6 always succeeds, a 1
+  always fails (p.5)` (p.5: "a roll of 6 always counts as a success and a roll of 1 always counts as a fail").
 - **Rerolls and edits:** `rerolled die 3: 1 → 5 (Rule)`, `set by hand die 2: 4 → 6`.
-- **Rules a suppression removed** in the step that no record above names: `Regeneration  ignored: Rending`. Then `rules:` and the
+- **Rules a suppression removed** in the step that no record above names: `Regeneration ignored: Rending` (on a roll-less step, ahead of its change lines). Then `rules:` and the
   step's `Applied`.
 - **Result:** `= ` and the normal log's result with its consequence.
 - **Wounds:** a change line of models wounded or removed lists each model: `Raider (Raiders) · 2 wounds` (the wounds it now

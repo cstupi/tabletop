@@ -180,7 +180,7 @@
   .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .roll { cursor: pointer; padding: 1px var(--s1); }
   .worked { margin: 2px 0; padding: 1px var(--s1); cursor: pointer; font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
-    font-size: .82rem; line-height: 1.3; white-space: pre-wrap; overflow-wrap: anywhere; }
+    font-size: .75rem; line-height: 1.3; white-space: pre; overflow-x: auto; }
   .worked:hover { background: var(--rule); }
   .detailed { display: flex; align-items: center; gap: var(--s1); font-size: .9rem; }
   .roll:hover { background: var(--rule); }
