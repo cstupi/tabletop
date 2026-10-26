@@ -6,7 +6,9 @@
 #   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-builtin]
 #                   [--skip-tests] [--dry-run]
 #
-# --version     the tag to release; default the v*.*.* tag on HEAD. The tag must name HEAD and the tree must be clean.
+# --version     the tag to release; default the v*.*.* tag on HEAD. The script fetches origin's tags and runs the tag's own
+#               copy of itself from a clean worktree of the tag (build/source), so the clone's checkout and local
+#               changes never reach a release.
 # --deploy      docker (default): deploy/docker-compose.prod.yml up --build; systemd: publish to TABLETOP_INSTALL_DIR
 #               (default /opt/tabletop) and restart the units; home: deploy/docker-compose.home.yml, every build and test
 #               in containers (no host .NET or Node), the web app as an image; none: build and publish only.
@@ -34,6 +36,7 @@ step() { printf '\n== %s\n' "$*"; }
 run() { if [[ $dry == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found${2:+: $2}"; }
 
+args=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version) version=${2:?--version needs a value}; shift 2 ;;
@@ -48,6 +51,41 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ $deploy =~ ^(docker|home|systemd|none)$ ]] || die "--deploy is docker, home, systemd or none, not '$deploy'"
+
+# Build from the tag, never from the checkout: fetch origin's tags, put the tag in its own worktree and run that copy of this
+# script there (TABLETOP_RELEASE_SOURCE marks the copy). Git runs as the clone's owner, so the worktree is theirs under sudo -E.
+if [[ -z "${TABLETOP_RELEASE_SOURCE:-}" ]]; then
+  owner_uid=$(stat -c %u "$root")
+  as_owner() { if [[ $EUID == 0 && $owner_uid != 0 ]]; then sudo -u "#$owner_uid" -H "$@"; else "$@"; fi; }
+  as_owner git -C "$root" fetch --tags --force origin || die "cannot fetch tags from origin"
+  if [[ -z "$version" ]]; then
+    version=$(as_owner git -C "$root" tag --points-at HEAD --list 'v*.*.*' | sort -V | tail -1)
+    [[ -n "$version" ]] || die "HEAD carries no v*.*.* tag; pass --version vX.Y.Z"
+  fi
+  version=v${version#v}
+  tagged=$(as_owner git -C "$root" rev-parse -q --verify "refs/tags/$version^{commit}" || true)
+  [[ -n "$tagged" ]] || die "no tag $version on origin"
+  # One worktree, reused: a new tag is checked out over it and everything but its build/ (the NuGet cache) is cleaned away.
+  src=$root/build/source
+  if [[ -e "$src/.git" ]]; then
+    as_owner git -C "$src" checkout -q --detach --force "$tagged" && as_owner git -C "$src" clean -q -ffdx -e /build/ \
+      || die "cannot check out $version in $src"
+  else
+    rm -rf "$src"; as_owner git -C "$root" worktree prune
+    as_owner git -C "$root" worktree add -q --detach "$src" "$tagged" || die "cannot check out $version into $src"
+  fi
+  # The settings stay the clone's: home.env is not in the tag.
+  pass=("${args[@]}")
+  if [[ -z "$env_file" ]]; then
+    if [[ $deploy == home ]]; then env_file=/etc/tabletop/home.env; [[ -f "$root/home.env" ]] && env_file=$root/home.env
+    else env_file=/etc/tabletop/prod.env; fi
+    pass+=(--env-file "$env_file")
+  fi
+  [[ " ${args[*]} " == *" --version "* ]] || pass+=(--version "$version")
+  echo "release: $version (${tagged:0:12}) from $src"
+  export TABLETOP_RELEASE_SOURCE=1 TABLETOP_RELEASE_OUT=${TABLETOP_RELEASE_OUT:-$root/build/release/${version#v}}
+  exec "$src/scripts/release" "${pass[@]}"
+fi
 if [[ -z "$env_file" ]]; then
   if [[ $deploy == home ]]; then
     env_file=/etc/tabletop/home.env; [[ -f "$root/home.env" ]] && env_file=$root/home.env
@@ -125,7 +163,7 @@ esac
 [[ $deploy == none || $deploy == home || -n "${TABLETOP_WEB_ROOT:-}" ]] || die "TABLETOP_WEB_ROOT is not set (the directory the reverse proxy serves the web app from)"
 [[ -z "${TABLETOP_WEB_ROOT:-}" ]] || need rsync
 
-[[ -z "$(git status --porcelain)" ]] || die "the working tree is not clean; commit or stash first"
+porcelain=$(git status --porcelain); [[ -z "$porcelain" ]] || die "the working tree is not clean; commit or stash first"
 head=$(git rev-parse HEAD)
 if [[ -z "$version" ]]; then
   version=$(git tag --points-at HEAD --list 'v*.*.*' | sort -V | tail -1)

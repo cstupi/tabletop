@@ -76,8 +76,7 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 ## Release
 
 The owner releases. "tag it" means tag `vX.Y.Z` on `main` and push at once, no extra pre-tag run (the release runs its own tests).
-On the home server `docker1` (`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`): `git fetch --tags &&
-git checkout vX.Y.Z && scripts/release --deploy home --version vX.Y.Z` (tests in containers, the client built in the Godot builder
+On the home server `docker1` (`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`): `git checkout main && git pull && sudo -E scripts/release --deploy home --version vX.Y.Z` (tests in containers, the client built in the Godot builder
 container, publishes `releases/` and `builtin/`, deploys). The owner says which version is live. The owner's other Claude
 sessions take instructions over Remote Control: `docker1-logical-curry` (server; no superuser DB queries without the owner's
 approval) and `syn01-piped-castle` (NAS; no root).

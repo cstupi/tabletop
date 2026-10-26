@@ -251,15 +251,16 @@ It does not deploy. Repository settings:
 
 `.github/workflows/ci.yml` builds and tests every push and pull request to `main`, without exports.
 
-**On the host** (`scripts/release`), from a clean clone checked out at the tag:
+**On the host** (`scripts/release`), from the clone on `main` (`git checkout main && git pull` first, so the script itself is current):
 
 ```bash
-sudo -E scripts/release --deploy docker                # or --deploy home, systemd or none
+sudo -E scripts/release --deploy docker --version v1.0.0   # or --deploy home, systemd or none
 scripts/release --dry-run --deploy docker              # print every step, change nothing
 ```
 
-It reads `/etc/tabletop/prod.env` (`--env-file`; the environment wins), checks the tree is clean and the tag names
-`HEAD`, builds and runs the unit suite, the rules suite, `check-client` and the web and viewer checks (`--skip-tests`), publishes
+It fetches origin's tags, checks the tag out into `build/source` (one reused worktree; its `build/` keeps the NuGet cache) and runs
+the tag's own copy of the script there, so the clone's checkout and local edits never reach a release. That copy reads
+`/etc/tabletop/prod.env` (`--env-file`; the environment wins; `home.env` in the clone for home), checks the tag names its `HEAD`, builds and runs the unit suite, the rules suite, `check-client` and the web and viewer checks (`--skip-tests`), publishes
 the client like the workflow (`--skip-client`; on the host with `godot` or `GODOT`, `dotnet`, `aws`, `zip`, `jq`, else in
 the builder container with `docker` only, as for home), builds the web
 app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and the viewer's hosted build, installs them to `TABLETOP_WEB_ROOT` and
