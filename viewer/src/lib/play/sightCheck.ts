@@ -119,7 +119,8 @@ export class SightCheck {
     };
     const lines: { from: XY; to: XY; tone: Tone }[] = [];
     for (const l of hovered.answer.lines) {
-      const from = centre(l.fromModelId), to = centre(l.toModelId);
+      // A clear line ends at the point of the target the server saw (its top, centre or rim), not always its centre.
+      const from = centre(l.fromModelId), to = l.seen ? { x: l.seen.x, y: l.seen.y } : centre(l.toModelId);
       if (from !== null && to !== null) lines.push({ from, to, tone: !l.clear ? 'blocked' : l.screened ? 'screened' : 'clear' });
     }
     const blockers = [...new Set(hovered.answer.lines.filter((l) => !l.clear).flatMap((l) => l.blockedBy))];

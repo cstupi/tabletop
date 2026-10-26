@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Tabletop.Content;
+using Tabletop.Geometry;
 
 namespace Tabletop.Protocol;
 
@@ -64,8 +65,9 @@ public sealed record Rejected(RejectReason Reason) : SocketMessage;
 /// <summary>The answer to a SightQuery, to the asker alone: one line per observer-model, target-model pair, and the observer's models that
 /// may fire at the target (p.8, Who can shoot). Both lists are empty when either unit is off the table.</summary>
 public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot) : SocketMessage;
-/// <summary>Clear: line of sight exists. Screened: clear but through cover. BlockedBy: the terrain pieces or models that obstruct it.</summary>
-public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy);
+/// <summary>Clear: line of sight exists. Screened: clear but through cover. BlockedBy: the terrain pieces or models that obstruct it.
+/// Seen: on a clear line, the point of the target the observer's eye sees (its top, centre or rim), null on a blocked line or from a server that does not send it.</summary>
+public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy, Point3? Seen = null);
 /// <summary>The ruleset's facts, sent on connect once playing, then whenever a value changes. MaxWounds: wounds a model takes before it is killed. DeployInside: for each unit that may be put
 /// inside a Transport now, before either deploys, the Transport models it may go in (passengers spec); null from a server that does not send it.</summary>
 public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null) : SocketMessage;
