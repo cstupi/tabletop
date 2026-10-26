@@ -1,5 +1,5 @@
 // viewer/src/lib/play/rosterReserve.ts
-// client/src/Core/RosterView.cs: ReserveOf and Words, shared by the unit card's chip and the roster (plan D4).
+// client/src/Core/RosterView.cs: ReserveOf and Words, shared by the unit card's chip and the roster (plan D4); client/src/Core/Bookkeeping.cs.
 
 import type { Projection, UnitInPlay } from '../live/apply';
 
@@ -17,3 +17,8 @@ export function reserveOf(p: Projection, u: UnitInPlay): string | null {
 
 /** A server name as shown: first letter capitalised, a hyphen as a space. */
 export const words = (name: string): string => (name.length === 0 ? name : name[0]!.toUpperCase() + name.slice(1).replaceAll('-', ' '));
+
+/** client/src/Core/Bookkeeping.cs: conditions the server keeps so a rule can later read what a unit did this activation or round. The unit
+ * card lists them; the roster leaves them out. */
+export const BOOKKEEPING: ReadonlySet<string> = new Set(['moved', 'moved this round', 'ambushed this round', 're-deployed', 'instinctive']);
+export const shownCondition = (condition: string): boolean => !BOOKKEEPING.has(condition);

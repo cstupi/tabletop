@@ -32,6 +32,7 @@ public partial class GameScreen : Control
         // The side panel scrolls: the setup toolbar's sections are taller than a window.
         _sidePanel = new ScrollContainer { CustomMinimumSize = new Vector2(360, 0), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; root.AddChild(_sidePanel);
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", DecisionBox.ScrollGap); _sidePanel.AddChild(inset);   // clear of the bar
+        foreach (var edge in new[] { "margin_left", "margin_top", "margin_bottom" }) inset.AddThemeConstantOverride(edge, (int)HudLayout.M);   // off the panel's edges
         inset.AddChild(_side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
         _side.AddChild(_selection = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart });
         // Over the table in every status, after the root so it draws on top and hears keys first: Home and the status in the
@@ -156,6 +157,7 @@ public partial class GameScreen : Control
         foreach (var id in _lit) if (Table.PieceAt(id) is { } old && IsInstanceValid(old)) old.SetHighlight(_decision is { } d && IsInstanceValid(d) && d.Glows(old) ? Palette.Selected : null);   // the open Ask's glow, which only play has
         _lit.Clear();
         _selection.Text = p is null || game is null ? "" : SelectionView.Describe(new Names(game, p), p, Input.Selected) ?? "";
+        _selection.Visible = _selection.Text.Length > 0;   // no empty line over the panel
         if (p is null) return;
         foreach (var id in SelectionView.Models(p, Input.Selected)) if (Table.PieceAt(id) is { } n && IsInstanceValid(n)) { n.SetHighlight(Palette.Picked); _lit.Add(id); }
     }

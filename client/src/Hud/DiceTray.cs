@@ -13,7 +13,7 @@ public partial class DiceTray : PanelContainer
     const double TumbleSeconds = 0.4;
     Session _s = null!;
     readonly Button _line = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton };
-    readonly HBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };
+    readonly HFlowContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };   // wraps inside the tray's slot
     readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
     RollEntry? _shown; double _tumble; readonly List<Control> _tumbling = [];
     Action<RenderCause>? _onFrame; Action? _onTheme;
@@ -32,8 +32,7 @@ public partial class DiceTray : PanelContainer
         AddChild(_line);
         _line.AddChild(_row);   // a Button lays out no children: the row fills it and sets its minimum size
         _row.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        _row.MinimumSizeChanged += () => _line.CustomMinimumSize = new(0, _row.GetCombinedMinimumSize().Y);   // the height only: a long line clips, the tooltip has all of it
-        _line.ClipContents = true;
+        _row.MinimumSizeChanged += () => _line.CustomMinimumSize = new(0, _row.GetCombinedMinimumSize().Y);   // the height only: a long line wraps to a second row
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;

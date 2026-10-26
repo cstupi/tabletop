@@ -4,7 +4,7 @@
 import type { ModelInPlay, Projection, UnitInPlay } from '../live/apply';
 import type { GameInfo } from '../protocol/wire.generated';
 import type { Names } from './names';
-import { reserveOf } from './rosterReserve';
+import { reserveOf, shownCondition } from './rosterReserve';
 
 export { words } from './rosterReserve';
 
@@ -16,7 +16,7 @@ export interface RosterRow {
 }
 export interface RosterTeam { readonly teamId: string; readonly name: string; readonly ordinal: number; readonly rows: readonly RosterRow[] }
 
-/** My team first, the rest by ordinal, units in army order. `left` is wounds left over models not removed (on the shelf with every wound
+/** My team first, the rest by ordinal, units in army order; conditions without the bookkeeping ones. `left` is wounds left over models not removed (on the shelf with every wound
  * taken); off table is no model on the table, nor inside a container on it. */
 export function rosterOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, maxWounds: ReadonlyMap<string, number>): RosterTeam[] {
   return [...game.teams].sort((a, b) => (a.id === myTeam ? 0 : 1) - (b.id === myTeam ? 0 : 1) || a.ordinal - b.ordinal).map((t) => ({
@@ -41,7 +41,7 @@ function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, numb
   const transport = holder === undefined ? undefined : p.units.get(holder.unitId);
   return {
     unitId: u.id, name: u.definition.name, activated: u.actions.size > 0, left, max: models.reduce((sum, x) => sum + x.max, 0),
-    offTable: !models.some((x) => onTable(x.m)), conditions: [...conditions].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    offTable: !models.some((x) => onTable(x.m)), conditions: [...conditions].filter(shownCondition).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     inside: transport?.definition.name ?? null, reserve: reserveOf(p, u),
   };
 }

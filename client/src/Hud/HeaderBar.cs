@@ -69,12 +69,14 @@ public partial class HeaderBar : PanelContainer
         {
             var name = names.Team(team.Id);
             var score = m.Scores.FirstOrDefault(s => s.Team == name).Score;
-            var label = new Label { Text = $"  {name} {score}", MouseFilter = MouseFilterEnum.Stop, TooltipText = "Right-click: team menu" };
+            var label = new Label { Text = $"  {name}", MouseFilter = MouseFilterEnum.Stop, TooltipText = "Right-click: team menu" };
             label.AddThemeColorOverride("font_color", Palette.Team(team.Ordinal));
             var id = team.Id;
             label.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) TeamMenuRequested?.Invoke(id, b.GlobalPosition); };
             var cell = new HBoxContainer(); cell.AddChild(label);
-            cell.AddChild(new Label { Text = $" · {waiting.GetValueOrDefault(team.Id)} not activated", ThemeTypeVariation = Variation.Dim });
+            cell.AddChild(new Label { Text = $" · {HeaderView.ScoreText(score)}" });
+            if (m.Round > 0 && game.Status == GameStatus.Playing)
+                cell.AddChild(new Label { Text = $" · {HeaderView.NotActivatedText(waiting.GetValueOrDefault(team.Id))}", ThemeTypeVariation = Variation.Dim });
             _teams.AddChild(cell);
         }
         foreach (var (_, owner) in objectives)

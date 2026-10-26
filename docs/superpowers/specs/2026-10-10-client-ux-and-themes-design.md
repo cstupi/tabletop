@@ -119,14 +119,19 @@ rolls the undo is sent at once. The undo is `Session.UndoToAsync`; a failure is 
 
 ## Dice tray
 
-The latest roll as the combat log's collapsed roll entry, with dice faces from the theme. Clicking it opens the log at
+The latest roll as the combat log's collapsed roll entry, with dice faces from the theme; a line longer than the tray
+wraps inside it. Clicking it opens the log at
 that entry. With Animate on, the faces tumble for 0.4 s before settling; off, they appear settled. It still sits above
 the decision box (`DiceTray.Follow`).
 
 ## Army roster
 
 Left edge, above the unit card: my team's units, then each other team's, under team headers. A row is the unit name,
-an activated tick, wound pips summed over the unit (`alive models` for one-wound units), and condition icons. A unit
+an activated tick, wound pips summed over the unit (`alive models` for one-wound units), and condition icons with the
+condition's name as the tooltip; a condition the theme has no icon for is a chip on a line under the name. Bookkeeping
+conditions (`moved`, `moved this round`, `ambushed this round`, `re-deployed`, `instinctive`: what a rule reads later about
+what the unit did; `Bookkeeping`) show only on the unit card, never on the roster, the table, the floating results or the
+combat log's change lines. A unit
 with every model on the shelf is dimmed: off the table (not deployed, set aside, or destroyed by the log's moves).
 Clicking a row selects the unit and centres the camera on it (`OrbitCamera.Centre`). The roster collapses to its team
 headers with **R**.
@@ -141,7 +146,8 @@ takes it out again, and the row shows `in {Transport}` (spec `2026-10-16-passeng
 
 ## Header additions
 
-- After each team's score: `k not activated`, the team's units with at least one model on the table and no action
+- Each team as `Team 1 · 3 VP` (the rulebook's word, p.26). From round 1 while playing, after it: `k not activated` (`all
+  activated` at 0), the team's units with at least one model on the table and no action
   recorded this round (`UnitInPlay.Actions` empty). The words say what the count is: the scheduler, not the client,
   decides who may activate.
 - Objective markers as icons in the team colour of whoever controls each (`ObjectiveControlSet`), neutral uncoloured.
@@ -151,8 +157,10 @@ takes it out again, and the row shows `in {Transport}` (spec `2026-10-16-passeng
 ## Table markers and floating results
 
 **Markers.** Over each unit, at its models' centroid above the tallest model, a billboard row of icons: activated this
-round and each condition. Hidden while the camera is at table level (End) so the sight check stays clean. Icons come
-from the theme by condition name, with a text chip for a name the theme has no icon for.
+round and each condition the roster shows. Hidden while the camera is at table level (End) so the sight check stays clean.
+Icons come from the theme by condition name; a name the theme has no icon for is a text chip, drawn only over the selected
+or hovered unit. Where two rows would overlap on screen, the selected or hovered unit's row wins, then the one nearer the
+camera; the other is not drawn that frame (`MarkerDeclutter`).
 
 **Model marks.** Over each model on the table, billboarded just above its height: a row of red dots, one per wound left,
 on a model with more than one wound (`ModelFacts.MaxWounds`), and above it a row of blue dots, one per spell token, on a

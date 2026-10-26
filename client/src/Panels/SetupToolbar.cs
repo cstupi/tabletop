@@ -46,7 +46,7 @@ public partial class SetupToolbar : VBoxContainer
         var terrain = new OptionButton(); terrainSection.AddChild(terrain);
         void Fill()
         {
-            textures = [.. BuiltinContent.Textures]; texture.Clear(); foreach (var t in textures) texture.AddItem(t);
+            textures = [.. BuiltinContent.Textures]; texture.Clear(); foreach (var t in textures) texture.AddItem(SetupWords.Texture(t));
             var pieces = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).ToList();
             terrainNames = pieces.Select(t => t.Name).ToList(); terrain.Clear(); foreach (var t in pieces) terrain.AddItem(t.Label, 0);
             ShowTexture();
@@ -72,14 +72,14 @@ public partial class SetupToolbar : VBoxContainer
         markers.AddChild(Gated(Btn("Add token", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Token(d)); }), SetupLimits.CannotAddMarker));
 
         var zones = new HFlowContainer(); Section(_ => "Zones").AddChild(zones);
-        var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(z); zones.AddChild(style);
+        var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(SetupWords.ZoneStyle(z)); zones.AddChild(style);
         zones.AddChild(Btn("Set zones", () => Guarded.Send(s, SetupEdits.Zones(ZoneStyles.All[style.Selected]))));
         var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1, Prefix = "Team" }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2, Prefix = "Team" }; zones.AddChild(a); zones.AddChild(b);
         zones.AddChild(Btn("Swap", () => Guarded.Send(s, SetupEdits.SwapZones((int)a.Value, (int)b.Value))));
 
         var layouts = new HFlowContainer(); Section(_ => "Layouts").AddChild(layouts);
         layouts.AddChild(Btn("Load layout…", () => Guarded.Run(() => LoadLayout(s), _screen.Toast)));
-        var layoutName = new LineEdit { PlaceholderText = "layout name", MaxLength = TextLimits.Name }; layouts.AddChild(layoutName);
+        var layoutName = new LineEdit { PlaceholderText = "Layout name", MaxLength = TextLimits.Name, CustomMinimumSize = new Vector2(140, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill }; layouts.AddChild(layoutName);   // the placeholder whole
         void SaveLayout() => Guarded.Run(async () =>
         {
             if (TextLimits.NameProblem(layoutName.Text, "A layout name") is { } problem) { _screen.Toast(problem); layoutName.GrabFocus(); return; }

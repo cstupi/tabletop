@@ -43,6 +43,9 @@ public static class ThemeBuilder
         foreach (var name in new[] { "font_pressed_color", "font_hover_pressed_color" }) t.SetColor(name, Variation.FlatButton, C(u.Accent));
         t.SetColor("font_disabled_color", Variation.FlatButton, C(u.DimText));
         t.SetColor("font_selected_color", "ItemList", C(u.Accent)); t.SetColor("font_selected_color", "TabContainer", C(u.ButtonText));
+        // A hovered list row or menu item keeps the theme's text on its background: Godot's default hover is near-white text, unreadable on a light panel.
+        t.SetColor("font_hovered_color", "ItemList", C(u.Text)); t.SetColor("font_hovered_selected_color", "ItemList", C(u.Accent)); t.SetColor("font_hover_color", "PopupMenu", C(u.Text));
+        t.SetStylebox("hovered", "ItemList", Flat(s, C(u.Background), C(u.PanelBorder), 1, 0)); t.SetStylebox("hover", "PopupMenu", Flat(s, C(u.Background), C(u.Accent), 1, 0));
         // The loading bar (LoadingPanel): a thin track in the panel's border colour, filled in the accent.
         var track = Flat(s, C(u.Background), C(u.PanelBorder), 1, 0); track.SetCornerRadiusAll(Math.Min(s.CornerRadius, 3));
         var fill = Flat(s, C(u.Accent), C(u.Accent), 0, 0); fill.SetCornerRadiusAll(Math.Min(s.CornerRadius, 3));

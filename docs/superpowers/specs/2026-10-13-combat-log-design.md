@@ -78,7 +78,8 @@ Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
 **Change.** What a step did to the table, after the rolls that caused it: `2 models removed`, `1 model wounded`, `Shaken`,
 `Shaken cleared`, and `[unit] Fled!` for models a step sent to the shelf with no wound on them (a rout after a failed morale
 test). A condition on a unit other than the block's actor names it first (`[unit] · Fatigued`, a strike-back's fatigue on the
-charger); outside any block it always does. A grant reads `[unit] gets [rule]`.
+charger); outside any block it always does. A bookkeeping condition (`moved`, `moved this round` and the like; client UX spec →
+Army roster) draws no line: the header's `moved 2"` says it. A grant reads `[unit] gets [rule]`.
 
 **Outside any action:** `Round 2`; deployment, one line per unit placed; an objective seized or contested; a menu edit, tagged
 `by hand`; `Undone to: [the action's header]`, the undone lines struck through; the game's end.

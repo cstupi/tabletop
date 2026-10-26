@@ -99,7 +99,7 @@ public partial class Roster : PanelContainer
         line.AddChild(new Label { Text = row.Name, ThemeTypeVariation = v, ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         line.AddChild(ActivatedMark(row));
         line.AddChild(new Label { Text = PipsOf(row), ThemeTypeVariation = v });
-        foreach (var c in row.Conditions) line.AddChild(Icon(c));
+        foreach (var c in row.Conditions.Where(c => Ui.Icon(c) is not null)) line.AddChild(Icon(c));   // an icon with a tooltip; a condition without one goes on the chip line
         var id = row.UnitId;
         void Clicked(InputEvent e)
         {
@@ -107,10 +107,12 @@ public partial class Roster : PanelContainer
             else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) UnitMenuRequested?.Invoke(id, b.GlobalPosition);
         }
         line.GuiInput += Clicked;
-        // Where an off-table unit is, on its own line under the name so a long chip never squeezes the name: inside a
-        // Transport (passengers spec), or held off the table until its property places it.
-        if (row.Inside is null && row.Reserve is null) return (line, null);
+        // Where an off-table unit is, and the conditions the theme draws no icon for, on their own line under the name so a long chip
+        // never squeezes the name: inside a Transport (passengers spec), or held off the table until its property places it.
+        var words = row.Conditions.Where(c => Ui.Icon(c) is null).ToList();
+        if (row.Inside is null && row.Reserve is null && words.Count == 0) return (line, null);
         var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore };
+        foreach (var c in words) chips.AddChild(Chip(RosterView.Words(c)));
         if (row.Inside is { } transport) chips.AddChild(Chip($"in {transport}"));
         if (row.Reserve is { } reserve) chips.AddChild(Chip(reserve));
         var indent = new MarginContainer { MouseFilter = MouseFilterEnum.Stop }; indent.AddThemeConstantOverride("margin_left", 16);   // the chip line is the row's too

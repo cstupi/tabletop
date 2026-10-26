@@ -13,12 +13,19 @@ public sealed record OutlineItem(string Label, OutlineState State);
 public sealed record HeaderModel(int Round, string Turn, IReadOnlyList<(string Team, int Score)> Scores, string? ActiveUnit, string? Action,
     IReadOnlyList<OutlineItem> Outline, string? Waiting, string? Result)
 {
-    /// <summary>The first line: "Round 4 · Team 1's turn", or "Round 4" when no team has the turn.</summary>
-    public string TopLine => Turn.Length == 0 ? $"Round {Round}" : $"Round {Round} · {Turn}";
+    /// <summary>The first line: "Round 4 · Team 1's turn", or "Round 4" when no team has the turn; before the first round the phase and turn
+    /// ("Deployment · Team 2's turn"), else "Before round 1".</summary>
+    public string TopLine => Round == 0 ? (Turn.Length == 0 ? "Before round 1" : RosterView.Words(Turn)) : Turn.Length == 0 ? $"Round {Round}" : $"Round {Round} · {Turn}";
 }
 
 public static class HeaderView
 {
+    /// <summary>A team's score in the rulebook's word (p.26: "players get 1 VP for each objective marker they control").</summary>
+    public static string ScoreText(int score) => $"{score} VP";
+
+    /// <summary>A team's units in play not yet activated this round (HeaderView.NotActivated), shown from round 1 while playing.</summary>
+    public static string NotActivatedText(int count) => count == 0 ? "all activated" : $"{count} not activated";
+
     public static HeaderModel Of(Projection p, GameInfo game, Names n)
     {
         var s = p.Scheduler;

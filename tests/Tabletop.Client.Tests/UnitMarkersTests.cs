@@ -12,10 +12,36 @@ public class UnitMarkersTests
     public void Icons_sit_over_the_centroid_above_the_tallest_model()
     {
         var p = TableUx.After(TableUx.Deploy, new ActionRecorded(TableUx.Squad.Id, "Advance"), new ConditionSet(new Subject(SubjectKind.Model, A), "shaken", true), new WoundsSet(B, 1));
-        var m = UnitMarkers.Of(p).Single();                 // Orcs carry nothing; Reserve is off the table
+        var m = UnitMarkers.Of(p, Icons).Single();                 // Orcs carry nothing; Reserve is off the table
         Assert.Equal((TableUx.Squad.Id, new Point3(12, 10, 1.5)), (m.UnitId, m.Anchor));
         Assert.Equal(new MarkerIcon[] { new("activated", "✓"), new("shaken", "Shaken") }, m.Icons);                // wounds are per model (ModelMarks)
-        Assert.Empty(UnitMarkers.Of(TableUx.After(TableUx.Deploy, new WoundsSet(B, 1))));
+        Assert.Empty(UnitMarkers.Of(TableUx.After(TableUx.Deploy, new WoundsSet(B, 1)), Icons));
+    }
+
+    static bool Icons(string condition) => condition is "shaken" or "fatigued";
+
+    [Fact]
+    public void Bookkeeping_conditions_never_show_and_a_word_chip_shows_only_over_the_unit_in_focus()
+    {
+        var unit = new Subject(SubjectKind.Unit, TableUx.Squad.Id);
+        var p = TableUx.After(TableUx.Deploy, new ConditionSet(unit, "moved this round", true), new ConditionSet(unit, "moved", true), new ConditionSet(unit, "pinned", true), new ConditionSet(unit, "fatigued", true));
+        Assert.Equal(new MarkerIcon[] { new("fatigued", "Fatigued") }, UnitMarkers.Of(p, Icons).Single().Icons);
+        var focused = UnitMarkers.Of(p, Icons, [TableUx.Squad.Id]).Single();
+        Assert.True(focused.Focus);
+        Assert.Equal(new MarkerIcon[] { new("fatigued", "Fatigued"), new("pinned", "Pinned") }, focused.Icons);
+        Assert.Empty(UnitMarkers.Of(TableUx.After(TableUx.Deploy, new ConditionSet(unit, "moved this round", true)), Icons));
+    }
+
+    [Fact]
+    public void Overlapping_rows_keep_the_focused_then_the_nearest()
+    {
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid(), d = Guid.NewGuid();
+        var shown = MarkerDeclutter.Shown([
+            new PlacedMarker(a, new HudRect(0, 0, 40, 16), 10, false),
+            new PlacedMarker(b, new HudRect(20, 8, 40, 16), 5, false),     // nearer than a, over it
+            new PlacedMarker(c, new HudRect(30, 0, 40, 16), 20, true),     // farthest, but focused: drawn, and b over it goes
+            new PlacedMarker(d, new HudRect(100, 0, 40, 16), 30, false)]); // clear of every other
+        Assert.Equal(new[] { c, d }.ToHashSet(), shown.ToHashSet());
     }
 
     [Fact]
@@ -23,7 +49,7 @@ public class UnitMarkersTests
     {
         var a = TableUx.Applier(TableUx.Deploy, Shoot); var f = new FloatingResults(); f.Seed(a.Projection);
         GameEvent[] first = [Step(3, new WoundsSet(A, 1), new WoundsSet(B, 1), new ModelsMoved([new(B, new OnTable(new Placement(new Point3(12, 10, 0), new Yaw(0))), new OnShelf())]),
-            new ConditionSet(new Subject(SubjectKind.Unit, TableUx.Squad.Id), "shaken", true))];
+            new ConditionSet(new Subject(SubjectKind.Unit, TableUx.Squad.Id), "shaken", true), new ConditionSet(new Subject(SubjectKind.Unit, TableUx.Squad.Id), "moved this round", true))];
         a.ApplyAll(first);
         Assert.Equal(new[] { "-1 model", "-1 wound", "Shaken" }, f.OnBatch(first, a.Projection, catchingUp: false)[3].Select(r => r.Text));   // B's wound is its removal
         GameEvent[] second = [Step(4, new WoundsSet(A, 2))]; a.ApplyAll(second);

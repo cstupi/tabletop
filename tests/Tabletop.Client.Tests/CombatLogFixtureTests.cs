@@ -75,6 +75,6 @@ public class CombatLogFixtureTests(ITestOutputHelper output)
 
         var lines = Tree(block.Entries).Count();
         Assert.True(lines <= 30, $"{lines} lines");
-        Assert.Equal(17, lines);
+        Assert.Equal(16, lines);   // no "Moved" line: the header carries the move
     }
 }

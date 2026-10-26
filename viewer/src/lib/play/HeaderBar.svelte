@@ -7,7 +7,7 @@
   import { teamColour } from '../board/palette';
   import { playingAs } from '../lobby/seats';
   import type { Projection } from '../live/apply';
-  import { waitingLine } from './headerText';
+  import { notActivatedText, scoreText, waitingLine } from './headerText';
   import { activationLine, headerOf, notActivated, objectives } from './headerView';
   import { Names } from './names';
   import { words } from './rosterView';
@@ -43,7 +43,6 @@
   const as = $derived(v?.as ?? null);
   const teams = $derived(v?.teams ?? []);
   const ordinalOf = (teamId: string): number => game?.teams.find((t) => t.id === teamId)?.ordinal ?? 1;
-  const toActivate = (n: number): string => (n === 0 ? 'all activated' : n === 1 ? '1 unit to activate' : `${n} units to activate`);
 </script>
 
 {#if game !== null && model !== null && (game.status === 'playing' || game.status === 'ended')}
@@ -72,8 +71,8 @@
         <div class="team" style:--team={teamColour(team.ordinal)} title="Right-click for the team menu"
           oncontextmenu={(e) => { e.preventDefault(); onTeamMenu(team.id, { x: e.clientX, y: e.clientY }); }}>
           <span class="name">{names!.team(team.id)}</span>
-          <span class="points num" aria-label="score">{score}</span>
-          {#if model.round > 0 && game.status === 'playing'}<span class="left">{toActivate(counts.get(team.id) ?? 0)}</span>{/if}
+          <span class="points num">{scoreText(score)}</span>
+          {#if model.round > 0 && game.status === 'playing'}<span class="left">{notActivatedText(counts.get(team.id) ?? 0)}</span>{/if}
         </div>
       {/each}
       {#if chips.length > 0}
@@ -114,7 +113,7 @@
     align-items: center; padding: 0 0 0 var(--s3); border-left: 4px solid var(--team); cursor: context-menu; line-height: 1.2; }
   .name { grid-area: name; font-weight: 700; color: var(--text); }
   .left { grid-area: left; color: var(--dim); font-size: .85rem; }
-  .points { grid-area: points; font-size: 1.6rem; color: var(--text); }
+  .points { grid-area: points; font-size: 1.25rem; color: var(--text); white-space: nowrap; }
   .objectives { display: flex; gap: var(--s1); align-items: center; }
   .objective { display: inline-flex; color: var(--dim); }
   .objective.held { color: var(--held); }

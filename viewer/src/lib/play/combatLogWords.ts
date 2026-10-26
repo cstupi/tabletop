@@ -8,6 +8,7 @@ import type { ActivationBlock } from './combatLog';
 import { describe } from './logText';
 import { Names } from './names';
 import { type LogEntry, RollWords, capital, isTest } from './rollEntry';
+import { shownCondition } from './rosterReserve';
 import { nameOfOption, split } from './spellText';
 
 /**
@@ -27,7 +28,7 @@ export function changeLines(changes: readonly StateChange[], n: Names, outside: 
   const fled = [...shelved].filter((m) => !woundedIds.has(m)).map((m) => n.unitOfModel(m)).filter((u): u is string => u !== null);
   for (const unit of new Set(fled)) out.push(`${n.unit(unit)} Fled!`);
   for (const c of changes) {
-    if (c.kind !== 'condition_set') continue;
+    if (c.kind !== 'condition_set' || !shownCondition(c.condition)) continue;   // not the bookkeeping ones: the header's "moved 2\"" already says it
     const unit = c.subject.kind === 'unit' ? c.subject.id : n.unitOfModel(c.subject.id) ?? c.subject.id;
     out.push((unit === actor ? '' : `${n.unit(unit)} · `) + capital(c.condition) + (c.present ? '' : ' cleared'));
   }

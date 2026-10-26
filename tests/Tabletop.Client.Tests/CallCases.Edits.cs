@@ -39,10 +39,10 @@ public static partial class CallCases
         var roll = CombatLog.Flatten(CombatLog.Build(tState.Events, tState.Names)).OfType<RollEntry>().First(r => !r.Undone);
         yield return Playing("undo/roll", transport, tMid, tPlayer, Choice("undoRow", ("seq", roll.Seq)), s => Row(s, roll.Seq), Here);
 
-        // An undone row: the state with the Undo marker a player's Undo to an earlier seq appends.
-        var to = skirmish.Events[n / 4].Seq;
+        // An undone row: the state with the Undo marker a player's Undo to just before the first activation appends.
+        var to = CombatLog.Flatten(entries).OfType<ActivationBlock>().First().Seq - 1;
         var undone = CallState.Playing(skirmish, mid, player, undoneTo: to);
-        var gone = CombatLog.Flatten(CombatLog.Build(undone.Events, undone.Names)).First(e => e is LineEntry && e.Undone);
+        var gone = CombatLog.Flatten(CombatLog.Build(undone.Events, undone.Names)).First(e => e.Undone);
         yield return Playing("undo/undone", skirmish, mid, player, Choice("undoRow", ("seq", gone.Seq)), s => Row(s, gone.Seq), Here, undoneTo: to);
     }
 

@@ -23,6 +23,6 @@ describe('headerText', () => {
   it('a done step is ticked', () => {
     expect(outlineText({ label: 'Move', state: 'done' })).toBe('  ✓ Move');
     expect(outlineText({ label: 'Shoot', state: 'current' })).toBe('  Shoot');
-    expect([scoreText('Team 1', 3), notActivatedText(2)]).toEqual(['  Team 1 3', ' · 2 not activated']);
+    expect([scoreText(3), notActivatedText(0), notActivatedText(2)]).toEqual(['3 VP', 'all activated', '2 not activated']);
   });
 });

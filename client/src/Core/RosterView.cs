@@ -12,7 +12,7 @@ public sealed record RosterRow(Guid UnitId, string Name, bool Activated, int Lef
 }
 public sealed record RosterTeam(Guid TeamId, string Name, int Ordinal, IReadOnlyList<RosterRow> Rows);
 
-/// <summary>The roster (spec → Army roster) from the projection only: my team first, the rest by ordinal, units in army order. Left is wounds left over
+/// <summary>The roster (spec → Army roster) from the projection only, without Bookkeeping's conditions: my team first, the rest by ordinal, units in army order. Left is wounds left over
 /// models not removed (UnitSheet's Removed: on the shelf with every wound taken); off table is no model on the table, nor inside a container on it.</summary>
 public static class RosterView
 {
@@ -27,7 +27,7 @@ public static class RosterView
         var holder = models.Select(x => x.M.Location).OfType<Inside>().Select(i => p.Models.GetValueOrDefault(i.ContainerId)).FirstOrDefault(h => h is not null);
         bool OnTable(ModelInPlay m) => m.Location is OnTable || (m.Location is Inside i && p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnTable);
         return new(u.Id, u.Definition.Name, u.Actions.Count > 0, left, models.Sum(x => x.Max), !models.Any(x => OnTable(x.M)),
-            u.Conditions.Concat(models.SelectMany(x => x.M.Conditions)).Distinct().Order(StringComparer.Ordinal).ToList(),
+            u.Conditions.Concat(models.SelectMany(x => x.M.Conditions)).Where(Bookkeeping.Shown).Distinct().Order(StringComparer.Ordinal).ToList(),
             holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u));
     }
 

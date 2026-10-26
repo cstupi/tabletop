@@ -1,33 +1,42 @@
 using Godot; using Tabletop.Client.Core; using Tabletop.Client.Hud; using Tabletop.Client.Theming; using Tabletop.Protocol;
 namespace Tabletop.Client.Table;
 
-/// <summary>A row of icons over each unit (UnitMarkers): activated and conditions; wounds and tokens are per model (ModelMarkNodes). Hidden at table level (End) and behind the camera. Its CanvasLayer inherits no theme, so it sets its own.</summary>
+/// <summary>A row of icons over each unit (UnitMarkers): activated and conditions, a text chip only over the selected or hovered unit; wounds and tokens are per model (ModelMarkNodes).
+/// Hidden at table level (End), behind the camera, and where a nearer row already stands (MarkerDeclutter). Its CanvasLayer inherits no theme, so it sets its own.</summary>
 public partial class UnitMarkerNodes : Control
 {
-    Session _s = null!; TableView _view = null!;
+    Session _s = null!; TableView _view = null!; TableInput _input = null!; Guid? _hovered;
     /// <summary>Per unit, the icons its row draws, where it stands, and the row: a render rebuilds only a row whose icons changed.</summary>
-    readonly Dictionary<Guid, (IReadOnlyList<MarkerIcon> Icons, Vector3 At, HBoxContainer Row)> _rows = new();
-    Action<RenderCause>? _onFrame; Action? _onTheme;
+    readonly Dictionary<Guid, (IReadOnlyList<MarkerIcon> Icons, Vector3 At, HBoxContainer Row, bool Focus)> _rows = new();
+    readonly List<PlacedMarker> _placed = new();
+    Action<RenderCause>? _onFrame; Action? _onTheme, _onSelection; Action<Guid?>? _onHover;
 
-    public void Bind(Session session, TableView view)
+    public void Bind(Session session, TableView view, TableInput input)
     {
-        _s = session; _view = view; SetAnchorsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
+        _s = session; _view = view; _input = input; SetAnchorsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Facts)) != 0) Render(); }; _onTheme = () => { Theme = Ui.Theme; Clear(); Render(); };
-        session.Frame.Render += _onFrame; Ui.Changed += _onTheme; _onTheme();
+        _onSelection = Render; _onHover = u => { _hovered = u; Render(); };
+        session.Frame.Render += _onFrame; Ui.Changed += _onTheme; input.SelectionChanged += _onSelection; input.HoveredUnitChanged += _onHover; _onTheme();
     }
-    public override void _ExitTree() { Ui.Changed -= _onTheme; if (_s is null) return; _s.Frame.Render -= _onFrame; }
+    public override void _ExitTree()
+    {
+        Ui.Changed -= _onTheme;
+        if (_input is not null) { _input.SelectionChanged -= _onSelection; _input.HoveredUnitChanged -= _onHover; }
+        if (_s is null) return; _s.Frame.Render -= _onFrame;
+    }
 
-    void Clear() { foreach (var (_, _, row) in _rows.Values) row.QueueFree(); _rows.Clear(); }
+    void Clear() { foreach (var (_, _, row, _) in _rows.Values) row.QueueFree(); _rows.Clear(); }
 
     void Render()
     {
         if (_s.Projection is not { } p) { Clear(); return; }
         var seen = new HashSet<Guid>();
-        foreach (var m in UnitMarkers.Of(p))
+        Guid[] focus = [.. new[] { _input.Selected?.PieceId, _hovered }.OfType<Guid>()];
+        foreach (var m in UnitMarkers.Of(p, c => Ui.Icon(c) is not null, focus))
         {
             seen.Add(m.UnitId);
             var at = WorldFrame.ToGodot(m.Anchor) + Vector3.Up * 0.6f;
-            if (_rows.TryGetValue(m.UnitId, out var drawn) && drawn.Icons.SequenceEqual(m.Icons)) { _rows[m.UnitId] = drawn with { At = at }; continue; }
+            if (_rows.TryGetValue(m.UnitId, out var drawn) && drawn.Icons.SequenceEqual(m.Icons)) { _rows[m.UnitId] = drawn with { At = at, Focus = m.Focus }; continue; }
             drawn.Row?.QueueFree();
             var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
             foreach (var i in m.Icons)
@@ -35,18 +44,22 @@ public partial class UnitMarkerNodes : Control
                 var c = i.Key is { } k && Ui.Icon(k) is not null ? Roster.Icon(k) : Roster.Chip(i.Text);
                 c.MouseFilter = MouseFilterEnum.Ignore; row.AddChild(c);
             }
-            AddChild(row); _rows[m.UnitId] = (m.Icons, at, row);
+            AddChild(row); _rows[m.UnitId] = (m.Icons, at, row, m.Focus);
         }
         foreach (var gone in _rows.Keys.Where(k => !seen.Contains(k)).ToList()) { _rows[gone].Row.QueueFree(); _rows.Remove(gone); }
     }
 
     public override void _Process(double delta)
     {
-        var cam = _view.Camera; var shown = !CameraFocus.TableLevel(cam.Pitch);
-        foreach (var (_, at, row) in _rows.Values)
+        var cam = _view.Camera; var level = CameraFocus.TableLevel(cam.Pitch); var eye = cam.GlobalPosition;
+        _placed.Clear();
+        foreach (var (unit, (_, at, row, focus)) in _rows)
         {
-            row.Visible = shown && !cam.IsPositionBehind(at);
-            if (row.Visible) row.Position = cam.UnprojectPosition(at) - new Vector2(row.Size.X / 2, row.Size.Y);
+            if (level || cam.IsPositionBehind(at)) { row.Visible = false; continue; }
+            row.Position = cam.UnprojectPosition(at) - new Vector2(row.Size.X / 2, row.Size.Y);
+            _placed.Add(new PlacedMarker(unit, new HudRect(row.Position.X, row.Position.Y, row.Size.X, row.Size.Y), eye.DistanceTo(at), focus));
         }
+        var shown = MarkerDeclutter.Shown(_placed);
+        foreach (var m in _placed) _rows[m.UnitId].Row.Visible = shown.Contains(m.UnitId);
     }
 }

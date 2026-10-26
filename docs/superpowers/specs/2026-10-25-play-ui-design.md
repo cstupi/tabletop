@@ -36,7 +36,7 @@ non-creator sees the settings read-only and what they are waiting for.
 (~18rem): Table, Terrain (search box over the catalog, grouped), Markers, Zones, Layouts (predefined first, random by planet,
 saved), each a collapsible section. Centre, the board. Right, the selected piece's card when something is selected.
 
-**Play**: a top bar over the board (round, whose turn, each team's activations left and score). Left, the roster, collapsible.
+**Play**: a top bar over the board (round, whose turn, each team's score as `3 VP` and, from round 1, `k not activated`). Left, the roster, collapsible.
 Centre, the board. Right column (~22rem): the decision box at the top, prominent, styled as the panel that matters; then the
 unit card; then the log, which takes the rest and scrolls. Undo and dice sit with the log.
 

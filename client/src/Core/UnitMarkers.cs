@@ -3,30 +3,53 @@ namespace Tabletop.Client.Core;
 
 /// <summary>Key looks up the theme's icon; Text shows when the theme has none.</summary>
 public sealed record MarkerIcon(string? Key, string Text);
-public sealed record UnitMarker(Guid UnitId, Point3 Anchor, IReadOnlyList<MarkerIcon> Icons);
+public sealed record UnitMarker(Guid UnitId, Point3 Anchor, IReadOnlyList<MarkerIcon> Icons, bool Focus = false);
 public sealed record FloatingResult(Guid UnitId, string Text, Point3? At);
 
-/// <summary>Spec → Markers: over each unit on the table, at its models' centroid above the tallest model: activated and each condition. Per-model marks are ModelMarks.</summary>
+/// <summary>Spec → Markers: over each unit on the table, at its models' centroid above the tallest model: activated and each condition the
+/// roster shows (not Bookkeeping's). A unit in focus (selected or hovered) shows every such condition; any other only those the theme has an
+/// icon for, so no text chip stands over the table unasked. Per-model marks are ModelMarks.</summary>
 public static class UnitMarkers
 {
-    public static IReadOnlyList<UnitMarker> Of(Projection p)
+    public static IReadOnlyList<UnitMarker> Of(Projection p, Func<string, bool> hasIcon, IReadOnlyCollection<Guid>? focus = null)
     {
         var list = new List<UnitMarker>();
         foreach (var u in p.Units.Values)
         {
             var on = p.Models.Values.Where(m => m.UnitId == u.Id && m.Location is OnTable).ToList();
+            var focused = focus?.Contains(u.Id) == true;
             var icons = new List<MarkerIcon>();
             if (u.Actions.Count > 0) icons.Add(new("activated", "✓"));
-            icons.AddRange(u.Conditions.Concat(on.SelectMany(m => m.Conditions)).Distinct().Order(StringComparer.Ordinal).Select(c => new MarkerIcon(c, RosterView.Words(c))));
+            icons.AddRange(u.Conditions.Concat(on.SelectMany(m => m.Conditions)).Where(Bookkeeping.Shown).Where(c => focused || hasIcon(c)).Distinct()
+                .Order(StringComparer.Ordinal).Select(c => new MarkerIcon(c, RosterView.Words(c))));
             if (on.Count == 0 || icons.Count == 0) continue;
             var at = on.Select(m => ((OnTable)m.Location).Placement.Position).ToList();
-            list.Add(new(u.Id, new Point3(at.Average(q => q.X), at.Average(q => q.Y), on.Max(m => ((OnTable)m.Location).Placement.Position.Z + m.Slot.Height)), icons));
+            list.Add(new(u.Id, new Point3(at.Average(q => q.X), at.Average(q => q.Y), on.Max(m => ((OnTable)m.Location).Placement.Position.Z + m.Slot.Height)), icons, focused));
         }
         return list;
     }
 }
 
-/// <summary>Spec → Floating results: a StepCompleted that removes models, wounds one or sets a condition floats a line per unit. Wounds on the wire are totals, so this
+/// <summary>A marker row where the camera puts it: its screen rectangle, its distance from the camera, and whether its unit is in focus.</summary>
+public readonly record struct PlacedMarker(Guid UnitId, HudRect Rect, float Depth, bool Focus);
+
+/// <summary>Which marker rows draw this frame: the focused first, then nearest the camera first; a row that would overlap one already drawn is
+/// left out, so rows never stack over each other.</summary>
+public static class MarkerDeclutter
+{
+    public static IReadOnlySet<Guid> Shown(IEnumerable<PlacedMarker> rows)
+    {
+        var kept = new List<HudRect>(); var shown = new HashSet<Guid>();
+        foreach (var r in rows.OrderByDescending(r => r.Focus).ThenBy(r => r.Depth))
+        {
+            if (!r.Focus && kept.Any(k => k.Overlaps(r.Rect))) continue;
+            kept.Add(r.Rect); shown.Add(r.UnitId);
+        }
+        return shown;
+    }
+}
+
+/// <summary>Spec → Floating results: a StepCompleted that removes models, wounds one or sets a condition (not Bookkeeping's) floats a line per unit. Wounds on the wire are totals, so this
 /// keeps each model's last total. A batch while Session is catching up (a join or a resync) or with an undo only re-reads the totals and floats nothing.</summary>
 public sealed class FloatingResults
 {
@@ -59,7 +82,7 @@ public sealed class FloatingResults
         FloatingResult Line(Guid unit, string text) => new(unit, text, At(unit));
         return removed.GroupBy(UnitOf).Select(g => Line(g.Key, $"-{g.Count()} model{(g.Count() == 1 ? "" : "s")}"))
             .Concat(taken.GroupBy(w => w.Unit).Select(g => { var k = g.Sum(w => w.Taken); return Line(g.Key, $"-{k} wound{(k == 1 ? "" : "s")}"); }))
-            .Concat(changes.OfType<ConditionSet>().Where(c => c.Present).Select(c => Line(c.Subject.Kind == SubjectKind.Unit ? c.Subject.Id : UnitOf(c.Subject.Id), RosterView.Words(c.Condition))))
+            .Concat(changes.OfType<ConditionSet>().Where(c => c.Present && Bookkeeping.Shown(c.Condition)).Select(c => Line(c.Subject.Kind == SubjectKind.Unit ? c.Subject.Id : UnitOf(c.Subject.Id), RosterView.Words(c.Condition))))
             .ToList();
     }
 }

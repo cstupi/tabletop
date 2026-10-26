@@ -57,7 +57,7 @@ public partial class GameScreen
         Table.AddChild(_tableLayer = new CanvasLayer());
 
         // The floating text subscribes before the Animator is made, so it hears each batch before the Animator plays it.
-        _tableLayer.AddChild(_markers = new UnitMarkerNodes()); _markers.Bind(_session, Table);
+        _tableLayer.AddChild(_markers = new UnitMarkerNodes()); _markers.Bind(_session, Table, Input);
         _tableLayer.AddChild(_floating = new FloatingText()); _floating.Bind(_session, Table);
         var sounds = new SoundPlayer(); AddChild(sounds); sounds.Bind(_session);
 

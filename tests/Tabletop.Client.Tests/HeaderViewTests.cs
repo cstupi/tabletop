@@ -114,5 +114,8 @@ public class HeaderViewTests
     {
         Assert.Equal("Round 2 · Team 1's turn", Of(After(new RoundStarted(2, [Samples.Team1, Samples.Team2], []), new TurnStarted(Samples.Team1))).TopLine);
         Assert.Equal("Round 4", Of(After(new RoundStarted(4, [Samples.Team1, Samples.Team2], []))).TopLine);
+        Assert.Equal("Deployment · Team 2's turn", Of(After(new RoundStarted(0, [Samples.Team1, Samples.Team2], []), new PhaseStarted("deployment"), new TurnStarted(Samples.Team2))).TopLine);
+        Assert.Equal("Before round 1", Of(After()).TopLine);
+        Assert.Equal(("3 VP", "all activated", "2 not activated"), (HeaderView.ScoreText(3), HeaderView.NotActivatedText(0), HeaderView.NotActivatedText(2)));
     }
 }

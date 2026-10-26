@@ -22,7 +22,7 @@ public static partial class CombatLog
         if (removed > 0) yield return $"{RollWords.Plural(removed, "model")} removed";
         foreach (var unit in shelved.Where(m => !woundedIds.Contains(m)).Select(m => n.UnitOfModel(m)).OfType<Guid>().Distinct())
             yield return $"{n.Unit(unit)} Fled!";
-        foreach (var c in changes.OfType<ConditionSet>())
+        foreach (var c in changes.OfType<ConditionSet>().Where(c => Bookkeeping.Shown(c.Condition)))   // not Bookkeeping's: the header's "moved 2\"" already says it
         {
             var unit = c.Subject.Kind == SubjectKind.Unit ? c.Subject.Id : n.UnitOfModel(c.Subject.Id) ?? c.Subject.Id;
             yield return (unit == actor ? "" : $"{n.Unit(unit)} · ") + RollEntry.Capital(c.Condition) + (c.Present ? "" : " cleared");

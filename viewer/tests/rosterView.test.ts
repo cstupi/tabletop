@@ -28,11 +28,12 @@ describe('RosterView', () => {
       table(a!, 10, 10), table(b!, 12, 10), table(r.orcs.models[0]!.id, 40, 30),
       { kind: 'action_recorded', unitId: r.squad.id, action: 'Advance' }, { kind: 'wounds_set', modelId: a!, wounds: 1 },
       { kind: 'condition_set', subject: { kind: 'unit', id: r.squad.id }, condition: 'shaken', present: true },
+      { kind: 'condition_set', subject: { kind: 'unit', id: r.squad.id }, condition: 'moved this round', present: true },
       { kind: 'wounds_set', modelId: c!, wounds: 1 },
     ], TEAM2, new Map([[a!, 3], [b!, 3]]));
     expect(out.map((t) => t.name)).toEqual(['Team 2', 'Team 1']);
     const squad = out[1]!.rows[0]!;
-    // 2 + 3 + a removed model's 0 (the third is on the shelf with its one wound taken)
+    // 2 + 3 + a removed model's 0 (the third is on the shelf with its one wound taken); the bookkeeping moved this round is left out
     expect([squad.name, squad.activated, squad.left, squad.max, squad.offTable, squad.conditions]).toEqual(['Squad', true, 5, 7, false, ['shaken']]);
     expect(out[1]!.rows[1]).toMatchObject({ name: 'Reserve', offTable: true });
     expect(out[0]!.rows[0]).toMatchObject({ left: 1, max: 1, activated: false });
