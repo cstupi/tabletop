@@ -8,7 +8,7 @@ public static class Cues
 
     public static IReadOnlyList<(string Name, Func<float[]> Build)> All { get; } =
     [
-        ("shoot-1", Plasma), ("shoot-2", Rifle), ("shoot-3", Burst), ("impact", Impact), ("miss", Miss), ("melee", Melee), ("whiff", Whiff),
+        ("shoot-1", Plasma), ("shoot-2", Rifle), ("shoot-3", Las), ("impact", Impact), ("miss", Miss), ("melee", Melee), ("whiff", Whiff),
         ("block", Block), ("wound", Wound), ("cast-friendly", CastFriendly), ("cast-enemy", CastEnemy), ("fizzle", Fizzle), ("move", Move),
     ];
 
@@ -17,43 +17,35 @@ public static class Cues
     /// <summary>A sharp band of noise: the crack at the front of every shot.</summary>
     static float[] Crack(int seed, int n, double tau) => Synth.Envelope(Synth.LowPass(Synth.HighPass(Synth.Noise(seed, n), 1400), 6500), 0.002, tau);
 
-    /// <summary>A plasma bolt: the crack, a whine falling from 1.4 kHz with its octave, a low thump, and the room's slap-back.</summary>
+    /// <summary>A plasma bolt: the crack, a whine falling from 1.4 kHz with its octave, a light thump (0.36 s).</summary>
     static float[] Plasma()
     {
-        var x = Synth.Silence(0.7); var shot = Synth.Silence(0.36);
-        Synth.Mix(shot, Crack(11, shot.Length, 0.025));
-        Synth.Mix(shot, Synth.Scale(Synth.Envelope(Synth.Sweep(shot.Length, 1400, 180), 0.003, 0.11), 0.8));
-        Synth.Mix(shot, Synth.Scale(Synth.Envelope(Synth.Sweep(shot.Length, 2800, 360), 0.003, 0.06), 0.22));
-        Synth.Mix(shot, Synth.Scale(Synth.Envelope(Synth.Sweep(shot.Length, 150, 50), 0.003, 0.06), 0.35));
-        Synth.Mix(x, Synth.LowPass(Synth.Echo(shot, 0.11, 0.35, 3), 7000));
-        return Finish(x);
+        var x = Synth.Silence(0.36); var n = x.Length;
+        Synth.Mix(x, Crack(11, n, 0.025));
+        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.Sweep(n, 1400, 180), 0.003, 0.07), 0.8));
+        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.Sweep(n, 2800, 360), 0.003, 0.04), 0.22));
+        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.Sweep(n, 150, 50), 0.003, 0.05), 0.35));
+        return Finish(Synth.LowPass(x, 7000));
     }
 
-    /// <summary>A heavy rifle: the crack over a deep thump and a rumbling tail that echoes.</summary>
+    /// <summary>A bolter round: the crack over a deep thump and a short low rumble (0.4 s).</summary>
     static float[] Rifle()
     {
-        var x = Synth.Silence(0.75); var shot = Synth.Silence(0.4); var n = shot.Length;
-        Synth.Mix(shot, Crack(12, n, 0.03));
-        Synth.Mix(shot, Synth.Scale(Synth.Envelope(Synth.Sweep(n, 120, 40), 0.003, 0.12), 0.9));
-        Synth.Mix(shot, Synth.Scale(Synth.Envelope(Synth.LowPass(Synth.Noise(61, n), 400), 0.004, 0.16), 0.7));
-        Synth.Mix(x, Synth.LowPass(Synth.Echo(shot, 0.13, 0.3, 3), 7000));
-        return Finish(x);
+        var x = Synth.Silence(0.4); var n = x.Length;
+        Synth.Mix(x, Crack(12, n, 0.03));
+        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.Sweep(n, 120, 40), 0.003, 0.08), 0.9));
+        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.LowPass(Synth.Noise(61, n), 400), 0.004, 0.08), 0.7));
+        return Finish(Synth.LowPass(x, 7000));
     }
 
-    /// <summary>A three-round burst: three cracks 85 ms apart, each with its thump, over a rumble.</summary>
-    static float[] Burst()
+    /// <summary>A las shot: a short crack and a bright zap falling from 2.6 kHz to 500 Hz over a sizzle (0.3 s).</summary>
+    static float[] Las()
     {
-        var x = Synth.Silence(0.65); var n = x.Length;
-        double[] at = [0, 0.085, 0.17], gain = [1, 0.9, 0.85];
-        for (var k = 0; k < 3; k++)
-        {
-            var round = Synth.Silence(0.2); var m = round.Length;
-            Synth.Mix(round, Crack(13 + k, m, 0.02));
-            Synth.Mix(round, Synth.Scale(Synth.Envelope(Synth.Sweep(m, 180, 60), 0.003, 0.05), 0.55));
-            Synth.Mix(x, Synth.Scale(round, gain[k]), at[k]);
-        }
-        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.LowPass(Synth.Noise(62, n), 500), 0.004, 0.22), 0.35));
-        return Finish(Synth.LowPass(x, 7000));
+        var x = Synth.Silence(0.3); var n = x.Length;
+        Synth.Mix(x, Synth.Scale(Crack(13, n, 0.012), 0.7));
+        Synth.Mix(x, Synth.Envelope(Synth.Sweep(n, 2600, 500), 0.002, 0.05));
+        Synth.Mix(x, Synth.Scale(Synth.Envelope(Synth.LowPass(Synth.HighPass(Synth.Noise(63, n), 3000), 7000), 0.002, 0.035), 0.3));
+        return Finish(Synth.LowPass(x, 8000));
     }
 
     /// <summary>A round striking home: a low thud with a crunch of mid noise and a smaller one after it.</summary>

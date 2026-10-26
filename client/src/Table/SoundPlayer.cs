@@ -1,16 +1,17 @@
 using Godot; using Tabletop.Client.Core; using Tabletop.Protocol;
 namespace Tabletop.Client.Table;
 
-/// <summary>Plays the cues <see cref="SoundCues"/> reads off each live batch, each at its delay, on a pool of AudioStreamPlayers so one
-/// sound never cuts off another (the oldest voice is reused when all are busy). Silent while the session catches up or replays, and when
-/// Settings.Sound is off; an undo or a new board drops what is still waiting.</summary>
+/// <summary>Plays the cues <see cref="SoundCues"/> reads off each live batch, each at its delay, pitch and level. A volley's die sounds
+/// play on their own pool of voices and every other cue on another, so a long volley never steals an impact's or a wound's voice and
+/// one sound never cuts another off; when a pool is busy its oldest voice is reused. Silent while the session catches up or replays,
+/// and when Settings.Sound is off; an undo or a new board drops what is still waiting.</summary>
 public partial class SoundPlayer : Node
 {
-    const int Voices = 8;
+    const int Voices = 8, VolleyVoices = 16;
     Session _s = null!; readonly SoundCues _cues = new();
     readonly Dictionary<string, AudioStream> _streams = new();
-    readonly List<AudioStreamPlayer> _pool = [];
-    readonly List<(double At, AudioStream Stream)> _waiting = [];
+    readonly List<AudioStreamPlayer> _pool = [], _volley = [];
+    readonly List<(double At, CueAt Cue, AudioStream Stream)> _waiting = [];
     readonly Dictionary<AudioStreamPlayer, double> _started = new();
     double _now;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard;
@@ -25,14 +26,14 @@ public partial class SoundPlayer : Node
                 if (GD.Load<AudioStream>($"res://content/sounds/{file}.wav") is { } stream) _streams[file] = stream;
             }
         for (var i = 0; i < Voices; i++) { var p = new AudioStreamPlayer { Name = $"Voice{i}" }; AddChild(p); _pool.Add(p); }
+        for (var i = 0; i < VolleyVoices; i++) { var p = new AudioStreamPlayer { Name = $"Volley{i}" }; AddChild(p); _volley.Add(p); }
         if (session.Projection is { } p0) _cues.Seed(p0);
         _onEvents = batch =>
         {
-            if (_s.Projection is not { } q) return;
+            if (_s.Projection is not { } q || _s.Game is not { } game) return;
             if (batch.Any(e => e.Payload is Undone)) _waiting.Clear();
-            var names = _s.Game is { } g ? new Names(g, q) : null;
-            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp || _s.Replaying, u => names?.TeamOfUnit(u)))
-                if (_streams.TryGetValue(SoundCues.File(cue.Cue, cue.Variant), out var stream)) _waiting.Add((_now + cue.Delay, stream));
+            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp || _s.Replaying, new Names(game, q)))
+                if (_streams.TryGetValue(SoundCues.File(cue.Cue, cue.Variant), out var stream)) _waiting.Add((_now + cue.Delay, cue, stream));
         };
         _onBoard = () => { _cues.OnBoard(); _waiting.Clear(); };
         session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;
@@ -44,17 +45,19 @@ public partial class SoundPlayer : Node
         for (var i = 0; i < _waiting.Count;)
         {
             if (_waiting[i].At > _now) { i++; continue; }
-            Play(_waiting[i].Stream); _waiting.RemoveAt(i);
+            Play(_waiting[i].Cue, _waiting[i].Stream); _waiting.RemoveAt(i);
         }
     }
 
-    void Play(AudioStream stream)
+    void Play(CueAt cue, AudioStream stream)
     {
         if (!_s.Settings.Sound) return;
-        var voice = _pool.FirstOrDefault(p => !p.Playing) ?? _pool.MinBy(p => _started.GetValueOrDefault(p))!;
+        var pool = cue.Volley ? _volley : _pool;
+        var voice = pool.FirstOrDefault(p => !p.Playing) ?? pool.MinBy(p => _started.GetValueOrDefault(p))!;
         _started[voice] = _now;
         voice.Stream = stream;
-        voice.VolumeDb = _s.Settings.Volume <= 0 ? -80f : Mathf.LinearToDb(_s.Settings.Volume / 100f);
+        voice.PitchScale = (float)cue.Pitch;
+        voice.VolumeDb = (_s.Settings.Volume <= 0 ? -80f : Mathf.LinearToDb(_s.Settings.Volume / 100f)) + (float)cue.VolumeDb;
         voice.Play();
     }
 

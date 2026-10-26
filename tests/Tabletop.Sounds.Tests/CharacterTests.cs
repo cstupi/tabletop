@@ -36,24 +36,26 @@ public class CharacterTests
     }
 
     [Theory, InlineData("shoot-1"), InlineData("shoot-2"), InlineData("shoot-3")]
-    public void A_shot_cracks_at_once_and_its_tail_runs_past_half_a_second(string name)
+    public void A_shot_is_one_short_report_that_cracks_at_once_and_dies_within_a_fifth_of_a_second(string name)
     {
         var x = Build(name);
-        Assert.InRange(Seconds(x), 0.6, 0.95);
+        Assert.InRange(Seconds(x), 0.25, 0.45);
         Assert.InRange(PeakAt(x), 0, 0.015);
-        Assert.True(Rms(Window(x, 0.3, 0.5)) > 0.03 * Rms(Window(x, 0, 0.1)), "an echoing tail");
+        Assert.Equal(1, Onsets(x));
+        Assert.True(Rms(Window(x, 0.2, Seconds(x))) < 0.15 * Rms(Window(x, 0, 0.05)), "over before the next shot of a volley lands on it");
     }
 
     [Fact]
-    public void The_plasma_bolt_whines_downward_the_rifle_booms_low_and_the_burst_fires_three_rounds()
+    public void The_plasma_bolt_whines_downward_the_bolter_booms_low_and_the_las_zaps_high()
     {
-        var plasma = Build("shoot-1");
-        Assert.True(Centroid(Window(plasma, 0.01, 0.05)) > Centroid(Window(plasma, 0.15, 0.3)));
+        var plasma = Build("shoot-1"); var bolter = Build("shoot-2"); var las = Build("shoot-3");
+        Assert.True(Centroid(Window(plasma, 0.01, 0.05)) > Centroid(Window(plasma, 0.1, 0.2)));
         Assert.InRange(Dominant(Window(plasma, 0.02, 0.08)), 500, 1600);
-        var rifle = Build("shoot-2");
-        Assert.True(Dominant(Window(rifle, 0, 0.15)) < 300);
-        Assert.True(Centroid(Window(rifle, 0, 0.3)) < Centroid(Window(plasma, 0, 0.3)));
-        Assert.True(Onsets(Window(Build("shoot-3"), 0, 0.25)) >= 3);
+        Assert.True(Dominant(Window(bolter, 0, 0.15)) < 300);
+        Assert.True(Centroid(Window(bolter, 0, 0.2)) < Centroid(Window(plasma, 0, 0.2)));
+        Assert.True(Dominant(Window(las, 0.005, 0.04)) > 1500);
+        Assert.True(Centroid(Window(las, 0, 0.1)) > Centroid(Window(plasma, 0, 0.1)));
+        Assert.True(Centroid(Window(las, 0.005, 0.03)) > Centroid(Window(las, 0.06, 0.12)));
     }
 
     [Fact]

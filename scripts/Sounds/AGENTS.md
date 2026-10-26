@@ -12,11 +12,11 @@ godot --headless --path client --import  # then refresh the .import files
 
 ## Layout
 
-- `Cues`: name → builder, the spec's Sounds table: `shoot-1` plasma, `shoot-2` rifle, `shoot-3` burst (each a band-passed noise
-  crack, swept tones, a slap-back `Echo`; 0.65–0.75 s), `impact`, `miss` (ricochet), `melee` (clash), `whiff`, `block` (clang),
+- `Cues`: name → builder, the spec's Sounds table: `shoot-1` plasma, `shoot-2` bolter, `shoot-3` las (each a single report: a
+  band-passed noise crack and swept tones, 0.3–0.4 s, the client staggers them into volleys), `impact`, `miss` (ricochet), `melee` (clash), `whiff`, `block` (clang),
   `wound`, `cast-friendly` (rising arpeggio), `cast-enemy` (falling tritone growl), `fizzle`, `move`. Each has its own noise seeds, a
   2 ms fade in and a 12 ms fade out, and peaks at -6 dBFS.
-- `Synth`: noise, two-stage one-pole low and high pass, sine and sweep, attack-and-decay envelope, echo, tremolo, mix, fade, normalise.
+- `Synth`: noise, two-stage one-pole low and high pass, sine and sweep, attack-and-decay envelope, tremolo, mix, fade, normalise.
 - `Wav`: 16-bit mono 44.1 kHz PCM. Each file is under 100 KB.
 - Tests: `CueTests` (format, level, fades, the stamp), `CharacterTests` (what each sounds like: peak time, tail, dominant frequency,
   spectral centroid and its direction, attack count).

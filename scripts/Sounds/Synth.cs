@@ -66,15 +66,6 @@ public static class Synth
         for (var i = 0; i < part.Length && start + i < into.Length; i++) into[start + i] += part[i];
     }
 
-    /// <summary>Adds <paramref name="repeats"/> copies, each <paramref name="seconds"/> after the last and <paramref name="gain"/> times as loud: a
-    /// room's slap-back tail.</summary>
-    public static float[] Echo(float[] x, double seconds, double gain, int repeats)
-    {
-        var y = (float[])x.Clone(); var g = 1.0;
-        for (var k = 1; k <= repeats; k++) { g *= gain; Mix(y, Scale(x, g), k * seconds); }
-        return y;
-    }
-
     /// <summary>Amplitude wobble at <paramref name="hz"/>: depth 0 leaves the signal, 1 swings it to silence.</summary>
     public static float[] Tremolo(float[] x, double hz, double depth)
     {
