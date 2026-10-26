@@ -159,7 +159,8 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 3. Pin only the dice the check reads (`DiceFix`), and only where the roll is reached by steps 1–2, keyed to the roll with a `RollKey`
    (actor, target, weapon, action) so its ordinal counts that unit's rolls alone: `new DiceFix("morale", 0, [1], new RollKey(Actor: "Red unit 3"))`.
    `special-artillery-emplacement` and `special-command-squad` are worked examples.
-4. Check the game on several seeds (`--seeds 1..5`, with `--only <game>`). It is done when every seed passes.
+4. Check the game on several seeds: the suite command ignores `--seeds`, so change the game's seed in its source and run `--only <game>`
+   for seeds 1–5 and a few others, then restore it. It is done when every seed passes.
 5. Never fix a broken game by changing its seed.
 
 ## The lifecycle suite
