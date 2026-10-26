@@ -139,6 +139,20 @@ describe('the decision box controller', () => {
     expect(r.box.glowOf(r.s.rival.id, r.s.rivals.id)).toBe('selected');
   });
 
+  it('hovering an option that names one unit hovers that unit', () => {
+    const r = rig();
+    r.apply(open(askOf(opts(option('a', 'Advance', [r.s.model.id]), option('b', 'Both', [r.s.squad.id, r.s.rivals.id])))));
+    r.box.render();
+    expect(r.box.hoveredUnit).toBeNull();
+    r.box.hover('opt:a');
+    expect(r.box.hoveredUnit).toBe(r.s.squad.id);
+    r.box.hover('opt:b');
+    expect(r.box.hoveredUnit).toBeNull();
+    r.box.hover('opt:a');
+    r.box.hover(null);
+    expect(r.box.hoveredUnit).toBeNull();
+  });
+
   it('a cast option carries its spell\'s tooltip', () => {
     const rules = RuleTexts.from([{ name: 'Hex', kind: 'spell', takesParameter: false, ruleText: 'Pick one enemy unit.' }]);
     const r = rig({ rules });

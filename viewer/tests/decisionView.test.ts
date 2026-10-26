@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { choicesOf, clickAnswers, decisionOf, noteOf, number, rows, stopLabel } from '../src/lib/play/decisionView';
+import { choicesOf, clickAnswers, decisionOf, noteOf, number, rows, stopLabel, unitNamed } from '../src/lib/play/decisionView';
 import { Names } from '../src/lib/play/names';
 import type { Ask, LegalSet, MoveRegion } from '../src/lib/protocol/wire.generated';
 import { TEAM1, TEAM2, askOf, newId, option, projectionOf, sample } from './play';
@@ -95,6 +95,16 @@ describe('DecisionView', () => {
     expect(narrowed.map((c) => c.id)).toEqual(['a', 'm']);
     expect(number(narrowed)).toEqual([{ key: 1, label: 'Advance', optionId: 'a' }, { key: 2, label: 'Charge', optionId: 'm' }]);
     expect(choicesOf(options, a.projection, newId())).toEqual([]);
+  });
+
+  it('an option names one unit by its id or its models\' ids', () => {
+    const p = projectionOf(s.game, s.board).projection;
+    expect(unitNamed([s.squad.id], p)).toBe(s.squad.id);
+    expect(unitNamed([s.model.id], p)).toBe(s.squad.id);
+    expect(unitNamed([s.squad.id, s.model.id], p)).toBe(s.squad.id);
+    expect(unitNamed([], p)).toBeNull();
+    expect(unitNamed([s.squad.id, s.rivals.id], p)).toBeNull();
+    expect(unitNamed([s.squad.id, newId()], p)).toBeNull();
   });
 
   const SHAKEN = 'Shaken: must spend this activation being idle (p.10)';

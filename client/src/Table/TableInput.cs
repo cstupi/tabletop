@@ -14,7 +14,7 @@ public partial class TableInput : Node
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!; LandingMarks _marks = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
     bool _presenceDirty; Cursor? _cursor; readonly TapeMeasure _tape = new(); Vector2 _measureDown;
-    Drag? _drag; readonly PendingDrops _drops = new(); Guid? _hovered;
+    Drag? _drag; readonly PendingDrops _drops = new(); Guid? _pointed, _named;
     IReadOnlySet<Guid> _eligible = new HashSet<Guid>();
     public TableTool Tool { get; set; } = TableTool.Select;
     bool _measureHeld;
@@ -236,8 +236,19 @@ public partial class TableInput : Node
         if (marker != HoveredMarker) { HoveredMarker = marker; HoveredMarkerChanged?.Invoke(marker); }
         var terrain = (piece as TerrainNode)?.PlacementId;
         if (terrain != HoveredTerrain) { HoveredTerrain = terrain; HoveredTerrainChanged?.Invoke(terrain); }
-        if (over?.UnitId == _hovered) return;
-        _hovered = over?.UnitId; HoveredUnitChanged?.Invoke(_hovered);
+        var was = HoveredUnit; _pointed = over?.UnitId;
+        if (HoveredUnit != was) HoveredUnitChanged?.Invoke(HoveredUnit);
+    }
+
+    /// <summary>The hovered unit: the one a decision-box button under the pointer names, else the one under the cursor on the table.</summary>
+    public Guid? HoveredUnit => _named ?? _pointed;
+
+    /// <summary>The unit a decision-box button under the pointer names (DecisionView.UnitNamed), or null when the pointer leaves it: its
+    /// hover label shows as if the unit itself were hovered. ClearHover and the table's own pointer leave it alone.</summary>
+    public void HoverUnit(Guid? unit)
+    {
+        var was = HoveredUnit; _named = unit;
+        if (HoveredUnit != was) HoveredUnitChanged?.Invoke(HoveredUnit);
     }
 
     void MoveNode(Guid id, Point3 to)
