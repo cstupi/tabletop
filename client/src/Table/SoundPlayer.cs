@@ -1,36 +1,61 @@
 using Godot; using Tabletop.Client.Core; using Tabletop.Protocol;
 namespace Tabletop.Client.Table;
 
-/// <summary>Plays the cues <see cref="SoundCues"/> reads off each live batch, one AudioStreamPlayer per cue (a cue already playing restarts).
-/// Silent while the session catches up or replays, and when Settings.Sound is off.</summary>
+/// <summary>Plays the cues <see cref="SoundCues"/> reads off each live batch, each at its delay, on a pool of AudioStreamPlayers so one
+/// sound never cuts off another (the oldest voice is reused when all are busy). Silent while the session catches up or replays, and when
+/// Settings.Sound is off; an undo or a new board drops what is still waiting.</summary>
 public partial class SoundPlayer : Node
 {
-    Session _s = null!; readonly SoundCues _cues = new(); readonly Dictionary<Cue, AudioStreamPlayer> _players = new();
+    const int Voices = 8;
+    Session _s = null!; readonly SoundCues _cues = new();
+    readonly Dictionary<string, AudioStream> _streams = new();
+    readonly List<AudioStreamPlayer> _pool = [];
+    readonly List<(double At, AudioStream Stream)> _waiting = [];
+    readonly Dictionary<AudioStreamPlayer, double> _started = new();
+    double _now;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard;
 
     public void Bind(Session session)
     {
         _s = session;
         foreach (var cue in Enum.GetValues<Cue>())
-        {
-            var player = new AudioStreamPlayer { Name = cue.ToString(), Stream = GD.Load<AudioStream>($"res://content/sounds/{cue.ToString().ToLowerInvariant()}.wav") };
-            AddChild(player); _players[cue] = player;
-        }
-        if (session.Projection is { } p) _cues.Seed(p);
+            for (var v = 0; v < SoundCues.Variants(cue); v++)
+            {
+                var file = SoundCues.File(cue, v);
+                if (GD.Load<AudioStream>($"res://content/sounds/{file}.wav") is { } stream) _streams[file] = stream;
+            }
+        for (var i = 0; i < Voices; i++) { var p = new AudioStreamPlayer { Name = $"Voice{i}" }; AddChild(p); _pool.Add(p); }
+        if (session.Projection is { } p0) _cues.Seed(p0);
         _onEvents = batch =>
         {
             if (_s.Projection is not { } q) return;
-            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp || _s.Replaying)) Play(cue);
+            if (batch.Any(e => e.Payload is Undone)) _waiting.Clear();
+            var names = _s.Game is { } g ? new Names(g, q) : null;
+            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp || _s.Replaying, u => names?.TeamOfUnit(u)))
+                if (_streams.TryGetValue(SoundCues.File(cue.Cue, cue.Variant), out var stream)) _waiting.Add((_now + cue.Delay, stream));
         };
-        _onBoard = () => _cues.OnBoard();
+        _onBoard = () => { _cues.OnBoard(); _waiting.Clear(); };
         session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;
     }
 
-    void Play(Cue cue)
+    public override void _Process(double delta)
     {
-        if (!_s.Settings.Sound || !_players.TryGetValue(cue, out var player) || player.Stream is null) return;
-        player.VolumeDb = _s.Settings.Volume <= 0 ? -80f : Mathf.LinearToDb(_s.Settings.Volume / 100f);
-        player.Play();
+        _now += delta;
+        for (var i = 0; i < _waiting.Count;)
+        {
+            if (_waiting[i].At > _now) { i++; continue; }
+            Play(_waiting[i].Stream); _waiting.RemoveAt(i);
+        }
+    }
+
+    void Play(AudioStream stream)
+    {
+        if (!_s.Settings.Sound) return;
+        var voice = _pool.FirstOrDefault(p => !p.Playing) ?? _pool.MinBy(p => _started.GetValueOrDefault(p))!;
+        _started[voice] = _now;
+        voice.Stream = stream;
+        voice.VolumeDb = _s.Settings.Volume <= 0 ? -80f : Mathf.LinearToDb(_s.Settings.Volume / 100f);
+        voice.Play();
     }
 
     public override void _ExitTree() { if (_s is null) return; _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }

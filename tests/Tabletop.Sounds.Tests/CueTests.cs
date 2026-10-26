@@ -14,8 +14,9 @@ public class CueTests
     static short[] Pcm(byte[] wav) => Enumerable.Range(0, (wav.Length - 44) / 2).Select(i => BitConverter.ToInt16(wav, 44 + 2 * i)).ToArray();
 
     [Fact]
-    public void The_four_cues_are_shoot_melee_move_and_wound() =>
-        Assert.Equal(["shoot", "melee", "move", "wound"], Cues.All.Select(c => c.Name));
+    public void The_cues_are_the_files_the_client_loads() =>
+        Assert.Equal(["shoot-1", "shoot-2", "shoot-3", "impact", "miss", "melee", "whiff", "block", "wound", "cast-friendly", "cast-enemy", "fizzle", "move"],
+            Cues.All.Select(c => c.Name));
 
     [Theory, MemberData(nameof(Names))]
     public void A_cue_is_the_same_bytes_every_build(string name) =>
