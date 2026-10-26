@@ -133,10 +133,12 @@ either directory is missing, since Docker would otherwise create it on the local
 **First deploy.**
 
 ```bash
-sudo git clone <repo> /opt/docker/tabletop && cd /opt/docker/tabletop && sudo git checkout v1.0.0
-sudo install -m 0600 deploy/home.env.example home.env      # fill in every empty value: openssl rand -hex 32
-sudo -E scripts/release --deploy home --version v1.0.0     # reads ./home.env, else /etc/tabletop/home.env (--env-file)
+git clone <repo> /opt/docker/tabletop && cd /opt/docker/tabletop   # as your own user, a member of the docker group
+install -m 0600 deploy/home.env.example home.env           # fill in every empty value: openssl rand -hex 32
+scripts/release --deploy home --version v1.0.0             # reads ./home.env, else /etc/tabletop/home.env (--env-file)
 ```
+
+No sudo: every build, test and deploy runs in Docker, as the clone's owner.
 
 `--deploy home` runs the unit suite, the rules suite and the web and viewer checks in `mcr.microsoft.com/dotnet/sdk:10.0` and
 `node:24-alpine` containers over the clone (`--skip-tests` skips them), exports and packages the client in the builder
@@ -254,7 +256,7 @@ It does not deploy. Repository settings:
 **On the host** (`scripts/release`), from the clone on `main` (`git checkout main && git pull` first, so the script itself is current):
 
 ```bash
-sudo -E scripts/release --deploy docker --version v1.0.0   # or --deploy home, systemd or none
+sudo -E scripts/release --deploy docker --version v1.0.0   # or systemd; --deploy home needs no sudo (above)
 scripts/release --dry-run --deploy docker              # print every step, change nothing
 ```
 

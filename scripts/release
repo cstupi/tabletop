@@ -53,7 +53,7 @@ done
 [[ $deploy =~ ^(docker|home|systemd|none)$ ]] || die "--deploy is docker, home, systemd or none, not '$deploy'"
 
 # Build from the tag, never from the checkout: fetch origin's tags, put the tag in its own worktree and run that copy of this
-# script there (TABLETOP_RELEASE_SOURCE marks the copy). Git runs as the clone's owner, so the worktree is theirs under sudo -E.
+# script there (TABLETOP_RELEASE_SOURCE marks the copy). Git runs as the clone's owner, so the worktree stays theirs if run as root.
 if [[ -z "${TABLETOP_RELEASE_SOURCE:-}" ]]; then
   owner_uid=$(stat -c %u "$root")
   as_owner() { if [[ $EUID == 0 && $owner_uid != 0 ]]; then sudo -u "#$owner_uid" -H "$@"; else "$@"; fi; }
