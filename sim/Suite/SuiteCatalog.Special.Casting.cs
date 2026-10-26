@@ -1,3 +1,4 @@
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Scenarios;
@@ -33,7 +34,8 @@ static partial class SpecialGames
             return n switch
             {
                 1 => new Destinations([], Continues: true),
-                2 => new Destinations(region.ModelIds.Where(id => p.Models[id].Location is OnTable).Select(id => Toward(p.Models[id], MidMoveTableY / 2)).ToList(), Continues: true),
+                2 => region.ModelIds.Where(id => p.Models[id].Location is OnTable).Select(id => Toward(p.Models[id], MidMoveTableY / 2)).ToList() is var moves
+                    && Clear(p, moves) ? new Destinations(moves, Continues: true) : null,
                 _ => null,
             };
         });
@@ -81,6 +83,17 @@ static partial class SpecialGames
         var at = ((OnTable)m.Location).Placement;
         var dy = Math.Sign(middle - at.Position.Y);
         return new ModelRelocation(m.Id, m.Location, new OnTable(at with { Position = at.Position with { Y = at.Position.Y + dy } }));
+    }
+
+    /// <summary>The 1" stop lands on no base and over 1" from every other unit (p.7); where it would not, the policy moves instead.</summary>
+    static bool Clear(Projection p, IReadOnlyList<ModelRelocation> moves)
+    {
+        static PlacedModel Body(ModelInPlay m, Placement at) => new(new ModelBody(m.Slot.Base, m.Slot.Height), at);
+        var moved = moves.ToDictionary(m => m.ModelId, m => ((OnTable)m.To).Placement);
+        var bodies = p.Models.Values.Where(m => m.Location is OnTable)
+            .Select(m => (m.Id, m.UnitId, At: Body(m, moved.GetValueOrDefault(m.Id, ((OnTable)m.Location).Placement)))).ToList();
+        return moves.All(mv => bodies.First(b => b.Id == mv.ModelId) is var me
+            && bodies.All(o => o.Id == me.Id || (o.UnitId == me.UnitId ? !Overlap.Bases(me.At, o.At) : Distance.BodyToBody(me.At, o.At) >= 1)));
     }
 
     sealed record Stop(LoggedAsk Ask, LoggedStep? Step, LoggedAsk? Window, LoggedAsk? Next);
