@@ -2,7 +2,7 @@
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.25 is the latest tag. What each
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.26 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -83,6 +83,23 @@ sessions take instructions over Remote Control: `docker1-logical-curry` (server;
 approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
+
+### 2026-10-25, v0.1.26
+
+Tagged v0.1.26 (migration `020_shared_assets.sql`). Specs `2026-10-25-performance-and-network.md`, `2026-10-25-loading-design.md`,
+`2026-10-25-shared-models-design.md`.
+
+- **Network:** permessage-deflate on `/ws` (a game 1,950 → 176 KiB per socket), compressed management JSON, content-hash routes
+  cached immutable. A handshake close waits for the peer's close frame (Node drops an async-inflated `Rejected` otherwise).
+- **Godot performance:** LODs generated at mesh load, the export builds the shared libs optimised, the roster redraws changed rows
+  only, move regions off the main thread; Quality presets set SSAO, soft shadows and the LOD threshold (Low on integrated GPUs).
+- **Loading:** a shader warm-up behind "Preparing graphics…" (reruns on a new GPU, driver, Godot or client version), "Connecting…" /
+  "Loading game…" over game entry, a "Loading models n of m" strip; the browser has the same panel and a geometry download strip.
+  Open: one 0.7–1.0 s frame at the first Hud control on the first game after a cold warm-up, behind "Loading game…"; cause not found.
+- **Rules:** walls, fences and barricades give cover (p.11, p.12, p.18); a charge must reach base contact when it can (p.9);
+  a move that breaks coherency is refused under strict (p.7). The oval-base deploy layout keeps coherency.
+- **Polish:** browser play fixes (dead models, decision box, header height, refusals, drag clamp, terrain cards); Godot's table shows no
+  bookkeeping conditions (`Bookkeeping`), marker rows declutter, the header reads VP; player text cut to the plain fact.
 
 ### Shared models
 
