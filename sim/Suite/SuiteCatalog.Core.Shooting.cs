@@ -112,7 +112,7 @@ internal static partial class CoreGames
     public static TestGame CoverAndSight()
     {
         const string name = "core-cover-and-sight";
-        var scenario = new ScenarioBuilder(name, seed: 62)
+        var scenario = new ScenarioBuilder(name, seed: 119)
             .RoundCap(4).Table(48, 36)
             .Army("Red", 3, 3, weapons: [Rifle(2), HandWeapon()])
             .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])

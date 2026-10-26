@@ -166,7 +166,7 @@ static partial class SpecialGames
     static TestGame Aircraft()
     {
         const string name = "special-aircraft-overhead";
-        return Game(name, new ScenarioBuilder(name, 1).RoundCap(3).Table(36, 36).Scripted(ChargeTheAircraft).Seeking(NearestEnemy)
+        return Game(name, new ScenarioBuilder(name, 2).RoundCap(3).Table(36, 36).Scripted(ChargeTheAircraft).Seeking(NearestEnemy)
                 .Army("Red", 3, 3, modelRules: [new(3, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4))
                 .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4))
                 .Build(),
