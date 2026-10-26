@@ -17,14 +17,33 @@ import { nameOfOption, split } from './spellText';
  * Outside an action a deployment and an objective's control also read, in LogText's words.
  */
 export function changeLines(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null): string[] {
-  const out: string[] = [];
+  return changeEntries(changes, n, outside, actor).map((x) => x.text);
+}
+
+/** CombatLog.ChangeEntries: changeLines with what the detailed log draws for each: a wounded line lists each model with the wounds it now
+ * carries, a removed line each model removed; any other line draws as it reads. */
+export function changeEntries(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null): { text: string; worked: readonly string[] | null }[] {
+  const entries: { text: string; worked: readonly string[] | null }[] = [];
   const moves = changes.filter((c): c is ModelsMoved => c.kind === 'models_moved').flatMap((m) => m.moves);
   const shelved = new Set(moves.filter((m) => m.to.kind === 'shelf').map((m) => m.modelId));
   const woundedIds = new Set(changes.flatMap((c) => (c.kind === 'wounds_set' ? [c.modelId] : [])));
+  const lastWounds = new Map<string, number>();
+  for (const c of changes) if (c.kind === 'wounds_set') lastWounds.set(c.modelId, c.wounds);
   const wounded = [...woundedIds].filter((m) => !shelved.has(m)).length;
   const removed = [...shelved].filter((m) => woundedIds.has(m)).length;
-  if (wounded > 0) out.push(`${RollWords.plural(wounded, 'model')} wounded`);
-  if (removed > 0) out.push(`${RollWords.plural(removed, 'model')} removed`);
+  if (wounded > 0)
+    entries.push({
+      text: `${RollWords.plural(wounded, 'model')} wounded`,
+      worked: [...lastWounds].filter(([m]) => !shelved.has(m)).map(([m, w]) => `${n.model(m)} · ${RollWords.plural(w, 'wound')}`),
+    });
+  if (removed > 0)
+    entries.push({ text: `${RollWords.plural(removed, 'model')} removed`, worked: [...lastWounds.keys()].filter((m) => shelved.has(m)).map((m) => `${n.model(m)} · removed`) });
+  for (const text of otherLines(changes, n, outside, actor, shelved, woundedIds)) entries.push({ text, worked: null });
+  return entries;
+}
+
+function otherLines(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null, shelved: ReadonlySet<string>, woundedIds: ReadonlySet<string>): string[] {
+  const out: string[] = [];
   const fled = [...shelved].filter((m) => !woundedIds.has(m)).map((m) => n.unitOfModel(m)).filter((u): u is string => u !== null);
   for (const unit of new Set(fled)) out.push(`${n.unit(unit)} Fled!`);
   for (const c of changes) {

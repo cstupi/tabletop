@@ -2,7 +2,7 @@
 // client/src/Core/Names.cs, member for member: ids to words. Falls back to the id's first eight characters rather than throwing.
 
 import type { Projection } from '../live/apply';
-import type { GameInfo, Team } from '../protocol/wire.generated';
+import type { GameInfo, Team, Weapon } from '../protocol/wire.generated';
 
 export class Names {
   readonly #game: GameInfo;
@@ -49,6 +49,19 @@ export class Names {
         if (w !== undefined) return w.name;
       }
     return Names.short(id);
+  }
+
+  /** Names.WeaponsOf: each weapon found, in the order asked, with the model whose slot carries it; an id no slot carries is left out. */
+  weaponsOf(ids: readonly string[]): { modelId: string; weapon: Weapon }[] {
+    const p = this.#projection;
+    if (p === undefined || p === null) return [];
+    const out: { modelId: string; weapon: Weapon }[] = [];
+    for (const id of ids)
+      for (const m of p.models.values()) {
+        const w = m.slot.weapons.find((x) => x.id === id);
+        if (w !== undefined) { out.push({ modelId: m.id, weapon: w }); break; }
+      }
+    return out;
   }
 
   teamOfUnit(unitId: string): string | null {

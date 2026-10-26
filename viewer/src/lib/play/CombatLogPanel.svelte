@@ -1,6 +1,7 @@
 <!-- viewer/src/lib/play/CombatLogPanel.svelte -->
 <!-- CombatLogPanel.cs: the play log, a filter over the combat log's blocks, rolls and lines. A block shows its lines beneath its header
-     until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Renders only; every word is the
+     until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Detailed draws each roll and named
+     change as its worked lines in monospace (detailed-log spec, workedLines.ts). Renders only; every word is the
      combat log's (logRows.ts, rollEntry.ts). Rows are keyed by seq, which is what CombatLogRows' reuse does by hand in Godot. -->
 <script lang="ts">
   import { tick } from 'svelte';
@@ -12,11 +13,15 @@
   import type { RuleTexts } from './ruleTexts';
   import type { LogFilter } from './settings';
   import { tooltip as spellTooltip } from './spellText';
+  import { worked } from './workedLines';
 
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
-  let { entries, filter, pendingUndoTo, watching, rules, reveal = null, showFilter = true, onFilter, onUndoTo, onTouch }: {
+  let { entries, filter, detailed = false, pendingUndoTo, watching, rules, reveal = null, showFilter = true, onFilter, onDetailed, onUndoTo, onTouch }: {
     entries: readonly LogEntry[]; filter: LogFilter; pendingUndoTo: number | null; watching: boolean; rules: RuleTexts;
+    /** Each roll and named change as its worked lines (ClientSettings.LogDetailed). */
+    detailed?: boolean;
+    onDetailed?: (on: boolean) => void;
     /** False when the page draws the filter in its own header (FilterSelect). */
     showFilter?: boolean;
     /** Expand the block and the roll holding this RollRecord and scroll to it; `n` makes a repeat request new. */
@@ -91,14 +96,14 @@
 
 {#snippet detail(r: RollEntry)}
   <div class="detail">
-    {#each r.details as line, i (i)}<p>{line}</p>{/each}
-    {#each r.dice as d, i (i)}
+    {#each detailed ? [] : r.details as line, i (i)}<p>{line}</p>{/each}
+    {#each detailed ? [] : r.dice as d, i (i)}
       <p class="die-line">
         <span class="die" class:fail={d.judged && !d.success}>{pip(d.raw)}</span>
         <span class:ok={d.judged && d.success} class:bad={d.judged && !d.success}>{dieText(d)}</span>
       </p>
     {/each}
-    {#each r.amendments as a (a.seq)}
+    {#each detailed ? [] : r.amendments as a (a.seq)}
       <p class:dim={a.undone}>{a.undone ? strike(amendmentLine(a, String)) : amendmentLine(a, String)}</p>
     {/each}
     {#if r.applied.length > 0}
@@ -113,7 +118,11 @@
 {#snippet node(e: LogEntry)}
   {@const open = isOpen(e)}
   {@const dim = faded(e, pendingUndoTo)}
-  {#if e.type === 'roll' && !labelled(e)}
+  {#if detailed && (e.type === 'roll' || (e.type === 'line' && e.worked !== null))}
+    {@const lines = e.type === 'roll' ? worked(e) : e.type === 'line' ? e.worked ?? [] : []}
+    <div class="worked" class:dim data-roll={e.type === 'roll' ? e.record.id : undefined} role="button" tabindex="-1" onmousedown={noFocus}
+      onclick={() => toggle(e)} onkeydown={() => {}}>{e.undone ? strike(lines.join('\n')) : lines.join('\n')}</div>
+  {:else if e.type === 'roll' && !labelled(e)}
     <div class="roll" class:dim data-roll={e.record.id} role="button" tabindex="-1" onmousedown={noFocus} onclick={() => toggle(e)} onkeydown={() => {}}>
       <span class="words">{e.undone ? strike(`${open ? '▾' : '▸'} ${title(e)}`) : `${open ? '▾' : '▸'} ${title(e)}`}</span>
       <span class="faces">
@@ -145,6 +154,9 @@
     <select class="filter" aria-label="Log filter" value={filter} onchange={(ev) => onFilter(ev.currentTarget.value as LogFilter)}>
       {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
     </select>
+    {#if onDetailed !== undefined}
+      <label class="detailed"><input type="checkbox" checked={detailed} onchange={(ev) => onDetailed(ev.currentTarget.checked)} /> Detailed</label>
+    {/if}
   {/if}
   <div class="rows" bind:this={scroller} onscroll={onScroll}>
     {#each entries as e (keyOf(e))}{@render node(e)}{/each}
@@ -167,6 +179,10 @@
   .line > .flat:not(.grow) { flex: none; color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
   .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .roll { cursor: pointer; padding: 1px var(--s1); }
+  .worked { margin: 2px 0; padding: 1px var(--s1); cursor: pointer; font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+    font-size: .82rem; line-height: 1.3; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .worked:hover { background: var(--rule); }
+  .detailed { display: flex; align-items: center; gap: var(--s1); font-size: .9rem; }
   .roll:hover { background: var(--rule); }
   .faces { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; }
   .words { overflow-wrap: anywhere; }

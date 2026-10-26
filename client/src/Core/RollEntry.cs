@@ -4,7 +4,8 @@ namespace Tabletop.Client.Core;
 
 /// <summary>A combat log entry. Undone: struck through, an undone event or a block whose start was undone.</summary>
 public abstract record LogEntry(long Seq, GameEvent Event, bool Undone);
-public sealed record LineEntry(long Seq, GameEvent Event, bool Undone, string Text) : LogEntry(Seq, Event, Undone);
+/// <summary>Worked: what the detailed log draws in place of Text (each model a change named, a step's removed rules); null draws Text.</summary>
+public sealed record LineEntry(long Seq, GameEvent Event, bool Undone, string Text, IReadOnlyList<string>? Worked = null) : LogEntry(Seq, Event, Undone);
 
 /// <summary>A die as the log shows it. RawJudged: the roll judged the raw face alone (RequiredRaw). Judged: the roll has a target
 /// number or a required face; a roll with neither shows its faces with no pass or fail.</summary>
@@ -14,8 +15,10 @@ public sealed record DieView(int Raw, int Modified, bool Success, bool RawJudged
         + (Triggered is { Count: > 0 } t ? $" ({string.Join(", ", t)})" : "");
 }
 
-/// <summary>A reroll or hand edit of one roll: the faces it replaced and the faces it put in their place.</summary>
-public sealed record RollAmendment(long Seq, string Kind, IReadOnlyList<int> Replaced, bool Undone, IReadOnlyList<int>? With = null)
+/// <summary>A reroll or hand edit of one roll: the faces it replaced and the faces it put in their place. Indexes: each replaced die's place
+/// in the roll; By: the rule that forced each reroll (DieReplacement.By), null on an edit and in logs written before it.</summary>
+public sealed record RollAmendment(long Seq, string Kind, IReadOnlyList<int> Replaced, bool Undone, IReadOnlyList<int>? With = null,
+    IReadOnlyList<int>? Indexes = null, IReadOnlyList<string?>? By = null)
 {
     public string Text => Line(f => f.ToString());
     /// <summary>`rerolled ⚀ → ⚄`, one pair per die.</summary>
@@ -48,6 +51,15 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
     /// to; empty when the dice and those teams differ in number, and the faces read with their count.</summary>
     public IReadOnlyList<string>? DieLabels { get; init; }
 
+    /// <summary>Set by CombatLog on the first hit roll of a step: the attack's lines (detailed-log spec → What it shows, Attack).</summary>
+    public IReadOnlyList<string>? Attack { get; init; }
+
+    /// <summary>Set by CombatLog on the first roll of a step: the rules a suppression removed in the step that no record of it names.</summary>
+    public IReadOnlyList<IgnoredEffect>? StepIgnored { get; init; }
+
+    /// <summary>The roll as a worked resolution, for the detailed log (detailed-log spec → What it shows).</summary>
+    public IReadOnlyList<string> Worked => WorkedLines.Of(this);
+
     /// <summary>One judged die read passed or failed (not a hit, a block or a roll per wound): what a Consequence follows.</summary>
     public static bool IsTest(RollRecord r, string? sequence) =>
         (r.Threshold is not null || r.RequiredRaw is not null) && r.Dice.Count == 1 && r.Roll is not ("hit" or "defense") && !RollWords.PerWound(r.Roll, sequence);
@@ -79,7 +91,8 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
         foreach (var (a, dead) in amendments)
         {
             var (kind, replaced) = a.Payload is DiceRerolled x ? ("rerolled", x.Replaced) : ("set by hand", ((DiceEdited)a.Payload).Replaced);
-            amended.Add(new RollAmendment(a.Seq, kind, replaced.Select(d => d.Old.Raw).ToList(), dead, replaced.Select(d => d.New.Raw).ToList()));
+            amended.Add(new RollAmendment(a.Seq, kind, replaced.Select(d => d.Old.Raw).ToList(), dead, replaced.Select(d => d.New.Raw).ToList(),
+                replaced.Select(d => d.Index).ToList(), replaced.Select(d => d.By).ToList()));
             if (!dead) foreach (var d in replaced.Where(d => d.Index >= 0 && d.Index < dice.Count)) dice[d.Index] = d.New;
         }
         var judged = r.Threshold is not null || r.RequiredRaw is not null;
@@ -191,5 +204,5 @@ public static class RollWords
 
     /// <summary>`1 hit`, `2 hits`, `1 die`, `3 dice`.</summary>
     public static string Plural(int n, string word) => word == "die" ? (n == 1 ? "1 die" : $"{n} dice") : $"{n} {word}{(n == 1 ? "" : "s")}";
-    static string Signed(int n) => n.ToString("+#;-#;0");
+    public static string Signed(int n) => n.ToString("+#;-#;0");
 }

@@ -80,14 +80,25 @@ public static partial class CombatLog
                 case DiceEdited d when rolled.Contains(d.RollId): break;
                 case StepCompleted step:
                     var frameStart = frames.GetValueOrDefault(step.FrameId);
+                    var context = frameStart?.Context ?? NoContext;
+                    var ignored = StepIgnored(step);
                     foreach (var roll in step.Rolls)
                     {
-                        var entry = RollEntry.Of(e, dead, step, roll, frameStart?.Context ?? NoContext, frameStart?.Sequence, amendments[roll.Id], n)
-                            with { Consequence = after.Consequence(roll.Id), DieLabels = after.Labels.GetValueOrDefault(roll.Id) };
+                        var first = roll.Id == step.Rolls[0].Id;
+                        var entry = RollEntry.Of(e, dead, step, roll, context, frameStart?.Sequence, amendments[roll.Id], n)
+                            with
+                            {
+                                Consequence = after.Consequence(roll.Id), DieLabels = after.Labels.GetValueOrDefault(roll.Id),
+                                Attack = first && roll.Roll == "hit" ? WorkedLines.Attack(context, n) : null, StepIgnored = first ? ignored : null,
+                            };
                         into.Add(entry); Chain(entry.Chain);
                     }
                     if (after.Absorbed.Contains(e.Seq)) break;
-                    foreach (var c in ChangeLines(step.Changes, n, drafts.Count == 0, drafts.Count > 0 ? drafts[^1].Actor : null)) { into.Add(Line(c)); Chain(c); }
+                    var lead = step.Rolls.Count == 0 ? ignored?.Select(x => $"{x.Source} ignored: {x.By}").ToList() : null;
+                    foreach (var (text, worked) in ChangeEntries(step.Changes, n, drafts.Count == 0, drafts.Count > 0 ? drafts[^1].Actor : null))
+                    {
+                        into.Add(new LineEntry(e.Seq, e, dead, text, lead is null ? worked : [.. lead, .. worked ?? [text]])); Chain(text); lead = null;
+                    }
                     break;
                 case RoundStarted rs: into.Add(Line($"Round {rs.Round}")); break;
                 case RoundEnded re: into.AddRange(re.Changes.Select(c => Line(LogText.RoundChange(c, n)))); break;
@@ -145,6 +156,14 @@ public static partial class CombatLog
         RollEntry r => r.Context.ActorUnitId is { } a && unit(a) || r.Context.TargetUnitIds.Any(unit),
         _ => false,
     };
+
+    /// <summary>The step's removed rules (StepCompleted.Ignored) that none of its records names as ignored; null when none.</summary>
+    static IReadOnlyList<IgnoredEffect>? StepIgnored(StepCompleted step)
+    {
+        var named = step.Rolls.SelectMany(r => (r.Ignored ?? []).Concat(r.Basis?.Ignored ?? [])).Select(x => (x.Source, x.By)).ToHashSet();
+        var left = (step.Ignored ?? []).Where(x => !named.Contains((x.Source, x.By))).ToList();
+        return left.Count == 0 ? null : left;
+    }
 
     /// <summary>The header of the first block, closed by now, that starts after seq and that no earlier undo already took back: what an
     /// undo to seq took back.</summary>

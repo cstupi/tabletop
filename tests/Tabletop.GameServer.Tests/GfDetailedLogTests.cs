@@ -88,6 +88,19 @@ public class GfDetailedLogTests
     }
 
     [Fact]
+    public void A_bad_shot_unit_firing_an_unstoppable_weapon_records_bad_shot_as_ignored_by_unstoppable()
+    {
+        var shooter = Unit("S", "4+", "4+", [], 1, [P("Bad Shot")], Gun("Beam", "24\"", 1, P("Unstoppable")));
+        var target = Unit("T", "4+", "6+", [], 1, []);
+        var sim = Sim.Gf(State([shooter], [target], x1: -6, x2: 6), 4, 2);
+        sim.Start(GfNames.AttackSequence, Attack(shooter, target));
+        var hit = sim.Steps("roll-to-hit").Single().Rolls.Single();
+        Assert.Empty(hit.Modifiers);
+        Assert.Equal([new IgnoredEffect("Bad Shot", "Unstoppable", -1)], hit.Ignored!);
+        Assert.True(hit.Dice.Single().Success);
+    }
+
+    [Fact]
     public void A_deal_wounds_step_lists_regeneration_as_ignored_by_rending()
     {
         var shooter = Unit("S", "2+", "4+", [], 1, [], Gun("Saw", "12\"", 1, P("Rending")));

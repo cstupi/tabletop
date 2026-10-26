@@ -3,14 +3,18 @@
 // names and numbers; no rule is named here. C# records with computed members are plain objects plus functions over them.
 
 import type {
-  Die, DieReplacement, GameEvent, RollModifier, RollRecord, SequenceContext, StepCompleted,
+  Die, DieReplacement, GameEvent, IgnoredEffect, RollModifier, RollRecord, SequenceContext, StepCompleted,
 } from '../protocol/wire.generated';
 import type { ActivationBlock } from './combatLog';
 import { Names } from './names';
 
 /** A combat log entry. Undone: struck through, an undone event or a block whose start was undone. */
 export type LogEntry = LineEntry | RollEntry | ActivationBlock;
-export interface LineEntry { readonly type: 'line'; readonly seq: number; readonly event: GameEvent; readonly undone: boolean; readonly text: string }
+/** worked: what the detailed log draws in place of text (each model a change named, a step's removed rules); null draws text. */
+export interface LineEntry {
+  readonly type: 'line'; readonly seq: number; readonly event: GameEvent; readonly undone: boolean; readonly text: string;
+  readonly worked: readonly string[] | null;
+}
 
 /** A die as the log shows it. rawJudged: the roll judged the raw face alone (requiredRaw). judged: the roll has a target number or a
  * required face; a roll with neither shows its faces with no pass or fail. */
@@ -23,9 +27,11 @@ export const dieText = (d: DieView): string =>
   `${d.raw}${d.modified === d.raw ? '' : ` → ${d.modified}`}${d.judged ? ` ${d.success ? 'pass' : 'fail'}` : ''}${d.rawJudged ? ' (raw face)' : ''}`
   + (d.triggered !== null && d.triggered.length > 0 ? ` (${d.triggered.join(', ')})` : '');
 
-/** A reroll or hand edit of one roll: the faces it replaced and the faces it put in their place. */
+/** A reroll or hand edit of one roll: the faces it replaced and the faces it put in their place; indexes: each die's place in the roll;
+ * by: the rule that forced each reroll, null on an edit and in logs written before it. */
 export interface RollAmendment {
   readonly seq: number; readonly kind: string; readonly replaced: readonly number[]; readonly undone: boolean; readonly with: readonly number[] | null;
+  readonly indexes: readonly number[] | null; readonly by: readonly (string | null)[] | null;
 }
 
 /** `rerolled ⚀ → ⚄`, one pair per die. */
@@ -42,6 +48,10 @@ export interface RollEntry {
   readonly consequence: string | null;
   /** Set on a roll-off: one word per die read before its face; null when the dice and the teams differ in number. */
   readonly dieLabels: readonly string[] | null;
+  /** Set on the first hit roll of a step: the attack's lines (detailed-log spec). */
+  readonly attack: readonly string[] | null;
+  /** Set on the first roll of a step: the rules a suppression removed in the step that no record of it names. */
+  readonly stepIgnored: readonly IgnoredEffect[] | null;
 }
 
 /** The record has a target number or a required face (a roll-off or a property's own unjudged roll has neither). */
@@ -93,7 +103,10 @@ export function rollEntryOf(
   for (const { event: a, undone: dead } of amendments) {
     const p = a.payload;
     const [kind, replaced]: [string, readonly DieReplacement[]] = p.kind === 'dice_rerolled' ? ['rerolled', p.replaced] : ['set by hand', (p as { replaced: readonly DieReplacement[] }).replaced];
-    amended.push({ seq: a.seq, kind, replaced: replaced.map((d) => d.old.raw), undone: dead, with: replaced.map((d) => d.new.raw) });
+    amended.push({
+      seq: a.seq, kind, replaced: replaced.map((d) => d.old.raw), undone: dead, with: replaced.map((d) => d.new.raw),
+      indexes: replaced.map((d) => d.index), by: replaced.map((d) => d.by ?? null),
+    });
     if (!dead) for (const d of replaced.filter((x) => x.index >= 0 && x.index < dice.length)) dice[d.index] = d.new;
   }
   const isJudged = r.threshold !== undefined || r.requiredRaw !== undefined;
@@ -106,10 +119,11 @@ export function rollEntryOf(
   return {
     type: 'roll', seq: e.seq, event: e, undone, frameId: step.frameId, record: { ...r, dice }, context: c, label: RollWords.label(r.roll),
     target: RollWords.target(r), dice: views, amendments: amended, applied: step.applied ?? [], details, sequence, consequence: null, dieLabels: null,
+    attack: null, stepIgnored: null,
   };
 }
 
-const signed = (n: number): string => (n > 0 ? `+${n}` : n < 0 ? `-${n * -1}` : '0');
+export const signed = (n: number): string => (n > 0 ? `+${n}` : n < 0 ? `-${n * -1}` : '0');
 const FACES = ['', 'one', 'two', 'three', 'four', 'five', 'six'];
 
 interface TriggerGroup { readonly text: string; readonly extra: number; readonly word: string }

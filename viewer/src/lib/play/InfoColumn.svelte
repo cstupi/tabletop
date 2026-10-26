@@ -61,6 +61,8 @@
   let logOpen = $state(getSettings().logOpen);
   // svelte-ignore state_referenced_locally
   let logFilter = $state<LogFilter>(getSettings().logFilter);
+  // svelte-ignore state_referenced_locally
+  let logDetailed = $state(getSettings().logDetailed);
   let problem = $state<string | null>(null);
   let revealRoll = $state<{ rollId: string; n: number } | null>(null);
   let undo: UndoButton | undefined = $state();
@@ -140,6 +142,10 @@
     logFilter = f;
     updateSettings((s) => ({ ...s, logFilter: f }));
   }
+  function setDetailed(on: boolean): void {
+    logDetailed = on;
+    updateSettings((s) => ({ ...s, logDetailed: on }));
+  }
 
   /** The tray's click: open the log there, on this roll. */
   function openAt(rollId: string): void {
@@ -194,11 +200,14 @@
           <select class="filter" aria-label="Log filter" value={logFilter} onchange={(ev) => setFilter(ev.currentTarget.value as LogFilter)}>
             {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
           </select>
+          <label class="detailed" title="Each roll as a worked resolution: every modifier, what was ignored, every die">
+            <input type="checkbox" checked={logDetailed} onchange={(ev) => setDetailed(ev.currentTarget.checked)} /> Detailed
+          </label>
         {/if}
       </div>
       {#if logOpen}
         <CombatLogPanel
-          {entries} filter={logFilter} {pendingUndoTo} {watching} {rules} reveal={revealRoll} showFilter={false}
+          {entries} filter={logFilter} detailed={logDetailed} {pendingUndoTo} {watching} {rules} reveal={revealRoll} showFilter={false}
           onFilter={setFilter} onUndoTo={(seq) => void undoTo(seq)} {onTouch}
         />
       {/if}
@@ -228,6 +237,7 @@
   .chev.open { transform: rotate(90deg); }
   kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: 2px 4px; border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
   .filter { min-height: 2rem; font-size: .9rem; }
+  .detailed { display: flex; align-items: center; gap: var(--s1); font-size: .9rem; white-space: nowrap; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--rule); }
   [role='alert'] { margin: 0; }
 </style>

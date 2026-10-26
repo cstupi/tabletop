@@ -21,5 +21,7 @@ public static class UiThemes
         new(8, 1, 10, true),
         new(DieFaceStyle.Numerals, H("#101A24"), H("#3FD0E0")), IconsIn(S));
     public static IReadOnlyList<UiTheme> All { get; } = [Fantasy, SciFi];
+    /// <summary>The detailed log's monospace face, the same in every theme: its columns line up.</summary>
+    public static ThemeFont Mono { get; } = new($"{S}/fonts/JetBrainsMono-Variable.ttf", 14, 400);
     public static UiTheme Resolve(string? id) => All.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase)) ?? SciFi;
 }

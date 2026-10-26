@@ -8,18 +8,20 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Hud;
 
 /// <summary>The play log (combat-log spec → The log): a filter over CombatLog's blocks, rolls and lines. A block shows its lines beneath its header
-/// until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Renders only; every word is CombatLog's.</summary>
+/// until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Detailed (beside the filter, ClientSettings.LogDetailed)
+/// draws each roll and named change as its worked lines in monospace (detailed-log spec). Renders only; every word is CombatLog's.</summary>
 public partial class CombatLogPanel : VBoxContainer
 {
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
     Session _s = null!; TableView _view = null!; Action<string> _report = _ => { };
     readonly OptionButton _filter = new();
+    readonly CheckBox _detailed = new() { Text = "Detailed", TooltipText = "Each roll as a worked resolution: every modifier, what was ignored, every die" };
     readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly HashSet<string> _open = [], _folded = [];   // rolls opened, blocks folded
     Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
     readonly List<LogEntry> _drawn = []; readonly List<int> _rowStarts = [];   // the top-level entries on screen and the index of each one's first row
-    (LogFilter, Guid?, long?, bool, RuleTexts)? _mode;                          // what every row was drawn under
+    (LogFilter, bool, Guid?, long?, bool, RuleTexts)? _mode;                    // what every row was drawn under
     Action<RenderCause>? _onFrame; Action? _onTheme;
 
     /// <summary>The unit on the card, which the This unit filter keeps; set by the screen when the card changes.</summary>
@@ -36,7 +38,10 @@ public partial class CombatLogPanel : VBoxContainer
         for (var i = 0; i < FilterLabels.Length; i++) _filter.AddItem(FilterLabels[i], i);
         _filter.Selected = (int)s.Settings.LogFilter;
         _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(false); };
-        AddChild(_filter); AddChild(_scroll); _scroll.AddChild(_rows);
+        _detailed.ButtonPressed = s.Settings.LogDetailed;
+        _detailed.Toggled += on => { _s.UpdateSettings(x => x with { LogDetailed = on }); Render(false); };
+        var top = new HBoxContainer(); _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed);
+        AddChild(top); AddChild(_scroll); _scroll.AddChild(_rows);
         // The newest entry stays in view: the bar's range changes after the rows are laid out, a frame after a render, so the jump
         // to the end happens then. Scrolling away from the end lets go; scrolling back to it follows again.
         var bar = _scroll.GetVScrollBar();
@@ -84,7 +89,7 @@ public partial class CombatLogPanel : VBoxContainer
             var n = log.Names;
             next = CombatLog.Filter(log.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus);
         }
-        var mode = (_s.Settings.LogFilter, _focus, _s.PendingUndoTo, _s.IsWatching, _s.Rules);
+        var mode = (_s.Settings.LogFilter, _s.Settings.LogDetailed, _focus, _s.PendingUndoTo, _s.IsWatching, _s.Rules);
         var kept = toEnd && _reveal is null && _mode == mode ? CombatLogRows.Kept(_drawn, next) : 0;
         _mode = mode;
         var from = kept < _rowStarts.Count ? _rowStarts[kept] : _rows.GetChildCount();
@@ -106,7 +111,10 @@ public partial class CombatLogPanel : VBoxContainer
         var set = e is ActivationBlock ? _folded : _open;   // a block starts open, a roll closed
         void Toggle() { Highlight(e); if (e is LineEntry) return; if (!set.Remove(Key(e))) set.Add(Key(e)); Render(false); }
         Control shown;
-        if (e is RollEntry roll && roll.DieLabels is not { Count: > 0 }) into.AddChild(shown = RollRow(roll, open, faded, Toggle));
+        var detailed = _s.Settings.LogDetailed;
+        if (detailed && e is RollEntry worked) into.AddChild(shown = MonoRow(worked.Worked, e.Undone, faded, Toggle));
+        else if (detailed && e is LineEntry { Worked: { } lines }) into.AddChild(shown = MonoRow(lines, e.Undone, faded, Toggle));
+        else if (e is RollEntry roll && roll.DieLabels is not { Count: > 0 }) into.AddChild(shown = RollRow(roll, open, faded, Toggle));
         else
         {
             var text = e switch
@@ -130,7 +138,21 @@ public partial class CombatLogPanel : VBoxContainer
         var inner = new VBoxContainer(); var indent = new MarginContainer(); indent.AddThemeConstantOverride("margin_left", 16);
         indent.AddChild(inner); into.AddChild(indent);
         if (e is ActivationBlock block) foreach (var x in block.Entries) Add(inner, x);
-        if (e is RollEntry opened) Details(inner, opened);
+        if (e is RollEntry opened) Details(inner, opened, detailed);
+    }
+
+    /// <summary>Worked lines in the monospace face, one label, wrapping only past the panel's width. A left click is the row's.</summary>
+    static Control MonoRow(IReadOnlyList<string> lines, bool undone, bool faded, Action clicked)
+    {
+        var text = string.Join("\n", lines);
+        var label = new Label
+        {
+            Text = undone ? Strike(text) : text, ThemeTypeVariation = Variation.Mono, AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            CustomMinimumSize = new(160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Pass,
+        };
+        label.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) { label.AcceptEvent(); clicked(); } };
+        if (faded) label.Modulate = Ui.Faded;
+        return label;
     }
 
     /// <summary>The roll as its title, its raw faces (bright on a success, faded on a failure, an unjudged die plain), then its outcome and
@@ -162,17 +184,19 @@ public partial class CombatLogPanel : VBoxContainer
         foreach (var child in c.GetChildren()) if (child is Control k) Ignore(k);
     }
 
-    void Details(VBoxContainer into, RollEntry r)
+    /// <summary>A roll's expansion: its details and each die (not in the detailed log, whose lines already hold them), the amendments, the rule
+    /// chips, Undo to here.</summary>
+    void Details(VBoxContainer into, RollEntry r, bool detailed)
     {
-        foreach (var line in r.Details) into.AddChild(new Label { Text = line });
-        foreach (var d in r.Dice)
+        if (!detailed) foreach (var line in r.Details) into.AddChild(new Label { Text = line });
+        foreach (var d in detailed ? [] : r.Dice)
         {
             // An unjudged die shows neither pass nor fail: a plain face and an unstyled label.
             var line = new HBoxContainer(); into.AddChild(line);
             line.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
             line.AddChild(new Label { Text = d.Text, ThemeTypeVariation = !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure });
         }
-        foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
+        foreach (var a in detailed ? [] : r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
         var chips = new HFlowContainer(); if (r.Applied.Count > 0) into.AddChild(chips); else chips.QueueFree();   // the rules that acted in the step, with their catalog text
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (!CombatLog.UndoHere(r, _s.IsWatching)) return;

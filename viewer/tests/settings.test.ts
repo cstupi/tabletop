@@ -20,7 +20,7 @@ describe('play settings', () => {
 
   it('a saved setting reads back', () => {
     const storage = memory();
-    const saved = { mutedWindowKinds: ['casting', 'reaction'], rangeRings: true, logOpen: true, logFilter: 'mine' as const };
+    const saved = { mutedWindowKinds: ['casting', 'reaction'], rangeRings: true, logOpen: true, logFilter: 'mine' as const, logDetailed: true };
     saveSettings(storage, saved);
     expect(loadSettings(storage)).toEqual(saved);
   });

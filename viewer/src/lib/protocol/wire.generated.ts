@@ -231,6 +231,7 @@ export interface DieReplacement {
   readonly index: number;
   readonly old: Die;
   readonly new: Die;
+  readonly by?: string;
 }
 
 export interface DieValue {
@@ -325,6 +326,13 @@ export interface GrantRemoved {
   readonly kind: 'grant_removed';
   readonly unitId: string;
   readonly grantId: string;
+}
+
+export interface IgnoredEffect {
+  readonly source: string;
+  readonly by: string;
+  readonly amount: number;
+  readonly setTo?: number;
 }
 
 export interface Inside {
@@ -613,6 +621,7 @@ export interface RollRecord {
   readonly basis?: ThresholdBasis;
   readonly cover?: CoverVerdict;
   readonly faceTriggers?: readonly FaceTriggers[];
+  readonly ignored?: readonly IgnoredEffect[];
 }
 
 export interface RoundEnded {
@@ -822,6 +831,7 @@ export interface StepCompleted {
   readonly changes: readonly StateChange[];
   readonly applied?: readonly string[];
   readonly values?: { readonly [key: string]: number };
+  readonly ignored?: readonly IgnoredEffect[];
 }
 
 export interface Subject {
@@ -889,6 +899,7 @@ export interface ThresholdBasis {
   readonly stat: string;
   readonly printed: number;
   readonly changes: readonly ThresholdChange[];
+  readonly ignored?: readonly IgnoredEffect[];
 }
 
 export interface ThresholdChange {

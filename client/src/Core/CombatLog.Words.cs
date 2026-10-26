@@ -12,14 +12,29 @@ public static partial class CombatLog
     /// each condition set or cleared (a unit other than actor, or a model's unit, named first), each grant (`{unit} gets {entry}`).
     /// Outside an action a deployment and an objective's control also read, in LogText's words.
     /// </summary>
-    static IEnumerable<string> ChangeLines(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor)
+    static IEnumerable<string> ChangeLines(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor) =>
+        ChangeEntries(changes, n, outside, actor).Select(x => x.Text);
+
+    /// <summary>ChangeLines with what the detailed log draws for each (detailed-log spec → Wounds): a wounded line lists each model with the
+    /// wounds it now carries, a removed line each model removed; any other line draws as it reads.</summary>
+    static IEnumerable<(string Text, IReadOnlyList<string>? Worked)> ChangeEntries(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor)
     {
         var shelved = changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Where(m => m.To is OnShelf).Select(m => m.ModelId).ToHashSet();
         var woundedIds = changes.OfType<WoundsSet>().Select(w => w.ModelId).ToHashSet();
+        var lastWounds = new Dictionary<Guid, int>();
+        foreach (var w in changes.OfType<WoundsSet>()) lastWounds[w.ModelId] = w.Wounds;
         var wounded = woundedIds.Count(m => !shelved.Contains(m));
         var removed = shelved.Count(woundedIds.Contains);
-        if (wounded > 0) yield return $"{RollWords.Plural(wounded, "model")} wounded";
-        if (removed > 0) yield return $"{RollWords.Plural(removed, "model")} removed";
+        if (wounded > 0)
+            yield return ($"{RollWords.Plural(wounded, "model")} wounded",
+                lastWounds.Where(kv => !shelved.Contains(kv.Key)).Select(kv => $"{n.Model(kv.Key)} · {RollWords.Plural(kv.Value, "wound")}").ToList());
+        if (removed > 0)
+            yield return ($"{RollWords.Plural(removed, "model")} removed", lastWounds.Keys.Where(shelved.Contains).Select(m => $"{n.Model(m)} · removed").ToList());
+        foreach (var line in OtherLines(changes, n, outside, actor, shelved, woundedIds)) yield return (line, null);
+    }
+
+    static IEnumerable<string> OtherLines(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor, HashSet<Guid> shelved, HashSet<Guid> woundedIds)
+    {
         foreach (var unit in shelved.Where(m => !woundedIds.Contains(m)).Select(m => n.UnitOfModel(m)).OfType<Guid>().Distinct())
             yield return $"{n.Unit(unit)} Fled!";
         foreach (var c in changes.OfType<ConditionSet>().Where(c => Bookkeeping.Shown(c.Condition)))   // not Bookkeeping's: the header's "moved 2\"" already says it

@@ -8,7 +8,7 @@ public static class Variation
 {
     public const string Badge = nameof(Badge), Chip = nameof(Chip), DieFace = nameof(DieFace), DieMiss = nameof(DieMiss), FlatButton = nameof(FlatButton);
     public const string Banner = nameof(Banner), BannerDetail = nameof(BannerDetail), Dim = nameof(Dim), Accent = nameof(Accent), Success = nameof(Success),
-        Failure = nameof(Failure), Warning = nameof(Warning), Display = nameof(Display), Numerals = nameof(Numerals);
+        Failure = nameof(Failure), Warning = nameof(Warning), Display = nameof(Display), Numerals = nameof(Numerals), Mono = nameof(Mono);
 }
 
 /// <summary>The current UiTheme, its built Godot theme, and its colours and icons as Godot types.</summary>

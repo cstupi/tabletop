@@ -5,8 +5,9 @@
 // Questions, answers, empty steps and frame bookkeeping are not drawn. Copies the log's words and names no rule.
 
 import { effectiveLog } from '../live/apply';
-import type { EventPayload, GameEvent, SequenceContext, SequenceStarted } from '../protocol/wire.generated';
-import { Aftermath, Draft, changeLines, deployed } from './combatLogWords';
+import type { EventPayload, GameEvent, IgnoredEffect, SequenceContext, SequenceStarted, StepCompleted } from '../protocol/wire.generated';
+import { attackLines } from './workedLines';
+import { Aftermath, Draft, changeEntries, deployed } from './combatLogWords';
 import { describe, roundChange } from './logText';
 import type { Names } from './names';
 import { type LineEntry, type LogEntry, type RollEntry, rollEntryOf } from './rollEntry';
@@ -82,7 +83,7 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
     if (p.kind === 'undone') closeFrom(p.toSeq + 1);
     for (const d of drafts) d.see(e, dead);
     const here = into();
-    const line = (text: string): LineEntry => ({ type: 'line', seq: e.seq, event: e, undone: dead, text });
+    const line = (text: string, worked: readonly string[] | null = null): LineEntry => ({ type: 'line', seq: e.seq, event: e, undone: dead, text, worked });
     const chain = (part: string): void => { if (!dead) for (const d of drafts) d.chain.push(part); };
 
     if (p.kind === 'sequence_started') {
@@ -100,14 +101,26 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
       // drawn on the roll's own line
     } else if (p.kind === 'step_completed') {
       const frameStart = frames.get(p.frameId);
+      const context = frameStart?.context ?? NO_CONTEXT;
+      const ignored = stepIgnored(p);
       for (const roll of p.rolls) {
-        const base = rollEntryOf(e, dead, p, roll, frameStart?.context ?? NO_CONTEXT, frameStart?.sequence ?? null, (amendments.get(roll.id) ?? []).map((x) => ({ event: x.event, undone: x.dead })), n);
-        const entry: RollEntry = { ...base, consequence: after.consequence(roll.id), dieLabels: after.labels.get(roll.id) ?? null };
+        const first = roll.id === p.rolls[0]!.id;
+        const base = rollEntryOf(e, dead, p, roll, context, frameStart?.sequence ?? null, (amendments.get(roll.id) ?? []).map((x) => ({ event: x.event, undone: x.dead })), n);
+        const entry: RollEntry = {
+          ...base, consequence: after.consequence(roll.id), dieLabels: after.labels.get(roll.id) ?? null,
+          attack: first && roll.roll === 'hit' ? attackLines(context, n) : null, stepIgnored: first ? ignored : null,
+        };
         here.push(entry);
         chain(rollChain(entry));
       }
-      if (!after.absorbed.has(e.seq))
-        for (const c of changeLines(p.changes, n, drafts.length === 0, drafts.length > 0 ? drafts[drafts.length - 1]!.actor : null)) { here.push(line(c)); chain(c); }
+      if (!after.absorbed.has(e.seq)) {
+        let lead = p.rolls.length === 0 && ignored !== null ? ignored.map((x) => `${x.source} ignored: ${x.by}`) : null;
+        for (const c of changeEntries(p.changes, n, drafts.length === 0, drafts.length > 0 ? drafts[drafts.length - 1]!.actor : null)) {
+          here.push(line(c.text, lead === null ? c.worked : [...lead, ...(c.worked ?? [c.text])]));
+          chain(c.text);
+          lead = null;
+        }
+      }
     } else if (p.kind === 'round_started') here.push(line(`Round ${p.round}`));
     else if (p.kind === 'round_ended') here.push(...p.changes.map((c) => line(roundChange(c, n))));
     else if (p.kind === 'undone') {
@@ -116,7 +129,7 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
       here.push(line(header === null ? `Undone to #${p.toSeq}` : `Undone to: ${header}`));
       undos.push({ seq: e.seq, toSeq: p.toSeq });
     } else if (p.kind === 'models_moved' && e.actor != null && open.size === 0 && p.moves.every((x) => x.from.kind === 'shelf' && x.to.kind === 'table'))
-      here.push(...deployed(p, n).map(line));
+      here.push(...deployed(p, n).map((t) => line(t)));
     else if (dropped(p)) { /* not drawn */ }
     else if (p.kind === 'action_recorded' && e.actor == null) { /* the engine's record as the action starts: the block's header says it */ }
     else if (STATE_CHANGES.has(p.kind) && e.actor != null) here.push(line(`${describe(e, n)} · by hand`));
@@ -124,6 +137,13 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
   }
   closeFrom(Number.MIN_SAFE_INTEGER);
   return top;
+}
+
+/** CombatLog.StepIgnored: the step's removed rules that none of its records names as ignored; null when none. */
+function stepIgnored(step: StepCompleted): readonly IgnoredEffect[] | null {
+  const named = new Set(step.rolls.flatMap((r) => [...(r.ignored ?? []), ...(r.basis?.ignored ?? [])]).map((x) => `${x.source}\u0000${x.by}`));
+  const left = (step.ignored ?? []).filter((x) => !named.has(`${x.source}\u0000${x.by}`));
+  return left.length === 0 ? null : left;
 }
 
 export function filter(entries: readonly LogEntry[], f: LogFilter, mine: (unitId: string) => boolean, unitId: string | null): LogEntry[] {

@@ -8,14 +8,15 @@ import { build, flatten, latest, pip } from '../src/lib/play/combatLog';
 import { Names } from '../src/lib/play/names';
 import { chain, collapsed, outcome, result, title, type LogEntry } from '../src/lib/play/rollEntry';
 import { undoPlanOf } from '../src/lib/play/undo';
+import { worked } from '../src/lib/play/workedLines';
 import type { Board, GameEvent, GameInfo } from '../src/lib/protocol/wire.generated';
 
 interface Row {
   depth: number; kind: 'block' | 'roll' | 'line'; seq: number; undone: boolean; text: string;
-  title?: string; result?: string; outcome?: string; chain?: string; details?: string[];
+  title?: string; result?: string; outcome?: string; chain?: string; details?: string[]; worked?: string[];
 }
 interface Case {
-  name: 'skirmish' | 'terrain' | 'charge'; game: GameInfo; board: Board | null; events: GameEvent[]; rows: Row[]; latest: string | null;
+  name: 'skirmish' | 'terrain' | 'charge' | 'worked'; game: GameInfo; board: Board | null; events: GameEvent[]; rows: Row[]; latest: string | null;
   undo: { toSeq: number; tooltip: string; lostRolls: string[] } | null;
 }
 
@@ -27,9 +28,9 @@ function rowsOf(entries: readonly LogEntry[], depth = 0): Row[] {
       case 'block': return [{ depth, kind: 'block', seq: e.seq, undone: e.undone, text: e.header, chain: e.chainParts.join(' → ') }, ...rowsOf(e.entries, depth + 1)];
       case 'roll': return [{
         depth, kind: 'roll', seq: e.seq, undone: e.undone, text: collapsed(e, pip), title: title(e), result: result(e), outcome: outcome(e),
-        chain: chain(e), details: [...e.details],
+        chain: chain(e), details: [...e.details], worked: worked(e),
       }];
-      case 'line': return [{ depth, kind: 'line', seq: e.seq, undone: e.undone, text: e.text }];
+      case 'line': return [{ depth, kind: 'line', seq: e.seq, undone: e.undone, text: e.text, ...(e.worked === null ? {} : { worked: [...e.worked] }) }];
     }
   });
 }

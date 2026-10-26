@@ -17,6 +17,10 @@ public sealed class Names(GameInfo game, Projection? projection)
         ? game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId : null;
     /// <summary>A weapon by its snapshot name, from the slot that carries it.</summary>
     public string Weapon(Guid id) => projection?.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => w.Id == id)?.Name ?? Short(id);
+    /// <summary>Each weapon found, in the order asked, with the model whose slot carries it; an id no slot carries is left out.</summary>
+    public IReadOnlyList<(Guid ModelId, Weapon Weapon)> WeaponsOf(IEnumerable<Guid> ids) => projection is null ? []
+        : ids.Select(id => projection.Models.Values.Select(m => (m.Id, W: m.Slot.Weapons.FirstOrDefault(w => w.Id == id))).FirstOrDefault(x => x.W is not null))
+            .Where(x => x.W is not null).Select(x => (x.Id, x.W!)).ToList();
     public Guid? TeamOfUnit(Guid unitId) => projection?.Units.GetValueOrDefault(unitId) is { } u ? game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId : null;
     public Guid? UnitOfModel(Guid modelId) => projection?.Models.GetValueOrDefault(modelId)?.UnitId;
     public string Piece(Guid id) => projection is null ? Short(id)
