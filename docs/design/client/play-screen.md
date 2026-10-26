@@ -24,7 +24,8 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 The table overlays are children of the `TableView`. `HoverLabels`: the hovered unit's name in its team colour, the
 edge-to-edge distance from my selected unit with a line between the two closest bases (`HoverView`), wounds left over
 each multi-wound model, the Shift tag, a hovered terrain piece's `TerrainLabel` (not the selected one's: the terrain card shows that). `SightLines`: the server's `SightAnswer` while L is held over a unit, or while a
-target assignment is open; green clear, amber screened, red blocked with the blocker lit, a summary over the target
+target assignment is open; green clear, amber screened, red blocked with the blocker lit, a clear line drawn to the
+target point the server saw (`SightLine.Seen`), a summary over the target
 (`SightSummary`: models that see it, clear lines screened, and under a target pick how many can shoot; never a cover
 verdict, which is the rules'), and under a target pick the models that cannot shoot the hovered target or their group's
 assigned one dimmed, each assigned target asked about in its own query. Each query's id is made before the send, so

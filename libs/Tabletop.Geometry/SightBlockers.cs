@@ -5,8 +5,9 @@ namespace Tabletop.Geometry;
 /// <summary>
 /// One sight-line measurement: Clear as <see cref="LineOfSight.Check"/>, and Blockers, in input order, the volumes that stop at least
 /// one of its lines: <see cref="LineOfSightResult.ObstructedBy"/> when not clear, <see cref="Cover.SightBlockersBetween"/> when clear.
+/// Seen is the first of <see cref="LineOfSight.TargetPoints(PlacedModel)"/> (the top first) whose line from the eye is clear, null when none is.
 /// </summary>
-public sealed record SightReading(bool Clear, IReadOnlyList<Guid> Blockers);
+public sealed record SightReading(bool Clear, IReadOnlyList<Guid> Blockers, Point3? Seen = null);
 
 /// <summary>
 /// The blocking volumes of one table prepared for many sight lines: each volume's world outline, heights and bounding box built once,
@@ -89,7 +90,7 @@ public sealed class SightBlockers
     /// <summary>As <see cref="Check(PlacedModel, PlacedModel, Guid?)"/>, leaving out every blocker whose id <paramref name="ignored"/> passes.</summary>
     public LineOfSightResult Check(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored)
     {
-        var clear = Measure(from, to, ignored, stopAtClear: true, out var blockers);
+        var clear = Measure(from, to, ignored, stopAtClear: true, out var blockers, out _);
         return new LineOfSightResult(clear, clear ? [] : blockers);
     }
 
@@ -100,12 +101,13 @@ public sealed class SightBlockers
     /// <summary>As <see cref="Measure(PlacedModel, PlacedModel, Guid?)"/>, leaving out every blocker whose id <paramref name="ignored"/> passes.</summary>
     public SightReading Measure(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored)
     {
-        var clear = Measure(from, to, ignored, stopAtClear: false, out var blockers);
-        return new SightReading(clear, blockers);
+        var clear = Measure(from, to, ignored, stopAtClear: false, out var blockers, out var seen);
+        return new SightReading(clear, blockers, seen);
     }
 
-    bool Measure(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored, bool stopAtClear, out IReadOnlyList<Guid> blockers)
+    bool Measure(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored, bool stopAtClear, out IReadOnlyList<Guid> blockers, out Point3? seen)
     {
+        seen = null;
         var eye = from.Eye();
         Span<Point3> targets = stackalloc Point3[3 * (1 + LineOfSight.RimSamples)];
         var count = LineOfSight.TargetPoints(to, targets);
@@ -151,6 +153,7 @@ public sealed class SightBlockers
                     hit[c] = rayHit = anyHit = true;
                 }
                 if (rayHit) continue;
+                if (!clear) seen = target;
                 clear = true;
                 if (stopAtClear) break;
             }

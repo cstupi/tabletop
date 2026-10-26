@@ -195,7 +195,8 @@ With a unit selected, hold **L** and hover a unit; while `declare_targets` is op
 without L. The client asks the server and draws the answer:
 
 - a line from every model of the selected unit to every model of the hovered one: green clear, amber clear but
-  screened (cover), red blocked, with the blocking terrain piece or model lit;
+  screened (cover), red blocked, with the blocking terrain piece or model lit. A clear line ends at the point of the
+  target the server saw (`SightLine.Seen`: a tall model's head over shorter models), a blocked one at its centre;
 - a summary, `4 of 5 models can see Red Warriors · 2 of 3 clear lines screened`, and with `declare_targets` open, how
   many models can shoot. Whether the unit is in cover is the rules' (p.11's majority) and the client does not state it.
 

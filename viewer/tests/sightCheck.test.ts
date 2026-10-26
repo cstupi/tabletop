@@ -119,4 +119,23 @@ describe('SightCheck', () => {
     expect(v.summary?.at.y).toBe(orc.placement.position.y - 2);                       // under the target, clear of the hover label over it
     expect(v.dimmed).toEqual(new Set([b]));
   });
+
+  it('a clear line ends at the point the server saw, a blocked one at the centre', async () => {
+    const a = squad.models[0]!.id;
+    const o = orcs.models[0]!.id;
+    const reply: SightAnswer = {
+      kind: 'sight_answer', queryId: newId(), canShoot: [a],
+      lines: [
+        { fromModelId: a, toModelId: o, clear: true, screened: true, blockedBy: [], seen: { x: 40.5, y: 7.25, z: 3 } },
+        { fromModelId: a, toModelId: o, clear: false, screened: false, blockedBy: ['wall'] },
+      ],
+    };
+    const { check } = rig(() => Promise.resolve(reply));
+    const p = at1(open);
+    check.update(p, game, picking(), orcs.id, null, false);
+    await tick();
+    const v = check.view(p, game, names(p), true);
+    const orc = p.models.get(o)!.location as { placement: { position: { x: number; y: number } } };
+    expect(v.lines.map((l) => l.to)).toEqual([{ x: 40.5, y: 7.25 }, { x: orc.placement.position.x, y: orc.placement.position.y }]);
+  });
 });
