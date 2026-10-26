@@ -9,7 +9,7 @@
   import BasePicker from '$lib/components/BasePicker.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import LibraryTabs from '$lib/components/LibraryTabs.svelte';
-  import { folderSharing, markShared } from '$lib/library/shared';
+  import OfferDialog from '$lib/components/OfferDialog.svelte';
   import { filterAssets } from '$lib/library/folders';
   import { ASSET_DRAG, folderOptions, holdersIn, runBulk, uploadTarget, type BulkOutcome } from '$lib/library/bulk';
   import { clear, click, keepOnly, NONE, selectAll, type Selection } from '$lib/library/selection';
@@ -27,8 +27,8 @@
   const count = $derived(selection.ids.size);
   const targets = $derived(folderOptions(folders));
   const usage = $derived(libraryUsage(assets));
-  const folderShare = $derived(selected ? folderSharing(assets, folders, selected) : null);
-  const selectedShared = $derived(assets.filter((a) => selection.ids.has(a.id) && a.shared).length);
+  const folderOfferable = $derived(selected ? filterAssets(assets, folders, { folderId: selected }).some((a) => a.uploaded) : false);
+  let offering = $state<{ what: string; assetIds: Guid[] | null; folderId: Guid | null } | null>(null);
   const nearQuota = $derived(usage.assets >= ASSET_QUOTA.assets * 0.9 || usage.bytes >= ASSET_QUOTA.bytes * 0.9);
   // The selection holds only tiles in view: changing folder or filter, or deleting, drops the rest.
   $effect(() => { const next = keepOnly(selection, order); if (next !== selection) selection = next; });
@@ -129,16 +129,12 @@
       return { message: `Deleted ${plural(outcome.done.length)}.`, outcome };
     });
   }
-  /** Shares or unshares `ids`; the tiles show the result. */
-  function setShared(ids: Guid[], shared: boolean) {
-    if (ids.length === 0) return;
-    void bulk(async () => {
-      const outcome = await runBulk(ids, (part) => (shared ? api.assets.share(part) : api.assets.unshare(part)));
-      assets = markShared(assets, outcome.done, shared);
-      return { message: `${shared ? 'Shared' : 'Unshared'} ${plural(outcome.done.length)}.`, outcome };
-    });
+  function offerSelection() {
+    const ids = assets.filter((a) => selection.ids.has(a.id) && a.uploaded).map((a) => a.id);
+    if (ids.length === 0) { error = 'Only uploaded assets can be offered.'; return; }
+    offering = { what: ids.length === 1 ? names(ids) : plural(ids.length), assetIds: ids, folderId: null };
   }
-  function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && count > 0 && !uploading) { selection = clear(); done = null; } }
+  function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && count > 0 && !uploading && !offering) { selection = clear(); done = null; } }
 </script>
 
 <svelte:head><title>Library · Tabletop</title></svelte:head>
@@ -156,10 +152,7 @@
       <button class="primary" bind:this={addButton} onclick={() => (uploading = true)}><Icon name="upload" />Add STL / GLB / texture</button>
       <label>Kind <select bind:value={kind}><option value="">Any kind</option><option value="miniature">Miniatures</option><option value="terrain">Terrain</option><option value="texture">Textures</option></select></label>
       <label>Made for base <BasePicker bind:value={base} allowNone label="Made for base" /></label>
-      {#if folderShare && folderShare.shared.length + folderShare.unshared.length > 0}
-        {#if folderShare.unshared.length > 0}<button disabled={busy} onclick={() => setShared(folderShare.unshared, true)}>Share folder</button>{/if}
-        {#if folderShare.shared.length > 0}<button disabled={busy} onclick={() => setShared(folderShare.shared, false)}>Unshare folder</button>{/if}
-      {/if}
+      {#if selected && folderOfferable}<button disabled={busy} onclick={() => (offering = { what: `folder ${folderName ?? ''}`, assetIds: null, folderId: selected })}>Offer folder…</button>{/if}
       <span class="count" role="status">{#if !loading}Showing {shown.length} of {assets.length}{/if}</span>
     </div>
     {#if !loading && shown.length > 0}
@@ -172,13 +165,12 @@
               {#each targets as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
             </select></label>
           {#if selected}<button disabled={busy} onclick={removeFromFolder}>Remove from folder</button>{/if}
-          {#if selectedShared < count}<button disabled={busy} onclick={() => setShared([...selection.ids], true)}>Share</button>{/if}
-          {#if selectedShared > 0}<button disabled={busy} onclick={() => setShared([...selection.ids], false)}>Unshare</button>{/if}
+          <button disabled={busy} onclick={offerSelection}>Offer…</button>
           <button class="danger" disabled={busy} onclick={deleteSelected}>Delete</button>
           <span class="end">{#if count < shown.length}<button class="quiet" disabled={busy} onclick={() => (selection = selectAll(selection, order))}>Select all {shown.length}</button>{/if}<button class="quiet" disabled={busy} onclick={() => { selection = clear(); done = null; }}>Clear</button></span>
         {:else}
           <button class="quiet" onclick={() => (selection = selectAll(selection, order))}>Select all {shown.length}</button>
-          <small class="hint">Tick tiles, Ctrl-click, Shift-click a range, or long-press, to move, share or delete several at once.</small>
+          <small class="hint">Tick tiles, Ctrl-click, Shift-click a range, or long-press, to move, offer or delete several at once.</small>
         {/if}
       </div>
     {/if}
@@ -200,7 +192,7 @@
             <a class="tile" href="/library/{a.id}" draggable="true" onclick={(e) => onTileClick(e, a.id)} onkeydown={(e) => onTileKey(e, a.id, i)}
               ondragstart={(e) => onDragStart(e, a.id)} onpointerdown={(e) => onPointerDown(e, a.id)} onpointerup={cancelPress} onpointercancel={cancelPress} onpointermove={onPointerMove}
               oncontextmenu={(e) => { if (pressed) e.preventDefault(); }}>
-              <Icon name={a.kind} size="1.75rem" /><span><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}{#if a.shared}{' · '}<span class="shared">shared</span>{/if}</small></span></a>
+              <Icon name={a.kind} size="1.75rem" /><span><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}</small></span></a>
           </div></div>
         {/each}
       </div>
@@ -210,6 +202,7 @@
     {/if}
   </section>
 </div>
+<OfferDialog open={offering !== null} what={offering?.what ?? ''} assetIds={offering?.assetIds ?? null} folderId={offering?.folderId ?? null} onclose={() => (offering = null)} />
 <UploadDialog open={uploading} {folders} folderId={uploadTarget(folders, selected)} onclose={closeUpload} onuploaded={() => void loadAll()} />
 <style>
   .layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: var(--s5); align-items: start }
@@ -232,5 +225,4 @@
   :global([data-theme='fantasy']) .on .tile { border-color: var(--wood); box-shadow: inset 0 0 0 2px var(--wood); background: #E6D3A8 }
   :global([data-theme='scifi']) .tile { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px) }
   .usage { margin-bottom: 0 }
-  .shared { color: var(--accent) }
 </style>

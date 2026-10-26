@@ -1,15 +1,19 @@
 <script lang="ts">
-  // The Library's two views: the account's own assets and other accounts' shared ones.
-  let { current }: { current: 'mine' | 'shared' } = $props();
+  // The Library's views: the account's own assets, offers made to it (with their count), and offers it made.
+  import { api } from '$lib/api/client';
+  let { current, open = $bindable(null) }: { current: 'mine' | 'offered' | 'sent'; open?: number | null } = $props();
+  $effect(() => { api.offers.count().then((c) => (open = c.open)).catch(() => {}); });
 </script>
 
 <nav class="tabs" aria-label="Library views">
   <a href="/library" aria-current={current === 'mine' ? 'page' : undefined}>My library</a>
-  <a href="/library/shared" aria-current={current === 'shared' ? 'page' : undefined}>Shared</a>
+  <a href="/library/offered" aria-current={current === 'offered' ? 'page' : undefined}>Offered to you{#if open}{' '}<span class="badge" aria-label="{open} open">{open}</span>{/if}</a>
+  <a href="/library/sent" aria-current={current === 'sent' ? 'page' : undefined}>Sent</a>
 </nav>
 <style>
-  .tabs { display: flex; gap: var(--s4); margin: 0 0 var(--s4); border-bottom: 1px solid var(--rule) }
+  .tabs { display: flex; gap: var(--s4); margin: 0 0 var(--s4); border-bottom: 1px solid var(--rule); flex-wrap: wrap }
   .tabs a { padding: var(--s2) 0; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px }
   .tabs a:hover { color: var(--text) }
   .tabs a[aria-current='page'] { color: var(--text); border-bottom-color: var(--accent) }
+  .badge { display: inline-block; min-width: 1.4em; padding: 0 0.35em; border-radius: 0.7em; background: var(--accent); color: var(--panel-solid); font-size: 0.8em; text-align: center; line-height: 1.4em }
 </style>

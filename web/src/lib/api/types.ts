@@ -42,8 +42,6 @@ export type ContentType = 'model/gltf-binary' | 'image/png' | 'image/jpeg' | 'im
 export interface AssetDto {
   id: Guid; name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType; uploaded: boolean;
   scale: number; orientation: Orientation; modelledBase?: Base;
-  /** Every signed-in account can list and copy it (`/v1/shared-assets`). */
-  shared: boolean;
 }
 export interface CreateAssetRequest {
   name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType;
@@ -54,14 +52,25 @@ export interface ConfirmResponse { asset: AssetDto; triangles?: number; warning?
 export interface PatchAssetRequest { name?: string; scale?: number; orientation?: Orientation; modelledBase?: Base }
 export interface DownloadResponse { url: string; expiresAt: string }
 
-// Shared assets (GET /v1/shared-assets): another account's shared, uploaded asset; `folders` are the owner's folders holding it.
-export interface SharedAssetDto {
+// Offers (/v1/offers): a sharer offers assets to a player they have been in a game with, who accepts or declines.
+/** `games`: up to three games played together, newest first; `lastPlayed`: the newest one's creation. */
+export interface PlayerDto { accountId: Guid; name: string; games: string[]; lastPlayed: string }
+export type OfferState = 'open' | 'accepted' | 'declined' | 'withdrawn';
+export interface OfferAssetDto {
   id: Guid; name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType;
-  scale: number; orientation: Orientation; modelledBase?: Base; ownerName: string; folders: string[]; sharedAt: string;
+  scale: number; orientation: Orientation; modelledBase?: Base;
 }
-export interface CopySharedRequest { assetIds: Guid[]; folderId: Guid | null }
-/** `copied`: the caller's new assets; `notFound`: ids no longer shared. */
-export interface CopySharedResponse { copied: AssetDto[]; notFound: Guid[] }
+/** `folder`: the folder's name when a folder was offered; `assets`: the offered assets the sharer still has. */
+export interface OfferDto {
+  id: Guid; state: OfferState; sharerId: Guid; sharerName: string; recipientId: Guid; recipientName: string; folder?: string;
+  createdAt: string; decidedAt?: string; assets: OfferAssetDto[];
+}
+/** Exactly one of `assetIds` and `folderId`. */
+export interface CreateOffersRequest { recipientIds: Guid[]; assetIds: Guid[] | null; folderId: Guid | null }
+/** `notFound`: asset ids that are not your uploaded assets. */
+export interface CreateOffersResponse { offers: OfferDto[]; notFound: Guid[] }
+export interface AcceptOfferResponse { copied: AssetDto[] }
+export interface BlockedDto { accountId: Guid; name: string }
 
 // Client releases (GET /v1/client/latest)
 export type ClientPlatform = 'windows' | 'macos' | 'linux';
