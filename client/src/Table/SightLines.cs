@@ -112,7 +112,7 @@ public partial class SightLines : Node3D
             ? WorldFrame.ToGodot(on.Placement.Position) + Vector3.Up * (float)(m.Slot.Height / 2) : null;
         var segments = new List<(Vector3, Vector3, Color)>();
         foreach (var line in answer.Lines)
-            if (Eye(line.FromModelId) is { } a && Eye(line.ToModelId) is { } b)
+            if (Eye(line.FromModelId) is { } a && (line.Seen is { } seen ? WorldFrame.ToGodot(seen) : Eye(line.ToModelId)) is { } b)   // a clear line ends where the server saw the target
                 segments.Add((a, b, !line.Clear ? BlockedColour : line.Screened ? ScreenedColour : ClearColour));
         _lines.Mesh = LineMesh.Of(segments);
         foreach (var id in answer.Lines.Where(l => !l.Clear).SelectMany(l => l.BlockedBy).Distinct())

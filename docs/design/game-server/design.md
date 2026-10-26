@@ -431,7 +431,8 @@ generated pieces never dragged onto the table.
 Three additions serve the play screen. The sight query and model facts are socket messages outside the log; the
 outline rides on the logged `SequenceStarted`. A `SightQuery(QueryId, ObserverUnitId, TargetUnitId)`
 is answered from the current state with the same `Sight` the rules use: one `SightLine` per model pair, `BlockedBy`
-the obstructing volumes (a terrain volume's id or a model's), and `CanShoot` the observer's models that p.8's *Who can
+the obstructing volumes (a terrain volume's id or a model's), `Seen` on a clear line the target point it reaches (its top,
+centre or rim; `SightReading.Seen`), and `CanShoot` the observer's models that p.8's *Who can
 shoot* lets fire at the target (`IGameRules.Shooters`). It goes to the asker alone; nothing is appended, broadcast or
 followed by `AtRest`. `ModelFacts(MaxWounds, DeployInside)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
 `Tough(X)`, else 1) and `IGameRules.DeployInside` (each unit that may be put in a Transport now, and the Transport models;

@@ -28,6 +28,22 @@ public class SightBlockersTests
         Assert.Equal(new[] { low.Id }, reading.Blockers);
     }
 
+    [Fact] public void A_clear_reading_names_the_first_point_seen_and_a_blocked_one_none()
+    {
+        Assert.Equal(new Point3(10, 0, Fx.Model(10, 0).Top()), new SightBlockers([]).Measure(Fx.Model(0, 0), Fx.Model(10, 0)).Seen);
+        var wall = Fx.Box(5, 0, 1, 6, 0, 4, d: Fx.Blocks);
+        Assert.Null(new SightBlockers([wall]).Measure(Fx.Model(0, 0), Fx.Model(10, 0)).Seen);
+    }
+
+    [Fact] public void Past_a_wall_reaching_above_the_eye_the_point_seen_is_one_the_wall_does_not_hide()
+    {
+        var low = Fx.Box(5, 0, 1, 6, 0, 1, d: Fx.Blocks);
+        var (from, to) = (Fx.Model(0, 0), Fx.Model(10, 0));
+        var seen = new SightBlockers([low]).Measure(from, to).Seen!.Value;
+        Assert.Empty(LineOfSight.Obstructions(from.Eye(), seen, [low]));
+        Assert.Contains(seen, LineOfSight.TargetPoints(to));
+    }
+
     [Fact] public void The_ignored_volume_never_blocks()
     {
         var targetBody = Bodies.AsBlockingVolume(Guid.CreateVersion7(), Fx.Model(10, 0));

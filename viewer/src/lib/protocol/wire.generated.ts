@@ -789,6 +789,7 @@ export interface SightLine {
   readonly clear: boolean;
   readonly screened: boolean;
   readonly blockedBy: readonly string[];
+  readonly seen?: Point3;
 }
 
 export interface SightQuery {

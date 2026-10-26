@@ -76,7 +76,8 @@ public sealed class Sight
 
     /// <summary>
     /// The same measurement as a wire SightLine (in-game UX spec → Sight question): BlockedBy is LineOfSightResult.ObstructedBy, the
-    /// terrain volume ids, model ids and perimeter unit ids in the way, empty on a clear line. Null when either model is off the table.
+    /// terrain volume ids, model ids and perimeter unit ids in the way, empty on a clear line; Seen is the target point the clear line reaches
+    /// (SightReading.Seen). Null when either model is off the table.
     /// </summary>
     public SightLine? Line(Guid fromModel, Guid toModel)
     {
@@ -84,7 +85,7 @@ public sealed class Sight
         if (from is null || to is null) return null;
         var reading = blockers.Measure(from.Value, to.Value, Ignored(fromModel, toModel));
         return reading.Clear
-            ? new SightLine(fromModel, toModel, true, reading.Blockers.Count > 0 || (cover.Count > 0 && Cover.CoverTerrainBetween(from.Value, to.Value, cover).Count > 0), [])
+            ? new SightLine(fromModel, toModel, true, reading.Blockers.Count > 0 || (cover.Count > 0 && Cover.CoverTerrainBetween(from.Value, to.Value, cover).Count > 0), [], reading.Seen)
             : new SightLine(fromModel, toModel, false, false, reading.Blockers);
     }
 

@@ -150,4 +150,37 @@ public class GfSightOptionsTests
         Assert.False(Sees(core));
         Assert.Single(Battlefield.ModelsBehindSightBlockers(core.State, core.State.Projection.Models[core.To].UnitId, [core.From]));
     }
+
+    // ---- a tall target behind a unit of shorter models ---------------------------------------------------------------------------------
+
+    /// <summary>An infantry shooter (32mm base, 1.89" tall: the import's 1.5 × base) looks 24" up the table at a walker on a 60mm base
+    /// (2.36", 3.54" tall); five more infantry stand bases touching in two rows across the line at y 12, the walker's own side's unit.</summary>
+    static (GameState State, Guid From, Guid To, Unit Screen) WalkerBehindInfantry(string blocking, double walkerHeight = 3.54)
+    {
+        var shooter = Tall(Unit("Shooter", "4+", "4+", [], 1, []), 1.89);
+        var screen = Tall(Unit("Infantry", "4+", "4+", [], 5, []), 1.89);
+        var walker = Unit("Light Walker", "4+", "4+", [], 1, [P("Tough", 6)]);
+        walker = walker with { Models = walker.Models.Select(m => m with { Base = Base.Circle(2.36), Height = walkerHeight }).ToList() };
+        var state = Table(Options(blocking: blocking), (shooter, true, [At(X, 0)]),
+            (screen, false, [At(X - 1.26, 12), At(X, 12), At(X + 1.26, 12), At(X - 0.63, 13.1), At(X + 0.63, 13.1)]),
+            (walker, false, [At(X, 24)]));
+        return (state, shooter.Models[0].Id, walker.Models[0].Id, screen);
+    }
+
+    [Theory]
+    [InlineData("per_model")]
+    [InlineData("perimeter")]
+    public void A_walker_taller_than_the_infantry_in_front_is_seen_over_them_and_the_line_is_screened(string blocking)
+    {
+        var (state, from, to, screen) = WalkerBehindInfantry(blocking);
+        var line = Sight.From(state, state.Projection.Models[from].UnitId).Line(from, to)!;
+        Assert.True(line.Clear);                                            // the walker's head shows over the infantry: p.5 "check if it can see the target"
+        Assert.True(line.Screened);                                         // its lower half is behind them: p.11 sight blockers
+        Assert.Equal(3.54, line.Seen!.Value.Z, 6);                          // the clients draw the line to the head it saw, not through the infantry
+        (state, from, to, screen) = WalkerBehindInfantry(blocking, walkerHeight: 1.89);
+        line = Sight.From(state, state.Projection.Models[from].UnitId).Line(from, to)!;
+        Assert.False(line.Clear);                                           // no taller than the infantry: hidden behind them
+        Assert.Null(line.Seen);
+        Assert.All(line.BlockedBy, id => Assert.True(id == screen.Id || screen.Models.Any(m => m.Id == id)));
+    }
 }
