@@ -181,9 +181,10 @@ echo "release v$version at ${head:0:12}, deploy $deploy, output $out"
 owner=$(stat -c %u:%g "$root")
 in_sdk() { run docker run --rm -u "$owner" -v "$root:/src" -w /src -e HOME=/tmp -e DOTNET_CLI_TELEMETRY_OPTOUT=1 \
   -e NUGET_PACKAGES=/src/build/nuget mcr.microsoft.com/dotnet/sdk:10.0 "$@"; }
-# in_node DIR CMD...: CMD in the Node image over the clone's DIR (web or viewer).
+# in_node DIR CMD...: CMD in the Node image in the clone's DIR (web or viewer), the whole clone mounted: the viewer reads
+# web/src (Icon.svelte, the themes) and client/content/builtin/catalog.json.
 in_node() { local dir=$1; shift
-  run docker run --rm -u "$owner" -v "$root/$dir:/$dir" -w "/$dir" -e HOME=/tmp -e npm_config_cache=/tmp/npm node:24-alpine "$@"; }
+  run docker run --rm -u "$owner" -v "$root:/src" -w "/src/$dir" -e HOME=/tmp -e npm_config_cache=/tmp/npm node:24-alpine "$@"; }
 
 if [[ $skip_tests == 0 ]]; then
   step "Build and test"
