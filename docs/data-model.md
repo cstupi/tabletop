@@ -34,6 +34,10 @@ erDiagram
     ASSET }o--|| BLOB : "bytes"
     FOLDER ||--o{ FOLDER : nests
     FOLDER }o--o{ ASSET : holds
+    ACCOUNT ||--o{ SHARE_OFFER : "offers (sharer)"
+    ACCOUNT ||--o{ SHARE_OFFER : "is offered (recipient)"
+    SHARE_OFFER }o--o{ ASSET : "names (SHARE_OFFER_ASSET)"
+    ACCOUNT ||--o{ SHARE_BLOCK : "blocks a sharer"
 
     GAME ||--|{ TEAM : has
     TEAM ||--|{ PARTICIPANT : has
@@ -102,7 +106,6 @@ erDiagram
         float scale
         rotation orientation
         profile profile
-        timestamp shared_at
     }
     VOLUME {
         enum kind
@@ -121,6 +124,17 @@ erDiagram
     FOLDER {
         uuid id
         string name
+    }
+    SHARE_OFFER {
+        uuid id
+        string folder_name
+        enum state
+        timestamp created_at
+        timestamp decided_at
+    }
+    SHARE_BLOCK {
+        uuid recipient_id
+        uuid sharer_id
     }
     GAME {
         uuid id
@@ -252,10 +266,11 @@ volumes and their declarations. A texture is a flat image for the board's top fa
 
 **`BLOB` hangs off `ACCOUNT`, not off the system.** Dedup is per user. Two accounts
 uploading identical bytes get two blobs. Participants in a game download each other's assets to
-render them, which creates no record on either side — a download, not a share. A **shared**
-asset (`ASSET.shared_at`) is listed to every signed-in account, and copying one gives the copier
-an `ASSET` and a `BLOB` of their own whose S3 key is the sharer's; the object goes only when no
-`BLOB` row names its key ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)).
+render them, which creates no record on either side — a download, not a share. An **offer**
+(`SHARE_OFFER`, its assets in `SHARE_OFFER_ASSET`) names a sharer, one recipient they have been in a game with, and a set
+of the sharer's assets; only the recipient sees it, while it is open. Accepting gives the recipient an `ASSET` and a
+`BLOB` of their own whose S3 key is the sharer's; the object goes only when no `BLOB` row names its key. `SHARE_BLOCK`
+hides a sharer's offers from a recipient ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)).
 
 **`FOLDER` is the asset library's alone.** It nests, an asset can be in several, and armies
 and layouts are flat lists.
