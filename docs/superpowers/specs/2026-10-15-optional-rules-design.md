@@ -119,6 +119,9 @@ It is one value of the option **Line of sight method**: `core` (p.5, the engine'
 observer see through contributes no blocker to that pair's line. Since p.11's cover reads the same sight blockers, a
 unit seen through gives no cover to that pair either.
 
+The second exception's *"equal or lower size class"* is measured against the observer, as the first exception's is (owner,
+2026-10-25: *"Sounds like you have it right for the hybrid"*): a Small observer cannot see a Large target through a Medium unit.
+
 The eye-level sentence is p.5's own test, so the engine's sight line (`LineOfSight`, from `Bodies.Eye`) stands.
 
 - A model's Tough is `Lookup.ModelParameter(state, model, GfNames.Tough)`, absent read as none; a hero is a model with
