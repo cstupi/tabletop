@@ -1,3 +1,4 @@
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Scenarios;
@@ -214,14 +215,43 @@ static partial class SpecialGames
     /// <summary>In the gunline's seed: the first Reliable Gun hit roll (log order, every hit roll counted), set to a raw 3 and a raw 2 (2 and 1 after Stealth, at 2+).</summary>
     const int GunlineReliableHit = 1;
 
-    /// <summary>Artillery, Immobile, Indirect, Limited, Unstoppable: an emplaced gun line that can only hold, against a mobile mortar squad.</summary>
+    /// <summary>
+    /// Artillery, Immobile, Indirect, Limited, Unstoppable: an emplaced gun line that can only hold, against a mobile mortar squad. Red
+    /// deploys in x 12–24, Blue in x 0–12 (frontline on a 24" by 48" table), every Blue base 17" from every Red base, so every shot is from
+    /// over 9" and nothing charges. Red activates Red unit 1 first and fires at Blue unit 3 (Blue unit 2 once it is gone). In round 1 Blue unit
+    /// 2 Advances 1" along the table's length and fires at Red unit 2, and Blue unit 1 Holds and fires at Red unit 1; Blue unit 3, and every Blue
+    /// unit after round 1, holds without shooting. Red's Tough(6) outlasts Blue's at most four wounds a unit, so no Red unit takes a morale test and both keep their
+    /// Hold-only activations, and the Artillery shoots again after its Limited Missile Pod is spent.
+    /// </summary>
     static TestGame Artillery()
     {
         const string name = "special-artillery-emplacement";
-        return Game(name, new ScenarioBuilder(name, 122).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
-                .Army("Red", 2, 2, modelRules: [new(1, "Artillery"), new(1, "Tough", 3), new(2, "Immobile"), new(2, "Tough", 3)],
-                    weapons: [Gun("Missile Pod", 48, 2, Rule("Limited")), Gun("Autocannon", 48, 1)], unitStats: Stats(4, 4))
-                .Army("Blue", 3, 2, weapons: [Gun("Rail Rifle", 48, 1, Rule("Unstoppable")), Gun("Mortar", 48, 1, Rule("Indirect"))], unitStats: Stats(4, 5))
+        var script = AnswerScript.Build();
+        for (var i = 0; i < 80; i++) script.At("strike_back", i, new Chosen("strike"));
+        static bool Blue(string? unit) => unit?.StartsWith("Blue ", StringComparison.Ordinal) == true;
+        script.Match("shoot_or_not", (ask, p) => ask.Legal is Options { Choices: [var shoot, ..] } && shoot.Pieces is [var unit]
+            ? new Chosen(AskPicks.UnitNameOf(p, unit) is var shooter && Blue(shooter) && (p.Scheduler.Round > 1 || shooter == "Blue unit 3") ? "pass" : "shoot") : null);
+        script.Match(AskQuestions.Activate, (ask, p) =>
+            AskPicks.Activate(ask, "Red unit 1", "Hold") ?? AskPicks.Activate(ask, "Red unit 2", "Hold")
+            ?? (p.Scheduler.Round == 1 ? AskPicks.Activate(ask, "Blue unit 2", "Advance") : AskPicks.Activate(ask, "Blue unit 2", "Hold"))
+            ?? AskPicks.Activate(ask, "Blue unit 1", "Hold") ?? AskPicks.Activate(ask, "Blue unit 3", "Hold"));
+        script.Match("move", (ask, p) => ask.Legal is MoveRegion { Containment: null } region && region.ModelIds.All(id => AskPicks.UnitNameOf(p, id) == "Blue unit 2")
+            ? new Destinations([.. region.ModelIds.Where(id => p.Models[id].Location is OnTable).Select(id => (Id: id, At: ((OnTable)p.Models[id].Location).Placement))
+                .Select(m => new ModelRelocation(m.Id, p.Models[m.Id].Location, new OnTable(m.At with { Position = m.At.Position with { Y = m.At.Position.Y + 1 } })))])
+            : null);
+        script.Match("declare_targets", (ask, p) => ShooterOf(ask, p) switch
+        {
+            "Red unit 1" or "Red unit 2" => AllAt(ask, p, "Blue unit 3") ?? AllAt(ask, p, "Blue unit 2"),
+            "Blue unit 2" => AllAt(ask, p, "Red unit 2"),
+            "Blue unit 1" => AllAt(ask, p, "Red unit 1"),
+            _ => null,
+        });
+        return Game(name, new ScenarioBuilder(name, 122).RoundCap(4).Table(24, 48).Scripted(script.Build())
+                .Army("Red", 2, 2, modelRules: [new(1, "Artillery"), new(1, "Tough", 6), new(2, "Immobile"), new(2, "Tough", 6)],
+                    weapons: [Gun("Missile Pod", 48, 2, Rule("Limited")), Gun("Autocannon", 48, 1)], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(21, 20), [2] = new(21, 28) })
+                .Army("Blue", 3, 2, weapons: [Gun("Rail Rifle", 48, 1, Rule("Unstoppable")), Gun("Mortar", 48, 1, Rule("Indirect"))], unitStats: Stats(4, 5),
+                    anchors: new Dictionary<int, Point2> { [1] = new(1, 12), [2] = new(1, 24), [3] = new(1, 36) })
                 .Build(),
             ["Artillery", "Immobile", "Indirect", "Limited", "Unstoppable"],
             [
@@ -295,6 +325,23 @@ static partial class SpecialGames
     /// <summary>The seed whose placements put the two units' closest bases between 9" and 10" apart.</summary>
     const ulong StealthSeed = 14;
 
-    /// <summary>In the artillery's seed: the Artillery's first own hit roll (a raw 3 and a raw 2), a hit roll at it (a raw 5), and a Mortar roll after an Advance (5 and 4).</summary>
-    static DiceFix[] ArtilleryFixes => [new("hit", 0, [3, 2]), new("hit", 2, [5]), new("hit", 7, [5, 4])];
+    /// <summary>
+    /// The Artillery's first own hit roll (a raw 3 and a raw 2), Blue unit 1's first Mortar roll at it from a Hold (a raw 5), and Blue unit 2's
+    /// first Mortar roll after an Advance (5 and 4).
+    /// </summary>
+    static DiceFix[] ArtilleryFixes =>
+    [
+        new("hit", 0, [3, 2], new RollKey(Actor: "Red unit 1")),
+        new("hit", 0, [5], new RollKey(Actor: "Blue unit 1", Target: "Red unit 1", Weapon: "Mortar", Action: "Hold")),
+        new("hit", 0, [5, 4], new RollKey(Actor: "Blue unit 2", Weapon: "Mortar", Action: "Advance")),
+    ];
+
+    /// <summary>The unit whose shooting a declare_targets Ask is for: the actor of the frame that asks.</summary>
+    static string? ShooterOf(Ask ask, Projection p) =>
+        ask.FrameId is { } frame && p.Stack.FirstOrDefault(f => f.Id == frame)?.Context.ActorUnitId is { } actor ? AskPicks.UnitNameOf(p, actor) : null;
+
+    /// <summary>Every weapon group at the named unit, when every group may take it; else null, for the policy.</summary>
+    static AskAnswer? AllAt(Ask ask, Projection p, string unit) =>
+        ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit) is var t && t != Guid.Empty
+            && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null;
 }

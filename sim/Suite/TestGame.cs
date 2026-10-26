@@ -5,11 +5,33 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// The Ordinal-th roll of kind Roll in the game (RollRecord.Roll: hit, defense, morale, casting), counted from zero in log order,
-/// gets these faces by SetDice: Faces[i] is die i's raw face. The roll must come from a step its frame outlives (the runner turns the
-/// game's step gate on), and a fix that never meets its roll fails the game.
+/// The Ordinal-th roll of kind Roll in the game (RollRecord.Roll: hit, defense, morale, casting, or a rule's own roll such as Fearless),
+/// counted from zero in log order, gets these faces by SetDice: Faces[i] is die i's raw face. With a Key, only the rolls whose frame the
+/// key matches are counted, so the fix names one unit's roll whatever else the game rolled before it. The roll must come from a step its
+/// frame outlives (the runner turns the game's step gate on), and a fix that never meets its roll fails the game.
 /// </summary>
-public sealed record DiceFix(string Roll, int Ordinal, IReadOnlyList<int> Faces);
+public sealed record DiceFix(string Roll, int Ordinal, IReadOnlyList<int> Faces, RollKey? Key = null);
+
+/// <summary>
+/// Which rolls a DiceFix counts, read from the SequenceContext of the frame that rolled: Actor and Target are unit names (the actor is the
+/// shooter or striker in an attack-sequence and the frames under it, the testing unit in a morale-test), Weapon the name of the context's
+/// first weapon, Action the action row's name (Hold, Advance, Rush, Charge). A null field matches anything.
+/// </summary>
+public sealed record RollKey(string? Actor = null, string? Target = null, string? Weapon = null, string? Action = null)
+{
+    public bool Matches(SequenceContext context, Projection projection)
+    {
+        string? Unit(Guid id) => projection.Units.TryGetValue(id, out var u) ? u.Definition.Name : null;
+        if (Actor is not null && (context.ActorUnitId is not { } actor || Unit(actor) != Actor)) return false;
+        if (Target is not null && !context.TargetUnitIds.Any(t => Unit(t) == Target)) return false;
+        if (Weapon is not null && (context.WeaponIds.Count == 0
+            || projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => w.Id == context.WeaponIds[0])?.Name != Weapon)) return false;
+        return Action is null || context.Action == Action;
+    }
+
+    public override string ToString() =>
+        string.Join(" ", new[] { Actor is null ? null : $"by {Actor}", Target is null ? null : $"at {Target}", Weapon is null ? null : $"with {Weapon}", Action is null ? null : $"in {Action}" }.OfType<string>());
+}
 
 /// <summary>
 /// One check a game makes of its run: Failure returns null for a pass, else the reason. Entries: the catalog entries an exact check is

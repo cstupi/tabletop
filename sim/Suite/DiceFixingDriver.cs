@@ -7,12 +7,13 @@ namespace Tabletop.Sim.Suite;
 /// A driver that applies a game's DiceFixes as their rolls arrive: each event the run loop takes passes through here, and a roll a
 /// fix names is set by SetDice (taken only by a server with GameServerOptions.AcceptsSetDice on) while its frame is still on the stack,
 /// before the loop answers the step gate that holds it there. The edit's events join the batch the loop receives. Nothing here
-/// reads a rule: a fix names a roll kind and an ordinal, and the faces are the game's literals.
+/// reads a rule: a fix names a roll kind, an ordinal and optionally its frame's actor, target, weapon and action, and the faces are the game's literals.
 /// </summary>
 public sealed class DiceFixingDriver(IGameDriver inner, IReadOnlyList<DiceFix> fixes) : IGameDriver
 {
     private readonly Dictionary<string, int> _seen = [];
     private readonly HashSet<DiceFix> _met = [];
+    private readonly Dictionary<DiceFix, int> _keyedSeen = [];
     private readonly List<string> _failures = [];
 
     public IGameDriver Inner => inner;
@@ -52,11 +53,25 @@ public sealed class DiceFixingDriver(IGameDriver inner, IReadOnlyList<DiceFix> f
         for (var i = 0; i < all.Count; i++)
         {
             if (all[i].Payload is not StepCompleted step) continue;
+            SequenceContext? context = null;
+            Projection? projection = null;
             foreach (var roll in step.Rolls)
             {
                 var ordinal = _seen.GetValueOrDefault(roll.Roll);
                 _seen[roll.Roll] = ordinal + 1;
-                var fix = fixes.FirstOrDefault(f => f.Roll == roll.Roll && f.Ordinal == ordinal && !_met.Contains(f));
+                var fix = fixes.FirstOrDefault(f => f.Key is null && f.Roll == roll.Roll && f.Ordinal == ordinal && !_met.Contains(f));
+                if (fix is null && fixes.Any(f => f.Key is not null && f.Roll == roll.Roll && !_met.Contains(f)))
+                {
+                    projection ??= await inner.ProjectionAsync(ct);
+                    context ??= projection.Stack.FirstOrDefault(f => f.Id == step.FrameId)?.Context;
+                    foreach (var keyed in fixes.Where(f => f.Key is not null && f.Roll == roll.Roll && !_met.Contains(f)))
+                    {
+                        if (context is null || !keyed.Key!.Matches(context, projection)) continue;
+                        var nth = _keyedSeen.GetValueOrDefault(keyed);
+                        _keyedSeen[keyed] = nth + 1;
+                        if (nth == keyed.Ordinal && fix is null) fix = keyed;
+                    }
+                }
                 if (fix is null) continue;
                 _met.Add(fix);
                 if (await RefusalAsync(fix, step, roll, ct) is { } failure) { _failures.Add($"{Label(fix)}: {failure}"); continue; }
@@ -76,5 +91,5 @@ public sealed class DiceFixingDriver(IGameDriver inner, IReadOnlyList<DiceFix> f
         return result is SubmitResult.Rejected r ? $"SetDice refused: {r.Reason} {r.Detail}" : null;
     }
 
-    private static string Label(DiceFix fix) => $"dice fix {fix.Roll}#{fix.Ordinal} [{string.Join(",", fix.Faces)}]";
+    private static string Label(DiceFix fix) => $"dice fix {fix.Roll}#{fix.Ordinal}{(fix.Key is { } key ? $" {key}" : "")} [{string.Join(",", fix.Faces)}]";
 }

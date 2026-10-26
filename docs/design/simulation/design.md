@@ -782,7 +782,8 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   attacks with its weapon), never from `Applied`.
 - **Dice.** A `DiceFix` sets one roll's faces by `SetDice` once the step that rolled it completes (a game server takes `SetDice` only
   with `GameServerOptions.AcceptsSetDice` on: Development and the in-process driver), so a game that fixes
-  dice runs with the step gate on. A fix that never meets its roll fails the game.
+  dice runs with the step gate on. A fix that never meets its roll fails the game. A fix with a `RollKey` counts only the rolls whose
+  frame's context names that actor, target, weapon and action, so it lands on one unit's roll whatever the seed rolled before it.
 - **Scripting.** Ids are minted at compile time, so a game's script picks by name: `ScriptBuilder.Match` with `AskPicks`
   (activate a named unit's action, cast a named spell, target a named unit). Set-aside units and per-model entries are
   scenario fields (`ScenarioArmy.SetAside`, `ScenarioArmy.Passengers`, `ScenarioArmy.Models`).
@@ -980,7 +981,8 @@ The viewer's whole input.
 | Type | Members |
 | --- | --- |
 | `sealed record TestGame(string Name, string Group, Scenario Scenario, IRL<string> Covers, IRL<DiceFix> Dice, IRL<GameCheck> Checks, IRD<string, Func<IRL<GameEvent>, bool>>? Evidence = null)` | `bool FiredIn(IRL<GameEvent>, string)`, `IRL<KnownDefect> Known { init; }`, `TestGame Pinned(string id, string check, string reason, DriverKind? driver = null)`, `IRL<KnownDefect> KnownOn(DriverKind)` |
-| `sealed record DiceFix(string Roll, int Ordinal, IRL<int> Faces)` | the Ordinal-th roll of that kind gets these faces by `SetDice` |
+| `sealed record DiceFix(string Roll, int Ordinal, IRL<int> Faces, RollKey? Key = null)` | the Ordinal-th roll of that kind (with a Key, of those whose frame it matches) gets these faces by `SetDice` |
+| `sealed record RollKey(string? Actor, string? Target, string? Weapon, string? Action)` | `bool Matches(SequenceContext, Projection)`: unit, weapon and action names against the rolling frame's context |
 | `sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IRL<string>? Entries = null)` | null is a pass; Entries make it an exact check; `static Each(string, Func<SuiteGameRun, IEnumerable<string>>, IRL<string>?)` reports one line per reason; `IRL<string> FailuresOf(SuiteGameRun)` |
 | `sealed record KnownDefect(string Id, string Check, string Reason, DriverKind? Driver = null)` | a pin: a failure that starts with Check and contains Reason is that defect's (`bool Matches(string)`) |
 | `sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IRL<GameEvent> EffectiveLog, Projection Final, IRL<string> InvariantFailures)` | `IRD<string, IRL<ExactResult>> Exact { init; }` |

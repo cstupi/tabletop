@@ -139,14 +139,40 @@ static partial class SpecialGames
             ]);
     }
 
-    /// <summary>Caster, Transport, Fearless: casters who ride in a Transport, and a Fearless squad on each side, in a firefight that closes to melee.</summary>
+    /// <summary>
+    /// Caster, Transport, Fearless: casters who ride in a Transport, and a Fearless squad on each side, in a firefight. Red deploys in x 12–24,
+    /// Blue in x 0–12 (frontline on a 24" by 30" table), every unit within its rifles' 24" of the enemy. Red activates the Transport first, Holding
+    /// and firing at Blue unit 2 (Fearless), then its casters (Red unit 1: Hold and cast in round 1, Advance into the Transport in round 2, Advance
+    /// out of it in round 3, Hold and cast in round 4), then Red unit 3 (Fearless). Blue activates Blue unit 1 first, Holding and firing at Red
+    /// unit 3 (the Transport once it is gone), and Blue unit 2 Holds and fires at the Transport, so the casters are never shot at. Each side's
+    /// opening volley at the Fearless squad has its dice fixed (CommandFixes) to kill two of its three models, so each takes a morale test.
+    /// </summary>
     static TestGame Command()
     {
         const string name = "special-command-squad";
-        return Game(name, new ScenarioBuilder(name, 115).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
+        var script = AnswerScript.Build();
+        for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
+        script.Match(AskQuestions.Activate, (ask, p) =>
+            AskPicks.Activate(ask, "Red unit 2", "Hold")
+            ?? AskPicks.Activate(ask, "Red unit 1", p.Scheduler.Round is 2 or 3 ? "Advance" : "Hold")
+            ?? AskPicks.Activate(ask, "Red unit 3", "Hold")
+            ?? AskPicks.Activate(ask, "Blue unit 1", "Hold") ?? AskPicks.Activate(ask, "Blue unit 2", "Hold"));
+        script.Match("react", (ask, p) => ask.Prompt == "Before attacking" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : null);
+        script.Match("move", (ask, p) => ask.Legal is MoveRegion { Containment.Enterable: [var transport, ..] } m && m.ModelIds.All(id => AskPicks.UnitNameOf(p, id) == "Red unit 1")
+            ? new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(transport)))]) : null);
+        script.Match("declare_targets", (ask, p) => ShooterOf(ask, p) switch
+        {
+            "Red unit 2" => AllAt(ask, p, "Blue unit 2"),
+            "Blue unit 1" => AllAt(ask, p, "Red unit 3") ?? AllAt(ask, p, "Red unit 2"),
+            "Blue unit 2" => AllAt(ask, p, "Red unit 2"),
+            _ => null,
+        });
+        return Game(name, new ScenarioBuilder(name, 115).RoundCap(4).Table(24, 30).Scripted(script.Build())
                 .Army("Red", 3, 3, modelRules: [new(1, "Caster", 2), new(2, "Transport", 6), new(2, "Tough", 6), new(3, "Fearless")],
-                    weapons: [Gun("Rifle", 24, 1), Blade("Bayonet", 1)], unitStats: Stats(5, 5), armyBook: "z65fgu0l29i4lnlu")
-                .Army("Blue", 2, 3, modelRules: [new(2, "Fearless")], weapons: [Gun("Rifle", 24, 2, Rule("AP", 1)), Blade("Bayonet", 1)], unitStats: Stats(4, 4))
+                    weapons: [Gun("Rifle", 24, 1), Blade("Bayonet", 1)], unitStats: Stats(5, 5), armyBook: "z65fgu0l29i4lnlu",
+                    anchors: new Dictionary<int, Point2> { [1] = new(14, 8), [2] = new(14, 11), [3] = new(14, 22) })
+                .Army("Blue", 2, 3, modelRules: [new(2, "Fearless")], weapons: [Gun("Rifle", 24, 2, Rule("AP", 1)), Blade("Bayonet", 1)], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(2, 22), [2] = new(2, 8) })
                 .Seeking(ToTransportElseEnemy)
                 .Build(),
             ["Caster", "Transport", "Fearless"],
@@ -212,6 +238,24 @@ static partial class SpecialGames
                         return Value(s, "passed") == (passed ? 1 : 0) && shaken != passed ? null : $"Fearless {Show(fearless)}: passed={Value(s, "passed")}, shaken or routed {shaken}";
                     }) ?? (outcomes < 2 ? "the Fearless die never gave both a 4+ and a fail" : null);
                 }),
-            ]);
+            ],
+            dice: CommandFixes);
     }
+
+    /// <summary>
+    /// Blue unit 1's first volley at Red unit 3 (six Rifle dice) and the Transport's first at Blue unit 2 (three) each hit twice and are blocked
+    /// by neither defense die, killing two of three models; each Fearless squad's first morale test rolls a 1, and its Fearless die a 4 for Red
+    /// unit 3 (counts as passed) and a 2 for Blue unit 2 (Shaken).
+    /// </summary>
+    static DiceFix[] CommandFixes =>
+    [
+        new("hit", 0, [6, 6, 1, 1, 1, 1], new RollKey(Actor: "Blue unit 1", Target: "Red unit 3")),
+        new("defense", 0, [1, 1], new RollKey(Actor: "Blue unit 1", Target: "Red unit 3")),
+        new("morale", 0, [1], new RollKey(Actor: "Red unit 3")),
+        new("Fearless", 0, [4], new RollKey(Actor: "Red unit 3")),
+        new("hit", 0, [6, 6, 1], new RollKey(Actor: "Red unit 2", Target: "Blue unit 2")),
+        new("defense", 0, [1, 1], new RollKey(Actor: "Red unit 2", Target: "Blue unit 2")),
+        new("morale", 0, [1], new RollKey(Actor: "Blue unit 2")),
+        new("Fearless", 0, [2], new RollKey(Actor: "Blue unit 2")),
+    ];
 }

@@ -96,7 +96,9 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   narrowed by `When.Shooting` or `When.Charging`. They never select by `Applied`, so a rule that stops acting on some occasions fails.
 - Fired: the entry is in a step's `StepCompleted.Applied` or a `RollModifier.Source` of the effective log (`Fired.In`). A rule that acts
   where no step completes (Scout, Ambush, Immobile, Aircraft's Advance-only restriction) gets the game's `Evidence` predicate instead.
-- `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. `SetDice` is no player
+- `DiceFix(roll, ordinal, faces, key?)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. With a `RollKey`
+  (actor, target, weapon, action, by name), only the rolls whose frame's context matches are counted, so the fix lands on that unit's
+  roll however many others the seed rolled first; a game that needs a situation places and scripts its units into it and keys its fixes. `SetDice` is no player
   command: a game server takes it only with `GameServerOptions.AcceptsSetDice` on, which dev mode sets (Development and `TABLETOP_DEV_MODE=1`: the
   compose `game` service) and the in-process driver passes to its `RulesEngineFactory`; anywhere else it is refused. A game with fixes runs
   with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable (the roll-off's too, whose Confirm opens only then); a fix that never meets its roll fails
@@ -154,7 +156,9 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
    `Seeking(...)` for where the policy moves.
 2. Script every decision the check depends on with `AnswerScript`: `.Match(question, pick)` by unit name (`AskPicks.Activate`,
    `AskPicks.Pieces`) rather than `.At(question, ordinal, ...)`, which shifts like a dice index.
-3. Pin only the dice the check reads (`DiceFix`), and only where the roll is reached by steps 1–2, so its ordinal is stable.
+3. Pin only the dice the check reads (`DiceFix`), and only where the roll is reached by steps 1–2, keyed to the roll with a `RollKey`
+   (actor, target, weapon, action) so its ordinal counts that unit's rolls alone: `new DiceFix("morale", 0, [1], new RollKey(Actor: "Red unit 3"))`.
+   `special-artillery-emplacement` and `special-command-squad` are worked examples.
 4. Check the game on several seeds (`--seeds 1..5`, with `--only <game>`). It is done when every seed passes.
 5. Never fix a broken game by changing its seed.
 

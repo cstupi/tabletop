@@ -1,3 +1,4 @@
+using Tabletop.Protocol;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Suite;
 using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
@@ -42,6 +43,31 @@ public class SuiteRunnerTests
         });
         var report = await RunAsync(Game(dice: [new DiceFix("hit", 0, [face])], checks: [Checks.Ended(), Checks.Invariants(), check]));
         Assert.True(report.Passed, Why(report) + $" (defense dice {edited})");
+    }
+
+    [Theory]
+    [InlineData("Red unit 1")]
+    [InlineData("Blue unit 1")]
+    public async Task A_keyed_dice_fix_sets_the_named_units_roll(string actor)
+    {
+        var check = new GameCheck("the edited roll is the keyed unit's", run =>
+        {
+            var payloads = run.EffectiveLog.Select(e => e.Payload).ToList();
+            if (payloads.OfType<DiceEdited>().FirstOrDefault() is not { } edit) return "no dice_edited in the log";
+            var step = payloads.OfType<StepCompleted>().First(s => s.Rolls.Any(r => r.Id == edit.RollId));
+            var frame = payloads.OfType<SequenceStarted>().First(s => s.FrameId == step.FrameId);
+            var name = run.Final.Units[frame.Context.ActorUnitId!.Value].Definition.Name;
+            return name == actor ? null : $"edited {name}'s roll";
+        });
+        var report = await RunAsync(Game(dice: [new DiceFix("hit", 0, [6], new RollKey(Actor: actor))], checks: [Checks.Ended(), Checks.Invariants(), check]));
+        Assert.True(report.Passed, Why(report));
+    }
+
+    [Fact]
+    public async Task A_keyed_dice_fix_that_matches_no_roll_fails_the_game_with_its_key()
+    {
+        var report = await RunAsync(Game(dice: [new DiceFix("hit", 0, [6], new RollKey(Actor: "Green unit 1"))]));
+        Assert.Contains(Assert.Single(report.Games).Failures, f => f.Contains("hit#0 by Green unit 1") && f.Contains("never made that roll"));
     }
 
     [Fact]
