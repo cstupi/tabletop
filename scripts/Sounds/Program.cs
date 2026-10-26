@@ -11,7 +11,7 @@ foreach (var (name, build) in Cues.All)
     var bytes = Wav.Of(build());
     File.WriteAllBytes(Path.Combine(dir, $"{name}.wav"), bytes);
     written.Add((name, bytes));
-    Console.WriteLine($"{name,-8} {bytes.Length / 1024,4} KiB");
+    Console.WriteLine($"{name,-14} {bytes.Length / 1024,4} KiB");
 }
 if (Path.GetFullPath(dir) == Path.GetFullPath(Shipped))
     File.WriteAllText(Path.Combine("scripts/Sounds", Stamp.FileName), Stamp.Of("scripts/Sounds", written));
