@@ -20,7 +20,7 @@ public sealed class InMemoryRows
     public sealed class AssetRow
     {
         public required Guid Owner; public required string Hash; public required string Name; public AssetKind Kind;
-        public double Scale; public Orientation Orientation; public Base? ModelledBase; public DateTimeOffset? SharedAt;
+        public double Scale; public Orientation Orientation; public Base? ModelledBase;
         public List<TerrainVolume> Volumes = [];
     }
     public sealed class FolderRow { public required Guid Owner; public Guid? ParentId; public required string Name; }
@@ -35,6 +35,11 @@ public sealed class InMemoryRows
         public SchedulerShape SchedulerShape; public Enforcement Enforcement; public bool WaitsBetweenSteps; public long RngSeed;
         public Guid CreatedBy; public DateTimeOffset CreatedAt;
     }
+    public sealed class OfferRow
+    {
+        public required Guid Sharer; public required Guid Recipient; public string? Folder; public string State = "open";
+        public DateTimeOffset CreatedAt = DateTimeOffset.UtcNow; public DateTimeOffset? DecidedAt; public List<Guid> AssetIds = [];
+    }
     public sealed class ParticipantRow { public Guid Id; public Guid GameId; public Guid AccountId; public Guid? ArmyId; public ArmySnapshot? Snapshot; }
 
     public readonly object Gate = new();
@@ -46,6 +51,10 @@ public sealed class InMemoryRows
     public readonly Dictionary<Guid, FolderRow> Folders = new();
     /// <summary>asset_folder, in filing order.</summary>
     public readonly List<(Guid AssetId, Guid FolderId)> Filed = new();
+    /// <summary>share_offer with its share_offer_asset rows.</summary>
+    public readonly Dictionary<Guid, OfferRow> Offers = new();
+    /// <summary>share_block.</summary>
+    public readonly HashSet<(Guid Recipient, Guid Sharer)> Blocks = new();
     public readonly Dictionary<Guid, ArmyRow> Armies = new();
     public readonly Dictionary<Guid, LayoutRow> Layouts = new();
     public readonly Dictionary<string, PropertiesRow> Properties = new();
@@ -133,11 +142,12 @@ public sealed class InMemoryRows
         }
     }
 
-    /// <summary>delete from asset: cascades its volumes and filings.</summary>
+    /// <summary>delete from asset: cascades its volumes, filings and offer rows.</summary>
     public void RemoveAsset(Guid id)
     {
         Assets.Remove(id);
         Filed.RemoveAll(f => f.AssetId == id);
+        foreach (var o in Offers.Values) o.AssetIds.Remove(id);
     }
 
     /// <summary>delete from folder: cascades the folders below it and every filing.</summary>
@@ -173,6 +183,8 @@ public sealed class InMemoryRows
         foreach (var a in Armies.Where(a => a.Value.Owner == id).Select(a => a.Key).ToList()) RemoveArmy(a);
         foreach (var l in Layouts.Where(l => l.Value.Owner == id).Select(l => l.Key).ToList()) Layouts.Remove(l);
         Participants.RemoveAll(p => p.AccountId == id);
+        foreach (var o in Offers.Where(o => o.Value.Sharer == id || o.Value.Recipient == id).Select(o => o.Key).ToList()) Offers.Remove(o);
+        Blocks.RemoveWhere(b => b.Recipient == id || b.Sharer == id);
         Accounts.Remove(id);
     }
 }

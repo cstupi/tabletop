@@ -14,7 +14,10 @@ public class MigrationTests : IClassFixture<TestDatabase>
     {
         await using var c = new NpgsqlConnection(_db.ConnectionString);
         var tables = await c.ExecuteScalarAsync<int>("select count(*) from information_schema.tables where table_schema in ('management','game')");
-        Assert.Equal(35, tables);
+        Assert.Equal(38, tables);
+        Assert.DoesNotContain("shared_at", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='asset'"));
+        Assert.Equal(["share_block", "share_offer", "share_offer_asset"],
+            await c.QueryAsync<string>("select table_name from information_schema.tables where table_schema='management' and table_name like 'share%' order by table_name"));
         var cols = (await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='blob'")).ToList();
         Assert.Contains("uploaded", cols);
         Assert.Contains("content_type", cols);

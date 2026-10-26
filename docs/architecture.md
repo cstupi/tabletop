@@ -396,8 +396,8 @@ There is no per-army asset row and no FK from `Asset` to any army: armies reach 
 assets, so deleting an army touches nothing in the library, and deleting an asset degrades
 appearance without affecting play.
 
-**Dedup is per user, not global**, and a copy of a shared asset is the one place two accounts' rows
-name the same bytes: the copier's blob row names the sharer's S3 key, so an object is deleted only
+**Dedup is per user, not global**, and a copy accepted from an offer is the one place two accounts' rows
+name the same bytes: the recipient's blob row names the sharer's S3 key, so an object is deleted only
 when no blob row names its key ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)). Game participants downloading each other's assets creates no
 library record on either side — it is a download, not a share.
 
@@ -421,8 +421,8 @@ Uploads are per-user, persistent across games, and load at runtime via `GLTFDocu
 through Godot's editor import step. Assets are content-addressed by hash, stored in S3, and
 served by presigned URL straight from S3 — management issues the URLs and the bytes never pass
 through it ([the management API](superpowers/specs/2026-08-29-management-api-design.md)). **A library is private for discovery, not for access**: nobody
-can browse or search another account's assets except those its owner shares ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)), which any signed-in
-account can copy into its own library. Participants in a game download the assets that game uses,
+can browse or search another account's assets. An owner may offer assets to a named player they have been in a game with,
+who sees them while the offer is open and copies them only by accepting ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)). Participants in a game download the assets that game uses,
 straight from wherever they live, and nothing enters anyone else's library by that.
 
 **Upload accepts GLB and rejects STL.** Narrowed from "glTF/GLB" by

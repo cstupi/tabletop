@@ -767,18 +767,18 @@ asset is only appearance, so an army pointing at a deleted mesh stays playable a
 slot's own hitbox: the base shape extruded to its height, semi-transparent. The reference never
 carried anything the rules depend on, so there is no referential integrity problem to solve.
 
-**Sharing** ([shared models](../../superpowers/specs/2026-10-25-shared-models-design.md)). A shared tile reads
-*shared*. The selection bar adds **Share** (some selected are unshared) and **Unshare** (some are shared); with a folder
-open the bar adds **Share folder** and **Unshare folder**, over every asset the folder view shows (`folderSharing` in
-`lib/library/shared.ts`: the folder and its sub-folders, at that moment). The asset page has a **Shared with other
-players** checkbox once the upload is confirmed. `LibraryTabs` links **My library** and **Shared**.
+**Offers** ([shared models](../../superpowers/specs/2026-10-25-shared-models-design.md)). The selection bar adds
+**Offer…** (the selection's uploaded assets); with a folder open the bar adds **Offer folder…** (the server takes the
+folder and its sub-folders at that moment). The asset page has **Offer to a player…** once the upload is confirmed. Each
+opens `OfferDialog`: the players from `GET /v1/offers/players`, each with `playerContext` (the games played together and
+the latest date; the account id's last four characters when two same-named players share even that), a name filter past
+eight, checkboxes, **Offer**. `LibraryTabs` links **My library**, **Offered to you** (with the open count) and **Sent**.
 
-`/library/shared` lists other accounts' shared models a page of 60 at a time (**More** for the next): a search box (name,
-player or folder; submitted with Enter or **Search**) and the kind filter, server-side. Tiles show the name, kind, modelled
-base, owner and the owner's folders, and *In your library* when the caller already holds the same hash (`alreadyHeld`).
-Tiles multi-select by checkbox; **Copy to library** sends the selection with the **Into folder** pick (none by default).
-`/library/shared/{id}` previews the mesh (`MeshPreview` with the sharer's scale and orientation) and copies it, linking
-to the copy.
+`/library/offered` lists open offers twenty at a time (**More**): sharer, date, `offerSummary`, and per asset the name,
+kind, base, size, *in your library* (`alreadyHeld`) and **Preview** (`MeshPreview` with the sharer's scale and
+orientation, or the texture image). Per offer: **Into folder**, **Accept**, **Decline**, **Block** *name* (confirmed;
+declines every offer from that player). Blocked players are listed below with **Unblock**. `/library/sent` is a table of
+the account's offers: recipient, what, date, state (`STATE_LABELS`) and **Withdraw** on a waiting one.
 
 ### 10. The terrain volume editor
 
@@ -1003,7 +1003,7 @@ surface*. `client.ts` has one function per row and no others.
 | `api.auth` | `POST /v1/auth/otp`, `/otp/verify`, `/password`, `/password/signup`, `/password/reset`, `/password/reset/complete`, `/session/refresh`; `DELETE /v1/auth/session` | `EmailRequest`, `OtpVerifyRequest(MethodId, Code)`, `PasswordRequest(Email, Password)`, `ResetCompleteRequest(Token, Password)`, `RefreshRequest(SessionJwt)` → `OtpSentResponse(MethodId)` / `SessionResponse(SessionJwt, Account)` / `202` / `204` |
 | `api.account` | `GET`, `PATCH`, `DELETE /v1/account` | `RenameRequest` → `AccountRow(Id, Name)` / `204` |
 | `api.assets` | `GET /v1/assets?limit&after&kind`, `POST /v1/assets`, `POST /v1/assets/delete` (bulk), `GET/PATCH/DELETE /{id}`, `POST /{id}/confirm`, `GET /{id}/download`, `GET/PUT /{id}/volumes` | `CreateAssetRequest`, `PatchAssetRequest`, `Volume[]` → `Page<AssetDto>`, `CreateAssetResponse(Asset, UploadUrl?)`, `ConfirmResponse(Asset, Triangles?, Warning?)`, `DownloadResponse(Url, ExpiresAt)`, `TerrainVolume[]` |
-| `api.shared` | `GET /v1/shared-assets?limit&after&kind&q`, `GET /{id}`, `GET /{id}/download`, `POST /copy`; and `api.assets.share` / `unshare`: `POST /v1/assets/share`, `/unshare` | `Page<SharedAssetDto>`, `SharedAssetDto`, `DownloadResponse`; `CopySharedRequest(AssetIds, FolderId)` → `CopySharedResponse(Copied, NotFound)`; the share pair `BulkAssetsRequest` → `BulkAssetsResponse` |
+| `api.offers` | `GET /v1/offers/players`, `POST /v1/offers`, `GET /sent`, `/received`, `/received/count`, `GET /{id}/assets/{assetId}/download`, `POST /{id}/accept`, `/decline`, `/withdraw`, `GET /blocked`, `DELETE /blocked/{accountId}` | `PlayerDto[]`; `CreateOffersRequest(RecipientIds, AssetIds, FolderId)` → `CreateOffersResponse(Offers, NotFound)`; `Page<OfferDto>`; `{ open }`; `DownloadResponse`; `{ folderId }` → `AcceptOfferResponse(Copied)`; `{ block }`; `BlockedDto[]` |
 | `api.folders` | `GET`, `POST /v1/folders`, `PATCH/DELETE /{id}`, `PUT/DELETE /{id}/assets/{assetId}`, `POST /{id}/assets`, `POST /{id}/assets/remove` | `FolderRequest(Name, ParentId)` → `FolderDto(Id, ParentId, Name, AssetIds)`; four of them `204` with no body; the bulk pair and `/v1/assets/delete` take `BulkAssetsRequest(AssetIds)` → `BulkAssetsResponse(Done, NotFound)` |
 | `api.armies` | `POST /v1/armies/import`, `GET /v1/armies?limit&after`, `GET/PATCH/DELETE /{id}` | `ImportRequest(Source, Bases)`, `PatchArmyRequest(Name?, Units?, Slots?)` → `Army`, `Page<ArmySummary>`, `204` |
 | `api.client` | `GET /v1/client/latest` | → `ClientRelease(Version, Date, Notes, ProtocolVersion, Downloads, ExpiresAt)`; `404` before the first release |

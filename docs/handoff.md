@@ -59,14 +59,14 @@ Today: 307 of 307 games pass in process with no pin, 545 of 545 entries covered,
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
   defect). About 4 min. Geometry 286, Geometry.Wasm 43, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
-  Protocol 64, Sounds 19, Viewer 16, Client 851, GameServer 1452, Management 303, Sim 308.
+  Protocol 64, Sounds 19, Viewer 16, Client 851, GameServer 1452, Management 322, Sim 308.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 3 min). Management 54, GameServer 40, Sim 338; about 7 min.
+  against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
 
 `cd viewer && npm run check && npm test` passes 1,662 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
-`cd web && npm test` passes 133 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
+`cd web && npm test` passes 134 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
 dev session (`POST /v1/dev/sessions`, roles admin) and stores it as `tabletop.session` on the website's origin.
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
@@ -101,24 +101,29 @@ Node checks mount the whole clone (the viewer reads `web/src` and `client/conten
 - **Polish:** browser play fixes (dead models, decision box, header height, refusals, drag clamp, terrain cards); Godot's table shows no
   bookkeeping conditions (`Bookkeeping`), marker rows declutter, the header reads VP; player text cut to the plain fact.
 
-### Shared models
+### Shared models: offers to a named player
 
-Spec `2026-10-25-shared-models-design.md`. Owner: one player lets others copy their models into their own collection.
+Spec `2026-10-25-shared-models-design.md`, on branch `worktree-agent-a75452cd5b99f84ba` (not merged). Owner: "someone needs
+to accept the shared files and it shouldnt just go to EVERYONE." v0.1.26's everyone-visible sharing is replaced; nothing is
+public.
 
-- Sharing: on the website, Share and Unshare on the Library's selection, Share folder and Unshare folder on the folder in
-  view (every asset in it and its sub-folders at that moment), and a Shared checkbox on the asset page. Any kind
-  (miniature, terrain, texture). `asset.shared_at`, migration `020_shared_assets.sql`.
-- Browsing and copying: Library → Shared (`/library/shared`) lists every other account's shared, uploaded models with
-  owner and the owner's folder names, searches name, player or folder, filters by kind, and copies the selection into a
-  chosen folder; `/library/shared/{id}` previews one. `GET /v1/shared-assets`, `/{id}`, `/{id}/download`,
-  `POST /v1/shared-assets/copy`, `POST /v1/assets/share` and `/unshare`.
-- A copy is the copier's own asset (name, scale, folders, volumes its own; under the upload quota) and plays like an
-  upload: army slots, layouts, the game manifest, Godot and the browser. Its blob row names the sharer's S3 object, so
-  no bytes are copied; an object is deleted only when no blob row names it (asset delete, the upload sweep, a lost
-  confirm, account delete), and every presign reads `blob.s3_key`.
-- Validated over HTTP and the socket against the branch's own servers: share, search, preview, copy into a folder,
-  assign to an army, the copy in a game's manifest for the other player, then unshare, source delete and the sharer's
-  account delete with the copy still downloading, and the object gone after the copier's account delete.
+- Offering: on the website, **Offer…** on the Library's selection, **Offer folder…** on the folder in view (its assets and
+  sub-folders' at that moment), **Offer to a player…** on the asset page. The recipients are players the sharer has been in
+  a game with, shown with the games played together and the latest date. One `share_offer` row per recipient; 50 offers a
+  day per sharer, 20 open per recipient. No email lookup (the spec says why).
+- Answering: **Offered to you** (the Library tab shows the open count) previews each model, then **Accept** into a chosen
+  folder, **Decline**, or **Block** the sharer (declines the rest, hides new ones; unblock below). Only the recipient of an
+  open offer can see, preview or download it; every other caller gets 404. **Sent** shows each offer's state and withdraws a
+  waiting one.
+- Accept is v0.1.26's copy: the recipient's own asset under their quota, its blob row naming the sharer's S3 object; it
+  stays when the sharer withdraws, deletes or leaves. An object is deleted only when no blob row names it.
+- Migration `021_share_offers.sql`: `share_offer`, `share_offer_asset`, `share_block`; drops `asset.shared_at` (assets
+  shared under 020 are offered to no one). `/v1/shared-assets` and `/v1/assets/share|unshare` are gone; `/v1/offers` replaces them.
+- Validated over HTTP and the socket against the branch's own servers (management :5117, game :5217, database
+  `tabletop_shared_offers`, dropped after) with three dev accounts: A offers to B; C gets 404 on the offer, its preview, the
+  asset and every answer; B previews, accepts into a folder, puts the copy in an army, picks it in a lobby over the socket, and
+  A's game manifest serves it; A deletes the source and the copy still downloads and plays; a declined and a withdrawn offer
+  leave nothing. All accounts deleted after.
 
 ### 2026-10-25, v0.1.25
 

@@ -32,9 +32,6 @@ public interface IAssetRepository
     /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too, and when no blob row
     /// of any owner still names its S3 key (a copy names the sharer's), returns that key.</summary>
     Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id);
-    /// <summary>Sets or clears shared_at on each of these ids that is an asset of the owner (sharing an already shared asset keeps its
-    /// time); returns those ids.</summary>
-    Task<IReadOnlyList<Guid>> SetShared(Guid ownerId, IReadOnlyList<Guid> ids, bool shared);
     /// <summary>The S3 key the asset's blob row names; null when the owner has no such asset.</summary>
     Task<string?> BlobKey(Guid ownerId, Guid id);
     /// <summary>The keys no blob row of any owner names: what may be deleted from the store.</summary>

@@ -10,7 +10,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
     private AssetDto Dto(Guid id, InMemoryRows.AssetRow a)
     {
         var b = rows.Blobs[(a.Owner, a.Hash)];
-        return new AssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, b.Uploaded, a.Scale, a.Orientation, a.ModelledBase, a.SharedAt is not null);
+        return new AssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, b.Uploaded, a.Scale, a.Orientation, a.ModelledBase);
     }
 
     /// <summary>check ((kind = 'miniature') = (modelled_base_shape is not null))</summary>
@@ -66,7 +66,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             var next = new InMemoryRows.AssetRow
             {
                 Owner = a.Owner, Hash = a.Hash, Name = p.Name ?? a.Name, Kind = a.Kind, Scale = p.Scale ?? a.Scale,
-                Orientation = p.Orientation ?? a.Orientation, ModelledBase = p.ModelledBase ?? a.ModelledBase, SharedAt = a.SharedAt, Volumes = a.Volumes,
+                Orientation = p.Orientation ?? a.Orientation, ModelledBase = p.ModelledBase ?? a.ModelledBase, Volumes = a.Volumes,
             };
             Check(next);
             rows.Assets[id] = next;
@@ -102,16 +102,6 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             var key = rows.Blobs[(ownerId, a.Hash)].Key;
             rows.Blobs.Remove((ownerId, a.Hash));
             return Task.FromResult<(bool, string?)>((true, rows.Blobs.Values.Any(b => b.Key == key) ? null : key));
-        }
-    }
-
-    public Task<IReadOnlyList<Guid>> SetShared(Guid ownerId, IReadOnlyList<Guid> ids, bool shared)
-    {
-        lock (rows.Gate)
-        {
-            var done = ids.Distinct().Where(id => rows.Assets.TryGetValue(id, out var a) && a.Owner == ownerId).ToList();
-            foreach (var id in done) rows.Assets[id].SharedAt = shared ? rows.Assets[id].SharedAt ?? DateTimeOffset.UtcNow : null;
-            return Task.FromResult<IReadOnlyList<Guid>>(done);
         }
     }
 

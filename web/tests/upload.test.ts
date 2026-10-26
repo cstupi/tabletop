@@ -6,7 +6,7 @@ import { upload, UploadError } from '../src/lib/upload/upload';
 import type { AssetDto } from '../src/lib/api/types';
 import { defaultVolume } from '../src/lib/units/volumes';
 
-const asset = (over: Partial<AssetDto> = {}): AssetDto => ({ id: 'a1', name: 'Ruin', kind: 'terrain', hash: 'h', byteSize: 3, contentType: 'model/gltf-binary', uploaded: false, scale: 1, orientation: { pitch: 0, yaw: 0, roll: 0 }, shared: false, ...over });
+const asset = (over: Partial<AssetDto> = {}): AssetDto => ({ id: 'a1', name: 'Ruin', kind: 'terrain', hash: 'h', byteSize: 3, contentType: 'model/gltf-binary', uploaded: false, scale: 1, orientation: { pitch: 0, yaw: 0, roll: 0 }, ...over });
 afterEach(() => vi.restoreAllMocks());
 
 describe('sha256Hex', () => {

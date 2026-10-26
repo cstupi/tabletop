@@ -8,15 +8,15 @@ namespace Tabletop.Management.Content.Assets;
 public sealed class AssetRepository(Database db) : IAssetRepository
 {
     private sealed record Row(Guid Id, Guid OwnerId, string Name, string Kind, string BlobHash, long ByteSize, string ContentType, bool Uploaded, double Scale,
-        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB, bool Shared)
+        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB)
     {
         public AssetDto ToDto() => new(Id, Name, AssetRules.Kind(Kind), BlobHash, ByteSize, ContentType, Uploaded, Scale, new Orientation(OrientationPitch, OrientationYaw, OrientationRoll),
-            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value), Shared);
+            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value));
     }
 
     private const string Select = @"select a.id as Id, a.owner_id as OwnerId, a.name as Name, a.kind as Kind, a.blob_hash as BlobHash, b.byte_size as ByteSize, b.content_type as ContentType,
         b.uploaded as Uploaded, a.scale::float8 as Scale, a.orientation_pitch::float8 as OrientationPitch, a.orientation_yaw::float8 as OrientationYaw, a.orientation_roll::float8 as OrientationRoll,
-        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB, a.shared_at is not null as Shared
+        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB
         from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash";
 
     public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
@@ -96,16 +96,6 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         if (key is not null && await c.ExecuteScalarAsync<bool>("select exists (select 1 from blob where s3_key = @key)", new { key }, tx)) key = null;
         await tx.CommitAsync();
         return (true, key);
-    }
-
-    public async Task<IReadOnlyList<Guid>> SetShared(Guid ownerId, IReadOnlyList<Guid> ids, bool shared)
-    {
-        await using var c = await db.Open();
-        var done = shared
-            ? await c.QueryAsync<Guid>("update asset set shared_at = coalesce(shared_at, now()) where owner_id = @ownerId and id = any(@ids) returning id", new { ownerId, ids = ids.Distinct().ToArray() })
-            : await c.QueryAsync<Guid>("update asset set shared_at = null where owner_id = @ownerId and id = any(@ids) returning id", new { ownerId, ids = ids.Distinct().ToArray() });
-        var set = done.ToHashSet();
-        return ids.Distinct().Where(set.Contains).ToList();
     }
 
     public async Task<string?> BlobKey(Guid ownerId, Guid id)

@@ -4,8 +4,8 @@ namespace Tabletop.Management.Content.Assets;
 
 public enum AssetKind { Miniature, Terrain, Texture }
 
-/// <summary>An asset of the caller's. <c>Shared</c>: every signed-in account can list and copy it (<c>/v1/shared-assets</c>).</summary>
-public sealed record AssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, bool Uploaded, double Scale, Orientation Orientation, Base? ModelledBase, bool Shared);
+/// <summary>An asset of the caller's.</summary>
+public sealed record AssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, bool Uploaded, double Scale, Orientation Orientation, Base? ModelledBase);
 public sealed record CreateAssetRequest(string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase);
 public sealed record CreateAssetResponse(AssetDto Asset, Uri? UploadUrl);
 public sealed record ConfirmResponse(AssetDto Asset, long? Triangles, string? Warning);
@@ -15,14 +15,6 @@ public sealed record DownloadResponse(Uri Url, DateTimeOffset ExpiresAt);
 public sealed record BulkAssetsRequest(IReadOnlyList<Guid> AssetIds);
 /// <summary>Per-item outcome: <c>NotFound</c> lists ids that are not the caller's assets.</summary>
 public sealed record BulkAssetsResponse(IReadOnlyList<Guid> Done, IReadOnlyList<Guid> NotFound);
-
-/// <summary>Another account's shared, uploaded asset: what the shared listing shows. <c>Folders</c> names the owner's folders holding it.</summary>
-public sealed record SharedAssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase,
-    string OwnerName, IReadOnlyList<string> Folders, DateTimeOffset SharedAt);
-/// <summary>The body of <c>POST /v1/shared-assets/copy</c>: 1 to <c>Limits.Bulk</c> shared asset ids, and the caller's folder the copies are filed in.</summary>
-public sealed record CopySharedRequest(IReadOnlyList<Guid> AssetIds, Guid? FolderId);
-/// <summary>The caller's new assets, in request order, and the ids that are not another account's shared, uploaded asset.</summary>
-public sealed record CopySharedResponse(IReadOnlyList<AssetDto> Copied, IReadOnlyList<Guid> NotFound);
 
 public static class AssetRules
 {

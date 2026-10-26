@@ -592,23 +592,25 @@ the operator's backstop.
 Download is `GET /v1/assets/{id}/download` → a presigned `GET` valid 60 minutes, `409` until
 confirmed. Delete removes the asset row. When that was the owner's **last** reference to the hash
 it removes the `blob` row too, and returns the S3 key so the endpoint can delete the object after
-the transaction commits, unless another blob row names that key (a copy of a shared asset, below); a
+the transaction commits, unless another blob row names that key (a copy accepted from an offer, below); a
 separate statement after the delete reads it, so it sees a copy committed while the delete waited on the
 copy's lock. The download, the game manifest and confirm's triangle count presign `blob.s3_key`, never a
 derived `{owner}/{hash}`.
 
-**Shared assets** ([shared models](../../superpowers/specs/2026-10-25-shared-models-design.md)).
-`asset.shared_at` (migration 020). `POST /v1/assets/share` and `/unshare` take `BulkAssetsRequest` and answer
-`BulkAssetsResponse` (`IAssetRepository.SetShared`; the web's folder share sends the folder subtree's ids).
-`ISharedAssetRepository` / `SharedAssetRepository` serve other accounts' shared, uploaded assets:
-`GET /v1/shared-assets?q=&kind=&limit=&after=` (`SharedAssetDto`: the asset's facts, `OwnerName`, the owner's
-`Folders` holding it, `SharedAt`; `q` ≤ 64 characters, an escaped ILIKE substring of the asset name, the owner's
-name or one of those folder names), `GET /v1/shared-assets/{id}` and `/{id}/download` (404 for the caller's own,
-an unshared or an unuploaded asset). `POST /v1/shared-assets/copy` (`CopySharedRequest(AssetIds, FolderId)`,
-1–200 ids) answers `CopySharedResponse(Copied, NotFound)` in one transaction: the caller's account row locked,
-the folder checked (404), the sources read `for share`, the quota checked over all copies (422), then per hash a
-blob row naming the source's key (a pending row of the caller's takes the source's key, size and content type;
-a pending asset of a kind those bytes do not fit is 409), per source an asset row and its volumes, filed.
+**Offers** ([shared models](../../superpowers/specs/2026-10-25-shared-models-design.md)). `Content/Offers/`:
+`OfferEndpoints` (`/v1/offers`), `IOfferRepository` / `OfferRepository`, `OfferDtos` (`OfferLimits`: 50 offers a sharer
+makes in 24 h, 20 open offers a recipient sees, 20 recipients a request). Tables `share_offer`, `share_offer_asset`,
+`share_block` (migration 021, which drops 020's `asset.shared_at`). A recipient must be a co-participant (a participant
+row in a game the sharer holds one in); `GET /v1/offers/players` lists them with up to three shared game names and the
+latest date. An offer is visible to its recipient while open, its sharer unblocked and one offered asset uploaded; to its
+sharer always; every other caller gets 404. `POST /v1/offers` locks the sharer's account row, checks recipients (404),
+the folder (404), the daily cap (429, `Retry-After`) and each recipient's open cap (422). `POST /v1/offers/{id}/accept`
+(`AcceptOfferRequest(FolderId)`) answers `AcceptOfferResponse(Copied)` in one transaction: the recipient's account row
+locked, the offer row locked `for update` and checked visible (404), the folder checked (404), the sources read
+`for share`, the quota checked over all copies (422), then per hash a blob row naming the source's key (a pending row of
+the recipient's takes the source's key, size and content type; a pending asset of a kind those bytes do not fit is 409),
+per source an asset row and its volumes, filed; the offer becomes `accepted`. Decline (with `block`: every open offer
+from the sharer declined and a `share_block` row), withdraw (409 unless open), blocked list and unblock complete it.
 `IAssetRepository.Unreferenced(keys)` is the check the sweep, a lost confirm and `AccountDeleter` use before
 deleting objects.
 

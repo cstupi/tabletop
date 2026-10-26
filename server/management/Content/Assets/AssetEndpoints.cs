@@ -86,9 +86,6 @@ public static class AssetEndpoints
             return Results.Ok(new BulkAssetsResponse(done, notFound));
         });
 
-        g.MapPost("/share", (ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets) => Share(user, r, assets, true));
-        g.MapPost("/unshare", (ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets) => Share(user, r, assets, false));
-
         g.MapPost("/{id:guid}/confirm", Confirm);
 
         g.MapGet("/{id:guid}/download", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
@@ -165,14 +162,6 @@ public static class AssetEndpoints
         }
         var warning = triangles > UploadLimits.WarnTriangles ? $"{triangles:N0} triangles is above the {UploadLimits.WarnTriangles:N0} this table renders comfortably; every participant downloads it." : null;
         return Results.Ok(new ConfirmResponse((await assets.Get(owner, id))!, triangles, warning));
-    }
-
-    private static async Task<IResult> Share(ClaimsPrincipal user, BulkAssetsRequest r, IAssetRepository assets, bool shared)
-    {
-        if (Limits.BulkIds(r.AssetIds) is { } bad) return Problems.Unprocessable(bad);
-        var done = await assets.SetShared(CurrentAccount.Id(user), r.AssetIds, shared);
-        var set = done.ToHashSet();
-        return Results.Ok(new BulkAssetsResponse(done, r.AssetIds.Distinct().Where(id => !set.Contains(id)).ToList()));
     }
 
     /// <summary>Lowercase hex, or null when the object is not exactly length bytes.</summary>

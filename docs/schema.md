@@ -409,13 +409,20 @@ migrations only.
 (`uploaded = false`) older than an hour is deleted with its assets by management's upload sweep; a new asset
 on a pending blob resets the time.
 
-### `asset` records whether its owner shares it, and `blob.s3_key` may name another owner's object
+### An offer is three tables, and `blob.s3_key` may name another owner's object
 
-`asset.shared_at timestamptz null` and the indexes `blob_s3_key_idx` on `blob (s3_key)` and `asset_shared_idx` (partial, shared
-assets), from management's `020_shared_assets.sql` ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)). A shared,
-uploaded asset is listed to every signed-in account. A copy is an `asset` row of the copier's on a `blob` row of the copier's whose
-`s3_key` is the sharer's `{owner}/{hash}`, so `s3_key` is not always `{owner_id}/{hash}`: every presign reads the column, and an S3 object
-is deleted only when no `blob` row names its key.
+Management's `021_share_offers.sql` ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)):
+
+- `share_offer`: `id`, `sharer_id` and `recipient_id` (both `account`, cascading, never equal), `folder_name` (≤ 64, the
+  folder's name when a folder was offered), `state` (`open | accepted | declined | withdrawn`), `created_at`, `decided_at`.
+  Indexed on `(sharer_id, created_at)` (the daily cap) and `(recipient_id, state)`.
+- `share_offer_asset`: `(offer_id, asset_id)`, cascading from both, so an asset its owner deletes leaves the offer.
+- `share_block`: `(recipient_id, sharer_id)`, both `account`, cascading; `created_at`.
+
+It drops `asset.shared_at` and `asset_shared_idx` from `020_shared_assets.sql`: nothing is visible to every account. 020's
+`blob_s3_key_idx` on `blob (s3_key)` stays. An accepted copy is an `asset` row of the recipient's on a `blob` row of the
+recipient's whose `s3_key` is the sharer's `{owner}/{hash}`, so `s3_key` is not always `{owner_id}/{hash}`: every presign
+reads the column, and an S3 object is deleted only when no `blob` row names its key.
 
 ### `account` records whether its starter meshes were seeded
 
@@ -443,7 +450,7 @@ style, and is the same value as `Tabletop.Content.DeploymentZone.Shape`. The sty
 ### Deleting an account is application logic
 
 Its armies, assets, blobs, folders and layouts cascade downward normally; of its blobs' S3 objects,
-only those no other account's `blob` row names (a copy of a shared asset) are deleted. But
+only those no other account's `blob` row names (an accepted copy) are deleted; its offers and blocks cascade. But
 [accounts](superpowers/specs/2026-08-29-accounts-design.md) requires deleting **every game it
 hosted** (`game.created_by`), which reaches *upward* to the game and then back down to other
 people's participants and into the game schema's event log, and **leaving every game it joined**

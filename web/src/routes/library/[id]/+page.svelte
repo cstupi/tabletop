@@ -1,4 +1,5 @@
 <script lang="ts">
+  import OfferDialog from '$lib/components/OfferDialog.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { api } from '$lib/api/client';
@@ -47,11 +48,7 @@
     try { asset = await api.assets.patch(id, { name: name.trim(), scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }); name = asset.name; saved = true; }
     catch (err) { error = errorMessage(err); } finally { busy = false; }
   }
-  async function toggleShared(on: boolean) {
-    error = null;
-    try { await (on ? api.assets.share([id]) : api.assets.unshare([id])); if (asset) asset = { ...asset, shared: on }; }
-    catch (e) { error = errorMessage(e); }
-  }
+  let offering = $state(false);
   const toggleFolder = (f: FolderDto, on: boolean) => (on ? api.folders.addAsset(f.id, id) : api.folders.removeAsset(f.id, id)).then(async () => { folders = await api.folders.list(); }).catch((e) => (error = errorMessage(e)));
   const remove = async () => {
     if (!confirm(`Delete "${asset?.name}"? Armies pointing at it keep playing and draw the slot's hitbox instead.`)) return;
@@ -85,7 +82,8 @@
           <span class="saved" role="status">{#if saved}Saved.{/if}</span>
         </div>
       </form>
-      {#if asset.uploaded}<label class="check"><input type="checkbox" checked={asset.shared} onchange={(e) => void toggleShared(e.currentTarget.checked)} /> Shared with other players</label>{/if}
+      {#if asset.uploaded}<div class="actions"><button onclick={() => (offering = true)}>Offer to a player…</button></div>
+        <OfferDialog open={offering} what={asset.name} assetIds={[id]} onclose={() => (offering = false)} />{/if}
       <h2>Folders</h2>
       {#each folders as f (f.id)}<label class="check"><input type="checkbox" checked={f.assetIds.includes(id)} onchange={(e) => void toggleFolder(f, e.currentTarget.checked)} /> {f.name}</label>{:else}<p><small>No folders yet. Make one in the <a href="/library">Library</a>.</small></p>{/each}
       <p class="meta"><small>{asset.kind} · {formatBytes(asset.byteSize)} · <span class="num" title={asset.hash}>{asset.hash.slice(0, 12)}…</span></small></p>
