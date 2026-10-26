@@ -62,9 +62,14 @@ export_builds() {   # <version> <out>
     # The clone is mounted read-only; Godot's import and the .NET build write into a copy of its files (<out>/.sources).
     proj=/tmp/work; mkdir -p "$proj"
     tar -C "$root" --null -T "$out/.sources" -cf - | tar -C "$proj" -xf -
+    # The last release's import (/godot-cache, the host's build/godot-cache): Godot then re-imports only what changed.
+    if [[ -d /godot-cache && -n "$(ls -A /godot-cache)" ]]; then mkdir -p "$proj/client/.godot" && cp -a /godot-cache/. "$proj/client/.godot/"; fi
   fi
   # Import first: a fresh clone has no client/.godot, and the export reads the imported resources.
   run "$godot" --headless --path "$proj/client" --import
+  if [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" && -d /godot-cache && "${DRY_RUN:-}" != 1 ]]; then
+    find /godot-cache -mindepth 1 -delete && cp -a "$proj/client/.godot/." /godot-cache/
+  fi
   for p in "${platforms[@]}"; do
     run rm -rf "$out/$p"; run mkdir -p "$out/$p"
     run env TabletopVersion="$version" TabletopWebUrl="${TABLETOP_WEB_URL%/}" \
@@ -198,12 +203,12 @@ container_build() {   # <step: export|package|build> <version> <out>
     if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then run cp "$RELEASE_NOTES_FILE" "$out/notes.txt"; else release_notes "$version" "$out"; fi
   fi
   builder_image
-  owned_dir "$out"; owned_dir "$root/build/nuget"
+  owned_dir "$out"; owned_dir "$root/build/nuget"; owned_dir "$root/build/godot-cache"
   # What the export copies out of the read-only clone: tracked and untracked-but-not-ignored files.
   if [[ "${DRY_RUN:-}" == 1 ]]; then echo "+ write $out/.sources (git ls-files)"
   else git -C "$root" ls-files -z --cached --others --exclude-standard > "$out/.sources"; fi
   run docker run --rm -u "$owner" --dns "${TABLETOP_DNS_1:-1.1.1.1}" --dns "${TABLETOP_DNS_2:-9.9.9.9}" \
-    -v "$root:/src:ro" -v "$out:/out" -v "$root/build/nuget:/nuget" -e NUGET_PACKAGES=/nuget \
+    -v "$root:/src:ro" -v "$out:/out" -v "$root/build/nuget:/nuget" -e NUGET_PACKAGES=/nuget -v "$root/build/godot-cache:/godot-cache" \
     -e RELEASE_CLIENT_IN_CONTAINER=1 -e TABLETOP_WEB_URL -e RELEASE_S3_PREFIX \
     "$image" /src/scripts/release-client "$step" "$version" /out
   run rm -f "$out/.sources"

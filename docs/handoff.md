@@ -75,7 +75,7 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Release
 
-The owner releases. "tag it" means tag `vX.Y.Z` on `main` and push at once, no extra pre-tag run. CI (`ci.yml`) tests every push to `main`; check it is green before tagging (`gh run list --branch main`). The release runs no tests unless `--tests`.
+The owner releases. "tag it" means tag `vX.Y.Z` on `main` and push at once, no extra pre-tag run. There is no CI: the full unit, rules, lifecycle and browser suites run locally on `main` before it is called ready to tag. The release runs no tests unless `--tests`.
 On the home server `docker1` (`https://tabletop.cstupi.com`, files at `https://files.tabletop.cstupi.com`): `git checkout main && git pull && scripts/release --deploy home --version vX.Y.Z` (tests in containers, the client built in the Godot builder
 container, publishes `releases/` and `builtin/`, deploys). The owner says which version is live. The owner's other Claude
 sessions take instructions over Remote Control: `docker1-logical-curry` (server; no superuser DB queries without the owner's

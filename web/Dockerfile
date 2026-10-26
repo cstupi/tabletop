@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # The web app's production image: the SvelteKit static build served by Caddy on :8080 (SPA fallback, and the headers the
 # build's CSP <meta> tag cannot carry), and the viewer's hosted build (the admin Replays tool) under /viewer/. Build from the
 # repo root:
@@ -6,7 +7,7 @@
 FROM node:24-alpine AS build
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json web/.npmrc ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY web/ ./
 ARG TABLETOP_BLOB_ORIGIN
 RUN test -n "$TABLETOP_BLOB_ORIGIN" || { echo "the TABLETOP_BLOB_ORIGIN build arg is required" >&2; exit 1; }; \
@@ -22,13 +23,13 @@ COPY Directory.Build.props global.json ./
 COPY libs/Tabletop.Geometry/ libs/Tabletop.Geometry/
 COPY libs/Tabletop.Geometry.Wasm/ libs/Tabletop.Geometry.Wasm/
 COPY scripts/geometry-wasm scripts/
-RUN ./scripts/geometry-wasm --out /out
+RUN --mount=type=cache,target=/root/.nuget/packages ./scripts/geometry-wasm --out /out
 
 # The viewer (viewer/), Vite mode hosted: base /viewer/, the website's session, the socket on the page's own host.
 FROM node:24-alpine AS viewer
 WORKDIR /src/viewer
 COPY viewer/package.json viewer/package-lock.json viewer/.npmrc ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY viewer/ ./
 # The website's themes, controls and icons, which the viewer imports so it looks like the site.
 COPY web/src/themes.css web/src/app.css /src/web/src/

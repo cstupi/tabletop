@@ -20,7 +20,7 @@ specifics.
 | `libs/` | Shared, Godot-free, persistence-free: `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol`; `Tabletop.Geometry.Wasm` is Geometry compiled to WebAssembly for the viewer. |
 | `tests/` | One xUnit project per library, per server, for the client's core, the sim, the viewer and the army books. |
 | `scripts/` | Launch scripts, the Postgres init schema, `ArmyBooks/` (the army-book generator), `TerrainMeshes/`, `TableTextures/` and `Sounds/` (the built-in terrain meshes, the table textures and the sound effects), `release` and `release-client` (`deploy/README.md` → Releases). |
-| `.github/workflows/` | `ci.yml` (build and tests on pushes and pull requests to main), `release.yml` (a `vX.Y.Z` tag publishes the client). |
+| `.github/workflows/` | `release.yml` (a `vX.Y.Z` tag publishes the client). |
 | `docs/` | Design, specs, plans, schema. See below. |
 | `deploy/` | The production path: `docker-compose.prod.yml`, systemd units, `prod.env.example`. |
 | `Tabletop.sln`, `Directory.Build.props`, `global.json`, `docker-compose.yml` | Root build and the development stack. |

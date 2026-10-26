@@ -20,7 +20,7 @@
 #               docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md). It runs after the deploy, with the
 #               client's upload credentials, on the host with aws and jq or else (and always for home) in the builder container.
 # --tests       also build and run the unit suite, the rules suite, check-client and the web and viewer checks. Off by
-#               default: CI (.github/workflows/ci.yml) tests every push to main before it is tagged. --skip-tests is accepted
+#               default: main is tested before it is tagged. --skip-tests is accepted
 #               and does nothing.  --dry-run  print what would change.
 #
 # Settings read: TABLETOP_WEB_URL (the client's web origin), TABLETOP_S3_PUBLIC_ENDPOINT (the web build's blob origin),
@@ -34,7 +34,10 @@ cd "$root"
 
 version="" deploy=docker env_file="" skip_client=0 skip_builtin=0 skip_tests=1 dry=0
 die() { echo "release: $*" >&2; exit 1; }
-step() { printf '\n== %s\n' "$*"; }
+step_name='' step_at=$SECONDS
+# Each step's header ends the previous one with its time, so a slow step shows in the log.
+step() { [[ -n $step_name ]] && printf '   (%s: %ds; %dm%02ds so far)\n' "$step_name" $((SECONDS - step_at)) $((SECONDS / 60)) $((SECONDS % 60))
+  step_name=$*; step_at=$SECONDS; printf '\n== %s\n' "$*"; }
 run() { if [[ $dry == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found${2:+: $2}"; }
 

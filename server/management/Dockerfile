@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # The production image. Build from the repo root: docker build -f server/management/Dockerfile -t tabletop-management .
 # `--migrate` as the command applies the migrations over TABLETOP_DB_CONNECTION (the owner role) and exits.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -7,7 +8,7 @@ COPY libs/ libs/
 COPY server/management/ server/management/
 COPY client/content/builtin/catalog.json client/content/builtin/catalog.json
 COPY client/content/builtin/tables/ client/content/builtin/tables/
-RUN dotnet publish server/management/Tabletop.Management.csproj -c Release -o /app --nologo
+RUN --mount=type=cache,target=/root/.nuget/packages dotnet publish server/management/Tabletop.Management.csproj -c Release -o /app --nologo
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app

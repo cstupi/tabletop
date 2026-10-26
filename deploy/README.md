@@ -16,7 +16,7 @@ repo-root `docker-compose.yml` is development only.
 | `../scripts/postgres/backup.sh` | `pg-backup`'s nightly `pg_dump`, keeping the newest 14 |
 | `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher (Put on `releases/*` and `builtin/*`) when `RELEASE_S3_ACCESS_KEY` is set |
 | `../scripts/release`, `../scripts/release-client` | Cut a release from a clone: test, publish the client, install the web app, deploy (below) |
-| `../.github/workflows/` | `ci.yml` (build and tests), `release.yml` (a `vX.Y.Z` tag publishes the client) |
+| `../.github/workflows/` | `release.yml` (a `vX.Y.Z` tag publishes the client) |
 
 ## What the servers enforce
 
@@ -141,7 +141,7 @@ scripts/release --deploy home --version v1.0.0             # reads ./home.env, e
 No sudo: every build, test and deploy runs in Docker, as the clone's owner.
 
 With `--tests`, `--deploy home` runs the unit suite, the rules suite and the web and viewer checks in `mcr.microsoft.com/dotnet/sdk:10.0`
-and `node:24-alpine` containers over the clone (CI tests every push to `main`, so a release runs none by default). It exports and packages the client in the builder
+and `node:24-alpine` containers over the clone (off by default: `main` is tested before it is tagged). It exports and packages the client in the builder
 container (Client releases, below), builds the images tagged with the version, runs `up -d`, waits on the containers' own
 states (`migrate` and `minio-init` exited 0; postgres, minio, management, game and web healthy), then uploads the client
 and publishes the built-in content (`builtin/`, same publisher and container, `--skip-builtin` skips it).
@@ -251,8 +251,6 @@ It does not deploy. Repository settings:
 | variable | `TABLETOP_WEB_URL` | the web app's public origin; the client build reaches management and `/ws` through it |
 | variable | `RELEASE_S3_REGION` | optional; `auto` for R2 |
 
-`.github/workflows/ci.yml` builds and tests every push and pull request to `main`, without exports.
-
 **On the host** (`scripts/release`), from the clone on `main` (`git checkout main && git pull` first, so the script itself is current):
 
 ```bash
@@ -262,7 +260,7 @@ scripts/release --dry-run --deploy docker              # print every step, chang
 
 It fetches origin's tags, checks the tag out into `build/source` (one reused worktree; its `build/` keeps the NuGet cache) and runs
 the tag's own copy of the script there, so the clone's checkout and local edits never reach a release. That copy reads
-`/etc/tabletop/prod.env` (`--env-file`; the environment wins; `home.env` in the clone for home), checks the tag names its `HEAD`, with `--tests` builds and runs the unit suite, the rules suite, `check-client` and the web and viewer checks (CI runs them on every push to `main`), publishes
+`/etc/tabletop/prod.env` (`--env-file`; the environment wins; `home.env` in the clone for home), checks the tag names its `HEAD`, with `--tests` builds and runs the unit suite, the rules suite, `check-client` and the web and viewer checks (off by default: `main` is tested before it is tagged), publishes
 the client like the workflow (`--skip-client`; on the host with `godot` or `GODOT`, `dotnet`, `aws`, `zip`, `jq`, else in
 the builder container with `docker` only, as for home), builds the web
 app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and the viewer's hosted build, installs them to `TABLETOP_WEB_ROOT` and
