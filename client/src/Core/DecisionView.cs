@@ -54,6 +54,20 @@ public static class DecisionView
     public static IReadOnlyList<AskOption> ChoicesOf(Options options, Projection p, Guid unitId) =>
         options.Choices.Where(c => c.Pieces.Any(id => id == unitId || p.Models.GetValueOrDefault(id)?.UnitId == unitId)).ToList();
 
+    /// <summary>The one unit an option's pieces name, by its id or its models' ids: the unit whose hover label shows while the pointer is on
+    /// the option's button. Null when the pieces name no unit, several, or anything that is not a unit or model.</summary>
+    public static Guid? UnitNamed(IReadOnlyList<Guid> pieces, Projection p)
+    {
+        Guid? unit = null;
+        foreach (var id in pieces)
+        {
+            Guid? of = p.Units.ContainsKey(id) ? id : p.Models.GetValueOrDefault(id)?.UnitId;
+            if (of is null || (unit is not null && unit != of)) return null;
+            unit = of;
+        }
+        return unit;
+    }
+
     /// <summary>The choices as the box lists them: each option, and after a run of options naming the same pieces with the same
     /// AskOption.Note (activate: one unit's actions), that note once. The text is the server's, shown as sent.</summary>
     public static IReadOnlyList<ChoiceRow> Rows(IReadOnlyList<AskOption> shown)

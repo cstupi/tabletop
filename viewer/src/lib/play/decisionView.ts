@@ -57,6 +57,20 @@ export function choicesOf(options: Options, p: Projection, unitId: string): AskO
 }
 
 /**
+ * The one unit an option's pieces name, by its id or its models' ids: the unit whose hover label shows while the pointer is on the option's
+ * button. Null when the pieces name no unit, several, or anything that is not a unit or model.
+ */
+export function unitNamed(pieces: readonly string[], p: Projection): string | null {
+  let unit: string | null = null;
+  for (const id of pieces) {
+    const of = p.units.has(id) ? id : p.models.get(id)?.unitId ?? null;
+    if (of === null || (unit !== null && unit !== of)) return null;
+    unit = of;
+  }
+  return unit;
+}
+
+/**
  * The choices as the box lists them: each option, and after a run of options naming the same pieces with the same AskOption.note
  * (activate: one unit's actions), that note once. The text is the server's, shown as sent.
  */

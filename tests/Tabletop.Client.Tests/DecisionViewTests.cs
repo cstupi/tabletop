@@ -123,6 +123,17 @@ public class DecisionViewTests
         Assert.Empty(DecisionView.ChoicesOf(options, a.Projection, Guid.CreateVersion7()));
     }
 
+    [Fact]
+    public void An_option_names_one_unit_by_its_id_or_its_models_ids()
+    {
+        var p = new EventApplier(Samples.Board, Game).Projection;
+        Assert.Equal(Samples.Unit, DecisionView.UnitNamed([Samples.Unit], p));
+        Assert.Equal(Samples.Unit, DecisionView.UnitNamed([Samples.Model], p));
+        Assert.Equal(Samples.Unit, DecisionView.UnitNamed([Samples.Unit, Samples.Model], p));
+        Assert.Null(DecisionView.UnitNamed([], p));
+        Assert.Null(DecisionView.UnitNamed([Samples.Unit, Guid.CreateVersion7()], p));          // a piece that is no unit or model
+    }
+
     const string ShakenNote = "Shaken: must spend this activation being idle (p.10)";
 
     [Fact]

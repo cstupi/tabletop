@@ -13,7 +13,7 @@ import type {
 } from '../protocol/wire.generated';
 import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } from './askView';
 import { CasualtyPick } from './casualtyPick';
-import { choicesOf, clickAnswers, decisionOf, number as numberChoices, rows, type Numbered } from './decisionView';
+import { choicesOf, clickAnswers, decisionOf, number as numberChoices, rows, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
 import { waiting as headerWaiting } from './headerView';
 import { Names } from './names';
@@ -338,6 +338,12 @@ export class DecisionBox {
 
   /** The pieces lit by the option button under the pointer, the rest of the Ask's glow dark; null puts the Ask's glow back. */
   #light(pieces: readonly string[] | null): void { this.#lit = pieces; }
+
+  /** The one unit the hovered option names (unitNamed): the page shows its hover label as if the unit itself were hovered. */
+  get hoveredUnit(): string | null {
+    const p = this.#host.state().projection;
+    return this.#lit === null || p === null ? null : unitNamed(this.#lit, p);
+  }
 
   hover(controlId: string | null): void {
     const c = controlId === null ? undefined : this.#controls.find((x) => 'id' in x && x.id === controlId);

@@ -63,7 +63,9 @@
 
   // --- D3 (info): the selection and hover the card reads, the log's table highlight, the undo prediction ---
   let selection = $state.raw<Selection | null>(null);
-  let hoveredUnit = $state<string | null>(null);
+  // The hovered unit: the one a decision-box button under the pointer names, else the one under the pointer on the board.
+  let pointedUnit = $state<string | null>(null);
+  const hoveredUnit = $derived.by(() => { void panel; return box?.hoveredUnit ?? pointedUnit; });
   let hoveredTerrain = $state<string | null>(null);
   // The terrain's names and the terrain card read the catalog in use: the server's, else the packed one.
   let catalog = $state.raw<Catalog>((() => { try { return parseCatalog(packedCatalog); } catch { return { terrain: new Map(), textures: [] }; } })());
@@ -311,7 +313,7 @@
     },
     onHover(hit: BoardHit | null) {                           // D3: the hovered unit, for the enemy strip and the hover label
       const unit = hit?.kind === 'model' ? snap?.projection?.models.get(hit.id)?.unitId ?? null : null;
-      if (unit !== hoveredUnit) hoveredUnit = unit;
+      if (unit !== pointedUnit) pointedUnit = unit;
       const terrain = hit?.kind === 'terrain' ? hit.id : null;
       if (terrain !== hoveredTerrain) hoveredTerrain = terrain;
     },

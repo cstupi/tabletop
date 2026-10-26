@@ -221,7 +221,7 @@ public partial class DecisionBox : PanelContainer
     public bool Glows(PieceNode n) => _glow.Contains(n.ModelId) || _glow.Contains(n.UnitId);
 
     /// <summary>The pieces lit by the option button under the pointer, the rest of the Ask's glow dark so the hovered unit stands out
-    /// among others of the same name; null puts the Ask's glow back.</summary>
+    /// among others of the same name, and the hover label of the one unit they name (TableInput.HoverUnit); null puts the Ask's glow back.</summary>
     IReadOnlyList<Guid>? _lit;
     void Light(IReadOnlyList<Guid>? pieces)
     {
@@ -234,6 +234,7 @@ public partial class DecisionBox : PanelContainer
             else if (In(_lit, n) || (pieces is null && Glows(n))) n.SetHighlight(Glows(n) ? Palette.Selected : null);
         }
         _lit = pieces;
+        if (IsInstanceValid(_input)) _input.HoverUnit(pieces is not null && _s.Projection is { } p ? DecisionView.UnitNamed(pieces, p) : null);
     }
 
     /// <summary>
