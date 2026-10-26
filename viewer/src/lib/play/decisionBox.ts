@@ -514,11 +514,12 @@ export class DecisionBox {
   /**
    * declare_targets: weapon groups as chips, all picked to start (p.8: one group per weapon type). A click on an enemy aims every picked
    * group that can shoot it (p.8); a chip picks its group alone. Enter fires once a group has a target (an unaimed group holds fire),
-   * Esc clears the assignments.
+   * Clear targets (Esc) removes every target.
    */
   #renderTargets(ask: Ask, legal: Assignment, names: Names): void {
     const t = this.#targets = new TargetAssignment(legal);
     const fire = () => { const a = t.answer(); if (a !== null) this.#send(ask, a); };
+    const clear = (): boolean => { if (!t.canClear) return false; t.clear(); show(); return true; };
     const show = () => {
       if (this.#targets !== t) return;
       const items: Array<readonly [Control, (() => void)?]> = t.groups.map((g) => {
@@ -526,13 +527,14 @@ export class DecisionBox {
         return [{ kind: 'chip', id: `chip:${g.id}`, label: TargetAssignment.chip(g, target === undefined ? null : names.unit(target)), pressed: t.picked.has(g.id) } as Control,
           () => { t.pickOnly(g.id); show(); }] as const;
       });
+      items.push([{ ...button('clear-targets', 'Clear targets (Esc)'), disabled: !t.canClear }, () => { clear(); }]);
       items.push([{ ...button('fire', 'Fire (Enter)'), disabled: t.answer() === null }, fire]);
       this.#eligible = new Set(t.candidates); this.glow(t.candidates);       // only units a picked group can shoot; two targets taken (p.8): nothing else glows
       this.#segment(items);
     };
     this.handlers.onTarget = (clicked) => { const unit = this.#resolve(clicked, legal.targets); if (unit !== null && t.aim(unit)) show(); };
     this.handlers.onEnter = fire;
-    this.handlers.onCancel = () => { if (t.assigned.size === 0) return false; t.clear(); show(); return true; };
+    this.handlers.onCancel = clear;
     show();
   }
 

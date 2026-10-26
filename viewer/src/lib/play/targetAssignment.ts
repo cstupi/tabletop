@@ -68,6 +68,10 @@ export class TargetAssignment {
     return true;
   }
 
+  /** Some group has a target: Clear targets (Esc) has something to remove. */
+  get canClear(): boolean { return this.#assigned.size > 0; }
+
+  /** Clear targets: every group holds fire and is picked again. Local only; nothing is sent until Fire. */
   clear(): void {
     this.#assigned.clear();
     this.#picked.clear();

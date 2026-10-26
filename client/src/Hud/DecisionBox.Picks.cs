@@ -65,13 +65,15 @@ public partial class DecisionBox
 
     /// <summary>declare_targets: weapon groups as chips, all picked to start (p.8: one group per weapon type). A click on an enemy aims
     /// every picked group that can shoot it (p.8); a chip picks its group alone. Enter fires once a group has a target (an unaimed group holds fire),
-    /// Esc clears the assignments.</summary>
+    /// Clear targets (Esc) removes every target.</summary>
     void RenderTargets(Ask ask, Assignment legal, Names names)
     {
         var t = Targets = new TargetAssignment(legal);
         var chips = new HFlowContainer(); Add(chips);
         var fire = Btn("Fire (Enter)", Fire);
+        var clear = new Button { Text = "Clear targets (Esc)", FocusMode = FocusModeEnum.None };
         void Fire() { if (t.Answer() is { } answer) Send(ask, answer); }
+        bool ClearTargets() { if (!t.CanClear) return false; t.Clear(); Show(); return true; }
         void Show()
         {
             if (Targets != t || !IsInstanceValid(chips)) return;                       // the Ask ended before a deferred refresh ran
@@ -86,12 +88,14 @@ public partial class DecisionBox
             }
             _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // only units a picked group can shoot; two targets taken (p.8): nothing else glows
             fire.Disabled = t.Answer() is null;
+            clear.Disabled = !t.CanClear;
             TargetsChanged?.Invoke();
         }
         _onTarget = clicked => { if (_s.Projection is { } p && AskAnswers.Resolve(p, clicked, legal.Targets) is { } unit && t.Aim(unit)) Show(); };
         _onEnter = Fire;
-        _onCancel = () => { if (t.Assigned.Count == 0) return false; t.Clear(); Show(); return true; };
-        Add(fire); Show();
+        clear.Pressed += () => ClearTargets();
+        _onCancel = ClearTargets;
+        Add(clear); Add(fire); Show();
     }
 
     /// <summary>remove_casualties: a click marks a model, each further click on a many-wound model adds a wound, a right-click takes one
