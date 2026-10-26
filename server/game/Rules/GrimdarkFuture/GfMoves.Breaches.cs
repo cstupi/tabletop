@@ -40,7 +40,12 @@ public static partial class GfMoves
     /// model moving on the table is held to the cap along its shortest path. Null when none is over. A disembark (no start to measure from) and an
     /// embark are not moves on the table and are not judged.
     /// </summary>
-    public static AnswerBreachFound? DifficultCapBreach(GameState state, Ask ask, MoveRegion region, Destinations answer)
+    public static AnswerBreachFound? DifficultCapBreach(GameState state, Ask ask, MoveRegion region, Destinations answer) =>
+        DifficultCapBreach(state, state.Projection.Stack.FirstOrDefault(f => f.Id == ask.FrameId)?.Steps.Any(s => s.Values?.GetValueOrDefault(GfNames.EnteredDifficultKey) > 0) ?? false,
+            region, answer);
+
+    /// <summary>The cap's breach with `earlier` saying whether an earlier segment of the move entered difficult ground.</summary>
+    internal static AnswerBreachFound? DifficultCapBreach(GameState state, bool earlier, MoveRegion region, Destinations answer)
     {
         if (region.DifficultCap is not { } cap || region.Containment?.ExitingId is not null) return null;
         var moves = GfAnswers.Moves(state, region, answer);
@@ -48,7 +53,6 @@ public static partial class GfMoves
         var starts = moves.Where(m => m.To is OnTable && Battlefield.Placed(state, m.ModelId) is not null)
             .Select(m => (m.ModelId, Start: Battlefield.Placed(state, m.ModelId)!.Value, To: ((OnTable)m.To).Placement.Position.Horizontal))
             .Where(m => m.Start.Placement.Position.Horizontal.DistanceTo(m.To) > 1e-6).ToList();
-        var earlier = state.Projection.Stack.FirstOrDefault(f => f.Id == ask.FrameId)?.Steps.Any(s => s.Values?.GetValueOrDefault(GfNames.EnteredDifficultKey) > 0) ?? false;
         if (!earlier && !starts.Any(m => Route(state, region, m.Start, m.To, standing).EntersDifficult)) return null;
         var limit = Math.Min(region.Allowance, cap);
         foreach (var (id, start, to) in starts)

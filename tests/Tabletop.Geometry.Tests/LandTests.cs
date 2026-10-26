@@ -61,6 +61,74 @@ public class LandTests
         Assert.Equal(6.5, Collision.Hover([Fx.Box(30, 30, 2, 2, 0, 1)], [wood]), 6);
     }
 
+    // A charger from (20, 24) towards a target model at (28, 24): 1.26" bases touch with centres 1.26" apart, at x 26.74.
+    static readonly PlacedModel Charger = Fx.Model(20, 24), Target = Fx.Model(28, 24);
+    static MoveReach Reach12 => MoveReach.Build(Charger, 12, [], [], null, new TableSize(72, 48), [Target]);
+    static double Gap(Point3 end, PlacedModel to) => Distance.EdgeToEdge(At(end), to);
+
+    [Theory]
+    [InlineData(0.0)] [InlineData(0.05)] [InlineData(0.2)] [InlineData(0.5)]
+    public void A_drop_onto_the_target_s_base_lands_touching_it(double overlap)
+    {
+        // The drag's path (TableInput.Place): the target held to the reach (MoveReach.Clamp), then landed within it.
+        var reach = Reach12;
+        var end = Collision.Land(Charger, reach.Clamp(new Point2(26.74 + overlap, 24)), [Target], [], [], p => reach.Reaches(p));
+        Assert.InRange(Gap(end, Target), 0, 1e-3);
+    }
+
+    [Fact]
+    public void Without_an_abutment_a_drop_shortByof_the_target_stays_where_it_was_dropped()
+    {
+        // Why a charge needed an overlapping drop: a drop 0.3" short is a free spot, so it lands there, outside the old 0.25" slack.
+        var reach = Reach12;
+        var end = Collision.Land(Charger, new Point2(26.44, 24), [Target], [], [], p => reach.Reaches(p));
+        Assert.Equal(0.3, Gap(end, Target), 6);
+    }
+
+    [Theory]
+    [InlineData(0.1)] [InlineData(0.3)] [InlineData(0.48)]
+    public void With_an_abutment_a_drop_within_its_distance_lands_flush_against_the_target(double shortBy)
+    {
+        var reach = Reach12;
+        var end = Collision.Land(Charger, new Point2(26.74 - shortBy, 24.1), [Target], [], [], p => reach.Reaches(p), new Abutment([Target], 0.5));
+        Assert.InRange(Gap(end, Target), 0, 1e-6);
+        Assert.False(Overlap.Bases(At(end), Target));
+    }
+
+    [Fact]
+    public void A_drop_farther_than_the_abutment_distance_stays_where_it_was_dropped()
+    {
+        var end = Collision.Land(Charger, new Point2(26.04, 24), [Target], [], [], null, new Abutment([Target], 0.5));
+        Assert.Equal(0.7, Gap(end, Target), 6);
+    }
+
+    [Fact]
+    public void An_oval_target_is_abutted_at_its_nearest_edge()
+    {
+        var oval = Fx.Model(Base.Oval(2.36, 1.38), 28, 24, yaw: 30);
+        var end = Collision.Land(Charger, new Point2(26.3, 24.5), [oval], [], [], null, new Abutment([oval], 0.5));
+        Assert.InRange(Gap(end, oval), 0, 1e-6);
+        Assert.False(Overlap.Bases(At(end), oval));
+    }
+
+    [Fact]
+    public void An_abutment_that_would_overlap_another_model_is_not_taken()
+    {
+        // A friend standing where the flush spot would put the charger on its base.
+        var friend = Fx.Model(26.6, 25.25);
+        var dropped = new Point2(26.4, 24);   // 0.34" from the target; flush at (26.74, 24) would overlap the friend
+        var end = Collision.Land(Charger, dropped, [Target, friend], [], [], null, new Abutment([Target], 0.5));
+        Assert.Equal(new Point3(26.4, 24, 0), end);
+    }
+
+    [Fact]
+    public void An_abutment_outside_the_reach_is_not_taken()
+    {
+        var reach = MoveReach.Build(Charger, 6.5, [], [], null, new TableSize(72, 48), [Target]);
+        var end = Collision.Land(Charger, new Point2(26.44, 24), [Target], [], [], p => reach.Reaches(p), new Abutment([Target], 0.5));
+        Assert.Equal(new Point3(26.44, 24, 0), end);
+    }
+
     [Fact]
     public void A_lifted_piece_lands_clear_of_walls()
     {

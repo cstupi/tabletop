@@ -88,9 +88,15 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   move, enters difficult ground), `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13) and p.7's contact clauses
   (`GfMoves.ContactBreach`: `move_overlap` on a base, `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`),
   then p.7's `move_coherency` (`GfMoves.CoherencyBreach`: a unit in coherency before the answer and out of it after, `Coherency.Check(1, 3, 9)`),
-  then p.9's `charge_contact` (`GfMoves.ChargeContactBreach`: a charge move, or its pass, that leaves no charging model within `GfNames.BaseContactSlack` of a
-  `MoveRegion.ContactWith` model when the unit could reach contact in coherency: `UnitFormation.InContact` over the Ask's own parameters). All read the
+  then p.9's `charge_contact` (`GfMoves.ChargeContactBreach`: a charge move, or its pass, that leaves no charging model within `GfNames.ChargeContactGrace`
+  (0.5") of a `MoveRegion.ContactWith` model when the unit could reach contact in coherency: `UnitFormation.InContact` over the Ask's own parameters). All read the
   answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.
+  A charge's reading is the charge's end (`GfMoves.ChargeLanding`; owner ruling: "charging base to base is TOO strict and requires literally overlapping. It
+  should have a small grace window, and if it had the movement to make the charge then it should be accepted."): when the answer breaks none of
+  `PathBreach`, `DifficultCapBreach`, `ContactBreach` and `CoherencyBreach`, each charging model ending within the grace of a target model is drawn
+  straight in to touch it (`Collision.Abut`), and when none ends within it and none touches, the nearest one that can be is drawn in from where it
+  ended; a model is drawn in only where all four still hold. Base contact is then true contact for the defender's close-in. A stop (`Continues`) or a
+  disembark is read as it is. The charge Ask carries the grace as `MoveRegion.ContactGrace`, which both clients' landings read.
   Each move is judged along the shortest path its base can take (`Movement.Check`, `GfMoves.Route`; p.5): round the impassable volumes the Ask lists and
   the models the answer does not move, and round difficult and dangerous ground when that fits the allowance, so a Rush round a wood is not capped;
   `move_through_models` is a move that fits only through models. `ApplyMove` measures and tests dangerous and difficult terrain along the same path

@@ -10,7 +10,8 @@ public sealed record Piece(Guid Id, Point3 Position, Yaw Yaw, double Scale, IRea
 }
 
 public sealed record HeldModel(Guid Id, PlacedModel At, Point2 To);
-public sealed record LandRequest(IReadOnlyList<HeldModel> Held, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid> Walls, IReadOnlyList<Piece> Terrain);
+/// <summary>Abut: a charge Ask's ContactWith models and ContactGrace (DragBodies.Abutment); omitted for any other drag.</summary>
+public sealed record LandRequest(IReadOnlyList<HeldModel> Held, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid> Walls, IReadOnlyList<Piece> Terrain, Abutment? Abut = null);
 public sealed record HeldEnd(Guid Id, Point3 Drawn, Point3 Lands);
 public sealed record PieceRequest(IReadOnlyList<Piece> Terrain, Guid PieceId, Placement At, Point2 To);
 public sealed record PieceEnd(Point3 Drawn, Point3 Lands);

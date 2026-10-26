@@ -139,14 +139,18 @@ public class GfMeleeTests
     [Fact]
     public void The_fight_needs_a_charger_model_within_two_inches_of_the_target()
     {
+        // Two chargers side by side stop together: drawing either into contact would leave the other out of coherency, so neither is (warn applies it).
         static Sim Charge(double gap, out Tabletop.Content.Unit charger)
         {
-            charger = Unit("C", "4+", "4+", [], 1, [], Melee("Fist", 1));
+            charger = Unit("C", "4+", "4+", [], 2, [], Melee("Fist", 1));
             var target = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
             var sim = Sim.Gf(State([charger], [target], x1: -8, x2: 0), 1);
             sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
             sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
-            sim.Answer(Samples.Team1, Stop(sim, charger, target, gap));
+            var stop = Stop(sim, charger, target, gap).Moves.Single();
+            var at = ((OnTable)stop.To).Placement;
+            sim.Answer(Samples.Team1, new Destinations([stop, new ModelRelocation(charger.Models[1].Id, sim.Model(charger.Models[1].Id).Location,
+                new OnTable(at with { Position = at.Position with { Y = at.Position.Y + 1.3 } }))]));
             sim.Answer(Samples.Team2, new Passed());
             return sim;
         }

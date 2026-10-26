@@ -55,11 +55,11 @@ public static class AgreementCases
         void Add<TReq, TRes>(string name, string method, TReq request, TRes expected) => cases.Add(new AgreementCase(name, method, E(request), E(expected)));
 
         // LandModels: DragBodies.Models lifted.
-        HeldEnd[] Land(IReadOnlyList<HeldModel> held, IReadOnlyList<PlacedModel> stationary, IReadOnlyList<Piece> terrain)
+        HeldEnd[] Land(IReadOnlyList<HeldModel> held, IReadOnlyList<PlacedModel> stationary, IReadOnlyList<Piece> terrain, Abutment? abut = null)
         {
             var volumes = Volumes(terrain);
             var walls = volumes.Where(v => ImpassableIds(terrain).Contains(v.Id)).ToList();
-            var lands = Collision.Land(held.Select(h => (h.At, h.To, (Func<Point2, bool>?)null)).ToList(), stationary, walls, volumes);
+            var lands = Collision.Land(held.Select(h => (h.At, h.To, (Func<Point2, bool>?)null)).ToList(), stationary, walls, volumes, abut);
             return held.Select((h, i) =>
             {
                 var at = h.At with { Placement = h.At.Placement with { Position = new Point3(h.To.X, h.To.Y, 0) } };
@@ -74,6 +74,11 @@ public static class AgreementCases
         var (busy, models) = Busy();
         HeldModel[] group = [new(Id(), Model(2, 2, 0, 1.26), new Point2(20, 20)), new(Id(), Model(2, 4, 0, 0.98), new Point2(20.5, 20)), new(Id(), Model(2, 6, 0, 1.26), new Point2(15, 13))];
         Add("land_models_busy_table", "LandModels", new LandRequest(group, models, ImpassableIds(busy), busy), Land(group, models, busy));
+        // A charge: the first lands 0.3" short of the target and is drawn flush; the second, 1" off, is not.
+        var chargeTarget = Model(30, 20, 0, 1.26);
+        var abut = new Abutment([chargeTarget], 0.5);
+        HeldModel[] charging = [new(Id(), Model(20, 20, 0, 1.26), new Point2(28.44, 20.2)), new(Id(), Model(20, 22, 0, 1.26), new Point2(27.5, 22))];
+        Add("land_models_abut_a_charge_target", "LandModels", new LandRequest(charging, [chargeTarget], [], [], abut), Land(charging, [chargeTarget], [], abut));
 
         // LandPiece, TurnPiece, surfaces, rests: DragBodies.Piece, Turn, Surfaces and the free branch's RestNear.
         PieceEnd LandP(IReadOnlyList<Piece> terrain, Piece piece, Placement at, Point2 to)

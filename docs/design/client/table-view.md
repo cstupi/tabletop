@@ -92,7 +92,8 @@ Godot physics is not used. Picking is a ray tested against `TableView.Pieces` AA
 plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `HeldEnd`, `Stationary`, `Walls`, `Models`, `Piece`;
 held pieces lift over spec). Lifted, every pick-up's start, a held model or setup terrain piece goes straight to the
 cursor, drawn over what is under it (`Collision.Hover`), and lands at the nearest clear spot (`Collision.Land`), marked
-by a ring (`LandingMarks`). PageDown and PageUp step a level (`HoldLevel`); at a level a model goes through
+by a ring (`LandingMarks`). In a charge Ask a landing within the Ask's `ContactGrace` of a `ContactWith` model is drawn flush against
+it (`DragBodies.Abutment`, `Collision.Abut`), where the server ends the charge. PageDown and PageUp step a level (`HoldLevel`); at a level a model goes through
 `Collision.Separate`, which slides each model along the walls and other bases that height and rests it nearest the level,
 and a terrain piece through `Collision.Clear` (out of what a turn swung it into) and `Collision.Follow` (straight to a free
 cursor, else a slide from where it is held). Alt places freely, and the server judges the landing. Distance is

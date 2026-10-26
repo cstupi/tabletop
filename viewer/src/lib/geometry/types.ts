@@ -9,6 +9,8 @@ export interface PlacedModel { readonly body: ModelBody; readonly placement: Pla
 export interface HeldModel { readonly id: string; readonly at: PlacedModel; readonly to: XY }
 /** Where a held model is drawn (0.5" over the highest top under it) and where it lands. */
 export interface HeldEnd { readonly id: string; readonly drawn: Point3; readonly lands: Point3 }
+/** A charge's landing pull (Collision.Abut): the target's models and how near a landing must end to be drawn flush against one. */
+export interface Abutment { readonly models: readonly PlacedModel[]; readonly within: number }
 export interface PieceEnd { readonly drawn: Point3; readonly lands: Point3 }
 export type ContactKind = 'on_base' | 'crosses' | 'too_close' | 'in_impassable';
 /** A model on the table (`at` set) or off it; proposed placements go in `contacts`' map. */
@@ -27,8 +29,8 @@ type Terrain = readonly TerrainPlacement[];
 
 /** Tabletop.Geometry in the browser. Every call is synchronous once loaded; inches, table frame, Z up. */
 export interface Geometry {
-  /** Lifted held models in drag order (DragBodies.Models, lifted): `walls` are volume ids (wallsOf). */
-  landModels(held: readonly HeldModel[], stationary: readonly PlacedModel[], walls: readonly string[], terrain: Terrain): HeldEnd[];
+  /** Lifted held models in drag order (DragBodies.Models, lifted): `walls` are volume ids (wallsOf); `abut` a charge's pull (abutmentOf). */
+  landModels(held: readonly HeldModel[], stationary: readonly PlacedModel[], walls: readonly string[], terrain: Terrain, abut?: Abutment): HeldEnd[];
   /** A lifted setup piece held at `at` (its yaw included), cursor at `to` (DragBodies.Piece, lifted). */
   landPiece(terrain: Terrain, pieceId: string, at: Placement, to: XY): PieceEnd;
   /** A piece turned in place to `yaw`: where it stands, or the nearest spot clear of Impassable pieces, rested. */

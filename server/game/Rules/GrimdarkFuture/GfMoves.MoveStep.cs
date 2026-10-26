@@ -61,11 +61,12 @@ public static partial class GfMoves
                         : ignoreSeparation ? "Charge: move into contact" : aircraft ? AircraftPrompt(ctx, unit, remaining) : $"Move up to {remaining:0.#}\"";
                     // p.13: an Aircraft's move is mandatory, so it may not pass and must go at least 30" (MinimumBreach judges the answer).
                     // A stop is offered when the checkpoint after it has something for the mover now; an Aircraft's one segment never stops.
-                    var stoppable = !aircraft && ctx.Rules.ReactionsAt(ctx.State, ctx.Properties, GfNames.BeforeAttacking, ctx.Frame).Any(r => r.TeamId == ctx.ActorTeam);
+                    var contact = ContactWith(ctx, target);
+                    var stoppable = !aircraft &&ctx.Rules.ReactionsAt(ctx.State, ctx.Properties, GfNames.BeforeAttacking, ctx.Frame).Any(r => r.TeamId == ctx.ActorTeam);
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
                             ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
-                            ContactWith(ctx, target)), allowPass: !aircraft)]);
+                            contact, contact is null ? null : GfNames.ChargeContactGrace), allowPass: !aircraft)]);
                 case 0:
                 {
                     var answered = ctx.History.LastClosed("move")!;
@@ -101,7 +102,7 @@ public static partial class GfMoves
             }
         }
 
-        /// <summary>p.9 Charge moves: the charge target's models on the table, which ChargeContactBreach holds the charge to reach; null for every other move.</summary>
+        /// <summary>p.9 Charge moves: the charge target's models on the table, which the charge reaches (GfMoves.ChargeLanding, ChargeContactBreach); null for every other move.</summary>
         static IReadOnlyList<Guid>? ContactWith(StepContext ctx, Guid target) =>
             target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
                 ? Lookup.LivingModels(ctx.State, target).Where(m => ctx.Projection.Models[m].Location is OnTable).ToList()

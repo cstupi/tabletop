@@ -411,7 +411,12 @@ along a path round every impassable volume (`Movement.ContactDistance`; p.9 *"ha
 don't have to be in a straight line"*); a Flying charger's path is not blocked (p.13). The charge move's `MoveRegion.ContactWith` is the
 target's models on the table, and `GfMoves.ChargeContactBreach` (`charge_contact`) holds the move to p.9 *"must move by up to 12” to get into
 base contact with an enemy model from the target unit, or as close as possible"*: when contact is reachable, an answer that leaves no charging
-model in base contact is a breach. Two containment consequences fall out:
+model within `GfNames.ChargeContactGrace` (0.5", `MoveRegion.ContactGrace`) of a target model is a breach. Owner ruling: *"charging base to base
+is TOO strict and requires literally overlapping. It should have a small grace window, and if it had the movement to make the charge then it
+should be accepted."* So the answer is read as the charge ends it (`GfMoves.ChargeLanding`, inside `GfAnswers.Moves`): each charging model within
+the grace is drawn straight in to touch the target, or, with none within it, the nearest that can be, from where it ended; a model is drawn in only
+where its path, the difficult cap, overlap and coherency still hold, and an answer that already breaks one is read as it is. Base contact is
+then true contact for `defender-closes`. Two containment consequences fall out:
 
 - **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is

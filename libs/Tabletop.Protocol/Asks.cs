@@ -92,10 +92,12 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// ContactWith: the models a moving model must end in base contact with when a path reaches one within the allowance (OPR p.9 Charge:
 /// "must move by up to 12” to get into base contact with an enemy model from the target unit, or as close as possible"); null for
 /// every other move.
+/// ContactGrace: with ContactWith, how far apart a moving model's base may end from one of those models and still count as reaching it; the
+/// server draws such a model flush into base contact, and a client draws its landing flush the same way. Null with no ContactWith.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
     IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false,
-    double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false, IReadOnlyList<Guid>? ContactWith = null) : LegalSet;
+    double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false, IReadOnlyList<Guid>? ContactWith = null, double? ContactGrace = null) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId

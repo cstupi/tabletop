@@ -42,6 +42,48 @@ public class DragBodiesTests
         Assert.Equal(12, Drag(M(8, 4), new(12, 4), [M(10, 4)], [], region with { PassesModels = true }).X, 6);
     }
 
+    // A charge Ask for the Squad's first model (10, 10) at the Orc (40, 30), 1" bases; the server ends a charge 0.5" or less off in contact.
+    static readonly Guid S0 = TableUx.ModelOf(TableUx.Squad), Orc = TableUx.ModelOf(TableUx.Orcs);
+    static readonly Projection Deployed = TableUx.After(TableUx.Deploy);
+    static readonly MoveRegion Charge = new([S0], 40, [], [], null, ContactWith: [Orc], ContactGrace: 0.5);
+    static HeldEnd Charged(Point2 to, MoveRegion region) =>
+        DragBodies.Models([new HeldBody(S0, new PlacedModel(new ModelBody(Base.Circle(1), 1.5), new Placement(new Point3(10, 10, 0), new Yaw(0))), to)],
+            DragBodies.Stationary(Deployed, [S0]), [], region, free: false, level: null, abut: DragBodies.Abutment(Deployed, region))[S0];
+
+    [Fact]
+    public void A_charge_s_landing_pull_is_its_target_s_models_and_grace()
+    {
+        var abut = DragBodies.Abutment(Deployed, Charge)!;
+        Assert.Equal(0.5, abut.Within);
+        Assert.Equal(new Point3(40, 30, 0), Assert.Single(abut.Models).Placement.Position);
+        Assert.Null(DragBodies.Abutment(Deployed, Charge with { ContactWith = null, ContactGrace = null }));
+        Assert.Null(DragBodies.Abutment(Deployed, Charge with { Containment = new MoveContainment([], Orc, 6) }));
+    }
+
+    [Theory]
+    [InlineData(0.05)] [InlineData(0.3)] [InlineData(0.48)]
+    public void A_charger_dropped_just_short_of_its_target_lands_touching_it_and_no_contact_is_marked(double shortBy)
+    {
+        var end = Charged(new Point2(39 - shortBy, 30.1), Charge).Lands;
+        Assert.InRange(new Point2(40, 30).DistanceTo(end.Horizontal), 1 - 1e-6, 1 + 1e-6);
+        Assert.Empty(ContactCheck.Move(Deployed, Charge, new Dictionary<Guid, Placement> { [S0] = new(end, new Yaw(0)) }, [], new TableSize(72, 48)));
+    }
+
+    [Theory]
+    [InlineData(0.0)] [InlineData(0.4)]
+    public void A_charger_dropped_onto_its_target_lands_touching_it(double overlap)
+    {
+        var end = Charged(new Point2(39 + overlap, 30), Charge).Lands;
+        Assert.InRange(new Point2(40, 30).DistanceTo(end.Horizontal), 1 - 1e-6, 1 + 1e-3);
+    }
+
+    [Fact]
+    public void A_drop_farther_off_or_in_any_other_move_stays_where_it_was_dropped()
+    {
+        Assert.Equal(new Point3(38.3, 30, 0), Charged(new Point2(38.3, 30), Charge).Lands);
+        Assert.Equal(new Point3(38.7, 30, 0), Charged(new Point2(38.7, 30), Charge with { ContactWith = null, ContactGrace = null }).Lands);
+    }
+
     [Fact]
     public void A_drag_and_its_region_pass_above_a_lower_model()
     {

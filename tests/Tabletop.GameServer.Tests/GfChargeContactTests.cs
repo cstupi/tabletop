@@ -1,6 +1,7 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Interpreter;
+using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Geometry;
@@ -50,11 +51,64 @@ public class GfChargeContactTests
         Assert.IsType<Applied>(Answer(sim, new Destinations([At(sim, charger.Models[0].Id, 26.74, 24), At(sim, charger.Models[1].Id, 25.5, 25.5)])));
     }
 
+    static double Gap(Sim sim, Guid a, Guid b) => Distance.EdgeToEdge(Battlefield.Placed(sim.State, a)!.Value, Battlefield.Placed(sim.State, b)!.Value);
+
     [Fact]
-    public void A_dropped_model_resting_a_little_short_of_touching_counts_as_in_contact()
+    public void The_charge_move_Ask_carries_the_grace()
+    {
+        var sim = Charging(Enforcement.Strict, out _, out _);
+        Assert.Equal(GfNames.ChargeContactGrace, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).ContactGrace);
+    }
+
+    [Theory]
+    [InlineData(0.14)] [InlineData(0.3)] [InlineData(0.5)]
+    public void A_model_ending_within_the_grace_is_drawn_into_base_contact(double shortBy)
+    {
+        // Owner ruling: "It should have a small grace window". The drop lands where it was dropped; the charge ends it touching.
+        var sim = Charging(Enforcement.Strict, out var charger, out var target);
+        sim.Answer(Samples.Team1, new Destinations([At(sim, charger.Models[0].Id, 26.74 - shortBy, 24), At(sim, charger.Models[1].Id, 25.4, 25.2)]));
+        Assert.InRange(Gap(sim, charger.Models[0].Id, target.Models[0].Id), 0, 1e-6);
+        Assert.Equal(new Point2(25.4, 25.2), ((OnTable)sim.Model(charger.Models[1].Id).Location).Placement.Position.Horizontal);   // 1.6" off: left where it was put
+    }
+
+    [Fact]
+    public void A_charge_short_of_contact_with_the_movement_to_reach_it_is_accepted_and_its_nearest_model_drawn_in()
+    {
+        // Owner ruling: "if it had the movement to make the charge then it should be accepted". The nearer model ends 1" short with 6" used.
+        var sim = Charging(Enforcement.Strict, out var charger, out var target);
+        sim.Answer(Samples.Team1, new Destinations([At(sim, charger.Models[0].Id, 24.74, 24), At(sim, charger.Models[1].Id, 25.9, 24.9)]));
+        Assert.InRange(target.Models.Min(t => Gap(sim, charger.Models[1].Id, t.Id)), 0, 1e-6);
+        Assert.InRange(Gap(sim, charger.Models[0].Id, charger.Models[1].Id), 0, GfNames.CoherencyChain);
+        Assert.Equal(new Point2(24.74, 24), ((OnTable)sim.Model(charger.Models[0].Id).Location).Placement.Position.Horizontal);   // only the nearest is drawn in
+    }
+
+    [Fact]
+    public void A_model_is_not_drawn_in_when_that_would_break_coherency_so_the_short_charge_is_refused()
+    {
+        // Side by side 3" short: either one drawn 3" in leaves the other about 2" behind it.
+        var sim = Charging(Enforcement.Strict, out var charger, out _);
+        var answer = new Destinations([At(sim, charger.Models[0].Id, 23.74, 24), At(sim, charger.Models[1].Id, 23.6, 25.4)]);
+        Assert.Equal(GfNames.ChargeContactRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), answer)!.Rule);
+        Assert.IsType<Refused>(Answer(sim, answer));
+    }
+
+    [Fact]
+    public void Drawn_into_contact_the_defender_s_touching_model_does_not_close_in()
+    {
+        // p.9: "all models from the target unit that are not in base contact with a charging model must move by up to 3”".
+        var sim = Charging(Enforcement.Strict, out var charger, out var target);
+        sim.Answer(Samples.Team1, new Destinations([At(sim, charger.Models[0].Id, 26.4, 24), At(sim, charger.Models[1].Id, 25.4, 25.2)]));
+        var close = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team2).Legal);
+        Assert.Equal([target.Models[1].Id], close.ModelIds);
+    }
+
+    [Fact]
+    public void A_stop_part_way_is_not_drawn_in()
     {
         var sim = Charging(Enforcement.Strict, out var charger, out _);
-        Assert.IsType<Applied>(Answer(sim, new Destinations([At(sim, charger.Models[0].Id, 26.6, 24), At(sim, charger.Models[1].Id, 25.3, 25.5)])));   // 0.14" apart
+        var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        var stop = new Destinations([At(sim, charger.Models[0].Id, 26.4, 24)], Continues: true);
+        Assert.Equal(26.4, ((OnTable)GfAnswers.Moves(sim.State, region, stop).Single().To).Placement.Position.X, 9);
     }
 
     [Fact]
@@ -117,7 +171,10 @@ public class GfChargeContactTests
         var sim = Sim.Gf(state, 1);
         Place(sim, charger.Models[0].Id, 20, 24); Place(sim, target.Models[0].Id, 28, 24);
         var region = new MoveRegion([charger.Models[0].Id], 12, wall.WorldVolumes().Select(v => v.Id).ToList(), [], 6, ContactWith: [target.Models[0].Id]);
-        Assert.Null(GfMoves.ChargeContactBreach(sim.State, region, new Destinations([At(sim, charger.Models[0].Id, 22, 24)])));
-        Assert.NotNull(GfMoves.ChargeContactBreach(sim.State, region with { ImpassableVolumeIds = [] }, new Destinations([At(sim, charger.Models[0].Id, 22, 24)])));
+        var stopped = new Destinations([At(sim, charger.Models[0].Id, 22, 24)]);
+        Assert.Null(GfMoves.ChargeContactBreach(sim.State, region, stopped));
+        Assert.Equal(22, ((OnTable)GfAnswers.Moves(sim.State, region, stopped).Single().To).Placement.Position.X, 9);
+        // With no wall the movement reaches contact, so the model is drawn in from where it stopped.
+        Assert.Equal(26.74, ((OnTable)GfAnswers.Moves(sim.State, region with { ImpassableVolumeIds = [] }, stopped).Single().To).Placement.Position.X, 6);
     }
 }
