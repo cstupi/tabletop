@@ -17,6 +17,8 @@ public static class ThemeBuilder
         t.SetStylebox("focus", "Button", new StyleBoxEmpty()); t.SetStylebox("tab_selected", "TabContainer", Btn(0.3f)); t.SetStylebox("tab_unselected", "TabContainer", Btn(0f)); t.SetStylebox("tab_hovered", "TabContainer", Btn(0.15f));
         t.SetStylebox("normal", "LineEdit", Flat(s, C(u.Panel), C(u.PanelBorder), 1)); t.SetStylebox("focus", "LineEdit", Flat(s, C(u.Panel), C(u.Accent), 1)); t.SetStylebox("panel", "ItemList", Flat(s, C(u.Panel), C(u.PanelBorder), 1));
         foreach (var type in new[] { "Label", "LineEdit", "ItemList", "TooltipLabel", "PopupMenu", "TabContainer" }) t.SetColor("font_color", type, C(u.Text));
+        t.SetColor("default_color", "RichTextLabel", C(u.Text)); t.SetColor("selection_color", "RichTextLabel", C(u.Accent) with { A = 0.35f });
+        t.SetStylebox("focus", "RichTextLabel", new StyleBoxEmpty());
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, "Button", C(u.ButtonText));
         // Disabled text on the button face: the face's own text colour, faded, which reads on a dark face (fantasy) and a light one alike.
         t.SetColor("font_pressed_color", "Button", C(u.Accent)); t.SetColor("font_disabled_color", "Button", C(u.ButtonText) with { A = 0.5f });
@@ -82,7 +84,12 @@ public static class ThemeBuilder
     static void Variant(Godot.Theme t, string v, string baseType, string name, StyleBox box) { t.SetTypeVariation(v, baseType); t.SetStylebox(name, v, box); }
 
     static void LabelVariant(Godot.Theme t, string v, ThemeFont? f = null, Color? c = null)
-    { t.SetTypeVariation(v, "Label"); if (f is not null) { t.SetFont("font", v, FontOf(f)); t.SetFontSize("font_size", v, f.Size); } if (c is { } col) t.SetColor("font_color", v, col); }
+    {
+        // A RichTextLabel given the variation (the log's selectable rows) reads the same font and colour under its own item names.
+        t.SetTypeVariation(v, "Label");
+        if (f is not null) { t.SetFont("font", v, FontOf(f)); t.SetFontSize("font_size", v, f.Size); t.SetFont("normal_font", v, FontOf(f)); t.SetFontSize("normal_font_size", v, f.Size); }
+        if (c is { } col) { t.SetColor("font_color", v, col); t.SetColor("default_color", v, col); }
+    }
 
     static StyleBox Box(string? ninePatch, int margin, PanelShape s, Color bg, Color border, int width)
     {

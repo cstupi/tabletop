@@ -2,12 +2,13 @@
 <!-- CombatLogPanel.cs: the play log, a filter over the combat log's blocks, rolls and lines. A block shows its lines beneath its header
      until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Detailed draws each roll and named
      change as its worked lines in monospace (detailed-log spec, workedLines.ts). Renders only; every word is the
-     combat log's (logRows.ts, rollEntry.ts). Rows are keyed by seq, which is what CombatLogRows' reuse does by hand in Godot. -->
+     combat log's (logRows.ts, rollEntry.ts). Rows are keyed by seq, which is what CombatLogRows' reuse does by hand in Godot. Rows are
+     text, not buttons: a drag selects across rows and copies; a click that leaves a selection does not toggle. -->
 <script lang="ts">
   import { tick } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { pip } from './combatLog';
-  import { FILTER_LABELS, faded, rowText, strike, undoHere } from './logRows';
+  import { FILTER_LABELS, faded, rowText, undoHere } from './logRows';
   import { touched } from './logText';
   import { amendmentLine, dieText, outcome, title, type LogEntry, type RollEntry } from './rollEntry';
   import type { RuleTexts } from './ruleTexts';
@@ -43,6 +44,12 @@
     if (e.type === 'line') return;
     const set = e.type === 'block' ? foldedBlocks : openRolls;
     if (!set.delete(keyOf(e))) set.add(keyOf(e));
+  }
+
+  /** A row's click, unless it ended a drag that selected text. */
+  function pick(e: LogEntry): void {
+    if ((window.getSelection()?.toString() ?? '').length > 0) return;
+    toggle(e);
   }
 
   function onScroll(): void {
@@ -87,7 +94,6 @@
     return null;
   }
 
-  const textOf = (e: LogEntry, open: boolean): string => (e.undone ? strike(rowText(e, open)) : rowText(e, open));
   const tail = (r: RollEntry): string =>
     [outcome(r), ...r.amendments.filter((a) => !a.undone).map((a) => amendmentLine(a, pip))].filter((t) => t.length > 0).join(' · ');
   const labelled = (r: RollEntry): boolean => r.dieLabels !== null && r.dieLabels.length > 0;
@@ -104,7 +110,7 @@
       </p>
     {/each}
     {#each detailed ? [] : r.amendments as a (a.seq)}
-      <p class:dim={a.undone}>{a.undone ? strike(amendmentLine(a, String)) : amendmentLine(a, String)}</p>
+      <p class:dim={a.undone} class:struck={a.undone}>{amendmentLine(a, String)}</p>
     {/each}
     {#if r.applied.length > 0}
       <p class="flow">{#each r.applied as name (name)}<button type="button" class="flat" tabindex="-1" title={rules.textOf(name) ?? name} onmousedown={noFocus}>{name}</button>{/each}</p>
@@ -120,23 +126,23 @@
   {@const dim = faded(e, pendingUndoTo)}
   {#if detailed && (e.type === 'roll' || (e.type === 'line' && e.worked !== null))}
     {@const lines = e.type === 'roll' ? worked(e) : e.type === 'line' ? e.worked ?? [] : []}
-    <div class="worked" class:dim data-roll={e.type === 'roll' ? e.record.id : undefined} role="button" tabindex="-1" onmousedown={noFocus}
-      onclick={() => toggle(e)} onkeydown={() => {}}>{e.undone ? strike(lines.join('\n')) : lines.join('\n')}</div>
+    <div class="worked" class:dim class:struck={e.undone} data-roll={e.type === 'roll' ? e.record.id : undefined} role="button" tabindex="-1"
+      onclick={() => pick(e)} onkeydown={() => {}}>{lines.join('\n')}</div>
   {:else if e.type === 'roll' && !labelled(e)}
-    <div class="roll" class:dim data-roll={e.record.id} role="button" tabindex="-1" onmousedown={noFocus} onclick={() => toggle(e)} onkeydown={() => {}}>
-      <span class="words">{e.undone ? strike(`${open ? '▾' : '▸'} ${title(e)}`) : `${open ? '▾' : '▸'} ${title(e)}`}</span>
+    <div class="roll" class:dim data-roll={e.record.id} role="button" tabindex="-1" onclick={() => pick(e)} onkeydown={() => {}}>
+      <span class="words" class:struck={e.undone}>{`${open ? '▾' : '▸'} ${title(e)}`}</span>
       <span class="faces">
         {#each e.dice as d, i (i)}<span class="die" class:fail={d.judged && !d.success}>{pip(d.raw)}</span>{/each}
-        {#if tail(e).length > 0}<span class="words" class:dim={dim}>{e.undone ? strike(tail(e)) : tail(e)}</span>{/if}
+        {#if tail(e).length > 0}<span class="words" class:dim={dim} class:struck={e.undone}>{tail(e)}</span>{/if}
       </span>
     </div>
   {:else}
     <div class="line" class:dim>
-      <button
-        type="button" class="flat grow" tabindex="-1" data-roll={e.type === 'roll' ? e.record.id : undefined}
+      <div
+        class="row grow" class:struck={e.undone} role="button" tabindex="-1" data-roll={e.type === 'roll' ? e.record.id : undefined}
         title={e.type === 'block' && e.spell !== null ? spellTooltip(rules, e.spell, e.spellCost) ?? '' : ''}
-        onmousedown={noFocus} onclick={() => toggle(e)}
-      >{textOf(e, open)}</button>
+        onclick={() => pick(e)} onkeydown={() => {}}
+      >{rowText(e, open)}</div>
       {#if e.type !== 'roll' && undoHere(e, watching)}
         <button type="button" class="flat" tabindex="-1" onmousedown={noFocus} onclick={() => onUndoTo(e.seq)}>Undo to here</button>
       {/if}
@@ -174,9 +180,12 @@
     color: inherit; text-align: left; white-space: normal; font: inherit; cursor: pointer; }
   .flat:hover:not(:disabled) { background: var(--rule); color: inherit; }
   .line { display: flex; gap: var(--s1); align-items: baseline; }
-  .line > .flat:not(.grow) { opacity: 0; }
-  .line:hover > .flat:not(.grow), .line > .flat:not(.grow):focus-visible { opacity: 1; }
-  .line > .flat:not(.grow) { flex: none; color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
+  .line > .flat { opacity: 0; }
+  .line:hover > .flat, .line > .flat:focus-visible { opacity: 1; }
+  .line > .flat { flex: none; color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
+  .row { padding: 1px var(--s1); cursor: pointer; }
+  .row:hover { background: var(--rule); }
+  .struck { text-decoration: line-through; }
   .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .roll { cursor: pointer; padding: 1px var(--s1); }
   .worked { margin: 2px 0; padding: 1px var(--s1); cursor: pointer; font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
