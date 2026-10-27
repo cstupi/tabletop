@@ -9,12 +9,15 @@ namespace Tabletop.Client.Hud;
 
 /// <summary>The play log (combat-log spec → The log): a filter over CombatLog's blocks, rolls and lines. A block shows its lines beneath its header
 /// until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Detailed (beside the filter, ClientSettings.LogDetailed)
-/// draws each roll and named change as its worked lines in monospace (detailed-log spec). Renders only; every word is CombatLog's.</summary>
+/// draws each roll and named change as its worked lines in monospace (detailed-log spec). Every row's words are selectable text (SelectableText):
+/// a drag selects within the row, Ctrl+C or the right-click menu copies, and a click without a drag is the row's; Copy puts the rows as drawn
+/// on the clipboard (LogCopy). Renders only; every word is CombatLog's.</summary>
 public partial class CombatLogPanel : VBoxContainer
 {
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
     Session _s = null!; TableView _view = null!; Action<string> _report = _ => { };
     readonly OptionButton _filter = new();
+    readonly Button _copy = new() { Text = "Copy", Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Copy the log as shown" };
     readonly CheckBox _detailed = new() { Text = "Detailed", TooltipText = "Each roll as a worked resolution: every modifier, what was ignored, every die" };
     readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -40,7 +43,8 @@ public partial class CombatLogPanel : VBoxContainer
         _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(false); };
         _detailed.ButtonPressed = s.Settings.LogDetailed;
         _detailed.Toggled += on => { _s.UpdateSettings(x => x with { LogDetailed = on }); Render(false); };
-        var top = new HBoxContainer(); _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed);
+        var top = new HBoxContainer(); _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed); top.AddChild(_copy);
+        _copy.Pressed += () => DisplayServer.ClipboardSet(LogCopy.Text(_drawn, _s.Settings.LogDetailed, IsOpen));
         AddChild(top); AddChild(_scroll); _scroll.AddChild(_rows);
         // The newest entry stays in view: the bar's range changes after the rows are laid out, a frame after a render, so the jump
         // to the end happens then. Scrolling away from the end lets go; scrolling back to it follows again.
@@ -100,13 +104,15 @@ public partial class CombatLogPanel : VBoxContainer
         CallDeferred(nameof(Scroll));
     }
 
+    bool IsOpen(LogEntry e) => e is ActivationBlock ? !_folded.Contains(Key(e)) : _open.Contains(Key(e));
+
     static string Key(LogEntry e) => e is RollEntry r ? r.Record.Id.ToString() : e.Seq.ToString();
     bool Holds(LogEntry e) => _reveal is { } id && (e is RollEntry r && r.Record.Id == id || e is ActivationBlock b && b.Entries.Any(Holds));
 
     void Add(VBoxContainer into, LogEntry e)
     {
         if (Holds(e)) { _open.Add(Key(e)); _folded.Remove(Key(e)); }
-        var open = e is ActivationBlock ? !_folded.Contains(Key(e)) : _open.Contains(Key(e));
+        var open = IsOpen(e);
         var faded = e.Undone || _s.PendingUndoTo is { } to && e.Seq > to;
         var set = e is ActivationBlock ? _folded : _open;   // a block starts open, a roll closed
         void Toggle() { Highlight(e); if (e is LineEntry) return; if (!set.Remove(Key(e))) set.Add(Key(e)); Render(false); }
@@ -125,13 +131,12 @@ public partial class CombatLogPanel : VBoxContainer
                 _ => "",
             };
             var row = new HBoxContainer(); into.AddChild(row);
-            var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
-            if (faded) button.Modulate = Ui.Faded;
-            if (e is ActivationBlock { Spell: { } spell } cast) button.TooltipText = SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "";
-            button.Pressed += Toggle;
-            row.AddChild(button);
+            var words = SelectableText(text, e.Undone, "", Toggle);
+            if (faded) words.Modulate = Ui.Faded;
+            if (e is ActivationBlock { Spell: { } spell } cast) words.TooltipText = SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "";
+            row.AddChild(words);
             if (e is not RollEntry && CombatLog.UndoHere(e, _s.IsWatching)) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
-            shown = button;
+            shown = words;
         }
         if (e is RollEntry revealed && revealed.Record.Id == _reveal) _revealed = shown;
         if (!open) return;
@@ -141,43 +146,53 @@ public partial class CombatLogPanel : VBoxContainer
         if (e is RollEntry opened) Details(inner, opened, detailed);
     }
 
-    /// <summary>Worked lines in the monospace face, one label, wrapping only past the panel's width. A left click is the row's.</summary>
+    /// <summary>Worked lines in the monospace face, one text, wrapping only past the panel's width. A click without a drag is the row's.</summary>
     static Control MonoRow(IReadOnlyList<string> lines, bool undone, bool faded, Action clicked)
     {
-        var text = string.Join("\n", lines);
-        var label = new Label
+        var text = SelectableText(string.Join("\n", lines), undone, Variation.Mono, clicked);
+        if (faded) text.Modulate = Ui.Faded;
+        return text;
+    }
+
+    /// <summary>A row's words as text the mouse selects: a drag selects, Ctrl+C or the right-click menu copies. A left click that selected
+    /// nothing is the row's (clicked) and gives the focus back, so the table's keys work again; a selection keeps it until Ctrl+C. Wraps
+    /// to the panel's width with a 160 px floor; the wheel passes through to the scroll. Struck with [s], so a copy holds plain words.</summary>
+    static RichTextLabel SelectableText(string text, bool undone, string variation, Action? clicked)
+    {
+        var words = text.Replace("[", "[lb]");
+        var label = new RichTextLabel
         {
-            Text = undone ? Strike(text) : text, ThemeTypeVariation = Variation.Mono, AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new(160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Pass,
+            BbcodeEnabled = true, Text = undone ? $"[s]{words}[/s]" : words, FitContent = true, ScrollActive = false, SelectionEnabled = true,
+            ContextMenuEnabled = true, FocusMode = FocusModeEnum.All, AutowrapMode = TextServer.AutowrapMode.WordSmart, ThemeTypeVariation = variation,
+            CustomMinimumSize = new(160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill,
         };
-        label.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) { label.AcceptEvent(); clicked(); } };
-        if (faded) label.Modulate = Ui.Faded;
+        if (clicked is null) return label;
+        label.GuiInput += ev =>
+        {
+            if (ev is not InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left } || label.GetSelectedText().Length > 0) return;
+            label.ReleaseFocus(); clicked();
+        };
         return label;
     }
 
     /// <summary>The roll as its title, its raw faces (bright on a success, faded on a failure, an unjudged die plain), then its outcome and
-    /// live amendments, wrapping to the panel's width; each label keeps a width floor. A left click anywhere on it is the row's; the
-    /// wheel passes through to the scroll.</summary>
+    /// live amendments, wrapping to the panel's width; each text keeps a width floor. A press on the faces, or a click without a drag on
+    /// the words, is the row's; the wheel passes through to the scroll.</summary>
     static Control RollRow(RollEntry r, bool open, bool faded, Action clicked)
     {
         var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         row.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) { row.AcceptEvent(); clicked(); } };
-        Label Words(string t, string variation = "") => new()
-        {
-            Text = r.Undone ? Strike(t) : t, CustomMinimumSize = new(160, 0), AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            SizeFlagsHorizontal = SizeFlags.ExpandFill, ThemeTypeVariation = variation,
-        };
-        row.AddChild(Words($"{(open ? "▾" : "▸")} {r.Title}"));
-        var flow = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; row.AddChild(flow);
+        var flow = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         foreach (var d in r.Dice) flow.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
+        Ignore(flow); row.MouseFilter = MouseFilterEnum.Pass;
+        row.AddChild(SelectableText($"{(open ? "▾" : "▸")} {r.Title}", r.Undone, "", clicked)); row.AddChild(flow);
         var tail = string.Join(" · ", new[] { r.Outcome }.Concat(r.Amendments.Where(a => !a.Undone).Select(a => a.Line(CombatLog.Pip))).Where(t => t.Length > 0));
-        if (tail.Length > 0) flow.AddChild(Words(tail, faded ? Variation.Dim : ""));
-        Ignore(row); row.MouseFilter = MouseFilterEnum.Pass;
+        if (tail.Length > 0) flow.AddChild(SelectableText(tail, r.Undone, faded ? Variation.Dim : "", clicked));
         if (faded) row.Modulate = Ui.Faded;
         return row;
     }
 
-    /// <summary>The click belongs to the row: nothing in it takes the mouse.</summary>
+    /// <summary>A press on the faces belongs to the row: nothing in them takes the mouse.</summary>
     static void Ignore(Control c)
     {
         c.MouseFilter = MouseFilterEnum.Ignore;
@@ -188,15 +203,15 @@ public partial class CombatLogPanel : VBoxContainer
     /// chips, Undo to here.</summary>
     void Details(VBoxContainer into, RollEntry r, bool detailed)
     {
-        if (!detailed) foreach (var line in r.Details) into.AddChild(new Label { Text = line });
+        if (!detailed) foreach (var line in r.Details) into.AddChild(SelectableText(line, false, "", null));
         foreach (var d in detailed ? [] : r.Dice)
         {
             // An unjudged die shows neither pass nor fail: a plain face and an unstyled label.
             var line = new HBoxContainer(); into.AddChild(line);
             line.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
-            line.AddChild(new Label { Text = d.Text, ThemeTypeVariation = !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure });
+            line.AddChild(SelectableText(d.Text, false, !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure, null));
         }
-        foreach (var a in detailed ? [] : r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
+        foreach (var a in detailed ? [] : r.Amendments) into.AddChild(SelectableText(a.Text, a.Undone, a.Undone ? Variation.Dim : "", null));
         var chips = new HFlowContainer(); if (r.Applied.Count > 0) into.AddChild(chips); else chips.QueueFree();   // the rules that acted in the step, with their catalog text
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (!CombatLog.UndoHere(r, _s.IsWatching)) return;
@@ -212,9 +227,6 @@ public partial class CombatLogPanel : VBoxContainer
         foreach (var piece in _view.Pieces.OfType<PieceNode>()) piece.SetHighlight(null);
         foreach (var id in LogText.Touched(e.Event)) _view.PieceAt(id)?.SetHighlight(Ui.Accent);
     }
-
-    /// <summary>A Button has no strike style: U+0336 after each character.</summary>
-    static string Strike(string s) => string.Concat(s.Select(c => $"{c}̶"));
 
     void Scroll()
     {

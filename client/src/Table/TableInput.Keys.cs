@@ -20,8 +20,14 @@ public partial class TableInput
     }
 
     /// <summary>A text field in the window's own viewport (the terrain card's notes, the setup toolbar's fields) has the key: the
-    /// table's viewport hears it too, so a typed space, letter or Enter never reaches a hotkey. Releases still pass.</summary>
-    bool TextFocused() => GetTree().Root.GuiGetFocusOwner() is LineEdit or TextEdit or SpinBox;
+    /// table's viewport hears it too, so a typed space, letter or Enter never reaches a hotkey. So does a selectable text holding a
+    /// selection (the log's rows), so the Ctrl of its Ctrl+C starts no ruler. Releases still pass.</summary>
+    bool TextFocused() => GetTree().Root.GuiGetFocusOwner() switch
+    {
+        LineEdit or TextEdit or SpinBox => true,
+        RichTextLabel { SelectionEnabled: true } t => t.GetSelectedText().Length > 0,
+        _ => false,
+    };
 
     /// <summary>HotKey's members carry Godot's names. A key Hotkeys does not name is no key; IsDefined stops a numeric name parsing.</summary>
     static HotKey? Translate(Key key) => Enum.TryParse<HotKey>(key.ToString(), out var k) && Enum.IsDefined(k) ? k : null;
