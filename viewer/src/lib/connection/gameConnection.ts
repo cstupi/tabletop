@@ -29,6 +29,8 @@ export interface ConnectionState {
   readonly projection: Projection | null;
   readonly maxWounds: ReadonlyMap<string, number>;
   readonly deployInside: ReadonlyMap<string, readonly string[]>;
+  /** The units that may be set aside before deployment now, or returned to it (ModelFacts.maySetAside). */
+  readonly maySetAside: ReadonlySet<string>;
   /** From a board until a model_facts frame or an empty events page (Session.CatchingUp). */
   readonly catchingUp: boolean;
   /** Player text for the last close or rejection (feedback.ts); null while nothing went wrong. */
@@ -97,7 +99,7 @@ type Send = {
 
 const INITIAL: ConnectionState = {
   phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, draft: null, board: null, log: [], projection: null,
-  maxWounds: new Map(), deployInside: new Map(), catchingUp: true, closeReason: null,
+  maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), catchingUp: true, closeReason: null,
 };
 
 export function connectGame(options: ConnectionOptions): GameConnection {
@@ -144,7 +146,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
     settled.clear();
     publish({
       game: null, participantId: null, draft: null, board: null, log: [], projection: null,
-      maxWounds: new Map(), deployInside: new Map(), catchingUp: true,
+      maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), catchingUp: true,
     });
   }
 
@@ -292,6 +294,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         publish({
           maxWounds: new Map(Object.entries(frame.maxWounds)),
           deployInside: new Map(Object.entries(frame.deployInside ?? {})),
+          maySetAside: new Set(frame.maySetAside ?? []),
           catchingUp: false,
         });
         return;

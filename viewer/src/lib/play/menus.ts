@@ -16,7 +16,7 @@ import type { GrantChoice } from './ruleTexts';
 export interface MenuContext {
   readonly game: GameInfo; readonly p: Projection; readonly log: readonly GameEvent[];
   readonly watching: boolean; readonly myTeam: string | null; readonly mine: AskView | null; readonly grantable: readonly GrantChoice[];
-  readonly deployInside: ReadonlyMap<string, readonly string[]>; readonly locks: MarkerLocks;
+  readonly deployInside: ReadonlyMap<string, readonly string[]>; readonly maySetAside: ReadonlySet<string>; readonly locks: MarkerLocks;
 }
 
 /** ItemsFor: a model (boarding, then the model's items and the frame's; Shift the unit's), else a marker; [] for a watcher. */
@@ -39,7 +39,7 @@ export function teamMenu(ctx: MenuContext, teamId: string, n: Names): MenuItem[]
 
 /** Roster.UnitMenuRequested: my team's units only. */
 export function rosterMenu(ctx: MenuContext, unitId: string): MenuItem[] {
-  return ctx.watching ? [] : forRosterUnit(ctx.game, ctx.p, unitId, ctx.myTeam, ctx.deployInside);
+  return ctx.watching ? [] : forRosterUnit(ctx.game, ctx.p, unitId, ctx.myTeam, ctx.deployInside, ctx.maySetAside);
 }
 
 /** The table's Alt+right-click: the token. */

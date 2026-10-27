@@ -305,14 +305,15 @@ client is told rather than reading a rule name:
 ```csharp
 // Server → client
 public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds,
-    IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null) : SocketMessage;
+    IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null, IReadOnlyList<Guid>? MaySetAside = null) : SocketMessage;
 ```
 
 `IGameRules.MaxWounds(GameState, Guid modelId)` answers per model. `DeployInside` is `IGameRules.DeployInside(state)`:
-for each unit that may be put in a Transport now, the Transport models it may go in (passengers spec). The session
+for each unit that may be put in a Transport now, the Transport models it may go in (passengers spec). `MaySetAside` is
+`IGameRules.MaySetAside(state, properties)`: the units that may be set aside before deployment now or returned to it. The session
 sends `ModelFacts` for every model in play to a client on connect once the game is playing, and broadcasts it after a
 batch whenever any value differs from the last one sent. Hover wounds, the models strip and casualty pips read
-`MaxWounds`; the roster's Put in transport reads `DeployInside`.
+`MaxWounds`; the roster's Put in transport reads `DeployInside`, its Set aside `MaySetAside`.
 
 ### Rule text
 

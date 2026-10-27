@@ -13,7 +13,7 @@ public class MenusTests
     static readonly IReadOnlyList<string> Known = MenuModel.KnownActionNames(P, Log);
 
     static MenuContext Ctx(bool watching = false, AskView? mine = null, MarkerLocks? locks = null) =>
-        new(TableUx.Game, P, Log, watching, TableUx.T1, mine, [], new Dictionary<Guid, IReadOnlyList<Guid>>(), locks ?? new MarkerLocks());
+        new(TableUx.Game, P, Log, watching, TableUx.T1, mine, [], new Dictionary<Guid, IReadOnlyList<Guid>>(), new HashSet<Guid>(), locks ?? new MarkerLocks());
     static IEnumerable<string> Labels(IEnumerable<MenuItem> items) => items.Select(i => i.Label);
 
     [Fact]

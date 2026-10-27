@@ -434,9 +434,11 @@ is answered from the current state with the same `Sight` the rules use: one `Sig
 the obstructing volumes (a terrain volume's id or a model's), `Seen` on a clear line the target point it reaches (its top,
 centre or rim; `SightReading.Seen`), and `CanShoot` the observer's models that p.8's *Who can
 shoot* lets fire at the target (`IGameRules.Shooters`). It goes to the asker alone; nothing is appended, broadcast or
-followed by `AtRest`. `ModelFacts(MaxWounds, DeployInside)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
-`Tough(X)`, else 1) and `IGameRules.DeployInside` (each unit that may be put in a Transport now, and the Transport models;
-passengers spec), sent to a client on connect once the game is playing and broadcast after a batch whenever a value
+followed by `AtRest`. `ModelFacts(MaxWounds, DeployInside, MaySetAside)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
+`Tough(X)`, else 1), `IGameRules.DeployInside` (each unit that may be put in a Transport now, and the Transport models;
+passengers spec) and `IGameRules.MaySetAside` (each unit that may be set aside before deployment now or returned to it;
+Grimdark Future, p.13 and p.14: before round one, never deployed, every model on the shelf, Ambush or Scout by `Lookup.UnitHas` with its
+counts-as chains, or Surprise Attack), sent to a client on connect once the game is playing and broadcast after a batch whenever a value
 differs from the last facts sent. `SequenceStarted.Outline` lists a sequence's labelled steps (`IStep.Label`) in order;
 a step with no label is internal, a sequence with no labelled step writes none, and a log written before outlines
 replays with none.
@@ -445,8 +447,8 @@ replays with none.
 `RulesEngine` holds. Grimdark Future answers it per ranged weapon group with `GfAttack.EligibleModels`, over the live
 set of `GfAttack.AttackInteraction`'s frame-optional core: the same core the fire groups use inside a sequence, called
 with no frame, so the range is the units' distance and there are no faces. Every `IGameRules` wrapper that forwards by
-hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside`, `DeployInside` and `AnswerBreach`, or the wrapped
-ruleset answers 1, nobody, never, nothing and nothing broken.
+hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside`, `DeployInside`, `MaySetAside` and `AnswerBreach`, or the wrapped
+ruleset answers 1, nobody, never, nothing, nobody and nothing broken.
 
 ### Enforcement and the override path
 

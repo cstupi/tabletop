@@ -71,6 +71,7 @@ public sealed class CallCase
     public long? UndoneTo { get; init; }
     public IReadOnlyDictionary<Guid, int> MaxWounds { get; init; } = new Dictionary<Guid, int>();
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside { get; init; } = new Dictionary<Guid, IReadOnlyList<Guid>>();
+    public IReadOnlySet<Guid> MaySetAside { get; init; } = new HashSet<Guid>();
     public IReadOnlyList<GrantChoice> Grantable { get; init; } = [];
     public JsonObject? Decisions { get; set; }
     public JsonNode? Message { get; set; }
@@ -92,6 +93,7 @@ public sealed class CallCase
         o["muted"] = new JsonArray(State.Muted.Select(m => (JsonNode?)JsonValue.Create(m)).ToArray());
         o["maxWounds"] = CallCases.J(MaxWounds);
         o["deployInside"] = CallCases.J(DeployInside);
+        o["maySetAside"] = CallCases.J(MaySetAside.ToList());
         o["grantable"] = CallCases.J(Grantable);
         if (UndoneTo is { } to) o["undoneTo"] = to;
         o["choice"] = Choice.DeepClone();
@@ -144,14 +146,14 @@ public static partial class CallCases
     public static CallCase Playing(string kind, CallLog log, long upTo, Guid participant, JsonObject choice, Func<CallState, JsonNode?> build,
         Action<CallState, JsonObject>? decide = null, string suffix = "", IReadOnlyList<string>? muted = null, long? undoneTo = null,
         IReadOnlyDictionary<Guid, int>? maxWounds = null, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null,
-        IReadOnlyList<GrantChoice>? grantable = null)
+        IReadOnlyList<GrantChoice>? grantable = null, IReadOnlySet<Guid>? maySetAside = null)
     {
         var state = CallState.Playing(log, upTo, participant, muted, undoneTo);
         var c = new CallCase
         {
             Kind = kind, State = state, Choice = choice, UpTo = upTo, Suffix = suffix, UndoneTo = undoneTo,
             MaxWounds = maxWounds ?? new Dictionary<Guid, int>(), DeployInside = deployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Grantable = grantable ?? [],
+            Grantable = grantable ?? [], MaySetAside = maySetAside ?? new HashSet<Guid>(),
         };
         var decisions = DecisionsOf(state);
         decide?.Invoke(state, decisions);

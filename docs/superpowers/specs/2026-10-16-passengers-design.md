@@ -58,7 +58,7 @@ public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds,
 
 **The roster menu** (`MenuModel.ForRosterUnit`), a unit of my team while playing:
 
-- every model on the shelf, unwounded: Set aside / Return to deployment (Ambush or Scout, as before), then one
+- every model on the shelf, unwounded: Set aside / Return to deployment (a unit `ModelFacts.MaySetAside` names), then one
   **Put in transport: {Transport unit}** per `DeployInside` entry, each one `MoveModels` of every model to
   `Inside(that model)`;
 - inside a Transport model that is on the shelf: **Take out of transport**, one `MoveModels` of every model back to the

@@ -66,7 +66,7 @@ async function setAside(conn: GameConnection, unit: string): Promise<void> {
   const myTeam = acting(s.projection, teamsOf(s.game!, s.participantId), s.log);
   const ctx: MenuContext = {
     game: s.game!, p: s.projection!, log: s.log, watching: false, myTeam, mine: mine(s.projection!, s.game!, myTeam, new Set()),
-    grantable: [], deployInside: new Map(), locks: new MarkerLocks(),
+    grantable: [], deployInside: new Map(), maySetAside: s.maySetAside, locks: new MarkerLocks(),
   };
   const item = rosterMenu(ctx, unit).find((i) => i.label === 'Set aside');
   expect(item, 'the roster offers Set aside').toBeDefined();

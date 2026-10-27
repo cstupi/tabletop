@@ -75,16 +75,16 @@ public static class MenuModel
             .Select(m => BackOnTable(m, m.Location is Inside ? $"Take {names.Model(m.Id)} out of the container, here" : $"Place {names.Model(m.Id)} on the table, here"))
             .ToList();
 
-    /// <summary>The condition the server reads as a unit kept off the deployment (setup phase → Ambush and Scout), and the properties whose units may take it.</summary>
+    /// <summary>The condition the server reads as a unit kept off the deployment (setup phase → Ambush and Scout).</summary>
     public const string SetAside = "set-aside";
-    static readonly string[] SetsAside = ["Ambush", "Scout"];
 
     /// <summary>
     /// The roster's right-click on a unit of my team while playing. Every model on the shelf unwounded (never deployed): Set aside / Return to
-    /// deployment when it carries one of SetsAside, then Put in transport per Transport model the server names for it (ModelFacts.DeployInside;
+    /// deployment when the server names it (ModelFacts.MaySetAside: Ambush, Scout and what counts as having them), then Put in transport per Transport model the server names for it (ModelFacts.DeployInside;
     /// passengers spec). Inside a container still on the shelf: Take out of transport. The server judges each hand move.
     /// </summary>
-    public static IReadOnlyList<MenuItem> ForRosterUnit(GameInfo game, Projection p, Guid unitId, Guid? myTeam, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null)
+    public static IReadOnlyList<MenuItem> ForRosterUnit(GameInfo game, Projection p, Guid unitId, Guid? myTeam, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null,
+        IReadOnlySet<Guid>? maySetAside = null)
     {
         if (game.Status != GameStatus.Playing || myTeam is null || p.Units.GetValueOrDefault(unitId) is not { } u) return [];
         if (game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId != myTeam) return [];
@@ -93,7 +93,7 @@ public static class MenuModel
             return [new("Take out of transport", MenuInput.None, _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new OnShelf())).ToList()))];
         if (models.Any(m => m.Location is not OnShelf || m.Wounds > 0)) return [];   // wounded on the shelf: removed, not waiting
         var items = new List<MenuItem>();
-        if (u.Definition.Properties.Concat(u.Definition.Models.SelectMany(s => s.Properties)).Any(x => SetsAside.Contains(x.Name)))
+        if (maySetAside?.Contains(unitId) == true)
         {
             var aside = u.Conditions.Contains(SetAside);
             items.Add(new(aside ? "Return to deployment" : "Set aside", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), SetAside, !aside)));

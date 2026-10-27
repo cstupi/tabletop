@@ -30,12 +30,14 @@ public sealed partial class GameSession
     static List<Guid> OnTable(GameState state, UnitInPlay unit) =>
         unit.Definition.Models.Select(m => m.Id).Where(id => state.Projection.Models[id].Location is OnTable).ToList();
 
-    ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)), state.Rules.DeployInside(state));
+    ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)), state.Rules.DeployInside(state),
+        Engine?.Properties is { } properties ? state.Rules.MaySetAside(state, properties) : []);
 
     static bool Same(ModelFacts a, ModelFacts b) =>
         a.MaxWounds.Count == b.MaxWounds.Count && b.MaxWounds.All(kv => a.MaxWounds.TryGetValue(kv.Key, out var v) && v == kv.Value)
         && (a.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var x && (b.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var y
-        && x.Count == y.Count && y.All(kv => x.TryGetValue(kv.Key, out var v) && v.SequenceEqual(kv.Value));
+        && x.Count == y.Count && y.All(kv => x.TryGetValue(kv.Key, out var v) && v.SequenceEqual(kv.Value))
+        && (a.MaySetAside ?? []).SequenceEqual(b.MaySetAside ?? []);
 
     /// <summary>On connect, once playing: every model's facts, after the log.</summary>
     private async Task SendFactsAsync(ISessionClient client)

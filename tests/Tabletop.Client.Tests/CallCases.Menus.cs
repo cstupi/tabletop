@@ -59,16 +59,16 @@ public static partial class CallCases
     // ---- menus ----
 
     static MenuContext Ctx(CallCase c) => new(c.State.Game, c.State.P!, c.State.Events, false, c.State.Acting, c.State.Mine, c.Grantable,
-        c.DeployInside, new MarkerLocks());
+        c.DeployInside, c.MaySetAside, new MarkerLocks());
 
     /// <summary>One menu case: the menu `open` opens, the item `label`, the player's `input`; the labels are the decision, the item's command the message.</summary>
     static CallCase Menu(string kind, CallLog log, long upTo, Guid player, JsonObject open, string label, string? input,
         Func<MenuContext, IReadOnlyList<MenuItem>> items, string suffix = "", IReadOnlyList<GrantChoice>? grantable = null,
-        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null)
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null, IReadOnlySet<Guid>? maySetAside = null)
     {
         var choice = Choice("menu", ("open", open), ("label", label));
         if (input is not null) choice["input"] = input;
-        var made = Playing(kind, log, upTo, player, choice, _ => null, suffix: suffix, grantable: grantable, deployInside: deployInside);
+        var made = Playing(kind, log, upTo, player, choice, _ => null, suffix: suffix, grantable: grantable, deployInside: deployInside, maySetAside: maySetAside);
         var shown = items(Ctx(made));
         made.Decisions!["menu"] = J(shown.Select(i => i.Label).ToList());
         var item = shown.FirstOrDefault(i => i.Label == label) ?? shown.First(i => i.Label.StartsWith(label, StringComparison.Ordinal));
@@ -152,8 +152,9 @@ public static partial class CallCases
             var unit = ((ConditionSet)set.Payload).Subject.Id;
             var state = CallState.Playing(log, set.Seq - 1, log.Game.Participants.First().Id);
             var player = PlayerOf(log.Game, TeamOfUnit(state, unit)!.Value);
-            yield return Menu("menu/setAside", log, set.Seq - 1, player, Obj(("roster", S(unit))), "Set aside", null, c => Menus.Roster(c, unit));
-            yield return Menu("menu/return", log, set.Seq, player, Obj(("roster", S(unit))), "Return to deployment", null, c => Menus.Roster(c, unit));
+            IReadOnlySet<Guid> aside = new HashSet<Guid> { unit };                                    // ModelFacts.MaySetAside names it
+            yield return Menu("menu/setAside", log, set.Seq - 1, player, Obj(("roster", S(unit))), "Set aside", null, c => Menus.Roster(c, unit), maySetAside: aside);
+            yield return Menu("menu/return", log, set.Seq, player, Obj(("roster", S(unit))), "Return to deployment", null, c => Menus.Roster(c, unit), maySetAside: aside);
         }
 
         // A unit put in a transport before it deploys, and taken out again.
