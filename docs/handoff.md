@@ -106,6 +106,11 @@ Terrain, Markers, Zones and Layouts sections, `TerrainCard`'s fields, `LobbyPane
 inventory every setup control and how often it is used (read `SetupToolbar`, `TerrainCard`, `LobbyPanel`; capture the screen through the
 client harness), then propose a layout that puts terrain and start first, and write the design.
 
+**Next: the unit card overlaps the replay bar** (owner: "the unit stats should fall above whatever is in the lower left corner"). In a
+Godot replay the unit card and `ReplayBar` overlap at the left column's foot. `HudLayout.Of` already reserves `ReplayH` (112 px) under the
+card (`HudLayout.cs:36–39`), so find whether the bar draws taller than its slot or the card grows past its own (`HudPlacement`,
+`GameScreen.Layout`); the card must end above whatever holds the lower-left corner.
+
 ### 2026-10-25, v0.1.26 and v0.1.27
 
 v0.1.27 is v0.1.26 plus two `scripts/release` fixes: it builds from a fetched worktree of the tag (`build/source`), and the
