@@ -115,7 +115,9 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   (`per_model` | `perimeter`), `line_of_sight` (`core` | `hybrid_true`), `melee_separation` (`on` | `off`).
 - `Sight.From` asks `IGameRules.SightPolicy(state)` (`ISightPolicy`; Grimdark Future: `GfSight`): with `Perimeters` each other unit blocks with
   `Bodies.Perimeter` keyed by its id in place of its bodies, except the target's own unit, which blocks per model; a unit `SeesThrough` passes
-  (p.56 Hybrid: `GfSight.SizeClass`, elevation) blocks nothing on that pair's line, cover included. Melee separation `off`: `consolidate` moves
+  (p.56 Hybrid: `GfSight.SizeClass`, elevation) blocks nothing on that pair's line, cover included. A shooting `determine-attacks`
+  writes `aim_<shooter>_<target>` per eligible model (`GfAttack.Aims`: the nearest target model it sees, valued at the
+  `LineOfSight.TargetPoints` index its line reaches), which the Godot client's shot beams (`ShotLines`) draw. Melee separation `off`: `consolidate` moves
   nobody when both units stand, and `GfMoves.ContactBreach` skips `move_separation` against a unit the mover was within 1" of when its move started.
 - Before round one a menu edit is read at once (`SchedulerBase.Withdrawn`): the active team's deploy Ask whose `PieceSelection` differs from a fresh
   `LegalTurn` (a unit set aside, returned to deployment, put in a Transport) closes with no answers and is asked again, or the turn ends unpassed

@@ -363,6 +363,33 @@ public static partial class GfAttack
         return eligible;
     }
 
+    /// <summary>
+    /// Where each eligible shooting model aims, for the clients' shot beams: the nearest target model in its range that it sees, and the index into
+    /// `LineOfSight.TargetPoints` of the point its clear line reaches (`SightLine.Seen`). A model sees past whatever blocks under the game's sight
+    /// options (p.5 "the perimeter of other units"), so no beam runs to a model hidden behind them. An Indirect weapon (p.14 "may target enemies
+    /// that are not in line of sight") aims at the nearest one in range, at its body centre, when it sees none. Off-table models aim nowhere.
+    /// </summary>
+    public static IReadOnlyList<(Guid Shooter, Guid Target, int Point)> Aims(GameState state, LiveSet live, Guid attacker, Guid target, IReadOnlyList<Guid> eligible, IReadOnlyList<Guid> weapons)
+    {
+        var targets = Lookup.LivingModels(state, target).Where(t => Battlefield.Placed(state, t) is not null).ToList();
+        if (targets.Count == 0) return [];
+        var indirect = live.Has(Side.Attacker, GfNames.Indirect);
+        var sight = Sight.From(state, attacker);
+        var aims = new List<(Guid, Guid, int)>();
+        foreach (var m in eligible)
+        {
+            if (Battlefield.Placed(state, m) is null) continue;
+            var range = state.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).Select(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0).DefaultIfEmpty(0).Max();
+            var inRange = targets.Select(t => (Id: t, Distance: Battlefield.Distance(state, m, t))).Where(t => t.Distance <= range).OrderBy(t => t.Distance).ToList();
+            var seen = inRange.Select(t => (t.Id, Line: sight.Line(m, t.Id))).FirstOrDefault(x => x.Line is { Clear: true, Seen: not null });
+            if (seen.Line is { Seen: { } at })
+                aims.Add((m, seen.Id, Tabletop.Geometry.LineOfSight.TargetPoints(Battlefield.Placed(state, seen.Id)!.Value).ToList().IndexOf(at)));
+            else if (indirect && inRange.Count > 0)
+                aims.Add((m, inRange[0].Id, Tabletop.Geometry.LineOfSight.TargetPoints(Battlefield.Placed(state, inRange[0].Id)!.Value).Count() / 3));
+        }
+        return aims;
+    }
+
     /// <summary>p.11's majority with p.14 Indirect's "ignores cover from sight obstructions": Indirect acted when dropping the sight half took the cover away,
     /// and the verdict then is the full test's, ignored by Indirect. The +1 applies when the verdict is in cover and nothing ignored it (Applies).</summary>
     static CoverVerdict CoverOf(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible, Guid? takedown = null)
@@ -515,6 +542,9 @@ public static partial class GfAttack
             else if (kind == AttackKind.Shooting) WriteCover(values, CoverOf(ctx.State, live, ix.Defender.UnitId, eligible));
             else values["in_cover"] = 0;
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
+            if (kind == AttackKind.Shooting)
+                foreach (var (shooter, target, point) in Aims(ctx.State, live, ix.Attacker.UnitId, ix.Defender.UnitId, eligible, ctx.Frame.Context.WeaponIds))
+                    values[$"aim_{shooter}_{target}"] = point;
             return values["attacks"] == 0 ? new Finish(Consumed(live), values) : new Complete(Consumed(live), values);
         }
 
