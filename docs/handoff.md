@@ -100,6 +100,12 @@ approval) and `syn01-piped-castle` (NAS; no root).
 - Checked on `main` before the tag: unit (all projects), E2E (Management 61, GameServer 40, Sim 340 with the lifecycle shapes), rules suite
   307 of 307, viewer 1,692 and its 6 stack tests, web 134.
 
+**Next: simplify Godot's setup screen.** Brainstorm started with the owner (not yet a design). A setup is: add and place terrain,
+sometimes pick optional rules, then start. Owner: "things get very lost with the clutter": the side panel (`SetupToolbar`'s Table,
+Terrain, Markers, Zones and Layouts sections, `TerrainCard`'s fields, `LobbyPanel`) buries the terrain list and the start. Next step:
+inventory every setup control and how often it is used (read `SetupToolbar`, `TerrainCard`, `LobbyPanel`; capture the screen through the
+client harness), then propose a layout that puts terrain and start first, and write the design.
+
 ### 2026-10-25, v0.1.26 and v0.1.27
 
 v0.1.27 is v0.1.26 plus two `scripts/release` fixes: it builds from a fetched worktree of the tag (`build/source`), and the
