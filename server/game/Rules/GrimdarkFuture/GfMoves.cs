@@ -68,6 +68,23 @@ public static partial class GfMoves
     /// <summary>p.11: one die per model, or the model's Tough value in dice.</summary>
     public static int DangerousDice(GameState state, IEnumerable<Guid> models) => models.Sum(m => Lookup.ModelParameter(state, m, "Tough") ?? 1);
 
+    /// <summary>p.11 is one test per model however many of its triggers the model meets ("moves in or through … or is activated in it"): the
+    /// activation frame records each model that has taken it as Values["dangerous_tested_&lt;model&gt;"], and a later step of the same activation,
+    /// or a move pushed under it, owes no dice for that model.</summary>
+    static string TestedKey(Guid model) => $"dangerous_tested_{model:N}";
+
+    static bool TestedThisActivation(FrameView? frame, Guid model)
+    {
+        var key = TestedKey(model);
+        for (var f = frame; f is not null; f = f.Parent) if (f.Value(key) > 0) return true;
+        return false;
+    }
+
+    static void MarkTested(IDictionary<string, int> values, IEnumerable<Guid> models)
+    {
+        foreach (var m in models) values[TestedKey(m)] = 1;
+    }
+
     /// <summary>
     /// p.15: "units can't both embark/disembark as part of the same activation". Read from the log, bounded by the activation the
     /// way GfHooks.FoughtMeleeThisActivation is — every relocation into or out of a container is a models_moved (a step's arrives inside its step_completed), so this is a scan,
@@ -133,7 +150,8 @@ public static partial class GfMoves
             .Where(m => Containment.VolumesContaining(Battlefield.Placed(state, m)!.Value, dangerous).Count > 0).ToList();
     }
 
-    /// <summary>p.11's third trigger, the first step of every action sequence: a model activated in dangerous terrain tests before it does anything else.</summary>
+    /// <summary>p.11's third trigger, the first step of every action sequence: a model activated in dangerous terrain tests before it does anything else,
+    /// and is marked tested, so moving out of it or through more of it later in the activation owes no second test.</summary>
     public sealed class ActivationTerrainStep : IStep
     {
         public string Name => "activation-terrain";
@@ -169,7 +187,9 @@ public static partial class GfMoves
             // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
             var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx));
             if (standing.Count == 0) return new Complete([]);
-            return new Complete(RollEffects.Consume(live), new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) }, Repeat: true);
+            var values = new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) };
+            MarkTested(values, standing);
+            return new Complete(RollEffects.Consume(live), values, Repeat: true);
         }
     }
 
@@ -193,9 +213,10 @@ public static partial class GfMoves
 
     /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, the dangerous-terrain dice the models that moved in or
     /// through a Dangerous volume owe (p.11; a DangerousOnRushCharge volume too when the action is a Rush or a Charge, p.12), and whether a model went in or
-    /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying). Each is read along the path the model's base takes within
+    /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying). A model that has taken the test this activation owes none;
+    /// Tested is the models these dice are for, which the caller marks (MarkTested). Each is read along the path the model's base takes within
     /// `remaining` (what this segment had left; the whole allowance when not given).</summary>
-    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null)
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
         var rules = TerrainFor(ctx, unit, live);
@@ -250,7 +271,9 @@ public static partial class GfMoves
         if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true));
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.MovedThisRound)) changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.MovedThisRound, true)); }
-        return (changes, (int)Math.Round(used * 10), rules.IgnoresDangerous ? 0 : DangerousDice(ctx.State, exposed), crossedDifficult && !strider);
+        // p.11: a model that has taken the test this activation (activated in it, or an earlier segment) owes none for this move.
+        var testing = rules.IgnoresDangerous ? [] : exposed.Where(m => !TestedThisActivation(ctx.Frame, m)).ToList();
+        return (changes, (int)Math.Round(used * 10), DangerousDice(ctx.State, testing), crossedDifficult && !strider, testing);
     }
 
     /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.</summary>
@@ -337,12 +360,13 @@ public static partial class GfMoves
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
-            var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed), null);
+            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed), null);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
             live.Read(source);
             var (spent, held) = ConsumeKeepingFlying(live);
             changes.AddRange(spent);
             held["dangerous_dice"] = dice;
+            MarkTested(held, tested);
             return new Complete(changes, held, Repeat: dice > 0);
         }
 

@@ -38,9 +38,9 @@ internal static partial class CoreGames
                 foreach (var s in f.Steps.Where(s => s.Step.Step == "move" && Moved(s.Step).Any(Crossed)))
                 {
                     crossings++;
-                    if (owed && !log.Children(f).Any(c => c.Sequence == "dangerous-terrain" && c.StartSeq > s.Seq))
-                        return $"a {sequence} through the ruins at seq {s.Seq} took no test";
+                    if (owed && !DangerousTestCovers(log, f, s)) return $"a {sequence} through the ruins at seq {s.Seq} took no test";
                 }
+                if (owed && DangerousTestedTwice(log, f) is { } twice) return twice;
             }
             return crossings > 0 ? null : $"no {sequence} went into the ruins";
         }
@@ -53,5 +53,23 @@ internal static partial class CoreGames
             Check("p.12: \"Ruins - Cover + Dangerous when using rush/charge\": an Advance in or through ruins takes no dangerous terrain test",
                 log => Tested(log, "advance", owed: false)),
         ]);
+    }
+
+    /// <summary>p.11 "moves in or through dangerous terrain, or is activated in it": a move through it is covered by the activation's test, taken
+    /// after the move or, for models activated in it, at the activation's start (before its first move).</summary>
+    static bool DangerousTestCovers(CoreLog log, CoreFrame activation, CoreStep move)
+    {
+        var tests = log.Children(activation).Where(c => c.Sequence == "dangerous-terrain").ToList();
+        var firstMove = activation.Steps.First(s => s.Step.Step == "move").Seq;
+        return tests.Any(c => c.StartSeq > move.Seq || c.StartSeq < firstMove);
+    }
+
+    /// <summary>p.11's one test per model: across an activation's dangerous terrain tests a unit of Tough(1) models rolls at most one die a model.</summary>
+    static string? DangerousTestedTwice(CoreLog log, CoreFrame activation)
+    {
+        var dice = log.Children(activation).Where(c => c.Sequence == "dangerous-terrain")
+            .Sum(t => t.Steps.SelectMany(s => s.Step.Rolls).Where(r => r.Roll == "dangerous-terrain").Sum(r => log.Dice(r).Count));
+        var models = log.LivingModels(activation.Actor!.Value, activation.StartSeq);
+        return dice > models ? $"{activation.Sequence} frame {activation.Id} rolled {dice} dangerous terrain dice for {models} model(s)" : null;
     }
 }

@@ -249,7 +249,7 @@ The actions:
   before `turn_ended` ([the scheduler](2026-09-04-scheduler-design.md), added 09-04).
 - **Dangerous terrain** (p.11) — per model: one die, or the model's Tough value in dice; each
   1 is a wound → deal-wounds. Invoked by moves through it, activating in it, and transport
-  destruction. All three write `dangerous_dice` on the invoking frame and push
+  destruction; a model takes at most one test per activation, whichever triggers it meets. All three write `dangerous_dice` on the invoking frame and push
   `dangerous-terrain`, so the test itself is one step and only the affected models are rolled
   for. Transport destruction is its own sequence, `transport-destroyed`, one frame per occupant
   unit, pushed by deal-wounds' `disgorge` step: the container is destroyed but stays on the table

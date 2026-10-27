@@ -92,10 +92,13 @@ internal static partial class CoreGames
             Check("p.11: \"If a model moves in or through dangerous terrain ... it must take a dangerous terrain test\"; \"if the result is 1, then the unit takes one automatic wound\"", log =>
             {
                 foreach (var f in log.Frames.Where(f => f.Sequence is "advance" or "rush" or "charge"))
+                {
                     foreach (var s in f.Steps.Where(s => s.Step.Step == "move"))
                         if (Moved(s.Step).Any(m => m is { From: OnTable from, To: OnTable to } && Crossed(from.Placement.Position.Horizontal, to.Placement.Position.Horizontal, MinesSouth, MinesNorth))
-                            && !log.Children(f).Any(c => c.Sequence == "dangerous-terrain" && c.StartSeq > s.Seq))
+                            && !DangerousTestCovers(log, f, s))
                             return $"a {f.Sequence} into the minefield at seq {s.Seq} took no test";
+                    if (DangerousTestedTwice(log, f) is { } twice) return twice;
+                }
                 var tests = log.Frames.Where(f => f.Sequence == "dangerous-terrain").ToList();
                 foreach (var t in tests)
                 {
