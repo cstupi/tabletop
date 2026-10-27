@@ -62,6 +62,7 @@ const mkSeat = (name: string, conn: GameConnection, api: Seat['api'], g: Geometr
 
 /** The roster's Set aside for `unit`, sent as the page sends it; resolves once the projection carries the condition. */
 async function setAside(conn: GameConnection, unit: string): Promise<void> {
+  await until('the server names the unit as one that may be set aside', () => conn.state.maySetAside.has(unit));   // ModelFacts, as the page waits for it
   const s = conn.state;
   const myTeam = acting(s.projection, teamsOf(s.game!, s.participantId), s.log);
   const ctx: MenuContext = {

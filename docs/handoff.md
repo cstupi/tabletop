@@ -1,8 +1,8 @@
-# Handoff — 2026-10-25
+# Handoff — 2026-10-26
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.28 is the latest tag. What each
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.29 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -82,6 +82,23 @@ sessions take instructions over Remote Control: `docker1-logical-curry` (server;
 approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
+
+### 2026-10-26, v0.1.29
+
+- **Replay sound:** a replay's forward steps (Play at 1× or slower, Step and Action forward) play their cues; a jump, a step back or
+  faster Play stays silent and reseeds (`SoundCues`: an empty batch reseeds). The browser has no sound.
+- **Tab:** past the last unit (before the first) Tab clears the selection and the decision box shows every unit's options again
+  (`SelectionView.Cycle`); owner: "after a rotation it should show full list".
+- **Set aside:** the server names the units that may be set aside (`IGameRules.MaySetAside`, `ModelFacts.MaySetAside`, before round one,
+  counts-as chains included: Infiltrate, an Infiltrate Aura, Surprise Attack); both clients' roster menus read it, no rule names.
+- **Shot lasers:** `determine-attacks` records each shooter's nearest seen target model and the point it saw (`GfAttack.Aims`,
+  `aim_<shooter>_<target>`); `ShotLines` draws only those, so no beam passes a perimeter. Server sight was already right.
+- **Dangerous terrain:** one test per model per activation (p.11), whichever triggers it meets (`dangerous_tested_<model>`); a model
+  activated in it that walks out rolls once.
+- **Copyable log:** Godot's log rows are selectable `RichTextLabel`s (Ctrl+C, a Copy button for the log as drawn, `LogCopy`); the
+  browser's log selects across rows.
+- Checked on `main` before the tag: unit (all projects), E2E (Management 61, GameServer 40, Sim 340 with the lifecycle shapes), rules suite
+  307 of 307, viewer 1,692 and its 6 stack tests, web 134.
 
 ### 2026-10-25, v0.1.26 and v0.1.27
 
