@@ -31,9 +31,12 @@ verdict, which is the rules'), and under a target pick the models that cannot sh
 assigned one dimmed, each assigned target asked about in its own query. Each query's id is made before the send, so
 only the newest query's answer is drawn. `TargetLines`: each assigned weapon group's shooters to
 its target, one colour per target. `Lasers`: `Session.Fired` drawn for one second, a beam with bolts in the shooter's team
-colour from each shooter to the nearest model of its target. `Session` applies a batch one event at a time and, after each
-`SequenceStarted`, reads `ShotLines.Of`: an `attack-sequence` frame just pushed under a `shooting` frame, its shooters the actor's
-models on the table carrying one of the frame's weapons, read while the targets still stand.
+colour from each model the server aimed to the point of the target model it saw. `Session` applies a batch one event at a
+time and, after each `StepCompleted`, reads `ShotLines.Of`: a `determine-attacks` step of an `attack-sequence` frame under a
+`shooting` frame, read while the targets still stand. Its `aim_<shooter>_<target>` values are the server's (`GfAttack.Aims`):
+each eligible model's nearest target model in range that it sees under the game's sight options, valued at the index into
+`LineOfSight.TargetPoints` of the point its clear line reaches. A model hidden from every shooter (behind a unit's perimeter,
+p.5) gets no beam, and no beam passes through what hides it.
 
 `UnitMarkerNodes` and `FloatingText` draw in that canvas layer at projected anchors and take no clicks: `UnitMarkers`
 rows (activated, each condition by the server's name with the theme's icon or a text chip, a wounded multi-wound

@@ -26,7 +26,7 @@ public sealed partial class Session
     {
         if (Replay is not { } replay || position == replay.Position) return;
         var shots = new List<Shot>();
-        var forward = replay.Seek(position, e => { if (animate && e.Payload is SequenceStarted) shots.AddRange(ShotLines.Of(replay.Projection)); });
+        var forward = replay.Seek(position, e => { if (animate && e.Payload is StepCompleted step) shots.AddRange(ShotLines.Of(replay.Projection, step)); });
         if (animate && forward is { Count: > 0 })
         {
             RaiseEvents(forward);

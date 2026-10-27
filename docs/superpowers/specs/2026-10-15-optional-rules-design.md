@@ -255,7 +255,7 @@ the target's own body, the target unit's perimeter (its models block per model, 
 other unit when perimeters stand in for them, and every unit `SeesThrough` passes. `SightBlockers.Check` and
 `Measure` (`libs/Tabletop.Geometry/SightBlockers.cs`) take an ignore predicate beside the one `Guid?`. Every caller of `Sight.From` follows without change: `GfAttack.AttackInteraction` (targeting and
 who can shoot), `GfCasting` (spell targets), `Battlefield.CanSee`, `Battlefield.ModelsBehindSightBlockers` (p.11
-cover) and `GameSession.Facts` (`SightQuery`). A `SightLine.BlockedBy` may then hold a unit id; the client's
+cover), `GameSession.Facts` (`SightQuery`) and `GfAttack.Aims` (where a shot's beams go: `determine-attacks`' `aim_<shooter>_<target>`, so a beam never runs to a model hidden behind a perimeter). A `SightLine.BlockedBy` may then hold a unit id; the client's
 `client/src/Table/SightLines.cs` highlights a unit id as every model of that unit.
 
 ### Wire

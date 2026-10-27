@@ -4,6 +4,8 @@ using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
+using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Protocol.Tests;
 using static Tabletop.GameServer.Tests.Infrastructure.Armies;
 
 namespace Tabletop.GameServer.Tests;
@@ -87,6 +89,31 @@ public class GfSightOptionsTests
         var line = sight.Line(front, target.Models[1].Id)!;                            // the target's front model stands in the line to its rear one
         Assert.False(line.Clear);
         Assert.Equal([target.Models[0].Id], line.BlockedBy);
+    }
+
+    /// <summary>A shooter fires at a unit of two: one model straight up the line behind the screen's gap at y 10, the other 8" to the side in the
+    /// open. The shot's beams (determine-attacks' `aim_&lt;shooter&gt;_&lt;target&gt;`, the index of the point seen) go where the server saw.</summary>
+    static IReadOnlyDictionary<string, int> AimsThroughGap(string blocking, out Unit shooter, out Unit target)
+    {
+        shooter = Tall(Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "30\"", 1)), 1.5);
+        var screen = Tough("Screen", 2, null);
+        target = Tough("Target", 2, null);
+        var state = Table(Options(blocking: blocking), (shooter, true, [At(X, 0)]),
+            (screen, false, [At(X - 1.38, 10), At(X + 1.38, 10)]), (target, false, [At(X, 20), At(X + 8, 20)]));
+        var sim = Sim.Gf(state, 1, 1, 1, 1);                                                            // every hit misses: only the aims are under test
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = target.Id }));
+        return sim.Steps("determine-attacks").Single().Values!.Where(kv => kv.Key.StartsWith("aim_", StringComparison.Ordinal)).ToDictionary();
+    }
+
+    [Fact]
+    public void A_shots_beam_goes_to_the_nearest_target_model_the_shooter_sees_never_to_one_behind_a_perimeter()
+    {
+        var aims = AimsThroughGap("perimeter", out var shooter, out var target);
+        Assert.Equal([$"aim_{shooter.Models[0].Id}_{target.Models[1].Id}"], aims.Keys);                  // p.5: the screen's perimeter hides the nearer model
+        aims = AimsThroughGap("per_model", out shooter, out target);
+        Assert.Equal([$"aim_{shooter.Models[0].Id}_{target.Models[0].Id}"], aims.Keys);                  // per model the gap shows it, and it is nearer
+        Assert.InRange(aims.Values.Single(), 0, 26);
     }
 
     // ---- hybrid true line of sight ----------------------------------------------------------------------------------------------------

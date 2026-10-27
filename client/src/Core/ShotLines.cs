@@ -3,34 +3,36 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>A laser to draw: from a shooting model to the target model nearest it, both at half their height.</summary>
+/// <summary>A laser to draw: from a shooting model at half its height to the point of the target model the server saw.</summary>
 public sealed record Shot(Guid ShooterUnitId, Guid ShooterModelId, Point3 From, Point3 To);
 
 /// <summary>
-/// The lasers a shooting group fires, read off the projection just after its attack-sequence frame is pushed under a shooting frame
-/// (melee pushes the same sequence under a melee frame and draws nothing). Read then, the target's models are still on the table.
-/// The shooters are the actor's models on the table carrying one of the frame's weapons.
+/// The lasers a shooting group fires, read off the server's aims as its `determine-attacks` step completes in an attack-sequence frame under a
+/// shooting frame (melee pushes the same sequence under a melee frame and draws nothing). Read then, the target's models are still on the table.
+/// Each `aim_&lt;shooter&gt;_&lt;target&gt;` value is the index into `LineOfSight.TargetPoints` of the target model's point the shooter's clear line
+/// reaches, so a beam never runs to a model the server found hidden, nor through what hides it.
 /// </summary>
 public static class ShotLines
 {
-    const string Shooting = "shooting", AttackSequence = "attack-sequence";
+    const string Shooting = "shooting", AttackSequence = "attack-sequence", DetermineAttacks = "determine-attacks", Aim = "aim_";
 
-    public static IReadOnlyList<Shot> Of(Projection p)
+    public static IReadOnlyList<Shot> Of(Projection p, StepCompleted step)
     {
-        if (p.Stack.Count < 2 || p.Stack[^1] is not { Sequence: AttackSequence } frame || p.Stack[^2].Sequence != Shooting) return [];
+        if (step.Step != DetermineAttacks || step.Values is not { } values) return [];
+        var at = p.Stack.ToList().FindIndex(f => f.Id == step.FrameId);
+        if (at < 1 || p.Stack[at] is not { Sequence: AttackSequence } frame || p.Stack[at - 1].Sequence != Shooting) return [];
         if (frame.Context.ActorUnitId is not { } unit) return [];
-        var weapons = frame.Context.WeaponIds.ToHashSet();
-        var targets = p.Models.Values.Where(m => frame.Context.TargetUnitIds.Contains(m.UnitId) && m.Location is OnTable).ToList();
-        if (targets.Count == 0) return [];
-        return p.Models.Values
-            .Where(m => m.UnitId == unit && m.Location is OnTable && m.Slot.Weapons.Any(w => weapons.Contains(w.Id)))
-            .Select(m =>
-            {
-                var from = Placed(m);
-                var nearest = targets.MinBy(t => Distance.ClosestPoints(from, Placed(t)) is var (a, b) ? a.Horizontal.DistanceTo(b.Horizontal) : 0)!;
-                return new Shot(unit, m.Id, Chest(m), Chest(nearest));
-            })
-            .ToList();
+        var shots = new List<Shot>();
+        foreach (var (key, point) in values)
+        {
+            if (!key.StartsWith(Aim, StringComparison.Ordinal) || key[Aim.Length..].Split('_') is not [var s, var t]
+                || !Guid.TryParse(s, out var shooter) || !Guid.TryParse(t, out var target)) continue;
+            if (p.Models.GetValueOrDefault(shooter) is not { Location: OnTable } from || p.Models.GetValueOrDefault(target) is not { Location: OnTable } to) continue;
+            var points = LineOfSight.TargetPoints(Placed(to)).ToList();
+            if (point < 0 || point >= points.Count) continue;
+            shots.Add(new Shot(unit, shooter, Chest(from), points[point]));
+        }
+        return shots;
     }
 
     static PlacedModel Placed(ModelInPlay m) => new(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement);

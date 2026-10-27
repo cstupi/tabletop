@@ -43,8 +43,8 @@ public static class LineOfSight
     internal static List<WorldVolume> Blockers(IReadOnlyList<WorldVolume> volumes) =>
         volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight)).ToList();
 
-    /// <summary>The centre and the rim at three heights: the top, half height, then the base.</summary>
-    internal static IEnumerable<Point3> TargetPoints(PlacedModel to)
+    /// <summary>The centre and the rim at three heights: the top, half height, then the base, an equal count at each; the order is fixed, so an index names a point.</summary>
+    public static IEnumerable<Point3> TargetPoints(PlacedModel to)
     {
         var p = to.Placement.Position;
         var rim = Rim(to.BaseOutline());

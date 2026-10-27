@@ -391,7 +391,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
                 try
                 {
                     // One at a time, so a shooting group's lasers are read while its targets still stand.
-                    foreach (var x in e.Events) { Applier.Apply(x); if (x.Payload is SequenceStarted) shots.AddRange(ShotLines.Of(Applier.Projection)); }
+                    foreach (var x in e.Events) { Applier.Apply(x); if (x.Payload is StepCompleted step) shots.AddRange(ShotLines.Of(Applier.Projection, step)); }
                 }
                 catch (ProjectionDesyncException desync) { OnDesync(desync); return; }   // partially applied: unusable
                 if (PendingUndoTo is { } to && e.Events.Any(x => x.Payload is Undone u && u.ToSeq == to)) ClearPrediction();
