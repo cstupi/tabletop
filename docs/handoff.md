@@ -104,7 +104,7 @@ Node checks mount the whole clone (the viewer reads `web/src` and `client/conten
 
 ### Shared models: offers to a named player
 
-Spec `2026-10-25-shared-models-design.md`, on branch `worktree-agent-a75452cd5b99f84ba` (not merged). Owner: "someone needs
+Spec `2026-10-25-shared-models-design.md`, released in v0.1.28. Owner: "someone needs
 to accept the shared files and it shouldnt just go to EVERYONE." v0.1.26's everyone-visible sharing is replaced; nothing is
 public.
 
