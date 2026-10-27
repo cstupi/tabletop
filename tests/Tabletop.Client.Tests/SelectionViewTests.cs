@@ -45,4 +45,18 @@ public class SelectionViewTests
         Assert.Empty(SelectionView.Models(p, new Selection(Guid.CreateVersion7(), [])));      // terrain or a marker: no models
         Assert.Empty(SelectionView.Models(p, null));
     }
+
+    [Fact]
+    public void Tab_cycles_the_units_then_no_selection_which_shows_every_option()
+    {
+        Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7(), other = Guid.CreateVersion7();
+        Guid[] units = [a, b];
+        Assert.Equal(a, SelectionView.Cycle(units, null, 1));
+        Assert.Equal(b, SelectionView.Cycle(units, a, 1));
+        Assert.Null(SelectionView.Cycle(units, b, 1));                 // past the last: the full list again
+        Assert.Equal(a, SelectionView.Cycle(units, other, 1));         // a selection outside the cycle starts it
+        Assert.Equal(b, SelectionView.Cycle(units, null, -1));
+        Assert.Null(SelectionView.Cycle(units, a, -1));
+        Assert.Null(SelectionView.Cycle([], a, 1));
+    }
 }

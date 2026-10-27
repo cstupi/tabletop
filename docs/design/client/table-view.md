@@ -235,7 +235,7 @@ neither selects nor drags. Under an Options Ask only a piece exactly one choice 
 (`DecisionView.ClickAnswers`); a unit several choices name (activate: one option per unit and action) glows, a click
 selects it as any click does, and the decision box narrows to its options renumbered from 1 (`DecisionView.ChoicesOf`,
 `Number`) until another unit is clicked or Esc widens it. Tab and Shift+Tab select my next unit with no action this round and centre the camera on
-it; Space centres the active unit. Both glide the camera (`TableInput.Focus`). Keys go through `Hotkeys.Of`; the table acts on its own and raises
+it, and past the last (before the first) clear the selection, which widens the box again (`SelectionView.Cycle`); Space centres the active unit. Both glide the camera (`TableInput.Focus`). Keys go through `Hotkeys.Of`; the table acts on its own and raises
 `IntentPressed` for the rest. Measuring is `TapeMeasure` (Core): an anchor and a current end, each a body, resolved
 through `Distance.ClosestPoints` and relayed as a `Measurement` with its mode. Ctrl going down anchors it at the point
 under the cursor at that moment, with no click; the line follows the cursor until Ctrl comes up, which clears it here and

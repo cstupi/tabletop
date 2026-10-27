@@ -80,7 +80,8 @@ public partial class TableInput
         ClearSelection();
     }
 
-    /// <summary>Tab and Shift+Tab: my units on the table with no action recorded this round, in army order, after the selected one; select it and bring it to the centre.</summary>
+    /// <summary>Tab and Shift+Tab: my units on the table with no action recorded this round, in army order, after the selected one; select it and
+    /// bring it to the centre. Past the last comes no selection (SelectionView.Cycle), which widens the decision box to every unit's options.</summary>
     void Cycle(int step)
     {
         if (_session.Projection is not { } p || _session.Game is not { } game || _session.MyTeamId is not { } team) return;
@@ -89,9 +90,8 @@ public partial class TableInput
             .Where(u => mine.Contains(u.ParticipantId) && u.Actions.Count == 0 && p.Models.Values.Any(m => m.UnitId == u.Id && m.Location is OnTable))
             .Select(u => u.Id).ToList();
         if (units.Count == 0) return;
-        var at = Selected is { } s ? units.IndexOf(s.PieceId) : -1;
-        var next = at < 0 ? units[step > 0 ? 0 : units.Count - 1] : units[((at + step) % units.Count + units.Count) % units.Count];
-        Select(next); Focus(next);
+        if (SelectionView.Cycle(units, Selected?.PieceId, step) is { } next) { Select(next); Focus(next); }
+        else ClearSelection();
     }
 
     /// <summary>Space: the unit whose activation is running (the frame that carries an action), else the selected one.</summary>

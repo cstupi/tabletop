@@ -19,4 +19,15 @@ public static class SelectionView
         var models = p.Models.Values.Where(m => m.UnitId == selection.PieceId).ToList();
         return $"{names.Unit(selection.PieceId)}: {models.Count(m => m.Location is OnTable)} of {models.Count} models on the table";
     }
+
+    /// <summary>Tab (step 1) and Shift+Tab (-1): the next unit after the selected one, with no selection as one more stop after the last
+    /// (before the first), where the decision box shows every unit's options again. A selection outside the units starts from that stop.</summary>
+    public static Guid? Cycle(IReadOnlyList<Guid> units, Guid? selected, int step)
+    {
+        if (units.Count == 0) return null;
+        var stops = units.Count + 1;                                   // the units, then no selection at index units.Count
+        var at = selected is { } s && units.ToList().IndexOf(s) is var i and >= 0 ? i : units.Count;
+        var next = ((at + step) % stops + stops) % stops;
+        return next == units.Count ? null : units[next];
+    }
 }

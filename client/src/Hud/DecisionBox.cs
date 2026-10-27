@@ -26,12 +26,12 @@ public partial class DecisionBox : PanelContainer
     Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _revealed, _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
-    Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit;
+    Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit; Action? _onDeselect;
     /// <summary>What glows on the table for the open Ask: model ids, unit ids, or both. A unit id lights every model of the unit.</summary>
     readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action<RenderCause>? _onFrame; Action<Refused>? _onRefused;
-    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<IReadOnlyList<(Guid Id, Geometry.Point3 At)>>? _onDragged; Action<Guid>? _onUnitClicked; Action<IReadOnlyList<Guid>>? _onPickedUp;
+    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<IReadOnlyList<(Guid Id, Geometry.Point3 At)>>? _onDragged; Action<Guid>? _onUnitClicked; Action<IReadOnlyList<Guid>>? _onPickedUp; Action? _onSelection;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
     partial void RenderPicks(AskView mine, Projection p, Names names);
@@ -62,8 +62,9 @@ public partial class DecisionBox : PanelContainer
         };
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
         _onUnitClicked = id => _onUnit?.Invoke(id); _onPickedUp = ShowRegions;
+        _onSelection = () => { if (_input.Selected is null) _onDeselect?.Invoke(); };
         s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
-        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelsDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp;
+        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelsDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp; input.SelectionChanged += _onSelection;
         Render();
     }
 
@@ -71,7 +72,7 @@ public partial class DecisionBox : PanelContainer
     {
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.Frame.Render -= _onFrame; _s.RefusedReceived -= _onRefused;
-        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelsDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; }
+        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelsDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; _input.SelectionChanged -= _onSelection; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
     }
@@ -157,7 +158,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>
     /// Numbered options. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate: one
     /// option per unit and action) is not a pick: the click selects its unit as any click does, and the box narrows to that unit's
-    /// options, renumbered from 1, until another unit is clicked or Esc widens it again.
+    /// options, renumbered from 1, until another unit is clicked, or Esc or Tab past the last unit clears the selection and widens it again.
     /// </summary>
     void RenderChoose(AskView mine)
     {
@@ -202,6 +203,7 @@ public partial class DecisionBox : PanelContainer
             narrowed = true; Show(hits, DecisionView.Number(hits));
         };
         _onCancel = () => { if (!narrowed) return false; narrowed = false; Show(all, full); return true; };
+        _onDeselect = () => { if (narrowed) { narrowed = false; Show(all, full); } };
     }
 
     /// <summary>The open Ask's glow: its pieces lit, a unit id lighting each of the unit's models. Pieces that leave the set go dark.</summary>
@@ -305,7 +307,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The open Ask's handlers and table state, dropped whenever it ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>
     void Unhook()
     {
-        _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
+        _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _onDeselect = null; _glow.Clear();
         if (_lit is not null && IsInstanceValid(_view)) Light(null);                 // a button freed under the pointer never hears its exit
         _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.Violations.Clear();   // a refused commit's marks come back with its ghosts (ApplyVerdict)
