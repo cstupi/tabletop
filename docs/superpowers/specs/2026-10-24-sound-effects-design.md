@@ -68,8 +68,8 @@ The spacing is 95 ms while the volley fits 5 s (up to 53 dice), then 5 s / (n - 
 167 of them, spread evenly over its dice, 30 ms apart. Jitter, pitch and level come from a hash of the roll's frame id and the die's
 index, so the same volley sounds the same every time.
 
-Cues play only for events that arrive live: not for the log a join or reconnect loads, not for a replay seek, not for an undo, which
-also drops cues still waiting.
+Cues play for events that arrive live and for a replay's forward steps (Play at 1× or slower, Step and Action forward): not for the
+log a join or reconnect loads, not for a replay's jump, step back or faster Play, not for an undo, which also drops cues still waiting.
 
 ## Sounds
 

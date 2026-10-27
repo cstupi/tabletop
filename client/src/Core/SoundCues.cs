@@ -17,8 +17,9 @@ public sealed record CueAt(Cue Cue, double Delay, int Variant = 0, double Pitch 
 /// answer casts at the caster's team or another; a ModelsMoved landing a model on the table is a move; WoundsSet totals that rose, or a
 /// model leaving the table for the shelf, are a wound. Every cue but a volley's plays at most once between volleys, so each weapon
 /// group sounds its own result and a step's many wounds one. Each starts after the one before by that one's Gap (a volley's next group
-/// by GroupGap). Wounds on the wire are totals, so this keeps each model's last, as FloatingResults does. A silent batch (catching up,
-/// a replay) or one with an undo plays nothing and re-reads the totals and the open frames from the projection.
+/// by GroupGap). Wounds on the wire are totals, so this keeps each model's last, as FloatingResults does. A silent batch (catching up), an empty
+/// one (a replay's jump redraws, then raises one) or one with an undo plays nothing and re-reads the totals and the open frames from the
+/// projection, so a replay's forward step plays from where it stands.
 /// </summary>
 public sealed class SoundCues
 {
@@ -77,7 +78,7 @@ public sealed class SoundCues
     /// <param name="names">A unit's team, to tell a friendly spell target from an enemy one; a weapon's name, for its shot.</param>
     public IReadOnlyList<CueAt> OnBatch(IReadOnlyList<GameEvent> batch, Projection p, bool silent, Names names)
     {
-        if (silent || batch.Any(e => e.Payload is Undone)) { Seed(p); return []; }
+        if (silent || batch.Count == 0 || batch.Any(e => e.Payload is Undone)) { Seed(p); return []; }
         var cues = new List<CueAt>(); var segment = 0;
         double Next(bool volley) => cues.Count == 0 ? 0 : cues[^1].Delay + (volley && cues[^1].Volley ? GroupGap : Gap(cues[^1].Cue));
         void Add(Cue c)

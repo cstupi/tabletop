@@ -314,6 +314,19 @@ public class SoundCuesTests
     }
 
     [Fact]
+    public void An_empty_batch_after_a_new_board_rereads_the_totals_and_frames()
+    {
+        // A replay's jump: the board redraws at the new position, then an empty batch; the next step played forward reads from there.
+        var shooting = Id(); var attack = Id();
+        var at = TableUx.After(TableUx.Deploy, new WoundsSet(A, 1), new SequenceStarted(shooting, "shooting", new SequenceContext(Squad, [], [], "Hold")),
+            new SequenceStarted(attack, "attack-sequence", new SequenceContext(Squad, [Orcs], [Rifle1], "Hold")));
+        _cues.OnBoard();
+        Assert.Empty(_cues.OnBatch([], at, false, new Names(TableUx.Game, at)));
+        Assert.Empty(_cues.OnBatch([Step(attack, new WoundsSet(A, 1))], at, false, new Names(TableUx.Game, at)));
+        Assert.Equal([Cue.Shoot, Cue.Miss], _cues.OnBatch([Rolled(attack, "hit", false)], at, false, new Names(TableUx.Game, at)).Select(c => c.Cue));
+    }
+
+    [Fact]
     public void Frames_open_at_a_reseed_still_read_their_dice()
     {
         var shooting = Id(); var attack = Id();

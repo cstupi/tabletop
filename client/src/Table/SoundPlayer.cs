@@ -3,8 +3,8 @@ namespace Tabletop.Client.Table;
 
 /// <summary>Plays the cues <see cref="SoundCues"/> reads off each live batch, each at its delay, pitch and level. A volley's die sounds
 /// play on their own pool of voices and every other cue on another, so a long volley never steals an impact's or a wound's voice and
-/// one sound never cuts another off; when a pool is busy its oldest voice is reused. Silent while the session catches up or replays,
-/// and when Settings.Sound is off; an undo or a new board drops what is still waiting.</summary>
+/// one sound never cuts another off; when a pool is busy its oldest voice is reused. A replay plays its forward steps (Play at 1× or slower, Step and
+/// Action forward); silent while the session catches up, on a replay's jump or step back, and when Settings.Sound is off; an undo or a new board drops what is still waiting.</summary>
 public partial class SoundPlayer : Node
 {
     const int Voices = 8, VolleyVoices = 16;
@@ -32,7 +32,7 @@ public partial class SoundPlayer : Node
         {
             if (_s.Projection is not { } q || _s.Game is not { } game) return;
             if (batch.Any(e => e.Payload is Undone)) _waiting.Clear();
-            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp || _s.Replaying, new Names(game, q)))
+            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp, new Names(game, q)))
                 if (_streams.TryGetValue(SoundCues.File(cue.Cue, cue.Variant), out var stream)) _waiting.Add((_now + cue.Delay, cue, stream));
         };
         _onBoard = () => { _cues.OnBoard(); _waiting.Clear(); };
