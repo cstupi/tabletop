@@ -213,6 +213,12 @@ It writes `Values["dangerous_dice"]` for the models standing in a `Dangerous` vo
 activation begins and pushes `dangerous-terrain`, so the test itself is one step and only the
 affected models are rolled for.
 
+p.11 is one test per model per activation, however many of its triggers the model meets (*"If a model moves in or
+through dangerous terrain, or is activated in it, then it must take a dangerous terrain test"*): activated in it, moving
+out of it, through several pieces, over several segments of a move a stop splits, or a charge and its move. Each step
+that writes `dangerous_dice` also writes `Values["dangerous_tested_<model>"]` for the models it covers, and `ApplyMove`
+leaves out every model so marked on the action's frame or any frame under which the move runs (`GfMoves.TestedThisActivation`).
+
 `shoot-or-not` (p.7–8: Hold and Advance may shoot) is three cases in order. A `Shaken` unit
 `Finish`es with `ConditionSet(unit, shaken, false)`, spending the activation idle and ceasing to
 be Shaken (p.10). No valid target `Complete`s. Otherwise `Options([shoot, pass])`, and `shoot`
@@ -322,7 +328,7 @@ left out. Where the table has no room for 30" in any direction (a small table: p
 base on the table), the owner's ruling is that it moves as far as it can in the direction taken: the minimum is the room
 towards where the model went (`GfMoves.Minimum`, `Movement.RoomAlong`).
 
-Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume, or a
+Phase 1 pushes `dangerous-terrain` when a moved model that has not tested this activation **entered or crossed** a `Dangerous` volume, or a
 `DangerousOnRushCharge` volume when the step's action is Rush or Charge (`GfMoves.DangerousFor`). A rule's
 `reposition` move tests only `Dangerous`.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes
