@@ -18,9 +18,9 @@ public class GfBatch3DeploymentTests
 
     /// <summary>A's unit 2 set aside with Ambush and the rules given, its unit 1 at (10, 44) with A's own, B's unit at (10, 4) with B's; round two's Ambusher picked.</summary>
     static (SchedulerHarness H, Guid Ambusher) Picked((int, string, int?)[] ambusher, (int, string, int?)[]? own = null, (int, string, int?)[]? enemy = null, double ownY = 44,
-        Enforcement enforcement = Enforcement.Strict)
+        Enforcement enforcement = Enforcement.Strict, bool withAmbush = true)
     {
-        var a = TestArmies.Build("A", 2, 1, unitRules: [(2, Ambush, null), .. ambusher], modelRules: own);
+        var a = TestArmies.Build("A", 2, 1, unitRules: [.. withAmbush ? [(2, Ambush, (int?)null)] : Array.Empty<(int, string, int?)>(), .. ambusher], modelRules: own);
         var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1, modelRules: enemy)], enforcement: enforcement, rules: GrimdarkFutureRules.Instance);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
         h.Run();
@@ -42,6 +42,41 @@ public class GfBatch3DeploymentTests
         Assert.Null(GrimdarkFutureRules.Instance.PlacementBreach(h.State, At(h, ambusher, 10, 9).Moves));             // a gap of 3.74"
         h.Dispatch(At(h, ambusher, 10, 9), team: 0);
         Assert.Contains(GfAmbush.AmbushedThisRound, h.P.Units[ambusher].Conditions);
+    }
+
+    [Fact]
+    public void An_Infiltrate_unit_without_Ambush_is_set_aside_and_arrives_as_an_Ambusher_over_3_inches()
+    {
+        var (h, ambusher) = Picked([], own: [(2, GfAmbush.Infiltrate, null)], withAmbush: false);       // counts as having Ambush: set aside, then offered in round two
+        Assert.NotNull(GrimdarkFutureRules.Instance.PlacementBreach(h.State, At(h, ambusher, 10, 6).Moves));
+        h.Dispatch(At(h, ambusher, 10, 9), team: 0);
+        Assert.Contains(GfAmbush.AmbushedThisRound, h.P.Units[ambusher].Conditions);
+    }
+
+    [Fact]
+    public void MaySetAside_names_the_shelved_units_that_have_Ambush_or_Scout_or_count_as_having_it()
+    {
+        var a = TestArmies.Build("A", 6, 1, unitRules: [(1, Ambush, null), (2, Scout, null)],
+            modelRules: [(3, GfAmbush.Infiltrate, null), (4, GfAmbush.Infiltrate + " Aura", null), (5, GfAmbush.SurpriseAttack, 2)]);
+        var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1)], enforcement: Enforcement.Strict, rules: GrimdarkFutureRules.Instance);
+        var au = h.Units(0);
+        Assert.Equal(au.Take(5).Order(), GrimdarkFutureRules.Instance.MaySetAside(h.State, TestProperties.Core).Order());
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1);
+        h.Run();
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(au[0]), SetAside, true));
+        Assert.Contains(au[0], GrimdarkFutureRules.Instance.MaySetAside(h.State, TestProperties.Core));             // set aside: still named, to return it
+        h.Answer(0, new SelectedPieces([au[1]])); h.Dispatch(At(h, au[1], 10, 44), team: 0);
+        Assert.DoesNotContain(au[1], GrimdarkFutureRules.Instance.MaySetAside(h.State, TestProperties.Core));        // deployed
+        h.Dispatch(new SetRound(1), team: 0);
+        Assert.Empty(GrimdarkFutureRules.Instance.MaySetAside(h.State, TestProperties.Core));                        // "before deployment" only
+    }
+
+    [Fact]
+    public void A_wrapping_ruleset_forwards_MaySetAside()
+    {
+        var a = TestArmies.Build("A", 2, 1, modelRules: [(1, GfAmbush.Infiltrate, null)]);
+        var h = new SchedulerHarness([a, TestArmies.Build("B", 1, 1)], rules: GrimdarkFutureRules.Instance);
+        Assert.Equal([h.Units(0)[0]], new WithSequences(GrimdarkFutureRules.Instance).MaySetAside(h.State, TestProperties.Core));
     }
 
     [Fact]

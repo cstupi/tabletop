@@ -255,7 +255,7 @@
     if (s === null || s.projection === null || s.game === null) return null;
     return {
       game: s.game, p: s.projection, log: s.log, watching: isWatching(s), myTeam: actingTeam,
-      mine: askMine(s.projection, s.game, actingTeam, new Set(settings.mutedWindowKinds)), grantable: grants, deployInside: s.deployInside, locks,
+      mine: askMine(s.projection, s.game, actingTeam, new Set(settings.mutedWindowKinds)), grantable: grants, deployInside: s.deployInside, maySetAside: s.maySetAside, locks,
     };
   }
   function openMenu(items: readonly MenuItem[] | null, at: { x: number; y: number }): void {

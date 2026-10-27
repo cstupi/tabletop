@@ -82,6 +82,9 @@ public interface IGameRules
     /// <summary>For each unit that may be put inside a container now, before either deploys, the container models it may go in (OPR p.15: "Transports may
     /// deploy with units inside"; passengers spec). Empty by default. Wrapping rulesets must forward it.</summary>
     IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => new Dictionary<Guid, IReadOnlyList<Guid>>();
+    /// <summary>The units a player may set aside before deployment now, or return to deployment (OPR p.13 Ambush, p.14 Scout: "May be set aside before
+    /// deployment", and whatever counts as having either). Empty by default. Wrapping rulesets must forward it.</summary>
+    IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => [];
 
     // Optional rules (optional-rules spec). The map is GameInfo.OptionalRules; nothing outside the ruleset reads its keys.
     /// <summary>The ruleset's optional rules and presets, sent in Welcome for the lobby. Empty by default. Wrapping rulesets must forward it.</summary>

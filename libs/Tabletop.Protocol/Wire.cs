@@ -69,8 +69,10 @@ public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, I
 /// Seen: on a clear line, the point of the target the observer's eye sees (its top, centre or rim), null on a blocked line or from a server that does not send it.</summary>
 public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy, Point3? Seen = null);
 /// <summary>The ruleset's facts, sent on connect once playing, then whenever a value changes. MaxWounds: wounds a model takes before it is killed. DeployInside: for each unit that may be put
-/// inside a Transport now, before either deploys, the Transport models it may go in (passengers spec); null from a server that does not send it.</summary>
-public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null) : SocketMessage;
+/// inside a Transport now, before either deploys, the Transport models it may go in (passengers spec); null from a server that does not send it. MaySetAside: the units a player may set aside before
+/// deployment now, or return to deployment (Ambush, Scout and what counts as having them); null from a server that does not send it.</summary>
+public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null,
+    IReadOnlyList<Guid>? MaySetAside = null) : SocketMessage;
 
 // Both directions
 public sealed record PresenceMessage(Presence Presence) : SocketMessage;

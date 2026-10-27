@@ -6,7 +6,7 @@ namespace Tabletop.Client.Core;
 
 /// <summary>What every play menu reads: the browser's MenuContext.</summary>
 public sealed record MenuContext(GameInfo Game, Projection P, IReadOnlyList<GameEvent> Log, bool Watching, Guid? MyTeam, AskView? Mine,
-    IReadOnlyList<GrantChoice> Grantable, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside, MarkerLocks Locks);
+    IReadOnlyList<GrantChoice> Grantable, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside, IReadOnlySet<Guid> MaySetAside, MarkerLocks Locks);
 
 /// <summary>Which play menu opens with which items (the browser's play/menus.ts). A watcher changes nothing: every menu is empty.</summary>
 public static class Menus
@@ -30,7 +30,7 @@ public static class Menus
 
     /// <summary>MenuModel.ForRosterUnit for MyTeam; [] for a watcher.</summary>
     public static IReadOnlyList<MenuItem> Roster(MenuContext ctx, Guid unitId) =>
-        ctx.Watching ? [] : MenuModel.ForRosterUnit(ctx.Game, ctx.P, unitId, ctx.MyTeam, ctx.DeployInside);
+        ctx.Watching ? [] : MenuModel.ForRosterUnit(ctx.Game, ctx.P, unitId, ctx.MyTeam, ctx.DeployInside, ctx.MaySetAside);
 
     /// <summary>The table's right-click: the token; [] for a watcher.</summary>
     public static IReadOnlyList<MenuItem> Table(MenuContext ctx, Point3 at) => ctx.Watching ? [] : [MenuModel.Token(at)];

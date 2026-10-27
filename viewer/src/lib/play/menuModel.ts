@@ -92,16 +92,16 @@ export function offTable(p: Projection, teamId: string, n: Names): MenuItem[] {
     .map((m) => backOnTable(m, m.location.kind === 'inside' ? `Take ${n.model(m.id)} out of the container, here` : `Place ${n.model(m.id)} on the table, here`));
 }
 
-/** The condition the server reads as a unit kept off the deployment (setup phase → Ambush and Scout), and the properties whose units may take it. */
+/** The condition the server reads as a unit kept off the deployment (setup phase → Ambush and Scout). */
 export const SET_ASIDE = 'set-aside';
-const SETS_ASIDE = ['Ambush', 'Scout'];
 
 /**
  * The roster's right-click on a unit of my team while playing. Every model on the shelf unwounded (never deployed): Set aside / Return to
- * deployment when it carries one of SETS_ASIDE, then Put in transport per Transport model the server names for it (ModelFacts.DeployInside;
+ * deployment when the server names it (ModelFacts.maySetAside: Ambush, Scout and what counts as having them), then Put in transport per Transport model the server names for it (ModelFacts.DeployInside;
  * passengers spec). Inside a container still on the shelf: Take out of transport. The server judges each hand move.
  */
-export function forRosterUnit(game: GameInfo, p: Projection, unitId: string, myTeam: string | null, deployInside?: ReadonlyMap<string, readonly string[]>): MenuItem[] {
+export function forRosterUnit(game: GameInfo, p: Projection, unitId: string, myTeam: string | null, deployInside?: ReadonlyMap<string, readonly string[]>,
+  maySetAside?: ReadonlySet<string>): MenuItem[] {
   const u = p.units.get(unitId);
   if (game.status !== 'playing' || myTeam === null || u === undefined) return [];
   if (game.participants.find((x) => x.id === u.participantId)?.teamId !== myTeam) return [];
@@ -111,7 +111,7 @@ export function forRosterUnit(game: GameInfo, p: Projection, unitId: string, myT
   if (models.some((m) => m.location.kind !== 'shelf' || m.wounds > 0)) return [];   // wounded on the shelf: removed, not waiting
   const items: MenuItem[] = [];
   const subject = { kind: 'unit', id: unitId } as const;
-  if ([...u.definition.properties, ...u.definition.models.flatMap((s) => s.properties)].some((x) => SETS_ASIDE.includes(x.name))) {
+  if (maySetAside?.has(unitId) === true) {
     const aside = u.conditions.has(SET_ASIDE);
     items.push(item(aside ? 'Return to deployment' : 'Set aside', 'none', () => ({ kind: 'set_condition', subject, condition: SET_ASIDE, present: !aside })));
   }

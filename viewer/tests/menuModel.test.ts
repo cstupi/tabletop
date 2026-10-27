@@ -126,27 +126,35 @@ describe('roster and passenger items', () => {
   const of = (extra: EventPayload[] = [], game2 = g) => projectionOf(game2, b, extra).projection;
   const hull = rhino.models[0]!.id;
   const facts = new Map([[squad.id, [hull]]]);
+  const aside = new Set([amb.id, scouts.id, theirs.id]);   // ModelFacts.maySetAside as the server names it
   const inHull: EventPayload = { kind: 'models_moved', moves: squad.models.map((m) => ({ modelId: m.id, from: { kind: 'shelf' }, to: { kind: 'inside', containerId: hull } })) };
 
   it('my shelved ambush or scout unit can be set aside and returned', () => {
     const p = of();
-    const item = forRosterUnit(g, p, amb.id, TEAM1)[0]!;
+    const item = forRosterUnit(g, p, amb.id, TEAM1, undefined, aside)[0]!;
     expect([item.label, item.build(null)]).toEqual(['Set aside', { kind: 'set_condition', subject: { kind: 'unit', id: amb.id }, condition: SET_ASIDE, present: true }]);
-    expect(forRosterUnit(g, p, scouts.id, TEAM1)[0]!.label).toBe('Set aside');
-    const aside = of([{ kind: 'condition_set', subject: { kind: 'unit', id: amb.id }, condition: SET_ASIDE, present: true }]);
-    const back = forRosterUnit(g, aside, amb.id, TEAM1)[0]!;
+    expect(forRosterUnit(g, p, scouts.id, TEAM1, undefined, aside)[0]!.label).toBe('Set aside');
+    const setAside = of([{ kind: 'condition_set', subject: { kind: 'unit', id: amb.id }, condition: SET_ASIDE, present: true }]);
+    const back = forRosterUnit(g, setAside, amb.id, TEAM1, undefined, aside)[0]!;
     expect([back.label, back.build(null)]).toEqual(['Return to deployment', { kind: 'set_condition', subject: { kind: 'unit', id: amb.id }, condition: SET_ASIDE, present: false }]);
   });
 
   it('nothing for other units, other teams, a unit on the table, a destroyed one or outside play', () => {
     const p = of();
-    expect(forRosterUnit(g, p, line.id, TEAM1)).toEqual([]);
-    expect(forRosterUnit(g, p, theirs.id, TEAM1)).toEqual([]);
-    expect(forRosterUnit(g, p, amb.id, null)).toEqual([]);
-    expect(forRosterUnit(g, of([{ kind: 'models_moved', moves: [{ modelId: amb.models[0]!.id, from: { kind: 'shelf' }, to: { kind: 'table', placement: at(5, 5) } }] }]), amb.id, TEAM1)).toEqual([]);
-    expect(forRosterUnit(g, of([{ kind: 'wounds_set', modelId: amb.models[0]!.id, wounds: 1 }]), amb.id, TEAM1)).toEqual([]);
+    expect(forRosterUnit(g, p, line.id, TEAM1, undefined, aside)).toEqual([]);
+    expect(forRosterUnit(g, p, theirs.id, TEAM1, undefined, aside)).toEqual([]);
+    expect(forRosterUnit(g, p, amb.id, null, undefined, aside)).toEqual([]);
+    expect(forRosterUnit(g, of([{ kind: 'models_moved', moves: [{ modelId: amb.models[0]!.id, from: { kind: 'shelf' }, to: { kind: 'table', placement: at(5, 5) } }] }]), amb.id, TEAM1, undefined, aside)).toEqual([]);
+    expect(forRosterUnit(g, of([{ kind: 'wounds_set', modelId: amb.models[0]!.id, wounds: 1 }]), amb.id, TEAM1, undefined, aside)).toEqual([]);
     const ended = { ...g, status: 'ended' as const };
-    expect(forRosterUnit(ended, of([], ended), amb.id, TEAM1)).toEqual([]);
+    expect(forRosterUnit(ended, of([], ended), amb.id, TEAM1, undefined, aside)).toEqual([]);
+  });
+
+  it('set aside follows the server\'s set, not property names', () => {
+    const p = of();
+    expect(forRosterUnit(g, p, line.id, TEAM1, undefined, new Set([line.id]))[0]!.label).toBe('Set aside');   // Infiltrate: counts as having Ambush
+    expect(forRosterUnit(g, p, amb.id, TEAM1, undefined, new Set())).toEqual([]);
+    expect(forRosterUnit(g, p, amb.id, TEAM1)).toEqual([]);                                                    // no facts, no offer
   });
 
   it('a shelved unit is offered each Transport the server named', () => {

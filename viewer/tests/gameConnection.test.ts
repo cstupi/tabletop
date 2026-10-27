@@ -99,9 +99,10 @@ describe('GameConnection', () => {
     const h = harness();
     const s = await welcomed(h);
     s.deliver({ kind: 'board', board: fixture.board });
-    s.deliver({ kind: 'model_facts', maxWounds: { m1: 3 }, deployInside: { u1: ['t1'] } });
+    s.deliver({ kind: 'model_facts', maxWounds: { m1: 3 }, deployInside: { u1: ['t1'] }, maySetAside: ['u2'] });
     expect(h.conn.state.maxWounds.get('m1')).toBe(3);
     expect(h.conn.state.deployInside.get('u1')).toEqual(['t1']);
+    expect([...h.conn.state.maySetAside]).toEqual(['u2']);
     expect(h.conn.state.catchingUp).toBe(false);
   });
 

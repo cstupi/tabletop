@@ -382,6 +382,7 @@ export interface ModelFacts {
   readonly kind: 'model_facts';
   readonly maxWounds: { readonly [key: string]: number };
   readonly deployInside?: { readonly [key: string]: readonly string[] };
+  readonly maySetAside?: readonly string[];
 }
 
 export interface ModelRelocation {

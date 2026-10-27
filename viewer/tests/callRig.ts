@@ -39,7 +39,7 @@ import type { Board, Command, Edit, GameEvent, GameInfo, TableState } from '../s
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface CallCase {
   name: string; log: string; upTo: number; status: 'playing' | 'lobby' | 'setup'; participantId?: string; creator?: boolean;
-  muted: string[]; maxWounds: Record<string, number>; deployInside: Record<string, string[]>;
+  muted: string[]; maxWounds: Record<string, number>; deployInside: Record<string, string[]>; maySetAside: string[];
   grantable: { label: string; entryName: string; effectId: string }[]; undoneTo?: number;
   choice: any; decisions: any; message: unknown | null;
 }
@@ -71,7 +71,7 @@ export function stateOf(c: CallCase, log: CallLogFiles): ConnectionState {
   const { welcome, board, events } = parsed(log);
   const common = {
     participantId: c.participantId ?? null, options: welcome.options ?? { options: [], presets: [] }, catchingUp: false, closeReason: null,
-    maxWounds: new Map(Object.entries(c.maxWounds)), deployInside: new Map(Object.entries(c.deployInside)), phase: 'connected' as const,
+    maxWounds: new Map(Object.entries(c.maxWounds)), deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), phase: 'connected' as const,
   };
   if (c.status !== 'playing')
     return { ...common, game: { ...welcome.game, status: c.status }, draft: board.table, board: null, log: [], projection: null } as ConnectionState;
@@ -86,7 +86,7 @@ function contextOf(c: CallCase, st: ConnectionState): MenuContext {
   const myTeam = acting(p, teamsOf(game, st.participantId), st.log);
   return {
     game, p, log: st.log, watching: false, myTeam, mine: myAsk(p, game, myTeam, new Set(c.muted)), grantable: c.grantable,
-    deployInside: new Map(Object.entries(c.deployInside)), locks: new MarkerLocks(),
+    deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), locks: new MarkerLocks(),
   };
 }
 

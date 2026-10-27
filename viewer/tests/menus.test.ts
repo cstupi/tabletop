@@ -14,7 +14,7 @@ const game = gameOf();
 const board = boardOf([{ participantId: P1, units: [mine, hull] }, { participantId: P2, units: [theirs] }], { ...emptyTable(), markers: [objective] });
 const p = (...e: EventPayload[]) => projectionOf(game, board, e).projection;
 const ctx = (over: Partial<MenuContext> = {}): MenuContext => ({
-  game, p: p(), log: [], watching: false, myTeam: TEAM1, mine: null, grantable: [], deployInside: new Map(), locks: new MarkerLocks(), ...over,
+  game, p: p(), log: [], watching: false, myTeam: TEAM1, mine: null, grantable: [], deployInside: new Map(), maySetAside: new Set([hull.id]), locks: new MarkerLocks(), ...over,
 });
 const labels = (items: readonly { label: string }[]) => items.map((i) => i.label);
 

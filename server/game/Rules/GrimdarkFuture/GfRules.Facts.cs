@@ -111,6 +111,25 @@ public sealed partial class GrimdarkFutureRules
     }
 
     /// <summary>
+    /// p.13 Ambush, p.14 Scout: "May be set aside before deployment". The units, every model on the shelf and none ever deployed, that hold Ambush or Scout
+    /// by Lookup.UnitHas (its "counts as" chains: Infiltrate, an Infiltrate Aura) or carry Surprise Attack ("Counts as having Infiltrate"), as Ambushers reads
+    /// them; a set-aside one stays named, so it may return to deployment. A reserve unit is placed by its rule only. Before round one only: empty once
+    /// rounds begin, without reading the log.
+    /// </summary>
+    public IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties)
+    {
+        var p = state.Projection;
+        if (p.Scheduler.Round >= 1) return [];
+        var candidates = p.Units.Values.Where(u => !GfReserves.IsReserve(u)
+                && u.Definition.Models.All(m => p.Models.TryGetValue(m.Id, out var x) && x.Location is OnShelf && x.Wounds == 0)
+                && (Lookup.UnitHas(state, properties, u.Id, GfNames.Ambush) || Lookup.UnitHas(state, properties, u.Id, GfNames.Scout) || GfAmbush.Carries(state, u.Id, GfAmbush.SurpriseAttack)))
+            .ToList();
+        if (candidates.Count == 0) return [];
+        var deployed = Deployed(state);
+        return candidates.Where(u => !u.Definition.Models.Any(m => deployed.Contains(m.Id))).Select(u => u.Id).ToList();
+    }
+
+    /// <summary>
     /// Passengers spec → What the client is told: for each unit that may be put in a Transport now (every model on the shelf), the Transport models
     /// MayDeployInside allows with nothing being placed. Empty once no Transport waits on the shelf, without reading the log.
     /// </summary>
