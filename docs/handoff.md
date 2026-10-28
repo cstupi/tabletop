@@ -104,11 +104,16 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 - **Godot setup screen** (spec `2026-10-27-godot-setup-screen-design.md`): a fixed head holds Start setup / End setup; the setup
   body opens on Terrain (search, catalog grouped by what a piece does as the browser's, Random table, Add my terrain, Clear), then
-  closed Markers, Table, Deployment zones, Layouts, Game settings and Players with counts in their headings. The terrain card shows
+  closed Objectives, Table, Deployment zones, Layouts, Game settings and Players with counts in their headings. The terrain card shows
   facing, Remove and Scale; Mesh and Volumes are folded. No new outbound message (`SetupFolds`, `SetupLayout`, `TerrainGroups`).
 - **Unit card over the replay bar:** the bar draws about 146 px in the scifi theme, more than `ReplayH` (112); `HudLayout.Of` now
   takes the bar's real height, so the left column ends above it.
-- Client tests 933 pass, `./scripts/check-client` clean. The other suites have not run on this batch.
+- **Tokens removed** (owner: "Remove tokens"; spell buffs and debuffs are the server's grants and conditions): a marker is an objective.
+  `MarkerKind.Token`, `place_marker`, `remove_marker`, `marker_placed` and `marker_removed` are gone, with Add token, the in-play
+  Drop a token and the marker menu's Remove in both clients; the setup section is Objectives. Migration `022_remove_tokens.sql`
+  deletes token rows and those events (the dev database had none).
+- Unit tests pass for Client, Protocol, Content, GameServer, Management and Sim; viewer check and calls agreement pass. The rules,
+  lifecycle, E2E and browser stack suites have not run on this batch.
 
 ### 2026-10-25, v0.1.26 and v0.1.27
 
