@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beside, cannotAddMarker, cannotAddTerrain, cannotClearTerrain, freeSpot, markersHeading, terrainHeading } from '../src/lib/setup/limits';
+import { beside, cannotAddMarker, cannotAddTerrain, cannotClearTerrain, freeSpot, objectivesHeading, terrainHeading } from '../src/lib/setup/limits';
 import type { Marker, TableState } from '../src/lib/protocol/wire.generated';
 
 const size = { width: 72, length: 48 };
@@ -14,7 +14,7 @@ const marker = (x: number, y: number, diameter: number): Marker => ({
 describe('setup limits', () => {
   it('headings count against the caps', () => {
     expect(terrainHeading(draft(3))).toBe('Terrain (3/64)');
-    expect(markersHeading(draft(0, [marker(1, 1, 1)]))).toBe('Markers (1/32)');
+    expect(objectivesHeading(draft(0, [marker(1, 1, 1)]))).toBe('Objectives (1/32)');
     expect(terrainHeading(null)).toBe('Terrain');
   });
 
@@ -25,7 +25,7 @@ describe('setup limits', () => {
     expect(cannotAddTerrain(draft(60), 5)).toBe('These 5 pieces would take the table past 64 terrain pieces (it has 60): remove some first.');
     expect(cannotClearTerrain(draft(0))).toBe('There is no terrain to clear.');
     expect(cannotClearTerrain(draft(1))).toBeNull();
-    expect(cannotAddMarker(draft(0, Array.from({ length: 32 }, () => marker(1, 1, 1))))).toBe('The table holds at most 32 markers: remove some first.');
+    expect(cannotAddMarker(draft(0, Array.from({ length: 32 }, () => marker(1, 1, 1))))).toBe('The table holds at most 32 objectives: remove some first.');
   });
 
   it('freeSpot takes the centre, then the first free ring spot', () => {

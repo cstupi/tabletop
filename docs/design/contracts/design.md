@@ -312,13 +312,11 @@ Four decisions are carried in this shape.
   because an asset's volumes are owner-only over HTTP. Editing them in place *is* the override.
   "Clearing" re-sends the source's own volumes (`OverrideTerrainVolumes`). `schema.md` → A terrain
   placement names a built-in or an asset states the same.
-- **Objectives and tokens are one `Marker` with a `Kind`**, sized by a diameter. Markers ignore
-  terrain: no resting, no collision (setup content → Markers; table domain model). Where a marker
-  lives differs by origin. Setup markers are rows in `TableState.Markers`. A token dropped in play is
-  a logged `MarkerPlaced` and lands in `Projection.Markers`. A setup marker's first `MarkerMoved`
-  copies its row into `Projection.Markers` at the new position, and that entry wins on the shared id
-  from then on; control stays keyed by id. A setup marker is never removed: `RemoveMarker` naming one
-  is refused.
+- **A marker is an objective**: one `Marker` with a `Kind` (`Objective` only), sized by a diameter.
+  Markers ignore terrain: no resting, no collision (setup content → Markers; table domain model).
+  Markers are rows in `TableState.Markers`. A setup marker's first `MarkerMoved` copies its row into
+  `Projection.Markers` at the new position, and that entry wins on the shared id from then on;
+  control stays keyed by id. No command places or removes a marker in play.
 - **`DeploymentZone` names a *shape id* and a team ordinal**, never a team, because a saved layout
   has zones and no game. Shape ids are namespaced by style (`"frontline/1"`), the ids
   `Tabletop.Geometry.ZoneStyles.ShapesOf(style)` lists, one row per shape, keyed by ordinal `1..n`.
@@ -472,7 +470,7 @@ tests read.
 | State change | `spell_tokens_set` | per model | action sequences → The token economy (p.13, capped at 6) |
 | State change | `wounds_this_activation_set` | per unit, cleared at `turn_ended` | whole-design review → Gaps filled ("a store that outlives the frame") |
 | State change | `score_set` | per team | game flow → Scoring |
-| State change | `marker_placed`, `marker_moved`, `marker_removed` | tokens dropped in play only | setup content → Markers; whole-design review → "Tokens had no home in the log" |
+| State change | `marker_moved` | a setup objective moved in play | setup content → Markers |
 
 Two shapes in this table need more than a table row.
 
@@ -499,7 +497,7 @@ redundant weight on the most frequent event on the wire.
 | --- | --- | --- |
 | The only in-play action path | `answer_ask` | action sequences → Asks; scheduler → The turn is an Ask |
 | Hand move | `move_models` | client shell → Input and presence (the drop sends one move command) |
-| Tokens in play | `place_marker`, `move_marker`, `remove_marker` | setup content → Markers |
+| Objectives in play | `move_marker` | setup content → Markers |
 | The menu | `set_wounds`, `set_condition`, `record_action`, `clear_action_record`, `add_grant`, `remove_grant`, `set_spell_tokens`, `set_wounds_this_activation`, `set_score`, `set_active_team`, `set_round` | client shell → The log, undo and the menu; scheduler → Nothing is an invariant |
 | Undo and abandon | `undo`, `abandon_sequence` | `architecture.md` → Undo; action sequences → Abandonment |
 | Dice | `set_dice`, the rules suite's; a server takes it only where `GameServerOptions.AcceptsSetDice` is on | resolution → The engine seam |
@@ -612,9 +610,8 @@ An `Edit` is applied to the game's rows or its draft, broadcast, persisted, and 
 | `SetupEdit` | `set_zone_style`, `swap_zones` | `setup` only | setup phase → Zones |
 | `SetupEdit` | `replace_draft` | `setup` only | setup phase → Layouts (the layout wins, size included) |
 
-Three notes. The setup marker edits are named `*Setup*` because `PlaceMarker`/`MoveMarker`/
-`RemoveMarker` are the in-play commands. Same nouns, different lane, and the naming is the only
-thing keeping them apart.
+Three notes. The setup marker edits are named `*Setup*` because `MoveMarker` is the in-play
+command. Same noun, different lane, and the naming is the only thing keeping them apart.
 
 `PickTeam(null)` and `PickArmy(null)` are how a participant leaves a team or drops an army. A
 participant with no team is never Asked, and that is what a spectator is (whole-design review ruling
@@ -746,7 +743,7 @@ than three literals.
 | `Board`: the `TableState` plus one `ArmyInPlay` per participant, fixed for the life of the game | presence, pings, measurements and ghosts, held in a separate in-memory table and gone with the socket |
 | `Units`, as `UnitInPlay`: `Actions`, `Conditions`, `Grants`, `WoundsThisActivation` | the setup draft; there is no log during `setup`, so there is no projection |
 | `Models`, as `ModelInPlay`: `Location`, `Wounds`, `Conditions`, `SpellTokens` | terrain, zones and table size as mutable state; they live inside `Board` and nothing can reach them |
-| `Markers`, only tokens dropped in play | legality, dice, turn order, thresholds, all server only |
+| `Markers`, only setup objectives moved in play | legality, dice, turn order, thresholds, all server only |
 | `Scores` by team; `Scheduler`: `Round`, `Order`, `ActiveTeamId`, `Phase`, `Passed` | anything derived: no "is this unit activated", no "whose turn is next", no distances |
 | `Stack`, frames bottom first; `OpenAsks`, the Ask plus each team's answer; `LastSeq` | any store the applier would have to clear on its own initiative |
 
@@ -1066,7 +1063,6 @@ Each of these leaves a residue in the types.
 | --- | --- | --- |
 | **Enforcement** has three positions, `silent \| warn \| strict`. `strict` refuses an out-of-set Ask answer or an illegal command; **the menu's edits are accepted under every setting** | a boolean: warn or silent, never block | whole-design review ruling 1. In the types: `Enforcement`, `RefusalReason`, `Refused`, and `GameEvent.Warning` |
 | **The scheduler's pass** is a logged fact, `TurnEnded(TeamId, Passed, Changes)`, and only teams that did not pass re-enter the round | scheduler state holding "which teams have finished", with no logged fact | whole-design review → Contradictions fixed. In the types: `TurnEnded.Passed` and `SchedulerPosition.Passed` |
-| **Where a token lives**: objectives are snapshot rows; a token dropped in play is a logged command rebuilt from the log | a token dropped during play and moved freely, with the marker table only on the snapshot | whole-design review → "Tokens had no home in the log". In the types: `MarkerPlaced/Moved/Removed` beside `TableState.Markers` |
 | **A participant's team**: `Participant.TeamId` is nullable, a participant with no team is never Asked, and that is what a spectator is. Joining is allowed at any status | a spectator as a member of a third team; team membership fixed once playing | whole-design review ruling 5; setup phase → Joining is allowed at any status. In the types: `Guid? TeamId`, `PickTeam(Guid?)` |
 | **Lobby picks are edits, not commands**: create team, pick team, pick army and change configuration are the third message kind, written, broadcast, never logged | setup as ordinary commands inside a loaded game | whole-design review ruling 4; setup phase → A third message kind. In the types: `LobbyEdit` |
 | **Terrain declarations** are six, read out of the rulebook; **blocking is declared, not derived** (a chain-link fence is solid and transparent) | five flags with blocking derived from `Solid`, and an invented "blocks sight past three inches" | geometry values → Declarations. In the types: `[Flags] TerrainDeclarations` and `LineOfSight`'s contract |
@@ -1142,7 +1138,7 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `readonly record struct VisualRef` | `string? Builtin`, `Guid? AssetId`, `[JsonConstructor] VisualRef(string?, Guid?)` throwing unless exactly one, `bool IsBuiltin` `[JsonIgnore]`, `static OfBuiltin(string)`, `static OfAsset(Guid)` |
 | `sealed record TerrainVolume(Guid Id, Volume Volume)` | |
 | `sealed record TerrainPlacement(Guid Id, VisualRef Mesh, Point3 Position, Yaw Yaw, double Scale, IRL<TerrainVolume> Volumes)` | `TerrainTransform Transform` `[JsonIgnore]`, `IRL<WorldVolume> WorldVolumes()` |
-| `enum MarkerKind { Objective, Token }` | |
+| `enum MarkerKind { Objective }` | |
 | `sealed record Marker(Guid Id, MarkerKind Kind, Point3 Position, Yaw Yaw, double Diameter, string? Label, VisualRef Visual)` | |
 | `sealed record DeploymentZone(Guid Id, string Shape, int TeamOrdinal)` | `Shape` is a `ZoneStyles` shape id |
 | `sealed record TableState(Guid Id, string? Name, TableSize Size, VisualRef Texture, IRL<TerrainPlacement> Terrain, IRL<Marker> Markers, IRL<DeploymentZone> Zones)` | |
@@ -1495,8 +1491,8 @@ them: `ModelsMut` for `models_moved`, `wounds_set`, `condition_set` on a model a
 `condition_set` on a unit, `action_recorded`, `action_record_cleared`, `grant_added`,
 `grant_removed` and `wounds_this_activation_set`; `MarkersMut` for `marker_moved`; `OpenAsksMut` for
 `ask_answered`; `FrameOf` for `step_completed` and both dice kinds; and the roll
-lookup inside `ReplaceDice`. The sites that cannot miss are the assignments (`score_set`,
-`marker_placed`), `Remove` (`marker_removed`, `ask_closed`) and `Pop`, whose `FindIndex` does
+lookup inside `ReplaceDice`. The sites that cannot miss are the assignment (`score_set`),
+`Remove` (`ask_closed`) and `Pop`, whose `FindIndex` does
 nothing when the frame is already gone.
 
 Strictness holds because the server is the only writer and it emits ids from the snapshot it

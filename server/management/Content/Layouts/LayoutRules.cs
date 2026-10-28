@@ -32,7 +32,7 @@ public static class LayoutRules
         foreach (var m in s.Markers)
         {
             if (Builtin(m.Visual) is { } b) return b;
-            if (!Enum.IsDefined(m.Kind)) return "A marker is an objective or a token.";
+            if (!Enum.IsDefined(m.Kind)) return "A marker is an objective.";
             if (!Finite(m.Position) || !double.IsFinite(m.Yaw.Degrees) || !(m.Diameter > 0 && m.Diameter <= 24)) return "A marker needs a finite position and yaw and a diameter above 0 and at most 24\".";
             if (Limits.Text(m.Label, "A marker label", Limits.Name, required: false) is { } l) return l;
         }

@@ -51,14 +51,13 @@ public sealed class PolicyView(
     public double RestOf(Guid modelId, Point2 at, Yaw? yaw = null) =>
         Collision.RestHeight(new PlacedModel(BodyOf(modelId), new Placement(new Point3(at.X, at.Y, 0), yaw ?? new Yaw(0))), Volumes);
 
-    /// <summary>The objective markers where they stand now: the setup rows, then those placed in play, the projection's entry winning on a shared id.</summary>
+    /// <summary>The objective markers where they stand now: the setup rows not moved in play, then the moved ones' projection entries.</summary>
     public IReadOnlyList<Marker> ObjectiveMarkers => ObjectiveMarkersOf(Projection);
 
     public static IReadOnlyList<Marker> ObjectiveMarkersOf(Projection projection)
     {
         var play = projection.Markers;
-        return projection.Board.Table.Markers.Where(m => !play.ContainsKey(m.Id)).Concat(play.Values)
-            .Where(m => m.Kind == MarkerKind.Objective).ToList();
+        return projection.Board.Table.Markers.Where(m => !play.ContainsKey(m.Id)).Concat(play.Values).ToList();
     }
 
     // Wounds, conditions, actions, grants and the unit definition with its stats.

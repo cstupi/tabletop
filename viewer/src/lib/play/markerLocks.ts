@@ -1,6 +1,6 @@
 // viewer/src/lib/play/markerLocks.ts
 // client/src/Core/MarkerLocks.cs and TerrainLock: objective markers are locked from play on (Playing or Ended): a drag on one does not
-// start until the marker's menu unlocks it, and it stays unlocked until locked again. Tokens and setup are free. Local to this client;
+// start until the marker's menu unlocks it, and it stays unlocked until locked again. Setup is free. Local to this client;
 // nothing on the wire. Terrain is placed during setup and locked from then on.
 
 import type { Projection } from '../live/apply';
@@ -18,7 +18,7 @@ export class MarkerLocks {
     return () => { this.#listeners.delete(listener); };
   }
 
-  /** True for an objective, from setup or placed in play, while the game is Playing or Ended and it has not been unlocked. */
+  /** True for an objective, moved or not, while the game is Playing or Ended and it has not been unlocked. */
   isLocked(status: GameStatus | null, p: Projection | null, id: string): boolean {
     return inPlay(status) && isObjective(p, id) && !this.#unlocked.has(id);
   }
@@ -41,8 +41,7 @@ export class MarkerLocks {
 }
 
 function isObjective(p: Projection | null, id: string): boolean {
-  const marker = p?.markers.get(id) ?? p?.board.table.markers.find((m) => m.id === id);
-  return marker?.kind === 'objective';
+  return p?.board.table.markers.some((m) => m.id === id) === true;
 }
 
 /** A drag on a terrain piece starts only while the game is in Setup. */

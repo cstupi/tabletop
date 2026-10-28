@@ -74,18 +74,16 @@ public class RecordingTests
     }
 
     [Fact]
-    public void A_marker_placed_during_play_carries_its_own_definition()
+    public void A_moved_marker_carries_its_definition_where_it_now_stands()
     {
-        var c = Scenario();
+        var scenario = ScenarioCatalog.Get("stalemate") with { Markers = [new ScenarioMarker(MarkerKind.Objective, new Tabletop.Geometry.Point3(36, 24, 0), 3, "Objective A")] };
+        var c = ScenarioCompiler.Compile(scenario);
         var projector = new FrameProjector(c);
-        var marker = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Tabletop.Geometry.Point3(24, 12, 0),
-            new Tabletop.Geometry.Yaw(0), 3, "Objective A", VisualRef.OfBuiltin("objective-ring"));
-        var frame = projector.Add(new GameEvent(1, null, new MarkerPlaced(marker), null));
+        var marker = c.Board.Table.Markers.Single().Id;
+        var frame = projector.Add(new GameEvent(1, null, new MarkerMoved(marker, new Tabletop.Geometry.Point3(24, 12, 0), new Tabletop.Geometry.Yaw(0)), null));
 
-        // The board block knows only the setup markers, so the frame is what tells a viewer how to draw this one.
-        Assert.DoesNotContain(marker.Id, projector.Board.Markers.Select(m => m.Id));
         var state = Assert.Single(frame.Markers);
-        Assert.Equal(marker.Id, state.Id);
+        Assert.Equal(marker, state.Id);
         Assert.Equal("objective", state.Kind);
         Assert.Equal(3, state.Diameter);
         Assert.Equal("Objective A", state.Label);
@@ -246,16 +244,17 @@ public class RecordingTests
     }
 
     [Fact]
-    public void A_frame_lists_setup_markers_then_play_markers_each_with_its_controller()
+    public void A_frame_lists_unmoved_markers_then_moved_ones_each_with_its_controller()
     {
-        var scenario = ScenarioCatalog.Get("stalemate") with { Markers = [new ScenarioMarker(Tabletop.Content.MarkerKind.Objective, new Tabletop.Geometry.Point3(36, 24, 0), 2, "A")] };
+        var scenario = ScenarioCatalog.Get("stalemate") with { Markers = [
+            new ScenarioMarker(Tabletop.Content.MarkerKind.Objective, new Tabletop.Geometry.Point3(4, 4, 0), 2, "B"),
+            new ScenarioMarker(Tabletop.Content.MarkerKind.Objective, new Tabletop.Geometry.Point3(36, 24, 0), 2, "A")] };
         var c = ScenarioCompiler.Compile(scenario);
         var projector = new FrameProjector(c);
-        var setup = c.Board.Table.Markers.Single().Id;
-        var placed = new Tabletop.Content.Marker(Guid.CreateVersion7(), Tabletop.Content.MarkerKind.Token, new Tabletop.Geometry.Point3(4, 4, 0), new Tabletop.Geometry.Yaw(0), 1, "smoke", Tabletop.Content.VisualRef.OfBuiltin("chip"));
-        projector.Add(new GameEvent(1, null, new MarkerPlaced(placed), null));
+        var (moved, setup) = (c.Board.Table.Markers[0].Id, c.Board.Table.Markers[1].Id);
+        projector.Add(new GameEvent(1, null, new MarkerMoved(moved, new Tabletop.Geometry.Point3(6, 6, 0), new Tabletop.Geometry.Yaw(0)), null));
         var frame = projector.Add(new GameEvent(2, null, new ObjectiveControlSet(setup, c.TeamIds[1]), null));
-        Assert.Equal([setup, placed.Id], frame.Markers.Select(m => m.Id));
+        Assert.Equal([setup, moved], frame.Markers.Select(m => m.Id));
         Assert.Equal((Guid?)c.TeamIds[1], frame.Markers[0].ControlledBy);
         Assert.Null(frame.Markers[1].ControlledBy);
         Assert.DoesNotContain("controlledBy", System.Text.Json.JsonSerializer.Serialize(projector.Frames[0], RecordingJson.Options));   // null is not written

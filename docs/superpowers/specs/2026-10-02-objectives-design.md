@@ -32,10 +32,10 @@ enforcement engine ([the enforcement spec](2026-10-02-enforcement-engine-design.
 
 What each part means here:
 
-- **A marker** is a `Marker` with `Kind = Objective`, either placed at setup (`Board.Table.Markers`, the
-  snapshot's rows) or placed in play (`Projection.Markers`, written by `marker_placed`). Where both hold
+- **A marker** is a `Marker` with `Kind = Objective`, placed at setup (`Board.Table.Markers`, the
+  snapshot's rows) and moved in play (`Projection.Markers`, written by `marker_moved`). Where both hold
   an id, the projection's wins. `GfObjectives.Markers(state)` is that union, and it is the one list the
-  seize, the menu check and the count read. Tokens are not objectives.
+  seize, the menu check and the count read.
 - **Within 3"** is the closest living model of the unit on the table, base edge to the marker's centre: the marker is a point
   (owner ruling, 2026-10-25: *"Within 3" of the CENTER of the marker"*, *"the marker is a point"*), so its drawn size changes
   nothing. `Geometry.Distance.EdgeToEdge(model, centre) <= 3 + 1e-6`, the 1e-6 being the geometry library's own distance
@@ -108,8 +108,7 @@ public sealed record SetObjectiveControl(Guid MarkerId, Guid? TeamId) : Command;
 
 `Projection` gains `IReadOnlyDictionary<Guid, Guid> Control`: marker id to controlling team, a neutral
 marker absent. `EventApplier` applies `round_ended`'s changes in order; `objective_control_set` sets or
-removes the entry; `marker_removed` removes it too, so a removed marker counts for nobody. `Undone`
-rebuilds as today.
+removes the entry. `Undone` rebuilds as today.
 
 **The menu.** Every property is editable (game-flow spec, *Nothing is an invariant*), so control has an
 override: `SetObjectiveControl` is in `CommandClass.Override`, and `MenuTranslation` turns it into
@@ -127,7 +126,7 @@ public static class GfObjectives
 {
     public const double SeizeRange = 3;     // p.6
 
-    /// <summary>The objective markers: the setup rows, then those placed in play, the projection's entry winning on a shared id.</summary>
+    /// <summary>The objective markers: the setup rows, then those moved in play, the projection's entry winning on a shared id.</summary>
     public static IReadOnlyList<Marker> Markers(GameState state);
 
     /// <summary>One ObjectiveControlSet per marker whose controller changes this round end; none when nothing changes.</summary>
@@ -188,10 +187,10 @@ there is no result to record, and the players decide what round 4's standing mea
 **The viewer** (`viewer/src/`):
 
 - `lib/live/apply.ts`: `Projection.control`, `initialProjection` empty; `objective_control_set` and
-  `round_ended` applied as the C# applier does; `marker_removed` clears control.
+  `round_ended` applied as the C# applier does.
 - A frame's markers today are `Projection.Markers` only, so a setup objective appears in no frame and
-  the viewer never draws it. `RecordedFrame.Markers` becomes the setup markers then the play markers,
-  the play entry winning on a shared id, in `sim/Recording/FrameProjector.cs` and in
+  the viewer never draws it. `RecordedFrame.Markers` becomes the setup markers then the moved markers,
+  the moved entry winning on a shared id, in `sim/Recording/FrameProjector.cs` and in
   `lib/live/project.ts` alike. `RecordedMarkerState` gains a trailing optional `ControlledBy`
   (`Guid?`) from `Projection.Control`. Null is not written (`RecordingJson` ignores nulls), and the
   checked-in fixtures hold no markers, so they stay byte-identical and `RecordingJson.SchemaVersion`

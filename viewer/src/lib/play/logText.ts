@@ -22,9 +22,7 @@ export function describe(e: GameEvent, n: Names): string {
     case 'spell_tokens_set': text = `set ${n.model(p.modelId)} to ${p.tokens} spell token${p.tokens === 1 ? '' : 's'}`; break;
     case 'wounds_this_activation_set': text = `set ${n.unit(p.unitId)}'s wounds this activation to ${p.wounds}`; break;
     case 'score_set': text = `set ${n.team(p.teamId)}'s score to ${p.score}`; break;
-    case 'marker_placed': text = `placed a ${p.marker.kind.toLowerCase()}${p.marker.label === undefined ? '' : ` '${p.marker.label}'`}`; break;
     case 'marker_moved': text = `moved marker ${n.piece(p.markerId)}`; break;
-    case 'marker_removed': text = `removed marker ${n.piece(p.markerId)}`; break;
     case 'round_started': text = `started round ${p.round}`; break;
     case 'turn_started': text = `started ${n.team(p.teamId)}'s turn`; break;
     case 'turn_ended': text = p.passed ? `passed for ${n.team(p.teamId)}` : `ended ${n.team(p.teamId)}'s turn`; break;
@@ -143,8 +141,7 @@ export function touched(e: GameEvent): string[] {
     case 'wounds_set': case 'spell_tokens_set': return [p.modelId];
     case 'condition_set': return [p.subject.id];
     case 'action_recorded': case 'action_record_cleared': case 'grant_added': case 'grant_removed': case 'wounds_this_activation_set': return [p.unitId];
-    case 'marker_placed': return [p.marker.id];
-    case 'marker_moved': case 'marker_removed': return [p.markerId];
+    case 'marker_moved': return [p.markerId];
     case 'sequence_started':
       return [...(p.context.actorUnitId === undefined ? [] : [p.context.actorUnitId]), ...p.context.targetUnitIds];
     case 'step_completed': return p.changes.flatMap((c) => touched({ seq: 0, payload: c }));

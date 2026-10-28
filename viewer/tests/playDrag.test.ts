@@ -4,7 +4,7 @@ import type { SendOutcome } from '../src/lib/connection/gameConnection';
 import type { Geometry, HeldModel } from '../src/lib/geometry';
 import { MarkerLocks } from '../src/lib/play/markerLocks';
 import { PlayDrags } from '../src/lib/play/playDrag';
-import type { Command } from '../src/lib/protocol/wire.generated';
+import type { Command, Marker } from '../src/lib/protocol/wire.generated';
 import { markerOf } from './play';
 import { at, moveRig, region, tick } from './moveRig';
 
@@ -18,13 +18,14 @@ function rig(over: Parameters<typeof moveRig>[0] & { frame?: (run: () => void) =
   const sent: Command[] = [];
   let outcome: Promise<SendOutcome> = Promise.resolve({ id: 'x', refused: null });
   let changes = 0;
+  const locks = new MarkerLocks();
   const drags = new PlayDrags({
     state: () => r.box.host.state(), box: () => r.box, hooks: () => r.hooks, geometry: () => geometry,
-    violations: r.violations, drops: r.drops, locks: new MarkerLocks(),
+    violations: r.violations, drops: r.drops, locks,
     send: (command) => { sent.push(command); return outcome; }, select: () => {}, changed: () => { changes++; },
     ...(over.frame !== undefined ? { frame: over.frame } : {}),
   });
-  return { ...r, drags, sent, get panel() { return r.box.panel; }, setOutcome(o: Promise<SendOutcome>) { outcome = o; }, get changes() { return changes; } };
+  return { ...r, drags, sent, locks, get panel() { return r.box.panel; }, setOutcome(o: Promise<SendOutcome>) { outcome = o; }, get changes() { return changes; } };
 }
 const model = (id: string) => ({ kind: 'model', id }) as const;
 
@@ -168,16 +169,16 @@ describe('PlayDrags', () => {
 
   it('a marker drag sends MoveMarker unless the objective is locked', () => {
     const r = rig();
-    const token = markerOf('Tok');
-    r.applier.projection.markers.set(token.id, token);
-    const objective = markerOf('Obj', 'objective');
-    r.applier.projection.markers.set(objective.id, objective);
+    const objective = markerOf('Obj');
+    const p = r.applier.projection;
+    (p.board.table.markers as Marker[]).push(objective);
     r.box.render();
     expect(r.drags.onDragStart({ kind: 'marker', id: objective.id }, { x: 1, y: 1 }, NO_MODIFIERS)).toBe(false);
-    expect(r.drags.onDragStart({ kind: 'marker', id: token.id }, { x: 1, y: 1 }, NO_MODIFIERS)).toBe(true);
+    r.locks.itemFor('playing', p, objective.id)!.apply();
+    expect(r.drags.onDragStart({ kind: 'marker', id: objective.id }, { x: 1, y: 1 }, NO_MODIFIERS)).toBe(true);
     r.drags.onDragMove({ x: 5, y: 6 }, NO_MODIFIERS);
     r.drags.onDragEnd({ x: 5, y: 6 }, NO_MODIFIERS);
-    expect(r.sent[0]).toEqual({ kind: 'move_marker', markerId: token.id, position: { x: 5, y: 6, z: 0 }, yaw: { degrees: 0 } });
+    expect(r.sent[0]).toEqual({ kind: 'move_marker', markerId: objective.id, position: { x: 5, y: 6, z: 0 }, yaw: { degrees: 0 } });
   });
 
   it('overlays: rings and rulers while a move is in hand', () => {

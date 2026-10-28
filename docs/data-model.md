@@ -396,7 +396,7 @@ not define.
 
 **In-play state is not persisted.** Unit in play, model in play, placement, wounds,
 conditions, granted effects, spell tokens, wounds this activation, the shelf, what a model is
-inside, tokens dropped in play, the action record, the resolution stack, the scheduler's
+inside, the action record, the resolution stack, the scheduler's
 position (round, team order, whose turn, who has passed), the score — none of it is a row. `ACTION` names what actions *exist*; what a unit has *done* is
 events. It is
 reconstructed in memory by replaying `GAMEEVENT` from `TABLESTATE`, which is the log's

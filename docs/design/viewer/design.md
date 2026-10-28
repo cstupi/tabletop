@@ -290,7 +290,7 @@ geometry is computed. `Scene` has six members: `table`, `terrain`, `zones`, `mar
 | `RecordedModel` + `RecordedModelState` where `where === 'table'` | `ModelShape` | `baseOutline` for the base, plus a facing tick of `baseA / 2` along the yaw |
 | `RecordedModelState` where `where` is `shelf` or `inside` | `OffTable` | no position is invented; `containerLabel` names the container model |
 | `RecordedTerrain` x `RecordedVolume` | one `TerrainShape` per volume | `volumeOutline`; `bottom` and `top` scaled by the piece's `scale` |
-| `RecordedMarkerState` | `MarkerShape` | read from the frame alone; `board.markers` is never consulted. A frame's markers are the setup markers then the play markers; `controlledBy` names the controlling team |
+| `RecordedMarkerState` | `MarkerShape` | read from the frame alone; `board.markers` is never consulted. A frame's markers are the setup markers then the moved ones; `controlledBy` names the controlling team |
 | `RecordedZone` | `ZoneShape` | each `polygons` ring wrapped as a `Shape`; nothing resolved |
 
 `baseOutline` is `Tabletop.Geometry.Bodies.BaseOutline` ported line for line, including
@@ -386,7 +386,7 @@ without a canvas, so it is unit-tested (`tests/boardStyle.test.ts`):
 - **Names.** A terrain piece's name (once per piece) and a marker's label show only from `LABEL_SCALE` (18 px per inch) or when it is
   selected, never the declarations. `labelText` turns a wire name into words (`ruined-wall` → "Ruined wall") and never shows an id.
 - **Zones.** A band tinted 12% in the team's colour with a solid 70% edge.
-- **Markers.** A token: a washed disc, a ring and, for an objective, an inner ring and a centre dot, in the controller's colour or neutral.
+- **Markers.** An objective: a washed disc, a ring, an inner ring and a centre dot, in the controller's colour or neutral.
 - **Models.** Filled in the team's colour with a dark rim and a facing tick; the selection is a ring outside in the theme's selection
   colour. Wound and condition tags and the height show only from 6 px per inch. No model carries its id or name on the board.
 
@@ -470,8 +470,8 @@ carrying `kind` and `unknownId`, thrown from the four helpers `unitIn`, `modelIn
 `p.models.get(id)!.wounds = w` throws an untyped `TypeError`. `{ ...p.markers.get(id)!, position }`
 on a missing marker spreads `undefined` and succeeds, writing a marker with no `id` into the store,
 which is a silent divergence at the exact case the fault exists for: moving a marker neither the board nor
-the log holds. A setup marker's first `marker_moved` copies its board row into `markers`, as the C# does. Four sites fault on neither side, because the C# writes through an indexer or calls `Remove`
-there: `score_set`, `marker_placed`, `marker_removed` and `ask_closed`. The helpers cover twelve of
+the log holds. A setup marker's first `marker_moved` copies its board row into `markers`, as the C# does. Two sites fault on neither side, because the C# writes through an indexer or calls `Remove`
+there: `score_set` and `ask_closed`. The helpers cover twelve of
 the sixteen fallible lookups the C# has. The other four read the resolution frame stack, which is not
 ported, so `step_completed` and the dice kinds can fault on an unknown frame id in C# and cannot
 here. That is the unported stack showing again rather than a second divergence. A comment in
@@ -544,7 +544,7 @@ the bytes the socket sends.
 
 `normaliseFrame` sorts collections by id on both sides and sorts string arrays. C# `Dictionary`
 enumeration order and JavaScript `Map` insertion order can diverge once an entry is removed and
-another added, such as a marker taken off the table or an Ask closed, and C#'s `Order()` is
+another added, such as an Ask closed, and C#'s `Order()` is
 culture-sensitive where JavaScript's `sort()` is by code unit. Neither is a drift in the applier.
 Everything else is compared exactly, including `line`.
 
@@ -556,7 +556,7 @@ vertices. The drop is then about what is ported, not about what resolved.
 Frame comparison proves agreement on a valid log only. The two implementations diverge most cheaply
 on an invalid one, where C# throws `ProjectionDesyncException` and the natural TypeScript spelling
 spreads `undefined` and carries on. One event covers that gap on both sides: `marker_moved` naming a
-marker nothing placed. `AgreementFixtureTests.The_csharp_applier_faults_on_an_id_the_projection_does_not_hold`
+marker nothing holds. `AgreementFixtureTests.The_csharp_applier_faults_on_an_id_the_projection_does_not_hold`
 asserts the C# throw, and `agreement.test.ts`, *the two appliers fault the same way*, asserts
 `ProjectionDesyncError` on the same event and that no marker was written. A typed fault on one side
 against a quiet `undefined` on the other is not equivalence, whatever the frame count says.
@@ -631,7 +631,7 @@ Setup (`SetupPage`) is a grid: the tools sidebar (18rem), the board, and the sel
 marker is selected, an overlay drawer below 70rem. `SetupTools` holds collapsible sections: Table (size, surface), Terrain (a search
 box over the catalog, grouped by what a piece does: blocks line of sight, impassable, dangerous, cover, difficult, open ground, in
 that order; a click adds the piece beside the table; Your library loads the account's terrain into the same list; Clear terrain),
-Markers, Deployment zones (rulebook style names, swap two teams' zones), Layouts (predefined, a random table by planet, the
+Objectives, Deployment zones (rulebook style names, swap two teams' zones), Layouts (predefined, a random table by planet, the
 account's own, Save) and Players (the team cards in one column: lobby edits stay open in setup). A refusal shows as a banner over
 the top of the board. Ids never show: textures, zone styles, meshes and declarations are named in words (`terrainGroups.ts`,
 `DECLARATION_WORDS`).
@@ -678,7 +678,7 @@ connection state: the projection is mutated in place, so a derivation keyed on i
 | The viewer watches as an admin, without joining | the viewer is an admin tool; an admin watches any game, finished or running; admin is a Stytch role carried in the session's `roles` claim | joining each game as a participant with no team | admin watch spec |
 | A session JWT is the whole of the live feed's auth | the server matches the JWT's account against a `participant` row, admits an admin non-participant as a watcher, and answers anyone else `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | admin watch spec → *The watcher* |
 | Deployment-zone rings are resolved in C# and recorded | `ZoneStyles` is C# geometry and the frontline inset is absolute, so a browser cannot recover it from the shape id and the table size | porting `ZoneStyles`, a second geometry implementation | plan → *Interfaces needed*, item 1; simulation plan → *Applied from the viewer plan*, item 1 |
-| A marker's definition rides on every frame state | a marker placed during play is in no board block, and the live feed writes the board before any event | a board block covering every marker that ever appears | simulation plan → *Applied from the viewer plan*, item 2 |
+| A marker's definition rides on every frame state | a frame must be whole, and the live feed writes the board before any event | a board block covering every marker that ever appears | simulation plan → *Applied from the viewer plan*, item 2 |
 | A model with no position is listed, not drawn | inventing a position is the viewer deciding something | drawing it beside or on its container | spec → *Deliberately not decided* |
 | Fixtures checked in, rewritten only under a flag, never diffed against a predecessor | ids are UUIDv7 and differ between runs, so two recordings are never byte-comparable | generating fixtures on demand, which makes `npm test` need a .NET SDK to have run first | plan ruling 2; spec → *The seed is stored* |
 | Agreement compares every frame, not final projections | localises a ported branch to one event; needs no extra export | comparing the last projection only | plan Task 10; spec → *Two feeds* |
@@ -754,7 +754,7 @@ connection state: the projection is mutated in place, so a derivation keyed on i
 | `sim/` | `Chooser(ulong)`, `HandPlacement.ChooserFor(ulong)`, `AnswerPolicy(Chooser, PolicyOptions?)`, `ComposedAnswers(AnswerScript, AnswerPolicy?)` | the fixture writer's answers |
 | `libs/Tabletop.Protocol` | `WireJson.Options`, `SocketMessage`, `Connect`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected` | the emitted wire subset |
 | `libs/Tabletop.Protocol` | `EventApplier`, `ProjectionDesyncException`, `Projection`, `StateChange`, `EventPayload` | the C# original the TypeScript port copies, including the fault on an unknown id |
-| `libs/Tabletop.Protocol` | `GameEvent`, `MarkerMoved`, `MarkerRemoved`, `Point3`, `Yaw` | the one event both appliers are faulted on |
+| `libs/Tabletop.Protocol` | `GameEvent`, `MarkerMoved`, `Point3`, `Yaw` | the one event both appliers are faulted on |
 | `libs/Tabletop.Geometry` | `Bodies.BaseOutline`, `Bodies.OvalVertices`, `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains` | ported by hand into `board/frame.ts`, `board/transform.ts`, `board/pick.ts` |
 | `server/game/` | the connect sequence: `Connect` first within 10 s, then `Welcome`, `BoardMessage` from `setup` on, `EventsMessage` batches, then live frames | `liveFeed.ts` |
 | `server/management/` | `POST /v1/auth/password`, `POST /v1/auth/session/refresh`, each answering a body with `sessionJwt` | `management.ts` |

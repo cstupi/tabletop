@@ -25,7 +25,7 @@
   import { Names } from './names';
   import { mine as askMine } from './askView';
   import { refusalText } from '../connection/feedback';
-  import { choose, pieceMenu, rosterMenu, tableMenu, teamMenu, type MenuContext, type MenuStep } from './menus';
+  import { choose, pieceMenu, rosterMenu, teamMenu, type MenuContext, type MenuStep } from './menus';
   import type { MenuItem } from './menuModel';
   import PieceMenu from './PieceMenu.svelte';
   import WaitingPanel from './WaitingPanel.svelte';
@@ -327,7 +327,6 @@
       const c = menuContext();
       if (c === null) return;
       if (hit !== null && hit.kind !== 'terrain') openMenu(pieceMenu(c, hit.id, mods?.shift === true), pointerAt);
-      else if (mods?.alt === true) openMenu(tableMenu(c, { x: at.x, y: at.y, z: 0 }), pointerAt);
     },
   };
 

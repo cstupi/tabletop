@@ -106,30 +106,19 @@ Nothing here has to be rewritten to allow that.
 
 ## Markers
 
-Objectives and tokens are one record.
+A marker is an objective. Owner ruling: "Remove tokens."
 
 ```
-Marker   kind        objective | token
+Marker   kind        objective
          placement   position, facing
-         size        objective = a large circle; token = a small chip
+         size        a large circle
          visual      a built-in, or a user asset
          label
 ```
 
-The table model insisted an objective was its own kind of thing, "not a token and not
-terrain," because it carried whatever the game needed to score it. Scoring is manual, so
-that field is empty and the two records are the same shape.
-
-They still differ in the two ways that matter to a player: an objective is a large
-predefined circle placed during setup and locked, a token is a small chip dropped during
-play and moved freely. That difference is `kind`, size, and which record it lives in — and
-*which record* was left unsaid until 09-04: **objectives are rows in the snapshot; a token
-dropped in play is an ordinary logged command** (`marker_placed`, `marker_moved`,
-`marker_removed`), rebuilt from the log like every other in-play state. A token placed during
-setup may sit in the snapshot as well, as initial state.
-
-`kind` is also the hook automatic scoring hangs off if it is ever built, which is why the
-collapse costs nothing.
+An objective is a large predefined circle placed during setup and locked. Objectives are rows
+in the snapshot. Moving one in play is an ordinary logged command (`marker_moved`), rebuilt from
+the log like every other in-play state.
 
 **Markers ignore terrain** — no settling, no collision — as the table model already
 decided.

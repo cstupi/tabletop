@@ -154,9 +154,9 @@ piece, and its details show in the terrain card in the unit card's slot (the uni
   release; the **Undo** button takes it back (client UX spec → Undo).
 - From play on (`Playing` or `Ended`), every objective marker is locked: a drag on it does not start, under every
   enforcement setting. Its right-click menu offers **Unlock**; unlocked, it drags and its drop sends `MoveMarker`, for
-  a setup objective as for one placed in play, until **Lock** is chosen. Objective control is judged where the marker
-  now stands. A setup objective is never removable. A click on a locked objective still selects it, and hovering it shows "Locked — right-click to unlock". The
-  lock is this client's alone and sends nothing. Tokens are never locked, and setup moves every marker freely.
+  a setup objective, until **Lock** is chosen. Objective control is judged where the marker
+  now stands. A marker is never removed in play. A click on a locked objective still selects it, and hovering it shows "Locked — right-click to unlock". The
+  lock is this client's alone and sends nothing. Setup moves every marker freely.
 
 **Formations.** While a unit is held in a drag, **1–5** arranges it in that many rows around the cursor, the models
 split as evenly as they go (10 models in 3 rows is 4-3-3). Rows run across the screen as the camera sees it; **Q/E**

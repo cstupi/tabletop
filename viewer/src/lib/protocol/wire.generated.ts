@@ -153,7 +153,7 @@ export interface ClearActionRecord {
   readonly unitId: string;
 }
 
-export type Command = AnswerAsk | MoveModels | PlaceMarker | MoveMarker | RemoveMarker | SetWounds | SetCondition | RecordAction | ClearActionRecord | AddGrant | RemoveGrant | SetSpellTokens | SetWoundsThisActivation | SetScore | SetObjectiveControl | SetActiveTeam | SetRound | Undo | AbandonSequence | SetDice;
+export type Command = AnswerAsk | MoveModels | MoveMarker | SetWounds | SetCondition | RecordAction | ClearActionRecord | AddGrant | RemoveGrant | SetSpellTokens | SetWoundsThisActivation | SetScore | SetObjectiveControl | SetActiveTeam | SetRound | Undo | AbandonSequence | SetDice;
 
 export interface CommandMessage {
   readonly kind: 'command';
@@ -253,7 +253,7 @@ export interface EndSetup {
 
 export type Enforcement = 'silent' | 'warn' | 'strict';
 
-export type EventPayload = RoundStarted | RoundEnded | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
+export type EventPayload = RoundStarted | RoundEnded | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerMoved | ObjectiveControlSet;
 
 export interface EventsMessage {
   readonly kind: 'events';
@@ -359,23 +359,13 @@ export interface Marker {
   readonly visual: VisualRef;
 }
 
-export type MarkerKind = 'objective' | 'token';
+export type MarkerKind = 'objective';
 
 export interface MarkerMoved {
   readonly kind: 'marker_moved';
   readonly markerId: string;
   readonly position: Point3;
   readonly yaw: Yaw;
-}
-
-export interface MarkerPlaced {
-  readonly kind: 'marker_placed';
-  readonly marker: Marker;
-}
-
-export interface MarkerRemoved {
-  readonly kind: 'marker_removed';
-  readonly markerId: string;
 }
 
 export interface ModelFacts {
@@ -526,11 +516,6 @@ export interface PieceSelection {
   readonly max: number;
 }
 
-export interface PlaceMarker {
-  readonly kind: 'place_marker';
-  readonly marker: Marker;
-}
-
 export interface Placement {
   readonly position: Point3;
   readonly yaw: Yaw;
@@ -585,11 +570,6 @@ export interface RemoveGrant {
   readonly kind: 'remove_grant';
   readonly unitId: string;
   readonly grantId: string;
-}
-
-export interface RemoveMarker {
-  readonly kind: 'remove_marker';
-  readonly markerId: string;
 }
 
 export interface RemoveSetupMarker {
@@ -822,7 +802,7 @@ export interface StartSetup {
   readonly kind: 'start_setup';
 }
 
-export type StateChange = ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
+export type StateChange = ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerMoved | ObjectiveControlSet;
 
 export interface StepCompleted {
   readonly kind: 'step_completed';

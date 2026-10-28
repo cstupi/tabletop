@@ -33,7 +33,7 @@ const NO_CONTEXT: SequenceContext = { targetUnitIds: [], weaponIds: [] };
 
 const STATE_CHANGES: ReadonlySet<string> = new Set([
   'models_moved', 'wounds_set', 'condition_set', 'action_recorded', 'action_record_cleared', 'grant_added', 'grant_removed',
-  'spell_tokens_set', 'wounds_this_activation_set', 'score_set', 'marker_placed', 'marker_moved', 'marker_removed', 'objective_control_set',
+  'spell_tokens_set', 'wounds_this_activation_set', 'score_set', 'marker_moved', 'objective_control_set',
 ]);
 
 /** The events the log keeps and does not draw. */

@@ -33,14 +33,10 @@ describe('hand moves', () => {
 
   it('a locked objective does not drag until unlocked', () => {
     const s = sample();
-    const p = new Applier(s.board, s.game).projection;
-    const objective = markerOf('Obj', 'objective');
-    const token = markerOf('Token');
-    p.markers.set(objective.id, objective);
-    p.markers.set(token.id, token);
+    const objective = markerOf('Obj');
+    const p = new Applier({ ...s.board, table: { ...s.board.table, markers: [objective] } }, s.game).projection;
     const l = new MarkerLocks();
     expect(mayDrag({ kind: 'marker', id: objective.id }, false, none, 'warn', 'playing', p, l)).toBe(false);
-    expect(mayDrag({ kind: 'marker', id: token.id }, false, none, 'strict', 'playing', p, l)).toBe(true);
     l.itemFor('playing', p, objective.id)!.apply();
     expect(mayDrag({ kind: 'marker', id: objective.id }, false, none, 'warn', 'playing', p, l)).toBe(true);
   });

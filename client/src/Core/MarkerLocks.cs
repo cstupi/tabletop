@@ -5,7 +5,7 @@ namespace Tabletop.Client.Core;
 
 /// <summary>
 /// Objective markers are locked from play on (Playing or Ended): a drag on one does not start until the marker's menu
-/// unlocks it, and it stays unlocked until locked again. Tokens and setup are free. Local to this client; nothing on the wire.
+/// unlocks it, and it stays unlocked until locked again. Setup is free. Local to this client; nothing on the wire.
 /// </summary>
 public sealed class MarkerLocks
 {
@@ -13,7 +13,7 @@ public sealed class MarkerLocks
     (MenuItem Item, Guid Id, bool Unlock)? _issued;
     public event Action? Changed;
 
-    /// <summary>True for an objective, from setup or placed in play, while the game is Playing or Ended and it has not been unlocked.</summary>
+    /// <summary>True for an objective, moved or not, while the game is Playing or Ended and it has not been unlocked.</summary>
     public bool IsLocked(GameStatus? status, Projection? p, Guid id) =>
         status is GameStatus.Playing or GameStatus.Ended && IsObjective(p, id) && !_unlocked.Contains(id);
 
@@ -38,8 +38,7 @@ public sealed class MarkerLocks
         return true;
     }
 
-    static bool IsObjective(Projection? p, Guid id) =>
-        (p?.Markers.GetValueOrDefault(id) ?? p?.Board.Table.Markers.FirstOrDefault(m => m.Id == id))?.Kind == MarkerKind.Objective;
+    static bool IsObjective(Projection? p, Guid id) => p?.Board.Table.Markers.Any(m => m.Id == id) == true;
 }
 
 /// <summary>Terrain is placed during setup and locked from then on (setup content: the lock is structural), so a drag on a

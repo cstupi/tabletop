@@ -39,9 +39,9 @@ public sealed record TerrainPlacement(Guid Id, VisualRef Mesh, Point3 Position, 
     public IReadOnlyList<WorldVolume> WorldVolumes() => Volumes.Select(v => new WorldVolume(v.Id, v.Volume, Transform)).ToList();
 }
 
-public enum MarkerKind { Objective, Token }
+public enum MarkerKind { Objective }
 
-/// <summary>Objectives and tokens are one record. Markers ignore terrain.</summary>
+/// <summary>An objective marker. Markers ignore terrain.</summary>
 public sealed record Marker(Guid Id, MarkerKind Kind, Point3 Position, Yaw Yaw, double Diameter, string? Label, VisualRef Visual);
 
 /// <summary>A built-in zone shape and the team ordinal it belongs to. Shape ids are namespaced by style, e.g. "frontline/1" — the ids Tabletop.Geometry.ZoneStyles.ShapesOf(style) lists (geometry plan Task 13); one row per shape, keyed by team ordinal 1..n.</summary>

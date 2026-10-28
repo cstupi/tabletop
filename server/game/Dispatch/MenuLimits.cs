@@ -26,7 +26,6 @@ public static class MenuLimits
         AddGrant g when properties is not null && properties.EffectById(g.Grant.EffectId) is null => $"no effect {g.Grant.EffectId} in this game's rules",
         AddGrant g when !state.Projection.Units.ContainsKey(g.Grant.CasterUnitId) => $"no unit {g.Grant.CasterUnitId}",
         AddGrant g when g.Grant.RemainingUses is < 0 or > Uses => $"a grant has 0–{Uses} uses",
-        PlaceMarker m => Marker(state, m.Marker),
         MoveMarker m => OnTable(state, m.Position, m.Yaw) ? null : "a marker lands at a finite point near the table",
         MoveModels m when m.Moves.Any(x => x.To is OnTable t && !OnTable(state, t.Placement.Position, t.Placement.Yaw)) => "a model lands at a finite point near the table",
         SetWounds w when w.Wounds is < 0 or > Number => $"wounds are 0–{Number}",
@@ -36,13 +35,6 @@ public static class MenuLimits
         SetRound r when r.Round is < 0 or > Rounds => $"a round is 0–{Rounds}",
         _ => null,
     };
-
-    static string? Marker(GameState state, Marker m) =>
-        !OnTable(state, m.Position, m.Yaw) ? "a marker lands at a finite point near the table"
-        : !(m.Diameter >= DraftLimits.MinMarker && m.Diameter <= DraftLimits.MaxMarker) ? $"a marker is {DraftLimits.MinMarker}–{DraftLimits.MaxMarker}\" across"
-        : m.Label is { Length: > Name } ? $"a label is at most {Name} characters"
-        : !Enum.IsDefined(m.Kind) || !m.Visual.IsValid || m.Visual.Builtin is { Length: > Name } ? "an unknown marker kind or visual"
-        : null;
 
     /// <summary>Finite, and within the table's diagonal of its centre with a height no volume reaches past: GfAnswers.Moves' bound (no
     /// landing farther than the diagonal), taken from the table rather than the model, as a hand move may start on the shelf. Where on the

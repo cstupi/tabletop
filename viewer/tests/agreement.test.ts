@@ -55,9 +55,5 @@ describe('the two appliers fault the same way', () => {
     // Not a typed throw against a silent success: nothing was written, so the projection did not
     // quietly diverge from the server's. `{ ...undefined, position }` would have left a marker here.
     expect(applier.projection.markers.size).toBe(0);
-
-    // And the store the C# removes from rather than reads through faults on neither side.
-    const removed = { seq: 2, actor: null, warning: null, payload: { kind: 'marker_removed', markerId: UNKNOWN } } as unknown as GameEvent;
-    expect(() => new Applier(board, game).apply(removed)).not.toThrow();
   });
 });

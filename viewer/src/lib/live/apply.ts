@@ -151,10 +151,8 @@ export function applyChange(p: Projection, change: StateChange): void {
     }
     case 'spell_tokens_set': modelIn(p, change.kind, change.modelId).spellTokens = change.tokens; return;
     case 'wounds_this_activation_set': unitIn(p, change.kind, change.unitId).woundsThisActivation = change.wounds; return;
-    // A store that C# writes with an indexer or Remove rather than reading through one: score_set,
-    // marker_placed and marker_removed cannot desync, and neither side faults on them.
+    // A store that C# writes with an indexer rather than reading through one: score_set cannot desync, and neither side faults on it.
     case 'score_set': p.scores.set(change.teamId, change.score); return;
-    case 'marker_placed': p.markers.set(change.marker.id, change.marker); return;
     case 'marker_moved': {
       // A setup marker's first move copies its board row into the play markers, which win on the shared id from then on.
       const marker = p.markers.get(change.markerId) ?? p.board.table.markers.find((m) => m.id === change.markerId)
@@ -162,7 +160,6 @@ export function applyChange(p: Projection, change: StateChange): void {
       p.markers.set(change.markerId, { ...marker, position: change.position, yaw: change.yaw });
       return;
     }
-    case 'marker_removed': p.markers.delete(change.markerId); p.control.delete(change.markerId); return;
     case 'objective_control_set':
       if (change.teamId === undefined) p.control.delete(change.markerId); else p.control.set(change.markerId, change.teamId);
       return;
@@ -178,7 +175,7 @@ export function applyChange(p: Projection, change: StateChange): void {
 const STATE_CHANGE_KINDS: Record<StateChange['kind'], true> = {
   models_moved: true, wounds_set: true, condition_set: true, action_recorded: true, action_record_cleared: true,
   grant_added: true, grant_removed: true, spell_tokens_set: true, wounds_this_activation_set: true,
-  score_set: true, marker_placed: true, marker_moved: true, marker_removed: true, objective_control_set: true,
+  score_set: true, marker_moved: true, objective_control_set: true,
 };
 const isStateChange = (payload: { kind: string }): payload is StateChange =>
   Object.hasOwn(STATE_CHANGE_KINDS, payload.kind);

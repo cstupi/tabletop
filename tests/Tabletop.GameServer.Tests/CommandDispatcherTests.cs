@@ -30,8 +30,7 @@ public class CommandDispatcherTests
     public static IEnumerable<object[]> Overrides() =>
         new Command[] { new SetWounds(Samples.Model, 2), new SetCondition(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true),
             new RecordAction(Samples.Unit, "Advance"), new ClearActionRecord(Samples.Unit), new AddGrant(Samples.Unit, Samples.Grant), new RemoveGrant(Samples.Unit, Samples.Grant.Id),
-            new SetSpellTokens(Samples.Model, 3), new SetWoundsThisActivation(Samples.Unit, 1), new SetScore(Samples.Team1, 5), new SetActiveTeam(Samples.Team2), new SetRound(2),
-            new PlaceMarker(Samples.Token) }
+            new SetSpellTokens(Samples.Model, 3), new SetWoundsThisActivation(Samples.Unit, 1), new SetScore(Samples.Team1, 5), new SetActiveTeam(Samples.Team2), new SetRound(2) }
         .SelectMany(c => new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict }.Select(e => new object[] { c, e }));
 
     [Theory, MemberData(nameof(Overrides))]
@@ -40,7 +39,7 @@ public class CommandDispatcherTests
         var outcome = Dispatcher().Dispatch(State(enforcement), command, Clay);
         var applied = Assert.IsType<Applied>(outcome);
         Assert.Single(applied.Events); Assert.Null(applied.Warning);
-        var expectedKind = command switch { SetActiveTeam => typeof(TurnStarted), SetRound => typeof(RoundStarted), PlaceMarker => typeof(MarkerPlaced), _ => null };
+        var expectedKind = command switch { SetActiveTeam => typeof(TurnStarted), SetRound => typeof(RoundStarted), _ => null };
         if (expectedKind is not null) Assert.IsType(expectedKind, applied.Events[0]);
         else Assert.IsAssignableFrom<StateChange>(applied.Events[0]);
     }
@@ -223,23 +222,23 @@ public class CommandDispatcherTests
     }
 
     [Fact]
-    public void Control_is_overridden_from_the_menu_for_a_setup_or_a_placed_marker_under_every_setting()
+    public void Control_is_overridden_from_the_menu_for_a_setup_or_a_moved_marker_under_every_setting()
     {
         foreach (var e in new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict })
         {
-            var played = Samples.Token with { Kind = Tabletop.Content.MarkerKind.Objective };
-            var state = State(e, new MarkerPlaced(played));
-            var setup = state.Board.Table.Markers.First(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
+            var state = State(e);
+            var setup = state.Board.Table.Markers[0].Id;
+            state.Applier.Apply(new GameEvent(1, null, new MarkerMoved(setup, new(5, 6, 0), new(0)), null));
             var given = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, Samples.Team2), Clay)).Events));
             Assert.Equal((setup, (Guid?)Samples.Team2), (given.MarkerId, given.TeamId));
-            var neutral = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(played.Id, null), Clay)).Events));
+            var neutral = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, null), Clay)).Events));
             Assert.Null(neutral.TeamId);
         }
         Assert.Equal(CommandClass.Override, CommandDispatcher.Classify(new SetObjectiveControl(Guid.CreateVersion7(), null)));
     }
 
     [Fact]
-    public void A_setup_marker_moves_from_the_menu_and_is_not_removable()
+    public void A_setup_marker_moves_from_the_menu()
     {
         foreach (var e in new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict })
         {
@@ -247,7 +246,6 @@ public class CommandDispatcherTests
             var setup = state.Board.Table.Markers.First().Id;
             var moved = Assert.IsType<MarkerMoved>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new MoveMarker(setup, new(5, 6, 0), new(30)), Clay)).Events));
             Assert.Equal((setup, new Point3(5, 6, 0)), (moved.MarkerId, moved.Position));
-            Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new RemoveMarker(setup), Clay)).Reason);
         }
     }
 
@@ -258,12 +256,5 @@ public class CommandDispatcherTests
         var setup = state.Board.Table.Markers.First().Id;
         Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new SetObjectiveControl(Guid.CreateVersion7(), Samples.Team1), Clay)).Reason);
         Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, Guid.CreateVersion7()), Clay)).Reason);
-    }
-
-    [Fact]
-    public void Control_of_a_token_is_refused_as_unknown()
-    {
-        var state = State(Enforcement.Warn, new MarkerPlaced(Samples.Token));
-        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new SetObjectiveControl(Samples.Token.Id, Samples.Team1), Clay)).Reason);
     }
 }

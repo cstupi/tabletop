@@ -97,7 +97,7 @@ public class LayoutTests : IClassFixture<ManagementFactory>
         TableState With(Guid terrainMesh, Guid tex, Guid marker) => Sample(terrainMesh: VisualRef.OfAsset(terrainMesh)) with
         {
             Texture = VisualRef.OfAsset(tex),
-            Markers = [new Marker(Guid.CreateVersion7(), MarkerKind.Token, new Point3(1, 1, 0), new Yaw(0), 1, null, VisualRef.OfAsset(marker))],
+            Markers = [new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(1, 1, 0), new Yaw(0), 1, null, VisualRef.OfAsset(marker))],
         };
         var saved = await c.PostJson<TableState>("/v1/layouts", With(terrain, texture, mini));
         Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/v1/layouts", With(terrain, texture, terrain), ContentJson.Options)).StatusCode);   // a marker takes either mesh kind

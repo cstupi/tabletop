@@ -74,9 +74,9 @@ Findings that reversed an earlier decision or added a column went to the user.
   is not a flag but an empty legal set, and a team that passed with a non-empty legal set would
   have been re-asked at once. Ruled: the pass is a logged fact (`turn_ended` carrying `passed`);
   finished is passed-this-round or empty legal set; only teams that did not pass re-enter.
-- **Tokens had no home in the log.** Setup content said a token is "dropped during play and
-  moved freely" and the marker table lives only on the snapshot. Ruled: objectives are snapshot
-  rows; a token dropped in play is an ordinary logged command, rebuilt from the log.
+- **Markers had no home in the log.** The marker table lives only on the snapshot. Ruled:
+  objectives are snapshot rows; moving one in play is an ordinary logged command
+  (`marker_moved`), rebuilt from the log. Owner ruling: "Remove tokens." A marker is an objective.
 - **Containment meant two things.** The table model's "computed, never stored" is standing in
   terrain; game flow's is being inside a transport, a stored location. Annotated.
 - **Mesh prep tool.** The asset library and geometry values still credited an offline tool.

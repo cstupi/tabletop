@@ -1,5 +1,5 @@
 <!-- viewer/src/lib/setup/SetupTools.svelte -->
-<!-- The setup sidebar (SetupToolbar.cs's closed set of edits): Table, Terrain (a search over the catalog, grouped), Markers, Zones,
+<!-- The setup sidebar (SetupToolbar.cs's closed set of edits): Table, Terrain (a search over the catalog, grouped), Objectives, Zones,
      Layouts and Players, each a collapsible section. Anyone may use every control; each sends one edit Godot sends. -->
 <script lang="ts">
   import type { Api } from '../api/client';
@@ -9,7 +9,7 @@
   import TeamCards from '../lobby/TeamCards.svelte';
   import type { Edit, TableState } from '../protocol/wire.generated';
   import type { BuiltinTerrain, Catalog } from './catalog';
-  import { ZONE_STYLES, addAsset as addAssetEdit, addBuiltin as addBuiltinEdit, clearTerrain, objective, swapZones, tableSize, texture, token, zones } from './edits';
+  import { ZONE_STYLES, addAsset as addAssetEdit, addBuiltin as addBuiltinEdit, clearTerrain, objective, swapZones, tableSize, texture, zones } from './edits';
   import LayoutsSection from './LayoutsSection.svelte';
   import {
     MARKERS, MAX_EDGE, MIN_EDGE, TERRAIN, cannotAddMarker, cannotAddTerrain, cannotClearTerrain,
@@ -71,7 +71,7 @@
   const askClear = () => {
     asking = {
       title: 'Clear terrain?', ok: 'Clear terrain', danger: true,
-      text: `All ${draft.terrain.length} terrain pieces come off the table. Markers and zones stay.`,
+      text: `All ${draft.terrain.length} terrain pieces come off the table. Objectives and zones stay.`,
       run: () => send(clearTerrain(draft)),
     };
   };
@@ -142,11 +142,10 @@
   </details>
 
   <details class="section" open>
-    <summary><span>Markers</span><span class="meta">{draft.markers.length} / {MARKERS}</span></summary>
+    <summary><span>Objectives</span><span class="meta">{draft.markers.length} / {MARKERS}</span></summary>
     <div class="body">
       <div class="pair">
         <button class="small" disabled={addMarker !== null} title={addMarker ?? ''} onclick={() => send(objective(draft.size, draft.markers))}><Icon name="objective" />Objective</button>
-        <button class="small" disabled={addMarker !== null} title={addMarker ?? ''} onclick={() => send(token(draft.size, draft.markers))}><Icon name="plus" />Token</button>
       </div>
     </div>
   </details>

@@ -64,8 +64,8 @@ public static class Invariants
     }
 
     /// <summary>
-    /// Every objective_control_set, alone or inside another event's changes, names a marker the game holds at that point — a setup
-    /// marker, or one placed and not removed — and, when it names a team, a team of the game (objectives spec → sim).
+    /// Every objective_control_set, alone or inside another event's changes, names a setup marker of the game and, when it names a
+    /// team, a team of the game (objectives spec → sim).
     /// </summary>
     public static InvariantResult ControlFollowsTheMarkers(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {
@@ -76,8 +76,6 @@ public static class Invariants
             {
                 switch (change)
                 {
-                    case MarkerPlaced m: markers.Add(m.Marker.Id); break;
-                    case MarkerRemoved m: markers.Remove(m.MarkerId); break;
                     case ObjectiveControlSet o when !markers.Contains(o.MarkerId):
                         return new InvariantResult(nameof(ControlFollowsTheMarkers), false, $"seq {e.Seq} gives marker {o.MarkerId:N}, which the game does not hold");
                     case ObjectiveControlSet { TeamId: { } team } when !teams.Contains(team):

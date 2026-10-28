@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Marker } from '../src/lib/protocol/wire.generated';
 import { MarkerLocks } from '../src/lib/play/markerLocks';
 import {
-  SET_ASIDE, forBoarding, forFrame, forMarker, forModel, forRosterUnit, forTeam, forUnit, knownActionNames, offTable, token,
+  SET_ASIDE, forBoarding, forFrame, forMarker, forModel, forRosterUnit, forTeam, forUnit, knownActionNames, offTable,
 } from '../src/lib/play/menuModel';
 import { Names } from '../src/lib/play/names';
 import { grantChoices } from '../src/lib/play/ruleTexts';
@@ -11,7 +11,7 @@ import { ASK_ID, FRAME, P1, P2, TEAM1, TEAM2, askOf, at, boardOf, emptyTable, ev
 
 const s = sample();
 const game = s.game;
-const objective: Marker = { ...markerOf('centre', 'objective'), id: newId() };
+const objective: Marker = { ...markerOf('centre'), id: newId() };
 const table = { ...emptyTable(), markers: [objective] };
 const board = boardOf([{ participantId: P1, units: [s.squad] }, { participantId: P2, units: [s.rivals] }], table);
 const after = (...p: EventPayload[]) => projectionOf(game, board, p).projection;
@@ -53,9 +53,6 @@ describe('MenuModel play items', () => {
     expect(byLabel(team, 'Set score').build('2')).toEqual({ kind: 'set_score', teamId: TEAM1, score: 2 });
     expect(byLabel(team, 'Make this the active team').build(null)).toEqual({ kind: 'set_active_team', teamId: TEAM1 });
     expect(byLabel(team, 'Set the round').build('3')).toEqual({ kind: 'set_round', round: 3 });
-    const tok = markerOf('t');
-    const placed = after({ kind: 'marker_placed', marker: tok });
-    expect(byLabel(forMarker(game, placed, tok.id), 'Remove').build(null)).toEqual({ kind: 'remove_marker', markerId: tok.id });
     const framed = after({ kind: 'sequence_started', frameId: FRAME, sequence: 'attack-sequence', context: { actorUnitId: s.squad.id, targetUnitIds: [], weaponIds: [] } });
     expect(forFrame(framed).map((i) => i.build(null))).toEqual([{ kind: 'abandon_sequence', frameId: FRAME }]);
     expect(forFrame(p)).toEqual([]);
@@ -77,14 +74,12 @@ describe('MenuModel play items', () => {
     expect(offTable(after(place(s.model.id)), TEAM1, new Names(game, shelf))).toEqual([]);
   });
 
-  it('an objective from setup or play can be given to a team or made neutral and a token cannot', () => {
-    const tok = markerOf('t');
-    const p = after({ kind: 'marker_placed', marker: tok });
+  it('an objective moved or not can be given to a team or made neutral', () => {
+    const p = after({ kind: 'marker_moved', markerId: objective.id, position: { x: 9, y: 9, z: 0 }, yaw: { degrees: 0 } });
     const items = forMarker(game, p, objective.id);
-    expect(label(items)).toEqual(['Give to Team 1', 'Give to Team 2', 'Make neutral']);       // no Remove: a setup row is not a play marker
+    expect(label(items)).toEqual(['Give to Team 1', 'Give to Team 2', 'Make neutral']);
     expect(items[1]!.build(null)).toEqual({ kind: 'set_objective_control', markerId: objective.id, teamId: TEAM2 });
     expect(items[2]!.build(null)).toEqual({ kind: 'set_objective_control', markerId: objective.id });
-    expect(label(forMarker(game, p, tok.id))).toEqual(['Remove']);
     expect(forMarker(game, p, newId())).toEqual([]);
   });
 
@@ -92,24 +87,10 @@ describe('MenuModel play items', () => {
     const locks = new MarkerLocks();
     const p = after();
     expect(label(forMarker(game, p, objective.id, locks))).toEqual(['Give to Team 1', 'Give to Team 2', 'Make neutral', 'Unlock']);
-    const tok = markerOf('t');
-    expect(label(forMarker(game, after({ kind: 'marker_placed', marker: tok }), tok.id, locks))).toEqual(['Remove']);
     const last = forMarker(game, p, objective.id, locks).at(-1)!;
     expect([last.build(null), last.input]).toEqual([null, 'none']);
     last.local!();
     expect(forMarker(game, p, objective.id, locks).at(-1)!.label).toBe('Lock');
-  });
-
-  it('a moved setup objective is still not removable', () => {
-    const p = after({ kind: 'marker_moved', markerId: objective.id, position: { x: 9, y: 9, z: 0 }, yaw: { degrees: 0 } });
-    expect(label(forMarker(game, p, objective.id))).not.toContain('Remove');
-  });
-
-  it('the token item drops a labelled chip where clicked', () => {
-    const cmd = token({ x: 3, y: 4, z: 0 }).build('smoke') as unknown as { kind: string; marker: Marker };
-    expect(cmd.kind).toBe('place_marker');
-    expect(cmd.marker).toMatchObject({ kind: 'token', position: { x: 3, y: 4, z: 0 }, label: 'smoke', diameter: 1, visual: { builtin: 'chip' } });
-    expect(cmd.marker.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
 

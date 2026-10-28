@@ -193,13 +193,13 @@ Persistence and the log see one write per drop, not one per frame.
 
 Selection is presence and never a command. Clicking a unit does not activate it. During setup the
 same click may select a terrain placement or a marker, and the drop sends the matching setup edit
-(`MoveTerrain`, `MoveSetupMarker`) instead of a command. A token dropped in play sends
-`MoveMarker`, as does an unlocked setup objective dropped in play: its first `MarkerMoved` copies it
-into `Projection.Markers`, which `TableView` draws over the board row. Those four release paths are the
+(`MoveTerrain`, `MoveSetupMarker`) instead of a command. An unlocked setup objective dropped in
+play sends `MoveMarker`: its first `MarkerMoved` copies it
+into `Projection.Markers`, which `TableView` draws over the board row. Those release paths are the
 only difference between a setup drag and a play drag. In play a terrain drag starts and sends nothing on
 release, so the piece snaps back. Objective markers are locked from play on (`MarkerLocks`): a drag on a
 locked objective does not start under any enforcement setting, the marker menu's Unlock and Lock items
-toggle it, and the state is local to the client. A setup marker is never removable.
+toggle it, and the state is local to the client. A marker is never removed in play.
 
 A plain drag of a model outside a move step is a hand move: one `MoveModels` on release, which never ends a turn.
 The server judges it under the game's enforcement setting (`HandMoves.Judge`, rule `hand_move`): placing the unit

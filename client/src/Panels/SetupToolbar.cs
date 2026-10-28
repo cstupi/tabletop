@@ -67,9 +67,8 @@ public partial class SetupToolbar : VBoxContainer
 
         terrainSection.AddChild(Gated(Wide("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
 
-        var markers = new HFlowContainer(); Section(SetupLimits.MarkersHeading).AddChild(markers);
+        var markers = new HFlowContainer(); Section(SetupLimits.ObjectivesHeading).AddChild(markers);
         markers.AddChild(Gated(Btn("Add objective", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Objective(d)); }), SetupLimits.CannotAddMarker));
-        markers.AddChild(Gated(Btn("Add token", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Token(d)); }), SetupLimits.CannotAddMarker));
 
         var zones = new HFlowContainer(); Section(_ => "Zones").AddChild(zones);
         var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(SetupWords.ZoneStyle(z)); zones.AddChild(style);
@@ -155,7 +154,7 @@ public partial class SetupToolbar : VBoxContainer
     {
         if (s.Draft is not { Terrain.Count: > 0 } draft) return;
         var d = new ConfirmationDialog { Title = "Clear terrain?", OkButtonText = "Clear terrain", DialogAutowrap = true,
-            DialogText = $"All {draft.Terrain.Count} terrain pieces come off the table. Markers and zones stay." };
+            DialogText = $"All {draft.Terrain.Count} terrain pieces come off the table. Objectives and zones stay." };
         d.Confirmed += () => { if (s.Draft is { } now) Guarded.Send(s, SetupEdits.ClearTerrain(now)); };
         d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
         AddChild(d); d.PopupCentered(new Vector2I(360, 0));

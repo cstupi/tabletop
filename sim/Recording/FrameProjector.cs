@@ -30,7 +30,7 @@ public sealed class FrameProjector(CompiledScenario scenario)
             LogLines.Of(e, p, _ordinals),
             p.Models.Values.Select(ModelState).ToList(),
             p.Units.Values.Select(UnitState).ToList(),
-            // Setup markers first (a setup objective is in no play store), then those placed in play; the play entry wins a shared id.
+            // Setup markers not moved in play, then the moved ones' projection entries.
             p.Board.Table.Markers.Where(m => !p.Markers.ContainsKey(m.Id)).Concat(p.Markers.Values).Select(m => MarkerState(m, p.Control)).ToList(),
             p.OpenAsks.Values.Select(AskOf).ToList(),
             rolls,
@@ -53,7 +53,7 @@ public sealed class FrameProjector(CompiledScenario scenario)
             m.Wounds, m.SpellTokens, m.Conditions.Order().ToList()),
     };
 
-    // Kind, diameter and label ride along per frame, because a marker placed during play is in no board block.
+    // Kind, diameter and label ride along per frame, so a frame is whole state.
     private static RecordedMarkerState MarkerState(Marker m, IReadOnlyDictionary<Guid, Guid> control) => new(
         m.Id, m.Kind.ToString().ToLowerInvariant(), m.Diameter, m.Label,
         m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees,

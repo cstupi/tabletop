@@ -8,7 +8,7 @@ const piece = (id: string, x: number, y: number): TerrainPlacement => ({
 });
 const draft = (terrain: TerrainPlacement[]): TableState => ({
   id: 'd', size: { width: 72, length: 48 }, texture: { builtin: 'grass' }, terrain, zones: [],
-  markers: [{ id: 'm1', kind: 'token', position: { x: 5, y: 6, z: 0 }, yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } }],
+  markers: [{ id: 'm1', kind: 'objective', position: { x: 5, y: 6, z: 0 }, yaw: { degrees: 0 }, diameter: 3, visual: { builtin: 'objective-ring' } }],
 });
 
 interface Call { terrain: readonly TerrainPlacement[]; id: string; at: Placement; to: XY }

@@ -17,8 +17,8 @@ public class SetupLimitsTests
     public void Section_headings_count_against_the_server_s_caps()
     {
         var d = Draft(12, 3);
-        Assert.Equal(("Terrain (12/64)", "Markers (3/32)"), (SetupLimits.TerrainHeading(d), SetupLimits.MarkersHeading(d)));
-        Assert.Equal(("Terrain", "Markers"), (SetupLimits.TerrainHeading(null), SetupLimits.MarkersHeading(null)));
+        Assert.Equal(("Terrain (12/64)", "Objectives (3/32)"), (SetupLimits.TerrainHeading(d), SetupLimits.ObjectivesHeading(d)));
+        Assert.Equal(("Terrain", "Objectives"), (SetupLimits.TerrainHeading(null), SetupLimits.ObjectivesHeading(null)));
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class SetupLimitsTests
         Assert.Equal("The table holds at most 64 terrain pieces: remove some first.", SetupLimits.CannotAddTerrain(Draft(64, 0)));
         Assert.Equal("These 21 pieces would take the table past 64 terrain pieces (it has 50): remove some first.", SetupLimits.CannotAddTerrain(Draft(50, 0), 21));
         Assert.Null(SetupLimits.CannotAddMarker(Draft(0, 31)));
-        Assert.Equal("The table holds at most 32 markers: remove some first.", SetupLimits.CannotAddMarker(Draft(0, 32)));
+        Assert.Equal("The table holds at most 32 objectives: remove some first.", SetupLimits.CannotAddMarker(Draft(0, 32)));
         Assert.Equal("The table has not arrived yet.", SetupLimits.CannotAddTerrain(null));
     }
 

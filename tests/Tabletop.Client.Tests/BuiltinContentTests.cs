@@ -48,7 +48,7 @@ public class BuiltinContentTests
     {
         Assert.Contains("grass", BuiltinContent.Textures);                 // the game server's default draft texture
         Assert.Contains("desert", BuiltinContent.Textures);
-        Assert.Contains("objective-ring", BuiltinContent.MarkerVisuals); Assert.Contains("chip", BuiltinContent.MarkerVisuals);
+        Assert.Equal(["objective-ring"], BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
         // Every piece names one of the catalog's meshes: 33 files for 38 pieces, shared only by the same terrain at other sizes.

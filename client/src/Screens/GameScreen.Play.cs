@@ -70,9 +70,9 @@ public partial class GameScreen
             else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
         };
         _menu.ItemChosen += _onItem;
-        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu, and the table's menu offers only Leave; a replay offers none.
+        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu. The table's menu offers Leave; a replay offers none.
         _onPieceRight = (id, at) => { if (MenuCtx() is { } ctx) _menu?.Open(Menus.Piece(ctx, id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
-        _onTableRight = at => { if (!_session.Replaying) _menu?.Open([.. MenuCtx() is { } ctx ? Menus.Table(ctx, WorldFrame.FromGodot(at)) : _session.IsWatching ? [] : [MenuModel.Token(WorldFrame.FromGodot(at))], _leave], GetViewport().GetMousePosition()); };
+        _onTableRight = at => { if (!_session.Replaying) _menu?.Open([_leave], GetViewport().GetMousePosition()); };
         Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
 
         // The parts die with the screen, so their own events need no unsubscribing.

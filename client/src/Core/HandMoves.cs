@@ -28,7 +28,7 @@ public static class HandMoves
             return new Call(null, new MoveTerrain(id, drop.Current[id], drop.Yaws[id]));
         if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == id))
             return new Call(null, new MoveSetupMarker(id, drop.Current[id], drop.Yaws[id]));
-        if (p is not null && (p.Markers.ContainsKey(id) || p.Board.Table.Markers.Any(m => m.Id == id)))   // a play marker, or a setup one (an unlocked objective)
+        if (p is not null && p.Board.Table.Markers.Any(m => m.Id == id))   // an unlocked objective
             return new Call(new MoveMarker(id, drop.Current[id], drop.Yaws[id]), null);
         return null;
     }

@@ -48,9 +48,9 @@ public static class HeaderView
     static bool InPlay(Projection p, Location at) =>
         at is OnTable || at is Inside { ContainerId: var c } && p.Models.GetValueOrDefault(c)?.Location is OnTable;
 
-    /// <summary>Objective markers, setup's then play's, with their controller (Projection.Control); null is neutral.</summary>
-    public static IReadOnlyList<(Guid MarkerId, Guid? TeamId)> Objectives(Projection p) => p.Board.Table.Markers.Concat(p.Markers.Values)
-        .Where(m => m.Kind == MarkerKind.Objective).DistinctBy(m => m.Id).Select(m => (m.Id, p.Control.TryGetValue(m.Id, out var t) ? t : (Guid?)null)).ToList();
+    /// <summary>Objective markers in setup's order, with their controller (Projection.Control); null is neutral.</summary>
+    public static IReadOnlyList<(Guid MarkerId, Guid? TeamId)> Objectives(Projection p) =>
+        p.Board.Table.Markers.Select(m => (m.Id, p.Control.TryGetValue(m.Id, out var t) ? t : (Guid?)null)).ToList();
 
     /// <summary>"Orcs · Charge"; led by "Team 2 activating: " when the actor is not my team's (a watcher has none).</summary>
     public static string? ActivationLine(Projection p, GameInfo game, Names n, Guid? myTeam)

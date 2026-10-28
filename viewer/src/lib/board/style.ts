@@ -1,6 +1,6 @@
 // viewer/src/lib/board/style.ts
 // How the board looks, decided without a canvas: the theme's board colours (the --board-* custom properties in src/app.css, read at draw
-// time so a theme switch redraws in the new one), terrain fills by kind, zone and token colours, and the words a label may show.
+// time so a theme switch redraws in the new one), terrain fills by kind, zone and marker colours, and the words a label may show.
 
 import { terrainStroke } from './palette';
 

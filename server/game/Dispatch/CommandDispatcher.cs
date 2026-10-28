@@ -20,7 +20,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         Undo => CommandClass.Undo,
         AbandonSequence => CommandClass.Abandon,
         AnswerAsk => CommandClass.Answer,
-        MoveModels or PlaceMarker or MoveMarker or RemoveMarker or SetWounds or SetCondition or RecordAction or ClearActionRecord
+        MoveModels or MoveMarker or SetWounds or SetCondition or RecordAction or ClearActionRecord
             or AddGrant or RemoveGrant or SetSpellTokens or SetWoundsThisActivation or SetScore or SetActiveTeam or SetRound or SetObjectiveControl => CommandClass.Override,
         _ => CommandClass.Engine,
     };

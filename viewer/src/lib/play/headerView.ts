@@ -51,16 +51,9 @@ function inPlay(p: Projection, at: Location): boolean {
   return at.kind === 'table' || (at.kind === 'inside' && p.models.get(at.containerId)?.location.kind === 'table');
 }
 
-/** Objective markers, setup's then play's, with their controller (Projection.control); null is neutral. */
+/** Objective markers in setup's order, with their controller (Projection.control); null is neutral. */
 export function objectives(p: Projection): { markerId: string; teamId: string | null }[] {
-  const seen = new Set<string>();
-  const out: { markerId: string; teamId: string | null }[] = [];
-  for (const m of [...p.board.table.markers, ...p.markers.values()]) {
-    if (m.kind !== 'objective' || seen.has(m.id)) continue;
-    seen.add(m.id);
-    out.push({ markerId: m.id, teamId: p.control.get(m.id) ?? null });
-  }
-  return out;
+  return p.board.table.markers.map((m) => ({ markerId: m.id, teamId: p.control.get(m.id) ?? null }));
 }
 
 /** "Orcs · Charge"; led by "Team 2 activating: " when the actor is not my team's (a watcher has none). */

@@ -114,9 +114,9 @@ public partial class WarmupScene : Node
 
         // Markers, a zone, a move area, rulers, lines and labels: the overlays a game draws over the table.
         var z = new Vector3(0, 0, -14);
-        foreach (var (kind, label) in new[] { (MarkerKind.Objective, "1"), (MarkerKind.Objective, (string?)null) })
+        foreach (var label in new[] { "1", (string?)null })
         {
-            var m = new MarkerNode { MarkerId = Guid.NewGuid() }; m.Build(new Marker(Guid.NewGuid(), kind, new Point3(18, 14, 0), new Yaw(0), 1.5, label, VisualRef.OfBuiltin("objective-ring")), label is null ? Palette.Team(1) : null);
+            var m = new MarkerNode { MarkerId = Guid.NewGuid() }; m.Build(new Marker(Guid.NewGuid(), MarkerKind.Objective, new Point3(18, 14, 0), new Yaw(0), 1.5, label, VisualRef.OfBuiltin("objective-ring")), label is null ? Palette.Team(1) : null);
             m.Position = z + new Vector3(18, 0, 0); _root.AddChild(m);
         }
         var zone = new ZoneNode(); zone.Build(new DeploymentZone(Guid.NewGuid(), "frontline", 1), new TableSize(24, 16), Palette.Team(1) with { A = 0.35f }); _root.AddChild(zone);

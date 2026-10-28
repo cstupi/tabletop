@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Geometry } from '../src/lib/geometry';
 import type { TableState, TerrainPlacement, Volume, Yaw } from '../src/lib/protocol/wire.generated';
 import {
-  clearTerrain, objective, overrideVolume, removeFromDraft, setupMenu, token, turnInDraft, withDeclaration, withFootprint, withNotes,
+  clearTerrain, objective, overrideVolume, removeFromDraft, setupMenu, turnInDraft, withDeclaration, withFootprint, withNotes,
   zoneShapes,
 } from '../src/lib/setup/edits';
 
@@ -31,13 +31,11 @@ describe('setup edits', () => {
     expect(zoneShapes('free-for-all')).toHaveLength(4);
   });
 
-  it("objective and token build Godot's markers", () => {
+  it("objective builds Godot's marker", () => {
     const o = objective({ width: 72, length: 48 }, []);
     expect(o.marker).toMatchObject({ kind: 'objective', diameter: 3, position: { x: 36, y: 24, z: 0 }, visual: { builtin: 'objective-ring' } });
     expect(o.marker.label).toBeUndefined();
-    const t = token({ width: 72, length: 48 }, [o.marker]);
-    expect(t.marker).toMatchObject({ kind: 'token', diameter: 1, label: 'token', visual: { builtin: 'chip' } });
-    expect(t.marker.id).not.toBe(o.marker.id);
+    expect(objective({ width: 72, length: 48 }, [o.marker]).marker.id).not.toBe(o.marker.id);
   });
 
   it('turnInDraft wraps the facing and asks turnPiece', () => {

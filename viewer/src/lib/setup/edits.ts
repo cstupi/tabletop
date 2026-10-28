@@ -22,15 +22,10 @@ export const ZONE_STYLES: readonly string[] = [
 export const zoneShapes = (style: string): string[] =>
   Array.from({ length: style === 'free-for-all' ? 4 : 2 }, (_, i) => `${style}/${i + 1}`);
 
-const marker = (kind: Marker['kind'], size: TableSize, markers: readonly Marker[], diameter: number, visual: string, label?: string): AddSetupMarker => ({
+export const objective = (size: TableSize, markers: readonly Marker[]): AddSetupMarker => ({
   kind: 'add_setup_marker',
-  marker: {
-    id: crypto.randomUUID(), kind, position: freeSpot(size, markers, diameter), yaw: { degrees: 0 }, diameter,
-    ...(label === undefined ? {} : { label }), visual: { builtin: visual },
-  },
+  marker: { id: crypto.randomUUID(), kind: 'objective', position: freeSpot(size, markers, 3), yaw: { degrees: 0 }, diameter: 3, visual: { builtin: 'objective-ring' } },
 });
-export const objective = (size: TableSize, markers: readonly Marker[]): AddSetupMarker => marker('objective', size, markers, 3, 'objective-ring');
-export const token = (size: TableSize, markers: readonly Marker[]): AddSetupMarker => marker('token', size, markers, 1, 'chip', 'token');
 
 /** MenuModel.TurnInDraft over Geometry.turnPiece: facing kept in 0–360; null for no such piece or a non-finite angle. */
 export function turnInDraft(g: Geometry, d: TableState, pieceId: string, degrees: number): MoveTerrain | null {

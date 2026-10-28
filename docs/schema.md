@@ -301,6 +301,7 @@ enforced in the game server, not the database ([the setup phase](superpowers/spe
 **Built-in or asset, exactly one.** `table_state.texture_builtin | texture_asset_id` and
 `marker.visual_builtin | visual_asset_id` each carry a check constraint that one and only one is
 set — stated here since 09-04, because the terrain placement section below leans on it.
+`marker.kind` is `objective` only: `marker_kind_check` is `kind in ('objective')`.
 
 Nullable foreign keys are a smell, and the alternative is two tables with identical columns,
 which is a worse one. [Setup content](superpowers/specs/2026-08-29-setup-content-design.md)

@@ -106,9 +106,7 @@ other clients draw, so that is a `kind`:
 
 Both end the same way: replaced by a logged move event, or discarded.
 
-This is the same collapse [setup content](2026-08-29-setup-content-design.md) made when
-objectives and tokens became one marker with a `kind`, and for the same reason — two records
-that differ only in what they mean to the viewer are one record.
+Two records that differ only in what they mean to the viewer are one record.
 
 **It is a list because placement is per model, never per unit.** Dragging a unit is several
 model placements moving at once, which the table model settled and which nothing here

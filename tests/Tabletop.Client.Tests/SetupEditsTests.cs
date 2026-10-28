@@ -43,12 +43,11 @@ public class SetupEditsTests
     }
 
     [Fact]
-    public void Markers_go_to_a_free_spot()
+    public void An_objective_goes_to_a_free_spot()
     {
         var draft = TableUx.Board.Table;
-        var o = SetupEdits.Objective(draft).Marker; var t = SetupEdits.Token(draft).Marker;
+        var o = SetupEdits.Objective(draft).Marker;
         Assert.Equal((MarkerKind.Objective, SetupLimits.FreeSpot(draft.Size, draft.Markers, 3), 3.0, (string?)null, "objective-ring"), (o.Kind, o.Position, o.Diameter, o.Label, o.Visual.Builtin));
-        Assert.Equal((MarkerKind.Token, SetupLimits.FreeSpot(draft.Size, draft.Markers, 1), 1.0, "token", "chip"), (t.Kind, t.Position, t.Diameter, t.Label, t.Visual.Builtin));
         Assert.Equal(new Yaw(0), o.Yaw);
     }
 

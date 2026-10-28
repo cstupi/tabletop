@@ -80,17 +80,14 @@ export class Names {
     return p.markers.has(id) || p.board.table.markers.some((m) => m.id === id) ? this.marker(id) : Names.short(id);
   }
 
-  /** A marker by its label: placed in play, or else from setup. One with no label is its kind and its place among the markers of
-   *  that kind, setup's order first ("Objective 2"), never an id. */
+  /** An objective marker by its label, its moved copy's first. One with no label is "Objective" and its place in setup's order
+   *  ("Objective 2"), never an id. */
   marker(id: string): string {
     const p = this.#projection;
     const m = p?.markers.get(id) ?? p?.board.table.markers.find((x) => x.id === id);
     if (p === null || p === undefined || m === undefined) return Names.short(id);
     if (m.label !== undefined && m.label !== null && m.label.trim() !== '') return m.label;
-    const table = p.board.table.markers;
-    const placed = [...p.markers.values()].filter((x) => !table.some((t) => t.id === x.id)).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const kin = [...table, ...placed].filter((x) => x.kind === m.kind).map((x) => x.id);
-    return `${m.kind === 'objective' ? 'Objective' : 'Token'} ${kin.indexOf(id) + 1}`;
+    return `Objective ${p.board.table.markers.findIndex((x) => x.id === id) + 1}`;
   }
 
   /** The id without dashes, first eight characters (Guid.ToString("N")[..8]). */

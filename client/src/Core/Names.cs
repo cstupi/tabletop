@@ -26,18 +26,15 @@ public sealed class Names(GameInfo game, Projection? projection)
     public string Piece(Guid id) => projection is null ? Short(id)
         : projection.Units.ContainsKey(id) ? Unit(id) : projection.Models.ContainsKey(id) ? Model(id) : projection.Markers.ContainsKey(id) || projection.Board.Table.Markers.Any(m => m.Id == id) ? Marker(id) : Short(id);
     /// <summary>
-    /// A marker by its label: placed in play, or else from setup. One with no label is its kind and its place among the markers of
-    /// that kind, setup's order first ("Objective 2"), never an id.
+    /// An objective marker by its label, its moved copy's first. One with no label is "Objective" and its place in setup's order
+    /// ("Objective 2"), never an id.
     /// </summary>
     public string Marker(Guid id)
     {
         var marker = projection?.Markers.GetValueOrDefault(id) ?? projection?.Board.Table.Markers.FirstOrDefault(m => m.Id == id);
         if (marker is null) return Short(id);
         if (!string.IsNullOrWhiteSpace(marker.Label)) return marker.Label;
-        var table = projection!.Board.Table.Markers;
-        var kin = table.Concat(projection.Markers.Values.Where(m => table.All(t => t.Id != m.Id)).OrderBy(m => m.Id))
-            .Where(m => m.Kind == marker.Kind).Select(m => m.Id).ToList();
-        return $"{(marker.Kind == MarkerKind.Objective ? "Objective" : "Token")} {kin.IndexOf(id) + 1}";
+        return $"Objective {projection!.Board.Table.Markers.Select(m => m.Id).ToList().IndexOf(id) + 1}";
     }
     public static string Short(Guid id) => id.ToString("N")[..8];
 }

@@ -116,13 +116,12 @@ function terrain(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o:
   }
 }
 
-/** A marker as a token: a washed disc, a ring and a centre dot; an objective in its controller's colour, or neutral. */
+/** An objective marker: a washed disc, a ring and a centre dot, in its controller's colour or neutral. */
 function markers(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o: DrawOptions, named: boolean): void {
   for (const marker of scene.markers) {
     const p = at(marker.centre.x, marker.centre.y);
     const radius = Math.max(5, marker.radius * view.scale);
-    const objective = marker.kind === 'objective';
-    const colour = marker.teamOrdinal !== undefined ? teamColour(marker.teamOrdinal) : objective ? c.label : c.labelDim;
+    const colour = marker.teamOrdinal !== undefined ? teamColour(marker.teamOrdinal) : c.label;
     const picked = o.selected.has(marker.id);
     circle(ctx, p, radius);
     ctx.fillStyle = withAlpha(c.bg, 0.55);
@@ -130,16 +129,14 @@ function markers(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o:
     ctx.fillStyle = withAlpha(colour, marker.teamOrdinal !== undefined ? 0.35 : 0.14);
     ctx.fill();
     ctx.strokeStyle = picked ? c.select : colour;
-    ctx.lineWidth = picked ? 3 : objective ? 2.5 : 1.5;
+    ctx.lineWidth = picked ? 3 : 2.5;
     ctx.stroke();
-    if (objective) {
-      circle(ctx, p, Math.max(1.5, radius * 0.5));
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      circle(ctx, p, Math.max(1.5, radius * 0.16));
-      ctx.fillStyle = colour;
-      ctx.fill();
-    }
+    circle(ctx, p, Math.max(1.5, radius * 0.5));
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    circle(ctx, p, Math.max(1.5, radius * 0.16));
+    ctx.fillStyle = colour;
+    ctx.fill();
     if (named || (o.showLabels && picked)) {
       const text = labelText(marker.label, '');
       if (text.length > 0) haloText(ctx, text, { x: p.x, y: p.y - radius - 9 }, c.label, withAlpha(c.bg, 0.75), SMALL_FONT);

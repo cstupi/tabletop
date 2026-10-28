@@ -58,7 +58,7 @@ public sealed record RecordedVolume(
     double OffsetX, double OffsetY, double Yaw, double Bottom, double Top,
     IReadOnlyList<string> Declarations, string? Notes);
 
-/// <param name="Kind">`objective` or `token`.</param>
+/// <param name="Kind">`objective`.</param>
 public sealed record RecordedMarker(Guid Id, string Kind, double Diameter, string? Label);
 
 /// <param name="Shape">The shape id, as the table state holds it — `frontline/1`.</param>
@@ -115,11 +115,9 @@ public sealed record RecordedUnitState(
     Guid Id, IReadOnlyList<string> Actions, IReadOnlyList<string> Conditions,
     IReadOnlyList<string> Grants, int WoundsThisActivation);
 
-/// <param name="Kind">`objective` or `token`.</param>
-/// <param name="Diameter">Inches. Carried per frame, not looked up in Board.Markers: a marker placed during
-/// play is in no board block, and a frame a reader has to join against something that may not be there is
-/// not whole state.</param>
-/// <param name="ControlledBy">The team that controls this objective marker (Projection.Control); null when neutral or not an objective.</param>
+/// <param name="Kind">`objective`.</param>
+/// <param name="Diameter">Inches. Carried per frame, not looked up in Board.Markers, so a frame is whole state.</param>
+/// <param name="ControlledBy">The team that controls this objective marker (Projection.Control); null when neutral.</param>
 public sealed record RecordedMarkerState(
     Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw, Guid? ControlledBy = null);
 

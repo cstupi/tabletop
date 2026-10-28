@@ -33,10 +33,10 @@ const frame: RecordedFrame = {
     { id: 'u1', actions: ['Advance'], conditions: [], grants: [], woundsThisActivation: 1 },
     { id: 'u2', actions: [], conditions: ['shaken'], grants: ['Regeneration'], woundsThisActivation: 0 },
   ],
-  // k1 is also in board.markers and agrees with it; k9 was dropped during play and is in no board block.
+  // k1 is also in board.markers and agrees with it; k9 is in no board block.
   markers: [
     { id: 'k1', kind: 'objective', diameter: 2, label: 'A', x: 36, y: 24, z: 0, yaw: 0 },
-    { id: 'k9', kind: 'token', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 },
+    { id: 'k9', kind: 'objective', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 },
   ],
   openAsks: [], rolls: [], scores: { t1: 3, t2: 0 }, passed: ['t2'],
 };
@@ -128,7 +128,7 @@ describe('sceneOf', () => {
     const markers = sceneOf(board, frame).markers;
     expect(markers[0]).toEqual({ id: 'k1', kind: 'objective', label: 'A', centre: { x: 36, y: 24 }, radius: 1 });
     // k9 is in no board block; the frame carries its whole definition, so nothing is guessed.
-    expect(markers[1]).toEqual({ id: 'k9', kind: 'token', label: 'k9', centre: { x: 4, y: 4 }, radius: 0.5 });
+    expect(markers[1]).toEqual({ id: 'k9', kind: 'objective', label: 'k9', centre: { x: 4, y: 4 }, radius: 0.5 });
   });
 });
 

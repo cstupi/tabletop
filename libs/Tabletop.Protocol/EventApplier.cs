@@ -120,13 +120,11 @@ public sealed class EventApplier(Board board, GameInfo game)
             case SpellTokensSet s: Need(p.ModelsMut, s.ModelId, s).SpellTokens = s.Tokens; break;
             case WoundsThisActivationSet w: Need(p.UnitsMut, w.UnitId, w).WoundsThisActivation = w.Wounds; break;
             case ScoreSet s: p.ScoresMut[s.TeamId] = s.Score; break;                       // an assignment cannot miss
-            case MarkerPlaced m: p.MarkersMut[m.Marker.Id] = m.Marker; break;
             // A setup marker's first move copies its board row into the projection, which wins on the shared id from then on.
             case MarkerMoved m:
                 var marker = p.MarkersMut.GetValueOrDefault(m.MarkerId) ?? p.Board.Table.Markers.FirstOrDefault(x => x.Id == m.MarkerId)
                     ?? throw new ProjectionDesyncException(EventKinds.Of(m), m.MarkerId);
                 p.MarkersMut[m.MarkerId] = marker with { Position = m.Position, Yaw = m.Yaw }; break;
-            case MarkerRemoved m: p.MarkersMut.Remove(m.MarkerId); p.ControlMut.Remove(m.MarkerId); break;
             case ObjectiveControlSet o: if (o.TeamId is { } team) p.ControlMut[o.MarkerId] = team; else p.ControlMut.Remove(o.MarkerId); break;   // an assignment cannot miss
             default: throw new NotSupportedException($"Unknown state change {change.GetType().Name}");
         }

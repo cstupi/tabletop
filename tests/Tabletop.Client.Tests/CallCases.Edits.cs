@@ -221,7 +221,6 @@ public static partial class CallCases
         yield return E("clear", "terrain", Obj(), s => SetupEdits.ClearTerrain(s.Draft!));
         yield return E("load", "calls/selfplay", Obj(("layout", J(terrain.Board.Table))), _ => SetupEdits.Load(terrain.Board.Table));
         yield return E("objective", "calls/objectives", Obj(), s => SetupEdits.Objective(s.Draft!));
-        yield return E("token", "calls/objectives", Obj(), s => SetupEdits.Token(s.Draft!));
         yield return E("zones", "terrain", Obj(("style", "spearhead")), _ => SetupEdits.Zones("spearhead"));
         yield return E("swapZones", "terrain", Obj(("a", 1), ("b", 2)), _ => SetupEdits.SwapZones(1, 2));
 
