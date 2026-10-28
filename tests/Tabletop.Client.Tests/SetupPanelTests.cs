@@ -109,8 +109,8 @@ public class SetupPanelTests
     }
 
     [Theory]
-    [InlineData(720, 180)]
-    [InlineData(1080, 540)]
+    [InlineData(720, 160)]
+    [InlineData(1080, 520)]
     [InlineData(400, 160)]
     [InlineData(2160, 640)]
     public void The_terrain_list_fills_what_the_window_leaves_the_headings(double window, double list) =>

@@ -71,7 +71,7 @@ public static class SetupHead
 /// the closed headings under it, between 160 and 640 px.</summary>
 public static class SetupLayout
 {
-    public const double Reserved = 540, MinList = 160, MaxList = 640;
+    public const double Reserved = 560, MinList = 160, MaxList = 640;
 
     public static double TerrainListHeight(double windowHeight) => Math.Clamp(windowHeight - Reserved, MinList, MaxList);
 }
