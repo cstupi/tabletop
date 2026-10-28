@@ -13,8 +13,9 @@ public partial class GameScreen : Control
     Session _session = null!;
     public TableView Table { get; private set; } = null!;
     public TableInput Input { get; private set; } = null!;
-    Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
-    Control? _lobby, _setup; WaitingPanel? _waiting; readonly List<TeamPanel> _teams = new(); bool _wasWaiting;
+    Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!, _sideColumn = null!; MarginContainer _sideHead = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
+    Control? _lobby, _setup, _head; WaitingPanel? _waiting; readonly List<TeamPanel> _teams = new(); bool _wasWaiting;
+    readonly SetupFolds _folds = new();   // the sections' open state outlives each rebuild
     Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
@@ -29,8 +30,11 @@ public partial class GameScreen : Control
         Input = new TableInput(); Table.AddChild(Input);
         viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
         var overlay = new PresenceOverlay(); Table.AddChild(overlay);
-        // The side panel scrolls: the setup toolbar's sections are taller than a window.
-        _sidePanel = new ScrollContainer { CustomMinimumSize = new Vector2(360, 0), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; root.AddChild(_sidePanel);
+        // The side column: a fixed head (the phase and Start or End setup) over a body that scrolls (spec 2026-10-27-godot-setup-screen-design.md).
+        _sideColumn = new VBoxContainer { CustomMinimumSize = new Vector2(360, 0) }; root.AddChild(_sideColumn);
+        _sideHead = new MarginContainer(); _sideColumn.AddChild(_sideHead);
+        foreach (var edge in new[] { "margin_left", "margin_top", "margin_right" }) _sideHead.AddThemeConstantOverride(edge, (int)HudLayout.M);
+        _sidePanel = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; _sideColumn.AddChild(_sidePanel);
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", DecisionBox.ScrollGap); _sidePanel.AddChild(inset);   // clear of the bar
         foreach (var edge in new[] { "margin_left", "margin_top", "margin_bottom" }) inset.AddThemeConstantOverride(edge, (int)HudLayout.M);   // off the panel's edges
         inset.AddChild(_side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
@@ -47,7 +51,7 @@ public partial class GameScreen : Control
         _hud.AddChild(_toasts = new Toasts());
         _hud.AddChild(_strip = new LoadingPanel { Strip = true, Visible = false });
         _onLayout = QueueLayout;
-        _hud.Resized += _onLayout; _sidePanel.Resized += _onLayout; _sidePanel.VisibilityChanged += _onLayout;
+        _hud.Resized += _onLayout; _sideColumn.Resized += _onLayout; _sideColumn.VisibilityChanged += _onLayout;
         _corner.MinimumSizeChanged += QueueLayout; _toasts.MinimumSizeChanged += QueueLayout;   // children of the screen: they die with it
         // A Hud button that keeps the focus would be pressed by Space, the camera key: buttons give it straight back.
         _onFocus = c => { if (c is BaseButton) c.ReleaseFocus(); };
@@ -59,7 +63,7 @@ public partial class GameScreen : Control
             Table.Selected = () => Input.Selected?.PieceId; Input.SelectionChanged += Table.RefreshLooks;
             Input.IntentPressed += i => { if (i == Intent.ToggleHitboxes) _session.UpdateSettings(x => x with { ShowHitboxes = !x.ShowHitboxes }); if (i == Intent.ToggleTerrainHitboxes) _session.UpdateSettings(x => x with { ShowTerrainHitboxes = !x.ShowTerrainHitboxes }); };
             // The selected terrain piece or setup marker, in setup and play, in the unit card's slot (GameScreen.Layout).
-            _hud.AddChild(_terrainCard = new TerrainCard()); _terrainCard.Bind(_session, Input, Toast);
+            _hud.AddChild(_terrainCard = new TerrainCard()); _terrainCard.Bind(_session, Input, Toast, _folds);
             _terrainCard.MinimumSizeChanged += QueueLayout; _terrainCard.VisibilityChanged += QueueLayout;
         }
         Input.SelectionChanged += ShowSelection;
@@ -98,7 +102,7 @@ public partial class GameScreen : Control
     {
         Ui.Changed -= _onTheme;
         if (IsInstanceValid(_hud)) _hud.Resized -= _onLayout;
-        if (IsInstanceValid(_sidePanel)) { _sidePanel.Resized -= _onLayout; _sidePanel.VisibilityChanged -= _onLayout; }
+        if (IsInstanceValid(_sideColumn)) { _sideColumn.Resized -= _onLayout; _sideColumn.VisibilityChanged -= _onLayout; }
         if (_session is null) return;
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.Frame.Render -= _onFrame;
@@ -114,18 +118,23 @@ public partial class GameScreen : Control
         var game = _session.Game;
         ShowStatus();
         foreach (var t in _teams) t.QueueFree(); _teams.Clear();
-        _lobby?.QueueFree(); _setup?.QueueFree(); _lobby = _setup = null;
+        _lobby?.QueueFree(); _setup?.QueueFree(); _head?.QueueFree(); _lobby = _setup = _head = null;
         _wasWaiting = game is not null && _session.WaitingTeams.Count > 0;
         // The waiting panel is kept and refreshed, not rebuilt: a game update that leaves its lines alone keeps an open army dropdown open.
         if (!_wasWaiting) { _waiting?.QueueFree(); _waiting = null; }
         if (game is null) return;
         var playing = game.Status is GameStatus.Playing or GameStatus.Ended;
-        _sidePanel.Visible = !playing || _wasWaiting;                       // play is the table to the edges (spec → Layout), once deployment can begin
+        _sideColumn.Visible = !playing || _wasWaiting;                      // play is the table to the edges (spec → Layout), once deployment can begin
         if (_wasWaiting) { if (_waiting is null) _side.AddChild(_waiting = new WaitingPanel()); else _waiting.Refresh(); }
-        if (!playing) foreach (var team in game.Teams) { var panel = new TeamPanel(team); _teams.Add(panel); _side.AddChild(panel); }
+        if (!playing)
+        {
+            // Setup's sections first, then Game settings and Players; the team cards inside Players.
+            _sideHead.AddChild(_head = new SidePanelHead());
+            if (game.Status == GameStatus.Setup) _side.AddChild(_setup = new SetupToolbar(this, _folds));
+            var lobby = new LobbyPanel { Leave = ConfirmLeave, Folds = _folds }; _side.AddChild(_lobby = lobby);
+            foreach (var team in game.Teams) { var panel = new TeamPanel(team); _teams.Add(panel); lobby.TeamCards.AddChild(panel); }
+        }
         RefreshTeams();
-        if (game.Status is GameStatus.Lobby or GameStatus.Setup) _side.AddChild(_lobby = new LobbyPanel { Leave = ConfirmLeave });
-        if (game.Status == GameStatus.Setup) _side.AddChild(_setup = new SetupToolbar(this));
         ShowPlayPanels(playing);
     }
 

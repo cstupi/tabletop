@@ -8,13 +8,19 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
 
-/// <summary>The closed set of setup edits, one control each. Anyone may use every one of them; the server applies in arrival order.</summary>
+/// <summary>
+/// The closed set of setup edits, one control each, in folding sections (spec 2026-10-27-godot-setup-screen-design.md): Terrain (open:
+/// the catalog searched and grouped, Random table, my terrain, Clear terrain), Markers, Table, Deployment zones and Layouts. Anyone may use
+/// every one of them; the server applies in arrival order.
+/// </summary>
 public partial class SetupToolbar : VBoxContainer
 {
-    readonly GameScreen _screen;
-    Session _session = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
+    readonly GameScreen _screen; readonly SetupFolds _folds;
+    Session _session = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!; ItemList _terrain = null!; LineEdit _search = null!;
+    readonly List<BuiltinTerrain?> _rows = new();   // the list's rows: a piece, or null for a group's title
+    readonly List<Fold> _foldsShown = new();
     Action? _onBoard, _onBuiltins; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
-    public SetupToolbar(GameScreen screen) => _screen = screen;
+    public SetupToolbar(GameScreen screen, SetupFolds folds) { _screen = screen; _folds = folds; }
 
     public override void _ExitTree()
     {
@@ -26,73 +32,19 @@ public partial class SetupToolbar : VBoxContainer
 
     public override void _Ready()
     {
-        var s = _session = Main.Instance.Session; var size0 = SizeNow(s);   // the board may not have arrived yet
-        AddChild(new Label { Text = "Setup" });
-
-        var table = Section(_ => "Table");
-        table.AddChild(new Label { Text = SetupLimits.SizeHint, ThemeTypeVariation = Variation.Dim });
-        var size = new HFlowContainer(); table.AddChild(size);
-        var width = _width = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Length, Suffix = "\"" };
-        size.AddChild(width); size.AddChild(length);
-        size.AddChild(Btn("Set size", () => Guarded.Send(s, SetupEdits.TableSize(width.Value, length.Value))));
-        // The lists follow the built-in catalog in use, refilled when a release brings a new one.
-        List<string> textures = [], terrainNames = [];
-        var texture = new OptionButton(); table.AddChild(texture);
-        texture.ItemSelected += i => Guarded.Send(s, SetupEdits.Texture(textures[(int)i]));
-        // The dropdown names the board's print: a rejoin or another player's change shows what the table wears.
-        void ShowTexture() { if (s.Draft?.Texture.Builtin is { } name && textures.IndexOf(name) is var at and >= 0 && texture.Selected != at) texture.Select(at); }
-
-        var terrainSection = Section(SetupLimits.TerrainHeading);
-        var terrain = new OptionButton(); terrainSection.AddChild(terrain);
-        void Fill()
-        {
-            textures = [.. BuiltinContent.Textures]; texture.Clear(); foreach (var t in textures) texture.AddItem(SetupWords.Texture(t));
-            var pieces = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).ToList();
-            terrainNames = pieces.Select(t => t.Name).ToList(); terrain.Clear(); foreach (var t in pieces) terrain.AddItem(t.Label, 0);
-            ShowTexture();
-        }
-        Fill(); _onBuiltins = Fill; BuiltinContent.Changed += _onBuiltins;
-        terrainSection.AddChild(Gated(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, SetupEdits.AddBuiltin(terrainNames[terrain.Selected], SizeNow(s), Random.Shared.NextDouble))), d => SetupLimits.CannotAddTerrain(d)));
-        terrainSection.AddChild(Gated(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
-        var generators = new HFlowContainer(); terrainSection.AddChild(generators);
-        var planets = new OptionButton(); foreach (var planet in Enum.GetValues<Planet>()) planets.AddItem($"{planet} planet"); generators.AddChild(planets);
-        generators.AddChild(Gated(Btn("Random table", () => Guarded.Run(async () =>
-        {
-            // The server rolls and lays the table, balanced across the teams; the draft keeps its size, texture, markers and zones.
-            var draft = s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.");
-            var laid = await s.Management.RandomTable(new RandomTableRequest(draft.Size, Enum.GetValues<Planet>()[planets.Selected], draft.Zones, null));
-            await s.SendEditAsync(SetupEdits.Random(draft, laid));
-            if (laid.Unplaced.Count > 0) _screen.Toast($"No room for: {string.Join(", ", laid.Unplaced)}.");
-        }, _screen.Toast)), d => d is null ? "The table has not arrived yet." : null));
-
-        terrainSection.AddChild(Gated(Wide("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
-
-        var markers = new HFlowContainer(); Section(SetupLimits.MarkersHeading).AddChild(markers);
-        markers.AddChild(Gated(Btn("Add objective", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Objective(d)); }), SetupLimits.CannotAddMarker));
-        markers.AddChild(Gated(Btn("Add token", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Token(d)); }), SetupLimits.CannotAddMarker));
-
-        var zones = new HFlowContainer(); Section(_ => "Zones").AddChild(zones);
-        var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(SetupWords.ZoneStyle(z)); zones.AddChild(style);
-        zones.AddChild(Btn("Set zones", () => Guarded.Send(s, SetupEdits.Zones(ZoneStyles.All[style.Selected]))));
-        var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1, Prefix = "Team" }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2, Prefix = "Team" }; zones.AddChild(a); zones.AddChild(b);
-        zones.AddChild(Btn("Swap", () => Guarded.Send(s, SetupEdits.SwapZones((int)a.Value, (int)b.Value))));
-
-        var layouts = new HFlowContainer(); Section(_ => "Layouts").AddChild(layouts);
-        layouts.AddChild(Btn("Load layout…", () => Guarded.Run(() => LoadLayout(s), _screen.Toast)));
-        var layoutName = new LineEdit { PlaceholderText = "Layout name", MaxLength = TextLimits.Name, CustomMinimumSize = new Vector2(140, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill }; layouts.AddChild(layoutName);   // the placeholder whole
-        void SaveLayout() => Guarded.Run(async () =>
-        {
-            if (TextLimits.NameProblem(layoutName.Text, "A layout name") is { } problem) { _screen.Toast(problem); layoutName.GrabFocus(); return; }
-            await s.Management.SaveLayout((s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.")) with { Name = layoutName.Text.Trim() });
-            _screen.Toast($"Layout {layoutName.Text.Trim()} saved.");
-        }, _screen.Toast);
-        layoutName.TextSubmitted += _ => SaveLayout();
-        layouts.AddChild(Btn("Save as", SaveLayout));
+        var s = _session = Main.Instance.Session;
+        var sections = SetupFolds.Order(GameStatus.Setup).Where(f => f is not (SetupFold.Game or SetupFold.Players))
+            .ToDictionary(f => f, f => Add(new Fold(_folds, f, GameStatus.Setup, () => SetupFolds.Title(f, s.Draft, s.Game))));
+        var showTexture = BuildTable(s, sections[SetupFold.Table].Body);
+        BuildTerrain(s, sections[SetupFold.Terrain].Body);
+        BuildMarkers(s, sections[SetupFold.Markers].Body);
+        BuildZones(s, sections[SetupFold.Zones].Body);
+        BuildLayouts(s, sections[SetupFold.Layouts].Body);
 
         _onBoard = () =>
         {
             if (s.Draft is { } d && !_width.HasFocus() && !_length.HasFocus()) { _width.SetValueNoSignal(d.Size.Width); _length.SetValueNoSignal(d.Size.Length); }
-            ShowTexture();
+            showTexture();
             RefreshLimits();
         };
         s.BoardChanged += _onBoard;
@@ -110,38 +62,137 @@ public partial class SetupToolbar : VBoxContainer
         _screen.Input.PieceRightClicked += _onRight; _screen.Input.IntentPressed += _onIntent;
     }
 
-    /// <summary>Headings that count against a cap, and add buttons disabled with the reason once the draft is at it.</summary>
-    readonly List<(Button Head, Func<TableState?, string> Title)> _heads = new();
+    Fold Add(Fold fold) { AddChild(fold); _foldsShown.Add(fold); return fold; }
+
+    /// <summary>The terrain list's height for this window (SetupLayout), set again when the window changes size.</summary>
+    public void FitList(float windowHeight) { if (IsInstanceValid(_terrain)) _terrain.CustomMinimumSize = new Vector2(0, (float)SetupLayout.TerrainListHeight(windowHeight)); }
+
+    void BuildTerrain(Session s, VBoxContainer body)
+    {
+        body.AddChild(_search = new LineEdit { PlaceholderText = "Search terrain", ClearButtonEnabled = true, SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        body.AddChild(_terrain = new ItemList { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutoHeight = false, SameColumnWidth = true });
+        FitList(GetViewport().GetVisibleRect().Size.Y);
+        _search.TextChanged += _ => FillTerrain();
+        // A click on a piece adds it beside the table; a group's title does nothing.
+        _terrain.ItemClicked += (index, _, button) =>
+        {
+            _terrain.DeselectAll();
+            if (button != (long)MouseButton.Left || _rows[(int)index] is not { } entry || SetupLimits.CannotAddTerrain(s.Draft) is not null) return;
+            Guarded.Send(s, SetupEdits.AddBuiltin(entry.Name, SizeNow(s), Random.Shared.NextDouble));
+        };
+        _onBuiltins = () => { FillTerrain(); _fillTextures?.Invoke(); };
+        BuiltinContent.Changed += _onBuiltins;
+        FillTerrain();
+        body.AddChild(_terrainFull = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
+
+        var generators = new HFlowContainer(); body.AddChild(generators);
+        var planets = new OptionButton(); foreach (var planet in Enum.GetValues<Planet>()) planets.AddItem($"{planet} planet"); generators.AddChild(planets);
+        generators.AddChild(Gated(Btn("Random table", () => Guarded.Run(async () =>
+        {
+            // The server rolls and lays the table, balanced across the teams; the draft keeps its size, texture, markers and zones.
+            var draft = s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.");
+            var laid = await s.Management.RandomTable(new RandomTableRequest(draft.Size, Enum.GetValues<Planet>()[planets.Selected], draft.Zones, null));
+            await s.SendEditAsync(SetupEdits.Random(draft, laid));
+            if (laid.Unplaced.Count > 0) _screen.Toast($"No room for: {string.Join(", ", laid.Unplaced)}.");
+        }, _screen.Toast)), d => d is null ? "The table has not arrived yet." : null));
+        var more = new HFlowContainer(); body.AddChild(more);
+        more.AddChild(Gated(Btn("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
+        more.AddChild(Gated(Btn("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
+        body.AddChild(new Label { Text = "Q/E turn, Del removes, right-click for more.", ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+    }
+
+    Label _terrainFull = null!; Action? _fillTextures;
+
+    void FillTerrain()
+    {
+        if (!IsInstanceValid(_terrain)) return;
+        _terrain.Clear(); _rows.Clear();
+        var groups = TerrainGroups.Of(BuiltinContent.Terrain.Values, _search.Text);
+        foreach (var group in groups)
+        {
+            var title = _terrain.AddItem(group.Title, null, false);
+            _terrain.SetItemDisabled(title, true); _terrain.SetItemTooltipEnabled(title, false); _rows.Add(null);
+            foreach (var entry in group.Entries)
+            {
+                var row = _terrain.AddItem($"   {entry.Label}");
+                _terrain.SetItemTooltip(row, $"Add {entry.Label} beside the table: {TerrainGroups.Summary(entry)}"); _rows.Add(entry);
+            }
+        }
+        if (groups.Count == 0) { var none = _terrain.AddItem($"No terrain matches “{_search.Text.Trim()}”.", null, false); _terrain.SetItemDisabled(none, true); _rows.Add(null); }
+    }
+
+    /// <summary>Size and surface; returns what shows the board's print in the dropdown.</summary>
+    Action BuildTable(Session s, VBoxContainer body)
+    {
+        var size0 = SizeNow(s);   // the board may not have arrived yet
+        body.AddChild(new Label { Text = SetupLimits.SizeHint, ThemeTypeVariation = Variation.Dim });
+        var size = new HFlowContainer(); body.AddChild(size);
+        var width = _width = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = SetupLimits.MinEdge, MaxValue = SetupLimits.MaxEdge, Value = size0.Length, Suffix = "\"" };
+        size.AddChild(width); size.AddChild(length);
+        size.AddChild(Btn("Set size", () => Guarded.Send(s, SetupEdits.TableSize(width.Value, length.Value))));
+        // The list follows the built-in catalog in use, refilled when a release brings a new one.
+        List<string> textures = [];
+        var texture = new OptionButton(); body.AddChild(texture);
+        texture.ItemSelected += i => Guarded.Send(s, SetupEdits.Texture(textures[(int)i]));
+        // The dropdown names the board's print: a rejoin or another player's change shows what the table wears.
+        void ShowTexture() { if (s.Draft?.Texture.Builtin is { } name && textures.IndexOf(name) is var at and >= 0 && texture.Selected != at) texture.Select(at); }
+        _fillTextures = () => { textures = [.. BuiltinContent.Textures]; texture.Clear(); foreach (var t in textures) texture.AddItem(SetupWords.Texture(t)); ShowTexture(); };
+        _fillTextures();
+        return ShowTexture;
+    }
+
+    void BuildMarkers(Session s, VBoxContainer body)
+    {
+        var markers = new HFlowContainer(); body.AddChild(markers);
+        markers.AddChild(Gated(Btn("Add objective", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Objective(d)); }), SetupLimits.CannotAddMarker));
+        markers.AddChild(Gated(Btn("Add token", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Token(d)); }), SetupLimits.CannotAddMarker));
+    }
+
+    static void BuildZones(Session s, VBoxContainer body)
+    {
+        var zones = new HFlowContainer(); body.AddChild(zones);
+        var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(SetupWords.ZoneStyle(z)); zones.AddChild(style);
+        zones.AddChild(Btn("Set zones", () => Guarded.Send(s, SetupEdits.Zones(ZoneStyles.All[style.Selected]))));
+        var swap = new HFlowContainer(); body.AddChild(swap);
+        var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1, Prefix = "Team" }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2, Prefix = "Team" }; swap.AddChild(a); swap.AddChild(b);
+        swap.AddChild(Btn("Swap zones", () => Guarded.Send(s, SetupEdits.SwapZones((int)a.Value, (int)b.Value))));
+    }
+
+    void BuildLayouts(Session s, VBoxContainer body)
+    {
+        var layouts = new HFlowContainer(); body.AddChild(layouts);
+        layouts.AddChild(Btn("Load layout…", () => Guarded.Run(() => LoadLayout(s), _screen.Toast)));
+        var layoutName = new LineEdit { PlaceholderText = "Layout name", MaxLength = TextLimits.Name, CustomMinimumSize = new Vector2(140, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill }; layouts.AddChild(layoutName);   // the placeholder whole
+        void SaveLayout() => Guarded.Run(async () =>
+        {
+            if (TextLimits.NameProblem(layoutName.Text, "A layout name") is { } problem) { _screen.Toast(problem); layoutName.GrabFocus(); return; }
+            await s.Management.SaveLayout((s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.")) with { Name = layoutName.Text.Trim() });
+            _screen.Toast($"Layout {layoutName.Text.Trim()} saved.");
+        }, _screen.Toast);
+        layoutName.TextSubmitted += _ => SaveLayout();
+        layouts.AddChild(Btn("Save as", SaveLayout));
+    }
+
+    /// <summary>Add buttons disabled with the reason once the draft is at a cap, and the headings' counts.</summary>
     readonly List<(Button Button, Func<TableState?, string?> Why)> _gates = new();
 
     void RefreshLimits()
     {
         var d = _session.Draft;
-        foreach (var (head, title) in _heads) if (IsInstanceValid(head)) head.Text = $"{(head.ButtonPressed ? "▾" : "▸")} {title(d)}";
+        foreach (var fold in _foldsShown) fold.Refresh();
         foreach (var (button, why) in _gates)
         {
             if (!IsInstanceValid(button)) continue;
             var reason = why(d);
             button.Disabled = reason is not null; button.TooltipText = reason ?? "";
         }
+        if (IsInstanceValid(_terrainFull)) { var full = SetupLimits.CannotAddTerrain(d); _terrainFull.Text = full ?? ""; _terrainFull.Visible = full is not null && d is not null; }
     }
 
     Button Gated(Button button, Func<TableState?, string?> why) { _gates.Add((button, why)); return button; }
 
-    /// <summary>A heading that shows and hides the section under it; every section starts open. The title is read from the draft.</summary>
-    VBoxContainer Section(Func<TableState?, string> title)
-    {
-        var body = new VBoxContainer();
-        var head = new Button { Text = $"▾ {title(_session.Draft)}", Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = true, Alignment = HorizontalAlignment.Left, FocusMode = FocusModeEnum.None };
-        head.Toggled += open => { body.Visible = open; head.Text = $"{(open ? "▾" : "▸")} {title(_session.Draft)}"; };
-        _heads.Add((head, title));
-        AddChild(head); AddChild(body); return body;
-    }
-
     static TableSize SizeNow(Session s) => s.Draft?.Size ?? new TableSize(72, 48);
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
-    /// <summary>A button across the panel: its text wraps, so a long label never widens the side panel.</summary>
-    static Button Wide(string text, Action a) { var b = Btn(text, a); b.AutowrapMode = TextServer.AutowrapMode.WordSmart; return b; }
 
     ConfirmationDialog Dialog(string title, OptionButton pick)
     {

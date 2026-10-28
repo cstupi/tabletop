@@ -8,23 +8,26 @@ namespace Tabletop.Client.Panels;
 /// <summary>Lobby edits: written to the game's rows, broadcast, never logged. Shown at lobby and setup.</summary>
 public partial class LobbyPanel : VBoxContainer
 {
-    Label _error = null!; Button? _endSetup; Session _session = null!; Action? _onBoard;
+    Label _error = null!;
     /// <summary>The game screen's Leave, which asks first; lobby and setup have no Hud menu to hold it.</summary>
     public Action? Leave { get; init; }
+    public required SetupFolds Folds { get; init; }
+    /// <summary>Where the game screen puts the team cards, inside Players.</summary>
+    public VBoxContainer TeamCards { get; } = new();
 
-    public override void _ExitTree()
-    {
-        if (_session is null || _onBoard is null) return;
-        _session.BoardChanged -= _onBoard;
-    }
-
+    /// <summary>Two folding sections (spec 2026-10-27-godot-setup-screen-design.md): Players (seat, teams, the Players list, my armies, the
+    /// team cards, Leave game) and Game settings. Start setup and End setup are the fixed head's (SidePanelHead).</summary>
     public override void _Ready()
     {
-        var s = _session = Main.Instance.Session; var game = s.Game!;
-        AddChild(new Label { Text = "Lobby" });
-        AddChild(Wrapping(LobbyView.Seat(game, s.ParticipantId)));
-        if (LobbyView.WaitingForCreator(game, s.IsCreator) is { } waiting) AddChild(Wrapping(waiting, Variation.Accent));
-        var teams = new HFlowContainer(); AddChild(teams);
+        var s = Main.Instance.Session; var game = s.Game!;
+        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
+        var players = new Fold(Folds, SetupFold.Players, game.Status, () => SetupFolds.Title(SetupFold.Players, s.Draft, s.Game));
+        var settings = new Fold(Folds, SetupFold.Game, game.Status, () => SetupFolds.Title(SetupFold.Game, s.Draft, s.Game));
+        foreach (var fold in SetupFolds.Order(game.Status))
+            if (fold == SetupFold.Players) AddChild(players); else if (fold == SetupFold.Game) AddChild(settings);
+        var body = players.Body;
+        body.AddChild(Wrapping(LobbyView.Seat(game, s.ParticipantId)));
+        var teams = new HFlowContainer(); body.AddChild(teams);
         // An empty team is joined; a held one names its holder and, for anyone but the creator, says to ask the creator.
         foreach (var choice in LobbyView.Teams(game, s.ParticipantId, s.IsCreator))
         {
@@ -34,11 +37,12 @@ public partial class LobbyPanel : VBoxContainer
         }
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, LobbyEdits.Watch())));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, LobbyEdits.CreateTeam())));
-        AddChild(Seats(s, game));
+        body.AddChild(Seats(s, game));
         // My own army: one picker per team I hold (an army a side when I play both), or one for my teamless row. Teammates pick theirs.
         var pickers = LobbyView.Armies(game, s.ParticipantId).Select(seat => (Seat: seat, Box: new OptionButton())).ToList();
-        foreach (var (seat, box) in pickers) { box.AddItem("No army"); AddChild(Named(seat.Label, box)); }
-        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false });
+        foreach (var (seat, box) in pickers) { box.AddItem("No army"); body.AddChild(Named(seat.Label, box)); }
+        body.AddChild(TeamCards);
+        if (Leave is { } leave && s.ParticipantId is { } me && me != Guid.Empty) body.AddChild(Btn("Leave game", leave));   // gives the seat up, asked first
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
@@ -50,7 +54,7 @@ public partial class LobbyPanel : VBoxContainer
                 box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : list[(int)i - 1].Id));
             }
         }, Problem);
-        var config = new VBoxContainer(); AddChild(config);
+        var config = settings.Body;
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
         var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(Named("Game name", name));
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(Named("Activation", shape));
@@ -73,14 +77,6 @@ public partial class LobbyPanel : VBoxContainer
                 if (control is LineEdit l) l.Editable = false;
                 if (control is BaseButton or LineEdit) control.TooltipText = LobbyView.CreatorOnly;
             }
-        if (Leave is { } leave && s.ParticipantId is { } me && me != Guid.Empty) AddChild(Btn("Leave game", leave));   // gives the seat up, asked first
-        if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, LobbyEdits.StartSetup())));
-        if (s.IsCreator && game.Status == GameStatus.Setup)
-        {
-            AddChild(_endSetup = Btn(LobbyView.EndSetupText(s.Draft), () => Guarded.Send(s, LobbyEdits.EndSetup()))); _endSetup.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = LobbyView.EndSetupText(s.Draft); };
-            s.BoardChanged += _onBoard;
-        }
     }
 
     /// <summary>Every participant, teamless ones included. The creator's rows carry a team picker that places that participant (PickTeam with its id).</summary>

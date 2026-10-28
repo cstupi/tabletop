@@ -17,15 +17,15 @@ namespace Tabletop.Client.Hud;
 /// </summary>
 public partial class TerrainCard : VBoxContainer
 {
-    Session _s = null!; TableInput _input = null!; Action<string> _toast = null!;
+    Session _s = null!; TableInput _input = null!; Action<string> _toast = null!; SetupFolds _folds = new();
     readonly ScrollContainer _card = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     readonly VBoxContainer _body = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     HudRect? _slot; bool _fitQueued; object? _content;
     Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme;
 
-    public void Bind(Session session, TableInput input, Action<string> toast)
+    public void Bind(Session session, TableInput input, Action<string> toast, SetupFolds folds)
     {
-        _s = session; _input = input; _toast = toast;
+        _s = session; _input = input; _toast = toast; _folds = folds;
         var panel = new PanelContainer { SizeFlagsVertical = SizeFlags.ShrinkEnd }; AddChild(panel); panel.AddChild(_card); _card.AddChild(_body);
         _body.MinimumSizeChanged += QueueFit;
         _onFrame = _ => Render(); _onChanged = Render;
@@ -84,25 +84,28 @@ public partial class TerrainCard : VBoxContainer
     void RenderTerrain(TerrainCardContent c, TerrainPlacement t)
     {
         _body.AddChild(Wrap(c.Name));
+        if (c.Editable) { RenderPieceEdits(c, t); return; }
         _body.AddChild(Wrap(c.Source, Variation.Dim));
         var badges = new HFlowContainer(); _body.AddChild(badges);
         if (c.Height.Length > 0) badges.AddChild(Badge($"Height {c.Height}"));
-        if (!c.Editable) { badges.AddChild(Badge($"Facing {c.Facing}°")); if (c.Scale != 1) badges.AddChild(Badge($"Scale ×{TerrainLabel.Inches(c.Scale)}")); }
-        if (c.Editable) RenderPieceEdits(c, t);
+        badges.AddChild(Badge($"Facing {c.Facing}°")); if (c.Scale != 1) badges.AddChild(Badge($"Scale ×{TerrainLabel.Inches(c.Scale)}"));
         foreach (var (v, i) in c.Volumes.Select((v, i) => (v, i)))
         {
             _body.AddChild(new HSeparator());
             _body.AddChild(Wrap($"Volume {i + 1} · {v.Kind} · {v.Footprint} · {v.Heights}"));
-            if (c.Editable) { RenderVolumeEdits(t, t.Volumes[i]); continue; }
             _body.AddChild(Flow(v.Declarations.Select(d => Chip(d))));
             if (v.Notes is { } notes) _body.AddChild(Wrap(notes, Variation.Dim));
         }
     }
 
-    /// <summary>Setup: facing (MenuModel.TurnInDraft, as the right-click menu and Q/E), scale, swap mesh, reset volumes, remove.</summary>
+    /// <summary>
+    /// Setup (spec 2026-10-27-godot-setup-screen-design.md → Terrain card): the source and height, facing (MenuModel.TurnInDraft, as the
+    /// right-click menu and Q/E) with Remove, scale; then Mesh (swap, my asset, reset volumes) and Volumes, folded as the player left them.
+    /// </summary>
     void RenderPieceEdits(TerrainCardContent c, TerrainPlacement t)
     {
         var s = _s;
+        _body.AddChild(Wrap(c.Height.Length > 0 ? $"{c.Source} · {c.Height} high" : c.Source, Variation.Dim));
         var facing = new HFlowContainer(); _body.AddChild(facing);
         void TurnTo(double degrees) { if (s.Draft is { } now && MenuModel.TurnInDraft(now, t.Id, degrees) is { } turn) Guarded.Send(s, turn); }
         facing.AddChild(new Label { Text = "Facing" });
@@ -110,38 +113,49 @@ public partial class TerrainCard : VBoxContainer
         yaw.ValueChanged += TurnTo; facing.AddChild(yaw);
         facing.AddChild(Btn($"⟲ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees + MenuModel.TerrainTurn)));
         facing.AddChild(Btn($"⟳ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees - MenuModel.TerrainTurn)));
+        facing.AddChild(Btn("Remove", () => Guarded.Send(s, SetupEdits.RemoveTerrain(t.Id))));
         var size = new HFlowContainer(); _body.AddChild(size);
         size.AddChild(new Label { Text = "Scale" });
         var scale = new SpinBox { MinValue = 0.25, MaxValue = 4, Step = 0.25, Value = t.Scale, Prefix = "×" }; size.AddChild(scale);
         scale.ValueChanged += v => Guarded.Send(s, SetupEdits.Scale(t.Id, v));
-        var swapRow = new HFlowContainer(); _body.AddChild(swapRow);
+
+        var mesh = new Fold(_folds, SetupFold.PieceMesh, GameStatus.Setup, () => SetupFolds.Title(SetupFold.PieceMesh, null, null)); _body.AddChild(mesh);
+        var swapRow = new HFlowContainer(); mesh.Body.AddChild(swapRow);
         var swap = new OptionButton(); var names = BuiltinContent.Terrain.Keys.Order().ToList(); foreach (var n in names) swap.AddItem(n);
         if (t.Mesh.Builtin is { } b && names.IndexOf(b) is >= 0 and var at) swap.Select(at);
         swapRow.AddChild(swap);
-        swapRow.AddChild(Btn("Swap mesh (keeps volumes)", () => Guarded.Send(s, SetupEdits.SwapBuiltin(t.Id, names[swap.Selected]))));
-        var more = new HFlowContainer(); _body.AddChild(more);
-        more.AddChild(Btn("Swap for my asset…", () => Guarded.Run(() => SwapForAsset(s, t.Id), _toast)));
+        swapRow.AddChild(Btn("Swap", () => Guarded.Send(s, SetupEdits.SwapBuiltin(t.Id, names[swap.Selected]))));
+        swapRow.TooltipText = "Swap the mesh; the volumes stay";
+        var more = new HFlowContainer(); mesh.Body.AddChild(more);
+        more.AddChild(Btn("Use my terrain…", () => Guarded.Run(() => SwapForAsset(s, t.Id), _toast)));
         more.AddChild(Btn("Reset volumes", () => Guarded.Run(async () =>
             await s.SendEditAsync(SetupEdits.ResetVolumes(t.Id, t.Mesh.IsBuiltin ? BuiltinContent.VolumesOf(t.Mesh.Builtin!).Select(v => v.Volume).ToList() : (await s.Management.GetAssetVolumes(t.Mesh.AssetId!.Value)).Select(v => v.Volume).ToList())), _toast)));
-        more.AddChild(Btn("Remove", () => Guarded.Send(s, SetupEdits.RemoveTerrain(t.Id))));
+
+        var volumes = new Fold(_folds, SetupFold.PieceVolumes, GameStatus.Setup, () => SetupFolds.PieceVolumesTitle(c.Volumes.Count)); _body.AddChild(volumes);
+        foreach (var (v, i) in c.Volumes.Select((v, i) => (v, i)))
+        {
+            if (i > 0) volumes.Body.AddChild(new HSeparator());
+            volumes.Body.AddChild(Wrap(c.Volumes.Count == 1 ? $"{v.Kind} · {v.Footprint} · {v.Heights}" : $"Volume {i + 1} · {v.Kind} · {v.Footprint} · {v.Heights}"));
+            RenderVolumeEdits(t, t.Volumes[i], volumes.Body);
+        }
     }
 
     /// <summary>Every volume field is one OverrideTerrainVolumes carrying the placement's whole volume list with one volume changed.</summary>
-    void RenderVolumeEdits(TerrainPlacement t, TerrainVolume tv)
+    void RenderVolumeEdits(TerrainPlacement t, TerrainVolume tv, VBoxContainer into)
     {
         var s = _s;
         void Edit(Func<Volume, Volume> change) => Guarded.Send(s, SetupEdits.ChangeVolume(t, tv.Id, change));
-        var shape = new HFlowContainer(); _body.AddChild(shape);
+        var shape = new HFlowContainer(); into.AddChild(shape);
         var kind = new OptionButton(); foreach (var k in Enum.GetNames<VolumeKind>()) kind.AddItem(k); kind.Select((int)tv.Volume.Kind); shape.AddChild(kind);
         kind.ItemSelected += k => Edit(SetupEdits.WithKind((VolumeKind)k));
         var fp = tv.Volume.Footprint;
         shape.AddChild(new Label { Text = fp.Kind == FootprintKind.Circle ? "radius" : "w×l" });
         shape.AddChild(Spin(fp.A, 144, x => Edit(SetupEdits.WithFootprintA(x))));
         if (fp.Kind == FootprintKind.Rect) shape.AddChild(Spin(fp.B, 144, x => Edit(SetupEdits.WithFootprintB(x))));
-        var heights = new HFlowContainer(); _body.AddChild(heights);
+        var heights = new HFlowContainer(); into.AddChild(heights);
         heights.AddChild(new Label { Text = "from" }); heights.AddChild(Spin(tv.Volume.Bottom, 60, x => Edit(SetupEdits.WithBottom(x))));
         heights.AddChild(new Label { Text = "to" }); heights.AddChild(Spin(tv.Volume.Top, 60, x => Edit(SetupEdits.WithTop(x))));
-        var flags = new HFlowContainer(); _body.AddChild(flags);
+        var flags = new HFlowContainer(); into.AddChild(flags);
         foreach (var (flag, text) in TerrainLabel.Declarations)
         {
             var cb = new CheckBox { Text = text, ButtonPressed = tv.Volume.Declarations.HasFlag(flag) };
@@ -149,7 +163,7 @@ public partial class TerrainCard : VBoxContainer
             flags.AddChild(cb);
         }
         var notes = new LineEdit { Text = tv.Volume.Notes ?? "", PlaceholderText = $"notes, Enter to save (at most {TextLimits.Notes} characters)", MaxLength = TextLimits.Notes, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        _body.AddChild(notes);
+        into.AddChild(notes);
         notes.TextSubmitted += text => Edit(SetupEdits.WithNotes(text));
     }
 
