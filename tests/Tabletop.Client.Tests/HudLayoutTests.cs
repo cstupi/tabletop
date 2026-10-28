@@ -92,6 +92,20 @@ public class HudLayoutTests
         Assert.Equal(0, HudLayout.Below(r[HudPart.UnitCard], 800).H);
     }
 
+    /// <summary>A replay bar taller than 112 px (its three rows in the theme's font): the left column ends M above the bar as it is.</summary>
+    [Theory, MemberData(nameof(Sizes))]
+    public void The_left_column_ends_above_the_replay_bar_s_actual_height(int w, int h)
+    {
+        foreach (var v in All().Where(v => v.Replay))
+        {
+            var r = HudLayout.Of(w, h, v, replayH: 150);
+            Assert.Equal(new HudRect(8, h - 8 - 150, 420, 150), r[HudPart.Replay]);
+            foreach (var part in new[] { HudPart.Roster, HudPart.UnitCard })
+                if (r.TryGetValue(part, out var x)) Assert.True(x.Bottom <= r[HudPart.Replay].Y - 8, $"{w}x{h} {v}: {part} {x} reaches the bar");
+        }
+        Assert.Equal(112, HudLayout.Of(w, h, new HudVisible(true, true, false, false, false, true), replayH: 90)[HudPart.Replay].H);   // never below 112
+    }
+
     [Theory, MemberData(nameof(Sizes))]
     public void The_undo_button_sits_left_of_the_log_button_in_its_row(int w, int h)
     {
