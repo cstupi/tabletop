@@ -36,18 +36,18 @@ describe('sceneOfPlay', () => {
   });
 
   it('a controlled objective takes its team\'s ordinal', () => {
-    const objective = markerOf('A', 'objective');
-    const board = boardOf([{ participantId: P1, units: [s.squad] }], { ...emptyTable(), markers: [objective] });
-    const placed = markerOf('smoke');
-    const a = projectionOf(s.game, board, [{ kind: 'marker_placed', marker: placed }, { kind: 'objective_control_set', markerId: objective.id, teamId: TEAM2 }]);
+    const objective = markerOf('A');
+    const other = markerOf('B');
+    const board = boardOf([{ participantId: P1, units: [s.squad] }], { ...emptyTable(), markers: [objective, other] });
+    const a = projectionOf(s.game, board, [{ kind: 'objective_control_set', markerId: objective.id, teamId: TEAM2 }]);
     const scene = sceneOfPlay(a.projection, s.game, zones, name);
-    expect(scene.markers.map((m) => [m.id, m.label, m.teamOrdinal])).toEqual([[objective.id, 'A', 2], [placed.id, 'smoke', undefined]]);
+    expect(scene.markers.map((m) => [m.id, m.label, m.teamOrdinal])).toEqual([[objective.id, 'A', 2], [other.id, 'B', undefined]]);
     const neutral = sceneOfPlay(projectionOf(s.game, board).projection, s.game, zones, name);
     expect(neutral.markers[0]!.teamOrdinal).toBeUndefined();
   });
 
   it('a moved setup marker is drawn once, at its new spot', () => {
-    const objective = markerOf('A', 'objective');
+    const objective = markerOf('A');
     const board = boardOf([{ participantId: P1, units: [] }], { ...emptyTable(), markers: [objective] });
     const a = projectionOf(s.game, board, [{ kind: 'marker_moved', markerId: objective.id, position: { x: 9, y: 8, z: 0 }, yaw: { degrees: 0 } }]);
     const scene = sceneOfPlay(a.projection, s.game, zones, name);

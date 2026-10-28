@@ -114,7 +114,7 @@ either way, per `architecture.md`.
 
 ```
 ASSET.kind             miniature | terrain | texture
-MARKER.kind            objective | token
+MARKER.kind            objective
 GAME.status            lobby | setup | playing | ended
 GAME.scheduler_shape   player-turn | alternating-activation
 GAME.enforcement       silent | warn | strict      (was `warns boolean`; reopened 09-04)

@@ -20,7 +20,7 @@ DO it"*.
   Units and models by name (`play/names.ts`), terrain by its catalog name, declarations as words ("Blocks line of sight").
 - **The board reads as a tabletop.** Models are circles in their team's colour; terrain is filled shapes by kind (a soft fill
   and an outline), labelled with its name only when zoomed in enough or selected; deployment zones as a tinted band; objective
-  markers as clear tokens. Details (declarations, notes) live in the hover label and the cards, not on the board.
+  markers as clear discs. Details (declarations, notes) live in the hover label and the cards, not on the board.
 
 ## Layouts
 

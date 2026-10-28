@@ -31,9 +31,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(SpellTokensSet), "spell_tokens_set")]
 [JsonDerivedType(typeof(WoundsThisActivationSet), "wounds_this_activation_set")]
 [JsonDerivedType(typeof(ScoreSet), "score_set")]
-[JsonDerivedType(typeof(MarkerPlaced), "marker_placed")]
 [JsonDerivedType(typeof(MarkerMoved), "marker_moved")]
-[JsonDerivedType(typeof(MarkerRemoved), "marker_removed")]
 [JsonDerivedType(typeof(ObjectiveControlSet), "objective_control_set")]
 public abstract record EventPayload;
 

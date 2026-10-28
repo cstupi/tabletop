@@ -8,9 +8,7 @@ namespace Tabletop.Protocol;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(AnswerAsk), "answer_ask")]
 [JsonDerivedType(typeof(MoveModels), "move_models")]
-[JsonDerivedType(typeof(PlaceMarker), "place_marker")]
 [JsonDerivedType(typeof(MoveMarker), "move_marker")]
-[JsonDerivedType(typeof(RemoveMarker), "remove_marker")]
 [JsonDerivedType(typeof(SetWounds), "set_wounds")]
 [JsonDerivedType(typeof(SetCondition), "set_condition")]
 [JsonDerivedType(typeof(RecordAction), "record_action")]
@@ -33,9 +31,8 @@ public abstract record Command;
 public sealed record AnswerAsk(Guid AskId, AskAnswer Answer, Guid? TeamId = null) : Command;
 /// <summary>A hand move: start and stop per model. Never ends a turn.</summary>
 public sealed record MoveModels(IReadOnlyList<ModelRelocation> Moves) : Command;
-public sealed record PlaceMarker(Marker Marker) : Command;
+/// <summary>Moves an objective marker the table holds.</summary>
 public sealed record MoveMarker(Guid MarkerId, Point3 Position, Yaw Yaw) : Command;
-public sealed record RemoveMarker(Guid MarkerId) : Command;
 
 // The menu: every property is editable, accepted under every enforcement setting.
 public sealed record SetWounds(Guid ModelId, int Wounds) : Command;

@@ -268,15 +268,14 @@ public class InvariantTests
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("objectives"));
         var setup = c.Board.Table.Markers[0].Id;
-        var placed = c.Board.Table.Markers[0] with { Id = Guid.CreateVersion7() };
         Assert.True(Invariants.Invariants.ControlFollowsTheMarkers([
             E(1, new RoundEnded(1, [new ObjectiveControlSet(setup, c.TeamIds[0])])),
-            E(2, new MarkerPlaced(placed)), E(3, new ObjectiveControlSet(placed.Id, null), Guid.CreateVersion7())], c).Held);
+            E(2, new MarkerMoved(setup, new Tabletop.Geometry.Point3(5, 5, 0), new Tabletop.Geometry.Yaw(0))), E(3, new ObjectiveControlSet(setup, null), Guid.CreateVersion7())], c).Held);
 
-        var gone = Invariants.Invariants.ControlFollowsTheMarkers([E(1, new MarkerPlaced(placed)), E(2, new MarkerRemoved(placed.Id)),
-            E(3, new RoundEnded(1, [new ObjectiveControlSet(placed.Id, c.TeamIds[0])]))], c);
-        Assert.False(gone.Held);
-        Assert.Contains("seq 3", gone.Detail);
+        var unknown = Invariants.Invariants.ControlFollowsTheMarkers([E(1, new ScoreSet(c.TeamIds[0], 0)),
+            E(2, new RoundEnded(1, [new ObjectiveControlSet(Guid.CreateVersion7(), c.TeamIds[0])]))], c);
+        Assert.False(unknown.Held);
+        Assert.Contains("seq 2", unknown.Detail);
 
         Assert.False(Invariants.Invariants.ControlFollowsTheMarkers([E(1, new ObjectiveControlSet(setup, Guid.CreateVersion7()))], c).Held);
     }

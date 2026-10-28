@@ -9,7 +9,7 @@ export const TERRAIN = 64, MARKERS = 32, MIN_EDGE = 12, MAX_EDGE = 144, LABEL = 
 export const SIZE_HINT = `Width × length, ${MIN_EDGE}–${MAX_EDGE}" a side`;
 
 export const terrainHeading = (d: TableState | null): string => d === null ? 'Terrain' : `Terrain (${d.terrain.length}/${TERRAIN})`;
-export const markersHeading = (d: TableState | null): string => d === null ? 'Markers' : `Markers (${d.markers.length}/${MARKERS})`;
+export const objectivesHeading = (d: TableState | null): string => d === null ? 'Objectives' : `Objectives (${d.markers.length}/${MARKERS})`;
 
 const NOT_YET = 'The table has not arrived yet.';
 
@@ -30,7 +30,7 @@ export function cannotClearTerrain(d: TableState | null): string | null {
 
 export function cannotAddMarker(d: TableState | null): string | null {
   if (d === null) return NOT_YET;
-  return d.markers.length < MARKERS ? null : `The table holds at most ${MARKERS} markers: remove some first.`;
+  return d.markers.length < MARKERS ? null : `The table holds at most ${MARKERS} objectives: remove some first.`;
 }
 
 /** C#'s Math.Round(x, 2) on the values that matter here (never an exact midpoint of a binary double). */

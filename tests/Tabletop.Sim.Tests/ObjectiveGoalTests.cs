@@ -39,8 +39,8 @@ public class ObjectiveGoalTests
     [Fact]
     public void The_goal_is_the_nearest_objective_marker_the_models_team_does_not_control()
     {
-        var near = Objective(36, 30); var far = Objective(36, 4); var token = Objective(36, 26) with { Kind = MarkerKind.Token };
-        var (view, model) = Standing(new Point3(36, 24, 0), [near, far, token], new Dictionary<Guid, Guid> { [near.Id] = Team });
+        var near = Objective(36, 30); var far = Objective(36, 4);
+        var (view, model) = Standing(new Point3(36, 24, 0), [near, far], new Dictionary<Guid, Guid> { [near.Id] = Team });
         Assert.Equal(far.Position.Horizontal, ObjectiveGoal.Nearest(model, view));
 
         var (contested, _) = Standing(new Point3(36, 24, 0), [near, far], new Dictionary<Guid, Guid> { [near.Id] = Enemy });

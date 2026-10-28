@@ -117,10 +117,6 @@ public static class MenuModel
             _ => new AnswerAsk(ask.Id, AskAnswers.Embark(p, region, c)))).ToList();
     }
 
-    /// <summary>The table's right-click: a token dropped at a table-frame point, labelled by the player.</summary>
-    public static MenuItem Token(Point3 at) => new("Drop a token here", MenuInput.Text,
-        label => new PlaceMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, at, new Yaw(0), 1, label, VisualRef.OfBuiltin("chip"))));
-
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>
     [
         new("Set score", MenuInput.Integer, s => Int(s) is { } n ? new SetScore(teamId, n) : null),
@@ -129,16 +125,13 @@ public static class MenuModel
     ];
 
     /// <summary>
-    /// Remove a marker placed in play (a setup row is never removable, moved or not). Any objective, from setup or play, can be given to a
-    /// team or made neutral: the override of who controls it (objectives spec → The menu). With locks, an objective in play
-    /// ends with its local Unlock or Lock item.
+    /// Any objective can be given to a team or made neutral: the override of who controls it (objectives spec → The menu). With locks,
+    /// an objective in play ends with its local Unlock or Lock item.
     /// </summary>
     public static IReadOnlyList<MenuItem> ForMarker(GameInfo game, Projection p, Guid markerId, MarkerLocks? locks = null)
     {
         var items = new List<MenuItem>();
-        if (p.Markers.ContainsKey(markerId) && p.Board.Table.Markers.All(m => m.Id != markerId)) items.Add(new("Remove", MenuInput.None, _ => new RemoveMarker(markerId)));
-        var marker = p.Markers.GetValueOrDefault(markerId) ?? p.Board.Table.Markers.FirstOrDefault(m => m.Id == markerId);
-        if (marker?.Kind != MarkerKind.Objective) return items;
+        if (p.Board.Table.Markers.All(m => m.Id != markerId)) return items;
         foreach (var team in game.Teams.OrderBy(t => t.Ordinal))
             items.Add(new($"Give to Team {team.Ordinal}", MenuInput.None, _ => new SetObjectiveControl(markerId, team.Id)));
         items.Add(new("Make neutral", MenuInput.None, _ => new SetObjectiveControl(markerId, null)));

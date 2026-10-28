@@ -2,7 +2,7 @@
 // client/src/Core/MenuModel.cs, the play items (setup's are setup/edits.ts): every property is editable, each item one ordinary command
 // through the same path automation uses. No admin mode.
 
-import type { Ask, Command, GameEvent, GameInfo, Marker, ModelRelocation, Point3 } from '../protocol/wire.generated';
+import type { Ask, Command, GameEvent, GameInfo, ModelRelocation, Point3 } from '../protocol/wire.generated';
 import type { ModelInPlay, Projection } from '../live/apply';
 import type { MarkerLocks } from './markerLocks';
 import type { Names } from './names';
@@ -150,15 +150,12 @@ export function forTeam(_game: GameInfo, _p: Projection, teamId: string): MenuIt
 }
 
 /**
- * Remove a marker placed in play (a setup row is never removable, moved or not). Any objective, from setup or play, can be given to a
- * team or made neutral: the override of who controls it (objectives spec → The menu). With locks, an objective in play ends with its
- * local Unlock or Lock item.
+ * Any objective can be given to a team or made neutral: the override of who controls it (objectives spec → The menu). With locks, an
+ * objective in play ends with its local Unlock or Lock item.
  */
 export function forMarker(game: GameInfo, p: Projection, markerId: string, locks?: MarkerLocks): MenuItem[] {
   const items: MenuItem[] = [];
-  if (p.markers.has(markerId) && p.board.table.markers.every((m) => m.id !== markerId)) items.push(item('Remove', 'none', () => ({ kind: 'remove_marker', markerId })));
-  const marker = p.markers.get(markerId) ?? p.board.table.markers.find((m) => m.id === markerId);
-  if (marker?.kind !== 'objective') return items;
+  if (p.board.table.markers.every((m) => m.id !== markerId)) return items;
   for (const team of [...game.teams].sort((a, b) => a.ordinal - b.ordinal))
     items.push(item(`Give to Team ${team.ordinal}`, 'none', () => ({ kind: 'set_objective_control', markerId, teamId: team.id })));
   items.push(item('Make neutral', 'none', () => ({ kind: 'set_objective_control', markerId })));
@@ -181,9 +178,3 @@ export function knownActionNames(p: Projection, log: readonly GameEvent[]): stri
   for (const u of p.units.values()) names.push(...u.actions);
   return [...new Set(names)];
 }
-
-/** GameScreen.Play.Token: Alt+right-click on the table drops a labelled chip. */
-export const token = (at: Point3): MenuItem => item('Drop a token here', 'text', (label) => ({
-  kind: 'place_marker',
-  marker: { id: crypto.randomUUID(), kind: 'token', position: at, yaw: { degrees: 0 }, diameter: 1, ...(label === null ? {} : { label }), visual: { builtin: 'chip' } } satisfies Marker,
-}));

@@ -11,7 +11,7 @@ public class DraftLimitsTests
 {
     static readonly TableState Empty = new(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
     static TerrainPlacement Hill(double x = 10, double y = 10) => TableStateTests.Sample().Terrain[0] with { Id = Guid.CreateVersion7(), Position = new Point3(x, y, 0) };
-    static Marker Token(string? label = "token", double diameter = 1) => new(Guid.CreateVersion7(), MarkerKind.Token, new Point3(5, 5, 0), new Yaw(0), diameter, label, VisualRef.OfBuiltin("chip"));
+    static Marker Objective(string? label = null, double diameter = 3) => new(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(5, 5, 0), new Yaw(0), diameter, label, VisualRef.OfBuiltin("objective-ring"));
     static TerrainVolume Volume(double bottom = 0, double top = 2, string? notes = null) =>
         new(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(2, 2), new Point2(0, 0), new Yaw(0), bottom, top, TerrainDeclarations.None, notes));
     static string? Refusal(TableState d, SetupEdit e) { var next = DraftEditor.Apply(d, e, out var missing); Assert.True(next is null == missing is not null); return missing; }
@@ -31,9 +31,9 @@ public class DraftLimitsTests
     [Fact]
     public void Terrain_volumes_and_markers_are_capped()
     {
-        var full = Empty with { Terrain = Enumerable.Range(0, DraftLimits.Default.Terrain).Select(i => Hill(i % 60 + 1, 1)).ToList(), Markers = Enumerable.Range(0, DraftLimits.Default.Markers).Select(_ => Token()).ToList() };
+        var full = Empty with { Terrain = Enumerable.Range(0, DraftLimits.Default.Terrain).Select(i => Hill(i % 60 + 1, 1)).ToList(), Markers = Enumerable.Range(0, DraftLimits.Default.Markers).Select(_ => Objective()).ToList() };
         Assert.NotNull(Refusal(full, new AddTerrain(Hill())));
-        Assert.NotNull(Refusal(full, new AddSetupMarker(Token())));
+        Assert.NotNull(Refusal(full, new AddSetupMarker(Objective())));
         Assert.Null(Refusal(full, new RemoveTerrain(full.Terrain[0].Id)));                       // removing from a full draft still works
         Assert.NotNull(Refusal(Empty, new AddTerrain(Hill() with { Volumes = Enumerable.Range(0, 9).Select(_ => Volume()).ToList() })));
         Assert.NotNull(Refusal(Empty, new ReplaceDraft(full with { Terrain = [.. full.Terrain, Hill()] })));
@@ -48,8 +48,8 @@ public class DraftLimitsTests
     [Fact]
     public void Text_is_bounded()
     {
-        Assert.NotNull(Refusal(Empty, new AddSetupMarker(Token(new string('a', 65)))));
-        Assert.Null(Refusal(Empty, new AddSetupMarker(Token(new string('a', 64)))));
+        Assert.NotNull(Refusal(Empty, new AddSetupMarker(Objective(new string('a', 65)))));
+        Assert.Null(Refusal(Empty, new AddSetupMarker(Objective(new string('a', 64)))));
         Assert.NotNull(Refusal(Empty, new AddTerrain(Hill() with { Volumes = [Volume(notes: new string('n', 501))] })));
         Assert.NotNull(Refusal(Empty, new SetTexture(VisualRef.OfBuiltin(new string('g', 65)))));
         Assert.NotNull(Refusal(Empty, new SetTexture(VisualRef.OfBuiltin("../../etc/passwd"))));
@@ -58,7 +58,7 @@ public class DraftLimitsTests
 
     [Theory]
     [InlineData(0.4)] [InlineData(6.1)] [InlineData(double.PositiveInfinity)]
-    public void A_marker_is_half_an_inch_to_six_across(double diameter) => Assert.NotNull(Refusal(Empty, new AddSetupMarker(Token(diameter: diameter))));
+    public void A_marker_is_half_an_inch_to_six_across(double diameter) => Assert.NotNull(Refusal(Empty, new AddSetupMarker(Objective(diameter: diameter))));
 
     [Fact]
     public void Positions_and_yaws_are_finite_and_near_the_table()
@@ -92,7 +92,7 @@ public class DraftLimitsTests
         {
             Name = new string('x', 200),
             Terrain = Enumerable.Range(0, l.Terrain).Select(_ => piece with { Id = Guid.NewGuid() }).ToList(),
-            Markers = Enumerable.Range(0, l.Markers).Select(_ => Token(new string('l', l.Label))).ToList(),
+            Markers = Enumerable.Range(0, l.Markers).Select(_ => Objective(new string('l', l.Label))).ToList(),
             Zones = ZoneStyles.ShapesOf(ZoneStyles.FreeForAll).Select((s, i) => new DeploymentZone(Guid.NewGuid(), s, i + 1)).ToList(),
         };
         Assert.Null(l.Breach(full));

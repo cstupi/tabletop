@@ -93,7 +93,7 @@ describe('HeaderView', () => {
   });
 
   it('not activated counts units on the table with no action and objectives carry their controller', () => {
-    const objective = { ...markerOf('A', 'objective') };
+    const objective = { ...markerOf('A') };
     const board = boardOf([{ participantId: P1, units: [s.squad] }, { participantId: s.game.participants[1]!.id, units: [s.rivals] }], { ...emptyTable(), markers: [objective] });
     const deploy: EventPayload = { kind: 'models_moved', moves: [{ modelId: s.model.id, from: { kind: 'shelf' }, to: { kind: 'table', placement: at(10, 10) } }] };
     const p = projectionOf(s.game, board, [deploy, { kind: 'action_recorded', unitId: s.squad.id, action: 'Advance' }]).projection;

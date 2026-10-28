@@ -631,13 +631,9 @@ the applier keeps mutating both and every frame is kept for the whole run.
 **The definition/state split.** A model's base shape, unit, name, ordinal, team and height are
 written once in `RecordedBoard.Models`. Only its location, wounds, spell tokens and conditions
 ride on each frame. A marker is the exception: its kind, diameter and label ride along per
-frame. A marker placed during play by `marker_placed` is in no board block, and a frame that a
-viewer has to join against a block which may not hold the row is not whole state. The
-alternative, having `BuildBoard` include every marker any frame mentions, was rejected on three
-counts: the live feed receives the board frame before any event and cannot know it; it would
-make the board depend on how far the run got; and it would leave the frame not whole. Per frame
+frame, so a frame is whole state and a viewer joins nothing against a board block. Per frame
 is nearly free, because `Projection.Board.Table.Markers` and `Projection.Markers` hold `Marker` values that already carry all three
-fields and a game has single-digit markers. A frame's markers are the setup markers then the play markers, and a play entry wins over a setup marker with the same id.
+fields and a game has single-digit markers. A frame's markers are the setup markers then the moved ones, and a moved entry wins over a setup marker with the same id.
 
 **Zones carry resolved polygons.** `RecordedZone.Polygons` is `ZoneStyles.Resolve(shape,
 table.Size)` flattened to each `Polygon.Vertices`, one ring per polygon of `{x, y}` in table
@@ -852,7 +848,7 @@ running stack, with no row written directly.
 | The recorder is a `Participant` with a null `TeamId` | presence, the scheduler and the interpreter already treat that participant as a spectator who is never Asked | a new server-side spectator concept | whole-design review → ruling 5 |
 | The recording is a projection recording, one whole-state frame per event | keeps `EventApplier` a single implementation; a TypeScript applier would drift | shipping raw events and porting the applier | spec → The recording is the artifact |
 | Frames are whole state, not deltas | a scrub to frame 300 needs frame 300 only; nothing accumulates | deltas, to shrink a 5 to 6 MB recording | spec → The recording is the artifact |
-| `RecordedMarkerState` carries kind, diameter and label per frame | a marker placed during play is in no board block, and a frame must be whole | a growing board block, which the live feed cannot implement | **(plan)** applied from the viewer plan, item 2 |
+| `RecordedMarkerState` carries kind, diameter and label per frame | a frame must be whole | a growing board block, which the live feed cannot implement | **(plan)** applied from the viewer plan, item 2 |
 | `RecordedZone.Polygons` holds resolved rings | OPR's frontline is an absolute twelve-inch inset, so it cannot be derived from the id and the table size | porting `ZoneStyles` to TypeScript | **(plan)** applied from the viewer plan, item 1 |
 | `RecordedFrame` carries `Scores` and `Passed` | the applier maintains both and `ProjectionComparer` compares both | a frame from which a viewer could show neither | **(plan)** applied from the viewer plan, item 3 |
 | The recording carries the dice, not only the result | the first thing a person debugging the engine wants is why a unit died | the result alone, at a few hundred integers saved | **(plan)** Task 5 |
@@ -1321,10 +1317,10 @@ Twelve xUnit classes in `tests/Tabletop.Sim.Tests`. All but one need nothing run
 | `ScenarioTests` | the builder's teams and participants, the same seed with different ids, the properties hash and rules id, every catalog scenario compiling, `strict` by default | nothing |
 | `AnswerPolicyTests` | one test per legal-set shape, the empty set, the pass probability, the same seed answering identically, `ShapeNames` matching the switch | nothing |
 | `MoveRegionPolicyTests` | 25 seeds each: a destination within the allowance and on the table, an impassable volume not crossed, embarking putting every model inside | nothing |
-| `ObjectiveGoalTests` | the goal is the nearest objective marker the team does not hold (tokens and held markers skipped, an enemy's marker kept), none when every marker is held, a goal-directed move within the allowance and closer, the same seed answering identically, no goal leaving the uniform answer unchanged | nothing |
+| `ObjectiveGoalTests` | the goal is the nearest objective marker the team does not hold (held markers skipped, an enemy's marker kept), none when every marker is held, a goal-directed move within the allowance and closer, the same seed answering identically, no goal leaving the uniform answer unchanged | nothing |
 | `AnswerScriptTests` | the ordinal counting per question, a duplicate key throwing, the script winning, a script-only run failing on the first unscripted Ask | nothing |
 | `InProcessDriverTests` | hydrating to a playing game with the first Ask open, every model on the shelf before deployment, an accepted answer, an out-of-set answer refused under `strict`, the driver's and the server's projections agreeing, draining twice | nothing |
-| `RecordingTests` | the board block, a frame's models, the score and passed, a marker placed during play, an Ask on every frame until it closes, the dice raw and modified, a JSON round trip, camelCase and omitted nulls | nothing |
+| `RecordingTests` | the board block, a frame's models, the score and passed, a setup objective moved during play, an Ask on every frame until it closes, the dice raw and modified, a JSON round trip, camelCase and omitted nulls | nothing |
 | `RunLoopTests` | a skirmish ending and never hanging, every model deployed before round one, one seed giving the same dice and answers and a different game id, different seeds diverging, a round cap terminating a stalemate, a script-only failure, the fingerprint, hand placement inside the zone | nothing |
 | `InvariantTests` | every invariant over a whole game, a broken invariant reported as a failure, cold replay against the incremental and the server's projections, undo at any dice-bearing sequence, the comparer naming what differs, `MidRun` throwing | nothing |
 | `StepAndWaitTests` | pausing with the Ask open and nothing answered, resuming, answering from outside, stepping through a whole game one Ask at a time | nothing |

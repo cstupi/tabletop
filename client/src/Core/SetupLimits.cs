@@ -50,7 +50,7 @@ public static class SetupLimits
     public static string SizeHint => $"Width × length, {MinEdge}–{MaxEdge}\" a side";
 
     public static string TerrainHeading(TableState? d) => d is null ? "Terrain" : $"Terrain ({d.Terrain.Count}/{Terrain})";
-    public static string MarkersHeading(TableState? d) => d is null ? "Markers" : $"Markers ({d.Markers.Count}/{Markers})";
+    public static string ObjectivesHeading(TableState? d) => d is null ? "Objectives" : $"Objectives ({d.Markers.Count}/{Markers})";
 
     /// <summary>Null when <paramref name="adding"/> more pieces fit.</summary>
     public static string? CannotAddTerrain(TableState? d, int adding = 1) => d switch
@@ -91,6 +91,6 @@ public static class SetupLimits
     {
         null => "The table has not arrived yet.",
         _ when d.Markers.Count < Markers => null,
-        _ => $"The table holds at most {Markers} markers: remove some first.",
+        _ => $"The table holds at most {Markers} objectives: remove some first.",
     };
 }

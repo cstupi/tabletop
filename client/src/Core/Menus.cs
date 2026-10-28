@@ -31,7 +31,4 @@ public static class Menus
     /// <summary>MenuModel.ForRosterUnit for MyTeam; [] for a watcher.</summary>
     public static IReadOnlyList<MenuItem> Roster(MenuContext ctx, Guid unitId) =>
         ctx.Watching ? [] : MenuModel.ForRosterUnit(ctx.Game, ctx.P, unitId, ctx.MyTeam, ctx.DeployInside, ctx.MaySetAside);
-
-    /// <summary>The table's right-click: the token; [] for a watcher.</summary>
-    public static IReadOnlyList<MenuItem> Table(MenuContext ctx, Point3 at) => ctx.Watching ? [] : [MenuModel.Token(at)];
 }

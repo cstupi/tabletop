@@ -7,7 +7,7 @@ import { Names } from '../src/lib/play/names';
 import { collapsed, type RollEntry } from '../src/lib/play/rollEntry';
 import { NOTHING_TO_UNDO, UndoPrediction, undoPlanOf } from '../src/lib/play/undo';
 import type { Command, EventPayload } from '../src/lib/protocol/wire.generated';
-import { BoardSample, D, Frame, GameSample, Model, P1, Round1, Token, Unit, ctx, deploy, edit, hit, move, reroll, started, step, undone } from './logSamples';
+import { BoardSample, D, Frame, GameSample, Model, P1, Round1, TEAM2, Unit, ctx, deploy, edit, hit, move, reroll, started, step, undone } from './logSamples';
 import { P2, TEAM1, askOf, ev, option } from './play';
 
 // UndoPlanTests. Each entry: who acted (null for the engine) and what.
@@ -16,7 +16,7 @@ const engine = (p: EventPayload): H => [null, p];
 const me = (p: EventPayload): H => [P1, p];
 const them = (p: EventPayload): H => [P2, p];
 const mv = move(deploy);
-const marker: EventPayload = { kind: 'marker_placed', marker: Token };
+const score: EventPayload = { kind: 'score_set', teamId: TEAM2, score: 1 };
 const phase: EventPayload = { kind: 'phase_started', phase: 'x' };
 const ask = askOf({ kind: 'options', choices: [option('a', 'Advance', [Unit])] }, { question: 'activate' });
 
@@ -36,7 +36,7 @@ describe('UndoPlan', () => {
   });
 
   it('the last action is undone whoever took it', () => {
-    const { plan: p, log, n } = plan(engine(Round1), me(mv), them(marker));
+    const { plan: p, log, n } = plan(engine(Round1), me(mv), them(score));
     expect(p).not.toBeNull();
     expect(p!.toSeq).toBe(2);
     expect(p!.action.seq).toBe(3);
@@ -58,10 +58,10 @@ describe('UndoPlan', () => {
 
   // Undo, then undo again: the marker is never the action, the undone action is skipped, and the target is a live seq.
   it('each press steps back one more action', () => {
-    const p = plan(engine(Round1), me(mv), engine(phase), them(marker), me(undone(3))).plan!;
+    const p = plan(engine(Round1), me(mv), engine(phase), them(score), me(undone(3))).plan!;
     expect(p.toSeq).toBe(1);
     expect(p.action.seq).toBe(2);
-    expect(plan(engine(Round1), me(mv), engine(phase), them(marker), me(undone(3)), me(undone(1))).plan).toBeNull();
+    expect(plan(engine(Round1), me(mv), engine(phase), them(score), me(undone(3)), me(undone(1))).plan).toBeNull();
   });
 
   // The server stamps an Ask's close with the participant whose answer closed it; the answer is the action, so the Ask reopens unanswered.
@@ -104,7 +104,7 @@ describe('UndoPlan', () => {
 
   it('an undone roll before the target is not lost again', () => {
     const p = plan(engine(Round1), me(mv), engine(started(Frame, 'x', ctx(Unit))), engine(step(Frame, 'roll-to-hit', [hit()])),
-      me(undone(2)), them(marker)).plan!;
+      me(undone(2)), them(score)).plan!;
     expect(p.toSeq).toBe(2);
     expect(p.lostRolls).toEqual([]);
   });

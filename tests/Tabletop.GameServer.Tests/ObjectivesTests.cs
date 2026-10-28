@@ -16,7 +16,8 @@ public class ObjectivesTests
     static readonly Tabletop.Content.Unit Flyer = Unit("Flyer", "4+", "4+", [P(GfNames.Aircraft)], 1, []);
 
     static GameState Game(params Tabletop.Content.Unit[] blue) => State([Red, Flyer], blue.Length == 0 ? [Blue] : blue);
-    static Guid Objective(GameState s) => s.Board.Table.Markers.First(m => m.Kind == MarkerKind.Objective).Id;
+    static GameState Game(Marker extra) => State([Red, Flyer], [Blue], markers: [extra]);
+    static Guid Objective(GameState s) => s.Board.Table.Markers[0].Id;
     static void Apply(GameState s, params EventPayload[] events) { foreach (var e in events) s.Applier.Apply(new GameEvent(s.Projection.LastSeq + 1, null, e, null)); }
     static void Put(GameState s, Tabletop.Content.Unit unit, double x, double y) => Apply(s, new ModelsMoved(unit.Models.Select(m =>
         new ModelRelocation(m.Id, s.Projection.Models[m.Id].Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))))).ToList()));
@@ -64,9 +65,8 @@ public class ObjectivesTests
         // the marker's rim, which a rim measure would seize.
         foreach (var (y, seizes) in new[] { (13.63, true), (13.64, false), (14.63, false) })
         {
-            var s = Game();
             var placed = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10, 10, 0), new Yaw(0), 2, "B", VisualRef.OfBuiltin("objective-ring"));
-            Apply(s, new MarkerPlaced(placed));
+            var s = Game(placed);
             Put(s, Red, 10, y);
             Assert.Equal(seizes, Seize(s).Contains(new ObjectiveControlSet(placed.Id, Samples.Team1)));
         }
@@ -114,22 +114,10 @@ public class ObjectivesTests
     }
 
     [Fact]
-    public void An_objective_placed_in_play_is_seized_like_one_from_setup_and_a_token_is_not()
-    {
-        var s = Game();
-        var placed = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10, 10, 0), new Yaw(0), 2, "B", VisualRef.OfBuiltin("objective-ring"));
-        Apply(s, new MarkerPlaced(placed), new MarkerPlaced(Samples.Token with { Position = new Point3(10, 14, 0) }));
-        Put(s, Red, 10, 13);
-        Assert.Equal([new ObjectiveControlSet(placed.Id, Samples.Team1)], Seize(s));
-        Assert.Equal(2, GfObjectives.Markers(s).Count);
-    }
-
-    [Fact]
     public void Most_markers_wins_and_an_equal_count_is_a_tie()
     {
-        var s = Game();
         var placed = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10, 10, 0), new Yaw(0), 2, "B", VisualRef.OfBuiltin("objective-ring"));
-        Apply(s, new MarkerPlaced(placed));
+        var s = Game(placed);
         Assert.Equal([Samples.Team1, Samples.Team2], GfObjectives.Winners(s));               // nobody holds anything: every team at none
         Assert.Equal("Markers held: Team 1: 0, Team 2: 0.", GfObjectives.Standing(s));
         Apply(s, new ObjectiveControlSet(Objective(s), Samples.Team2));

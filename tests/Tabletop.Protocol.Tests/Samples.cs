@@ -23,7 +23,7 @@ public static class Samples
         [new Participant(P1, Guid.CreateVersion7(), "Clay", Team1, null)]);
     public static Board Board => new(TableStateTests.Sample(), [new ArmyInPlay(P1, ArmySnapshot.Of(Army, Guid.CreateVersion7()))]);
     public static RollRecord Hit => new(Roll, "hit", 4, [new RollModifier("AP", -1)], [new Die(6, 6, true), new Die(2, 2, false)]);
-    public static readonly Marker Token = new(Guid.CreateVersion7(), MarkerKind.Token, new Point3(1, 1, 0), new Yaw(0), 1, "smoke", VisualRef.OfBuiltin("chip"));
+    public static readonly Marker Objective = new(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(1, 1, 0), new Yaw(0), 3, "smoke", VisualRef.OfBuiltin("objective-ring"));
     public static readonly Grant Grant = new(Guid.CreateVersion7(), Guid.CreateVersion7(), "Regeneration", Unit, 1);
 
     public static readonly LegalSet[] LegalSets =
@@ -60,18 +60,18 @@ public static class Samples
         new ModelsMoved([Deploy]), new ModelsMoved([Embark]), new WoundsSet(Model, 2), new ConditionSet(new Subject(SubjectKind.Unit, Unit), "shaken", true),
         new ActionRecorded(Unit, "Advance"), new ActionRecordCleared(Unit), new GrantAdded(Unit, Grant), new GrantRemoved(Unit, Grant.Id),
         new SpellTokensSet(Model, 3), new WoundsThisActivationSet(Unit, 2), new ScoreSet(Team1, 4),
-        new MarkerPlaced(Token), new MarkerMoved(Token.Id, new Point3(2, 2, 0), new Yaw(90)), new MarkerRemoved(Token.Id),
+        new MarkerMoved(Objective.Id, new Point3(2, 2, 0), new Yaw(90)),
         new GameEnded("over", [Team1]),
-        new RoundEnded(4, [new ObjectiveControlSet(Token.Id, Team1)]), new ObjectiveControlSet(Token.Id, null),
+        new RoundEnded(4, [new ObjectiveControlSet(Objective.Id, Team1)]), new ObjectiveControlSet(Objective.Id, null),
     ];
     public static readonly Command[] Commands =
     [
-        new AnswerAsk(AskId, new Passed()), new AnswerAsk(AskId, new Confirmed(), Team2), new MoveModels([Deploy]), new PlaceMarker(Token), new MoveMarker(Token.Id, new Point3(0, 0, 0), new Yaw(0)),
-        new RemoveMarker(Token.Id), new SetWounds(Model, 1), new SetCondition(new Subject(SubjectKind.Model, Model), "fatigued", false),
+        new AnswerAsk(AskId, new Passed()), new AnswerAsk(AskId, new Confirmed(), Team2), new MoveModels([Deploy]), new MoveMarker(Objective.Id, new Point3(0, 0, 0), new Yaw(0)),
+        new SetWounds(Model, 1), new SetCondition(new Subject(SubjectKind.Model, Model), "fatigued", false),
         new RecordAction(Unit, "Hold"), new ClearActionRecord(Unit), new AddGrant(Unit, Grant), new RemoveGrant(Unit, Grant.Id),
         new SetSpellTokens(Model, 6), new SetWoundsThisActivation(Unit, 0), new SetScore(Team2, 1), new SetActiveTeam(Team2), new SetRound(2),
         new Undo(3), new AbandonSequence(Frame), new SetDice(Frame, Roll, [new DieValue(0, 6)]),
-        new SetObjectiveControl(Token.Id, Team1),
+        new SetObjectiveControl(Objective.Id, Team1),
     ];
     public static readonly Edit[] Edits =
     [
@@ -80,7 +80,7 @@ public static class Samples
         new AddTerrain(TableStateTests.Sample().Terrain[0]), new MoveTerrain(Guid.CreateVersion7(), new Point3(1, 2, 0), new Yaw(0)),
         new ScaleTerrain(Guid.CreateVersion7(), 1.5), new RemoveTerrain(Guid.CreateVersion7()),
         new OverrideTerrainVolumes(Guid.CreateVersion7(), TableStateTests.Sample().Terrain[0].Volumes), new SwapTerrainMesh(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruin")),
-        new AddSetupMarker(Token), new MoveSetupMarker(Token.Id, new Point3(3, 3, 0), new Yaw(0)), new RemoveSetupMarker(Token.Id),
+        new AddSetupMarker(Objective), new MoveSetupMarker(Objective.Id, new Point3(3, 3, 0), new Yaw(0)), new RemoveSetupMarker(Objective.Id),
         new SetZoneStyle("frontline", ["frontline/1", "frontline/2"]), new SwapZones(1, 2), new ReplaceDraft(TableStateTests.Sample()),
     ];
     public static readonly SocketMessage[] Messages =

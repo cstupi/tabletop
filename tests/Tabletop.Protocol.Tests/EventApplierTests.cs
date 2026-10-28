@@ -19,20 +19,21 @@ public class EventApplierTests
     public void Stores_copy_what_events_say()
     {
         var a = Fresh();
+        var objective = a.Projection.Board.Table.Markers[0].Id;
         a.ApplyAll([
             Ev(1, new WoundsSet(Samples.Model, 2)), Ev(2, new ConditionSet(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true)),
             Ev(3, new ActionRecorded(Samples.Unit, "Advance")), Ev(4, new GrantAdded(Samples.Unit, Samples.Grant)),
             Ev(5, new SpellTokensSet(Samples.Model, 3)), Ev(6, new WoundsThisActivationSet(Samples.Unit, 2)), Ev(7, new ScoreSet(Samples.Team1, 4)),
-            Ev(8, new MarkerPlaced(Samples.Token)), Ev(9, new MarkerMoved(Samples.Token.Id, new(5, 5, 0), new(90))),
+            Ev(8, new MarkerMoved(objective, new(5, 5, 0), new(90))),
         ]);
         var u = a.Projection.Units[Samples.Unit]; var m = a.Projection.Models[Samples.Model];
         Assert.Equal((2, 3), (m.Wounds, m.SpellTokens));
         Assert.Contains("shaken", u.Conditions); Assert.Contains("Advance", u.Actions);
         Assert.Single(u.Grants); Assert.Equal(2, u.WoundsThisActivation); Assert.Equal(4, a.Projection.Scores[Samples.Team1]);
-        Assert.Equal(5, a.Projection.Markers[Samples.Token.Id].Position.X);
+        Assert.Equal(5, a.Projection.Markers[objective].Position.X);
         a.ApplyAll([Ev(10, new ConditionSet(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", false)), Ev(11, new ActionRecordCleared(Samples.Unit)),
-            Ev(12, new GrantRemoved(Samples.Unit, Samples.Grant.Id)), Ev(13, new MarkerRemoved(Samples.Token.Id))]);
-        Assert.Empty(u.Conditions); Assert.Empty(u.Actions); Assert.Empty(u.Grants); Assert.Empty(a.Projection.Markers);
+            Ev(12, new GrantRemoved(Samples.Unit, Samples.Grant.Id))]);
+        Assert.Empty(u.Conditions); Assert.Empty(u.Actions); Assert.Empty(u.Grants);
     }
 
     [Fact]
@@ -178,16 +179,13 @@ public class EventApplierTests
     }
 
     [Fact]
-    public void Control_follows_its_changes_alone_or_inside_a_round_end_and_leaves_with_the_marker()
+    public void Control_follows_its_changes_alone_or_inside_a_round_end()
     {
         var a = Fresh();
-        var objective = Samples.Board.Table.Markers.First(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
-        a.Apply(Ev(1, new RoundEnded(1, [new ObjectiveControlSet(objective, Samples.Team1), new ObjectiveControlSet(Samples.Token.Id, Samples.Team2)])));
+        var objective = a.Projection.Board.Table.Markers[0].Id;
+        a.Apply(Ev(1, new RoundEnded(1, [new ObjectiveControlSet(objective, Samples.Team1)])));
         Assert.Equal(Samples.Team1, a.Projection.Control[objective]);
         a.Apply(Ev(2, new ObjectiveControlSet(objective, null)));
-        Assert.False(a.Projection.Control.ContainsKey(objective));
-        a.Apply(Ev(3, new MarkerPlaced(Samples.Token)));
-        a.Apply(Ev(4, new MarkerRemoved(Samples.Token.Id)));
         Assert.Empty(a.Projection.Control);
     }
 

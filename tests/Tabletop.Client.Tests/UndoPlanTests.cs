@@ -23,7 +23,7 @@ public class UndoPlanTests
     static (Guid?, EventPayload) Them(EventPayload p) => (P2, p);
     static readonly EventPayload Round1 = new RoundStarted(1, [Samples.Team1, Samples.Team2], []);
     static EventPayload Move => new ModelsMoved([Samples.Deploy]);
-    static EventPayload Marker => new MarkerPlaced(Samples.Token);
+    static EventPayload Score => new ScoreSet(Samples.Team2, 1);
 
     [Fact]
     public void Nothing_undoable_is_null()
@@ -35,7 +35,7 @@ public class UndoPlanTests
     [Fact]
     public void The_last_action_is_undone_whoever_took_it()
     {
-        var (plan, log, n) = Plan(Engine(Round1), Me(Move), Them(Marker));
+        var (plan, log, n) = Plan(Engine(Round1), Me(Move), Them(Score));
         Assert.NotNull(plan);
         Assert.Equal(2L, plan.ToSeq);
         Assert.Equal(3L, plan.Action.Seq);
@@ -63,10 +63,10 @@ public class UndoPlanTests
     [Fact]
     public void Each_press_steps_back_one_more_action()
     {
-        var plan = Plan(Engine(Round1), Me(Move), Engine(new PhaseStarted("x")), Them(Marker), Me(new Undone(3))).Plan!;
+        var plan = Plan(Engine(Round1), Me(Move), Engine(new PhaseStarted("x")), Them(Score), Me(new Undone(3))).Plan!;
         Assert.Equal(1L, plan.ToSeq);
         Assert.Equal(2L, plan.Action.Seq);
-        var again = Plan(Engine(Round1), Me(Move), Engine(new PhaseStarted("x")), Them(Marker), Me(new Undone(3)), Me(new Undone(1))).Plan;
+        var again = Plan(Engine(Round1), Me(Move), Engine(new PhaseStarted("x")), Them(Score), Me(new Undone(3)), Me(new Undone(1))).Plan;
         Assert.Null(again);
     }
 
@@ -135,7 +135,7 @@ public class UndoPlanTests
         var plan = Plan(Engine(Round1), Me(Move),
             Engine(new SequenceStarted(Samples.Frame, "x", new SequenceContext(Samples.Unit, [], [], null))),
             Engine(new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit], [])),
-            Me(new Undone(2)), Them(Marker)).Plan!;
+            Me(new Undone(2)), Them(Score)).Plan!;
         Assert.Equal(2L, plan.ToSeq);
         Assert.Empty(plan.LostRolls);
     }

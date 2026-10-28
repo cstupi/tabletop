@@ -90,8 +90,5 @@ public class AgreementFixtureTests
         var unknown = Guid.CreateVersion7();
         Assert.Throws<ProjectionDesyncException>(
             () => applier.Apply(new GameEvent(1, null, new MarkerMoved(unknown, new Point3(5, 5, 0), new Yaw(90)), null)));
-
-        // A store C# removes from rather than reads through does not fault, so the port must not either.
-        applier.Apply(new GameEvent(2, null, new MarkerRemoved(unknown), null));
     }
 }

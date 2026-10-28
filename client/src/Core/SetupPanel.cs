@@ -4,7 +4,7 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 /// <summary>The folding sections of the lobby and setup side panel, and the terrain card's two in setup.</summary>
-public enum SetupFold { Terrain, Markers, Table, Zones, Layouts, Game, Players, PieceMesh, PieceVolumes }
+public enum SetupFold { Terrain, Objectives, Table, Zones, Layouts, Game, Players, PieceMesh, PieceVolumes }
 
 /// <summary>
 /// Spec 2026-10-27-godot-setup-screen-design.md → Side panel: which sections show in which order, their headings, and which are open.
@@ -18,7 +18,7 @@ public sealed class SetupFolds
     public static IReadOnlyList<SetupFold> Order(GameStatus status) => status switch
     {
         GameStatus.Lobby => [SetupFold.Players, SetupFold.Game],
-        GameStatus.Setup => [SetupFold.Terrain, SetupFold.Markers, SetupFold.Table, SetupFold.Zones, SetupFold.Layouts, SetupFold.Game, SetupFold.Players],
+        GameStatus.Setup => [SetupFold.Terrain, SetupFold.Objectives, SetupFold.Table, SetupFold.Zones, SetupFold.Layouts, SetupFold.Game, SetupFold.Players],
         _ => [],
     };
 
@@ -37,7 +37,7 @@ public sealed class SetupFolds
     public static string Title(SetupFold fold, TableState? draft, GameInfo? game) => fold switch
     {
         SetupFold.Terrain => draft is null ? "Terrain" : $"Terrain {draft.Terrain.Count}/{SetupLimits.Terrain}",
-        SetupFold.Markers => draft is null ? "Markers" : $"Markers {draft.Markers.Count}/{SetupLimits.Markers}",
+        SetupFold.Objectives => draft is null ? "Objectives" : $"Objectives {draft.Markers.Count}/{SetupLimits.Markers}",
         SetupFold.Table => draft is null ? "Table"
             : $"Table {draft.Size.Width} × {draft.Size.Length}\"{(draft.Texture.Builtin is { } t ? $" · {SetupWords.Texture(t)}" : "")}",
         SetupFold.Zones => "Deployment zones",

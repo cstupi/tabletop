@@ -4,16 +4,15 @@ import { MarkerLocks, terrainMayDrag } from '../src/lib/play/markerLocks';
 import type { GameStatus, Marker, TableState } from '../src/lib/protocol/wire.generated';
 import { P1, boardOf, emptyTable, gameOf, markerOf, newId, sample } from './play';
 
+/** Two setup objectives, the second moved in play. */
 function rig() {
-  const setupObjective: Marker = { ...markerOf(undefined, 'objective'), id: newId() };
-  const table: TableState = { ...emptyTable(), markers: [setupObjective] };
+  const setupObjective: Marker = { ...markerOf(undefined), id: newId() };
+  const playObjective = markerOf('Obj');
+  const table: TableState = { ...emptyTable(), markers: [setupObjective, playObjective] };
   const s = sample();
   const applier = new Applier(boardOf(s.board.armies.map((a) => ({ participantId: a.participantId, units: [...a.snapshot.units] })), table), gameOf());
-  const playObjective = markerOf('Obj', 'objective');
-  const token = markerOf('Token');
-  let seq = 0;
-  for (const m of [token, playObjective]) applier.apply({ seq: ++seq, actor: P1, payload: { kind: 'marker_placed', marker: m } } as never);
-  return { p: applier.projection, setup: setupObjective.id, play: playObjective.id, token: token.id };
+  applier.apply({ seq: 1, actor: P1, payload: { kind: 'marker_moved', markerId: playObjective.id, position: { x: 6, y: 6, z: 0 }, yaw: { degrees: 0 } } });
+  return { p: applier.projection, setup: setupObjective.id, play: playObjective.id };
 }
 
 describe('MarkerLocks', () => {
@@ -32,12 +31,10 @@ describe('MarkerLocks', () => {
     expect(locks.mayDrag(status, null, setup)).toBe(true);
   });
 
-  it('tokens and unknown ids are free', () => {
-    const { p, token, play } = rig();
+  it('unknown ids are free', () => {
+    const { p, play } = rig();
     const locks = new MarkerLocks();
-    expect(locks.mayDrag('playing', p, token)).toBe(true);
     expect(locks.mayDrag('playing', p, 'nobody')).toBe(true);
-    expect(locks.itemFor('playing', p, token)).toBeNull();
     expect(locks.itemFor('playing', p, 'nobody')).toBeNull();
     expect(locks.itemFor('setup', p, play)).toBeNull();
   });

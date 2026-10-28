@@ -19,20 +19,16 @@ public static class MenuTranslation
         bool HasUnit(Guid id) => p.Units.ContainsKey(id) || Missing(ref miss, $"no unit {id}");
         bool HasTeam(Guid id) => state.Info.Teams.Any(t => t.Id == id) || Missing(ref miss, $"no team {id}");
         bool OnBoard(Guid id) => state.Board.Table.Markers.Any(m => m.Id == id);
-        // A setup marker moves (its first move puts it into the projection) but is never removed: it is the mission's.
-        bool Movable(Guid id) => p.Markers.ContainsKey(id) || OnBoard(id) || Missing(ref miss, $"no marker {id}");
-        bool Removable(Guid id) => (p.Markers.ContainsKey(id) && !OnBoard(id)) || Missing(ref miss, OnBoard(id) ? $"setup marker {id} is not removable" : $"no marker {id}");
-        // The play entry wins a shared id, as in GfObjectives.Markers; only an objective can be held.
-        bool HasObjective(Guid id) => (p.Markers.TryGetValue(id, out var played) ? played : state.Board.Table.Markers.FirstOrDefault(m => m.Id == id)) is { Kind: Tabletop.Content.MarkerKind.Objective } || Missing(ref miss, $"no objective {id}");
+        // A setup marker moves (its first move puts it into the projection).
+        bool Movable(Guid id) => OnBoard(id) || Missing(ref miss, $"no marker {id}");
+        bool HasObjective(Guid id) => OnBoard(id) || Missing(ref miss, $"no objective {id}");
         bool SubjectExists(Subject s) => s.Kind == SubjectKind.Unit ? HasUnit(s.Id) : HasModel(s.Id);
 
         EventPayload? payload = command switch
         {
             MoveModels m when m.Moves.All(x => HasModel(x.ModelId)) => new ModelsMoved(m.Moves.Select(x => x.To is OnTable t
                 ? new ModelRelocation(x.ModelId, x.From, new OnTable(Battlefield.Settle(state, x.ModelId, t.Placement))) : x).ToList()),
-            PlaceMarker m when !p.Markers.ContainsKey(m.Marker.Id) || Missing(ref miss, $"marker {m.Marker.Id} already placed") => new MarkerPlaced(m.Marker),
             MoveMarker m when Movable(m.MarkerId) => new MarkerMoved(m.MarkerId, m.Position, m.Yaw),
-            RemoveMarker m when Removable(m.MarkerId) => new MarkerRemoved(m.MarkerId),
             SetWounds w when HasModel(w.ModelId) => new WoundsSet(w.ModelId, w.Wounds),
             SetCondition c when SubjectExists(c.Subject) => new ConditionSet(c.Subject, c.Condition, c.Present),
             RecordAction a when HasUnit(a.UnitId) => new ActionRecorded(a.UnitId, a.Action),

@@ -259,8 +259,7 @@ upright in the Z-up table frame is `pitch = 90`.
 
 ## Marker size
 
-**A diameter in world units.** Objectives are large circles, tokens small chips, and both are
-circles.
+**A diameter in world units.** An objective is a large circle.
 
 ## Deliberately not decided
 

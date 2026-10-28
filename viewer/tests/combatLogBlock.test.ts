@@ -4,7 +4,7 @@ import { Names } from '../src/lib/play/names';
 import { collapsed, type LineEntry, type LogEntry, type RollEntry } from '../src/lib/play/rollEntry';
 import type { EventPayload, RollRecord } from '../src/lib/protocol/wire.generated';
 import {
-  Enemy, Frame, GameSample, Model, Rifle, Round1, Token, Unit, buildSample, ctx, D, deploy, finished, grant, hit, move, rollOf, started, step, undone,
+  Enemy, Frame, GameSample, Model, Rifle, Round1, Objective, Unit, buildSample, ctx, D, deploy, finished, grant, hit, move, rollOf, started, step, undone,
   TEAM1,
 } from './logSamples';
 import { askOf, newId } from './play';
@@ -138,8 +138,8 @@ describe('CombatLogBlock', () => {
   });
 
   it('outside an action a players deploy names the unit and a round ends changes read one each', () => {
-    const { entries } = buildSample(move(deploy), { kind: 'round_ended', round: 1, changes: [{ kind: 'objective_control_set', markerId: Token.id, teamId: TEAM1 }] });
-    expect(lines(entries).map((l) => l.text)).toEqual(['Team 1 · Battle Brothers deployed', `Team 1 took ${new Names(GameSample, null).marker(Token.id)}`]);
+    const { entries } = buildSample(move(deploy), { kind: 'round_ended', round: 1, changes: [{ kind: 'objective_control_set', markerId: Objective.id, teamId: TEAM1 }] });
+    expect(lines(entries).map((l) => l.text)).toEqual(['Team 1 · Battle Brothers deployed', `Team 1 took ${new Names(GameSample, null).marker(Objective.id)}`]);
   });
 
   it('a roll-off names each teams die and the winner after the tie breaks', () => {

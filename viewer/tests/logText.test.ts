@@ -86,11 +86,11 @@ describe('LogText', () => {
 
   it('control reads as taking a marker or making it neutral', () => {
     const token = markerOf('smoke');
-    const setupMarker = { ...markerOf(undefined, 'objective') };
+    const setupMarker = { ...markerOf(undefined) };
     const s = sample();
-    const table = { ...emptyTable(), markers: [setupMarker] };
+    const table = { ...emptyTable(), markers: [setupMarker, token] };
     const board = boardOf([{ participantId: P1, units: [] }], table);
-    const a = projectionOf(s.game, board, [{ kind: 'marker_placed', marker: token }]);
+    const a = projectionOf(s.game, board, []);
     const n = new Names(s.game, a.projection);
     const line = (p: EventPayload) => describeEvent(ev(9, p), n);
     expect(line({ kind: 'round_ended', round: 4, changes: [{ kind: 'objective_control_set', markerId: token.id, teamId: TEAM1 }] }))
@@ -100,7 +100,7 @@ describe('LogText', () => {
     expect(line({ kind: 'objective_control_set', markerId: setupMarker.id, teamId: TEAM2 })).toBe('the game gave Objective 1 to Team 2');
     expect(roundChange({ kind: 'objective_control_set', markerId: token.id }, n)).toBe('smoke became neutral');
 
-    const labelled = { ...markerOf('centre', 'objective') };
+    const labelled = { ...markerOf('centre') };
     const b = projectionOf(s.game, boardOf([{ participantId: P1, units: [] }], { ...emptyTable(), markers: [labelled] }));
     expect(describeEvent(ev(9, { kind: 'objective_control_set', markerId: labelled.id, teamId: TEAM2 }), new Names(s.game, b.projection)))
       .toBe('the game gave centre to Team 2');

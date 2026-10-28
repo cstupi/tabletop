@@ -26,9 +26,6 @@ public static class SetupEdits
     public static AddSetupMarker Objective(TableState draft) =>
         new(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, SetupLimits.FreeSpot(draft.Size, draft.Markers, 3), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring")));
 
-    public static AddSetupMarker Token(TableState draft) =>
-        new(new Marker(Guid.CreateVersion7(), MarkerKind.Token, SetupLimits.FreeSpot(draft.Size, draft.Markers, 1), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip")));
-
     public static SetZoneStyle Zones(string style) => new(style, ZoneStyles.ShapesOf(style));
     public static SwapZones SwapZones(int teamOrdinalA, int teamOrdinalB) => new(teamOrdinalA, teamOrdinalB);
 

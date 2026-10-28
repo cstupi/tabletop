@@ -93,7 +93,7 @@ public class FourTeamGameTests
 
     static void Put(TestGames.Built g, Guid unit, double x, double y) => TestGames.Apply(g, new ModelsMoved(g.State.Projection.Units[unit].Definition.Models.Select(m =>
         new ModelRelocation(m.Id, g.State.Projection.Models[m.Id].Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))))).ToList()));
-    static TestGames.Built FourTeamState() => TestGames.Build(Enumerable.Range(0, 8).Select(i => (Army?)TestArmies.Build($"P{i}", 1, 2)).ToList(), teamOf: [0, 1, 2, 3, 0, 1, 2, 3]);
+    static TestGames.Built FourTeamState(IReadOnlyList<Marker>? markers = null) => TestGames.Build(Enumerable.Range(0, 8).Select(i => (Army?)TestArmies.Build($"P{i}", 1, 2)).ToList(), teamOf: [0, 1, 2, 3, 0, 1, 2, 3], markers: markers);
     static Guid UnitOfSeat(TestGames.Built g, int seat) => g.State.Projection.Units.Values.Single(u => u.ParticipantId == g.Participants[seat]).Id;
 
     [Fact]
@@ -111,14 +111,13 @@ public class FourTeamGameTests
     [Fact]
     public void The_team_of_four_with_most_markers_wins_and_an_equal_count_ties_only_those_teams()
     {
-        var g = FourTeamState();
         var markers = Enumerable.Range(0, 3).Select(i => new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10 + i * 10, 10, 0), new Yaw(0), 2, $"M{i}", VisualRef.OfBuiltin("objective-ring"))).ToList();
-        TestGames.Apply(g, markers.Select(m => (EventPayload)new MarkerPlaced(m)).ToArray());
+        var g = FourTeamState(markers);
         var t = g.Teams;
         TestGames.Apply(g, new ObjectiveControlSet(markers[0].Id, t[3]), new ObjectiveControlSet(markers[1].Id, t[3]), new ObjectiveControlSet(markers[2].Id, t[1]));
         Assert.Equal([t[3]], GfObjectives.Winners(g.State));                             // "the player that controls most markers wins"
         Assert.Equal("Markers held: Team 1: 0, Team 2: 1, Team 3: 0, Team 4: 2.", GfObjectives.Standing(g.State));
-        var setup = g.State.Board.Table.Markers.First(m => m.Kind == MarkerKind.Objective).Id;
+        var setup = g.State.Board.Table.Markers[0].Id;
         TestGames.Apply(g, new ObjectiveControlSet(setup, t[1]));
         Assert.Equal([t[1], t[3]], GfObjectives.Winners(g.State));                       // two of the four tie; teams 1 and 3 hold none
     }

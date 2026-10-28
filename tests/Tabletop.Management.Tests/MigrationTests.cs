@@ -44,5 +44,40 @@ public class MigrationTests : IClassFixture<TestDatabase>
     }
 
     [Fact]
+    public async Task Tokens_are_removed_from_tables_and_logs_and_the_schema_refuses_them()
+    {
+        await using var c = new NpgsqlConnection(_db.ConnectionString);
+        var (account, table, objective, token) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+        await c.ExecuteAsync("insert into management.account (id, name) values (@account, 'token test')", new { account });
+        await c.ExecuteAsync("insert into management.table_state (id, owner_id, name, width, length, texture_builtin) values (@table, @account, 'T', 72, 48, 'grass')", new { table, account });
+        const string Marker = "insert into management.marker (id, table_state_id, kind, pos_x, pos_y, diameter, visual_builtin) values (@id, @table, @kind, 1, 1, 1, 'chip')";
+        var refused = await Assert.ThrowsAsync<PostgresException>(() => c.ExecuteAsync(Marker, new { id = token, table, kind = "token" }));
+        Assert.Equal("marker_kind_check", refused.ConstraintName);
+
+        // Data written before 022: a token row, and a game log holding a token dropped, moved and removed in play.
+        await c.ExecuteAsync("alter table management.marker drop constraint marker_kind_check; alter table management.marker add constraint marker_kind_check check (kind in ('objective', 'token'))");
+        await c.ExecuteAsync(Marker, new { id = objective, table, kind = "objective" });
+        await c.ExecuteAsync(Marker, new { id = token, table, kind = "token" });
+        var (game, played, setup) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+        const string Event = "insert into game.game_event (game_id, seq, kind, payload) values (@game, @seq, @kind, @payload::jsonb)";
+        string Payload(long seq, string body) => $"{{\"seq\": {seq}, \"actor\": null, \"payload\": {body}}}";
+        foreach (var (seq, kind, body) in new (long, string, string)[] {
+            (1, "marker_placed", $$$"""{"kind": "marker_placed", "marker": {"id": "{{{played}}}", "kind": "token"}}"""),
+            (2, "marker_moved", $$$"""{"kind": "marker_moved", "markerId": "{{{played}}}"}"""),
+            (3, "marker_moved", $$$"""{"kind": "marker_moved", "markerId": "{{{setup}}}"}"""),
+            (4, "marker_removed", $$$"""{"kind": "marker_removed", "markerId": "{{{played}}}"}"""),
+            (5, "score_set", """{"kind": "score_set"}""") })
+            await c.ExecuteAsync(Event, new { game, seq, kind, payload = Payload(seq, body) });
+
+        var script = typeof(Persistence.Migrator).Assembly.GetManifestResourceStream("Tabletop.Management.Persistence.Migrations.022_remove_tokens.sql")!;
+        await c.ExecuteAsync(await new StreamReader(script).ReadToEndAsync());
+
+        Assert.Equal([objective], await c.QueryAsync<Guid>("select id from management.marker where table_state_id = @table", new { table }));
+        Assert.Equal([3L, 5L], await c.QueryAsync<long>("select seq from game.game_event where game_id = @game order by seq", new { game }));
+        Assert.Equal("marker_kind_check", (await Assert.ThrowsAsync<PostgresException>(() => c.ExecuteAsync(Marker, new { id = Guid.CreateVersion7(), table, kind = "token" }))).ConstraintName);
+        await c.ExecuteAsync("delete from game.game_event where game_id = @game; delete from management.account where id = @account", new { game, account });
+    }
+
+    [Fact]
     public void Running_the_migrator_twice_is_a_no_op() => Persistence.Migrator.Run(_db.ConnectionString);
 }

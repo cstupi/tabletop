@@ -24,6 +24,17 @@ public class WireJsonTests
     public void An_enum_given_as_an_integer_is_unreadable() =>
         Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<Edit>("""{"kind":"set_configuration","name":"x","propertiesHash":"h","schedulerShape":7,"enforcement":"warn","waitsBetweenSteps":false}"""));
 
+    /// <summary>A marker is an objective: no token kind, and no command or event places or removes one in play.</summary>
+    [Fact]
+    public void Tokens_are_not_on_the_wire()
+    {
+        const string Token = """{"id":"019a0000-0000-7000-8000-000000000001","kind":"token","position":{"x":1,"y":1,"z":0},"yaw":{"degrees":0},"diameter":1,"visual":{"builtin":"chip"}}""";
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<Edit>($$"""{"kind":"add_setup_marker","marker":{{Token}}}"""));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<Command>($$"""{"kind":"place_marker","marker":{{Token}}}"""));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<Command>("""{"kind":"remove_marker","markerId":"019a0000-0000-7000-8000-000000000001"}"""));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<EventPayload>("""{"kind":"marker_removed","markerId":"019a0000-0000-7000-8000-000000000001"}"""));
+    }
+
     /// <summary>A measurement's mode is optional: a client that sends none measures horizontally, and one that does names it.</summary>
     [Fact]
     public void A_measurement_s_mode_is_optional()

@@ -22,7 +22,7 @@ public class MenusTests
         var ctx = Ctx(watching: true);
         var marker = TableUx.Board.Table.Markers[0].Id;
         Assert.Empty(Menus.Piece(ctx, M0, false)); Assert.Empty(Menus.Piece(ctx, M0, true)); Assert.Empty(Menus.Piece(ctx, marker, false));
-        Assert.Empty(Menus.Team(ctx, TableUx.T1)); Assert.Empty(Menus.Roster(ctx, TableUx.Squad.Id)); Assert.Empty(Menus.Table(ctx, new Point3(5, 6, 0)));
+        Assert.Empty(Menus.Team(ctx, TableUx.T1)); Assert.Empty(Menus.Roster(ctx, TableUx.Squad.Id));
     }
 
     [Fact]
@@ -60,13 +60,4 @@ public class MenusTests
     [Fact]
     public void The_roster_menu_is_the_rosters_items_for_my_team()
         => Assert.Equal(Labels(MenuModel.ForRosterUnit(TableUx.Game, P, TableUx.Reserve.Id, TableUx.T1, new Dictionary<Guid, IReadOnlyList<Guid>>())), Labels(Menus.Roster(Ctx(), TableUx.Reserve.Id)));
-
-    [Fact]
-    public void The_table_menu_drops_a_token_there()
-    {
-        var item = Assert.Single(Menus.Table(Ctx(), new Point3(5, 6, 0)));
-        var place = Assert.IsType<PlaceMarker>(item.Build("smoke"));
-        Assert.Equal((MarkerKind.Token, new Point3(5, 6, 0), "smoke", "chip", 1.0), (place.Marker.Kind, place.Marker.Position, place.Marker.Label, place.Marker.Visual.Builtin, place.Marker.Diameter));
-        Assert.Equal(new Yaw(0), place.Marker.Yaw);
-    }
 }

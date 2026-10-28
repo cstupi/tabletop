@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MarkerLocks } from '../src/lib/play/markerLocks';
-import { choose, pieceMenu, rosterMenu, tableMenu, teamMenu, type MenuContext } from '../src/lib/play/menus';
+import { choose, pieceMenu, rosterMenu, teamMenu, type MenuContext } from '../src/lib/play/menus';
 import { forMarker, forModel } from '../src/lib/play/menuModel';
 import { Names } from '../src/lib/play/names';
 import type { EventPayload, Marker } from '../src/lib/protocol/wire.generated';
@@ -9,7 +9,7 @@ import { P1, P2, TEAM1, boardOf, emptyTable, gameOf, markerOf, newId, projection
 const mine = unitOf('Mine', [slotOf({ name: 'M' })]);
 const theirs = unitOf('Theirs', [slotOf({ name: 'T' })]);
 const hull = { ...unitOf('Aside', [slotOf({ name: 'H' })]), properties: [{ name: 'Ambush' }] };
-const objective: Marker = { ...markerOf('mid', 'objective'), id: newId() };
+const objective: Marker = { ...markerOf('mid'), id: newId() };
 const game = gameOf();
 const board = boardOf([{ participantId: P1, units: [mine, hull] }, { participantId: P2, units: [theirs] }], { ...emptyTable(), markers: [objective] });
 const p = (...e: EventPayload[]) => projectionOf(game, board, e).projection;
@@ -21,7 +21,7 @@ const labels = (items: readonly { label: string }[]) => items.map((i) => i.label
 describe('menus', () => {
   it('a watcher gets no menu and the roster menu is my team\'s only', () => {
     const w = ctx({ watching: true, myTeam: null });
-    expect([pieceMenu(w, mine.models[0]!.id, false), teamMenu(w, TEAM1, new Names(game, w.p)), rosterMenu(w, hull.id), tableMenu(w, { x: 1, y: 1, z: 0 })]).toEqual([[], [], [], []]);
+    expect([pieceMenu(w, mine.models[0]!.id, false), teamMenu(w, TEAM1, new Names(game, w.p)), rosterMenu(w, hull.id)]).toEqual([[], [], []]);
     expect(labels(rosterMenu(ctx(), hull.id))).toEqual(['Set aside']);
     expect(rosterMenu(ctx(), theirs.id)).toEqual([]);
     expect(pieceMenu(ctx(), theirs.models[0]!.id, false).length).toBeGreaterThan(0);          // the model menu is any participant's

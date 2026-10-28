@@ -10,7 +10,7 @@ namespace Tabletop.Client.Panels;
 
 /// <summary>
 /// The closed set of setup edits, one control each, in folding sections (spec 2026-10-27-godot-setup-screen-design.md): Terrain (open:
-/// the catalog searched and grouped, Random table, my terrain, Clear terrain), Markers, Table, Deployment zones and Layouts. Anyone may use
+/// the catalog searched and grouped, Random table, my terrain, Clear terrain), Objectives, Table, Deployment zones and Layouts. Anyone may use
 /// every one of them; the server applies in arrival order.
 /// </summary>
 public partial class SetupToolbar : VBoxContainer
@@ -37,7 +37,7 @@ public partial class SetupToolbar : VBoxContainer
             .ToDictionary(f => f, f => Add(new Fold(_folds, f, GameStatus.Setup, () => SetupFolds.Title(f, s.Draft, s.Game))));
         var showTexture = BuildTable(s, sections[SetupFold.Table].Body);
         BuildTerrain(s, sections[SetupFold.Terrain].Body);
-        BuildMarkers(s, sections[SetupFold.Markers].Body);
+        BuildObjectives(s, sections[SetupFold.Objectives].Body);
         BuildZones(s, sections[SetupFold.Zones].Body);
         BuildLayouts(s, sections[SetupFold.Layouts].Body);
 
@@ -140,11 +140,10 @@ public partial class SetupToolbar : VBoxContainer
         return ShowTexture;
     }
 
-    void BuildMarkers(Session s, VBoxContainer body)
+    void BuildObjectives(Session s, VBoxContainer body)
     {
         var markers = new HFlowContainer(); body.AddChild(markers);
         markers.AddChild(Gated(Btn("Add objective", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Objective(d)); }), SetupLimits.CannotAddMarker));
-        markers.AddChild(Gated(Btn("Add token", () => { if (s.Draft is { } d) Guarded.Send(s, SetupEdits.Token(d)); }), SetupLimits.CannotAddMarker));
     }
 
     static void BuildZones(Session s, VBoxContainer body)
@@ -205,7 +204,7 @@ public partial class SetupToolbar : VBoxContainer
     {
         if (s.Draft is not { Terrain.Count: > 0 } draft) return;
         var d = new ConfirmationDialog { Title = "Clear terrain?", OkButtonText = "Clear terrain", DialogAutowrap = true,
-            DialogText = $"All {draft.Terrain.Count} terrain pieces come off the table. Markers and zones stay." };
+            DialogText = $"All {draft.Terrain.Count} terrain pieces come off the table. Objectives and zones stay." };
         d.Confirmed += () => { if (s.Draft is { } now) Guarded.Send(s, SetupEdits.ClearTerrain(now)); };
         d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
         AddChild(d); d.PopupCentered(new Vector2I(360, 0));

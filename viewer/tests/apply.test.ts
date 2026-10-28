@@ -36,7 +36,7 @@ const board = {
         kind: 'solid', footprint: { kind: 'rect', a: 3, b: 1 }, offset: { x: 1, y: 0 },
         yaw: { degrees: 0 }, bottom: 0, top: 4, declarations: 'impassable, blocks_line_of_sight' } }],
     }],
-    markers: [{ id: K1, kind: 'objective', position: { x: 36, y: 24, z: 0 }, yaw: { degrees: 0 }, diameter: 2, label: 'A', visual: { builtin: 'chip' } }],
+    markers: [{ id: K1, kind: 'objective', position: { x: 36, y: 24, z: 0 }, yaw: { degrees: 0 }, diameter: 2, label: 'A', visual: { builtin: 'objective-ring' } }],
     zones: [{ id: '0198b7ac-0000-7000-8000-0000000000fb', shape: 'frontline/1', teamOrdinal: 1 }],
   },
   armies: [{ participantId: P1, snapshot: { id: '0198b7ac-0000-7000-8000-0000000000fa', name: 'Vanguard', gameSystem: 'grimdark-future',
@@ -71,10 +71,7 @@ describe('the ported applier', () => {
       ev(6, { kind: 'spell_tokens_set', modelId: M1, tokens: 3 }),
       ev(7, { kind: 'wounds_this_activation_set', unitId: U1, wounds: 2 }),
       ev(8, { kind: 'score_set', teamId: T1, score: 4 }),
-      // A marker placed in play, then moved. A setup marker's first move is pinned in its own test.
-      ev(9, { kind: 'marker_placed', marker: { id: K1, kind: 'objective', position: { x: 1, y: 1, z: 0 },
-        yaw: { degrees: 0 }, diameter: 2, visual: { builtin: 'chip' } } }),
-      ev(10, { kind: 'marker_moved', markerId: K1, position: { x: 5, y: 5, z: 0 }, yaw: { degrees: 90 } }),
+      ev(9, { kind: 'marker_moved', markerId: K1, position: { x: 5, y: 5, z: 0 }, yaw: { degrees: 90 } }),
     ]);
     const p = a.projection;
     expect(p.models.get(M1)!.location).toEqual({ kind: 'table', placement: { position: { x: 6, y: 6, z: 0 }, yaw: { degrees: 45 } } });
@@ -86,7 +83,7 @@ describe('the ported applier', () => {
     expect(p.units.get(U1)!.woundsThisActivation).toBe(2);
     expect(p.scores.get(T1)).toBe(4);
     expect(p.markers.get(K1)!.position.x).toBe(5);
-    expect(p.lastSeq).toBe(10);
+    expect(p.lastSeq).toBe(9);
   });
 
   it('follows the four scheduler events, and a pass stands until the next round', () => {
@@ -161,7 +158,6 @@ describe('the ported applier', () => {
       .toThrow(ProjectionDesyncError);
 
     // A store the C# writes with an indexer or Remove cannot desync, so neither side faults.
-    expect(() => new Applier(board, game).apply(ev(1, { kind: 'marker_removed', markerId: K9 }))).not.toThrow();
     expect(() => new Applier(board, game).apply(ev(1, { kind: 'ask_closed', askId: K9 }))).not.toThrow();
   });
 });
@@ -259,7 +255,7 @@ describe('the ported board projection', () => {
     expect(projector.frames).toHaveLength(3);
   });
 
-  it('carries the score, the passed teams and a marker dropped during play, all as whole state', () => {
+  it('carries the score, the passed teams and a moved marker, all as whole state', () => {
     const projector = new FrameProjector(board, game);
     const opening = projector.add(ev(1, { kind: 'round_started', round: 1, order: [T1, T2], changes: [] }));
     expect(opening.scores).toEqual({ [T1]: 0, [T2]: 0 });   // canonical Guid keys, no key policy set
@@ -269,14 +265,10 @@ describe('the ported board projection', () => {
     projector.add(ev(2, { kind: 'sequence_started', frameId: F1, sequence: 'attack-sequence', context: { actorUnitId: U1, targetUnitIds: [], weaponIds: [] } }));
     projector.add(ev(2, { kind: 'score_set', teamId: T2, score: 4 }));
     const dropped = projector.add(ev(3, { kind: 'step_completed', frameId: F1, step: 'drop', rolls: [], changes: [
-      { kind: 'marker_placed', marker: { id: K9, kind: 'token', position: { x: 4, y: 4, z: 0 },
-        yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } } },
+      { kind: 'marker_moved', markerId: K1, position: { x: 4, y: 4, z: 0 }, yaw: { degrees: 0 } },
     ] }));
     // The definition rides along per frame, so the viewer needs no join against the board block.
-    expect(dropped.markers).toEqual([
-      { id: K1, kind: 'objective', diameter: 2, label: 'A', x: 36, y: 24, z: 0, yaw: 0 },
-      { id: K9, kind: 'token', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 },
-    ]);
+    expect(dropped.markers).toEqual([{ id: K1, kind: 'objective', diameter: 2, label: 'A', x: 4, y: 4, z: 0, yaw: 0 }]);
     expect(dropped.scores).toEqual({ [T1]: 0, [T2]: 4 });
 
     const passed = projector.add(ev(4, { kind: 'turn_ended', teamId: T1, passed: true, changes: [] }));
@@ -285,14 +277,11 @@ describe('the ported board projection', () => {
   });
 
   describe('objective control', () => {
-    it('follows its changes, alone or inside a round end, and leaves with the marker', () => {
+    it('follows its changes, alone or inside a round end', () => {
       const a = new Applier(board, game);
       a.apply(ev(1, { kind: 'round_ended', round: 1, changes: [{ kind: 'objective_control_set', markerId: K1, teamId: T1 }] }));
       expect(a.projection.control.get(K1)).toBe(T1);
       a.apply(ev(2, { kind: 'objective_control_set', markerId: K1 }));
-      expect(a.projection.control.has(K1)).toBe(false);
-      a.apply(ev(3, { kind: 'objective_control_set', markerId: K9, teamId: T2 }));
-      a.apply(ev(4, { kind: 'marker_removed', markerId: K9 }));
       expect(a.projection.control.size).toBe(0);
     });
 
@@ -322,9 +311,10 @@ describe('a setup marker moved in play', () => {
 });
 
 describe('the frame projector lists markers', () => {
-  it('setup first, then play, each with its controller', () => {
-    const projector = new FrameProjector(board, game);
-    projector.add(ev(1, { kind: 'marker_placed', marker: { id: K9, kind: 'token', position: { x: 4, y: 4, z: 0 }, yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } } }));
+  it('unmoved first, then moved, each with its controller', () => {
+    const second = { id: K9, kind: 'objective' as const, position: { x: 4, y: 4, z: 0 }, yaw: { degrees: 0 }, diameter: 2, visual: { builtin: 'objective-ring' } };
+    const projector = new FrameProjector({ ...board, table: { ...board.table, markers: [second, ...board.table.markers] } }, game);
+    projector.add(ev(1, { kind: 'marker_moved', markerId: K9, position: { x: 6, y: 6, z: 0 }, yaw: { degrees: 0 } }));
     const frame = projector.add(ev(2, { kind: 'objective_control_set', markerId: K1, teamId: T2 }));
     expect(frame.markers.map((m) => m.id)).toEqual([K1, K9]);
     expect(frame.markers[0]!.controlledBy).toBe(T2);

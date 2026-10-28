@@ -23,12 +23,11 @@ public static class GfObjectives
     /// <summary>Tabletop.Geometry's own distance tolerance, which that library keeps internal.</summary>
     const double Epsilon = 1e-6;
 
-    /// <summary>The objective markers: the setup rows, then those placed in play, the projection's entry winning on a shared id.</summary>
+    /// <summary>The objective markers: the setup rows not moved in play, then the moved ones' projection entries.</summary>
     public static IReadOnlyList<Marker> Markers(GameState state)
     {
         var play = state.Projection.Markers;
-        return state.Board.Table.Markers.Where(m => !play.ContainsKey(m.Id)).Concat(play.Values)
-            .Where(m => m.Kind == MarkerKind.Objective).ToList();
+        return state.Board.Table.Markers.Where(m => !play.ContainsKey(m.Id)).Concat(play.Values).ToList();
     }
 
     /// <summary>One ObjectiveControlSet per marker whose controller changes at this round end; none when nothing changes.</summary>

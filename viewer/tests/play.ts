@@ -79,8 +79,8 @@ export function askOf(
 
 export const option = (id: string, label: string, pieces: string[] = [], note?: string): AskOption => ({ id, label, pieces, note });
 
-export const markerOf = (label: string | undefined, kind: Marker['kind'] = 'token'): Marker => ({
-  id: newId(), kind, position: { x: 1, y: 1, z: 0 }, yaw: { degrees: 0 }, diameter: 1, label, visual: { builtin: 'chip' },
+export const markerOf = (label: string | undefined): Marker => ({
+  id: newId(), kind: 'objective', position: { x: 1, y: 1, z: 0 }, yaw: { degrees: 0 }, diameter: 3, label, visual: { builtin: 'objective-ring' },
 });
 
 /** The standard sample: Clay (team 1) has Battle Brothers with one model; Bo (team 2) has Rivals with one. */

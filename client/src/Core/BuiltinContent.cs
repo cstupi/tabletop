@@ -31,7 +31,7 @@ public static class BuiltinContent
     public static IReadOnlyList<string> Textures => Catalog.Textures;
     /// <summary>The meshes the built-ins share; several pieces name each, differing by footprint, height, scale and yaw.</summary>
     public static IReadOnlyList<string> TerrainMeshGroups => Catalog.Meshes;
-    public static IReadOnlyList<string> MarkerVisuals { get; } = ["objective-ring", "chip"];
+    public static IReadOnlyList<string> MarkerVisuals { get; } = ["objective-ring"];
     public static IReadOnlyList<string> ZoneStyleIds => ZoneStyles.All;
 
     public static string TextureFile(string name) => Catalog.FileFor(BuiltinCatalog.TexturePath(name), Cache);

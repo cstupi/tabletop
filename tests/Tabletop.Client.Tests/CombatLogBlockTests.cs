@@ -170,8 +170,8 @@ public class CombatLogBlockTests
     [Fact]
     public void Outside_an_action_a_players_deploy_names_the_unit_and_a_round_ends_changes_read_one_each()
     {
-        var (entries, _, _) = Build(new ModelsMoved([Samples.Deploy]), new RoundEnded(1, [new ObjectiveControlSet(Samples.Token.Id, Samples.Team1)]));
-        Assert.Equal(["Team 1 · Battle Brothers deployed", $"Team 1 took {new Names(Samples.Game, null).Marker(Samples.Token.Id)}"],
+        var (entries, _, _) = Build(new ModelsMoved([Samples.Deploy]), new RoundEnded(1, [new ObjectiveControlSet(Samples.Objective.Id, Samples.Team1)]));
+        Assert.Equal(["Team 1 · Battle Brothers deployed", $"Team 1 took {new Names(Samples.Game, null).Marker(Samples.Objective.Id)}"],
             entries.OfType<LineEntry>().Select(l => l.Text));
     }
 

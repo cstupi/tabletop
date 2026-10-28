@@ -112,7 +112,6 @@ public static partial class CallCases
                 yield return Menu("menu/team", log, open.Seq, player, teamOpen, "Make this the active team", null, c => Menus.Team(c, team), suffix: "active");
                 yield return Menu("menu/team", log, open.Seq, player, teamOpen, "Set the round", "2", c => Menus.Team(c, team), suffix: "round");
                 yield return Menu("menu/invalidInput", log, open.Seq, player, teamOpen, "Set the round", "x", c => Menus.Team(c, team), suffix: "round text");
-                yield return Menu("menu/token", log, open.Seq, player, Obj(("table", J(new Point3(5, 6, 0)))), "Drop a token here", "smoke", c => Menus.Table(c, new Point3(5, 6, 0)));
 
                 // Abandon: the first state with a frame open.
                 var applier = new EventApplier(log.Board, log.Game);

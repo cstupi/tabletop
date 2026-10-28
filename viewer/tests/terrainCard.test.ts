@@ -7,7 +7,7 @@ import { DECLARATION_WORDS, facingOf, inches, markerCardOf, terrainCardOf } from
 const catalog = parseCatalog(packed);
 const table = (): TableState => ({
   id: 't', size: { width: 72, length: 48 }, texture: { builtin: 'grass' }, zones: [],
-  markers: [{ id: 'm1', kind: 'token', position: { x: 1, y: 1, z: 0 }, yaw: { degrees: 0 }, diameter: 1, label: 'token', visual: { builtin: 'chip' } }],
+  markers: [{ id: 'm1', kind: 'objective', position: { x: 1, y: 1, z: 0 }, yaw: { degrees: 0 }, diameter: 3, label: 'objective', visual: { builtin: 'objective-ring' } }],
   terrain: [{
     id: 'p1', mesh: { builtin: 'barricade' }, position: { x: 10, y: 10, z: 1 }, yaw: { degrees: -15 }, scale: 2,
     volumes: [
@@ -34,7 +34,7 @@ describe('the terrain card', () => {
   });
 
   it('a marker card is setup only', () => {
-    expect(markerCardOf(table(), 'setup', 'm1')).toEqual({ pieceId: 'm1', name: 'Token', diameter: '1" across', label: null });
+    expect(markerCardOf(table(), 'setup', 'm1')).toEqual({ pieceId: 'm1', name: 'Objective', diameter: '3" across', label: null });
     const base = table();
     const named: TableState = { ...base, markers: [{ ...base.markers[0]!, label: 'Relic' }] };
     expect(markerCardOf(named, 'setup', 'm1')!.label).toBe('Relic');

@@ -11,7 +11,7 @@ namespace Tabletop.GameServer.Tests;
 public class InboundTextTests
 {
     static bool Clean(SocketMessage m) => InboundText.IsClean(Encoding.UTF8.GetBytes(WireJson.Serialize(m)));
-    static EditMessage Label(string label) => new(Guid.NewGuid(), new AddSetupMarker(new Marker(Guid.NewGuid(), MarkerKind.Token, new Point3(1, 1, 0), new Yaw(0), 1, label, VisualRef.OfBuiltin("chip"))));
+    static EditMessage Label(string label) => new(Guid.NewGuid(), new AddSetupMarker(new Marker(Guid.NewGuid(), MarkerKind.Objective, new Point3(1, 1, 0), new Yaw(0), 3, label, VisualRef.OfBuiltin("objective-ring"))));
 
     [Theory]
     [InlineData("a\u0000b")] [InlineData("line\nbreak")] [InlineData("‮evil")] [InlineData("x⁦y")] [InlineData("del\u007F")]

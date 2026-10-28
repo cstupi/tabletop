@@ -50,7 +50,7 @@ public class SetupPanelTests
     public void Setup_opens_only_terrain_and_the_lobby_opens_players_and_game_settings()
     {
         var folds = new SetupFolds();
-        Assert.Equal([SetupFold.Terrain, SetupFold.Markers, SetupFold.Table, SetupFold.Zones, SetupFold.Layouts, SetupFold.Game, SetupFold.Players],
+        Assert.Equal([SetupFold.Terrain, SetupFold.Objectives, SetupFold.Table, SetupFold.Zones, SetupFold.Layouts, SetupFold.Game, SetupFold.Players],
             SetupFolds.Order(GameStatus.Setup));
         Assert.Equal([SetupFold.Players, SetupFold.Game], SetupFolds.Order(GameStatus.Lobby));
         Assert.Equal([SetupFold.Terrain], SetupFolds.Order(GameStatus.Setup).Where(f => folds.IsOpen(f, GameStatus.Setup)));
@@ -63,10 +63,10 @@ public class SetupPanelTests
     public void A_section_keeps_what_the_player_chose_until_the_screen_goes()
     {
         var folds = new SetupFolds();
-        folds.Set(SetupFold.Markers, true, GameStatus.Setup);
+        folds.Set(SetupFold.Objectives, true, GameStatus.Setup);
         folds.Set(SetupFold.Terrain, false, GameStatus.Setup);
         folds.Set(SetupFold.PieceVolumes, true, GameStatus.Setup);
-        Assert.True(folds.IsOpen(SetupFold.Markers, GameStatus.Setup));
+        Assert.True(folds.IsOpen(SetupFold.Objectives, GameStatus.Setup));
         Assert.False(folds.IsOpen(SetupFold.Terrain, GameStatus.Setup));
         Assert.True(folds.IsOpen(SetupFold.PieceVolumes, GameStatus.Setup));
         // The lobby's choices are its own: Game settings closed in the lobby stays closed by default in setup and open in the lobby again only if chosen.
@@ -83,7 +83,7 @@ public class SetupPanelTests
         var table = Tabletop.Content.Tests.TableStateTests.Sample() with { Texture = VisualRef.OfBuiltin("grass") };
         var game = Samples.Game with { Participants = [new Participant(Guid.NewGuid(), Guid.NewGuid(), "Clay", null, null), new Participant(Guid.NewGuid(), Guid.NewGuid(), "Ana", null, null)] };
         Assert.Equal($"Terrain {table.Terrain.Count}/64", SetupFolds.Title(SetupFold.Terrain, table, game));
-        Assert.Equal($"Markers {table.Markers.Count}/32", SetupFolds.Title(SetupFold.Markers, table, game));
+        Assert.Equal($"Objectives {table.Markers.Count}/32", SetupFolds.Title(SetupFold.Objectives, table, game));
         Assert.Equal($"Table {table.Size.Width} × {table.Size.Length}\" · Grass", SetupFolds.Title(SetupFold.Table, table, game));
         Assert.Equal("Deployment zones", SetupFolds.Title(SetupFold.Zones, table, game));
         Assert.Equal("Layouts", SetupFolds.Title(SetupFold.Layouts, table, game));

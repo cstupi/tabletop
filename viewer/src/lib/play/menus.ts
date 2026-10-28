@@ -8,7 +8,7 @@ import type { Command, GameEvent, GameInfo, Point3 } from '../protocol/wire.gene
 import type { AskView } from './askView';
 import type { MarkerLocks } from './markerLocks';
 import {
-  forBoarding, forFrame, forMarker, forModel, forRosterUnit, forTeam, forUnit, knownActionNames, offTable, token, type MenuItem,
+  forBoarding, forFrame, forMarker, forModel, forRosterUnit, forTeam, forUnit, knownActionNames, offTable, type MenuItem,
 } from './menuModel';
 import type { Names } from './names';
 import type { GrantChoice } from './ruleTexts';
@@ -42,8 +42,6 @@ export function rosterMenu(ctx: MenuContext, unitId: string): MenuItem[] {
   return ctx.watching ? [] : forRosterUnit(ctx.game, ctx.p, unitId, ctx.myTeam, ctx.deployInside, ctx.maySetAside);
 }
 
-/** The table's Alt+right-click: the token. */
-export function tableMenu(ctx: MenuContext, at: Point3): MenuItem[] { return ctx.watching ? [] : [token(at)]; }
 
 /** What choosing an item asks for next: send now, a dialog (integer, text, choice), or the next piece or table click. */
 export type MenuStep =

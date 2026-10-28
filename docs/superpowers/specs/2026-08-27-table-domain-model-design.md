@@ -96,13 +96,8 @@ condition.
 
 **Terrain piece** — a placement, its volumes, and what those volumes declare.
 
-**Token** — a placement, a mesh, a label. Placed and moved like anything else, seen by
-everyone, meaning whatever the players decide.
-
-**Objective** — a placement, a size, a visual, and whatever the game needs to score it.
-~~Its own kind of thing, not a token and not terrain.~~ *Corrected by
-[setup content](2026-08-29-setup-content-design.md): objectives and tokens are one marker with a
-`kind`, since scoring is manual and the field this line reserved is empty.*
+**Objective** — a placement, a size, a visual. A marker is an objective
+([setup content](2026-08-29-setup-content-design.md)); scoring is manual, so it carries no game data.
 
 ## Decisions and why
 
@@ -142,10 +137,7 @@ already carries stats and loadout — a model in play never copies them and neve
 second reference back to the list. Casualties do not break the link.
 
 **Nothing arbitrary goes on the table.** Everything present traces to game state — models
-deployed from an army, terrain placed during setup, objectives from the mission. But
-tokens are first-class placeables, not a special case: real meshes, moved independently,
-synced to everyone. They are how players track anything the rules engine does not yet
-model, which early on is most things.
+deployed from an army, terrain placed during setup, objectives from the mission.
 
 **Anyone can move anything, and the record says who.** No permission locks. This matches a
 real table, where you routinely shift an opponent's model to reach past it. Accountability
@@ -205,8 +197,8 @@ Start position is recorded as well as stop because undo needs somewhere to go ba
   designed.~~ **Settled 2026-09-04** by [the setup phase](2026-09-04-setup-phase-design.md):
   anyone, at any time during setup, free for all; the rulebook's alternation is social.
 - ~~Whether an objective's "game data" is generic or system-specific.~~ **Answered by
-  deletion.** [Setup content](2026-08-29-setup-content-design.md) collapsed objectives and
-  tokens into one `Marker` with a `kind`, because scoring is manual — players count their own
+  deletion.** [Setup content](2026-08-29-setup-content-design.md) made an objective a
+  `Marker`, because scoring is manual — players count their own
   points — so the field this session described as "whatever the game needs to score it" had
   nothing in it. There is no game data on an objective to be generic or specific.
 

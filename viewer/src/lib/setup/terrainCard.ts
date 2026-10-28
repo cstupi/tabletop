@@ -57,7 +57,7 @@ export function terrainCardOf(t: TableState | null, status: GameStatus | null, s
   };
 }
 
-/** A marker's label, null when it only repeats its kind (a token labelled "token"). */
+/** A marker's label, null when it only repeats its kind (an objective labelled "objective"). */
 const labelOf = (kind: string, label: string | undefined): string | null =>
   label === undefined || label.trim().toLowerCase() === kind.toLowerCase() ? null : label;
 

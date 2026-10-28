@@ -12,9 +12,10 @@ public static class TestGames
     public sealed record Built(GameState State, GameInfo Info, IReadOnlyList<Guid> Teams, IReadOnlyList<Guid> Participants);
 
     /// <summary>One participant per entry, each on its own team unless teamOf gives entry i's team index (a team game: rulebook p.50, several
-    /// players a side); a null army is a seat that brought nothing. Spectators are participants with no team.</summary>
+    /// players a side); a null army is a seat that brought nothing. Spectators are participants with no team. Markers join the sample table's objective.</summary>
     public static Built Build(IReadOnlyList<Army?> armyPerTeam, SchedulerShape shape = SchedulerShape.AlternatingActivation,
-        Enforcement enforcement = Enforcement.Warn, bool waits = false, int spectators = 0, IGameRules? rules = null, long rngSeed = 7, IReadOnlyList<int>? teamOf = null)
+        Enforcement enforcement = Enforcement.Warn, bool waits = false, int spectators = 0, IGameRules? rules = null, long rngSeed = 7, IReadOnlyList<int>? teamOf = null,
+        IReadOnlyList<Marker>? markers = null)
     {
         var teams = Enumerable.Range(0, teamOf is null ? armyPerTeam.Count : teamOf.Max() + 1).Select(i => new Team(Guid.CreateVersion7(), i + 1)).ToList();
         var participants = armyPerTeam.Select((a, i) => new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Player {i + 1}", teams[teamOf?[i] ?? i].Id, a?.Id)).ToList();
@@ -23,7 +24,8 @@ public static class TestGames
             shape, enforcement, waits, rngSeed, teams, participants);                        // RngSeed is positional (contracts plan): a build that forgot it would not compile
         var armies = participants.Zip(armyPerTeam, (p, a) => (p, a)).Where(x => x.a is not null)
             .Select(x => new ArmyInPlay(x.p.Id, ArmySnapshot.Of(x.a!, Guid.CreateVersion7()))).ToList();
-        var board = new Board(TableStateTests.Sample(), armies);
+        var table = TableStateTests.Sample();
+        var board = new Board(table with { Markers = [.. table.Markers, .. markers ?? []] }, armies);
         var state = new GameState(info, board, new EventApplier(board, info), rules ?? GrimdarkFutureRules.Instance);
         return new Built(state, info, teams.Select(t => t.Id).ToList(), participants.Select(p => p.Id).ToList());
     }

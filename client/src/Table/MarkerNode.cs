@@ -4,7 +4,7 @@ using Tabletop.Geometry;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>A marker: a disc of its diameter with its label. Markers ignore terrain (setup content).</summary>
+/// <summary>An objective marker: a disc of its diameter with its label. Markers ignore terrain (setup content).</summary>
 public partial class MarkerNode : Node3D, IDrawn<(Marker Marker, Color? Team)>
 {
     public Guid MarkerId { get; init; }
@@ -18,7 +18,7 @@ public partial class MarkerNode : Node3D, IDrawn<(Marker Marker, Color? Team)>
         Place(m);
         var r = (float)m.Diameter / 2;
         _disc = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = r, BottomRadius = r, Height = 0.1f }, Position = new Vector3(0, 0.05f, 0),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = team ?? (m.Kind == MarkerKind.Objective ? new Color(0.95f, 0.8f, 0.2f) : new Color(0.9f, 0.9f, 0.9f)) } };
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = team ?? new Color(0.95f, 0.8f, 0.2f) } };
         AddChild(_disc);
         if (m.Label is { } text) AddChild(new Label3D { Text = text, Position = new Vector3(0, 0.6f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled });
     }

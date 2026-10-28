@@ -10,13 +10,15 @@ public class MarkerLocksTests
 {
     static readonly GameInfo Game = Samples.Game;
     static readonly Marker PlayObjective = new(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(5, 5, 0), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"));
+    /// <summary>The sample board's objective and a second one, moved in play.</summary>
     static Projection P()
     {
-        var a = new EventApplier(Samples.Board, Game);
-        a.ApplyAll(new EventPayload[] { new MarkerPlaced(Samples.Token), new MarkerPlaced(PlayObjective) }.Select((x, i) => new GameEvent(i + 1, Samples.P1, x, null)));
+        var board = Samples.Board;
+        var a = new EventApplier(board with { Table = board.Table with { Markers = [.. board.Table.Markers, PlayObjective] } }, Game);
+        a.Apply(new GameEvent(1, Samples.P1, new MarkerMoved(PlayObjective.Id, new Point3(6, 6, 0), new Yaw(0)), null));
         return a.Projection;
     }
-    static Guid SetupObjective(Projection p) => p.Board.Table.Markers.First(m => m.Kind == MarkerKind.Objective).Id;
+    static Guid SetupObjective(Projection p) => p.Board.Table.Markers[0].Id;
 
     [Theory]
     [InlineData(GameStatus.Playing)]
@@ -40,13 +42,11 @@ public class MarkerLocksTests
     }
 
     [Fact]
-    public void Tokens_and_unknown_ids_are_free()
+    public void Unknown_ids_are_free()
     {
         var locks = new MarkerLocks(); var p = P();
-        Assert.True(locks.MayDrag(GameStatus.Playing, p, Samples.Token.Id));
         Assert.True(locks.MayDrag(GameStatus.Playing, p, Guid.CreateVersion7()));
         Assert.True(locks.MayDrag(GameStatus.Playing, p, Samples.Model));
-        Assert.Null(locks.ItemFor(GameStatus.Playing, p, Samples.Token.Id));
         Assert.Null(locks.ItemFor(GameStatus.Playing, p, Guid.CreateVersion7()));
         Assert.Null(locks.ItemFor(GameStatus.Setup, p, PlayObjective.Id));
     }
@@ -76,7 +76,6 @@ public class MarkerLocksTests
     {
         var locks = new MarkerLocks(); var p = P(); var setup = SetupObjective(p);
         Assert.Equal(["Give to Team 1", "Give to Team 2", "Make neutral", "Unlock"], MenuModel.ForMarker(Game, p, setup, locks).Select(i => i.Label));
-        Assert.Equal(["Remove"], MenuModel.ForMarker(Game, p, Samples.Token.Id, locks).Select(i => i.Label));
         locks.Chosen(MenuModel.ForMarker(Game, p, setup, locks)[^1]);
         Assert.Equal("Lock", MenuModel.ForMarker(Game, p, setup, locks)[^1].Label);
     }

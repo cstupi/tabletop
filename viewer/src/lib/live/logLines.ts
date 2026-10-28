@@ -76,9 +76,7 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'spell_tokens_set': return `${model(after, e.modelId)} holds ${e.tokens} token(s)`;
     case 'wounds_this_activation_set': return `${unit(after, e.unitId)} has taken ${e.wounds} wound(s) this activation`;
     case 'score_set': return `${team(ordinals, e.teamId)} scores ${e.score}`;
-    case 'marker_placed': return `marker placed${e.marker.label === undefined ? '' : `: ${e.marker.label}`}`;
     case 'marker_moved': return 'marker moved';
-    case 'marker_removed': return 'marker removed';
     case 'round_ended': return `Round ${e.round} ended`;
     case 'objective_control_set':
       return e.teamId === undefined ? `${marker(after, e.markerId)} neutral` : `${marker(after, e.markerId)} to ${team(ordinals, e.teamId)}`;

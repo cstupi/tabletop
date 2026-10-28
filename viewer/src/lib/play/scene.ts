@@ -9,9 +9,8 @@ import type { Projection } from '../live/apply';
 import type { GameInfo, Marker, Placement, TerrainPlacement } from '../protocol/wire.generated';
 
 /**
- * Ghosts (a move's or a deploy's proposed placements) override where a model is drawn; shelf and inside models go to offTable; markers
- * placed in play are added after the setup ones (a moved setup marker is drawn once, at its new spot), an objective coloured by its
- * controller (projection.control).
+ * Ghosts (a move's or a deploy's proposed placements) override where a model is drawn; shelf and inside models go to offTable; a moved
+ * setup marker is drawn once, at its new spot, after the unmoved ones, each objective coloured by its controller (projection.control).
  */
 export function sceneOfPlay(
   p: Projection, game: GameInfo, zones: ZonePolygons, name: (piece: TerrainPlacement) => string, ghosts: ReadonlyMap<string, Placement> = new Map(),

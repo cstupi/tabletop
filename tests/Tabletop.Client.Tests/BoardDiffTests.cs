@@ -59,7 +59,6 @@ public class BoardDiffTests
         Assert.True(BoardDiff.SameShape(m, Objective(id, 20) with { Yaw = new Yaw(45) }));
         Assert.False(BoardDiff.SameShape(m, Objective(id, label: "A")));
         Assert.False(BoardDiff.SameShape(m, m with { Diameter = 5 }));
-        Assert.False(BoardDiff.SameShape(m, m with { Kind = MarkerKind.Token }));
     }
 
     [Fact]

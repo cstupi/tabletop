@@ -171,7 +171,7 @@ public static partial class CallCases
     public static readonly string[] EditControls =
     [
         "teamButton", "watch", "createTeam", "place", "armySeat", "createArmy", "waitingJoin", "waitingArmy", "configure", "startSetup", "endSetup",
-        "size", "texture", "addBuiltin", "addAsset", "random", "clear", "load", "objective", "token", "zones", "swapZones",
+        "size", "texture", "addBuiltin", "addAsset", "random", "clear", "load", "objective", "zones", "swapZones",
         "menuTurnLeft", "menuTurnRight", "menuFacing", "menuRemove", "menuRemoveMarker",
         "scale", "swapMesh", "swapAsset", "remove", "removeMarker", "resetVolumes",
         "volKind", "volA", "volB", "volBottom", "volTop", "volCover", "volCoverOff", "volNotes", "volNotesClear",
@@ -183,7 +183,7 @@ public static partial class CallCases
         "spend", "pick", "pick/deploy", "pick/ambusher", "pickKey", "assign", "casualties", "move", "move/stop", "move/disembark", "embark",
         "deploy/click", "deploy/ghosts", "deploy/ambusher", "gameOver", "selfplay/answer", "selfplay/deploy",
         "menu/model", "menu/unit", "menu/marker", "menu/team", "menu/setAside", "menu/return", "menu/putIn", "menu/takeOut", "menu/abandon",
-        "menu/boarding", "menu/token", "menu/lock", "menu/invalidInput", "menu/grant",
+        "menu/boarding", "menu/lock", "menu/invalidInput", "menu/grant",
         "undo/button", "undo/row", "undo/roll", "undo/undone",
         "drop/models", "drop/marker", "drop/terrain", "drop/setupMarker",
         .. EditControls.Select(c => "edit/" + c),

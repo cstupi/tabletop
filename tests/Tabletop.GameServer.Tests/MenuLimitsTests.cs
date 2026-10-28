@@ -66,14 +66,8 @@ public class MenuLimitsTests
     }
 
     [Fact]
-    public void A_placed_marker_is_near_the_table_finite_and_bounded()
+    public void A_moved_marker_lands_near_the_table_at_a_finite_point()
     {
-        Applies(new PlaceMarker(Samples.Token with { Id = Guid.NewGuid() }));
-        Refuses(new PlaceMarker(Samples.Token with { Id = Guid.NewGuid(), Label = new string('l', 65) }));
-        Refuses(new PlaceMarker(Samples.Token with { Id = Guid.NewGuid(), Position = new Point3(double.NaN, 1, 0) }));
-        Refuses(new PlaceMarker(Samples.Token with { Id = Guid.NewGuid(), Position = new Point3(500, 1, 0) }));
-        Refuses(new PlaceMarker(Samples.Token with { Id = Guid.NewGuid(), Diameter = 100 }));
-        Refuses(new PlaceMarker(Samples.Token with { Id = Guid.NewGuid(), Yaw = new Yaw(double.PositiveInfinity) }));
         var placed = Samples.Board.Table.Markers[0].Id;
         Refuses(new MoveMarker(placed, new Point3(3, double.NegativeInfinity, 0), new Yaw(0)));
         Refuses(new MoveMarker(placed, new Point3(-100, 3, 0), new Yaw(0)));

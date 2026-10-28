@@ -12,7 +12,7 @@ the same order with the same words.
 | Random table | most setups |
 | Start setup, End setup | every game, once each |
 | Optional rules, activation, enforcement, game name | some games, in the lobby |
-| Objective and token markers | some games |
+| Objective markers | some games |
 | Clear terrain, Add my terrain | some setups |
 | Table size, surface, deployment zones and swap, Load and Save layout | rarely |
 | Teams, players and armies | in the lobby; in setup only to check |
@@ -26,19 +26,19 @@ The side panel is a column 360 px wide: a fixed head and a body that scrolls und
 - **Head**, never scrolled: the phase (`Lobby` or `Setup`), then the one main action: the creator's **Start setup** in the lobby, **End
   setup** in setup (with the count of pieces off the table it will remove); anyone else reads what they wait for.
 - **Body**: sections under headings that fold (▾ open, ▸ closed); a heading carries its count.
-  - Setup: **Terrain** (open), **Markers**, **Table**, **Deployment zones**, **Layouts**, **Game settings**, **Players**, in that order,
+  - Setup: **Terrain** (open), **Objectives**, **Table**, **Deployment zones**, **Layouts**, **Game settings**, **Players**, in that order,
     the rest closed. A section opened or closed stays so for the rest of the game screen, across rebuilds.
   - Lobby: **Players** and **Game settings**, both open.
 - **Terrain**: a search field, then the built-in catalog grouped by what a piece does (Blocks line of sight, Impassable, Dangerous,
   Cover, Difficult, Open ground: a piece's group is the first of these it carries), each group sorted by name; a click on a row adds that
   piece beside the table; a row's tooltip says what it does. The list scrolls inside a box sized to the window, so the headings below it
   stay in view at 1280×720. Under it: Random table with its planet, Add my terrain…, Clear terrain (asked first).
-- Headings: `Terrain 17/64`, `Markers 0/32`, `Table 72 × 48" · Grass`, `Deployment zones`, `Layouts`, `Game settings`, `Players 2`.
+- Headings: `Terrain 17/64`, `Objectives 0/32`, `Table 72 × 48" · Grass`, `Deployment zones`, `Layouts`, `Game settings`, `Players 2`.
 - Players holds the team buttons, the Players list, my army pickers, the team cards and Leave game.
 
 ## Terrain card
 
-Shown only while a terrain piece or setup marker is selected, in the unit card's slot. In setup, top down:
+Shown only while a terrain piece or objective is selected, in the unit card's slot. In setup, top down:
 
 1. The name, then the source and height on one dim line.
 2. Facing field, ⟲ 15°, ⟳ 15°, Remove.

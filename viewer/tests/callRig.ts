@@ -19,7 +19,7 @@ import { answerOf, gameOverOf } from '../src/lib/play/gameOverView';
 import { handMoveCommand, markerMove } from '../src/lib/play/handMove';
 import { undoHere } from '../src/lib/play/logRows';
 import { MarkerLocks } from '../src/lib/play/markerLocks';
-import { choose, pieceMenu, rosterMenu, tableMenu, teamMenu, type MenuContext } from '../src/lib/play/menus';
+import { choose, pieceMenu, rosterMenu, teamMenu, type MenuContext } from '../src/lib/play/menus';
 import { Names } from '../src/lib/play/names';
 import { PendingDrops } from '../src/lib/play/pendingDrops';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
@@ -30,7 +30,7 @@ import { waitingLines, waitingTeams } from '../src/lib/play/waiting';
 import { dropEdit } from '../src/lib/setup/drag';
 import {
   addAsset, addBuiltin, clearTerrain, objective, overrideVolume, removeMarker, removeTerrain, resetVolumes, scale, setupMenu, swapAsset,
-  swapBuiltin, swapZones, tableSize, texture, token, withBottom, withDeclaration, withFootprint, withKind, withNotes, withTop, zones,
+  swapBuiltin, swapZones, tableSize, texture, withBottom, withDeclaration, withFootprint, withKind, withNotes, withTop, zones,
 } from '../src/lib/setup/edits';
 import { loadEdit, randomEdit } from '../src/lib/setup/layouts';
 import { parseCatalog } from '../src/lib/setup/catalog';
@@ -95,8 +95,7 @@ function menuOf(c: CallCase, st: ConnectionState) {
   const open = c.choice.open;
   if (open.piece !== undefined) return pieceMenu(ctx, open.piece, open.shift);
   if (open.team !== undefined) return teamMenu(ctx, open.team, new Names(st.game!, st.projection));
-  if (open.roster !== undefined) return rosterMenu(ctx, open.roster);
-  return tableMenu(ctx, open.table);
+  return rosterMenu(ctx, open.roster!);
 }
 
 /** The game and board a waiting case reads: less the players of one team, or less the armies of one. */
@@ -288,7 +287,6 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
     case 'clear': return clearTerrain(draft);
     case 'load': return loadEdit(x.layout);
     case 'objective': return objective(draft.size, draft.markers);
-    case 'token': return token(draft.size, draft.markers);
     case 'zones': return zones(x.style);
     case 'swapZones': return swapZones(x.a, x.b);
     case 'menuTurnLeft': case 'menuTurnRight': case 'menuFacing': case 'menuRemove': case 'menuRemoveMarker':
