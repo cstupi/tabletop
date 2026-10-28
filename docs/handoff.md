@@ -100,16 +100,15 @@ approval) and `syn01-piped-castle` (NAS; no root).
 - Checked on `main` before the tag: unit (all projects), E2E (Management 61, GameServer 40, Sim 340 with the lifecycle shapes), rules suite
   307 of 307, viewer 1,692 and its 6 stack tests, web 134.
 
-**Next: simplify Godot's setup screen.** Brainstorm started with the owner (not yet a design). A setup is: add and place terrain,
-sometimes pick optional rules, then start. Owner: "things get very lost with the clutter": the side panel (`SetupToolbar`'s Table,
-Terrain, Markers, Zones and Layouts sections, `TerrainCard`'s fields, `LobbyPanel`) buries the terrain list and the start. Next step:
-inventory every setup control and how often it is used (read `SetupToolbar`, `TerrainCard`, `LobbyPanel`; capture the screen through the
-client harness), then propose a layout that puts terrain and start first, and write the design.
+### 2026-10-27, unreleased on main
 
-**Next: the unit card overlaps the replay bar** (owner: "the unit stats should fall above whatever is in the lower left corner"). In a
-Godot replay the unit card and `ReplayBar` overlap at the left column's foot. `HudLayout.Of` already reserves `ReplayH` (112 px) under the
-card (`HudLayout.cs:36–39`), so find whether the bar draws taller than its slot or the card grows past its own (`HudPlacement`,
-`GameScreen.Layout`); the card must end above whatever holds the lower-left corner.
+- **Godot setup screen** (spec `2026-10-27-godot-setup-screen-design.md`): a fixed head holds Start setup / End setup; the setup
+  body opens on Terrain (search, catalog grouped by what a piece does as the browser's, Random table, Add my terrain, Clear), then
+  closed Markers, Table, Deployment zones, Layouts, Game settings and Players with counts in their headings. The terrain card shows
+  facing, Remove and Scale; Mesh and Volumes are folded. No new outbound message (`SetupFolds`, `SetupLayout`, `TerrainGroups`).
+- **Unit card over the replay bar:** the bar draws about 146 px in the scifi theme, more than `ReplayH` (112); `HudLayout.Of` now
+  takes the bar's real height, so the left column ends above it.
+- Client tests 933 pass, `./scripts/check-client` clean. The other suites have not run on this batch.
 
 ### 2026-10-25, v0.1.26 and v0.1.27
 
