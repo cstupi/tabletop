@@ -98,7 +98,6 @@ public partial class SetupToolbar : VBoxContainer
         var more = new HFlowContainer(); body.AddChild(more);
         more.AddChild(Gated(Btn("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
         more.AddChild(Gated(Btn("Clear terrain", () => ClearTerrain(s)), SetupLimits.CannotClearTerrain));
-        body.AddChild(new Label { Text = "Q/E turn, Del removes, right-click for more.", ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart });
     }
 
     Label _terrainFull = null!; Action? _fillTextures;

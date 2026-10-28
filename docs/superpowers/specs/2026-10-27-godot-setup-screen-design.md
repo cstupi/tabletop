@@ -32,7 +32,7 @@ The side panel is a column 360 px wide: a fixed head and a body that scrolls und
 - **Terrain**: a search field, then the built-in catalog grouped by what a piece does (Blocks line of sight, Impassable, Dangerous,
   Cover, Difficult, Open ground: a piece's group is the first of these it carries), each group sorted by name; a click on a row adds that
   piece beside the table; a row's tooltip says what it does. The list scrolls inside a box sized to the window, so the headings below it
-  stay in view at 1280×720. Under it: Random table with its planet, Add my terrain…, Clear terrain (asked first), and the keys line.
+  stay in view at 1280×720. Under it: Random table with its planet, Add my terrain…, Clear terrain (asked first).
 - Headings: `Terrain 17/64`, `Markers 0/32`, `Table 72 × 48" · Grass`, `Deployment zones`, `Layouts`, `Game settings`, `Players 2`.
 - Players holds the team buttons, the Players list, my army pickers, the team cards and Leave game.
 
