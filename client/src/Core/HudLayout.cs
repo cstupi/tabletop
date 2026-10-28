@@ -23,18 +23,19 @@ public static class HudLayout
     public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
 
     /// <summary>The slots. buttonH is the undo and log buttons' actual height (a theme's button face may be taller than 36 px), never under LogButtonH.
-    /// While the log is open it holds the latest roll, so the dice tray takes no slot.</summary>
-    public static IReadOnlyDictionary<HudPart, HudRect> Of(float w, float h, HudVisible v, float buttonH = LogButtonH)
+    /// replayH is the replay bar's actual height (three rows in the theme's font may be taller than 112 px), never under ReplayH: the left
+    /// column ends M above it. While the log is open it holds the latest roll, so the dice tray takes no slot.</summary>
+    public static IReadOnlyDictionary<HudPart, HudRect> Of(float w, float h, HudVisible v, float buttonH = LogButtonH, float replayH = ReplayH)
     {
         var r = new Dictionary<HudPart, HudRect>();
         v = v with { Dice = v.Dice && !v.LogOpen };
-        var bh = MathF.Ceiling(Math.Max(LogButtonH, buttonH));
+        float bh = MathF.Ceiling(Math.Max(LogButtonH, buttonH)), rh = MathF.Ceiling(Math.Max(ReplayH, replayH));
         var corner = r[HudPart.Corner] = new(M, M, Column, CornerH);
         var toasts = r[HudPart.Toasts] = new(w - M - ToastW, M, ToastW, ToastH);
         float bandL = M + Column + M, bandR = toasts.X - M, hw = Math.Min(HeaderW, bandR - bandL);
         var header = r[HudPart.Header] = new(Math.Max(bandL, Math.Min(MathF.Floor(w / 2 - hw / 2), bandR - hw)), M, hw, HeaderH);
-        float top = corner.Bottom + M, colH = h - M - top - (v.Replay ? ReplayH + M : 0), half = MathF.Floor((colH - M) / 2);
-        if (v.Replay) r[HudPart.Replay] = new(M, h - M - ReplayH, Column, ReplayH);
+        float top = corner.Bottom + M, colH = h - M - top - (v.Replay ? rh + M : 0), half = MathF.Floor((colH - M) / 2);
+        if (v.Replay) r[HudPart.Replay] = new(M, h - M - rh, Column, rh);
         if (v.Roster) r[HudPart.Roster] = new(M, top, Column, v.UnitCard ? half : colH);
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
         var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - bh, LogButtonW, bh);
