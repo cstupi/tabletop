@@ -2,7 +2,7 @@
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.29 is the latest tag. What each
+(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.30 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -100,7 +100,7 @@ approval) and `syn01-piped-castle` (NAS; no root).
 - Checked on `main` before the tag: unit (all projects), E2E (Management 61, GameServer 40, Sim 340 with the lifecycle shapes), rules suite
   307 of 307, viewer 1,692 and its 6 stack tests, web 134.
 
-### 2026-10-27, unreleased on main
+### 2026-10-28, v0.1.30
 
 - **Godot setup screen** (spec `2026-10-27-godot-setup-screen-design.md`): a fixed head holds Start setup / End setup; the setup
   body opens on Terrain (search, catalog grouped by what a piece does as the browser's, Random table, Add my terrain, Clear), then
