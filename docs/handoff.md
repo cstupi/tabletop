@@ -1,4 +1,4 @@
-# Handoff — 2026-10-26
+# Handoff — 2026-10-28
 
 The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
 activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
@@ -82,6 +82,40 @@ sessions take instructions over Remote Control: `docker1-logical-curry` (server;
 approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
+
+### Miniatures: resume the zombie army (outside the repo)
+
+Generated unit miniatures (GLB) live under `C:\Users\clays\Downloads\` (WSL `/mnt/c/Users/clays/Downloads/`), never in this
+repo. The owner's look rulings are in the memory note `miniatures-look-painted`; the coordinator steps are the user skill
+`army-miniatures` (`~/.claude/skills/army-miniatures/SKILL.md`, its "Python only" line superseded by Blender).
+
+- `pyromania/`: the Battle Sisters army (Army Forge `sNkKzFUrB7IV`), 14 GLBs in `final/` (2000 px views in `final/hq/`),
+  built by the Python pipeline in `src/`. Done. `miniatures-kit.zip` is the shareable Python-era kit; replace it once
+  the Blender kit exists.
+- `mixed-zombies/`: the zombie army (Army Forge `cyQHIIkOQQcb`, list in `src/list.json`). Built in Blender 2.92
+  (`/mnt/c/Program Files/Blender Foundation/Blender 2.92/blender.exe`, headless from WSL; scripts in `src/blender/`,
+  wrappers `src/bl`, `src/build.sh`, notes in `src/README.txt`). `final/infected-zombie-a.glb` (7.4 MB, built
+  2026-10-28 21:37, with `hq/`, close-ups and compare PNGs) is the **owner-approved baseline**: "I think that zombie is
+  good enough". The hair and face stay as they are. The build agent was stopped at shutdown before its report.
+
+Next, in order (one Opus agent; the owner wants future armies to reach this level fast):
+1. Review the 21:37 renders, and fill `src/README.txt` (stats, shortfalls, Blender against the Python pipeline) if it is
+   incomplete.
+2. Build the reusable Blender kit at `Downloads/minis-kit/`:
+   - `kit/`: the shared toolkit, without the `t_*.py`, probe and debug files, and with the army folder passed in.
+   - `templates/humanoid/`: the zombie build, driven by a spec for each model (pose, body and rot, clothing, gear,
+     palette, head, base).
+   - One build command producing the GLB, the hq images and close-ups, and the checks (100k tris, 8 MB).
+   - `README.md`: the Army Forge fetch (`https://army-forge.onepagerules.com/api/tts?id=<ID>`), the process, the rulings,
+     and `bar/` (the approved zombie, plus Pyromania's `warrior-sister-a` as the armour reference).
+   - Proof: `infected-zombie-a` rebuilds from its spec with no visible loss, and one clearly different second spec builds.
+3. Point the `army-miniatures` skill and a new shareable zip at the kit.
+4. Only then the rest of the zombie army, each archetype's master shown to the owner before its variants:
+   - 20 Infected Zombies (variants of the master)
+   - Infected Leader
+   - 5 Plague Brothers (32 mm)
+   - 3 Plague Destroyers (40 mm)
+   - the flying Plague Drone (60 mm)
 
 ### 2026-10-26, v0.1.29
 
