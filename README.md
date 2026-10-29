@@ -5,6 +5,17 @@ and a Svelte web app. Developed in WSL; the Godot editor runs on the Windows hos
 
 `CLAUDE.md` describes the layout and conventions. `docs/handoff.md` says where the project stands.
 
+## Release
+
+Tag `vX.Y.Z` on main and push it, then on `docker1` in `/opt/docker/tabletop`:
+
+```bash
+git checkout main && git pull && scripts/release --deploy home --version vX.Y.Z
+```
+
+That builds and uploads the client, deploys the servers, web app and viewer, and publishes the built-in content; it
+runs no tests unless `--tests`. Options and other hosts: `deploy/README.md` → Home server (docker1) and Releases.
+
 ## Requirements
 
 - Godot 4.7.x, **.NET/Mono build**, on the Windows host. The standard build cannot open a C#
