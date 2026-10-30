@@ -276,7 +276,8 @@ public static partial class GfMoves
         return (changes, (int)Math.Round(used * 10), OwedDice(ctx.State, unit, testing), crossedDifficult && !strider, testing);
     }
 
-    /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.</summary>
+    /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.
+    /// 3.6.0 p.14: a Cumbersome unit that moved skips the shot, and the step's Values["cumbersome_no_shot"] = 1 says why.</summary>
     public sealed class ShootOrNotStep : IStep
     {
         public string Name => "shoot-or-not";
@@ -286,6 +287,9 @@ public static partial class GfMoves
             if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) return new Finish([new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, false)]);
             if (ctx.History.Children.Count > 0) return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete([]) : new OpenAsks([]);
             if (ctx.History.LastClosed() is { } closed) return closed.Single is Chosen { OptionId: "shoot" } ? new Push(GfNames.Shooting, ctx.Frame.Context) : new Complete([]);
+            // 3.6.0 p.14 Cumbersome: "can’t shoot when moving" — any model of this activation's move went some distance.
+            if (ctx.Frame.Value("distance_used_tenths") > 0 && GfEdition.Of(ctx.State).HasCumbersome && Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Cumbersome))
+                return new Complete([], new Dictionary<string, int> { ["cumbersome_no_shot"] = 1 });
             var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit, null).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
             if (!canShoot) return new Complete([]);
             // Instinctive: "it must immediately attack the closest valid target".
