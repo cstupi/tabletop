@@ -161,7 +161,7 @@ Four columns exist for one kind each, beside `target_terrain` and `target_condit
   change like every other closed set here.
 - **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*. A `Replace a stat` with no replacement takes the parameter (Armor: *"Counts as having Defense X+"*).
 - **`floor`** — `Modify a stat` only: *"to a min. of N"*, the stat no lower than N, or than itself when already lower (Ranged Shrouding, Melee Shrouding, Darkborn).
-- **`amount_dice`** — `Place` and `Remove wounds` only, checked to `d3` or `d3+1`: a placement whose distance is a die roll (*"within D3+1""*: a D3 plus one), a heal of *"D3 wounds"*.
+- **`amount_dice`** — `Place`, `Move` and `Remove wounds` only, checked to `d3` or `d3+1`: a placement or a move whose distance is a die roll (*"within D3+1""*, *"by up to D3""*: a D3 plus one), a heal of *"D3 wounds"*.
 
 Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` honest: a `Multiply` row with a
 `threshold` is rejected. `target_terrain` and `amount_dice` carry only a value check and `target_condition` none;

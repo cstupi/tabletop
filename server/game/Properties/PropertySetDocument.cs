@@ -171,7 +171,7 @@ public static class PropertiesJson
             if (c.Values.Count != 1) problems.Add(At($"{c.Kind} names exactly one value"));
             else if (c.Kind == ConditionKind.HoldsProperty && !names.Contains(c.Values[0])) problems.Add(At($"holds_property names no entry '{c.Values[0]}'"));
         }
-        if (f.AmountDice is not null && f.Kind is not (EffectKind.Place or EffectKind.RemoveWounds)) problems.Add(At("amount_dice is place or remove_wounds only"));
+        if (f.AmountDice is not null && f.Kind is not (EffectKind.Place or EffectKind.Move or EffectKind.RemoveWounds)) problems.Add(At("amount_dice is place, move or remove_wounds only"));
         if (f.AmountDice is not null and not "d3" and not "d3+1") problems.Add(At($"amount_dice is 'd3' or 'd3+1', not '{f.AmountDice}'"));
         if (f.Kind == EffectKind.AddHit && f.TargetQuantity == TargetQuantity.Attacks && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             problems.Add(At("add_hit attacks is per die: it needs a roll_result condition"));

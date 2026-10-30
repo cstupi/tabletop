@@ -165,14 +165,15 @@ public class PropertySetDocumentTests
     }
 
     [Fact]
-    public void Place_amount_dice_at_point_attacks_and_an_own_roll_validate()
+    public void Place_and_move_amount_dice_at_point_attacks_and_an_own_roll_validate()
     {
         EffectDocument F(EffectKind k, string? dice = null, TargetQuantity? q = null, IReadOnlyList<ConditionDocument>? when = null, IReadOnlyList<EffectDocument>? kids = null, int? threshold = null) =>
             new(EffectSubject.Self, 10, k, null, null, null, null, q, null, null, 1, false, threshold, null, null, EffectDuration.Interaction, when ?? [], kids ?? [], AmountDice: dice);
         EntryDocument E(params EffectDocument[] f) => new("X", CatalogKind.Model, false, Aggregation.All, null, null, "X.", null, f);
         IReadOnlyList<string> V(EntryDocument e) => PropertiesJson.Validate(TestProperties.RulebookDocument with { Entries = [.. TestProperties.RulebookDocument.Entries, e] });
         Assert.Empty(V(E(F(EffectKind.Place, "d3"))));
-        Assert.Contains(V(E(F(EffectKind.Move, "d3"))), p => p.Contains("amount_dice is place or remove_wounds only"));
+        Assert.Empty(V(E(F(EffectKind.Move, "d3+1"))));
+        Assert.Contains(V(E(F(EffectKind.ModifyRoll, "d3"))), p => p.Contains("amount_dice is place, move or remove_wounds only"));
         Assert.Contains(V(E(F(EffectKind.Place, "d6"))), p => p.Contains("amount_dice is 'd3'"));
         Assert.Contains(V(E(F(EffectKind.Place, when: [new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["whenever"])]))), p => p.Contains("no point 'whenever'"));
         Assert.Contains(V(E(F(EffectKind.AddHit, q: TargetQuantity.Attacks))), p => p.Contains("add_hit attacks is per die"));
