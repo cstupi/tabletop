@@ -84,16 +84,38 @@ public class MigrationTests : IClassFixture<TestDatabase>
         await using var c = new NpgsqlConnection(_db.ConnectionString);
         var owner = Guid.CreateVersion7();
         await c.ExecuteAsync("insert into management.account (id, name) values (@owner, 'edition test')", new { owner });
-        var a35 = Guid.CreateVersion7(); var a36 = Guid.CreateVersion7();
-        await c.ExecuteAsync("insert into management.army (id, owner_id, name, game_system, source, edition) values (@a35, @owner, 'old', 'grimdark-future', 's', '3.5'), (@a36, @owner, 'new', 'grimdark-future', 's', '3.5')", new { a35, a36, owner });
-        var unit = Guid.CreateVersion7();
-        await c.ExecuteAsync("insert into management.unit (id, army_id, ordinal, name) values (@unit, @a36, 0, 'u'); insert into management.unit_property (unit_id, name) values (@unit, 'Bravery Aura')", new { unit, a36 });
+        var (a35, a36, slot36, weapon36) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+        foreach (var (army, name) in new[] { (a35, "old"), (a36, "unit rule"), (slot36, "slot rule"), (weapon36, "weapon rule") })
+            await c.ExecuteAsync("insert into management.army (id, owner_id, name, game_system, source, edition) values (@army, @owner, @name, 'grimdark-future', 's', '3.5')", new { army, owner, name });
+        // A unit per army; each army's one rule name sits on the unit, a model slot or a weapon. Armor is in 3.5 books too.
+        async Task<Guid> Unit(Guid army)
+        {
+            var unit = Guid.CreateVersion7();
+            await c.ExecuteAsync("insert into management.unit (id, army_id, ordinal, name) values (@unit, @army, 0, 'u')", new { unit, army });
+            return unit;
+        }
+        async Task<Guid> Slot(Guid unit)
+        {
+            var slot = Guid.CreateVersion7();
+            await c.ExecuteAsync("insert into management.model_slot (id, unit_id, ordinal, name, base_shape, base_a, base_b, height) values (@slot, @unit, 0, 'm', 'circle', 1, 1, 1.5)", new { slot, unit });
+            return slot;
+        }
+        await c.ExecuteAsync("insert into management.unit_property (unit_id, name) values (@unit, 'Armor')", new { unit = await Unit(a35) });
+        await c.ExecuteAsync("insert into management.unit_property (unit_id, name) values (@unit, 'Bravery Aura')", new { unit = await Unit(a36) });
+        var slotUnit = await Unit(slot36);
+        await c.ExecuteAsync("insert into management.unit_property (unit_id, name) values (@slotUnit, 'Tough')", new { slotUnit });
+        await c.ExecuteAsync("insert into management.slot_property (slot_id, name) values (@slot, 'Pierce')", new { slot = await Slot(slotUnit) });
+        var weaponUnit = await Unit(weapon36);
+        await c.ExecuteAsync("insert into management.unit_property (unit_id, name) values (@weaponUnit, 'Tough')", new { weaponUnit });
+        var weapon = Guid.CreateVersion7();
+        await c.ExecuteAsync("insert into management.weapon (id, slot_id, name) values (@weapon, @slot, 'w'); insert into management.weapon_property (weapon_id, name) values (@weapon, 'Smash')", new { weapon, slot = await Slot(weaponUnit) });
 
         var script = typeof(Persistence.Migrator).Assembly.GetManifestResourceStream("Tabletop.Management.Persistence.Migrations.023_army_edition.sql")!;
         await c.ExecuteAsync(await new StreamReader(script).ReadToEndAsync());
 
         Assert.Equal("3.5", await c.ExecuteScalarAsync<string>("select edition from management.army where id=@a35", new { a35 }));
-        Assert.Equal("3.6", await c.ExecuteScalarAsync<string>("select edition from management.army where id=@a36", new { a36 }));
+        foreach (var army in new[] { a36, slot36, weapon36 })
+            Assert.Equal("3.6", await c.ExecuteScalarAsync<string>("select edition from management.army where id=@army", new { army }));
         var e = await Assert.ThrowsAsync<PostgresException>(() => c.ExecuteAsync("insert into management.army (id, owner_id, name, game_system, source, edition) values (@id, @owner, 'x', 'grimdark-future', 's', '3.7')", new { id = Guid.CreateVersion7(), owner }));
         Assert.Equal("23514", e.SqlState);
         await c.ExecuteAsync("delete from management.account where id = @owner", new { owner });

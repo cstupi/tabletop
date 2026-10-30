@@ -77,7 +77,6 @@
 - In dev mode `Migrator.Run` runs at startup through `IMigrator`. Anywhere else the server connects as a runtime role and only checks `IMigrator.Pending`, refusing to start while a script is pending; `--migrate` (`MigrateCommand`) runs `Migrator.Run` over `DB_CONNECTION` as the owner role and exits (roles: `scripts/postgres/roles.sh`). `Migrator`: DbUp over the embedded `Persistence/Migrations/*.sql`, one transaction per script, journal `public.schema_version`. It strips the connection's `Search Path` for DbUp, so every script names its schema.
 - `Migrator` baselines a database created by compose's init SQL (the `management.account` table exists, no journal) by recording `001_schema.sql` as applied.
 - `001_schema.sql` is a copy of `scripts/postgres/init/001_schema.sql`. Neither is edited. A schema change is a new `NNN_*.sql` here, and `docs/schema.md` follows.
-- `023`: `army.edition` ('3.5' | '3.6', checked); the backfill marks lists carrying 3.6-only rule names.
 
 ## Commands
 
