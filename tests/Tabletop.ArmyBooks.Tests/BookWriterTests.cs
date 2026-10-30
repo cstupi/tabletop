@@ -88,4 +88,21 @@ public class BookWriterTests
         Assert.Equal((null, 1), (spells[0].Played, spells[0].Effects.Count));
         Assert.Equal((false, 0), (spells[1].Played, spells[1].Effects.Count));
     }
+
+    [Fact]
+    public void A_spell_granting_a_text_only_rule_is_demoted_to_text_only()
+    {
+        static EffectDocument Grant(string rule) => new(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, rule, null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], []);
+        static EntryDocument Spell(string name, string rule) => new(name, CatalogKind.Spell, false, null, 1, null, "text", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12), [Grant(rule)]);
+        var played = new EntryDocument("Played", CatalogKind.Weapon, false, null, null, null, "text", null, []);
+        var textOnly = new EntryDocument("Unplayed", CatalogKind.Weapon, false, null, null, null, "text", null, [], Played: false);
+        var core = new PropertySetDocument("core", "grimdark-future", [], [], [], [played]);
+        var part = new PropertySetDocument("part", "grimdark-future", [], [], [], [textOnly]);
+        var books = new[] { new BookDocument("b", "B", "1", "grimdark-future", [Spell("Live", "Played"), Spell("Inert", "Unplayed")]) };
+        var (demoted, list) = BookWriter.DemoteUndefinedGrants(books, core, part);
+        var spells = demoted.Single().Spells;
+        Assert.Equal(["B: Inert (text-only grant: Unplayed)"], list);
+        Assert.Equal((null, 1), (spells[0].Played, spells[0].Effects.Count));
+        Assert.Equal((false, 0), (spells[1].Played, spells[1].Effects.Count));
+    }
 }

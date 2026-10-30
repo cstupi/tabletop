@@ -39,18 +39,22 @@ public static class BookWriter
         catch (InvalidDataException ex) { return [ex.Message]; }
     }
 
-    /// <summary>A spell granting a rule neither the core nor the hand part defines is written text-only (effects empty, played false) until the hand part
-    /// defines the rule; returns the books and each such spell with the rules it names.</summary>
+    /// <summary>A spell granting a rule neither the core nor the hand part defines, or one they define text-only (played false), is written text-only
+    /// (effects empty, played false) until the hand part plays the rule; returns the books and each such spell with the rules it names.</summary>
     public static (IReadOnlyList<BookDocument> Books, IReadOnlyList<string> Demoted) DemoteUndefinedGrants(IReadOnlyList<BookDocument> books, PropertySetDocument core, PropertySetDocument part)
     {
-        var rules = core.Entries.Concat(part.Entries).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        var entries = core.Entries.Concat(part.Entries).ToList();
+        var rules = entries.Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        var unplayed = entries.Where(e => e.Played == false).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
         static IEnumerable<EffectDocument> All(EffectDocument f) => new[] { f }.Concat(f.Children.SelectMany(All));
         var demoted = new List<string>();
         var result = books.Select(b => b with { Spells = b.Spells.Select(s =>
         {
-            var missing = s.Effects.SelectMany(All).Select(f => f.TargetEntry).Where(t => t is not null && !rules.Contains(t)).Distinct().Order(StringComparer.Ordinal).ToList();
-            if (missing.Count == 0) return s;
-            demoted.Add($"{b.Name}: {s.Name} (undefined grant: {string.Join(", ", missing)})");
+            var named = s.Effects.SelectMany(All).Select(f => f.TargetEntry).OfType<string>().Distinct().Order(StringComparer.Ordinal).ToList();
+            var missing = named.Where(t => !rules.Contains(t)).ToList();
+            var textOnly = named.Where(unplayed.Contains).ToList();
+            if (missing.Count == 0 && textOnly.Count == 0) return s;
+            demoted.Add($"{b.Name}: {s.Name} ({string.Join("; ", new[] { (missing, "undefined grant"), (textOnly, "text-only grant") }.Where(x => x.Item1.Count > 0).Select(x => $"{x.Item2}: {string.Join(", ", x.Item1)}"))})");
             return s with { Effects = [], Played = false };
         }).ToList() }).ToList();
         return (result, demoted);

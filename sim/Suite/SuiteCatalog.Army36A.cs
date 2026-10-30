@@ -13,7 +13,7 @@ public static partial class SuiteCatalog
         static readonly (string Uid, string Army)
             War36 = ("31xjrm9ivdimkjxp", "War Disciples"), Guerrillas36 = ("5wbcv465hacdwvkb", "Rebel Guerrillas"),
             LustDaemons36 = ("9qvy1oufoangt2gl", "Daemons of Lust"), MachineCults36 = ("7el7k3hgy5pb9o9i", "Machine Cults"),
-            Dao36 = ("z8205ez2boggzs22", "DAO Union"), HighElves36 = ("7i7blhft75q9zfdc", "High Elf Fleets"),
+            HighElves36 = ("7i7blhft75q9zfdc", "High Elf Fleets"),
             Hives36 = ("w7qor7b2kuifcyvk", "Alien Hives"), Sisters36 = ("7oi8zeiqfamiur21", "Blessed Sisters");
 
         /// <summary>The game under 3.6, in its book's 3.6 army group.</summary>
