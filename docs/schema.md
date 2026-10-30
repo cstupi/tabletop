@@ -358,6 +358,11 @@ the table until a rule places it (`Unit.Reserve`): the rule (Spawn, Split, Reinf
 the same army that holds it. The import writes them (army-book rules spec → Readings, batch 7); management's
 `017_unit_reserve.sql`.
 
+`army.edition text not null`, checked `army_edition_check (edition in ('3.5', '3.6'))` and with no default, is the
+Grimdark Future edition of the Army Forge list the army was imported from (rule-set versions spec). Management's
+`023_army_edition.sql` adds it: rows before it are 3.5, except a list carrying a rule name only 3.6.0 books use on a
+unit, model slot or weapon, which is 3.6.
+
 ### The catalog's per-kind check
 
 `cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
