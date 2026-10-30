@@ -27,7 +27,7 @@ public class SpecialGamesTests
     {
         var rules = TestProperties.RulebookDocument.Entries.Select(e => e.Name).Order().ToList();
         Assert.Equal(33, rules.Count);
-        var relics = PropertiesSeeder.EmbeddedPart("grimdark-future-relic-wargear.part.json")!.Entries.Select(e => e.Name).ToHashSet();
+        var relics = PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, "relic-wargear.part.json")!.Entries.Select(e => e.Name).ToHashSet();
         Assert.Equal(rules.Concat(relics).Order(), Games.SelectMany(g => g.Covers).Distinct().Order().ToList());
         // A defect exhibit covers nothing; a relic game (p.36) covers its relics alone.
         Assert.All(Games.Where(g => g.Known.Count == 0 && g.Covers.Count > 0 && !g.Covers.All(relics.Contains)), g => Assert.InRange(g.Covers.Count, 3, 5));

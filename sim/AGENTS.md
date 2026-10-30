@@ -119,7 +119,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - Coverage: every entry of the shipped set, with the games that cover it, whether it fired in all of them, and its exact checks. A
   run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does. A text-only
   entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
-  `grimdark-future-army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
+  `army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
   they passed and its base is covered and fired.
 - The report (`SuiteReportFiles`): every `suite` run, either driver, `--only` included, writes `suite-<run id>.json` and
   `suite-<run id>.md` to `--out` (default `./recordings`, git-ignored) and copies them to `suite-latest.json` and `suite-latest.md`.

@@ -16,12 +16,13 @@ public class SpellLibraryTests
     static PropertySetDocument Part(params EntryDocument[] entries) => new("part", "grimdark-future", [], [], [], entries);
 
     [Fact]
-    public void The_embedded_set_is_one_composed_document_named_for_the_ruleset()
+    public void The_embedded_sets_are_two_composed_documents_one_per_edition()
     {
-        var doc = Assert.Single(PropertiesSeeder.EmbeddedDocuments(), d => d.GameRules == "grimdark-future");
-        Assert.Equal("Grimdark Future v3.5.1", doc.Name);
-        Assert.Empty(PropertiesJson.Validate(doc));
-        Assert.All(TestProperties.RulebookDocument.Entries, e => Assert.Contains(doc.Entries, x => x.Name == e.Name));
+        var docs = PropertiesSeeder.EmbeddedDocuments();
+        Assert.Equal(["Grimdark Future v3.5.1", "Grimdark Future v3.6.0"], docs.Select(d => d.Name).Order(StringComparer.Ordinal));
+        Assert.All(docs, doc => Assert.Empty(PropertiesJson.Validate(doc)));
+        var v351 = Assert.Single(docs, d => d.GameRules == "grimdark-future");
+        Assert.All(TestProperties.RulebookDocument.Entries, e => Assert.Contains(v351.Entries, x => x.Name == e.Name));
     }
 
     [Fact]

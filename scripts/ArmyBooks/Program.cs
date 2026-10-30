@@ -76,7 +76,7 @@ switch (args.FirstOrDefault())
         }
         if (problems.Count > 0) { foreach (var p in problems) Console.Error.WriteLine(p); return 1; }
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
-        var rulesPath = Arg("--rules", Path.Combine(content, PropertiesSeeder.GeneratedPart));
+        var rulesPath = Arg("--rules", Path.Combine(content, "grimdark-future-army-book-rules.part.json"));
         File.WriteAllText(rulesPath, RuleWriter.Serialize(rules!));
         var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName));
         File.WriteAllText(unitsPath, reserveUnits);

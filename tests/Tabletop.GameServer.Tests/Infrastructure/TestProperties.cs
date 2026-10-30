@@ -5,10 +5,10 @@ namespace Tabletop.GameServer.Tests.Infrastructure;
 public static class TestProperties
 {
     /// <summary>The rulebook's pp. 13–15 alone, the hand-written core resource, for the tests that pin its thirty-three rules.</summary>
-    public static PropertySetDocument RulebookDocument { get; } = PropertiesJson.Parse(ReadResource("Tabletop.GameServer.Content.grimdark-future-core.properties.json"));
+    public static PropertySetDocument RulebookDocument { get; } = PropertiesJson.Parse(ReadResource("Tabletop.GameServer.Content.grimdark-future-3.5.1.core.properties.json"));
     /// <summary>The rulebook with its army-rules parts and no books: what WithSpells builds on, so a test spell never collides with a shipped book's.</summary>
     static PropertySetDocument SpellBaseDocument { get; } = PropertiesSeeder.Compose(RulebookDocument,
-        typeof(PropertySet).Assembly.GetManifestResourceNames().Where(n => n.EndsWith(".part.json")).Select(n => PropertiesJson.Parse(ReadResource(n))), []);
+        typeof(PropertySet).Assembly.GetManifestResourceNames().Where(n => n.StartsWith("Tabletop.GameServer.Content.grimdark-future-3.5.1.") && n.EndsWith(".part.json")).Select(n => PropertiesJson.Parse(ReadResource(n))), []);
     /// <summary>The shipped set: the composed document the server seeds (core, the army-rules part, every book).</summary>
     public static PropertySetDocument CoreDocument { get; } = PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == "grimdark-future");
     public static PropertySet Core { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);

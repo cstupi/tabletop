@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
@@ -29,7 +30,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
 {
     /// <summary>The wrappers scripts/ArmyBooks generated (the generated part's entries with effects), which coverage counts by pattern.</summary>
     static readonly IReadOnlySet<string> Generated =
-        PropertiesSeeder.EmbeddedPart(PropertiesSeeder.GeneratedPart)?.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet(StringComparer.Ordinal)
+        PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, PropertiesSeeder.GeneratedPartName)?.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet(StringComparer.Ordinal)
         ?? new HashSet<string>();
 
     public IReadOnlyList<TestGame> Games { get; } = games ?? SuiteCatalog.All;

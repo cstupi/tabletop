@@ -18,7 +18,7 @@ public class ArmyRulesContentTests
     [Fact]
     public void The_part_composes_valid_and_every_entry_is_in_the_set()
     {
-        var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-army-rules.part.json")));
+        var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.5.1/army-rules.part.json")));
         Assert.Empty(PropertiesJson.Validate(TestProperties.CoreDocument));
         Assert.All(part.Entries, e => Assert.NotNull(Core.Entry(e.Name)));
         Assert.All(NamesOnly, n => Assert.Empty(Core.Entry(n)!.Effects));

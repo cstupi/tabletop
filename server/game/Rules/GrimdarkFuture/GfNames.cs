@@ -1,6 +1,6 @@
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
-/// <summary>Every Grimdark Future name the C# half knows. The data half (Content/grimdark-future-core.properties.json) declares the same names.</summary>
+/// <summary>Every Grimdark Future name the C# half knows. The data half (each Content/&lt;edition&gt;/core.properties.json) declares the same names.</summary>
 public static class GfNames
 {
     public const string Quality = "Quality", Defense = "Defense", Range = "Range", Attacks = "Attacks";
