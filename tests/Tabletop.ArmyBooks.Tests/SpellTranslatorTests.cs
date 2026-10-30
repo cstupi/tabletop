@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Tabletop.GameServer.Properties;
 
 namespace Tabletop.ArmyBooks.Tests;
@@ -125,6 +126,16 @@ public class SpellTranslatorTests
         var attacking = AllTranslated().SelectMany(s => s.Effects).SelectMany(r => r.Conditions).Where(c => c.Values.Count == 2).ToList();
         Assert.NotEmpty(attacking);
         Assert.All(attacking, c => Assert.Equal(["melee", "shooting"], c.Values));
+    }
+
+    [Fact]
+    public void A_spell_whose_assignment_says_in_line_of_sight_keeps_its_line_of_sight()
+    {
+        var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
+        Assert.Null(SpellTranslator.Translate(b, terror).Targeting!.LineOfSight);
+        var sight = new AfParam("inLoS", JsonDocument.Parse("\"in line of sight\"").RootElement.Clone());
+        var seen = terror with { Generation = terror.Generation with { Assignment = terror.Generation.Assignment with { Parameters = [.. terror.Generation.Assignment.Parameters, sight] } } };
+        Assert.True(SpellTranslator.Translate(b, seen).Targeting!.LineOfSight);
     }
 
     public static IEnumerable<EntryDocument> AllTranslated() =>

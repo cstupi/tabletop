@@ -21,7 +21,8 @@ public static partial class SpellTranslator
             a.Text("friendly-enemy") switch { "friendly" => TargetSide.Friendly, "enemy" => TargetSide.Enemy, var x => throw Bad(where, $"side '{x}'") },
             a.Text("target") switch { "unit" => TargetGrain.Unit, "model" => TargetGrain.Model, var x => throw Bad(where, $"target '{x}'") },
             a.Text("numberText") switch { "one" => 1, "up to two" => 2, "up to three" => 3, var x => throw Bad(where, $"count '{x}'") },
-            Int(a.Text("inRange"), where));
+            Int(a.Text("inRange"), where),
+            a.Text("inLoS") is { Length: > 0 } ? true : null);   // 3.6: the spell's own "in line of sight"; 3.5 dumps carry none, so 3.5.1 stays null
         IReadOnlyList<EffectDocument> rows = e.Id switch
         {
             "QFjxWsOHTCSi" => [Damage(spell, e, where)],
