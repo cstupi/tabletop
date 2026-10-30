@@ -44,14 +44,30 @@ public class RollEffects36Tests
         Assert.Equal(expected == 0 ? [] : ["Bad Shot"], plan.Modifiers.Select(m => m.Source));
     }
 
+    /// <summary>No shipped weapon rule carries a hit penalty, so the test adds one: -1 to hit on its own weapon, beside Unstoppable.</summary>
+    static readonly EntryDocument ClumsyBarrel = new("Clumsy Barrel", CatalogKind.Weapon, false, null, null, null, "-1 to hit rolls with this weapon.", null,
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.ModifyRoll, "hit", null, null, null, null, null, null, -1, false, null, null, null, EffectDuration.Interaction, [], [])]);
+
+    static PropertySet WithClumsyBarrel(PropertySetDocument document) =>
+        PropertiesJson.ToSet(document with { Entries = [.. document.Entries, ClumsyBarrel] }, Guid.CreateVersion7);
+
     [Theory]
     [InlineData(RuleSets.Gf351, 0)]
     [InlineData(RuleSets.Gf360, -1)]
-    public void Unstoppable_keeps_its_own_weapons_indirect_penalty_under_3_6(string rulesId, int expected)
+    public void Unstoppable_keeps_a_penalty_from_its_own_weapon_rule_under_3_6(string rulesId, int expected)
     {
-        var shooter = Unit("S", "4+", "4+", [], 1, [], Gun("Mortar", "24\"", 1, P("Indirect"), P("Unstoppable")));
-        Assert.Equal(expected, HitPlan(rulesId, shooter, Unit("T", "4+", "4+", [], 2, []), "Advance").NetModifier);
+        var properties = WithClumsyBarrel(rulesId == RuleSets.Gf360 ? TestProperties.CoreDocument36 : TestProperties.CoreDocument);
+        var shooter = Unit("S", "4+", "4+", [], 1, [], Gun("Beam", "24\"", 1, P("Clumsy Barrel"), P("Unstoppable")));
+        var target = Unit("T", "4+", "4+", [], 2, [P("Stealth")]);
+        var state = State([shooter], [target]);
+        var live = LiveProperties.Settle(new Interaction(state, properties, Party.Of(state, shooter.Id, shooter.Models.Select(m => m.Id), shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id))),
+            Party.Whole(state, target.Id), AttackKind.Shooting, "Hold", 12, []));
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit");
+        Assert.Equal(expected, plan.NetModifier);
+        Assert.Contains(new IgnoredEffect("Stealth", "Unstoppable", -1), plan.Ignored!);
+        Assert.Equal(expected == 0, plan.Ignored!.Any(i => i.Source == "Clumsy Barrel"));
     }
+
     /// <summary>A Precision Debuff's once row granted to the shooter: an enemy's pick is not the shooter's rule; one its own side placed is.</summary>
     [Theory]
     [InlineData(RuleSets.Gf351, true, 0)]
