@@ -51,6 +51,9 @@ public class GameTests : IClassFixture<ManagementFactory>
         var game = await c.PostJson<GameInfo>("/v1/games", Friday());
         Assert.Equal(("Friday", GameStatus.Lobby, creator, "grimdark-future", Hash, SchedulerShape.AlternatingActivation, Enforcement.Warn, false),
             (game.Name, game.Status, game.CreatedBy, game.GameRules, game.PropertiesHash, game.SchedulerShape, game.Enforcement, game.WaitsBetweenSteps));
+        Assert.Equal("Grimdark Future core", game.RuleSet);
+        Assert.Equal("Grimdark Future core", (await c.GetJson<GameInfo>($"/v1/games/{game.Id}")).RuleSet);
+        Assert.Contains((await c.GetJson<Page<GameSummary>>("/v1/games?limit=200")).Items, g => g.Id == game.Id && g.RuleSet == "Grimdark Future core");
         Assert.Empty(game.Teams);
         Assert.Equal([(creator, "Clay", (Guid?)null, (Guid?)null)], game.Participants.Select(p => (p.AccountId, p.Name, p.TeamId, p.ArmyId)));
         var stored = _f.Rows.Games[game.Id].RngSeed;

@@ -67,6 +67,7 @@
     <span class="sep" aria-hidden="true"></span>
     <h1 class="title" title={strip.title}>{strip.title}</h1>
     {#if strip.status !== null}<span class="chip {strip.status}">{strip.statusLabel}</span>{/if}
+    {#if strip.ruleSet !== null}<span class="chip">{strip.ruleSet}</span>{/if}
     {#if strip.connection !== null}<span class="conn" role="status">{strip.connection}</span>{/if}
     <span class="push"></span>
     {#if strip.waiting !== null}<span class="waiting">{strip.waiting}</span>{/if}

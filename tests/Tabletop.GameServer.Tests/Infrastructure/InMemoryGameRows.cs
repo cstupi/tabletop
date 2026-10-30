@@ -151,7 +151,7 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
             var participants = _participants.Values.Where(p => p.GameId == gameId).OrderBy(p => p.Id)
                 .Select(p => new Participant(p.Id, p.AccountId, _accounts[p.AccountId], p.TeamId, p.ArmyId, (p.ArmyId is { } a && _armies.TryGetValue(a, out var owned) ? owned.Army.Name : null) ?? p.ArmySnapshot?.Name)).ToList();
             return Task.FromResult<GameInfo?>(new GameInfo(g.Id, g.Name, g.Status, g.CreatedBy, g.GameRules, g.PropertiesHash, g.SchedulerShape, g.Enforcement,
-                g.WaitsBetweenSteps, g.RngSeed, teams, participants) { OptionalRules = new Dictionary<string, string>(g.OptionalRules) });
+                g.WaitsBetweenSteps, g.RngSeed, teams, participants) { OptionalRules = new Dictionary<string, string>(g.OptionalRules), RuleSet = RuleSetName(g.PropertiesHash) });
         }
     }
 
@@ -309,6 +309,8 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
         }
         return Task.CompletedTask;
     }
+
+    string? RuleSetName(string hash) => properties.LoadAsync(hash, CancellationToken.None).GetAwaiter().GetResult()?.Name;
 
     bool PropertiesExist(string hash) => properties.LoadAsync(hash, CancellationToken.None).GetAwaiter().GetResult() is not null;
 

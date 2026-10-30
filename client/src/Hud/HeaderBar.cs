@@ -65,6 +65,7 @@ public partial class HeaderBar : PanelContainer
         Clear(_top, _gameOver, _settings); Clear(_teams); Clear(_activation);
 
         _top.AddChild(new Label { Text = m.TopLine });
+        _top.AddChild(new Label { Text = HeaderView.RuleSetLine(game!), ThemeTypeVariation = Variation.Dim });
         foreach (var team in game!.Teams.OrderBy(t => t.Ordinal))
         {
             var name = names.Team(team.Id);

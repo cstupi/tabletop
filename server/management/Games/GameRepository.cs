@@ -15,13 +15,13 @@ public sealed record GrantableEffect(string EntryName, Guid EffectId, string Dur
 
 public sealed class GameRepository(Database db) : IGameRepository
 {
-    private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy, string OptionalRules);
+    private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy, string OptionalRules, string? RuleSet);
     private sealed record PropertiesRow(string ContentHash, string Name, string GameRules);
     private sealed record ParticipantRow(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId);
     // CreatedAt comes back as DateTime (Npgsql's CLR type for timestamptz), not DateTimeOffset: Dapper picks a
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
     // is built afterwards.
-    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames, bool Joined);   // Array: the reader reports text[] as System.Array
+    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames, bool Joined, string? RuleSet);   // Array: the reader reports text[] as System.Array
     private static readonly IReadOnlyDictionary<string, SchedulerShape> Shapes = new Dictionary<string, SchedulerShape> { ["player-turn"] = SchedulerShape.PlayerTurn, ["alternating-activation"] = SchedulerShape.AlternatingActivation };
     private static string Wire(SchedulerShape s) => Shapes.First(kv => kv.Value == s).Key;
 
@@ -83,24 +83,25 @@ public sealed class GameRepository(Database db) : IGameRepository
             (select count(distinct p.account_id) from participant p where p.game_id = g.id)::int as Participants,
             array(select a.name from (select distinct on (p.account_id) p.account_id, p.id from participant p where p.game_id = g.id order by p.account_id, p.id) p
                   join account a on a.id = p.account_id order by p.id) as ParticipantNames,
-            exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer) as Joined
+            exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer) as Joined,
+            (select pr.name from properties pr where pr.content_hash = g.properties_hash) as RuleSet
             from game g where (@after::uuid is null or g.id < @after::uuid)
               and (not @joinedOnly or exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer))
             order by g.id desc limit @limit", new { after = page.After, limit = page.Limit, viewer, joinedOnly });
-        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList(), r.Joined)).ToList();
+        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList(), r.Joined, r.RuleSet)).ToList();
     }
 
     public async Task<GameInfo?> Get(Guid id)
     {
         await using var c = await db.Open();
         var g = await c.QuerySingleOrDefaultAsync<GameRow>(@"select id as Id, name as Name, status as Status, game_rules as GameRules, properties_hash as PropertiesHash, scheduler_shape as SchedulerShape,
-            enforcement as Enforcement, waits_between_steps as WaitsBetweenSteps, rng_seed as RngSeed, created_by as CreatedBy, optional_rules::text as OptionalRules from game where id = @id", new { id });
+            enforcement as Enforcement, waits_between_steps as WaitsBetweenSteps, rng_seed as RngSeed, created_by as CreatedBy, optional_rules::text as OptionalRules, (select pr.name from properties pr where pr.content_hash = game.properties_hash) as RuleSet from game where id = @id", new { id });
         if (g is null) return null;
         var teams = (await c.QueryAsync<Team>("select id as Id, ordinal as Ordinal from team where game_id = @id order by ordinal", new { id })).ToList();
         var participants = (await c.QueryAsync<ParticipantRow>(@"select p.id as Id, p.account_id as AccountId, a.name as Name, p.team_id as TeamId, p.army_id as ArmyId
             from participant p join account a on a.id = p.account_id where p.game_id = @id order by p.id", new { id })).Select(p => new Participant(p.Id, p.AccountId, p.Name, p.TeamId, p.ArmyId)).ToList();
         return new GameInfo(g.Id, g.Name, Enum.Parse<GameStatus>(g.Status, true), g.CreatedBy, g.GameRules, g.PropertiesHash, Shapes[g.SchedulerShape], Enum.Parse<Enforcement>(g.Enforcement, true), g.WaitsBetweenSteps, g.RngSeed, teams, participants)
-        { OptionalRules = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(g.OptionalRules) ?? [] };
+        { OptionalRules = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(g.OptionalRules) ?? [], RuleSet = g.RuleSet };
     }
 
     public async Task<bool> IsParticipant(Guid id, Guid accountId)

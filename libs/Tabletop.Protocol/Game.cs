@@ -35,6 +35,9 @@ public sealed record GameInfo(
     /// <summary>The optional rules the players opted into: keys and values the game's ruleset defines (snake_case), opaque outside it. An absent key is that
     /// option's default, so an empty map is the core game. Set in the lobby with SetConfiguration; frozen from playing on.</summary>
     public IReadOnlyDictionary<string, string> OptionalRules { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>The name of the rule set the game's properties row holds (management.properties.name), shown beside the game; null from a source that does not read it.</summary>
+    public string? RuleSet { get; init; }
 }
 
 public sealed record ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot);

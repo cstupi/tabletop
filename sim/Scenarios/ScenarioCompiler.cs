@@ -86,7 +86,7 @@ public static class ScenarioCompiler
         var info = new GameInfo(
             Guid.CreateVersion7(), s.Name, GameStatus.Playing, participants[0].AccountId,
             GrimdarkFutureRules.RulesId, props.ContentHash, s.Shape, s.Enforcement,
-            WaitsBetweenSteps: s.WaitsBetweenSteps, unchecked((long)s.Seed), teams, participants) { OptionalRules = s.OptionalRules };
+            WaitsBetweenSteps: s.WaitsBetweenSteps, unchecked((long)s.Seed), teams, participants) { OptionalRules = s.OptionalRules, RuleSet = props.Name };
 
         return new CompiledScenario(s, info, new Board(snapshot, armies), props,
             teams.Select(t => t.Id).ToList(), participants.Where(p => p.TeamId is not null).Select(p => p.Id).ToList(),

@@ -33,7 +33,8 @@ public sealed record RecordingMeta(
     int Rounds,
     long LastSeq,
     DateTimeOffset StartedAt,
-    double DurationMs);
+    double DurationMs,
+    string? RuleSet = null);
 
 public sealed record RecordedTeam(Guid Id, int Ordinal, string Name, IReadOnlyList<string> Participants);
 

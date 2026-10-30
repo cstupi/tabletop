@@ -7,7 +7,7 @@
   import { teamColour } from '../board/palette';
   import { playingAs } from '../lobby/seats';
   import type { Projection } from '../live/apply';
-  import { notActivatedText, scoreText, waitingLine } from './headerText';
+  import { notActivatedText, ruleSetText, scoreText, waitingLine } from './headerText';
   import { activationLine, headerOf, notActivated, objectives } from './headerView';
   import { Names } from './names';
   import { words } from './rosterView';
@@ -52,6 +52,7 @@
         {#if model.round > 0}<span class="round">Round {model.round}</span>{#if model.turn !== ''}<span class="sep" aria-hidden="true">·</span>{/if}{/if}
         {#if model.turn !== ''}<span class:round={model.round === 0}>{words(model.turn)}</span>{:else if model.round === 0}<span class="round">Deployment</span>{/if}
         {#if as !== null}<span class="chip">{as}</span>{/if}
+        <span class="chip">{ruleSetText(game)}</span>
       </p>
       <!-- Every line keeps its row, filled or not, so the bar's height never changes and the board under it never moves. -->
       <p class="activation">

@@ -117,7 +117,7 @@ public partial class HomeScreen : Control
     {
         _list.Clear();
         var shown = Filtered();
-        foreach (var g in shown) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in{(g.Joined ? " (you)" : "")}, {g.CreatedAt.LocalDateTime:g}");
+        foreach (var g in shown) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in{(g.Joined ? " (you)" : "")}, {g.CreatedAt.LocalDateTime:g}{(g.RuleSet is { } set ? $" · {set}" : "")}");
         // The empty list says why: still loading, no games at all, or none passing the filters.
         // A placeholder row only on an empty list, so row indices still match Filtered().
         if (shown.Count == 0)

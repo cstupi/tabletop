@@ -11,11 +11,12 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
     public async Task<GameInfo?> ReadGameAsync(Guid gameId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        await using var game = new NpgsqlCommand("select name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, rng_seed, created_by, optional_rules::text from management.game where id = $1", conn) { Parameters = { new NpgsqlParameter { Value = gameId } } };
+        await using var game = new NpgsqlCommand("select name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, rng_seed, created_by, optional_rules::text, (select pr.name from management.properties pr where pr.content_hash = g.properties_hash) from management.game g where g.id = $1", conn) { Parameters = { new NpgsqlParameter { Value = gameId } } };
         await using var r = await game.ExecuteReaderAsync(ct);
         if (!await r.ReadAsync(ct)) return null;
         var (name, status, rules, hash, shape, enforcement, waits, rngSeed, createdBy, optional) =
             (r.GetString(0), EnumFrom<GameStatus>(r.GetString(1)), r.GetString(2), r.GetString(3), EnumFrom<SchedulerShape>(r.GetString(4)), EnumFrom<Enforcement>(r.GetString(5)), r.GetBoolean(6), r.GetInt64(7), r.GetGuid(8), OptionalRules(r.GetString(9)));
+        var ruleSet = r.IsDBNull(10) ? null : r.GetString(10);
         await r.CloseAsync();
 
         var teams = new List<Team>();
@@ -28,7 +29,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using (var pr = await cmd.ExecuteReaderAsync(ct))
             while (await pr.ReadAsync(ct)) participants.Add(new Participant(pr.GetGuid(0), pr.GetGuid(1), pr.GetString(2), NullableGuid(pr, 3), NullableGuid(pr, 4), pr.IsDBNull(5) ? null : pr.GetString(5)));
 
-        return new GameInfo(gameId, name, status, createdBy, rules, hash, shape, enforcement, waits, rngSeed, teams, participants) { OptionalRules = optional };
+        return new GameInfo(gameId, name, status, createdBy, rules, hash, shape, enforcement, waits, rngSeed, teams, participants) { OptionalRules = optional, RuleSet = ruleSet };
     }
 
     public async Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct)
