@@ -130,12 +130,32 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
         Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null, Via: PerDieGrantor(holder, entry, parameter))], SuppressedModifiers, Applied, _read, _acts, recorder) : this;
 
-    string? PerDieGrantor(Side holder, string entry, int? parameter) =>
+    string? PerDieGrantor(Side holder, string entry, int? parameter) => PerDieGrantorOf(holder, entry, parameter)?.Entry.Name;
+
+    LiveProperty? PerDieGrantorOf(Side holder, string entry, int? parameter) =>
         Live.FirstOrDefault(p => p.Effects.Any(e => e.Kind == EffectKind.GrantProperty && e.TargetEntry == entry && (e.Amount ?? 0) == (parameter ?? 0)
-            && p.ActedOn(e) == holder && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult)))?.Entry.Name;
+            && p.ActedOn(e) == holder && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult)));
 
     /// <summary>The entry that granted this instance: pass one's grantor, or a per-die grant's (Via). Null for a property held outright.</summary>
     public string? GrantorOf(LiveProperty p) => p.Via ?? (_acts.GrantedBy.TryGetValue(p, out var by) ? by.Entry.Name : null);
+
+    /// <summary>Whether this instance comes from the side's own rules: traced back through the grants that put it here (pass one's grantor, a per-die
+    /// grant's rule), the rule at the root is held by that side, and a granted row on it was placed by its own team (ForeignToHitPenalties).</summary>
+    public bool OwnedBy(LiveProperty p, Side side)
+    {
+        var seen = new HashSet<LiveProperty>(ReferenceEqualityComparer.Instance);
+        while (seen.Add(p))
+        {
+            if (_acts.GrantedBy.TryGetValue(p, out var by)) { p = by; continue; }
+            if (p.Via is not null && PerDieGrantorOf(p.Holder, p.Entry.Name, p.Parameter) is { } die) { p = die; continue; }
+            break;
+        }
+        if (p.Holder != side) return false;
+        if (p.GrantId is not { } g) return true;
+        var unit = Interaction.Of(side).UnitId;
+        var grant = Interaction.State.Projection.Units[unit].Grants.FirstOrDefault(x => x.Id == g);
+        return grant is not null && Interpreter.Teams.Of(Interaction.State, grant.CasterUnitId) == Interpreter.Teams.Of(Interaction.State, unit);
+    }
 
     /// <summary>The entries whose pass-one rows suppressed this modifier class.</summary>
     public IReadOnlyList<string> Suppressors(TargetModifier modifier) =>

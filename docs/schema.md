@@ -134,7 +134,7 @@ could not check it and nothing said what it may contain:
 | `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |
 | `target_quantity` | `hits \| wounds \| attacks` | Multiply (`hits \| wounds`), Add a hit (`wounds`, `attacks`; null is `hits`) |
 | `target_result` | `wound \| morale_test` | Override a result |
-| `target_modifier` | `cover \| to_hit_penalties \| range_penalties` | Suppress modifiers |
+| `target_modifier` | `cover \| to_hit_penalties \| range_penalties \| foreign_to_hit_penalties` (024) | Suppress modifiers |
 | `target_terrain` | `difficult \| dangerous` | Count as terrain |
 | `target_condition` | a condition name (`fatigued` in the corpus); no check | Set a condition |
 

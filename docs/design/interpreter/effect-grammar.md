@@ -255,12 +255,17 @@ now, taking the die when one is given, and orders by `Ordinal`. Every reader is 
 ruleset has one: `StepContext.Plan` takes an optional `threshold` that overrides
 `RollSpec.Threshold`, which is how a target number read off a model's slot rather than the unit's
 reaches a plan without putting a model on `RollSpec` and therefore on `IGameRules`. Every `ModifyRoll` on this roll is
-then appended, and two suppressions are applied by removal:
+then appended, and three suppressions are applied by removal:
 
 - `TargetModifier.Cover` suppressed removes modifiers whose `Source` is the literal `"cover"`.
 - `TargetModifier.ToHitPenalties` suppressed removes every negative modifier, **but only when the
   roll is the ruleset's hit roll**. `Plan` receives that roll's name as the `hitRollName`
   parameter. That parameter is what keeps `Effects/` free of OPR's roll names.
+- `TargetModifier.ForeignToHitPenalties` suppressed removes, on the same roll, every negative modifier
+  that is not from the roller's own rules (3.6.0 p.15 Unstoppable: *"which are not from this model's
+  special rules"*). A modifier is the roller's own when `LiveSet.OwnedBy` traces its `modify_roll`
+  row's property, through pass one's grantor and a per-die grant's rule, to a property its side holds,
+  and a granted row on it was placed by its own team. A base modifier has no property, so it goes.
 
 Matching a base modifier by the string `"cover"` is the weakest join in the module. It couples a
 generic suppressor to a string the ruleset happens to use, and `Blast` silently stops ignoring cover
@@ -312,7 +317,7 @@ parts the first four do not.
 | `Rending` | `grant_property` with `target_entry = AP` and `amount = 4`, conditioned on a raw `hit` result of 6, so it is deferred to pass two and folded in per die |
 | `Thrust` | **two** effects. `modify_roll` on `hit`, `amount = 1`; and `grant_property` with `target_entry = AP` and `amount = 1`. Both conditioned on the action taken being `Charge` and the attack kind melee. The grant is not per-die, so unlike `Rending`'s it settles in pass one |
 | `Blast(X)` | `kind = multiply`, `target_quantity = hits`, `amount_from_parameter`, `cap_kind = models_in_target_unit`, at a high `ordinal` because the book says *after resolving other special rules* |
-| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` is what suppresses that |
+| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. 3.6.0 p.15 adds *"which are not from this model's special rules"*: the 3.6 row is `foreign_to_hit_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` is what suppresses that |
 
 `Bane` shows why conditions belong to the effect and not to the entry. One of its two effects
 is conditional and the other is not, and a single condition list on the entry would get it wrong.
