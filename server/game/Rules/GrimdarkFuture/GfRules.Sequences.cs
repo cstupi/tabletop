@@ -11,7 +11,10 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>A flagged interpretation, not a silent guess (action sequences → Rulings): the scope is the activation, so a caster that failed a spell may try it again in a later activation.</summary>
     public const string OneTryPerSpellScope = "activation";
 
-    private readonly Lazy<IReadOnlyDictionary<string, Sequence>> _sequences = new(() => new Sequence[]
+    private readonly Lazy<IReadOnlyDictionary<string, Sequence>> _sequences;
+
+    /// <summary>This edition's sequence catalog, built once per instance on first use.</summary>
+    private IReadOnlyDictionary<string, Sequence> BuildSequences() => new Sequence[]
     {
         GfRolls.RollOffSequence(),
         GfAttack.DealWounds(),
@@ -41,7 +44,7 @@ public sealed partial class GrimdarkFutureRules
         GfMarkers.Rally(),
         GfContainers.TransportDestroyed(),
         GfReserves.PlaceReserve(),
-    }.ToDictionary(s => s.Name));
+    }.ToDictionary(s => s.Name);
 
     public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);
     public string? ActionSequence(string actionName) => actionName switch

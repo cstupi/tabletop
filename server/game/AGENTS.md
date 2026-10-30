@@ -113,6 +113,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   `Welcome.Options`; a `set_configuration` whose map `IGameRules.OptionProblems` finds fault with is refused `Unknown` before any write; from
   `playing` on the map is frozen with the rest of the configuration. Grimdark Future reads it as `GfOptions.Of(state)`: `unit_sight_blocking`
   (`per_model` | `perimeter`), `line_of_sight` (`core` | `hybrid_true`), `melee_separation` (`on` | `off`).
+- Grimdark Future reads what differs between editions through `GfEdition.Of(state)` (`GfEdition.cs`: one record, two instances); `GrimdarkFutureRules.V351`/`V360` are the two rule sets, `RuleSets` (Tabletop.Content) holds the ids.
 - `Sight.From` asks `IGameRules.SightPolicy(state)` (`ISightPolicy`; Grimdark Future: `GfSight`): with `Perimeters` each other unit blocks with
   `Bodies.Perimeter` keyed by its id in place of its bodies, except the target's own unit, which blocks per model; a unit `SeesThrough` passes
   (p.56 Hybrid: `GfSight.SizeClass`, elevation) blocks nothing on that pair's line, cover included. A shooting `determine-attacks`
