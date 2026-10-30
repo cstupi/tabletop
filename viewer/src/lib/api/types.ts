@@ -12,7 +12,7 @@ export interface CreateGameRequest {
   readonly enforcement: Enforcement;
   readonly waitsBetweenSteps: false;
 }
-export interface PropertiesSummary { readonly contentHash: string; readonly name: string; readonly gameRules: string }
+export interface PropertiesSummary { readonly contentHash: string; readonly name: string; readonly gameRules: string; readonly default: boolean }
 export interface ArmySummary {
   readonly id: string; readonly name: string; readonly gameSystem: string; readonly source: string;
   readonly units: number; readonly models: number; readonly edition: string;
