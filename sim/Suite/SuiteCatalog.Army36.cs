@@ -13,25 +13,6 @@ public static partial class SuiteCatalog
     /// </summary>
     private static partial class ArmyGames
     {
-        /// <summary>The 3.6 books the 3.6 army games play under, by uid (3.6 keeps the 3.5 books' uids; Voidspace Stalkers is new in 3.6).</summary>
-        static readonly IReadOnlyDictionary<string, string> Books36 = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["U6hwlur14RpnInZr"] = "Saurian Starhosts", ["vux1Y5vvULmaxZ8P"] = "Eternal Dynasty", ["7oi8zeiqfamiur21"] = "Blessed Sisters",
-            ["1wj1ysgxpuuz9bc7"] = "Orc Marauders", ["zz3kp5ry7ks6mxcx"] = "Soul-Snatcher Cults", ["ewbra8nv3nq3k27p"] = "Custodian Brothers",
-            ["q11la9v8h1heu9ja"] = "Dark Elf Raiders", ["7o6om21wxlvvy3hq"] = "Havoc Brothers", ["hk70l4d471plza00"] = "Ratmen Clans",
-            ["7i7blhft75q9zfdc"] = "High Elf Fleets", ["w7qor7b2kuifcyvk"] = "Alien Hives", ["z65fgu0l29i4lnlu"] = "Human Defense Force",
-            ["dnthspt7c0klhmt8"] = "Infected Colonies", ["7el7k3hgy5pb9o9i"] = "Machine Cults", ["k5T0f2XIfpmPO28h"] = "Goblin Reclaimers",
-            ["nyh41t82jugcdq8m"] = "Elven Jesters", ["BKi_hJaJflN8ZorH"] = "Jackals", ["4k5amkxoybdiqotm"] = "Robot Legions",
-            ["fk1mkbp8apvltu0z"] = "Dwarf Guilds", ["z8205ez2boggzs22"] = "DAO Union", ["r6hr29338u4micfw"] = "Change Disciples",
-            ["drqw1iswxmuugp3d"] = "Lust Disciples", ["jlray7cwf8mvw5sn"] = "Plague Disciples", ["31xjrm9ivdimkjxp"] = "War Disciples",
-            ["04z57ua0bwth37zh"] = "Daemons of Change", ["fmuqw5lr5l6dq0mq"] = "Daemons of Plague", ["prsajf5ot936qznk"] = "Daemons of War",
-            ["9qvy1oufoangt2gl"] = "Daemons of Lust", ["jpc0kyil0juwy602"] = "Human Inquisition", ["xnnqhh1775kvmz2r"] = "Blood Brothers",
-            ["7ex2x15bpkmy1alv"] = "Blood Prime Brothers", ["xp5zwh73lg1uaym4"] = "Dark Brothers", ["78qp9l5alslt6yj8"] = "Battle Brothers",
-            ["3j10zage1lddt6sr"] = "Titan Lords", ["5wbcv465hacdwvkb"] = "Rebel Guerrillas", ["zpaY1LFqVk-ZJdvW"] = "Voidspace Stalkers",
-        };
-
-        static (string Uid, string Army) Book36(string uid) => (uid, Books36[uid]);
-
         /// <summary>
         /// The 3.5.1 army games whose rules 3.6 keeps word for word (or with quote and case changes only), by name, each with the 3.6 book it
         /// plays under when that is not its 3.5 one (the 3.5 book no longer prints the rule) and then its 3.6 name.
@@ -84,7 +65,7 @@ public static partial class SuiteCatalog
         {
             var game = Army351.Single(g => g.Name == kept.Name);
             var uid = kept.Uid ?? BookOf(game.Group);
-            if (!Books36.ContainsKey(uid)) throw new InvalidOperationException($"'{kept.Name}': no 3.6 book {uid}");
+            if (!Books36.ByUid.ContainsKey(uid)) throw new InvalidOperationException($"'{kept.Name}': no 3.6 book {uid}");
             var name = kept.Rename ?? kept.Name;
             var requote = Requote36.GetValueOrDefault(kept.Name) ?? [];
             return game with
@@ -99,62 +80,59 @@ public static partial class SuiteCatalog
         static IEnumerable<TestGame> Army351 => [.. All, .. Patterns, .. Grants, .. HitAndAp, .. Defense, .. Movement, .. GrantAuras, .. NumberAuras, .. Unbatched,
             .. Batch2, .. Batch3, .. Batch4, .. Batch5, .. Batch6, .. Batch7, .. Batch8, .. Batch9];
 
-        /// <summary>The game under 3.6.0.</summary>
-        static TestGame Under36(TestGame game) => game with { Edition = RuleSets.Gf360 };
-
         public static IReadOnlyList<TestGame> Army36 =>
         [
             .. Kept36.Select(Kept),
             // Kept rules whose 3.5.1 game also played a rule 3.6 rewrites (Evasive, Shatter): on their own.
-            Under36(Game(Book36("U6hwlur14RpnInZr"), "saurian-starhosts-teleport", Play.ShotWhileMoving, ["Teleport"],
-                [R(1, "Teleport"), R(2, "Teleport"), R(3, "Teleport")], [], [Teleport()])),
-            Under36(Game(Book36("BKi_hJaJflN8ZorH"), "jackals-scrapper", Play.Shoots, ["Scrapper"], [R(1, "Scrapper"), R(2, "Scrapper")], [],
-                [Rerolls("Scrapper", By("Scrapper"), [6], successOnly: false, SixesRerolled)])),
+            Game(Books36.SaurianStarhosts, "saurian-starhosts-teleport", Play.ShotWhileMoving, ["Teleport"],
+                [R(1, "Teleport"), R(2, "Teleport"), R(3, "Teleport")], [], [Teleport()]).In36(),
+            Game(Books36.Jackals, "jackals-scrapper", Play.Shoots, ["Scrapper"], [R(1, "Scrapper"), R(2, "Scrapper")], [],
+                [Rerolls("Scrapper", By("Scrapper"), [6], successOnly: false, SixesRerolled)]).In36(),
             // Renamed in 3.6 (7.4), each on a 3.6 book that prints the new name.
-            Under36(Game(Book36("hk70l4d471plza00"), "ratmen-clans-anti-cover", Play.Shoots, ["Anti-Cover"], [], [],
-                [NoCover("Anti-Cover", With("Anti-Cover"), "\"This weapon ignores Cover.\"")], weapon: [R(0, "Anti-Cover")], units: 2, board: EnemyRuins)),
-            Under36(Game(Book36("fk1mkbp8apvltu0z"), "dwarf-guilds-anti-cover-when-shooting", Play.Shoots, ["Anti-Cover when Shooting"],
+            Game(Books36.RatmenClans, "ratmen-clans-anti-cover", Play.Shoots, ["Anti-Cover"], [], [],
+                [NoCover("Anti-Cover", With("Anti-Cover"), "\"This weapon ignores Cover.\"")], weapon: [R(0, "Anti-Cover")], units: 2, board: EnemyRuins).In36(),
+            Game(Books36.DwarfGuilds, "dwarf-guilds-anti-cover-when-shooting", Play.Shoots, ["Anti-Cover when Shooting"],
                 [R(1, "Anti-Cover when Shooting"), R(2, "Anti-Cover when Shooting")], [],
-                [NoCover("Anti-Cover when Shooting", By("Anti-Cover when Shooting", when: When.Shooting), "\"This model gets Anti-Cover on its weapons when shooting.\"")], board: EnemyRuins)),
-            Under36(Shooting(Book36("vux1Y5vvULmaxZ8P"), "eternal-dynasty-anti-cover-aura", "Anti-Cover Aura",
-                NoCover("Anti-Cover Aura", Carrying("Anti-Cover Aura", When.Shooting), "\"This model and its unit get Anti-Cover on its weapons when shooting.\""), board: EnemyRuins)),
-            Under36(Shooting(Book36("fk1mkbp8apvltu0z"), "dwarf-guilds-anti-cover-when-shooting-aura", "Anti-Cover when Shooting Aura",
-                NoCover("Anti-Cover when Shooting Aura", Carrying("Anti-Cover when Shooting Aura", When.Shooting), "\"This model and its unit get Anti-Cover on its weapons when shooting.\""), board: EnemyRuins)),
+                [NoCover("Anti-Cover when Shooting", By("Anti-Cover when Shooting", when: When.Shooting), "\"This model gets Anti-Cover on its weapons when shooting.\"")], board: EnemyRuins).In36(),
+            Shooting(Books36.EternalDynasty, "eternal-dynasty-anti-cover-aura", "Anti-Cover Aura",
+                NoCover("Anti-Cover Aura", Carrying("Anti-Cover Aura", When.Shooting), "\"This model and its unit get Anti-Cover on its weapons when shooting.\""), board: EnemyRuins).In36(),
+            Shooting(Books36.DwarfGuilds, "dwarf-guilds-anti-cover-when-shooting-aura", "Anti-Cover when Shooting Aura",
+                NoCover("Anti-Cover when Shooting Aura", Carrying("Anti-Cover when Shooting Aura", When.Shooting), "\"This model and its unit get Anti-Cover on its weapons when shooting.\""), board: EnemyRuins).In36(),
             // The opponents carry Regeneration, which Anti-Regen leaves unrolled.
-            Under36(Game(Book36("04z57ua0bwth37zh"), "daemons-of-change-anti-regen", Play.Shoots, ["Anti-Regen"], [], [Fix("defense", 1, 1, 1)],
+            Game(Books36.DaemonsOfChange, "daemons-of-change-anti-regen", Play.Shoots, ["Anti-Regen"], [], [Fix("defense", 1, 1, 1)],
                 [NoRoll("Anti-Regen", With("Anti-Regen"), "Regeneration", "\"This weapon ignores Regeneration.\"")],
-                weapon: [R(0, "Anti-Regen")], units: 2, enemy: [R(1, "Tough", 3), R(2, "Tough", 3), R(1, "Regeneration"), R(2, "Regeneration")])),
-            Under36(Morale(Book36("78qp9l5alslt6yj8"), "battle-brothers-bravery-aura", "Bravery Aura", [R(1, "Bravery Aura")], 1, "\"This model and its unit get +1 to Morale Test rolls.\"")),
+                weapon: [R(0, "Anti-Regen")], units: 2, enemy: [R(1, "Tough", 3), R(2, "Tough", 3), R(1, "Regeneration"), R(2, "Regeneration")]).In36(),
+            Morale(Books36.BattleBrothers, "battle-brothers-bravery-aura", "Bravery Aura", [R(1, "Bravery Aura")], 1, "\"This model and its unit get +1 to Morale Test rolls.\"").In36(),
             // p.10: the fixed hits leave the unit at half or less, so it tests morale after the Buff its first activation gave it.
-            Under36(Pick(Book36("5wbcv465hacdwvkb"), "rebel-guerrillas-bravery-buff", Play.Shot, "Bravery Buff",
+            Pick(Books36.RebelGuerrillas, "rebel-guerrillas-bravery-buff", Play.Shot, "Bravery Buff",
                 [Modifier("Bravery Buff", "morale", 1, BuffText + "+1 to Morale Test rolls once\"")],
-                dice: [Fix("hit", 6, 6, 1), Fix("defense", 1, 1)], enemyModels: 1, enemyAttacks: 3, rounds: 2, length: null)),
-            Under36(ExtendedBuffRange(Book36("5wbcv465hacdwvkb"), "rebel-guerrillas-extended-buff-range", "Bravery Buff")),
-            Through(Game(Book36("7el7k3hgy5pb9o9i"), "machine-cults-crossing-strike", Play.ShotWhileMoving, ["Crossing Strike"], [R(1, "Flying"), R(1, "Tough", 6), R(2, "Flying"), R(2, "Tough", 6)], [],
+                dice: [Fix("hit", 6, 6, 1), Fix("defense", 1, 1)], enemyModels: 1, enemyAttacks: 3, rounds: 2, length: null).In36(),
+            ExtendedBuffRange(Books36.RebelGuerrillas, "rebel-guerrillas-extended-buff-range", "Bravery Buff").In36(),
+            Through(Game(Books36.MachineCults, "machine-cults-crossing-strike", Play.ShotWhileMoving, ["Crossing Strike"], [R(1, "Flying"), R(1, "Tough", 6), R(2, "Flying"), R(2, "Tough", 6)], [],
                 [Crossing("Crossing Strike", "\"when this model moves through enemy units, pick one of them and attack it with this weapon as if it was shooting\"")],
                 weapon: [R(0, "Crossing Strike")], length: 30, more: s => RushesThrough(s, "Machine Cults", 2))),
-            Through(Game(Book36("BKi_hJaJflN8ZorH"), "jackals-crossing-attack", Play.ShotWhileMoving, ["Crossing Attack"],
+            Through(Game(Books36.Jackals, "jackals-crossing-attack", Play.ShotWhileMoving, ["Crossing Attack"],
                 [R(1, "Crossing Attack", 3), R(1, "Flying"), R(1, "Tough", 6), R(2, "Crossing Attack", 3), R(2, "Flying"), R(2, "Tough", 6)], [],
                 [Crossing("Crossing Attack", "\"when this model moves through enemy units, pick one of them\""),
                  WoundDice("Crossing Attack", 3, "\"roll X dice. For each 6+ the target takes one wound\" (X 3)")],
                 length: 30, more: s => RushesThrough(s, "Jackals", 2))),
-            Under36(Game(Book36("hk70l4d471plza00"), "ratmen-clans-piercing-charge", Play.Charges, ["Piercing Charge"],
+            Game(Books36.RatmenClans, "ratmen-clans-piercing-charge", Play.Charges, ["Piercing Charge"],
                 [R(1, "Piercing Charge"), R(2, "Piercing Charge"), R(3, "Piercing Charge")], [Fix("hit", 6)],
-                [ApGrant("Piercing Charge", By("Piercing Charge", when: When.Charging), 1, "\"This model gets AP(+1) on its weapons when charging\"")])),
+                [ApGrant("Piercing Charge", By("Piercing Charge", when: When.Charging), 1, "\"This model gets AP(+1) on its weapons when charging\"")]).In36(),
             // Only the opponents move, so every melee is a charge at it, and every counter Ask is answered strike.
-            Under36(Game(Book36("zpaY1LFqVk-ZJdvW"), "voidspace-stalkers-counter-in-melee", Play.Charged, ["Counter in Melee"],
+            Game(Books36.VoidspaceStalkers, "voidspace-stalkers-counter-in-melee", Play.Charged, ["Counter in Melee"],
                 [R(1, "Counter in Melee"), R(2, "Counter in Melee"), R(3, "Counter in Melee")], [], [], enemyUnits: 4,
-                more: s => s.Match("counter", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "strike") ? new Chosen("strike") : null))),
+                more: s => s.Match("counter", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "strike") ? new Chosen("strike") : null)).In36(),
             // 3.6.0 p.12 makes the dangerous terrain test the unit's: the 3.5.1 game's per-model dice no longer hold.
-            Under36(Pick(Book36("31xjrm9ivdimkjxp"), "war-disciples-dangerous-terrain-debuff", Play.Shoots, "Dangerous Terrain Debuff",
+            Pick(Books36.WarDisciples, "war-disciples-dangerous-terrain-debuff", Play.Shoots, "Dangerous Terrain Debuff",
                 [DangerousOnce("Dangerous Terrain Debuff", DebuffText + "counts as being in Dangerous terrain once\": 3.6.0 p.12 Dangerous, \"the entire unit must take a Dangerous Terrain Test\"",
-                    "dangerous-terrain-36")])),
+                    "dangerous-terrain-36")]).In36(),
             // "May only be taken once per army" is a list-building rule, and "counts as having Hero" is a grant the engine reads off the model
             // (GfNames.IsHero), which no step lists: a game with a Unique Hero model that plays to its end is what it has to show.
-            Under36(Game(Book36("hk70l4d471plza00"), "ratmen-clans-unique-hero", Play.Shoots, ["Unique Hero"], [R(1, "Unique Hero")], [], []) with
+            (Game(Books36.RatmenClans, "ratmen-clans-unique-hero", Play.Shoots, ["Unique Hero"], [R(1, "Unique Hero")], [], []) with
             {
                 Evidence = new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Unique Hero"] = _ => true },
-            }),
+            }).In36(),
         ];
 
         /// <summary>
@@ -162,7 +140,7 @@ public static partial class SuiteCatalog
         /// across a 30" table (Flying, p.13: "may move through units"), each model making for a point 4" beyond the nearest enemy model, so its path
         /// crosses that model's unit; every crossing_target Ask picks the first enemy offered.
         /// </summary>
-        static TestGame Through(TestGame game) => Under36(game with { Scenario = game.Scenario with { Goal = Beyond } });
+        static TestGame Through(TestGame game) => (game with { Scenario = game.Scenario with { Goal = Beyond } }).In36();
 
         static void RushesThrough(ScriptBuilder s, string army, int units) => s
             .Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, units).Select(k => AskPicks.Activate(ask, $"{army} unit {k}", "Rush")).FirstOrDefault(a => a is not null))

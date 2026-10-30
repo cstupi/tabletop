@@ -1,4 +1,3 @@
-using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -12,39 +11,35 @@ public static partial class SuiteCatalog
 {
     private static partial class ArmyGames
     {
-        static readonly (string Uid, string Army) Hdf36 = ("z65fgu0l29i4lnlu", "Human Defense Force"), ChangeDaemons36 = ("04z57ua0bwth37zh", "Daemons of Change"),
-            Custodians36 = ("ewbra8nv3nq3k27p", "Custodian Brothers"), Jesters36 = ("nyh41t82jugcdq8m", "Elven Jesters"), WolfBrothers36 = ("yxjboa8oma9bbdck", "Wolf Brothers"),
-            Cults36 = ("zz3kp5ry7ks6mxcx", "Soul-Snatcher Cults"), DarkElves36 = ("q11la9v8h1heu9ja", "Dark Elf Raiders");
-
         public static IReadOnlyList<TestGame> Army36G { get; } =
         [
-            ShotNearAndFar(Hives36, "alien-hives-hive-bond", "Hive Bond"),
-            ShotNearAndFar(Hdf36, "human-defense-force-hold-the-line", "Hold the Line"),
-            In36(Pick(ChangeDaemons36, "daemons-of-change-bounding", Play.Moves, "Bounding",
-                [MovedWithinRoll("Bounding", 1, "\"When this unit is activated, you may move all models with this rule in it by up to D3+1\"\"")], grants: false), ChangeDaemons36),
-            In36(Pick(Custodians36, "custodian-brothers-dash", Play.Moves, "Dash",
-                [MovedWithinRoll("Dash", 1, "\"Once per round, at the end of this unit's activation, you may move all models with this rule in it by up to D3+1\"\"")], grants: false), Custodians36),
-            In36(Pick(Jesters36, "elven-jesters-rapid-blink", Play.Moves, "Rapid Blink",
-                [MovedWithinRoll("Rapid Blink", 0, "\"When this unit is activated, you may move all models with this rule in it by up to D3\"\"")], grants: false), Jesters36),
-            In36(Pick(WolfBrothers36, "wolf-brothers-wolfborn", Play.Moves, "Wolfborn",
-                [MovedWithinRoll("Wolfborn", 0, "\"When this unit is activated, you may move all models with this rule in it by up to D3\"\"")], grants: false), WolfBrothers36),
-            In36(Game(Ratmen36, "ratmen-clans-ravage", Play.Charges, ["Ravage"], [R(1, "Ravage", 2), R(2, "Ravage", 2), R(3, "Ravage", 2)], [],
+            ShotNearAndFar(Books36.AlienHives, "alien-hives-hive-bond", "Hive Bond"),
+            ShotNearAndFar(Books36.HumanDefenseForce, "human-defense-force-hold-the-line", "Hold the Line"),
+            Pick(Books36.DaemonsOfChange, "daemons-of-change-bounding", Play.Moves, "Bounding",
+                [MovedWithinRoll("Bounding", 1, "\"When this unit is activated, you may move all models with this rule in it by up to D3+1\"\"")], grants: false).In36(),
+            Pick(Books36.CustodianBrothers, "custodian-brothers-dash", Play.Moves, "Dash",
+                [MovedWithinRoll("Dash", 1, "\"Once per round, at the end of this unit's activation, you may move all models with this rule in it by up to D3+1\"\"")], grants: false).In36(),
+            Pick(Books36.ElvenJesters, "elven-jesters-rapid-blink", Play.Moves, "Rapid Blink",
+                [MovedWithinRoll("Rapid Blink", 0, "\"When this unit is activated, you may move all models with this rule in it by up to D3\"\"")], grants: false).In36(),
+            Pick(Books36.WolfBrothers, "wolf-brothers-wolfborn", Play.Moves, "Wolfborn",
+                [MovedWithinRoll("Wolfborn", 0, "\"When this unit is activated, you may move all models with this rule in it by up to D3\"\"")], grants: false).In36(),
+            Game(Books36.RatmenClans, "ratmen-clans-ravage", Play.Charges, ["Ravage"], [R(1, "Ravage", 2), R(2, "Ravage", 2), R(3, "Ravage", 2)], [],
                 [WoundDice("Ravage", 2, "\"roll X dice before attacking ... For each 6+ the target takes one wound\" (X 2)"), OncePerRound("Ravage", "\"Once per round, when it’s this model’s turn to strike in melee\""),
                  BeforeAttacking("Ravage", "\"roll X dice before attacking\"")],
-                units: 3), Ratmen36),
+                units: 3).In36(),
             // One Tough(6) opponent model of one attack: its first attack hits, the block fails and the Regeneration die ignores the wound, so the unit it struck
             // holds a token when it charges again.
-            In36(Game(DarkElves36, "dark-elf-raiders-regenerative-strength", Play.ShotWhileMoving, ["Regenerative Strength"],
+            Game(Books36.DarkElfRaiders, "dark-elf-raiders-regenerative-strength", Play.ShotWhileMoving, ["Regenerative Strength"],
                 [R(1, "Regenerative Strength"), R(1, "Regeneration"), R(1, "Tough", 3), R(2, "Regenerative Strength"), R(2, "Regeneration"), R(2, "Tough", 3)],
                 [new DiceFix("hit", 0, [6], new RollKey(Actor: "Opponents unit 1")), new DiceFix("defense", 0, [1], new RollKey(Actor: "Opponents unit 1")),
                  new DiceFix("Regeneration", 0, [6], new RollKey(Actor: "Opponents unit 1"))],
                 [StrengthDice("\"roll as many dice as tokens on it before attacking ... For each 4+ the target takes one wound\""),
                  OncePerRound("Regenerative Strength", "\"Once per round, when it’s this model’s turn to strike in melee\"")],
-                enemy: [R(1, "Tough", 6)], enemyUnits: 1, enemyModels: 1, enemyAttacks: 1, length: 26, more: Activates(c => c.Label.EndsWith(": Charge", StringComparison.Ordinal))), DarkElves36),
-            In36(Batch3Game(Cults36, "soul-snatcher-cults-fanatic", Play.Moves, "Fanatic", [R(1, "Fanatic")], PlacedClear("Fanatic", Cults36.Army),
-                units: 1, more: UsePicks(Cults36.Army, 1, "Fanatic")), Cults36),
-            In36(Batch3Game(Ratmen36, "ratmen-clans-vanguard", Play.Moves, "Vanguard", [R(1, "Vanguard")], PlacedClear("Vanguard", Ratmen36.Army),
-                units: 1, more: UsePicks(Ratmen36.Army, 1, "Vanguard")), Ratmen36),
+                enemy: [R(1, "Tough", 6)], enemyUnits: 1, enemyModels: 1, enemyAttacks: 1, length: 26, more: Activates(c => c.Label.EndsWith(": Charge", StringComparison.Ordinal))).In36(),
+            Batch3Game(Books36.SoulSnatcherCults, "soul-snatcher-cults-fanatic", Play.Moves, "Fanatic", [R(1, "Fanatic")], PlacedClear("Fanatic", Books36.SoulSnatcherCults.Army),
+                units: 1, more: UsePicks(Books36.SoulSnatcherCults.Army, 1, "Fanatic")).In36(),
+            Batch3Game(Books36.RatmenClans, "ratmen-clans-vanguard", Play.Moves, "Vanguard", [R(1, "Vanguard")], PlacedClear("Vanguard", Books36.RatmenClans.Army),
+                units: 1, more: UsePicks(Books36.RatmenClans.Army, 1, "Vanguard")).In36(),
         ];
 
         /// <summary>Fanatic, Vanguard: every placement the rule's reposition frame makes is in deployment, within 9" (its Ask's allowance), and over 9" from
@@ -131,7 +126,7 @@ public static partial class SuiteCatalog
                 [MoraleByRange(entry, book.Army, ShotFromOverNine)],
                 units: 2, enemyUnits: 2, enemyModels: 1, enemyAttacks: 3, enemyRange: 14, rounds: 2, length: 26,
                 anchors: new Dictionary<int, Point2> { [1] = new(6, 15), [2] = new(30, 25) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(6, 11), [2] = new(30, 11) });
-            return In36(game, book);
+            return game.In36();
         }
 
         /// <summary>Every morale test of a unit carrying the rule after shooting has the rule's +1 exactly when the shot that caused it came from over 9" (base
