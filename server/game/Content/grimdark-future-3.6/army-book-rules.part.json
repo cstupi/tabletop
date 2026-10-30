@@ -25,15 +25,6 @@
       ]
     },
     {
-      "name": "Bane in Melee Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Bane on its weapons in melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bounding Aura",
       "kind": "model",
       "takesParameter": false,
@@ -97,15 +88,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Dodge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If most models in this unit have this rule, as long as they aren\u0027t Fatigued, enemy units get -1 to hit rolls in melee against them.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Enhanced Bloodborn Aura",
@@ -203,15 +185,6 @@
       ]
     },
     {
-      "name": "Enhanced Ferocious Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit Enhanced Ferocious.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Enhanced Guardian Aura",
       "kind": "model",
       "takesParameter": false,
@@ -236,8 +209,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Guerrilla.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Guerrilla",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Harassing Aura",
@@ -898,15 +881,6 @@
       ]
     },
     {
-      "name": "Grounded Evasion",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If a unit where most models have this rule has most of them within 1\u0022 of terrain, enemies get -1 to hit rolls when attacking them.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Grounded Precision Aura",
       "kind": "model",
       "takesParameter": false,
@@ -998,23 +972,6 @@
       ]
     },
     {
-      "name": "Imprecise",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Gets -1 to hit when attacking.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Indirect Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Indirect on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Infiltrate Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1032,15 +989,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Infiltrating Precision Strike",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Counts as having Infiltrate, and gets \u002B1 to hit rolls in melee on the round in which it deploys via this rule.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Melee Evasion Aura",
@@ -1199,40 +1147,23 @@
       ]
     },
     {
-      "name": "Precision Charge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets \u002B1 to hit rolls when charging.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Fighter",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets \u002B1 to hit rolls in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Predator",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "For each unmodified roll of 6 to hit when attacking, this model may roll \u002B1 attack with that weapon. This rule doesn\u2019t apply to newly generated attacks.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Predator Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Predator.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Predator",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Predator Shooter Aura",
@@ -1630,15 +1561,6 @@
       ]
     },
     {
-      "name": "Rending Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Rending on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Scout Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1939,15 +1861,6 @@
       ]
     },
     {
-      "name": "Thrust in Melee Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Thrust in Melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Unpredictable Fighter Aura",
       "kind": "model",
       "takesParameter": false,
@@ -2052,38 +1965,11 @@
       ]
     },
     {
-      "name": "Unstoppable Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unstoppable on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Unstoppable when Shooting",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Unstoppable on its weapons when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Versatile Defense Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Versatile Defense.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Versatile Expert",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, pick one effect: until the end of the activation all models with this rule in this unit either get AP(\u002B1) when attacking, or get \u002B1 to hit rolls when attacking.",
       "effects": [],
       "played": false
     },
@@ -2105,15 +1991,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Versatile Warrior",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, pick one effect: until the end of the activation, when shooting/charging enemies over 9\u0022/6\u0022 away, all models with this rule in it either get AP(\u002B1) or get \u002B1 to hit rolls.",
-      "effects": [],
-      "played": false
     }
   ]
 }
