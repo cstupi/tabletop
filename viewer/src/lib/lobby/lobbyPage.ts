@@ -89,8 +89,8 @@ export function settingsSummary(game: GameInfo, catalog: RulesOptionCatalog): { 
 /** True when the form differs from the game's configuration: Apply is then worth pressing. */
 export function configChanged(
   game: GameInfo, catalog: RulesOptionCatalog, name: string, shape: SchedulerShape, enforcement: Enforcement,
-  chosen: Readonly<Record<string, string>>,
+  chosen: Readonly<Record<string, string>>, propertiesHash: string = game.propertiesHash,
 ): boolean {
-  return name.trim() !== game.name || shape !== game.schedulerShape || enforcement !== game.enforcement
+  return name.trim() !== game.name || propertiesHash !== game.propertiesHash || shape !== game.schedulerShape || enforcement !== game.enforcement
     || catalog.options.some((o) => valueOf(o, chosen) !== valueOf(o, game.optionalRules));
 }

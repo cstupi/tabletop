@@ -10,10 +10,10 @@ public static class LobbyEdits
     public static StartSetup StartSetup() => new();
     public static EndSetup EndSetup() => new();
 
-    /// <summary>Apply configuration: the trimmed name, the game's properties hash, WaitsBetweenSteps false, the options map without defaults.</summary>
+    /// <summary>Apply configuration: the trimmed name, the chosen properties hash (the game's when none), WaitsBetweenSteps false, the options map without defaults.</summary>
     public static SetConfiguration Configure(GameInfo game, string name, SchedulerShape shape, Enforcement enforcement,
-        RulesOptionCatalog catalog, IReadOnlyDictionary<string, string> chosen) =>
-        new(name.Trim(), game.PropertiesHash, shape, enforcement, WaitsBetweenSteps: false, RulesOptions.MapOf(catalog, chosen));
+        RulesOptionCatalog catalog, IReadOnlyDictionary<string, string> chosen, string? propertiesHash = null) =>
+        new(name.Trim(), propertiesHash ?? game.PropertiesHash, shape, enforcement, WaitsBetweenSteps: false, RulesOptions.MapOf(catalog, chosen));
 
     /// <summary>The army chosen in Create game, picked once the creator is connected: no team named.</summary>
     public static PickArmy ArmyFromCreate(Guid armyId) => new(armyId);

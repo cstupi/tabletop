@@ -279,6 +279,12 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
       for (const o of options.options.slice(0, 1)) chosen[o.key] = o.values[1]!.value;
       return configurationOf(game, x.name, x.shape, x.enforcement, options, chosen);
     }
+    case 'configureHash': {
+      const options = st.options;
+      const chosen: Record<string, string> = {};
+      for (const o of options.options.slice(0, 1)) chosen[o.key] = o.values[1]!.value;
+      return configurationOf(game, x.name, x.shape, x.enforcement, options, chosen, x.propertiesHash);
+    }
     case 'size': return tableSize(x.width, x.length);
     case 'texture': return texture(x.builtin);
     case 'addBuiltin': return addBuiltin(entry(x.name), draft.size, draws(x.draws));
