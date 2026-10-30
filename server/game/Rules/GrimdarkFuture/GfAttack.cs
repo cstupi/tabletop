@@ -29,7 +29,7 @@ public static partial class GfAttack
 
     /// <summary>"Charges enemies over 9" away", "charged from over 9" away": in the melee of a Charge, the distance the charge-target step recorded
     /// before the move (spell library, Grammar additions). Null outside a charge.</summary>
-    static double? ChargeRange(FrameView? frame)
+    internal static double? ChargeRange(FrameView? frame)
     {
         for (var f = frame; f is not null; f = f.Parent)
             if (f.Frame.Sequence == GfNames.ChargeSeq && f.Values.TryGetValue(GfNames.ChargeRangeKey, out var hundredths)) return hundredths / 100.0;
