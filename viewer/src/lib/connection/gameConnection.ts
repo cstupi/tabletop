@@ -266,7 +266,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         flush();
         return;
       case 'rules_options':
-        publish({ options: frame.options });                               // before the 'game' that follows
+        publish({ options: frame.options, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null });   // before the 'game' that follows
         return;
       case 'game':
         publish({ game: frame.game });

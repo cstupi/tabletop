@@ -644,6 +644,8 @@ export interface RulesOptionValue {
 export interface RulesOptionsMessage {
   readonly kind: 'rules_options';
   readonly options: RulesOptionCatalog;
+  readonly zones: ZoneLegs;
+  readonly terrainWords: { readonly [key: string]: string };
 }
 
 export interface RulesPreset {
