@@ -1021,7 +1021,7 @@ made before the field. The create dialog preselects `PropertiesSummary.Default` 
 chosen set's hash in `SetConfiguration`; `rules_options` replaces the connection's options, zone legs and terrain words
 (`Welcome.Zones`, `Welcome.TerrainWords`, carried to a recording as `RecordingMeta.zones` and `terrainWords`), which is how Side
 Battle's legs and the terrain labels follow the edition. Each army `<select>` lists the game's edition first and another
-edition's armies disabled, with the reason read off the army's own `edition` field. The Tests page filters by the set name.
+edition's armies disabled, with the reason read off the army's own `edition` field. The Tests page filters by edition, each labelled with its set name, and shows the set name on every game and coverage row.
 
 **Left to break.** A recording whose `meta.gameRules` or `meta.propertiesHash` the viewer has never
 seen is drawn anyway, because the viewer holds no ruleset and nothing it draws depends on one. Only
