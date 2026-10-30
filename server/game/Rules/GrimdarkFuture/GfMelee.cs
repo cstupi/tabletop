@@ -42,7 +42,9 @@ public static class GfMelee
     static Guid Defender(StepContext ctx) => ctx.Frame.Context.TargetUnitIds[0];
     /// <summary>By step name, not by index: charge's first step is the activation's dangerous terrain test (p.11).</summary>
     static Guid? Target(StepContext ctx) => GfAnswers.Pieces(ctx.State, ctx.Frame, "charge-target", "charge_target") is [var target, ..] ? target : null;
-    static bool InReach(GameState state, Guid a, Guid b) => Lookup.LivingModels(state, a).Any(m => Lookup.LivingModels(state, b).Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical));
+    /// <summary>A model of a within striking reach of a model of b: 3.5.1 p.9 "within 2” horizontally and 4” vertically"; 3.6.0 p.9 "within 3” of an enemy
+    /// model from the target unit (horizontally or vertically)". The bound is the edition's (GfEdition.MeleeHorizontal, MeleeVertical).</summary>
+    static bool InReach(GameState state, Guid a, Guid b) => Lookup.LivingModels(state, a).Any(m => Lookup.LivingModels(state, b).Any(t => GfAttack.WithinStrike(state, m, t)));
     static StepOutcome AfterChild(StepContext ctx, Func<StepOutcome> push, IReadOnlyList<StateChange>? onDone = null) =>
         ctx.History.Children.Count == 0 ? push() : ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete(onDone ?? []) : new OpenAsks([]);
 

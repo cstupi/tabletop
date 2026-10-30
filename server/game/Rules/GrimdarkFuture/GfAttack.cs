@@ -338,6 +338,14 @@ public static partial class GfAttack
     /// only, a unit's own transport is friendly, and no unit may enter an enemy container, so the branch is written for
     /// faithfulness to p.15 and is exercised only by a menu-written state.
     /// </summary>
+    /// <summary>p.9 who can strike, model to model: 3.5.1 "within 2” horizontally and 4” vertically"; 3.6.0 p.9 "All models that are within 3” of an
+    /// enemy model from the target unit (horizontally or vertically), may attack it." Read from the game's edition.</summary>
+    internal static bool WithinStrike(GameState state, Guid model, Guid enemy)
+    {
+        var edition = GfEdition.Of(state);
+        return Battlefield.Distance(state, model, enemy) <= edition.MeleeHorizontal && Battlefield.Vertical(state, model, enemy) <= edition.MeleeVertical;
+    }
+
     public static IReadOnlyList<Guid> EligibleModels(GameState state, LiveSet live, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind)
     {
         if (Battlefield.InsideReach(state, attacker, target) is { } reaches)
@@ -348,7 +356,7 @@ public static partial class GfAttack
         {
             var mine = state.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).ToList();
             if (mine.Count == 0) return false;
-            if (kind == AttackKind.Melee) return targets.Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical);
+            if (kind == AttackKind.Melee) return targets.Any(t => WithinStrike(state, m, t));
             var range = mine.Max(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0);
             return targets.Any(t => Battlefield.Distance(state, m, t) <= range && (sight is null || sight.CanSee(m, t)));
         }

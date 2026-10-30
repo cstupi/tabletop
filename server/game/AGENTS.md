@@ -171,6 +171,7 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - E2E (`--settings tests/e2e.runsettings`): `PostgresGameRowsTests`, `PostgresEventLogTests`, `PropertiesStoreTests`, over `PostgresFixture` (`[Collection("Postgres")]`, `TABLETOP_DB_CONNECTION`, the Docker Postgres with management's schema).
 - `Infrastructure/` holds the fixtures: `GameServerFactory`, `InMemorySeeder`, `InMemoryGameRows`, `PostgresFixture`, `SchedulerHarness`, `ScriptedStarter`, `FixedAskEngine`, `TestProperties`, `FakeRules`/`StubRules`, `RecordingClient`.
 - `ScriptedDice` fixes faces. Rules tests are named `Gf*Tests.cs`.
+- A 3.6.0 test: `Sim.Gf36(state, dice…)` runs the same `GameState` under `GrimdarkFutureRules.V360` and `TestProperties.Core36` (it puts the state `Under(RuleSets.Gf360)`, the `TestGames` extension that swaps `Info.GameRules` and `Rules`). A behaviour that differs by edition is a paired `[Theory]` with `[InlineData(RuleSets.Gf351, …)] [InlineData(RuleSets.Gf360, …)]` calling `Sim.Gf(rules, state, dice…)` (`GfMelee36Tests`).
 - `EventLogContract.cs` and `GameRowsContract.cs` run against both the in-memory fake and the Postgres adapter.
 
 ## Docs

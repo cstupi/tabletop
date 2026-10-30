@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 
 namespace Tabletop.GameServer.Tests.Infrastructure;
@@ -10,8 +11,11 @@ public static class TestProperties
     static PropertySetDocument SpellBaseDocument { get; } = PropertiesSeeder.Compose(RulebookDocument,
         typeof(PropertySet).Assembly.GetManifestResourceNames().Where(n => n.StartsWith("Tabletop.GameServer.Content.grimdark-future-3.5.1.") && n.EndsWith(".part.json")).Select(n => PropertiesJson.Parse(ReadResource(n))), []);
     /// <summary>The shipped set: the composed document the server seeds (core, the army-rules part, every book).</summary>
-    public static PropertySetDocument CoreDocument { get; } = PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == "grimdark-future");
+    public static PropertySetDocument CoreDocument { get; } = PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == RuleSets.Gf351);
     public static PropertySet Core { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
+    /// <summary>The shipped Grimdark Future 3.6.0 set, as CoreDocument and Core are the 3.5.1 one.</summary>
+    public static PropertySetDocument CoreDocument36 { get; } = PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == RuleSets.Gf360);
+    public static PropertySet Core36 { get; } = PropertiesJson.ToSet(CoreDocument36, Guid.CreateVersion7);
 
     /// <summary>The book every test unit's slots name (Armies, TestArmies) and WithSpells lists its spells under. No shipped set lists it.
     /// WithSpells takes rule entries too; only the spell-kind ones go in the book.</summary>

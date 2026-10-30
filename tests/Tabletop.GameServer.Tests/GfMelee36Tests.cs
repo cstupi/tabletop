@@ -1,0 +1,64 @@
+using Tabletop.Content;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Geometry;
+using Tabletop.Protocol;
+using Tabletop.Protocol.Tests;
+using static Tabletop.GameServer.Tests.Infrastructure.Armies;
+
+namespace Tabletop.GameServer.Tests;
+
+/// <summary>
+/// Who can strike, 3.5.1 p.9: "within 2” horizontally and 4” vertically"; 3.6.0 p.9: "All models that are within 3” of an enemy model
+/// from the target unit (horizontally or vertically), may attack it."
+/// </summary>
+public class GfMelee36Tests
+{
+    static ModelRelocation To(Sim sim, Guid model, double x, double y, double z = 0) => new(model, sim.Model(model).Location, new OnTable(new Placement(new Point3(x, y, z), new Yaw(0))));
+
+    static SequenceContext MeleeOf(Tabletop.Content.Unit charger, Tabletop.Content.Unit target) =>
+        new(charger.Id, [target.Id], charger.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Charge);
+
+    /// <summary>A two-model charger strikes one defender model: the first charger model in base contact, the second where the test puts it.</summary>
+    static int EligibleStrikers(string rules, double x, double y, double z)
+    {
+        var chargers = Unit("Chargers", "4+", "4+", [], 2, [], Melee("Fist", 1));
+        var defender = Unit("Defender", "4+", "6+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(rules, State([chargers], [defender], x1: -3, x2: 0), 1, 1, 1, 1);
+        sim.Append([new ModelsMoved([To(sim, defender.Models[0].Id, 0, -10), To(sim, chargers.Models[0].Id, -1.3, -10), To(sim, chargers.Models[1].Id, x, -10 + y, z)])]);
+        sim.Start(GfNames.Melee, MeleeOf(chargers, defender));
+        return sim.Steps("determine-attacks").First().Values!["eligible_models"];
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351, 1)]
+    [InlineData(RuleSets.Gf360, 2)]
+    public void A_model_two_and_a_half_inches_back_strikes_under_3_6_not_3_5_1(string rules, int strikers) =>
+        Assert.Equal(strikers, EligibleStrikers(rules, -1.26 - 2.5, 0, 0));                            // the second rank, 2.5" edge to edge on the table
+
+    [Theory]
+    [InlineData(RuleSets.Gf351, 2)]
+    [InlineData(RuleSets.Gf360, 1)]
+    public void A_model_three_and_a_half_inches_above_strikes_under_3_5_1_not_3_6(string rules, int strikers) =>
+        Assert.Equal(strikers, EligibleStrikers(rules, -1.3, 1.3, 3.5));                               // beside the first, within 1" across, its base 3.5" up
+
+    [Theory]
+    [InlineData(RuleSets.Gf351, false)]
+    [InlineData(RuleSets.Gf360, true)]
+    public void A_charger_stopping_two_and_a_half_inches_short_fights_under_3_6_not_3_5_1(string rules, bool fights)
+    {
+        // Two chargers side by side stop together: drawing either into contact would leave the other out of coherency, so neither is (warn applies it).
+        var charger = Unit("C", "4+", "4+", [], 2, [], Melee("Fist", 1));
+        var target = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(rules, State([charger], [target], x1: -8, x2: 0), 1);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        var to = ((OnTable)sim.Model(target.Models[0].Id).Location).Placement.Position;
+        var at = to with { X = to.X - 1.26 - 2.5 };                                                    // 2.5" short, edge to edge
+        sim.Answer(Samples.Team1, new Destinations([
+            new ModelRelocation(charger.Models[0].Id, sim.Model(charger.Models[0].Id).Location, new OnTable(new Placement(at, new Yaw(0)))),
+            new ModelRelocation(charger.Models[1].Id, sim.Model(charger.Models[1].Id).Location, new OnTable(new Placement(at with { Y = at.Y + 1.3 }, new Yaw(0))))]));
+        sim.Answer(Samples.Team2, new Passed());
+        Assert.Equal(fights, sim.Emitted.OfType<SequenceStarted>().Any(s => s.Sequence == GfNames.Melee));
+    }
+}

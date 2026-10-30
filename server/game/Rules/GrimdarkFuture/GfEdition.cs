@@ -34,7 +34,7 @@ public sealed record GfEdition(
 {
     public static GfEdition V351 { get; } = new(
         RuleSets.Gf351, "Grimdark Future v3.5.1", "grimdark-future-3.5.1",
-        MeleeHorizontal: 2, MeleeVertical: 4,
+        MeleeHorizontal: GfNames.MeleeHorizontal, MeleeVertical: GfNames.MeleeVertical,
         FatiguedSixesTrigger: true,
         MeleeLossByWoundsTaken: false,
         UnitDangerousTest: false,

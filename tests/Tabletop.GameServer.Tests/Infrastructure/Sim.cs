@@ -1,4 +1,5 @@
 using Refused = Tabletop.GameServer.Dispatch.Refused;
+using Tabletop.Content;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Engine;
@@ -25,6 +26,10 @@ public sealed class Sim
     }
 
     public static Sim Gf(GameState state, params int[] dice) => new(state, GrimdarkFutureRules.Instance, TestProperties.Core, new ScriptedDice(dice.Length == 0 ? [4] : dice));
+    /// <summary>The same game under Grimdark Future 3.6.0: the state is put Under the 3.6 id (GfEdition.Of reads it), with the 3.6 rules and property set.</summary>
+    public static Sim Gf36(GameState state, params int[] dice) => new(state.Under(RuleSets.Gf360), GrimdarkFutureRules.V360, TestProperties.Core36, new ScriptedDice(dice.Length == 0 ? [4] : dice));
+    /// <summary>Gf or Gf36 by rule-set id, for a paired [Theory] whose InlineData names RuleSets.Gf351 or RuleSets.Gf360.</summary>
+    public static Sim Gf(string rulesId, GameState state, params int[] dice) => rulesId == RuleSets.Gf360 ? Gf36(state, dice) : Gf(state, dice);
 
     public void Append(IEnumerable<EventPayload> events, Guid? actor = null, string? warning = null)
     {
