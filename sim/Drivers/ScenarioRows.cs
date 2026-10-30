@@ -45,6 +45,8 @@ public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRow
     public Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct) => Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(new Dictionary<Guid, Guid>());
     public Task<bool> PropertiesExistAsync(string hash, CancellationToken ct) =>
         Task.FromResult(hash == scenario.Properties.ContentHash);
+    public Task<string?> PropertiesGameRulesAsync(string hash, CancellationToken ct) =>
+        Task.FromResult(hash == scenario.Properties.ContentHash ? scenario.Properties.GameRules : null);
 
     private static Task Unsupported(string member) =>
         throw new NotSupportedException($"a scenario is already playing; {member} belongs to lobby or setup");

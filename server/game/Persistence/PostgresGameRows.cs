@@ -56,6 +56,13 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
+    public async Task<string?> PropertiesGameRulesAsync(string hash, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("select game_rules from management.properties where content_hash = $1");
+        cmd.Parameters.AddWithValue(hash);
+        return await cmd.ExecuteScalarAsync(ct) as string;
+    }
+
     public async Task<TableState?> ReadDraftAsync(Guid gameId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);

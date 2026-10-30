@@ -34,6 +34,8 @@ public abstract class GameRowsContract
         Assert.Empty(await Rows.ReadSnapshotsAsync(seeded.GameId, Ct));
         Assert.True(await Rows.PropertiesExistAsync(seeded.PropertiesHash, Ct));
         Assert.False(await Rows.PropertiesExistAsync("sha256:nope", Ct));
+        Assert.Equal("grimdark-future", await Rows.PropertiesGameRulesAsync(seeded.PropertiesHash, Ct));
+        Assert.Null(await Rows.PropertiesGameRulesAsync("sha256:nope", Ct));
     }
 
     [Fact]

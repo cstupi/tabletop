@@ -31,10 +31,13 @@ public sealed class InMemorySeeder : IRowSeeder
         return Task.FromResult(id);
     }
 
-    public Task<string> SeedPropertiesAsync()
+    public Task<string> SeedPropertiesAsync() => SeedPropertiesAsync(RuleSets.Gf351, "GF test");
+
+    /// <summary>A bare properties row (no catalog) for the game rules given: the lobby reads only its game rules.</summary>
+    public Task<string> SeedPropertiesAsync(string gameRules, string name)
     {
         var hash = "sha256:test-" + Guid.CreateVersion7().ToString("N")[24..32];
-        Properties.Add(new PropertySet(hash, "GF test", "grimdark-future", [], [], [], [], []));
+        Properties.Add(new PropertySet(hash, name, gameRules, [], [], [], [], []));
         return Task.FromResult(hash);
     }
 

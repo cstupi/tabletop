@@ -178,6 +178,7 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
     }
 
     public Task<bool> PropertiesExistAsync(string hash, CancellationToken ct) => Task.FromResult(PropertiesExist(hash));
+    public async Task<string?> PropertiesGameRulesAsync(string hash, CancellationToken ct) => (await properties.LoadAsync(hash, ct))?.GameRules;
 
     public Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct)
     {

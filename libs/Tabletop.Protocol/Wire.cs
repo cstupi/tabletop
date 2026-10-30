@@ -12,6 +12,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(EditMessage), "edit")]
 [JsonDerivedType(typeof(Welcome), "welcome")]
 [JsonDerivedType(typeof(GameInfoMessage), "game")]
+[JsonDerivedType(typeof(RulesOptionsMessage), "rules_options")]
 [JsonDerivedType(typeof(BoardMessage), "board")]
 [JsonDerivedType(typeof(EventsMessage), "events")]
 [JsonDerivedType(typeof(AtRest), "at_rest")]
@@ -46,6 +47,8 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
 }
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
+/// <summary>A lobby SetConfiguration moved the game to another rule set's id: the new ruleset's catalog, shaped as Welcome.Options, after its GameInfoMessage.</summary>
+public sealed record RulesOptionsMessage(RulesOptionCatalog Options) : SocketMessage;
 /// <summary>On connect from setup on, and after every setup edit (the whole draft).</summary>
 public sealed record BoardMessage(Board Board) : SocketMessage;
 /// <summary>The log from the start on connect, then live events. Filtered per viewer for sealed answers.</summary>

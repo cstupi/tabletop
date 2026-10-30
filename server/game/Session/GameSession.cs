@@ -38,7 +38,7 @@ public sealed partial class GameSession
 
     public Guid GameId { get; }
     public GameInfo Info { get; internal set; }
-    public IGameRules Rules { get; }
+    public IGameRules Rules { get; private set; }
     public TableState? Draft { get; internal set; }
     public GameState? Play { get; internal set; }
     public IRulesEngine? Engine { get; internal set; }
