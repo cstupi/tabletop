@@ -99,15 +99,6 @@
       ]
     },
     {
-      "name": "Dodge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If most models in this unit have this rule, as long as they aren\u0027t Fatigued, enemy units get -1 to hit rolls in melee against them.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Enhanced Bloodborn Aura",
       "kind": "model",
       "takesParameter": false,
@@ -236,8 +227,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Guerrilla.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Guerrilla",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Harassing Aura",
@@ -898,15 +899,6 @@
       ]
     },
     {
-      "name": "Grounded Evasion",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If a unit where most models have this rule has most of them within 1\u0022 of terrain, enemies get -1 to hit rolls when attacking them.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Grounded Precision Aura",
       "kind": "model",
       "takesParameter": false,
@@ -998,14 +990,6 @@
       ]
     },
     {
-      "name": "Imprecise",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Gets -1 to hit when attacking.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Indirect Mark",
       "kind": "model",
       "takesParameter": false,
@@ -1032,15 +1016,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Infiltrating Precision Strike",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Counts as having Infiltrate, and gets \u002B1 to hit rolls in melee on the round in which it deploys via this rule.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Melee Evasion Aura",
@@ -1199,40 +1174,23 @@
       ]
     },
     {
-      "name": "Precision Charge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets \u002B1 to hit rolls when charging.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Fighter",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets \u002B1 to hit rolls in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Predator",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "For each unmodified roll of 6 to hit when attacking, this model may roll \u002B1 attack with that weapon. This rule doesn\u2019t apply to newly generated attacks.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Predator Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Predator.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Predator",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Predator Shooter Aura",
@@ -2057,15 +2015,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unstoppable on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Unstoppable when Shooting",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Unstoppable on its weapons when shooting.",
       "effects": [],
       "played": false
     },
