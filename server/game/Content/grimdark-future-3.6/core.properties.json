@@ -68,11 +68,13 @@
         { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" },
         { "subject": "self", "ordinal": 30, "kind": "grant_property", "targetEntry": "AP", "amount": 4, "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
     { "name": "Scout", "kind": "unit", "ruleText": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 9\" of their deployment zone, over 9\" away from non-Scout enemy units. Players alternate in placing Scout units, starting with the player that activates next.", "effects": [] },
+    {"name": "Shred", "kind": "weapon", "ruleText": "For each unmodified result of 1 to block hits, this weapon deals 1 extra wound.", "effects": [{"subject": "opponent", "ordinal": 30, "kind": "add_hit", "targetQuantity": "wounds", "amount": 1, "conditions": [{"kind": "roll_result", "comparison": "eq", "number": 1, "values": ["defense", "raw"]}]}]},
     { "name": "Slow", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule move -2\" when using Advance, and -4\" when using Rush/Charge.",
       "effects": [
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": -2 },
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": -4 },
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": -4 } ] },
+    {"name": "Spell Amplifier", "kind": "model", "aggregation": "none", "ruleText": "Gets +1 to casting rolls.", "effects": [{"subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "casting", "amount": 1}]},
     { "name": "Stealth", "kind": "model", "aggregation": "all", "ruleText": "When units where all models have this rule are shot from over 9\" away, enemy units get -1 to hit rolls.",
       "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
         { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] } ] },
