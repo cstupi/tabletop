@@ -43,6 +43,9 @@ public static partial class SuiteCatalog
             internal static readonly IReadOnlyDictionary<int, Point2> Apart = new Dictionary<int, Point2> { [1] = new(8, 24), [2] = new(28, 24) },
                 ApartEnemy = new Dictionary<int, Point2> { [1] = new(8, 10), [2] = new(28, 6) };
 
+            /// <summary>Apart with the opponents' unit 2 22" from the rule's unit 2: under +8" on 12" guns, unit 1's pair may shoot and unit 2's may not.</summary>
+            internal static readonly IReadOnlyDictionary<int, Point2> Apart22Enemy = new Dictionary<int, Point2> { [1] = new(8, 10), [2] = new(28, 2) };
+
             /// <summary>Each attack-sequence step completed: the evidence of a game whose rule stays idle by its bound.</summary>
             internal static bool Attacked(IReadOnlyList<GameEvent> log) => log.Any(e => e.Payload is StepCompleted { Step: "roll-to-block" });
 
@@ -73,8 +76,9 @@ public static partial class SuiteCatalog
                 In36(Game(HighElves, "high-elf-fleets-highborn", Play.Shoots, ["Highborn"], Each(2, "Highborn"), [],
                     [RangeBonus("Highborn", By("Highborn", when: When.Shooting), 12, 4, "\"This model gets +4\"/+2\" range when shooting/charging.\" (shooting)")],
                     gunRange: 12, length: 26, anchors: Apart, enemyAnchors: ApartEnemy)),
-                In36(Game(HighElves, "high-elf-fleets-highborn-charge", Play.Charges, ["Highborn"], Each(4, "Highborn"), [],
-                    [Allowance("Highborn", null, "\"This model gets +4\"/+2\" range when shooting/charging.\" (charging)", ("charge", 14))])),
+                // Advance and Rush keep p.7's 6" and 12" (3.5.1's Highborn moved +2" on each).
+                In36(Game(HighElves, "high-elf-fleets-highborn-charge", Play.Moves, ["Highborn"], Each(4, "Highborn"), [],
+                    [Allowance("Highborn", null, "\"This model gets +4\"/+2\" range when shooting/charging.\" (charging; no other move)", ("advance", 6), ("rush", 12), ("charge", 14))])),
                 In36(Game(Lust, "lust-disciples-lustbound", Play.Moves, ["Lustbound"], Each(4, "Lustbound"), [],
                     [Allowance("Lustbound", null, "\"Moves +1\" when using Advance, and +2\" when using Rush/Charge.\"", ("advance", 7), ("rush", 14), ("charge", 14))])),
                 // Carried's shot (three wounds), the rule on two of the three models.
@@ -82,8 +86,9 @@ public static partial class SuiteCatalog
                     [IgnoreWounds("Plaguebound", 6, "\"When a unit where most models have this rule takes wounds, roll one die for each. On a 6+ it is ignored.\"")],
                     units: 1, enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4, carriers: Most("Plaguebound", 1))),
                 In36(Game(BloodPrime, "blood-prime-brothers-primeborn", Play.Shot, ["Primeborn"], Lasting(1), [Fix("hit", 6, 6, 6)],
-                    [ApGrant("Primeborn", On("Primeborn"), 0, "\"When units where most models have this rule take hits, those hits count as having AP(-1), to a min. of AP(0).\" (against AP(1))")],
-                    units: 1, enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, enemyWeapon: [R(0, "AP", 1)], carriers: Most("Primeborn", 1))),
+                    [ApGrant("Primeborn", On("Primeborn"), 0, "\"When units where most models have this rule take hits, those hits count as having AP(-1), to a min. of AP(0).\" (against AP(1), shot from 4.5\")")],
+                    units: 1, enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, enemyWeapon: [R(0, "AP", 1)], carriers: Most("Primeborn", 1),
+                    length: 26, anchors: Near, enemyAnchors: NearEnemy)),
                 In36(Game(War, "war-disciples-warbound", Play.Shoots, ["Warbound"], Each(2, "Warbound"), [],
                     [ExtraWounds("Warbound", By("Warbound", when: When.Shooting), [1], "\"When this model shoots/charges enemies over 9\"/6\" away, unmodified results of 1 to block hits from weapons deal 1 extra wound.\" (shooting)")])),
                 // It shoots from 4.5": no extra wound on a 1.

@@ -34,11 +34,11 @@ public static partial class SuiteCatalog
                 In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shoots, ["Enhanced " + baseRule], Both(2, baseRule), [],
                     [ExtraAttacks("Enhanced " + baseRule, By("Enhanced " + baseRule), [5, 6], $"\"it gets extra attacks on successful unmodified hit results of 5-6 from {baseRule} (instead of only on 6)\"")]));
 
-            /// <summary>The opponent's -1 to hit, at every attack, and the base's -1 not beside it.</summary>
+            /// <summary>The opponent's -1 to hit, shooting from 4.5" (inside the base's bound), and the base's -1 not beside it.</summary>
             static TestGame Fogged((string Uid, string Army) book, string baseRule) =>
-                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shot, ["Enhanced " + baseRule], Both(2, baseRule), [],
+                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shot, ["Enhanced " + baseRule], Both(1, baseRule), [],
                     [Modifier("Enhanced " + baseRule, "hit", -1, $"\"enemies attacking them always get -1 to hit rolls from {baseRule}\""),
-                     ModifierReplaced("Enhanced " + baseRule, baseRule, "\"(instead of only when shooting/charging from over 9\"/6\" away)\"")]));
+                     ModifierReplaced("Enhanced " + baseRule, baseRule, "\"(instead of only when shooting/charging from over 9\"/6\" away)\"")], units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy));
 
             /// <summary>-8"/-4" to a min. of 6": charged at 8"; with 24" guns, shot from 14" and not from 18" (Apart).</summary>
             static IEnumerable<TestGame> Hidden((string Uid, string Army) book, string baseRule)
@@ -50,15 +50,15 @@ public static partial class SuiteCatalog
                     units: 2, enemyRange: 24, length: 26, anchors: Apart, enemyAnchors: ApartEnemy));
             }
 
-            /// <summary>An extra hit on an unmodified 6, once (the base's would be a second).</summary>
+            /// <summary>An extra hit on an unmodified 6, shooting from 4.5" (inside the base's bound), once (the base's would be a second).</summary>
             static TestGame Hits((string Uid, string Army) book, string baseRule) =>
-                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shoots, ["Enhanced " + baseRule], Both(2, baseRule), [],
-                    [ExtraHits("Enhanced " + baseRule, By("Enhanced " + baseRule), [6], $"\"the target always takes hits on unmodified hit results of 6 from {baseRule}\"")]));
+                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shoots, ["Enhanced " + baseRule], Both(1, baseRule), [],
+                    [ExtraHits("Enhanced " + baseRule, By("Enhanced " + baseRule), [6], $"\"the target always takes hits on unmodified hit results of 6 from {baseRule}\" (shooting from 4.5\")")], units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy));
 
-            /// <summary>One extra wound per unmodified 1 to block, once (the base's would be a second).</summary>
+            /// <summary>One extra wound per unmodified 1 to block, shooting from 4.5" (inside the base's bound), once (the base's would be a second).</summary>
             static TestGame Wounds((string Uid, string Army) book, string baseRule) =>
-                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shoots, ["Enhanced " + baseRule], Both(2, baseRule), [],
-                    [ExtraWounds("Enhanced " + baseRule, By("Enhanced " + baseRule), [1], $"\"enemies always take wounds on unmodified results of 1 to block from {baseRule}\"")]));
+                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shoots, ["Enhanced " + baseRule], Both(1, baseRule), [],
+                    [ExtraWounds("Enhanced " + baseRule, By("Enhanced " + baseRule), [1], $"\"enemies always take wounds on unmodified results of 1 to block from {baseRule}\" (shooting from 4.5\")")], units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy));
 
             /// <summary>Forced re-rolls of successful unmodified 5-6 to block: the base's 6 and the Enhanced rule's 5.</summary>
             static TestGame Rerolled((string Uid, string Army) book, string baseRule) =>
@@ -71,10 +71,13 @@ public static partial class SuiteCatalog
                 In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Moves, ["Enhanced " + baseRule], Both(4, baseRule), [],
                     [Allowance("Enhanced " + baseRule, null, $"\"it moves +2\" on Advance and +4\" on Rush/Charge from {baseRule}\"", ("advance", 8), ("rush", 16), ("charge", 16))]));
 
-            /// <summary>p.10's morale test after two of three models fall: +1, always.</summary>
+            /// <summary>Morale's game (two of three models fall to the first shooting, 3.6.0 p.10) shot from 4.5": +1, and the base's +1 not beside it.</summary>
             static TestGame Steady((string Uid, string Army) book, string baseRule) =>
-                In36(Morale(book, Name(book, "Enhanced " + baseRule), "Enhanced " + baseRule, [R(1, baseRule), R(1, "Enhanced " + baseRule)], 1,
-                    $"\"they always get +1 to Morale Test rolls from {baseRule}\""));
+                In36(Game(book, Name(book, "Enhanced " + baseRule), Play.Shot, ["Enhanced " + baseRule], [R(1, baseRule), R(1, "Enhanced " + baseRule)],
+                    [Fix("hit", 6, 6, 1), Fix("defense", 1, 1)],
+                    [Modifier("Enhanced " + baseRule, "morale", 1, $"\"they always get +1 to Morale Test rolls from {baseRule}\" (shot from 4.5\")"),
+                     ModifierReplaced("Enhanced " + baseRule, baseRule, "\"(instead of only when shot/charged from over 9\"/6\" away)\"")],
+                    enemyModels: 1, enemyAttacks: 3, rounds: 2, units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy));
 
             internal static IReadOnlyList<TestGame> Enhanced =>
             [
@@ -99,7 +102,8 @@ public static partial class SuiteCatalog
                         "\"it always gets AP(+1) from Havocbound (instead of only when shooting/charging enemies over 9\"/6\" away)\" (charging from 4.5\")")],
                     units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy)),
                 In36(Game(HighElvesE, "high-elf-fleets-enhanced-highborn", Play.Shoots, ["Enhanced Highborn"], Both(2, "Highborn"), [],
-                    [RangeBonus("Enhanced Highborn", By("Enhanced Highborn", when: When.Shooting), 12, 8, "\"it gets +8\"/+4\" range when shooting/charging from Highborn\" (shooting)")], gunRange: 12)),
+                    [RangeBonus("Enhanced Highborn", By("Enhanced Highborn", when: When.Shooting), 12, 8, "\"it gets +8\"/+4\" range when shooting/charging from Highborn\" (shooting)")],
+                    gunRange: 12, length: 26, anchors: Apart, enemyAnchors: Apart22Enemy)),
                 In36(Game(HighElvesE, "high-elf-fleets-enhanced-highborn-charge", Play.Charges, ["Enhanced Highborn"], Both(4, "Highborn"), [],
                     [Allowance("Enhanced Highborn", null, "\"it gets +8\"/+4\" range when shooting/charging from Highborn\" (charging)", ("charge", 16))])),
                 // Carried's shot from 4.5": Knightborn would not roll inside 9"; Enhanced Knightborn does.
@@ -111,15 +115,16 @@ public static partial class SuiteCatalog
                 In36(Also(Carried(Robots, "robot-legions-enhanced-self-repair", "Enhanced Self-Repair", [R(1, "Self-Repair"), R(1, "Enhanced Self-Repair")],
                     IgnoreWounds("Enhanced Self-Repair", 5, "\"they ignore wounds on rolls of 5-6 from Self-Repair\"")),
                     BaseReplaced("Enhanced Self-Repair", "Self-Repair", "\"from Self-Repair (instead of only on 6+)\""))),
-                In36(Game(Dwarves, "dwarf-guilds-enhanced-sturdy", Play.Shot, ["Enhanced Sturdy"], Both(2, "Sturdy"), [Fix("hit", 6, 6, 6)],
-                    [Modifier("Enhanced Sturdy", "defense", 1, "\"they always get +1 to Defense rolls from Sturdy\""),
-                     ModifierReplaced("Enhanced Sturdy", "Sturdy", "\"(instead of only when shot/charged from over 9\"/6\" away)\"")])),
-                In36(Game(Dao, "dao-union-enhanced-targeting-visor", Play.Shoots, ["Enhanced Targeting Visor"], Both(2, "Targeting Visor"), [],
-                    [Modifier("Enhanced Targeting Visor", "hit", 1, "\"it always gets +1 to hit rolls from Targeting Visor\""),
-                     ModifierReplaced("Enhanced Targeting Visor", "Targeting Visor", "\"(instead of only when shooting over 9\" away)\"")])),
-                In36(Game(WatchE, "watch-brothers-enhanced-watchborn", Play.Shoots, ["Enhanced Watchborn"], Both(2, "Watchborn"), [],
-                    [Modifier("Enhanced Watchborn", "hit", 1, "\"it always gets either AP(+1) or +1 to hit rolls\"")],
-                    more: s => { UsePicks(WatchE.Army, 1, "Enhanced Watchborn", "Watchborn")(s); Choose("Enhanced Watchborn", "+1 to hit")(s); Choose("Watchborn", "+1 to hit")(s); })),
+                In36(Game(Dwarves, "dwarf-guilds-enhanced-sturdy", Play.Shot, ["Enhanced Sturdy"], Both(1, "Sturdy"), [Fix("hit", 6, 6, 6)],
+                    [Modifier("Enhanced Sturdy", "defense", 1, "\"they always get +1 to Defense rolls from Sturdy\" (shot from 4.5\")"),
+                     ModifierReplaced("Enhanced Sturdy", "Sturdy", "\"(instead of only when shot/charged from over 9\"/6\" away)\"")], units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy)),
+                In36(Game(Dao, "dao-union-enhanced-targeting-visor", Play.Shoots, ["Enhanced Targeting Visor"], Both(1, "Targeting Visor"), [],
+                    [Modifier("Enhanced Targeting Visor", "hit", 1, "\"it always gets +1 to hit rolls from Targeting Visor\" (shooting from 4.5\")"),
+                     ModifierReplaced("Enhanced Targeting Visor", "Targeting Visor", "\"(instead of only when shooting over 9\" away)\"")], units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy)),
+                In36(Game(WatchE, "watch-brothers-enhanced-watchborn", Play.Shoots, ["Enhanced Watchborn"], Both(1, "Watchborn"), [],
+                    [Modifier("Enhanced Watchborn", "hit", 1, "\"it always gets either AP(+1) or +1 to hit rolls\" (shooting from 4.5\")"),
+                     ModifierReplaced("Enhanced Watchborn", "Watchborn", "\"(instead of only when shooting/charging enemies over 9\"/6\" away)\"")],
+                    more: s => { UsePicks(WatchE.Army, 1, "Enhanced Watchborn", "Watchborn")(s); Choose("Enhanced Watchborn", "+1 to hit")(s); Choose("Watchborn", "+1 to hit")(s); }, units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy)),
             ];
         }
     }
