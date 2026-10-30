@@ -1,7 +1,7 @@
 {
   "uid": "vux1Y5vvULmaxZ8P",
   "name": "Eternal Dynasty",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -30,100 +30,28 @@
       ]
     },
     {
-      "name": "Soul Spear",
+      "name": "Dragon Breath",
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy model within 24\u0022, which takes 1 hit with Tear. This effect is resolved as if the target was a unit of [1].",
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 3 hits.",
       "targeting": {
         "side": "enemy",
-        "grain": "model",
+        "grain": "unit",
         "count": 1,
-        "range": 24
+        "range": 12,
+        "lineOfSight": true
       },
       "effects": [
         {
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 1,
+          "amount": 3,
           "amountFromParameter": false,
           "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Tear",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Spirit Resolve",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Clan Warrior Boost once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Clan Warrior Boost",
-          "amountFromParameter": false,
-          "duration": "once",
           "conditions": [],
           "children": []
-        }
-      ]
-    },
-    {
-      "name": "Mind Vortex",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two enemy units within 12\u0022, which take 2 hits with AP(2) each.",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 2,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 2,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
         }
       ]
     },
@@ -131,13 +59,14 @@
       "name": "Eternal Guidance",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick up to three enemy units within 18\u0022, which friendly units get \u002B6\u0022 range when shooting against once (next time the effect would apply).",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units get \u002B6\u0022 range on their weapons when shooting against once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
-        "count": 3,
-        "range": 18
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -165,27 +94,102 @@
       ]
     },
     {
-      "name": "Dragon Breath",
+      "name": "Mind Vortex",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 9 hits.",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 6\u0022, which take 4 hits with AP(2) each.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
-        "count": 1,
-        "range": 12
+        "count": 2,
+        "range": 6
       },
       "effects": [
         {
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 9,
+          "amount": 4,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
-          "children": []
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 2,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Spirit Resolve",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Clan Warrior once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
+        "range": 18
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Soul Spear",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy model within 30\u0022 in line of sight, which takes 3 hits with AP(3) and Destructive. This effect is resolved as if the target was a unit of [1].",
+      "targeting": {
+        "side": "enemy",
+        "grain": "model",
+        "count": 1,
+        "range": 30,
+        "lineOfSight": true
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 3,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 3,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            },
+            {
+              "subject": "self",
+              "ordinal": 30,
+              "kind": "grant_property",
+              "targetEntry": "Destructive",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
         }
       ]
     }

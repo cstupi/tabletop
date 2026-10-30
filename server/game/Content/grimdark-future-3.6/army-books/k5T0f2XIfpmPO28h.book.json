@@ -1,15 +1,15 @@
 {
   "uid": "k5T0f2XIfpmPO28h",
   "name": "Goblin Reclaimers",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
-      "name": "Ammo Boost",
+      "name": "Shroud Field",
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one friendly unit within 12\u0022, which gets Mischievous Boost once (next time the effect would apply).",
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets \u002B1 to Defense rolls once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
@@ -20,80 +20,9 @@
         {
           "subject": "self",
           "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Mischievous Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Zap!",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 1,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with AP(1) and Surge.",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 2,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 1,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
-              "kind": "grant_property",
-              "targetEntry": "Surge",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Mob Frenzy",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two enemy units within 18\u0022, which friendly units gets Unpredictable Shooter against once (next time the effect would apply).",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 2,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "opponent",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Unpredictable Shooter",
+          "kind": "modify_roll",
+          "targetRoll": "defense",
+          "amount": 1,
           "amountFromParameter": false,
           "duration": "once",
           "conditions": [],
@@ -105,20 +34,21 @@
       "name": "Boom!",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy unit within 18\u0022, which takes 2 hits with Blast(3).",
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 1 hit with Blast(3).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 18
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 2,
+          "amount": 1,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -139,24 +69,24 @@
       ]
     },
     {
-      "name": "Shroud Field",
+      "name": "Mob Frenzy",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick up to three friendly units within 12\u0022, which get \u002B1 to defense rolls once (next time the effect would apply).",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units gets Unpredictable Shooter against once (next time the effect would apply).",
       "targeting": {
-        "side": "friendly",
+        "side": "enemy",
         "grain": "unit",
-        "count": 3,
-        "range": 12
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
-          "subject": "self",
+          "subject": "opponent",
           "ordinal": 10,
-          "kind": "modify_roll",
-          "targetRoll": "defense",
-          "amount": 1,
+          "kind": "grant_property",
+          "targetEntry": "Unpredictable Shooter",
           "amountFromParameter": false,
           "duration": "once",
           "conditions": [],
@@ -165,23 +95,24 @@
       ]
     },
     {
-      "name": "Pow!",
+      "name": "Zap!",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick one enemy unit within 6\u0022, which takes 3 hits with Deadly(3) and Tear.",
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 4 hits with Surge. Roll as many dice as hits to see if \u0022on rolls of 6\u0022 effects trigger.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 6
+        "range": 12,
+        "lineOfSight": true
       },
       "effects": [
         {
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 3,
+          "amount": 4,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -190,18 +121,60 @@
               "subject": "self",
               "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "Deadly",
-              "amount": 3,
+              "targetEntry": "Surge",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],
               "children": []
-            },
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Ammo Boost",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Mischievous once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
+        "range": 18
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Pow!",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 6 hits with Hazardous. Roll as many dice as hits to see if \u0022on rolls of 1\u0022 effects trigger.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18,
+        "lineOfSight": true
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "targetRoll": "hit",
+          "amount": 6,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
             {
               "subject": "self",
-              "ordinal": 30,
+              "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "Tear",
+              "targetEntry": "Hazardous",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],

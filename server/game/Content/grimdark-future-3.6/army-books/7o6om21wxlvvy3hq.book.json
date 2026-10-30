@@ -1,7 +1,7 @@
 {
   "uid": "7o6om21wxlvvy3hq",
   "name": "Havoc Brothers",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -9,12 +9,13 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy unit within 18\u0022, which counts as being in Dangerous Terrain once (next time the effect would apply).",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which counts as being in Dangerous Terrain once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 18
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -30,48 +31,26 @@
       ]
     },
     {
-      "name": "Havoc Trauma",
+      "name": "Havoc Fog",
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with AP(2).",
+      "ruleText": "Pick one enemy unit within 6\u0022, which takes 3 hits with Scourge.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 12
+        "range": 6
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 2,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 2,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Dark Assault",
       "kind": "spell",
       "takesParameter": false,
       "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Shred in melee once (next time the effect would apply).",
+      "ruleText": "Pick up to two friendly units within 12\u0022, which get Shred on its weapons in melee once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
@@ -129,37 +108,28 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick up to three friendly units within 12\u0022, which get Havocbound Boost once (next time the effect would apply).",
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Havocbound once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 3,
-        "range": 12
+        "range": 18
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Havocbound Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Havoc Fog",
+      "name": "Havoc Trauma",
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 6 hits with AP(1) and Shred.",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 6 hits with AP(2).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 12
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -176,17 +146,7 @@
               "ordinal": 20,
               "kind": "grant_property",
               "targetEntry": "AP",
-              "amount": 1,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
-              "kind": "grant_property",
-              "targetEntry": "Shred",
+              "amount": 2,
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],

@@ -391,6 +391,16 @@ are built. A
 Limited weapon with no eligible target is not marked used; the book is silent. `SetDice` (suite only) carries no
 actor check.
 
+**3.6 army books (generated).** 49 books from the 3.6.0 dump. The printed spell range replaces Army Forge's `inRange` in 96 spells (the
+dump's value is the 3.5 one, 6" short of the text; the generator prints each as `range from text`). Spells written text-only
+(`effects: []`, `played: false`, not offered to cast): Burn the Heretic (Blessed Sisters), Shifting Form (Change Disciples, Daemons of
+Change, Titan Lords Change Disciples) for "loses N spell tokens", which the effect grammar has no kind for; Triangulation Bots (Robot
+Legions) for its empty attack type; and 81 spells granting a rule the 3.6 hand part does not define yet (Pierce, Smash, Purge, Decimate,
+Obliterate, Scourge, Reap, Puncture, Fracture, Demolish, Fragment, Spell Resistance, Piercing Marksman, Grounded Defense, Counter in
+Melee and the "Enhanced <rule>" names). Defining those in the 3.6 hand part and regenerating makes the 81 live. The generator's
+console lists each spell. `server/management/Content/Armies/army-book-units.json` is one file for both editions; the 3.6 run rewrites it
+and was not committed.
+
 ## How to work here
 
 - **Read the documents in this order from cold:** this file, `docs/design/README.md`, `docs/architecture.md`, then the

@@ -290,6 +290,23 @@ public class GfCastingTests
     }
 
     [Fact]
+    public void A_text_only_spell_is_neither_listed_nor_offered()
+    {
+        var inert = Fireball with { Name = "Inert", Effects = [], Played = false };
+        var props = PropertiesJson.ToSet(TestProperties.CoreDocument with
+        {
+            Name = "text-only spell",
+            Entries = [.. TestProperties.CoreDocument.Entries, Fireball, inert],
+            Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("book-a", "Book A", "1", ["Inert", "Fireball"])],
+        }, Guid.CreateVersion7);
+        Assert.Equal(["Fireball"], props.SpellsOf("book-a").Select(e => e.Name));
+        var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+        Assert.Equal([$"Fireball|{wizard.Models[0].Id}"], GfCasting.SpellOptions(state, props, wizard.Id).Select(o => o.Id));
+    }
+
+    [Fact]
     public void A_caster_with_no_book_or_an_unknown_book_is_offered_nothing()
     {
         foreach (var book in new string?[] { null, "a-book-this-set-does-not-list" })

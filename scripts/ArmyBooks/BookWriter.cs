@@ -39,6 +39,23 @@ public static class BookWriter
         catch (InvalidDataException ex) { return [ex.Message]; }
     }
 
+    /// <summary>A spell granting a rule neither the core nor the hand part defines is written text-only (effects empty, played false) until the hand part
+    /// defines the rule; returns the books and each such spell with the rules it names.</summary>
+    public static (IReadOnlyList<BookDocument> Books, IReadOnlyList<string> Demoted) DemoteUndefinedGrants(IReadOnlyList<BookDocument> books, PropertySetDocument core, PropertySetDocument part)
+    {
+        var rules = core.Entries.Concat(part.Entries).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        static IEnumerable<EffectDocument> All(EffectDocument f) => new[] { f }.Concat(f.Children.SelectMany(All));
+        var demoted = new List<string>();
+        var result = books.Select(b => b with { Spells = b.Spells.Select(s =>
+        {
+            var missing = s.Effects.SelectMany(All).Select(f => f.TargetEntry).Where(t => t is not null && !rules.Contains(t)).Distinct().Order(StringComparer.Ordinal).ToList();
+            if (missing.Count == 0) return s;
+            demoted.Add($"{b.Name}: {s.Name} (undefined grant: {string.Join(", ", missing)})");
+            return s with { Effects = [], Played = false };
+        }).ToList() }).ToList();
+        return (result, demoted);
+    }
+
     public static string Serialize(BookDocument book) => JsonSerializer.Serialize(book, Indented) + "\n";
 
     public static void Write(IReadOnlyList<BookDocument> books, string outDir)

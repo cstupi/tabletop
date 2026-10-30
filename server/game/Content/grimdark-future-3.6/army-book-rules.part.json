@@ -25,38 +25,56 @@
       ]
     },
     {
+      "name": "Anti-Cover",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "This weapon ignores Cover.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Anti-Cover Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Anti-Cover on its weapons when shooting.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Anti-Cover when Shooting",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model gets Anti-Cover on its weapons when shooting.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Anti-Cover when Shooting Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Anti-Cover on its weapons when shooting.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Anti-Regen",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "This weapon ignores Regeneration.",
+      "effects": [],
+      "played": false
+    },
+    {
       "name": "Bane in Melee Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "none",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Bane in melee once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 1,
-        "range": 12,
-        "lineOfSight": false
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Bane in Melee",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "at_point",
-              "comparison": "eq",
-              "values": [
-                "before-attacking"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Bane on its weapons in melee once (next time the effect would apply).",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Bounding Aura",
@@ -78,61 +96,65 @@
       ]
     },
     {
-      "name": "Changebound Boost Aura",
-      "kind": "model",
+      "name": "Brace",
+      "kind": "weapon",
       "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Changebound Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Changebound Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "",
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Clan Warrior Boost Aura",
+      "name": "Bravery Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Clan Warrior Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Clan Warrior Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "This model and its unit get \u002B1 to Morale Test rolls.",
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Counter-Attack Aura",
+      "name": "Bravery Buff",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Counter-Attack.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Counter-Attack",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B1 to Morale Test rolls once (next time the effect would apply).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Counter in Melee",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model gets Counter on its weapons in melee.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Counter in Melee Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Counter on its weapons in melee.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Counter in Melee Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Counter in Melee.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Crossing Strike",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "Once per activation, when this model moves through enemy units, pick one of them and attack it with this weapon as if it was shooting. This weapon may only be used in this way.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Dash Aura",
@@ -154,6 +176,14 @@
       ]
     },
     {
+      "name": "Decimate",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "When attacking units with more than half of their total size or Tough value (for single-model units), the target must re-roll unmodified Defense results of 6.",
+      "effects": [],
+      "played": false
+    },
+    {
       "name": "Defensive Growth Aura",
       "kind": "model",
       "takesParameter": false,
@@ -173,23 +203,363 @@
       ]
     },
     {
-      "name": "Devout Boost Aura",
+      "name": "Demolish",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "Ignores Cover, and when attacking units with most models within 1\u0022 of terrain, this weapon gets AP(\u002B1).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Dodge",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Devout Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Devout Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "If most models in this unit have this rule, as long as they aren\u0027t Fatigued, enemy units get -1 to hit rolls in melee against them.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Bloodborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Bloodborn.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Changebound",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If most models in this unit have Changebound, enemies attacking them always get -1 to hit rolls from Changebound (instead of only when shooting/charging from over 9\u0022/6\u0022 away).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Changebound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Changebound.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Clan Warrior Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Clan Warrior.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Darkborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Darkborn.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Devout",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If this model has Devout, the target always takes hits on unmodified hit results of 6 from Devout (instead of only when shooting/charging enemies over 9\u0022/6\u0022 away).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Devout Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Devout.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Ferocious Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit Enhanced Ferocious.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Guardian",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If most models in this unit have Guardian, hits they take count as having AP(-2) from Guardian (instead of only AP(-1)).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Guardian Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Guardian.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Guerrilla Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Guerrilla.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Harassing Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Harassing.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Havocbound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Havocbound.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Highborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Highborn.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Hive Bond Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Hive Bond.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Hold the Line Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Hold the Line.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Infected Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Infected.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Knightborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Knightborn.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Lustbound",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If this model has Lustbound, it moves \u002B2\u0022 on Advance and \u002B4\u0022 on Rush/Charge from Lustbound (instead of only \u002B1\u0022 and \u002B2\u0022).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Lustbound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Lustbound.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Machine-Fog Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Machine-Fog.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Mischievous Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Mischievous.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Plaguebound",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If most models in this unit have Plaguebound, they ignore wounds on rolls of 5-6 from Plaguebound (instead of only on 6\u002B).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Plaguebound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Plaguebound.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Primal Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Primal once (next time the effect would apply).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Rapid Blink Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Rapid Blink.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Scrapper Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Scrapper.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Scurry Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Scurry.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Self-Repair Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Self-Repair once (next time the effect would apply).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Shadowborn",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If most models in this unit have Shadowborn, enemy units shooting/charging it get -8\u0022/-4\u0022 range to a min. of 6\u0022 from Shadowborn (instead of only -4\u0022/-2\u0022).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Shadowborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Shadowborn.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Shadowborn Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Shadowborn once (next time the effect would apply).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Sturdy Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Sturdy.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Targeting Visor Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Targeting Visor.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Warbound",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If this model has Warbound, enemies always take wounds on unmodified results of 1 to block from Warbound (instead of only when shooting/charging enemies over 9\u0022/6\u0022 away).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Warbound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Warbound.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Watchborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Watchborn.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Enhanced Wolfborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Wolfborn.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Entrenched Buff",
@@ -264,25 +634,6 @@
       ]
     },
     {
-      "name": "Ferocious Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Ferocious Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Ferocious Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
       "name": "Fortified Aura",
       "kind": "model",
       "takesParameter": false,
@@ -300,6 +651,22 @@
           "children": []
         }
       ]
+    },
+    {
+      "name": "Fracture",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "For each unmodified result of 6 to hit, those hits get AP(\u002B2).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Fragment",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "When attacking units where most models have Defense 5\u002B to Defense 6\u002B, the target must re-roll successful unmodified Defense results of 5-6.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Furious Aura",
@@ -388,6 +755,24 @@
       ]
     },
     {
+      "name": "Grounded Defense Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Grounded Defense.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Grounded Evasion",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "If a unit where most models have this rule has most of them within 1\u0022 of terrain, enemies get -1 to hit rolls when attacking them.",
+      "effects": [],
+      "played": false
+    },
+    {
       "name": "Grounded Precision Aura",
       "kind": "model",
       "takesParameter": false,
@@ -399,25 +784,6 @@
           "ordinal": 5,
           "kind": "grant_property",
           "targetEntry": "Grounded Precision",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Grounded Reinforcement Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Grounded Reinforcement.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Grounded Reinforcement",
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -455,101 +821,6 @@
               ]
             }
           ],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Guardian Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Guardian Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Guardian Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Guerrilla Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Guerrilla Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Guerrilla Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Harassing Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Harassing Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Harassing Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Havocbound Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Havocbound Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Havocbound Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Highborn Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Highborn Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Highborn Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
           "children": []
         }
       ]
@@ -593,94 +864,21 @@
       ]
     },
     {
-      "name": "Hive Bond Boost Aura",
-      "kind": "model",
+      "name": "Imprecise",
+      "kind": "weapon",
       "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Hive Bond Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Hive Bond Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Hold the Line Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Hold the Line Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Hold the Line Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "Gets -1 to hit when attacking.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Indirect Mark",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "none",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Indirect against once (next time the effect would apply).",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "opponent",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Indirect",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "at_point",
-              "comparison": "eq",
-              "values": [
-                "before-attacking"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Infected Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Infected Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Infected Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Indirect on their weapons against once (next time the effect would apply).",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Infiltrate Aura",
@@ -702,42 +900,13 @@
       ]
     },
     {
-      "name": "Lustbound Boost Aura",
+      "name": "Infiltrating Precision Strike",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Lustbound Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Lustbound Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Machine-Fog Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Machine-Fog Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Machine-Fog Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "Counts as having Infiltrate, and gets \u002B1 to hit rolls in melee on the round in which it deploys via this rule.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Melee Evasion Aura",
@@ -789,25 +958,6 @@
           "ordinal": 5,
           "kind": "grant_property",
           "targetEntry": "Melee Slayer",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Mischievous Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Mischievous Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Mischievous Boost",
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -869,80 +1019,91 @@
       ]
     },
     {
-      "name": "Piercing Assault Aura",
-      "kind": "model",
+      "name": "Obliterate",
+      "kind": "weapon",
       "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Piercing Assault.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Piercing Assault",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "Ignores Regeneration, and when attacking units where most models have Tough(3) or higher, the target must re-roll successful unmodified Defense results of 5-6.",
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Piercing Hunter Aura",
-      "kind": "model",
+      "name": "Parry",
+      "kind": "weapon",
       "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Piercing Hunter.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Piercing Hunter",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "",
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Plaguebound Boost Aura",
-      "kind": "model",
+      "name": "Pierce",
+      "kind": "weapon",
       "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Plaguebound Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Plaguebound Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon\u0027s range away, this weapon gets AP(\u002B1).",
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Point-Blank Piercing Aura",
+      "name": "Piercing Charge",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Point-Blank Piercing.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Point-Blank Piercing",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "This model gets AP(\u002B1) on its weapons when charging.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Piercing Charge Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Piercing Charge.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Piercing Marksman Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Piercing Marksman.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Precision Charge",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model gets \u002B1 to hit rolls when charging.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Precision Fighter",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model gets \u002B1 to hit rolls in melee.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Predator",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "For each unmodified roll of 6 to hit when attacking, this model may roll \u002B1 attack with that weapon. This rule doesn\u2019t apply to newly generated attacks.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Predator Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Predator.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Predator Shooter Aura",
@@ -959,40 +1120,6 @@
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Primal Boost Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "none",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Primal Boost once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 1,
-        "range": 12,
-        "lineOfSight": false
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Primal Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "at_point",
-              "comparison": "eq",
-              "values": [
-                "before-attacking"
-              ]
-            }
-          ],
           "children": []
         }
       ]
@@ -1034,6 +1161,22 @@
           "children": []
         }
       ]
+    },
+    {
+      "name": "Puncture",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "Ignores Regeneration, and when attacking units where most models have Defense 2\u002B to Defense 3\u002B, this weapon gets AP(\u002B2).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Purge",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "When attacking units that are Shaken or Fatigued, this weapon gets AP(\u002B2).",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Quick Shot Aura",
@@ -1086,6 +1229,15 @@
           "children": []
         }
       ]
+    },
+    {
+      "name": "Quick Throw",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model may always target enemies that are not in line of sight when shooting with Indirect weapons (instead of only when using Hold actions).",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Ranged Shrouding Aura",
@@ -1179,25 +1331,6 @@
       ]
     },
     {
-      "name": "Rapid Blink Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Rapid Blink Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Rapid Blink Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
       "name": "Rapid Rush Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1217,6 +1350,49 @@
       ]
     },
     {
+      "name": "Rapid Rush Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Rapid Rush once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Rapid Rush",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Ravage Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Ravage(\u002B1).",
+      "effects": [],
+      "played": false
+    },
+    {
       "name": "Reanimation Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1234,6 +1410,14 @@
           "children": []
         }
       ]
+    },
+    {
+      "name": "Reap",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "When attacking units that are Shaken or Fatigued, the target must re-roll successful unmodified Defense results of 5-6.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Regeneration Aura",
@@ -1344,53 +1528,18 @@
       "name": "Rending Mark",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "none",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Rending against once (next time the effect would apply).",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "opponent",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Rending",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "at_point",
-              "comparison": "eq",
-              "values": [
-                "before-attacking"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Rending on their weapons against once (next time the effect would apply).",
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Resistance Aura",
-      "kind": "model",
+      "name": "Scourge",
+      "kind": "weapon",
       "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Resistance.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Resistance",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Scout Aura",
@@ -1404,25 +1553,6 @@
           "ordinal": 5,
           "kind": "grant_property",
           "targetEntry": "Scout",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Scrapper Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Scrapper Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Scrapper Boost",
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -1450,57 +1580,13 @@
       ]
     },
     {
-      "name": "Scurry Boost Aura",
+      "name": "Shadowborn",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Scurry Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Scurry Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Self-Repair Boost Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "none",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Self-Repair Boost once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 1,
-        "range": 12,
-        "lineOfSight": false
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Self-Repair Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "at_point",
-              "comparison": "eq",
-              "values": [
-                "before-attacking"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
+      "ruleText": "When a unit where most models have this rule is targeted by an enemy unit for shooting/charging, that enemy unit gets -4\u0022/-2\u0022 range to a min. of 6\u0022.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Shielded Aura",
@@ -1555,6 +1641,14 @@
       ]
     },
     {
+      "name": "Smash",
+      "kind": "weapon",
+      "takesParameter": false,
+      "ruleText": "When attacking units over half of this weapon\u0027s range away, the target must re-roll unmodified Defense results of 6.",
+      "effects": [],
+      "played": false
+    },
+    {
       "name": "Speed Feat Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1572,6 +1666,33 @@
           "children": []
         }
       ]
+    },
+    {
+      "name": "Spell Drain",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one enemy model within 18\u0022 in line of sight, which must take a Morale Test. If failed, it loses 2 spell tokens.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Spell Resistance",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "When a unit where most models have this rule takes wounds, roll one die for each. If the wound was from a spell, then it is ignored on a 2\u002B. If the wound was not from a spell, then it is ignored on a 6\u002B instead.",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Spell Resistance Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Spell Resistance.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Steadfast Aura",
@@ -1665,25 +1786,6 @@
       ]
     },
     {
-      "name": "Sturdy Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Sturdy Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Sturdy Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
       "name": "Swift Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1737,25 +1839,6 @@
       ]
     },
     {
-      "name": "Targeting Visor Boost Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Targeting Visor Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Targeting Visor Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
       "name": "Teleport Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1773,6 +1856,24 @@
           "children": []
         }
       ]
+    },
+    {
+      "name": "Thrust in Melee Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Thrust in Melee once (next time the effect would apply).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Unique Hero",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "Counts as having Hero, and this model may only be taken once per army.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Unpredictable Fighter Aura",
@@ -1882,34 +1983,19 @@
       "name": "Unstoppable Mark",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "none",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unstoppable against once (next time the effect would apply).",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "opponent",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Unstoppable",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "at_point",
-              "comparison": "eq",
-              "values": [
-                "before-attacking"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
+      "aggregation": "any",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unstoppable on their weapons against once (next time the effect would apply).",
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Unstoppable when Shooting",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model gets Unstoppable on its weapons when shooting.",
+      "effects": [],
+      "played": false
     },
     {
       "name": "Versatile Defense Aura",
@@ -1931,6 +2017,15 @@
       ]
     },
     {
+      "name": "Versatile Expert",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "When this unit is activated, pick one effect: until the end of the activation all models with this rule in this unit either get AP(\u002B1) when attacking, or get \u002B1 to hit rolls when attacking.",
+      "effects": [],
+      "played": false
+    },
+    {
       "name": "Versatile Reach Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1950,23 +2045,13 @@
       ]
     },
     {
-      "name": "Warbound Boost Aura",
+      "name": "Versatile Warrior",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
-      "ruleText": "This model and its unit get Warbound Boost.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Warbound Boost",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "ruleText": "When this unit is activated, pick one effect: until the end of the activation, when shooting/charging enemies over 9\u0022/6\u0022 away, all models with this rule in it either get AP(\u002B1) or get \u002B1 to hit rolls.",
+      "effects": [],
+      "played": false
     }
   ]
 }

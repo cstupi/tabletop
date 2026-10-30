@@ -73,4 +73,19 @@ public class BookWriterTests
                 Assert.Equal(c.Values.Order(StringComparer.Ordinal).ToList(), c.Values.ToList());
         }
     }
+
+    [Fact]
+    public void A_spell_granting_an_undefined_rule_is_demoted_to_text_only()
+    {
+        static EffectDocument Grant(string rule) => new(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, rule, null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], []);
+        static EntryDocument Spell(string name, string rule) => new(name, CatalogKind.Spell, false, null, 1, null, "text", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12), [Grant(rule)]);
+        var rule = new EntryDocument("Defined", CatalogKind.Model, false, Aggregation.All, null, null, "text", null, []);
+        var core = new PropertySetDocument("core", "grimdark-future", [], [], [], [rule]);
+        var books = new[] { new BookDocument("b", "B", "1", "grimdark-future", [Spell("Live", "Defined"), Spell("Inert", "Missing")]) };
+        var (demoted, list) = BookWriter.DemoteUndefinedGrants(books, core, core);
+        var spells = demoted.Single().Spells;
+        Assert.Equal(["B: Inert (undefined grant: Missing)"], list);
+        Assert.Equal((null, 1), (spells[0].Played, spells[0].Effects.Count));
+        Assert.Equal((false, 0), (spells[1].Played, spells[1].Effects.Count));
+    }
 }

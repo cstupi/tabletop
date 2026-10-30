@@ -92,9 +92,9 @@ public sealed class PropertySet(string contentHash, string name, string gameRule
 
     public IReadOnlyDictionary<string, BookRecord> Books { get; } = (books ?? []).ToDictionary(b => b.Uid);
 
-    /// <summary>p.13: the spells a caster of this book may try, in the book's order. Empty for no book or a book the set does not list.</summary>
+    /// <summary>p.13: the spells a caster of this book may try, in the book's order, leaving out a text-only spell (played false). Empty for no book or a book the set does not list.</summary>
     public IReadOnlyList<CatalogEntry> SpellsOf(string? bookUid) =>
-        bookUid is not null && Books.TryGetValue(bookUid, out var b) ? b.Spells.Select(Entry).OfType<CatalogEntry>().Where(e => e.Kind == CatalogKind.Spell).ToList() : [];
+        bookUid is not null && Books.TryGetValue(bookUid, out var b) ? b.Spells.Select(Entry).OfType<CatalogEntry>().Where(e => e.Kind == CatalogKind.Spell && e.Played).ToList() : [];
 
     public CatalogEntry? Entry(string name) => ByName.GetValueOrDefault(name);
     public StatDefinition? Stat(StatLevel level, string name) => Stats.FirstOrDefault(s => s.Level == level && s.Name == name);

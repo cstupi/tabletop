@@ -1,7 +1,7 @@
 {
   "uid": "q11la9v8h1heu9ja",
   "name": "Dark Elf Raiders",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -9,113 +9,22 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one friendly unit within 12\u0022, which gets Harassing Boost once (next time the effect would apply).",
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets Enhanced Harassing once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 1,
         "range": 12
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Harassing Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Snake Bite",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 1,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with AP(1) and Lacerate.",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 2,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 1,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
-              "kind": "grant_property",
-              "targetEntry": "Lacerate",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Raiding Drugs",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two enemy units within 18\u0022, which friendly units get \u002B1 to hit rolls in melee against once (next time the effect would apply).",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 2,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "opponent",
-          "ordinal": 10,
-          "kind": "modify_roll",
-          "targetRoll": "hit",
-          "amount": 1,
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "attack_kind",
-              "comparison": "eq",
-              "values": [
-                "melee"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Art of Pain",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy unit within 6\u0022, which takes 2 hits with AP(2) and Deadly(3).",
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 6\u0022, which takes 1 hit with AP(2) and Deadly(3).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
@@ -127,7 +36,7 @@
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 2,
+          "amount": 1,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -159,16 +68,88 @@
       ]
     },
     {
+      "name": "Raiding Drugs",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units get \u002B1 to hit rolls in melee against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 10,
+          "kind": "modify_roll",
+          "targetRoll": "hit",
+          "amount": 1,
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "attack_kind",
+              "comparison": "eq",
+              "values": [
+                "melee"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Snake Bite",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 4 hits with Lacerate.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18,
+        "lineOfSight": true
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 4,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Lacerate",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Fade in the Dark",
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick up to three friendly units within 12\u0022, which get Stealth once (next time the effect would apply).",
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Stealth once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 3,
-        "range": 12
+        "range": 18
       },
       "effects": [
         {
@@ -188,12 +169,13 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 9 hits.",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 9 hits.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 12
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
