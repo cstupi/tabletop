@@ -48,7 +48,8 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>
     /// Page 13: Aircraft "may only use Advance actions ... (even if Shaken)", and "their mandatory move doesn't break the staying idle
     /// requirement to stop being Shaken" — so Aircraft is read before Shaken, and a Shaken Aircraft is offered Advance, not Idle.
-    /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and 3.5.1 p.13 Artillery mean Hold only (3.6.0 p.13 Artillery may move: GfEdition.ArtilleryHoldOnly).
+    /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and 3.5.1 p.13 Artillery mean Hold only (3.6.0 p.13 Artillery may move: GfEdition.ArtilleryHoldOnly);
+    /// 3.6.0 p.14 Cumbersome means Hold or Advance (GfEdition.HasCumbersome).
     /// Page 7: Charge needs an enemy unit within charge distance.
     /// </summary>
     public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows) =>
@@ -62,6 +63,8 @@ public sealed partial class GrimdarkFutureRules
         if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return (actionRows.Where(a => a == Hold).ToList(), ImmobileNote);
         if (GfEdition.Of(state) is { ArtilleryHoldOnly: true } edition && Lookup.UnitHas(state, props, unit.Id, Artillery))
             return (actionRows.Where(a => a == Hold).ToList(), edition.ArtilleryNote);
+        if (GfEdition.Of(state) is { HasCumbersome: true } cumbersome && Lookup.UnitHas(state, props, unit.Id, GfNames.Cumbersome))
+            return (actionRows.Where(a => a is Hold or Advance).ToList(), cumbersome.CumbersomeNote);
         // Instinctive: a unit that can charge must charge; one that can shoot must take an action it shoots in (p.7: Rush "can't shoot").
         switch (InstinctiveAttack(state, props, unit))
         {
