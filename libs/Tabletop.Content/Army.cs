@@ -40,5 +40,8 @@ public sealed record Army(Guid Id, string Name, string GameSystem, string Source
 /// </summary>
 public sealed record ArmySnapshot(Guid Id, string Name, string GameSystem, IReadOnlyList<Unit> Units)
 {
-    public static ArmySnapshot Of(Army army, Guid id) => new(id, army.Name, army.GameSystem, army.Units);
+    /// <summary>One of <see cref="ArmyEditions.All"/>. An init property, so a snapshot written before editions reads as 3.5.</summary>
+    public string Edition { get; init; } = ArmyEditions.V35;
+
+    public static ArmySnapshot Of(Army army, Guid id) => new(id, army.Name, army.GameSystem, army.Units) { Edition = army.Edition };
 }
