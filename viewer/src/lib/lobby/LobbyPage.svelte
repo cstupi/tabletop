@@ -4,7 +4,7 @@
 <script lang="ts">
   import type { Api } from '../api/client';
   import { nameProblem } from '../api/names';
-  import type { ArmySummary } from '../api/types';
+  import type { ArmySummary, PropertiesSummary } from '../api/types';
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { sendEdit } from '../game/send';
   import type { Edit, Enforcement, SchedulerShape } from '../protocol/wire.generated';
@@ -28,12 +28,15 @@
   let shape: SchedulerShape = $state('alternating-activation');
   let enforcement: Enforcement = $state('warn');
   let chosen: Record<string, string> = $state({});
+  let sets: PropertiesSummary[] = $state([]);
+  let hash = $state('');
 
   // The form follows the game's configuration whenever another edit changes it.
-  const configKey = $derived(JSON.stringify([game.name, game.schedulerShape, game.enforcement, game.optionalRules]));
+  const configKey = $derived(JSON.stringify([game.name, game.propertiesHash, game.schedulerShape, game.enforcement, game.optionalRules]));
   $effect(() => {
     void configKey;
     name = game.name;
+    hash = game.propertiesHash;
     shape = game.schedulerShape;
     enforcement = game.enforcement;
     chosen = Object.fromEntries(catalog.options.map((o) => [o.key, valueOf(o, game.optionalRules)]));
@@ -43,8 +46,12 @@
     api.listArmies().then((list) => { armies = list; }).catch((e: Error) => { problem = e.message; });
   });
 
+  $effect(() => {
+    api.listProperties().then((list) => { sets = list; }).catch((e: Error) => { problem = e.message; });
+  });
+
   const preset = $derived(presetOf(catalog, chosen));
-  const changed = $derived(configChanged(game, catalog, name, shape, enforcement, chosen));
+  const changed = $derived(configChanged(game, catalog, name, shape, enforcement, chosen, hash));
   const waiting = $derived(waitingFor(game, creator));
 
   async function send(edit: Edit) { problem = await sendEdit(connection, edit); }
@@ -60,11 +67,11 @@
     event.preventDefault();
     const bad = nameProblem(name, 'A game name');
     if (bad !== null) { problem = bad; return; }
-    void send(configurationOf(game, name, shape, enforcement, catalog, chosen));
+    void send(configurationOf(game, name, shape, enforcement, catalog, chosen, hash));
   }
 
   function revert() {
-    name = game.name; shape = game.schedulerShape; enforcement = game.enforcement;
+    name = game.name; hash = game.propertiesHash; shape = game.schedulerShape; enforcement = game.enforcement;
     chosen = Object.fromEntries(catalog.options.map((o) => [o.key, valueOf(o, game.optionalRules)]));
   }
 </script>
@@ -92,6 +99,11 @@
       {#if creator}
         <form id="game-settings" class="body" onsubmit={apply}>
           <label>Name <input bind:value={name} maxlength="64" placeholder="Game name" /></label>
+          <label>Rule set
+            <select bind:value={hash}>
+              {#each sets as s (s.contentHash)}<option value={s.contentHash}>{s.name}</option>{/each}
+            </select>
+          </label>
           <label>Activation
             <select bind:value={shape}>
               {#each Object.entries(SHAPE_LABEL) as [value, label] (value)}<option {value}>{label}</option>{/each}

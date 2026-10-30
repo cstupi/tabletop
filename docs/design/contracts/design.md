@@ -707,7 +707,7 @@ only sometimes values in C#, and nothing in the type system distinguishes the tw
 
 ### 6. Versioning and the 426 path
 
-`ProtocolVersion` holds three constants and no logic: `Current` (4 since `reauth`),
+`ProtocolVersion` holds three constants and no logic: `Current` (5 since `rules_options`),
 `Header = "Tabletop-Client-Version"`, `UpgradeRequiredStatusCode = 426`. The client sends the header
 on every management request and the same integer inside `Connect.ClientVersion`. Management answers
 `426 Upgrade Required` when it is below its configured minimum. The game server answers
@@ -1151,7 +1151,7 @@ this table is the rest of the surface, with the exact member names later modules
 
 | Type | Members |
 | --- | --- |
-| `static class ProtocolVersion` | `const int Current = 4`, `const string Header = "Tabletop-Client-Version"`, `const int UpgradeRequiredStatusCode = 426` |
+| `static class ProtocolVersion` | `const int Current = 5`, `const string Header = "Tabletop-Client-Version"`, `const int UpgradeRequiredStatusCode = 426` |
 | `enum GameStatus { Lobby, Setup, Playing, Ended }` | wire `lobby setup playing ended` |
 | `enum SchedulerShape { PlayerTurn, AlternatingActivation }` | wire `player-turn`, `alternating-activation` |
 | `enum Enforcement { Silent, Warn, Strict }` | |

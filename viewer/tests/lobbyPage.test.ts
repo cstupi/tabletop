@@ -53,6 +53,7 @@ describe('the lobby page', () => {
     expect(configChanged(g, catalog, ' Friday ', 'alternating-activation', 'warn', {})).toBe(false);
     expect(configChanged(g, catalog, 'Friday', 'player-turn', 'warn', {})).toBe(true);
     expect(configChanged(g, catalog, 'Friday', 'alternating-activation', 'warn', { sight: 'none' })).toBe(true);
+    expect(configChanged(g, catalog, 'Friday', 'alternating-activation', 'warn', {}, `${g.propertiesHash}x`)).toBe(true);
     expect(configChanged(g, catalog, 'Saturday', 'alternating-activation', 'warn', {})).toBe(true);
   });
 });

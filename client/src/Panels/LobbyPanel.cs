@@ -58,6 +58,16 @@ public partial class LobbyPanel : VBoxContainer
         config.AddChild(Wrapping(HeaderView.RuleSetLine(game), Variation.Dim));
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
         var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(Named("Game name", name));
+        var ruleSet = new OptionButton(); config.AddChild(Named("Rule set", ruleSet));
+        IReadOnlyList<PropertiesSummary> sets = [];
+        Guarded.Run(async () =>
+        {
+            var list = await s.Management.ListProperties();
+            if (!IsInstanceValid(this)) return;
+            sets = list;
+            foreach (var x in list) ruleSet.AddItem(CreateDefaults.PackLabel(x));
+            var at = list.ToList().FindIndex(x => x.ContentHash == game.PropertiesHash); if (at >= 0) ruleSet.Select(at);
+        }, Problem);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(Named("Activation", shape));
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(Named("Enforcement", enforcement));
         var chosen = s.Options.Options.ToDictionary(o => o.Key, o => RulesOptions.ValueOf(o, game.OptionalRules));
@@ -67,7 +77,8 @@ public partial class LobbyPanel : VBoxContainer
             if (TextLimits.NameProblem(name.Text, "A game name") is { } problem) { Problem(problem); return; }
             Problem(null);
             Guarded.Send(s, LobbyEdits.Configure(game, name.Text,
-                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, s.Options, chosen));
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, s.Options, chosen,
+                ruleSet.Selected >= 0 && ruleSet.Selected < sets.Count ? sets[ruleSet.Selected].ContentHash : null));
         });
         config.AddChild(apply);
         // The server takes the configuration from the creator alone: everyone else sees it, read-only, with the reason.

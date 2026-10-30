@@ -263,6 +263,9 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         reauthTimer = setInterval(() => void reauth(), reauthEvery);
         flush();
         return;
+      case 'rules_options':
+        publish({ options: frame.options });                               // before the 'game' that follows
+        return;
       case 'game':
         publish({ game: frame.game });
         settle('game');

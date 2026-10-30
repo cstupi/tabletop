@@ -42,6 +42,15 @@ public class SessionTests : IDisposable
     }
 
     [Fact]
+    public async Task A_rules_options_message_replaces_the_catalog()
+    {
+        var sock = await ConnectedAtPlaying();
+        var next = new RulesOptionCatalog([new RulesOption("a", "A", "1", [new RulesOptionValue("off", "Off")], "off")], []);
+        sock.Deliver(new RulesOptionsMessage(next));
+        Assert.Same(next, _s.Options);
+    }
+
+    [Fact]
     public async Task Login_stores_the_jwt_when_remembered_and_resume_refreshes_it()
     {
         await LoggedIn();

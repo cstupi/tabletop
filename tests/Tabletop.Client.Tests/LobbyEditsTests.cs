@@ -22,6 +22,13 @@ public class LobbyEditsTests
         Assert.Equal(new Dictionary<string, string> { ["b"] = "off" }, edit.OptionalRules);
     }
 
+    [Fact]
+    public void Configure_sends_the_chosen_hash_or_the_games()
+    {
+        Assert.Equal("other", LobbyEdits.Configure(TableUx.Game, "n", SchedulerShape.PlayerTurn, Enforcement.Strict, Catalog, new Dictionary<string, string>(), "other").PropertiesHash);
+        Assert.Equal(TableUx.Game.PropertiesHash, LobbyEdits.Configure(TableUx.Game, "n", SchedulerShape.PlayerTurn, Enforcement.Strict, Catalog, new Dictionary<string, string>()).PropertiesHash);
+    }
+
     [Fact] public void Watch_is_pick_team_with_no_team() => Assert.Equal(new PickTeam(null), LobbyEdits.Watch());
     [Fact] public void Create_team_start_setup_and_end_setup_are_their_edits()
     {

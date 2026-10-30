@@ -69,6 +69,14 @@ describe('GameConnection', () => {
     expect(h.conn.state).toMatchObject({ phase: 'connected', participantId: 'p1', game: setupGame, options: { options: [], presets: [] } });
   });
 
+  it('rules_options replaces the catalog', async () => {
+    const h = harness();
+    const s = await welcomed(h, setupWelcome);
+    const next = { options: [{ key: 'a', label: 'A', page: '1', default: 'off', values: [{ value: 'off', label: 'Off' }] }], presets: [] };
+    s.deliver({ kind: 'rules_options', options: next });
+    expect(h.conn.state.options).toEqual(next);
+  });
+
   it('a welcome publishes its zone legs', async () => {
     const h = harness();
     expect(h.conn.state.zones).toBeNull();
