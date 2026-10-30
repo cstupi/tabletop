@@ -174,4 +174,3 @@ public class LobbyEditionTests
         Assert.Equal(GameStatus.Setup, db.GameRows.Game(g.GameId)!.Status);
     }
 }
-

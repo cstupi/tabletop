@@ -117,7 +117,6 @@ public partial class LobbyPanel : VBoxContainer
     /// <summary>The warning line, shown only while it has something to say: an empty label still takes a row.</summary>
     void Problem(string? text) { if (!IsInstanceValid(_error)) return; _error.Text = text ?? ""; _error.Visible = text is { Length: > 0 }; }
 
-    /// <summary>A field under its name.</summary>
     /// <summary>The armies after a picker's first item: another edition's disabled, its reason in the text and the tooltip.</summary>
     internal static void AddArmies(OptionButton box, IReadOnlyList<ArmyOption> options, Func<ArmyOption, string>? text = null)
     {
@@ -130,6 +129,7 @@ public partial class LobbyPanel : VBoxContainer
         }
     }
 
+    /// <summary>A field under its name.</summary>
     static Control Named(string label, Control field)
     {
         var box = new VBoxContainer(); box.AddChild(new Label { Text = label, ThemeTypeVariation = Variation.Dim }); box.AddChild(field); return box;
