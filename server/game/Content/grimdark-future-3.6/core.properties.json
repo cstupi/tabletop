@@ -51,9 +51,7 @@
       "effects": [ { "subject": "self", "ordinal": 20, "kind": "roll", "amount": 1, "amountFromParameter": true, "threshold": 2,
         "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "actor_state", "subject": "self", "comparison": "neq", "values": [ "fatigued" ] } ],
         "children": [ { "subject": "self", "ordinal": 0, "kind": "add_hit", "amount": 1 } ] } ] },
-    { "name": "Indirect", "kind": "weapon", "ruleText": "Gets -1 to hit rolls when shooting after moving. May target enemies that are not in line of sight as if in line of sight, and ignores cover from sight obstructions.",
-      "effects": [
-        { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Advance" ] } ] } ] },
+    { "name": "Indirect", "kind": "weapon", "ruleText": "When using Hold actions and shooting, may target enemies that are not in line of sight as if in line of sight, and ignores cover from Sight Blockers.", "effects": [] },
     { "name": "Limited", "kind": "weapon", "ruleText": "Weapons with this rule may only be used once per game.", "effects": [] },
     { "name": "Regeneration", "kind": "model", "aggregation": "all", "ruleText": "When a unit where all models have this rule takes wounds, roll one die for each. On a 5+ it is ignored.",
       "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 5, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "wound" } ] } ] },
