@@ -29,7 +29,7 @@ public static class GfHooks
     public static IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet props, Scheduler.TurnContext turn)
     {
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
-        // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
+        // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads under 3.5.1; 3.6.0 p.14 Indirect reads the Hold action instead (GfEdition.IndirectNeedsHold).
         changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
         // Instinctive's mark is the activation's: "that attack".
         changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.InstinctiveCondition)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.InstinctiveCondition, false)));
@@ -41,7 +41,7 @@ public static class GfHooks
         if (turn.Activation is { } act && state.Projection.Units[act.UnitId].Conditions.Contains(GfNames.Shaken)
             && (act.Action == Scheduler.ActivationOption.Idle || (act.Action == GfNames.Advance && Lookup.UnitHas(state, props, act.UnitId, GfNames.Aircraft))))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, act.UnitId), GfNames.Shaken, false));
-        // p.14 Scout: "May be set aside before deployment. After all other units are deployed, may be deployed ..." — once deployed it is no longer set aside.
+        // p.14 Scout (3.6.0 p.15 the same): "May be set aside before deployment. After all other units are deployed, may be deployed ..." — once deployed it is no longer set aside.
         if (turn.Activation is { Action: GfNames.Deploy } deployed) changes.AddRange(ArrivedFromSetAside(state, deployed.UnitId));
         return changes;
     }
@@ -54,7 +54,7 @@ public static class GfHooks
             .Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u), GfNames.SetAside, false)).ToList();
     }
 
-    /// <summary>p.10: at the end of an activation, a unit that took wounds leaving it at half or less tests; units that fought this melee compared wounds instead. The actor bounds "this activation".</summary>
+    /// <summary>p.10: at the end of an activation, a unit that took wounds leaving it at half or less tests; units that fought this melee compared wounds instead (3.6.0 p.10 compares the wounds each took during the activation, GfEdition.MeleeLossByWoundsTaken). The actor bounds "this activation".</summary>
     public static IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet props, Guid? actor) =>
         UnitsToTestAtEndOfActivation(state, props, actor).Select(u => new SequenceStart(GfNames.MoraleTest, new SequenceContext(u, [], [], "wounds"))).ToList();
 
@@ -90,7 +90,7 @@ public static class GfHooks
     }
 
     /// <summary>
-    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13); under 3.6.0
+    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13: "at any point before attacking"); under 3.6.0
     /// only until the activation's one cast window is over. At every point,
     /// each unit the point concerns (the actor; at after-melee the charger and then the defender) offers its live move rows at that point
     /// (army-rule hooks spec), one reaction per entry, pushing `reposition`. A Shaken unit offers nothing: 3.5.1 p.10 says being idle means it "can't

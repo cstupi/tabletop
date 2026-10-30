@@ -80,7 +80,7 @@ public class GfShootingTests
     [Fact]
     public void A_takedown_weapon_type_splits_into_one_group_per_model()
     {
-        // 3.5.1 p.14 gives the pick to "This model", so two models carrying one takedown weapon type are two groups, each
+        // 3.5.1 p.14 gives the pick to "This model" (3.6.0 p.15 words it "for this weapon's attacks", the same per-weapon reading), so two models carrying one takedown weapon type are two groups, each
         // naming its own target and rolling its own attack.
         var pair = Unit("Pair", "4+", "4+", [], 2, [], Gun("Long Rifle", "30\"", 1, P("Takedown")));
         var t = Unit("T", "4+", "6+", [], 3, []);

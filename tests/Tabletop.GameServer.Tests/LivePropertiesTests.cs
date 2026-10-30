@@ -51,7 +51,7 @@ public class LivePropertiesTests
         var ix = new Interaction(state, Core, Party.Whole(state, state.Board.Armies[0].Snapshot.Units[0].Id), Party.Whole(state, stealthy.Id), AttackKind.Shooting, "Hold", 12, []);
         var live = LiveProperties.Settle(ix);
         Assert.False(live.Has(Side.Defender, "Stealth"));                                           // all: one model lacks it
-        Assert.True(live.Has(Side.Defender, "Fearless"));                                           // all, and all three carry it (3.5.1: "a unit where all models have this rule")
+        Assert.True(live.Has(Side.Defender, "Fearless"));                                           // all, and all three carry it (3.5.1: "a unit where all models have this rule"; 3.6.0 p.13: "most models")
         Assert.Equal(3, live.On(Side.Defender).Count(p => p.Entry.Name == "Tough"));                // none: per model, all three have it
         Assert.Single(live.On(Side.Defender).Where(p => p.Entry.Name == "Fearless"));               // collapsed: no (X)
     }
@@ -89,7 +89,7 @@ public class LivePropertiesTests
         Assert.True(live.Has(Side.Defender, "Ambush"));                                             // the effect pass agrees with the name lookup
         var aircraft = live.On(Side.Defender).Single(p => p.Entry.Name == "Aircraft");
         Assert.Null(aircraft.ModelId);                                                              // holder-less: it is the unit's, not the captain's
-        Assert.Equal(-12, live.Effects(Side.Attacker, EffectKind.ModifyStat).Single(x => x.Source.Entry.Name == "Aircraft").Effect.Amount);   // 3.5.1: -12" to range, and no -1 to hit
+        Assert.Equal(-12, live.Effects(Side.Attacker, EffectKind.ModifyStat).Single(x => x.Source.Entry.Name == "Aircraft").Effect.Amount);   // 3.5.1: -12" to range, and no -1 to hit (3.6.0 p.13 adds -1 to hit rolls)
         Assert.Empty(live.Effects(Side.Attacker, EffectKind.ModifyRoll).Where(x => x.Source.Entry.Name == "Aircraft"));
         // The captain's own Quality is declared at model level and read: determine-attacks splits the group's attacks by it and roll-to-hit rolls a pool per value (p.4, p.14). Defense stays the unit's until it is alone.
         Assert.NotNull(Core.Stat(StatLevel.Model, "Quality"));
@@ -104,7 +104,7 @@ public class LivePropertiesTests
         var s = Unit("Shooters", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
         var state = State([s], [e]);
         Interaction Ix(double range, string action) => new(state, Core, Party.Whole(state, s.Id), Party.Whole(state, e.Id), AttackKind.Shooting, action, range, []);
-        // Artillery's second effect is the -2 on the opponent, conditioned on shooting from over 9" away. 3.5.1 dropped Entrenched's "hasn't moved" condition with the rule itself.
+        // Artillery's second effect is the -2 on the opponent, conditioned on shooting from over 9" away (3.6.0 p.13: -1, over 12", only while the unit has not moved this round). 3.5.1 dropped Entrenched's "hasn't moved" condition with the rule itself.
         var artillery = Core.Entry("Artillery")!.Effects[1];
         var holder = new LiveProperty(Side.Defender, Core.Entry("Artillery")!, null, e.Models[0].Id, null, null);
         Assert.True(Conditions.Hold(Ix(12, "Hold"), Side.Defender, artillery, holder, null));

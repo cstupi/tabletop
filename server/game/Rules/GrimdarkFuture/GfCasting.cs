@@ -16,7 +16,7 @@ public static class GfCasting
 
     /// <summary>
     /// The in-play reading, matching GfHooks.ReactionsAt: a caster inside a container may still cast at what is inside with it (p.15),
-    /// and a Shaken unit casts nothing at all (p.10, spelled out in 3.5.1).
+    /// and a Shaken unit casts nothing at all (3.5.1 p.10 spells it out; 3.6.0 p.10 keeps Shaken units idle).
     /// </summary>
     public static IReadOnlyList<Guid> Casters(GameState state, Guid unit) =>
         state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken) ? []
