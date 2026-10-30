@@ -77,6 +77,7 @@ erDiagram
         string name
         string game_system
         string source
+        string edition
     }
     UNIT {
         int ordinal
@@ -304,8 +305,9 @@ loads that layout.
 top. Convex hulls are gone, so every geometry test is a 2D shape intersection plus a vertical
 range. Volumes belong to the terrain asset and are computed from its bounding box at upload,
 so they are never absent; a placement may override them. `kind` is `solid` or `area`, and
-`declarations` is a closed set of six: impassable, blocks LoS, see in and out, cover,
-difficult, dangerous.
+`declarations` is a closed set of eight: impassable, blocks LoS, see in and out, cover,
+difficult, dangerous, dangerous on rush or charge, steep. Both editions read the same flags; the words and the
+Steep, Unstable and Dense readings differ by edition (`GfEdition.TerrainWords`).
 
 **Models are yaw only and always upright**, so a placement is position and yaw. What a model
 rests on is derived by `Collision.RestHeight`, never stored.
@@ -330,15 +332,19 @@ be placed. Import does that expansion once, at the boundary.
 
 **`ARMY.game_system` is the `GameRules` identifier** — the same vocabulary as
 `GAME.game_rules`, not a second one. Nothing reads it to interpret an army, which is
-self-contained; its only reader compares it against the game's at army-pick time. With one
-ruleset that comparison is a no-op, so the field is **dormant until a second `GameRules`
-exists**. It is kept because import knows it for free and no later pass could recover it.
+self-contained. Both Grimdark Future editions import as `grimdark-future` and the field does not tell them apart.
+
+**`ARMY.edition` is the Grimdark Future edition of the list** (`'3.5'` or `'3.6'`, `ArmyEditions`), stamped at import from the
+edition Army Forge serves; the TTS payload carries none. It is what the lobby compares against the game's rule set
+(`RuleSets.EditionOf(game_rules)`): `PickArmy` and `EndSetup` refuse an army of the other edition, because unit ids, costs and
+options differ between editions. `ARMYSNAPSHOT` carries it with the rest of the copy.
 
 **`upgrades` and `list_entry` are both gone.** An upgrade's effect is already applied by import
 time, so storing it would be two sources for one fact. A source identifier had no reader at all
 — the only candidate was a heuristic that was deliberately deferred.
 
-**A ruleset is two things.** `PROPERTIES` is the data — stat definitions, one
+**A ruleset is two things, and an edition is a ruleset.** `grimdark-future` (3.5.1) and `grimdark-future-3.6` (3.6.0) are two
+`GAME.game_rules` ids, each with its own `PROPERTIES` sets. `PROPERTIES` is the data — stat definitions, one
 catalog of named rules, the actions and rolls that effects can target, and the army books that
 list the catalog's spells. `GAME.game_rules`
 names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. A
