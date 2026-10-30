@@ -129,6 +129,6 @@ public sealed partial class LifecycleGame(LifecycleShape shape, string name, Lif
     /// <summary>Under self-play one account holds every seat.</summary>
     bool SelfPlay => shape.Seats.Count > 1 && shape.Seats.Select(s => s.Account).Distinct().Count() == 1;
 
-    /// <summary>The game server's embedded set, the one every new game must get.</summary>
-    static string CurrentHash => ScenarioCompiler.CoreProperties.ContentHash;
+    /// <summary>The game server's embedded set of the shape's rules, the one a new game on it must get.</summary>
+    string CurrentHash => ScenarioCompiler.CorePropertiesOf(shape.Rules).ContentHash;
 }

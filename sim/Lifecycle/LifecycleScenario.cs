@@ -19,9 +19,9 @@ public static class LifecycleScenario
     /// </summary>
     /// <param name="setAside">Per seat, the unit ordinals the run sets aside before the first answer.</param>
     public static CompiledScenario From(string name, ulong seed, GameInfo info, Board board, Guid recorder, bool selfPlay,
-        IReadOnlyDictionary<Guid, IReadOnlyList<int>> setAside, int roundCap)
+        IReadOnlyDictionary<Guid, IReadOnlyList<int>> setAside, int roundCap, string rules = Tabletop.Content.RuleSets.Gf351)
     {
-        var properties = ScenarioCompiler.CoreProperties;
+        var properties = ScenarioCompiler.CorePropertiesOf(rules);
         if (info.PropertiesHash != properties.ContentHash)
             throw new InvalidOperationException($"the game runs set {info.PropertiesHash}, not the game server's embedded set {properties.ContentHash}");
         if (info.Participants.All(p => p.Id != recorder) || info.Participants.First(p => p.Id == recorder).TeamId is not null)
@@ -43,6 +43,7 @@ public static class LifecycleScenario
             AnswerScript.Empty, ScriptOnly: false, [new Expectation.Outcome("ended"), new Expectation.ReachedRound(4)])
         {
             SelfPlay = selfPlay,
+            Rules = rules,
             OptionalRules = info.OptionalRules,
         };
         return new CompiledScenario(scenario, ordered, board, properties,

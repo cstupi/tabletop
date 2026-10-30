@@ -1,0 +1,173 @@
+{
+ "id": "lifecycle-1wj1ysgxpuuz9bc7-3.6",
+ "name": "Orc Marauders",
+ "gameSystem": "gf",
+ "units": [
+  {
+   "selectionId": "1wj31",
+   "name": "Veterans",
+   "size": 5,
+   "quality": 3,
+   "defense": 4,
+   "bases": {
+    "round": "32",
+    "square": "30"
+   },
+   "rules": [
+    {
+     "name": "Bad Shot",
+     "label": "Bad Shot"
+    },
+    {
+     "name": "Ferocious",
+     "label": "Ferocious"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Pistol",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 12,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Assault",
+       "label": "Assault"
+      }
+     ]
+    },
+    {
+     "name": "Hand Weapon",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "1wj1ysgxpuuz9bc7"
+  },
+  {
+   "selectionId": "1wj32",
+   "name": "Berserkers",
+   "size": 5,
+   "quality": 4,
+   "defense": 6,
+   "bases": {
+    "round": "32",
+    "square": "30"
+   },
+   "rules": [
+    {
+     "name": "Protected",
+     "label": "Protected"
+    },
+    {
+     "name": "Ferocious",
+     "label": "Ferocious"
+    },
+    {
+     "name": "Strider",
+     "label": "Strider"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Berserker Spear",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Counter",
+       "label": "Counter"
+      }
+     ]
+    },
+    {
+     "name": "Combat Shield",
+     "type": "ArmyBookItem",
+     "content": [
+      {
+       "name": "Armor",
+       "type": "ArmyBookRule",
+       "rating": 5
+      }
+     ],
+     "count": 5
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "1wj1ysgxpuuz9bc7"
+  },
+  {
+   "selectionId": "1wj33",
+   "name": "Orc Bikers",
+   "size": 3,
+   "quality": 4,
+   "defense": 5,
+   "bases": {
+    "round": "60x35",
+    "square": "50x25"
+   },
+   "rules": [
+    {
+     "name": "Fast",
+     "label": "Fast"
+    },
+    {
+     "name": "Tough",
+     "label": "Tough(3)",
+     "rating": 3
+    },
+    {
+     "name": "Bad Shot",
+     "label": "Bad Shot"
+    },
+    {
+     "name": "Ferocious",
+     "label": "Ferocious"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Bike-Gun",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 24,
+     "attacks": 2,
+     "specialRules": []
+    },
+    {
+     "name": "Pistol",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 12,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Assault",
+       "label": "Assault"
+      }
+     ]
+    },
+    {
+     "name": "Hand Weapon",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "1wj1ysgxpuuz9bc7"
+  }
+ ]
+}

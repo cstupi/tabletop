@@ -47,6 +47,27 @@ public class DevArmyImportTests(ManagementFactory f) : IClassFixture<ManagementF
     }
 
     [Fact]
+    public async Task An_edition_in_the_body_stamps_the_army_and_none_stamps_the_served_edition()
+    {
+        var c = await _dev.AuthenticatedClient(Guid.CreateVersion7());
+        Assert.Equal(ArmyEditions.Served, (await c.PostJson<Army>(Path, new { source = "lifecycle", list = Fixture() })).Edition);
+        foreach (var edition in ArmyEditions.All)
+        {
+            var posted = await c.PostJson<Army>(Path, new { source = "lifecycle", list = Fixture(), edition });
+            Assert.Equal(edition, posted.Edition);
+            Assert.Equal(edition, (await c.GetJson<Army>($"/v1/armies/{posted.Id}")).Edition);
+        }
+    }
+
+    [Fact]
+    public async Task An_edition_outside_the_known_ones_is_refused()
+    {
+        var c = await _dev.AuthenticatedClient(Guid.CreateVersion7());
+        var r = await c.PostAsJsonAsync(Path, new { source = "lifecycle", list = Fixture(), edition = "3.7" }, ContentJson.Options);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, r.StatusCode);
+    }
+
+    [Fact]
     public async Task The_route_needs_a_session()
     {
         var r = await _dev.CreateClient().PostAsJsonAsync(Path, new { source = "lifecycle", list = Fixture() }, ContentJson.Options);

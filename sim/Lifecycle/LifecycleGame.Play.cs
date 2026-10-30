@@ -28,7 +28,7 @@ public sealed partial class LifecycleGame
             setAside[army.ParticipantId] = [riders.Ordinal];
             ambusher = riders.Id;
         }
-        var compiled = LifecycleScenario.From(name, Seed, info, board, recorder.Id, SelfPlay, setAside, RoundCap);
+        var compiled = LifecycleScenario.From(name, Seed, info, board, recorder.Id, SelfPlay, setAside, RoundCap, shape.Rules);
         var accounts = _players.Append(_spectator).ToDictionary(a => a.AccountId);
         var credentials = LifecycleScenario.Credentials(compiled, accounts.ToDictionary(kv => kv.Key, kv => kv.Value.Session), async (account, token) =>
         {

@@ -14,9 +14,10 @@ public sealed partial class LifecycleGame
     {
         _step = "properties";
         var sets = await Creator.PropertiesAsync(ct);
-        var first = sets.FirstOrDefault(s => s.GameRules == RuleSets.Gf351);
+        var first = sets.FirstOrDefault(s => s.GameRules == shape.Rules);
         Check(first is not null, "GET /v1/properties lists no grimdark-future set");
         Check(first!.ContentHash == CurrentHash, $"GET /v1/properties lists {first.ContentHash} ({first.Name}) first, not the game server's set {CurrentHash}");
+        if (shape.Rules == RuleSets.Default) Check(first.Default, $"GET /v1/properties does not mark {first.Name} the default set");
         _hash = first.ContentHash;
         var rules = await Creator.RulesAsync(_hash, ct);
         foreach (var (entry, kind) in SetHolds)
@@ -95,9 +96,9 @@ public sealed partial class LifecycleGame
     {
         var account = _players[seat.Account];
         var ambush = shape.Ambush && seat.Account == 0;
-        var army = await account.ImportArmyAsync(LifecycleArmy.List(seat.Book, ambush), ct);
+        var army = await account.ImportArmyAsync(LifecycleArmy.List(seat.Book, ambush, shape.Edition), shape.Edition, ct);
         _armies.Add((account, army.Id));
-        Check(army.Units.Count == 3 && army.Source == LifecycleArmy.Source, $"the import holds {army.Units.Count} units from {army.Source}");
+        Check(army.Units.Count == 3 && army.Source == LifecycleArmy.Source && army.Edition == shape.Edition, $"the import holds {army.Units.Count} units from {army.Source}, edition {army.Edition}");
         if (ambush)
             Check(army.Units.Single(u => u.Name == LifecycleArmy.AmbushUnit).Properties.Any(p => p.Name == "Ambush"), "the imported Beast Riders do not carry Ambush");
         var team = TeamId(CreatorSocket.Game, seat.Team);
