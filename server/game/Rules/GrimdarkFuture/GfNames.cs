@@ -65,10 +65,12 @@ public static class GfNames
     /// inch: wider than a drop a player can judge by eye on a 32 mm base, and half of p.7's 1", the distance no other move may close to an enemy.
     /// </summary>
     public const double ChargeContactGrace = 0.5;
-    /// <summary>IGameRules.PlacementBreach rule name for a deployment placement outside the team's zone (p.6), or beyond a Scout's 12" of it (p.14).</summary>
+    /// <summary>IGameRules.PlacementBreach rule name for a deployment placement outside the team's zone (p.6), or beyond a Scout's reach of it (3.5.1 p.14 12", 3.6.0 p.15 9").</summary>
     public const string DeployZoneRule = "deploy_zone";
     /// <summary>IGameRules.PlacementBreach rule name for an Ambusher placed within 9" of an enemy unit (p.13: "over 9” away from enemy units").</summary>
     public const string AmbushDistanceRule = "ambush_distance";
+    /// <summary>IGameRules.PlacementBreach rule name for a Scout placed within 9" of a non-Scout enemy unit (3.6.0 p.15: "over 9” away from non-Scout enemy units").</summary>
+    public const string ScoutDistanceRule = "scout_distance";
     /// <summary>IGameRules.AnswerBreach rule name for a deploy answer naming a unit already inside a Transport (p.15: it deploys with the Transport).</summary>
     public const string DeployInsideRule = "deploy_inside";
     /// <summary>IGameRules.AnswerBreach rule name for a pass to the activate Ask (p.7: "Players must activate one unit that has not been activated yet").</summary>

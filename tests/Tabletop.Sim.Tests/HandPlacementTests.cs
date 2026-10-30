@@ -45,4 +45,20 @@ public class HandPlacementTests
             Assert.True(Distance.EdgeToEdge(placed, cover) > 1e-6, $"seed {seed}: {anchor} touches the covering base");
         }
     }
+
+    [Fact]
+    public void A_3_6_scout_anchor_stays_over_nine_inches_from_the_enemies_it_keeps_clear_of()
+    {
+        // 3.6.0 p.15: a Scout "over 9” away from non-Scout enemy units". Frontline/1 is y 36..48; an enemy at (36, 30) leaves most of the zone's
+        // west and east ends clear and puts its middle within 9".
+        var enemy = new PlacedModel(new ModelBody(Base.Circle(1.26), 1.5), new Placement(new Point3(36, 30, 0), new Yaw(0)));
+        var slots = new[] { Slot() };
+        for (var seed = 0ul; seed < 10; seed++)
+        {
+            var anchor = HandPlacement.ChooseAnchor(slots, [new Point2(0, 0)], "frontline/1", Table, [enemy], new Chooser(seed), enemies: [(enemy, 9)]);
+            var placed = new PlacedModel(new ModelBody(slots[0].Base, slots[0].Height), new Placement(new Point3(anchor.X, anchor.Y, 0), new Yaw(0)));
+            Assert.True(ZoneStyles.BaseFullyWithin("frontline/1", Table, placed), $"seed {seed}: {anchor} is not fully within the zone");
+            Assert.True(Distance.EdgeToEdge(placed, enemy) > 9, $"seed {seed}: {anchor} is within 9\" of the enemy");
+        }
+    }
 }
