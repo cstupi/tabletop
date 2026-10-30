@@ -401,7 +401,7 @@ Limited weapon with no eligible target is not marked used; the book is silent. `
 actor check.
 
 **3.6.0 army books (generated).** `generate --edition 3.6` writes 49 books, 196 spells and
-`army-book-rules.part.json` (85 generated, 26 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.3.5.json`. The
+`army-book-rules.part.json` (87 generated, 8 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.3.5.json`. The
 printed spell range replaces Army Forge's `inRange` in 96 spells (the dump's value is 6" short of the text; each prints as
 `range from text`). Printed text is the authority. A text-only spell (`effects: []`, `played: false`, not offered to cast) is one
 whose effect the grammar cannot express or whose grant is not played: Burn the Heretic (Blessed Sisters) and Shifting Form (Change
@@ -428,8 +428,16 @@ automated, a game plays nothing for them):
 - Enhanced Wolfborn, Enhanced Rapid Blink: "If this model has Wolfborn/Rapid Blink, it may move by up to 2D3"." The dice move applies to
   "this model"; the base rule's dice move is built.
 - Brace, Parry: no description to author from.
-Their generated wrappers (Enhanced Rapid Blink Aura, Enhanced Wolfborn Aura, Versatile Defense Aura) are text-only with them. Enhanced
-Versatile Warrior is in neither part: no unit, upgrade or spell of any 3.6.0 book carries or grants it. Enhanced Watchborn is Watchborn
+Their generated wrappers (Enhanced Rapid Blink Aura, Enhanced Wolfborn Aura, Versatile Defense Aura) are text-only with them. The other
+generated text-only entries: Ravage Aura ("get Ravage(+1)": Ravage's dice are read from each model's own rule value, never from a
+grant), Quick Throw ("may always target enemies not in line of sight when shooting with Indirect weapons": 3.6.0 Indirect works only on a
+Hold and no effect lifts that), Spell Drain ("loses 2 spell tokens": no effect kind removes spell tokens). Every other generated 3.6.0
+name is a hand entry in `grimdark-future-3.6/army-rules.part.json` (Dodge, Grounded Evasion, Imprecise, Infiltrating Precision Strike,
+Precision Charge, Precision Fighter, Predator, Unstoppable when Shooting, Enhanced Guerrilla, Versatile Expert, Versatile Warrior, the
+Bane/Thrust in Melee Buffs, the Indirect/Rending/Unstoppable Marks, Enhanced Ferocious Aura). Enhanced
+Versatile Warrior is in neither part: no unit, upgrade or spell of any 3.6.0 book carries or grants it. A `once` grant read at one step
+consumes every grant of that entry on the unit, so Thrust in Melee Buff plays its +1 to hit and not its AP(+1) (Bane Mark and
+Unstoppable Mark may lose their Regeneration half the same way); Predator's "may" is played as always-on, as Primal's is. Enhanced Watchborn is Watchborn
 without the range band. Counter in Melee is read as Counter.
 A Counter in Melee strike is not listed in the applied-rules log; only weapons named Counter add "Counter".
 
