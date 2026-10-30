@@ -1461,7 +1461,7 @@ erDiagram
 
 *The account and the library. `blob.uploaded`, `blob.content_type` and `account.starter_seeded_at` come from this module's
 migrations `002` and `003`. `ASSET_VOLUME` is abbreviated here: it carries all
-six declaration booleans and the full footprint, seventeen columns mapped by one `VolumeRow`.*
+eight declaration booleans and the full footprint, nineteen columns mapped by one `VolumeRow`.*
 
 ```mermaid
 erDiagram

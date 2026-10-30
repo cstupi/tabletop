@@ -1558,7 +1558,7 @@ are free-for-all by design and the server applies them in arrival order.
 
 Every closed set exists twice, as a C# `enum` or union and as a `text` check constraint, with
 nothing linking them. `('solid','area')`, `('player-turn','alternating-activation')`,
-`('target_number','distance','count','dice_expression')` and the six declaration booleans are all
+`('target_number','distance','count','dice_expression')` and the eight declaration booleans are all
 restatements of C# in SQL. The only thing keeping them aligned is that the snake_case naming policy
 produces the same spellings, which is why the game server derives enum text from `WireJson` rather
 than writing its own table. A rename on either side is a silent break until a row fails a check
