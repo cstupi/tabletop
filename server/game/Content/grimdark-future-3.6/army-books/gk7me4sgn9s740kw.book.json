@@ -1,50 +1,17 @@
 {
   "uid": "gk7me4sgn9s740kw",
   "name": "Dark Prime Brothers",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
-      "name": "Dark Sight",
+      "name": "Dark Dome",
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy unit within 18\u0022, which friendly units gets Unstoppable when shooting against once (next time the effect would apply).",
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets Evasive once (next time the effect would apply).",
       "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "opponent",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Unstoppable",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [
-            {
-              "kind": "attack_kind",
-              "comparison": "eq",
-              "values": [
-                "shooting"
-              ]
-            }
-          ],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Dark Wound",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 1,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with Shatter.",
-      "targeting": {
-        "side": "enemy",
+        "side": "friendly",
         "grain": "unit",
         "count": 1,
         "range": 12
@@ -53,8 +20,33 @@
         {
           "subject": "self",
           "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Evasive",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Psychic Terror",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 6\u0022, which takes 3 hits with Bane.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 6
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
           "kind": "add_hit",
-          "amount": 2,
+          "amount": 3,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -63,7 +55,7 @@
               "subject": "self",
               "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "Shatter",
+              "targetEntry": "Bane",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],
@@ -74,23 +66,24 @@
       ]
     },
     {
-      "name": "Blessed Ammo",
+      "name": "Dark Sight",
       "kind": "spell",
       "takesParameter": false,
       "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Shred when shooting once (next time the effect would apply).",
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units gets Unstoppable on their weapons when shooting against once (next time the effect would apply).",
       "targeting": {
-        "side": "friendly",
+        "side": "enemy",
         "grain": "unit",
         "count": 2,
-        "range": 12
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
-          "subject": "self",
+          "subject": "opponent",
           "ordinal": 10,
           "kind": "grant_property",
-          "targetEntry": "Shred",
+          "targetEntry": "Unstoppable",
           "amountFromParameter": false,
           "duration": "once",
           "conditions": [
@@ -132,65 +125,35 @@
       ]
     },
     {
-      "name": "Dark Dome",
+      "name": "Blessed Shroud",
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick up to three friendly units within 12\u0022, which get Evasive once (next time the effect would apply).",
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Darkborn once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 3,
-        "range": 12
+        "range": 18
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Evasive",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Psychic Terror",
+      "name": "Dark Wound",
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick one enemy unit within 6\u0022, which takes 9 hits with Bane.",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 6 hits with AP(1) and Pierce.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 6
+        "range": 18,
+        "lineOfSight": true
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 9,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Bane",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
+      "effects": [],
+      "played": false
     }
   ]
 }

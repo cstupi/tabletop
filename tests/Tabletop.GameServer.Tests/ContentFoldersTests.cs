@@ -34,7 +34,7 @@ public class ContentFoldersTests
         {
             foreach (var file in new[] { "core.properties.json", "army-rules.part.json", "relic-wargear.part.json", "army-book-rules.part.json" })
                 Assert.Contains($"Tabletop.GameServer.Content.{folder}.{file}", names);
-            Assert.Equal(48, names.Count(n => n.StartsWith($"Tabletop.GameServer.Content.{folder}.army-books.") && n.EndsWith(".book.json")));
+            Assert.Equal(folder == "grimdark-future-3.6" ? 49 : 48, names.Count(n => n.StartsWith($"Tabletop.GameServer.Content.{folder}.army-books.") && n.EndsWith(".book.json")));
         }
     }
 
@@ -44,8 +44,18 @@ public class ContentFoldersTests
         var asm = typeof(PropertiesSeeder).Assembly;
         string Read(string n) { using var s = asm.GetManifestResourceStream(n)!; using var r = new StreamReader(s); return r.ReadToEnd(); }
         var names = asm.GetManifestResourceNames().Where(n => n.StartsWith(Prefix360)).ToList();
-        Assert.Equal(52, names.Count);
+        Assert.Equal(53, names.Count);
         Assert.All(names, n => Assert.Equal(RuleSets.Gf360,
             n.EndsWith(".book.json") ? PropertiesJson.ParseBook(Read(n)).GameRules : PropertiesJson.Parse(Read(n)).GameRules));
+    }
+
+    [Fact]
+    public void The_3_6_books_are_3_6_0()
+    {
+        var asm = typeof(PropertiesSeeder).Assembly;
+        var books = asm.GetManifestResourceNames().Where(n => n.StartsWith(Prefix360) && n.EndsWith(".book.json"))
+            .Select(n => { using var st = asm.GetManifestResourceStream(n)!; using var r = new StreamReader(st); return PropertiesJson.ParseBook(r.ReadToEnd()); }).ToList();
+        Assert.Equal(49, books.Count);
+        Assert.All(books, b => Assert.StartsWith("3.6", b.Version));
     }
 }

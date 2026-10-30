@@ -1,7 +1,7 @@
 {
   "uid": "nyh41t82jugcdq8m",
   "name": "Elven Jesters",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -9,25 +9,15 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one friendly unit within 12\u0022, which gets Counter-Attack once (next time the effect would apply).",
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets Counter in Melee once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 1,
         "range": 12
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Counter-Attack",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Blades of Discord",
@@ -78,88 +68,17 @@
       ]
     },
     {
-      "name": "Shadow Dance",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Rapid Blink Boost once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Rapid Blink Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Light Fragments",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 4 hits with AP(1) and Disintegrate.",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 4,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 1,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
-              "kind": "grant_property",
-              "targetEntry": "Disintegrate",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Veil of Madness",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick up to three enemy units within 18\u0022, which friendly units gets Slayer against once (next time the effect would apply).",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units gets Slayer against once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
-        "count": 3,
-        "range": 18
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -175,16 +94,69 @@
       ]
     },
     {
-      "name": "Fatal Sorrow",
+      "name": "Light Fragments",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick one enemy unit within 18\u0022, which takes 6 hits.",
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 6 hits with Destructive.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
+        "range": 12,
+        "lineOfSight": true
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 6,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Destructive",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Shadow Dance",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Rapid Blink once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
         "range": 18
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Fatal Sorrow",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 24\u0022 in line of sight, which takes 6 hits.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 24,
+        "lineOfSight": true
       },
       "effects": [
         {

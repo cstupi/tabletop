@@ -1,7 +1,7 @@
 {
   "uid": "z8205ez2boggzs22",
   "name": "DAO Union",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -34,12 +34,13 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy model within 18\u0022, which takes 2 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
+      "ruleText": "Pick one enemy model within 18\u0022 in line of sight, which takes 2 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
       "targeting": {
         "side": "enemy",
         "grain": "model",
         "count": 1,
-        "range": 18
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -67,77 +68,17 @@
       ]
     },
     {
-      "name": "Psychic Stabilization",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Targeting Visor Boost once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Targeting Visor Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Deadly Surge",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy unit within 6\u0022, which takes 6 hits with Bane.",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 6
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 6,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Bane",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Coordinated Aggression",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick up to three enemy units within 18\u0022, which friendly units gets AP(1) when shooting against once (next time the effect would apply).",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units gets AP(1) on their weapons when shooting against once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
-        "count": 3,
-        "range": 18
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -165,8 +106,39 @@
       "name": "Devastating Strike",
       "kind": "spell",
       "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 4 hits with Puncture.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": true
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Psychic Stabilization",
+      "kind": "spell",
+      "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 6 hits with Disintegrate.",
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Targeting Visor once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
+        "range": 18
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Deadly Surge",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 12\u0022, which takes 9 hits with Bane.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
@@ -178,7 +150,7 @@
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 6,
+          "amount": 9,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -187,7 +159,7 @@
               "subject": "self",
               "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "Disintegrate",
+              "targetEntry": "Bane",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],

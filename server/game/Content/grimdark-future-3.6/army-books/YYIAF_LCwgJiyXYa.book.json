@@ -1,7 +1,7 @@
 {
   "uid": "YYIAF_LCwgJiyXYa",
   "name": "Titan Lords Lust Disciples",
-  "version": "3.5.2",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -9,12 +9,13 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy unit within 18\u0022, which friendly units gets Quick Shot against once (next time the effect would apply).",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Quick Shot against once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 18
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -30,16 +31,17 @@
       ]
     },
     {
-      "name": "Beautiful Pain",
+      "name": "Total Seizure",
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with Shatter.",
+      "ruleText": "Pick one enemy model within 18\u0022 in line of sight, which takes 2 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
       "targeting": {
         "side": "enemy",
-        "grain": "unit",
+        "grain": "model",
         "count": 1,
-        "range": 12
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -47,67 +49,6 @@
           "ordinal": 10,
           "kind": "add_hit",
           "amount": 2,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Shatter",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Blissful Dance",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Melee Evasion once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Melee Evasion",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Total Seizure",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy model within 18\u0022, which takes 4 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
-      "targeting": {
-        "side": "enemy",
-        "grain": "model",
-        "count": 1,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 4,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -131,20 +72,51 @@
       "name": "Lust Boon",
       "kind": "spell",
       "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two friendly units within 12\u0022, which get Enhanced Lustbound once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 2,
+        "range": 12
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Beautiful Pain",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 4 hits with Obliterate.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": true
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Blissful Dance",
+      "kind": "spell",
+      "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick up to three friendly units within 12\u0022, which get Lustbound Boost once (next time the effect would apply).",
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Melee Evasion once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 3,
-        "range": 12
+        "range": 18
       },
       "effects": [
         {
           "subject": "self",
           "ordinal": 10,
           "kind": "grant_property",
-          "targetEntry": "Lustbound Boost",
+          "targetEntry": "Melee Evasion",
           "amountFromParameter": false,
           "duration": "once",
           "conditions": [],
@@ -157,12 +129,13 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 6 hits with AP(1) and Shred.",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 6 hits with Shred.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 12
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -177,17 +150,6 @@
             {
               "subject": "self",
               "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 1,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
               "kind": "grant_property",
               "targetEntry": "Shred",
               "amountFromParameter": false,

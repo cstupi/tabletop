@@ -1,7 +1,7 @@
 {
   "uid": "1wj1ysgxpuuz9bc7",
   "name": "Orc Marauders",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
     {
@@ -9,37 +9,28 @@
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one friendly unit within 12\u0022, which gets Resistance once (next time the effect would apply).",
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets Spell Resistance once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 1,
         "range": 12
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Resistance",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Death Bolt",
+      "name": "Crackling Bolt",
       "kind": "spell",
       "takesParameter": false,
       "cost": 1,
-      "ruleText": "Pick one enemy unit within 6\u0022, which takes 1 hit with Deadly(3) and Tear.",
+      "ruleText": "Pick one enemy unit within 18\u0022 in line of sight, which takes 1 hit with Blast(3).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 6
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -55,79 +46,8 @@
               "subject": "self",
               "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "Deadly",
+              "targetEntry": "Blast",
               "amount": 3,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
-              "kind": "grant_property",
-              "targetEntry": "Tear",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Path of War",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Ferocious Boost once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Ferocious Boost",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Psychic Vomit",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy unit within 6\u0022, which takes 6 hits with Bane.",
-      "targeting": {
-        "side": "enemy",
-        "grain": "unit",
-        "count": 1,
-        "range": 6
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 6,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Bane",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],
@@ -141,13 +61,14 @@
       "name": "Head Bang",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick up to three enemy units within 18\u0022, which friendly units gets Rending in melee against once (next time the effect would apply).",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units gets Rending on their weapons in melee against once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
-        "count": 3,
-        "range": 18
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -171,23 +92,54 @@
       ]
     },
     {
-      "name": "Crackling Bolt",
+      "name": "Death Bolt",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 3,
-      "ruleText": "Pick one enemy unit within 18\u0022, which takes 3 hits with Blast(3).",
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 4 hits with AP(1) and Pierce.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
+        "range": 12,
+        "lineOfSight": true
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Path of War",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Ferocious once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
         "range": 18
+      },
+      "effects": [],
+      "played": false
+    },
+    {
+      "name": "Psychic Vomit",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 12\u0022, which takes 9 hits with Bane.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
       },
       "effects": [
         {
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
-          "amount": 3,
+          "amount": 9,
           "amountFromParameter": false,
           "duration": "interaction",
           "conditions": [],
@@ -196,8 +148,7 @@
               "subject": "self",
               "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "Blast",
-              "amount": 3,
+              "targetEntry": "Bane",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],

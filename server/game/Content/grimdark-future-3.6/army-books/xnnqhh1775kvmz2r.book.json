@@ -1,20 +1,84 @@
 {
   "uid": "xnnqhh1775kvmz2r",
   "name": "Blood Brothers",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "gameRules": "grimdark-future-3.6",
   "spells": [
+    {
+      "name": "Blood Dome",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets Evasive once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Evasive",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Heavenly Lance",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy model within 18\u0022 in line of sight, which takes 2 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
+      "targeting": {
+        "side": "enemy",
+        "grain": "model",
+        "count": 1,
+        "range": 18,
+        "lineOfSight": true
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 2,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 1,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "Blood Sight",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 1,
-      "ruleText": "Pick one enemy unit within 18\u0022, which friendly units gets Unstoppable when shooting against once (next time the effect would apply).",
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 18\u0022 in line of sight, which friendly units gets Unstoppable on their weapons when shooting against once (next time the effect would apply).",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
-        "count": 1,
-        "range": 18
+        "count": 2,
+        "range": 18,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -38,77 +102,17 @@
       ]
     },
     {
-      "name": "Blood Trauma",
+      "name": "Shield Breaker",
       "kind": "spell",
       "takesParameter": false,
-      "cost": 1,
-      "ruleText": "Pick one enemy unit within 18\u0022, which takes 1 hit with Lacerate.",
+      "cost": 2,
+      "ruleText": "Pick one enemy unit within 12\u0022 in line of sight, which takes 4 hits with Shred.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 18
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 1,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Lacerate",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Burst of Rage",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick up to two friendly units within 12\u0022, which get Furious once (next time the effect would apply).",
-      "targeting": {
-        "side": "friendly",
-        "grain": "unit",
-        "count": 2,
-        "range": 12
-      },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Furious",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
-    },
-    {
-      "name": "Heavenly Lance",
-      "kind": "spell",
-      "takesParameter": false,
-      "cost": 2,
-      "ruleText": "Pick one enemy model within 18\u0022, which takes 4 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
-      "targeting": {
-        "side": "enemy",
-        "grain": "model",
-        "count": 1,
-        "range": 18
+        "range": 12,
+        "lineOfSight": true
       },
       "effects": [
         {
@@ -124,8 +128,7 @@
               "subject": "self",
               "ordinal": 20,
               "kind": "grant_property",
-              "targetEntry": "AP",
-              "amount": 1,
+              "targetEntry": "Shred",
               "amountFromParameter": false,
               "duration": "interaction",
               "conditions": [],
@@ -136,76 +139,35 @@
       ]
     },
     {
-      "name": "Blood Dome",
+      "name": "Burst of Rage",
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick up to three friendly units within 12\u0022, which get Evasive once (next time the effect would apply).",
+      "ruleText": "Pick up to three friendly units within 18\u0022, which get Enhanced Bloodborn once (next time the effect would apply).",
       "targeting": {
         "side": "friendly",
         "grain": "unit",
         "count": 3,
-        "range": 12
+        "range": 18
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "grant_property",
-          "targetEntry": "Evasive",
-          "amountFromParameter": false,
-          "duration": "once",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
-      "name": "Shield Breaker (Blood Brothers)",
+      "name": "Blood Trauma",
       "kind": "spell",
       "takesParameter": false,
       "cost": 3,
-      "ruleText": "Pick one enemy unit within 12\u0022, which takes 3 hits with Blast(3) and Lacerate.",
+      "ruleText": "Pick one enemy unit within 24\u0022 in line of sight, which takes 6 hits with AP(1) and Smash.",
       "targeting": {
         "side": "enemy",
         "grain": "unit",
         "count": 1,
-        "range": 12
+        "range": 24,
+        "lineOfSight": true
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 3,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Blast",
-              "amount": 3,
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            },
-            {
-              "subject": "self",
-              "ordinal": 30,
-              "kind": "grant_property",
-              "targetEntry": "Lacerate",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
+      "effects": [],
+      "played": false
     }
   ]
 }
