@@ -52,7 +52,7 @@ public static class SpellGames
     {
         var order = CastingOrder(book, setup);
         var units = Enumerable.Range(1, order.Count).ToList();
-        return new ScenarioBuilder(NameOf(book), seed)
+        return new ScenarioBuilder(NameOf(book), seed).Rules(set.GameRules)
             .RoundCap(4).Table(36, 24)
             .Army(book.Name, order.Count, 1,
                 modelRules: [.. units.SelectMany(u => new[] { new ScenarioRule(u, "Caster", 6), new ScenarioRule(u, "Tough", 6) })],
@@ -120,7 +120,7 @@ public static class SpellGames
 
     public static TestGame Game(BookRecord book, ulong seed, PropertySet set, SpellSetup? setup = null, IReadOnlyList<DiceFix>? dice = null,
         IReadOnlyList<GameCheck>? checks = null) =>
-        new(NameOf(book), SuiteCatalog.SpellsPrefix + book.Uid, Scenario(book, seed, set, setup), book.Spells, dice ?? [],
+        new(NameOf(book), SuiteCatalog.SpellsGroup(set.GameRules, book.Uid), Scenario(book, seed, set, setup), book.Spells, dice ?? [],
             [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells), .. checks ?? []]);
 
     public const string ResolvedCheck = "resolved on a legal cast (p.13: \"Roll one die, on 4+ resolve the effect\"; p.5: \"a roll of 1 always counts as a fail\")";

@@ -33,7 +33,11 @@ public static class ServeApp
 
         app.MapGet("/suite", () => Results.Json(new
         {
-            games = runner.Games.Select(g => new { name = g.Name, group = g.Group, covers = g.Covers }),
+            games = runner.Games.Select(g => new
+            {
+                name = g.Name, group = g.Group, covers = g.Covers,
+                edition = g.Edition, ruleSet = Scenarios.ScenarioCompiler.CorePropertiesOf(g.Edition).Name,
+            }),
         }, SuiteReport.Json));
 
         app.MapPost("/runs", (RunRequest? request, IHostApplicationLifetime lifetime) =>

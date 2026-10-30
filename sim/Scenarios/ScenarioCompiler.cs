@@ -80,16 +80,16 @@ public static class ScenarioCompiler
                 Guid.CreateVersion7(), m.Kind, m.Position, new Yaw(0), m.Diameter, m.Label, VisualRef.OfBuiltin("objective"))).ToList(),
             s.ZoneShapes.Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList());
 
-        var armies = s.Armies.Select((a, i) => new ArmyInPlay(participants[i].Id, BuildArmy(i + 1, a))).ToList();
+        var armies = s.Armies.Select((a, i) => new ArmyInPlay(participants[i].Id, BuildArmy(a, RuleSets.EditionOf(s.Rules)))).ToList();
 
         // The properties the engine is handed and the hash the game row names must be one set (hydration loads by hash).
-        var props = CoreProperties;
+        var props = CorePropertiesOf(s.Rules);
 
         // RngSeed is positional and last among the scalars (contracts plan → GameInfo), so a game cannot
         // be built without a seed. This is the one value a scenario's seed fixes.
         var info = new GameInfo(
             Guid.CreateVersion7(), s.Name, GameStatus.Playing, participants[0].AccountId,
-            GrimdarkFutureRules.RulesId, props.ContentHash, s.Shape, s.Enforcement,
+            s.Rules, props.ContentHash, s.Shape, s.Enforcement,
             WaitsBetweenSteps: s.WaitsBetweenSteps, unchecked((long)s.Seed), teams, participants) { OptionalRules = s.OptionalRules, RuleSet = props.Name };
 
         return new CompiledScenario(s, info, new Board(snapshot, armies), props,
@@ -98,7 +98,7 @@ public static class ScenarioCompiler
             snapshot, recorder.Id);
     }
 
-    private static ArmySnapshot BuildArmy(int team, ScenarioArmy a)
+    private static ArmySnapshot BuildArmy(ScenarioArmy a, string edition)
     {
         var units = new List<Unit>();
         for (var u = 1; u <= a.Units; u++)
@@ -126,6 +126,6 @@ public static class ScenarioCompiler
             {
                 Reserve = new UnitReserve(r.Property, r.OfModel is { } m ? units[r.OfUnit - 1].Models[m - 1].Id : units[r.OfUnit - 1].Id),
             };
-        return new ArmySnapshot(Guid.CreateVersion7(), a.Name, RuleSets.Gf351, units);
+        return new ArmySnapshot(Guid.CreateVersion7(), a.Name, RuleSets.Gf351, units) { Edition = edition };
     }
 }

@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -213,7 +214,7 @@ public static partial class SuiteCatalog
                     setAside: setAside, anchors: anchors, reserves: reserves, sizes: sizes)
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
                     weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(1)], setAside: enemySetAside, anchors: enemyAnchors);
-            return new TestGame(name, ArmyPrefix + book.Uid, (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
+            return new TestGame(name, ArmyGroup(RuleSets.Gf351, book.Uid), (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
         }
 
         /// <summary>

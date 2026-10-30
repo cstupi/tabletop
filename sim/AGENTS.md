@@ -87,7 +87,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 
 ## The rules suite
 
-- A `TestGame` is a `Scenario` plus its group (`core`, `special`, `army:<book uid>`, `spells:<book uid>`), `Covers` (catalog entry
+- A `TestGame` is a `Scenario` plus its group (`core`, `special`, `army:<edition>:<book uid>`, `spells:<edition>:<book uid>`), `Covers` (catalog entry
   names), `Dice` (`DiceFix`) and `Checks`. `SuiteCatalog.All` holds every game, one partial file per group.
 - The runner judges every game by `Checks.Ended()`, `Checks.Invariants()` and `Checks.FiredAll()`, then its own checks. A check returns
   null or the reason; its name quotes the rule and page. A check with `Entries` is an exact check, reported against those entries'
@@ -118,7 +118,12 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `docs/handoff.md` → Defects the rules suite found.
 - A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
   name the rule it shows.
-- Coverage: every entry of the shipped set, with the games that cover it, whether it fired in all of them, and its exact checks. A
+- A `TestGame` runs under `Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names one with `.Rules(id)`): the
+  scenario compiles against that edition's core set and its armies' snapshots carry the edition. `Editions: [Gf351, Gf360]` runs it
+  twice (`SuiteCatalog.Expand`), the 3.6 run named `<name>@3.6`, the 3.5.1 one keeping the bare name; a game under 3.6 alone is
+  `<name>@3.6` too. Groups `army:<edition>:<uid>` and `spells:<edition>:<uid>` (`SuiteCatalog.ArmyGroup`, `SpellsGroup`; today's are
+  `army:3.5:<uid>`); `--only <name>` selects the 3.5.1 run, `--only <name>@3.6` the 3.6 one, a group both.
+- Coverage: per shipped set (`SuiteRunner.CoverageOf`), every entry of each set with the games of its edition that cover it, whether it fired in all of them, and its exact checks. A
   run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does. A text-only
   entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
   `army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
@@ -127,8 +132,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `suite-<run id>.md` to `--out` (default `./recordings`, git-ignored) and copies them to `suite-latest.json` and `suite-latest.md`.
   The JSON (`SuiteRunDocument`) holds the run id, driver, selection, start and end, `verdict` (`running`, `passed`, `failed`,
   `aborted`), the verdict line as `summary`, every `SuiteGameResult` (failure lines, known, pinned, stale, replay, seed,
-  `durationSeconds`) and the coverage table. The Markdown is the verdict line, a Failures section (each failing game's lines and replay
-  command), stale pins, a games table, then coverage. Both are rewritten after every game, so a run that throws or is cancelled
+  `durationSeconds`, `edition`) and the coverage table (each entry with its set's `edition`). The Markdown is the verdict line, a Failures section (each failing game's lines and replay
+  command), stale pins, a games table (with an Edition column), then coverage per set. Both are rewritten after every game, so a run that throws or is cancelled
   (Ctrl+C) keeps its games under `aborted`, with no coverage; a second Ctrl+C ends the process.
 - The console prints the run id and report path, a counter every 25 games, each failing game (and each stale pin) with its lines
   and replay command as it finishes, the coverage entries the run fails on, the verdict line and the report paths. `--verbose` adds
@@ -142,7 +147,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   pool outlives every run, and deleting one would cascade into the participants of games still running. A failed delete is that
   game's failure. `--keep` keeps the game (`suite <run id> <game>`), writes each recording, and adds `sim-spectator` as a participant
   (no team) for the live feed.
-- `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite`,
+- `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite` (each game's name, group, covers, `edition` and `ruleSet` name),
   `POST /runs {only, driver, keep}` (409 while one runs), `GET /runs/{id}/events` (server-sent `game` per result, then `done`),
   `GET /runs/{id}/recordings/{game}`, `POST /runs/{id}/games/{game}/spectate` (a fresh session for the kept game's spectator).
   The viewer's Tests page drives it. A kept run writes its report files and recordings to `<serve --out>/<run id>/`; an unkept

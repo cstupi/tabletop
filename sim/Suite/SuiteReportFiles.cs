@@ -108,9 +108,9 @@ public sealed class SuiteReportFiles
         }
 
         md.AppendLine($"## Games ({d.Games.Count} of {d.Planned})").AppendLine();
-        md.AppendLine("| Verdict | Game | Group | Seed | Seconds |").AppendLine("| --- | --- | --- | --- | --- |");
+        md.AppendLine("| Verdict | Game | Edition | Group | Seed | Seconds |").AppendLine("| --- | --- | --- | --- | --- | --- |");
         foreach (var g in d.Games)
-            md.AppendLine($"| {g.Verdict} | {g.Name} | {g.Group} | {g.Seed} | {g.DurationSeconds:0.0} |");
+            md.AppendLine($"| {g.Verdict} | {g.Name} | {SuiteCatalog.EditionLabel(g.Edition)} | {g.Group} | {g.Seed} | {g.DurationSeconds:0.0} |");
         md.AppendLine();
 
         md.AppendLine("## Coverage").AppendLine();

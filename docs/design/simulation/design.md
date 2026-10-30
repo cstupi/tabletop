@@ -768,8 +768,11 @@ rule and spell into play and check what the rule text states. The `suite` verb p
 each game, computes coverage and prints a report; `serve` hosts the same runner over HTTP for the viewer's Tests page.
 
 - **Groups.** `core` (pp.4–12: actions, terrain, shooting, melee, morale, transports, objectives, deployment, the round-4
-  end), `special` (the 33 core special rules, three to five a game), `army:<book uid>` (the army rules, by the book
-  that prints them) and `spells:<book uid>` (every spell, generated per book by `SpellGames`, cast by name).
+  end), `special` (the 33 core special rules, three to five a game), `army:<edition>:<book uid>` (the army rules, by the
+  book that prints them; `army:3.5:<uid>`) and `spells:<edition>:<book uid>` (every spell, generated per book by `SpellGames`,
+  cast by name).
+- **Editions.** A game runs under `TestGame.Edition` (a game-rules id, default `grimdark-future`); `Editions` runs it once per
+  edition, the 3.6 run named `<name>@3.6`. Coverage is per shipped set: each set against the games of its edition.
 - **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own
   checks. Fired reads `StepCompleted.Applied` and `RollModifier.Source` in the effective log; a rule that acts in the
   scheduler or in action legality gives its game an `Evidence` predicate. An exact check names the entries it is about
