@@ -30,10 +30,15 @@ public static class GfMelee
         !w.Stats.ContainsKey(GfNames.Range) || (GfEdition.Of(state).HasAssault && w.Properties.Any(p => p.Name == GfNames.Assault));
 
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
-    static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
+    /// <summary>A Counter weapon: its own p.13 Counter, or any melee weapon of a defender with 3.6.0 Counter in Melee ("This model gets Counter on its
+    /// weapons in melee"), innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
+    static bool IsCounter(StepContext ctx, Weapon w) => w.Properties.Any(p => p.Name == "Counter") || CountersInMelee(ctx);
+    const string CounterInMeleeKey = "counter_in_melee";
+    static bool CountersInMelee(StepContext ctx) =>
+        ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterInMeleeKey) == 1) || DefenderLive(ctx).Has(Side.Attacker, GfNames.CounterInMelee);
     /// <summary>p.13 Counter's strike-first weapons, and every melee weapon of a defender with Counter-Attack ("Strikes first when charged"). A Counter the
     /// counter step held back (3.6.0 p.13: passed, or lost to fatigue) strikes with the rest.</summary>
-    static bool StrikesFirst(StepContext ctx, Weapon w) => (IsCounter(w) && !CounterHeld(ctx)) || CounterAttacks(ctx);
+    static bool StrikesFirst(StepContext ctx, Weapon w) => (IsCounter(ctx, w) && !CounterHeld(ctx)) || CounterAttacks(ctx);
     const string CounterHeldKey = "counter_held";
     static bool CounterHeld(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterHeldKey) == 1);
     const string CounterAttackKey = "counter_attack";
@@ -262,8 +267,9 @@ public static class GfMelee
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);
             var values = new Dictionary<string, int> { [StruckKey] = 1 };
-            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), IsCounter).Count > 0) ctx.Applied.Add("Counter");
+            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), w => w.Properties.Any(p => p.Name == "Counter")).Count > 0) ctx.Applied.Add("Counter");
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
+            if (live.Use(Side.Attacker, GfNames.CounterInMelee)) values[CounterInMeleeKey] = 1;
             return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
         }
     }

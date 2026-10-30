@@ -177,7 +177,7 @@ public static class GfCasting
         return result;
     }
 
-    static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule);
+    static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule || rule == GfNames.Hero && GfNames.IsHero(p.Name));
 
     public const string ExtendedBuffRange = "Extended Buff Range";
     const double ExtendedReach = 24;
