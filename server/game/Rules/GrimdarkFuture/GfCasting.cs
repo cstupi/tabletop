@@ -197,7 +197,6 @@ public static class GfCasting
     static IReadOnlyList<Effect> HitRows(IEnumerable<Effect> rows) =>
         rows.SelectMany(e => e.Kind == EffectKind.Roll ? e.Children : [e]).Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
 
-    /// <summary>pick-spell completes only on an offered option, which Pick always parses.</summary>
     /// <summary>The caster model of the nearest casting frame at or above this one; null outside a casting.</summary>
     public static Guid? CasterModel(FrameView? frame)
     {
@@ -206,6 +205,7 @@ public static class GfCasting
         return null;
     }
 
+    /// <summary>pick-spell completes only on an offered option, which Pick always parses.</summary>
     static (string Spell, Guid Caster) Picked(FrameView casting) => Pick(((Chosen)casting.Frame.Steps[0].Answer!).OptionId) ?? throw new InvalidOperationException("pick-spell recorded an option it did not offer");
 
     sealed class PickSpellStep : IStep
