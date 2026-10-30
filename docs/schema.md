@@ -23,9 +23,10 @@ moving.
 
 So the army is four tables plus six for stats and properties, and every constraint the design
 argued for is a constraint the database holds: `base_shape` is checked, a weapon cannot exist
-without a slot, the seven terrain declarations are columns rather than strings in an array
+without a slot, the eight terrain declarations are columns rather than strings in an array
 (`dangerous_rush_charge`, p.12's *"Dangerous when using rush/charge"*, arrives as management's
-`019_dangerous_rush_charge.sql` on `asset_volume` and `terrain_volume`).
+`019_dangerous_rush_charge.sql` on `asset_volume` and `terrain_volume`; `steep`, 3.6.0 p.12's Steep and
+3.5.1 p.12's Hills *"Difficult when moving up"*, as `025_steep_terrain.sql` on the same two).
 
 ### `Properties` is ten tables, not a document
 

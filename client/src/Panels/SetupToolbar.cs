@@ -106,7 +106,7 @@ public partial class SetupToolbar : VBoxContainer
     {
         if (!IsInstanceValid(_terrain)) return;
         _terrain.Clear(); _rows.Clear();
-        var groups = TerrainGroups.Of(BuiltinContent.Terrain.Values, _search.Text);
+        var groups = TerrainGroups.Of(BuiltinContent.Terrain.Values, _search.Text, _session.TerrainWords);
         foreach (var group in groups)
         {
             var title = _terrain.AddItem(group.Title, null, false);
@@ -114,7 +114,7 @@ public partial class SetupToolbar : VBoxContainer
             foreach (var entry in group.Entries)
             {
                 var row = _terrain.AddItem($"   {entry.Label}");
-                _terrain.SetItemTooltip(row, $"Add {entry.Label} beside the table: {TerrainGroups.Summary(entry)}"); _rows.Add(entry);
+                _terrain.SetItemTooltip(row, $"Add {entry.Label} beside the table: {TerrainGroups.Summary(entry, _session.TerrainWords)}"); _rows.Add(entry);
             }
         }
         if (groups.Count == 0) { var none = _terrain.AddItem($"No terrain matches “{_search.Text.Trim()}”.", null, false); _terrain.SetItemDisabled(none, true); _rows.Add(null); }

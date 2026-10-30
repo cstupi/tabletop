@@ -195,6 +195,7 @@ export interface RecordingMeta {
   readonly durationMs: number;
   readonly ruleSet?: string;
   readonly zones: ZoneLegs;
+  readonly terrainWords: { readonly [key: string]: string };
 }
 
 export interface ZoneLegs {

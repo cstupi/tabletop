@@ -12,7 +12,7 @@ export interface Yaw { degrees: number }
 export type FootprintKind = 'circle' | 'rect';
 export interface Footprint { kind: FootprintKind; a: number; b: number }
 export type VolumeKind = 'solid' | 'area';
-export type Declaration = 'impassable' | 'blocks_line_of_sight' | 'see_in_and_out' | 'cover' | 'difficult' | 'dangerous' | 'dangerous_on_rush_charge';
+export type Declaration = 'impassable' | 'blocks_line_of_sight' | 'see_in_and_out' | 'cover' | 'difficult' | 'dangerous' | 'dangerous_on_rush_charge' | 'steep';
 export interface Volume {
   kind: VolumeKind; footprint: Footprint; offset: Point2; yaw: Yaw; bottom: number; top: number;
   declarations: string;           // "none" or "cover, difficult" — see units/volumes.ts

@@ -47,12 +47,13 @@ public static partial class GfMoves
     /// <summary>The volumes a move of this unit sweeps: none for an Aircraft.</summary>
     static IReadOnlyList<WorldVolume> SweptTerrain(GameState state, TerrainRules rules) => rules.IgnoresAllTerrain ? [] : Battlefield.Terrain(state);
 
-    /// <summary>A MoveRegion's impassable and difficult volume ids for this unit's move; its cap is TerrainRules.DifficultCap.</summary>
-    public static (List<Guid> Impassable, List<Guid> Difficult) RegionVolumes(GameState state, TerrainRules rules)
+    /// <summary>A MoveRegion's impassable, difficult and steep volume ids for this unit's move (steep null when there is none); its cap is TerrainRules.DifficultCap.</summary>
+    public static (List<Guid> Impassable, List<Guid> Difficult, List<Guid>? Steep) RegionVolumes(GameState state, TerrainRules rules)
     {
         var terrain = SweptTerrain(state, rules);
+        var steep = Declared(terrain, TerrainDeclarations.Steep).Select(v => v.Id).ToList();
         return (rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable).Select(v => v.Id).ToList(),
-            Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList());
+            Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(), steep.Count == 0 ? null : steep);
     }
 
     /// <summary>The Ask region of a move another team makes for this unit (a spell's move kind): the unit's alive models, the allowance, and the
@@ -60,9 +61,9 @@ public static partial class GfMoves
     public static MoveRegion ForcedMoveRegion(StepContext ctx, Guid unit, double allowance)
     {
         var rules = TerrainFor(ctx, unit, Lone(ctx, unit, null));
-        var (impassable, difficult) = RegionVolumes(ctx.State, rules);
+        var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
         return new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap,
-            Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain);
+            Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep);
     }
 
     /// <summary>
@@ -84,12 +85,13 @@ public static partial class GfMoves
         var impassable = rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable);
         var landing = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
+        var steep = Declared(terrain, TerrainDeclarations.Steep);
         var moves = new List<ModelRelocation>();
         foreach (var m in proposed.Where(m => m.To is OnTable && ctx.Projection.Models.TryGetValue(m.ModelId, out var mm) && mm.UnitId == unit))
         {
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement);
-            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, rules.DifficultCap, ctx.State.Board.Table.Size);
+            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, rules.DifficultCap, ctx.State.Board.Table.Size, steep: steep);
             if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable && !LandsInImpassable(ctx.State, m.ModelId, settled, landing))
                 moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }

@@ -57,7 +57,7 @@ public static partial class GfMoves
             {
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
                     // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (TerrainFor); PathBreach still judges where Flying ends.
-                    var (impassable, difficult) = RegionVolumes(ctx.State, rules);
+                    var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
                     var containment = Containers(ctx, unit, action, remaining, rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
                         : ignoreSeparation ? "Charge: move into contact" : aircraft ? AircraftPrompt(ctx, unit, remaining) : $"Move up to {remaining:0.#}\"";
@@ -68,14 +68,14 @@ public static partial class GfMoves
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
                             ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
-                            contact, contact is null ? null : GfNames.ChargeContactGrace), allowPass: !aircraft)]);
+                            contact, contact is null ? null : GfNames.ChargeContactGrace, steep), allowPass: !aircraft)]);
                 case 0:
                 {
                     var answered = ctx.History.LastClosed("move")!;
                     var continues = !aircraft && answered.Single is Destinations { Continues: true };
                     var proposed = GfAnswers.Moves(ctx.State, answered);
                     if (continues) proposed = proposed.Where(m => !Unmoved(ctx, m)).ToList();
-                    var (changes, segment, dangerousDice, entered, tested) = ApplyMove(ctx, unit, live, allowance, proposed, action, remaining);
+                    var (changes, segment, dangerousDice, entered, tested) = ApplyMove(ctx, unit, live, allowance, proposed, action, remaining, used);
                     var values = new Dictionary<string, int>
                     {
                         ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2,

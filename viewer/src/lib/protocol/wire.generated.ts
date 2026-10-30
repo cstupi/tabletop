@@ -434,6 +434,7 @@ export interface MoveRegion {
   readonly ignoresTerrain: boolean;
   readonly contactWith?: readonly string[];
   readonly contactGrace?: number;
+  readonly steepVolumeIds?: readonly string[];
 }
 
 export interface MoveSetupMarker {
@@ -976,6 +977,7 @@ export interface Welcome {
   readonly game: GameInfo;
   readonly options: RulesOptionCatalog;
   readonly zones: ZoneLegs;
+  readonly terrainWords: { readonly [key: string]: string };
 }
 
 export interface WoundsSet {

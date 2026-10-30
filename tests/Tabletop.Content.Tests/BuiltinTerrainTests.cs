@@ -38,6 +38,19 @@ public class BuiltinTerrainTests
     }
 
     [Fact]
+    public void Steep_is_the_eighth_declaration_and_a_catalog_entry_may_carry_it()
+    {
+        // 3.6.0 p.12 Steep; 3.5.1 p.12 Hills "Difficult when moving up".
+        var flags = Enum.GetValues<TerrainDeclarations>().Where(f => f != TerrainDeclarations.None).ToList();
+        Assert.Equal(8, flags.Count);
+        Assert.Equal(flags.Order(), BuiltinTerrain.DeclarationNames.Values.Order());
+        Assert.Equal(TerrainDeclarations.Steep, BuiltinTerrain.DeclarationNames["steep"]);
+        var j = Catalog(); j["terrain"]![0]!["declarations"] = new JsonArray("cover", "steep");
+        var terrain = BuiltinTerrain.Parse(JsonDocument.Parse(j["terrain"]!.ToJsonString()).RootElement, ["hill"]);
+        Assert.Equal(TerrainDeclarations.Cover | TerrainDeclarations.Steep, terrain["hill"].Volume.Declarations);
+    }
+
+    [Fact]
     public void The_repo_catalog_parses()
     {
         var b = RepoCatalog.Terrain["barricade"];

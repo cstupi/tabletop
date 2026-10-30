@@ -10,8 +10,8 @@ public sealed record Contact(ContactKind Kind, Guid? UnitId);
 /// <summary>A model on the table or proposed: its unit, body and where it stands (null off the table).</summary>
 public sealed record ContactBody(Guid Id, Guid UnitId, ModelBody Body, Placement? At);
 
-/// <summary>A move Ask's measuring terms (MoveRegion's Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap).</summary>
-public sealed record ContactMove(double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult, double? DifficultCap);
+/// <summary>A move Ask's measuring terms (MoveRegion's Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, SteepVolumeIds).</summary>
+public sealed record ContactMove(double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult, double? DifficultCap, IReadOnlyList<Guid>? Steep = null);
 
 /// <summary>Separation, PassesModels, whether a landing in Impassable terrain counts, the move (null for a placement), the table, the capped allowance.</summary>
 public sealed record ContactTerms(double? Separation, bool PassesModels, bool Landing, ContactMove? Move = null, TableSize? Size = null, double? Unit = null);
@@ -48,7 +48,8 @@ public static class Contacts
             var capped = unit is { } u && u < legal?.Allowance;
             if (!passesModels && legal is not null && start is { } from && Movement.Check(from, at.Placement.Position.Horizontal, Math.Max(0, capped ? unit!.Value : legal.Allowance),
                     volumes.Where(v => legal.Impassable.Contains(v.Id)).ToList(), capped ? [] : volumes.Where(v => legal.Difficult.Contains(v.Id)).ToList(),
-                    capped ? null : legal.DifficultCap, size, bodies, volumes).CrossesModels)
+                    capped ? null : legal.DifficultCap, size, bodies, volumes,
+                    steep: capped || legal.Steep is not { Count: > 0 } ? null : volumes.Where(v => legal.Steep.Contains(v.Id)).ToList()).CrossesModels)
             { found[id] = new Contact(ContactKind.Crosses, null); continue; }
             if (separation is not { } gap) continue;
             var near = start is { } was ? models.Where(o => o.UnitId != m.UnitId && Standing(o) is { } there && Closer(was, there, gap)).Select(o => o.UnitId).ToHashSet() : [];

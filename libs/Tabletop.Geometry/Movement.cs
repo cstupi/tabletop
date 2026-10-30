@@ -41,13 +41,15 @@ public static class Movement
     /// first that fits, in order: round every difficult and dangerous volume within the allowance; round every difficult one within it; round every
     /// dangerous one within the cap; any within the cap (the cap is the allowance where there is none, and then dangerous ground is avoided first).
     /// A player going round a wood or a pit never chose to enter it, and the cap binds the whole unit (p.11), so keeping out of difficult ground
-    /// comes first. When none fits: with models, the same choice without them (CrossesModels); else the shortest path at any length, for its length,
+    /// comes first. `steep` volumes count as difficult for this move when the start's base centre is outside their footprint (SteepEntering), and as
+    /// open ground when it is inside. When none fits: with models, the same choice without them (CrossesModels); else the shortest path at any length, for its length,
     /// with CrossesImpassable when the straight line meets an impassable volume or no path gets there at all.
     /// </summary>
     public static MoveCheck Check(PlacedModel start, Point2 destination, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null,
-        IReadOnlyList<WorldVolume>? surfaces = null, IReadOnlyList<WorldVolume>? dangerous = null)
+        IReadOnlyList<WorldVolume>? surfaces = null, IReadOnlyList<WorldVolume>? dangerous = null, IReadOnlyList<WorldVolume>? steep = null)
     {
+        if (steep is { Count: > 0 } && SteepEntering(start, steep) is { Count: > 0 } onto) difficult = [.. difficult, .. onto];
         var origin = start.Placement.Position.Horizontal;
         var straight = origin.DistanceTo(destination);
         // A path no longer than the allowance stays within it of the start, so nothing farther can hold one; the fallback for a move that fits no
@@ -97,6 +99,11 @@ public static class Movement
         }
         return new MoveCheck(straight, allowance, false, true, Through(line), leaves, line);
     }
+
+    /// <summary>The steep volumes a move from this start goes onto: those whose footprint does not hold the start's base centre. A move from inside one
+    /// is moving off it, open ground (3.6.0 p.12 Steep; 3.5.1 p.12 Hills "Difficult when moving up").</summary>
+    public static IReadOnlyList<WorldVolume> SteepEntering(PlacedModel start, IReadOnlyList<WorldVolume> steep) =>
+        steep.Count == 0 ? [] : steep.Where(v => !v.WorldOutline().Contains(start.Placement.Position.Horizontal)).ToList();
 
     /// <summary>
     /// The shortest path from the start to base contact with `target` (its base touching the target's, in plan), on the table and meeting no

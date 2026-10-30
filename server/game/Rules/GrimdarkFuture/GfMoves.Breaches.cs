@@ -21,15 +21,17 @@ public static partial class GfMoves
     /// <summary>
     /// One model's move along the path its base takes (Movement.Check), against the region's own parameters: its impassable volumes, its difficult
     /// volumes and cap (or, with `limit`, that length and no cap: the unit is held to it), the standing models in plan and height over the terrain,
-    /// and the table. p.5: "always measure so that no part of its base moves further than the total distance".
+    /// and the table. p.5: "always measure so that no part of its base moves further than the total distance". The region's steep volumes are difficult
+    /// for a model that starts outside one (Movement.SteepEntering, 3.6.0 p.12 Steep); with `limit` they are left out as the difficult ones are.
     /// </summary>
     static MoveCheck Route(GameState state, MoveRegion region, PlacedModel start, Point2 to, IReadOnlyList<PlacedModel> standing, double? limit = null)
     {
         var terrain = Battlefield.Terrain(state);
         var impassable = terrain.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList();
         var difficult = limit is null ? terrain.Where(v => region.DifficultVolumeIds.Contains(v.Id)).ToList() : [];
+        var steep = limit is null && region.SteepVolumeIds is { Count: > 0 } ids ? terrain.Where(v => ids.Contains(v.Id)).ToList() : null;
         return Movement.Check(start, to, limit ?? region.Allowance, impassable, difficult, limit is null ? region.DifficultCap : null, state.Board.Table.Size,
-            standing, terrain);
+            standing, terrain, steep: steep);
     }
 
     /// <summary>

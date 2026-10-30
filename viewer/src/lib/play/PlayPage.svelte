@@ -334,7 +334,7 @@
   /** The table lights the selection and what a clicked log row touched. */
   /** HoverLabels.DrawTerrain: the hovered terrain piece's label, not the selected one's. */
   const terrainDrawn = $derived.by(() => {
-    const lines = shown === null ? null : terrainHoverText(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null);
+    const lines = shown === null ? null : terrainHoverText(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null, snap?.terrainWords);
     return lines === null || scene === null || hoveredTerrain === null ? null : terrainHoverOverlay(scene, hoveredTerrain, lines);
   });
   const drawnSelection = $derived(touchedIds.size === 0 ? selected : new Set([...selected, ...touchedIds]));

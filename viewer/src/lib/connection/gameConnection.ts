@@ -21,6 +21,8 @@ export interface ConnectionState {
   readonly options: RulesOptionCatalog;
   /** Welcome's Side Battle legs, which every zone shape resolves with; null before the welcome. */
   readonly zones: ZoneLegs | null;
+  /** Welcome's terrain words by declaration name (IGameRules.TerrainWords); null before the welcome. */
+  readonly terrainWords: { readonly [name: string]: string } | null;
   /** Setup: the last board's table. */
   readonly draft: TableState | null;
   /** From playing on: the snapshot the log applies to. */
@@ -100,7 +102,7 @@ type Send = {
 };
 
 const INITIAL: ConnectionState = {
-  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, draft: null, board: null, log: [], projection: null,
+  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, draft: null, board: null, log: [], projection: null,
   maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), catchingUp: true, closeReason: null,
 };
 
@@ -259,7 +261,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         welcomed = true;
         attempt = 0;
         clearTimeout(welcomeTimer);
-        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, closeReason: null });
+        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, closeReason: null });
         reauthTimer = setInterval(() => void reauth(), reauthEvery);
         flush();
         return;

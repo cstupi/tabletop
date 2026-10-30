@@ -48,5 +48,5 @@ public static class ContactCheck
     static IReadOnlyDictionary<Guid, Contact> Of(Projection p, IReadOnlyDictionary<Guid, Placement> proposed, IReadOnlyList<WorldVolume> volumes, double? separation, bool passesModels, bool landing, MoveRegion? legal = null,
         TableSize? size = null, double? unit = null) =>
         Contacts.Of(p.Models.Values.Select(m => new ContactBody(m.Id, m.UnitId, new ModelBody(m.Slot.Base, m.Slot.Height), m.Location is OnTable t ? t.Placement : null)).ToList(), proposed, volumes,
-            new ContactTerms(separation, passesModels, landing, legal is null ? null : new ContactMove(legal.Allowance, legal.ImpassableVolumeIds.ToList(), legal.DifficultVolumeIds.ToList(), legal.DifficultCap), size, unit));
+            new ContactTerms(separation, passesModels, landing, legal is null ? null : new ContactMove(legal.Allowance, legal.ImpassableVolumeIds.ToList(), legal.DifficultVolumeIds.ToList(), legal.DifficultCap, legal.SteepVolumeIds?.ToList()), size, unit));
 }

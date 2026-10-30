@@ -163,7 +163,7 @@
   </div>
   {#if carded && draft !== null && catalog !== null && geometry !== null}
     <aside class="card-col" aria-label="Selected piece">
-      <TerrainCard {draft} {catalog} {geometry} {api} {selected} {send} {report} onClose={() => (selected = null)} />
+      <TerrainCard {draft} {catalog} {geometry} {api} {selected} terrainWords={snap.terrainWords} {send} {report} onClose={() => (selected = null)} />
     </aside>
   {/if}
 </div>

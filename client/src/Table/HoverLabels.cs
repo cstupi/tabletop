@@ -93,7 +93,7 @@ public partial class HoverLabels : Node3D
         {
             if (p.Board.Table.Terrain.FirstOrDefault(t => t.Id == id) is not { } piece || _view.TerrainAt(id) is not { } node) return;
             var box = node.Bounds;
-            _terrainLabels.AddChild(new Label3D { Text = TerrainLabel.Of(piece), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true,
+            _terrainLabels.AddChild(new Label3D { Text = TerrainLabel.Of(piece, _s.TerrainWords), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true,
                 Position = new Vector3(box.GetCenter().X, box.End.Y + 0.8f, box.GetCenter().Z) });
         }
     }

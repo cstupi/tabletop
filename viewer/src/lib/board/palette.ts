@@ -12,10 +12,10 @@ export function teamColour(ordinal: number): string {
   return colours[index]!;
 }
 
-/** The closed seven (setup content → Terrain declarations), snake_case as the recording spells them. */
+/** The closed eight (setup content → Terrain declarations), snake_case as the recording spells them. */
 export const DECLARATIONS = [
   'impassable', 'blocks_line_of_sight', 'see_in_and_out', 'cover', 'difficult', 'dangerous',
-  'dangerous_on_rush_charge',
+  'dangerous_on_rush_charge', 'steep',
 ] as const;
 
 const DECLARATION_COLOURS: Record<string, string> = {
@@ -26,6 +26,7 @@ const DECLARATION_COLOURS: Record<string, string> = {
   difficult: '#ffc44e',
   dangerous: '#ff9d4e',
   dangerous_on_rush_charge: '#e0a060',
+  steep: '#c8a46a',
 };
 
 export function declarationColour(declaration: string): string {

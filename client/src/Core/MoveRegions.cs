@@ -27,12 +27,14 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
 
     public bool Has(Guid id) => starts.ContainsKey(id);
 
-    /// <summary>The model's reach from the Ask's parameters: its allowance, its impassable and difficult volumes by id and its cap; the other models stop
+    /// <summary>The model's reach from the Ask's parameters: its allowance, its impassable and difficult volumes by id (with the steep ones it starts outside,
+    /// Movement.SteepEntering) and its cap; the other models stop
     /// it where the bodies meet in plan and height (unless the Ask PassesModels), the mover rested on the board's volumes; the table edge.</summary>
     MoveReach ReachOf(Guid id) => _reaches.GetOrAdd(id, key => new Lazy<MoveReach>(() =>
     {
         var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
         var difficult = volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList();
+        if (legal.SteepVolumeIds is { Count: > 0 } steep) difficult.AddRange(Movement.SteepEntering(starts[key], volumes.Where(v => steep.Contains(v.Id)).ToList()));
         return MoveReach.Build(starts[key], Math.Max(0, legal.Allowance), impassable, difficult, legal.DifficultCap, size,
             legal.PassesModels ? null : others, volumes);
     })).Value;

@@ -36,6 +36,16 @@ public static partial class GfMoves
         terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Dangerous)
             || (rushOrCharge && v.Volume.Declarations.HasFlag(TerrainDeclarations.DangerousOnRushCharge))).ToList();
 
+    /// <summary>3.6.0 p.12's dangerous terrain for one model's move: every Dangerous volume, and every DangerousOnRushCharge volume (Unstable: "If any model
+    /// in a unit moves over 6” when moving into or through unstable terrain, then it counts as Dangerous terrain") when that model's path is over 6".</summary>
+    static IReadOnlyList<WorldVolume> DangerousFor36(IReadOnlyList<WorldVolume> terrain, double pathLength) =>
+        terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Dangerous)
+            || (pathLength > GfNames.UnstableDistance + 1e-6 && v.Volume.Declarations.HasFlag(TerrainDeclarations.DangerousOnRushCharge))).ToList();
+
+    /// <summary>Whether an activation's DangerousOnRushCharge volumes are dangerous to stand in: under 3.5.1 for a Rush or a Charge (p.12); never under
+    /// 3.6.0, whose Unstable names only a move over 6" into or through it.</summary>
+    static bool ActivatedInUnstable(StepContext ctx) => !GfEdition.Of(ctx.State).UnstableByDistance && RushesOrCharges(ctx);
+
     /// <summary>Whether an action's move is a Rush or a Charge (p.7, p.9).</summary>
     static bool RushOrCharge(string? action) => action is GfNames.Rush or GfNames.Charge;
 
@@ -176,7 +186,7 @@ public static partial class GfMoves
             // p.13: Flying ignores terrain effects, p.36: so does the Banner of Eternal Flame. A granted Flying applies when there was a test to skip, and is kept to the activation's end (ConsumeKeepingFlying).
             if (rules.IgnoresDangerous)
             {
-                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx)).Count > 0;
+                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit, ActivatedInUnstable(ctx)).Count > 0;
                 if (tested) RecordSkipped(live, rules, useFlying: true);
                 var (spent, held) = ConsumeKeepingFlying(live);
                 return new Complete(spent, held);
@@ -185,7 +195,7 @@ public static partial class GfMoves
             // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
             if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(DangerousSeq(ctx.State), ctx.Frame.Context);
             // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
-            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx));
+            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, ActivatedInUnstable(ctx));
             if (standing.Count == 0) return new Complete([]);
             var values = new Dictionary<string, int> { ["dangerous_dice"] = OwedDice(ctx.State, unit, standing) };   // 3.6.0 p.12: the whole unit's wounds
             MarkTested(ctx.State, unit, values, standing);
@@ -212,11 +222,13 @@ public static partial class GfMoves
     public static bool IsAircraft(StepContext ctx, Guid unit) => Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Aircraft);
 
     /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, the dangerous-terrain dice the models that moved in or
-    /// through a Dangerous volume owe (p.11; a DangerousOnRushCharge volume too when the action is a Rush or a Charge, p.12), and whether a model went in or
+    /// through a Dangerous volume owe (p.11; a DangerousOnRushCharge volume too when the action is a Rush or a Charge, p.12; under 3.6.0 p.12 Unstable,
+    /// when that model's own path is over 6", whatever the action: DangerousFor36), and whether a model went in or
     /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying). A model that has taken the test this activation owes none;
     /// Tested is the models these dice are for, which the caller marks (MarkTested). Each is read along the path the model's base takes within
-    /// `remaining` (what this segment had left; the whole allowance when not given).</summary>
-    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null)
+    /// `remaining` (what this segment had left; the whole allowance when not given). `usedBefore` is what earlier segments of the same move used
+    /// (the move step's distance_used_tenths): 3.6.0 p.12 Unstable reads "moves over 6”" over the whole movement, as p.11's cap does.</summary>
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null, double usedBefore = 0)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
         var rules = TerrainFor(ctx, unit, live);
@@ -225,7 +237,10 @@ public static partial class GfMoves
         var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>(); var crossedDifficult = false;
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
-        var dangerous = DangerousFor(terrain, RushOrCharge(action));
+        var steep = Declared(terrain, TerrainDeclarations.Steep);
+        var byDistance = GfEdition.Of(ctx.State).UnstableByDistance;
+        var dangerous = byDistance ? DangerousFor36(terrain, 0) : DangerousFor(terrain, RushOrCharge(action));
+        var unstable = byDistance ? DangerousFor36(terrain, double.PositiveInfinity) : dangerous;
         var strider = rules.IgnoresDifficult;   // p.14: Strider ignores difficult terrain, Flying and the Banner of Eternal Flame all terrain effects
         var flying = rules.Flying;              // Strider does *not* skip a dangerous terrain test; Flying and the banner do
         // The path each model's base takes (Movement.Check, as the answer was judged): round what it may not pass, and round difficult and dangerous
@@ -254,12 +269,15 @@ public static partial class GfMoves
             }
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, m.ModelId, to.Placement);
-            var path = Movement.Check(start, settled.Position.Horizontal, remaining ?? allowance, walls, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size,
-                standing, Battlefield.Terrain(ctx.State), dangerous);
+            MoveCheck Path(IReadOnlyList<WorldVolume> avoid) => Movement.Check(start, settled.Position.Horizontal, remaining ?? allowance, walls, difficult,
+                strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size, standing, Battlefield.Terrain(ctx.State), avoid, steep);
+            var path = Path(dangerous);
+            // 3.6.0 p.12: Unstable ground is dangerous to a path over 6", so such a path goes round it when that fits, as round Dangerous ground.
+            if (byDistance && usedBefore + path.Distance > GfNames.UnstableDistance + 1e-6 && Movement.VolumesOnPath(start, path.Path, unstable).Count > 0) path = Path(unstable);
             used = Math.Max(used, path.Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer: the volumes the base touches along its path.
-            if (Movement.VolumesOnPath(start, path.Path, dangerous).Count > 0) exposed.Add(m.ModelId);
-            crossedDifficult |= Movement.VolumesOnPath(start, path.Path, difficult).Count > 0;
+            if (Movement.VolumesOnPath(start, path.Path, byDistance ? DangerousFor36(terrain, usedBefore + path.Distance) : dangerous).Count > 0) exposed.Add(m.ModelId);
+            crossedDifficult |= Movement.VolumesOnPath(start, path.Path, [.. difficult, .. Movement.SteepEntering(start, steep)]).Count > 0;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         if (aircraft && moves.Any(m => m.From is OnTable && m.To is OnTable)) ctx.Applied.Add(GfNames.Aircraft);
@@ -360,9 +378,9 @@ public static partial class GfMoves
             if (ctx.History.LastClosed("move") is not { } closed)
             {
                 var rules = TerrainFor(ctx, unit, live);
-                var (impassable, difficult) = RegionVolumes(ctx.State, rules);
+                var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain), allowPass: true)]);   // the cap ApplyMove holds the move to
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed), null);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
