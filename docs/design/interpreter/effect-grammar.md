@@ -57,14 +57,16 @@ sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid
 `Artillery` needs most of it at once. The property sits on the target model, and the effect is −2
 to the **opponent's** hit roll. `Counter` is the case that also tests **self**: the property is
 the defender's, the effect takes a roll off the *charger's* `Impact`, and the condition is *when
-charged*. `Artillery` needs no movement condition because it *may only use Hold actions*.
+charged*. Under 3.5.1 `Artillery` needs no movement condition because it *may only use Hold actions*. Under 3.6.0
+(p.13) it may move: its opponent row carries `actor_state` with subject **self** `neq moved this round`, the condition's
+subject read relative to the holder, so the -1 acted on the shooter tests the Artillery unit's own state; its self row's `action_taken eq Hold` reads the shooter's action.
 
 ## The eleven predicates
 
 The set is closed. An effect carries a flat list of them and all must hold. Grimdark Future's
 properties contain no *or* and no *not*. `Rush/Charge` looks like an *or* and is set membership
 over action names, which is why a condition's values are rows. `Comparison` includes `neq`
-because a single predicate still has to test a state's absence. `Impact` is *unless fatigued*, which is the one `actor_state` predicate the core set still uses.
+because a single predicate still has to test a state's absence. `actor_state` is read in the core sets by `Impact` (*unless fatigued*) and by 3.6.0's `Artillery` (*as long as they haven't moved during this round*).
 
 | `ConditionKind` | Reads | Subject | Read in `Conditions.Holds` as |
 | --- | --- | --- | --- |
