@@ -34,6 +34,16 @@ public static class ArmyForgeJson
     static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
     public static AfBook ReadBook(string json) => JsonSerializer.Deserialize<AfBook>(json, Options) ?? throw new JsonException("empty book");
     public static List<AfIndexEntry> ReadIndex(string json) => JsonSerializer.Deserialize<List<AfIndexEntry>>(json, Options) ?? [];
+
+    /// <summary>The edition (major.minor) every versioned entry of the index shares; an entry without a version is tolerated while another fixes the edition.</summary>
+    public static string EditionOf(IReadOnlyList<AfIndexEntry> index)
+    {
+        var editions = index.Where(e => !string.IsNullOrWhiteSpace(e.VersionString))
+            .Select(e => string.Join('.', e.VersionString!.Split('.').Take(2))).Distinct().Order().ToList();
+        if (editions.Count == 1) return editions[0];
+        var versions = string.Join(", ", index.Select(e => e.VersionString ?? "none").Distinct().Order());
+        throw new InvalidDataException(editions.Count == 0 ? $"the index carries no version ({versions})" : $"the index mixes editions: {versions}");
+    }
 }
 
 /// <summary>Every problem one generate run found, each naming its book and spell. The run writes nothing.</summary>
