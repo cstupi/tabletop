@@ -143,4 +143,36 @@ public class LivePropertiesTests
         Assert.Equal(1, live.On(Side.Attacker).Count(p => p.Entry.Name == "Regeneration"));
         Assert.Equal(2, live.On(Side.Attacker).Count(p => p.Entry.Name == "Tough"));
     }
+
+    // "those hits count as having AP(-1), to a min. of AP(0)" (3.6.0 Fortified, Fortified Growth, Guardian, Primeborn): a floor on modify_parameter.
+    static EntryDocument Dampen(string name, int? floor) => new(name, CatalogKind.Model, false, Aggregation.All, null, null, $"{name}.", null,
+        [new EffectDocument(EffectSubject.Opponent, 10, EffectKind.ModifyParameter, null, null, "AP", null, null, null, null, -1, false, null, null, null, EffectDuration.Interaction, [], [], Floor: floor),
+         new EffectDocument(EffectSubject.Opponent, 20, EffectKind.ModifyParameter, null, null, "AP", null, null, null, null, -1, false, null, null, null, EffectDuration.Interaction, [], [], Floor: floor)]);
+
+    [Fact]
+    public void A_floor_on_modify_parameter_holds_ap_at_zero()
+    {
+        var props = TestProperties.WithSpells(Dampen("Floored Dampen", 0), Dampen("Open Dampen", null));
+        int? Ap(string rule)
+        {
+            var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("AP", 1)));
+            var b = Unit("B", "4+", "4+", [], 1, [P(rule)]);
+            var s = State([a], [b]);
+            var weapons = s.Projection.Units[a.Id].Definition.Models.SelectMany(m => m.Weapons.Select(w => w.Id));
+            return LiveProperties.Settle(new Interaction(s, props, Party.Of(s, a.Id, a.Models.Select(m => m.Id), weapons), Party.Whole(s, b.Id), AttackKind.Shooting, "Hold", 12, [])).Parameter(Side.Attacker, "AP");
+        }
+        Assert.Equal(0, Ap("Floored Dampen"));
+        Assert.Equal(-1, Ap("Open Dampen"));
+    }
+
+    [Fact]
+    public void The_36_min_ap0_rows_carry_a_floor_of_zero()
+    {
+        foreach (var name in new[] { "Fortified", "Fortified Growth", "Guardian", "Primeborn" })
+        {
+            var rows = TestProperties.Core36.Entry(name)!.Effects.Where(e => e.Kind == EffectKind.ModifyParameter && e.TargetEntry == "AP").ToList();
+            Assert.NotEmpty(rows);
+            Assert.All(rows, e => Assert.Equal(0, e.Floor));
+        }
+    }
 }

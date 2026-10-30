@@ -488,18 +488,8 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Rapid Blink.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Enhanced Rapid Blink",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Enhanced Scrapper Aura",
@@ -708,18 +698,8 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Wolfborn.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Enhanced Wolfborn",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Entrenched Buff",
@@ -2095,18 +2075,8 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Versatile Defense.",
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 5,
-          "kind": "grant_property",
-          "targetEntry": "Versatile Defense",
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": []
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Versatile Expert",

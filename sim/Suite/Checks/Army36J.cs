@@ -7,7 +7,8 @@ public static partial class SuiteCatalog
     private static partial class ArmyGames
     {
         /// <summary>
-        /// A second activation in a round, once per game: the activation's own write records the action and then clears Fatigued (the engine's
+        /// A second activation in a round, once per game (3.5.1 Batch 4 and 3.6.0 batch J, each with its own quote): the unit is Fatigued when its
+        /// second action is recorded, so the clause is tested; the activation's own write records the action and then clears Fatigued (the engine's
         /// activation changes), so the unit is read as the payloads that follow its second action leave it, before anything else happens.
         /// </summary>
         static GameCheck SecondActivationClears(string entry, string quote) =>
@@ -33,7 +34,9 @@ public static partial class SuiteCatalog
                     var n = actions[(a.UnitId, round)] = actions.GetValueOrDefault((a.UnitId, round)) + 1;
                     if (n < 2) continue;
                     seconds[a.UnitId] = seconds.GetValueOrDefault(a.UnitId) + 1;
-                    if (seconds[a.UnitId] > 1) verdicts.Add("activated a second time in two rounds"); else pending = a.UnitId;
+                    if (seconds[a.UnitId] > 1) verdicts.Add("activated a second time in two rounds");
+                    else if (!fatigued.Contains(a.UnitId)) verdicts.Add("not Fatigued before its second activation: the clause went untested");
+                    else pending = a.UnitId;
                 }
                 if (pending is { } last) verdicts.Add(fatigued.Contains(last) ? "still Fatigued once its second activation began" : null);
                 return verdicts;

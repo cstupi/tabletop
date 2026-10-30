@@ -21,12 +21,12 @@ public class Batch8GrammarTests
     static int Mod(LiveSet l, Side side, string roll) => l.Effects(side, EffectKind.ModifyRoll).Where(x => x.Effect.TargetRoll == roll).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
 
     [Fact]
-    public void A_floor_is_modify_stat_only_and_replace_stat_needs_a_value()
+    public void A_floor_is_modify_stat_or_modify_parameter_only_and_replace_stat_needs_a_value()
     {
         EntryDocument E(EffectDocument f) => new("X", CatalogKind.Model, false, Aggregation.All, null, null, "X.", null, [f]);
         IReadOnlyList<string> V(EntryDocument e) => PropertiesJson.Validate(TestProperties.RulebookDocument with { Entries = [.. TestProperties.RulebookDocument.Entries, e] });
         var roll = new EffectDocument(EffectSubject.Self, 10, EffectKind.ModifyRoll, "hit", null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [], Floor: 6);
-        Assert.Contains(V(E(roll)), p => p.Contains("floor is modify_stat only"));
+        Assert.Contains(V(E(roll)), p => p.Contains("floor is modify_stat or modify_parameter only"));
         var replace = new EffectDocument(EffectSubject.Self, 10, EffectKind.ReplaceStat, null, new StatRef(StatLevel.Unit, "Defense"), null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction, [], []);
         Assert.Contains(V(E(replace)), p => p.Contains("replace_stat needs a replacement or the parameter"));
     }

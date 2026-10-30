@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Text.Json;
 using Tabletop.GameServer.Properties;
 
@@ -13,9 +14,9 @@ public static class RuleWriter
     static readonly JsonSerializerOptions Indented = new(PropertiesJson.Options) { WriteIndented = true, NewLine = "\n" };
     static readonly string[] GroupOrder =
     [
-        "Aura, template text, base in catalog", "Aura, template text, base missing", "Aura, effect written out",
-        "Buff, template text, base in catalog", "Buff, template text, base missing", "Buff, effect written out",
-        "Mark, template text, base in catalog", "Mark, template text, base missing", "Mark, effect written out",
+        "Aura, template text, base in catalog", "Aura, template text, base missing", "Aura, template text, base text-only", "Aura, effect written out",
+        "Buff, template text, base in catalog", "Buff, template text, base missing", "Buff, template text, base text-only", "Buff, effect written out",
+        "Mark, template text, base in catalog", "Mark, template text, base missing", "Mark, template text, base text-only", "Mark, effect written out",
         "Debuff, effect written out", "Standalone, own text",
     ];
 
@@ -59,6 +60,8 @@ public static class RuleWriter
         if (problems.Count > 0) return (null, null, problems.Distinct().ToList());
 
         var defined = core.Entries.Concat(hand.Entries).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        // Under 3.6 a wrapper whose base is text-only (played false) is text-only too: its grant could never act (as BookWriter.DemoteUndefinedGrants for spells).
+        var unplayed = rulesId == RuleSets.RulesIdOf("3.5") ? [] : core.Entries.Concat(hand.Entries).Where(e => e.Played == false).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
         var scope = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (var (name, isRule) in ordered.SelectMany(NamesInScope)) scope[name] = scope.GetValueOrDefault(name) || isRule;
         var entries = new List<EntryDocument>();
@@ -70,7 +73,7 @@ public static class RuleWriter
             var text = d.Text ?? "";
             var pattern = RuleTemplates.PatternOf(name);
             var x = pattern is { } p && p != RulePattern.Debuff ? RuleTemplates.Base(p, name, text) : null;
-            if (x is not null && defined.Contains(x))
+            if (x is not null && defined.Contains(x) && !unplayed.Contains(x))
             {
                 entries.Add(RuleTemplates.Wrapper(pattern!.Value, name, x, text));
                 counts[$"{pattern}, template text, base in catalog"]++;
@@ -80,6 +83,7 @@ public static class RuleWriter
             {
                 null => "Standalone, own text",
                 RulePattern.Debuff => "Debuff, effect written out",
+                { } q when x is not null && unplayed.Contains(x) => $"{q}, template text, base text-only",
                 { } q when x is not null => $"{q}, template text, base missing",
                 { } q => $"{q}, effect written out",
             }]++;

@@ -32,8 +32,8 @@ public static partial class SuiteCatalog
         const string Again36 = "\"Once per game, if all models in this unit have this rule, it may be activated even if it had already activated this round (stops being Fatigued when activated again)\"";
 
         static TestGame SecondTime36((string Uid, string Army) book, string entry) =>
-            In36(Game(book, $"{Slug(book.Army)}-{Slug(entry)}", Play.Charges, [entry], [R(1, entry)], [], [SecondActivationClears(entry, Again36)],
-                units: 1, more: Activates(c => c.Note == "Activated again (once per game)"))
+            In36(Game(book, $"{Slug(book.Army)}-{Slug(entry)}", Play.Charges, [entry], [R(1, entry)], [Fix("hit", 6), Fix("defense", 1)], [SecondActivationClears(entry, Again36)],
+                units: 1, more: Activates(c => c.Note == "Activated again (once per game)"), enemyModels: 1, length: 26, anchors: AgainAnchor, enemyAnchors: AgainEnemyAnchor)
                 with { Evidence = new Dictionary<string, Func<IReadOnlyList<Tabletop.Protocol.GameEvent>, bool>> { [entry] = TwiceInARound } });
 
         /// <summary>

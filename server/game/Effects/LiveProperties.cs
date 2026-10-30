@@ -223,7 +223,9 @@ public static class LiveProperties
                         for (var i = 0; i < live.Count; i++)
                             if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) {
                                 var was = live[i];
-                                live[i] = was with { Parameter = (was.Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) };
+                                // "to a min. of AP(0)": a floor holds the sum there, and never raises a parameter already below it.
+                                var sum = (was.Parameter ?? 0) + effect.EffectiveAmount(source.Parameter);
+                                live[i] = was with { Parameter = effect.Floor is { } floor ? Math.Max(sum, Math.Min(was.Parameter ?? 0, floor)) : sum };
                                 if (scanned.Contains(was)) scanned.Add(live[i]);   // the same instance with a new parameter, not a new one
                                 if (acts.GrantedBy.TryGetValue(was, out var grantor)) acts.GrantedBy[live[i]] = grantor;
                                 if (!acts.Modified.TryGetValue(PassOneActs.Key(live[i]), out var by)) acts.Modified[PassOneActs.Key(live[i])] = by = [];
