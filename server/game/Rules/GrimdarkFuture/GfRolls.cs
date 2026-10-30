@@ -57,10 +57,11 @@ public static class GfRolls
     /// merged into a single group.
     ///
     /// A fatigued melee is a flat 6+ with no modifiers and `RequiredRaw = 6`, because p.9 says *"only hit on unmodified rolls of 6"*.
+    /// Under 3.6 it also carries `HitsTriggerNothing`: 3.6.0 p.9 *"those hits don’t count as rolls of 6 for special rules"*.
     /// </summary>
     public static RollPlan HitPlan(StepContext ctx, LiveSet live, AttackKind kind, int quality) =>
         Fatigued(ctx, live, kind)
-            ? new RollPlan(GfNames.Hit, 6, [], D6, RequiredRaw: 6, RerollRaw: new HashSet<int>())
+            ? new RollPlan(GfNames.Hit, 6, [], D6, RequiredRaw: 6, RerollRaw: new HashSet<int>(), HitsTriggerNothing: !GfEdition.Of(ctx.State).FatiguedSixesTrigger)
             : ctx.Plan(live, Side.Attacker, GfNames.Hit, [], threshold: new TargetRead(quality, HitBasis(live, quality)));
 
     /// <summary>One pool's basis: the first attacking model, in party order, that brings the value. Peeked: determine-attacks accounted it.</summary>

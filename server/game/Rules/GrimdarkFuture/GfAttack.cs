@@ -639,8 +639,9 @@ public static partial class GfAttack
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
-                IReadOnlyList<string>? Triggers(Die d) => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit);
-                var added = ctx.Roll(plan, attacks, Triggers).Dice.Sum(d => AddedAttacks(live, d));
+                IReadOnlyList<string>? Triggers(Die d) => plan.HitsTriggerNothing && d.Success ? null : RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit);
+                var rolled = ctx.Roll(plan, attacks, Triggers);
+                var added = rolled.HitsTriggerNothing ? 0 : rolled.Dice.Sum(d => AddedAttacks(live, d));
                 // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
                 if (added > 0) ctx.Roll(plan, added, d => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false));
             }
@@ -672,7 +673,8 @@ public static partial class GfAttack
             var (_, live, _) = Settle(ctx);
             var rolls = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["self_wounds"] = 0 };
-            foreach (var die in rolls.SelectMany(r => r.Dice))
+            // 3.6.0 p.9: a fatigued hit is no roll of 6 for special rules, so its die reads nothing; a failed die's rows (Hazardous) still act.
+            foreach (var die in rolls.SelectMany(r => r.Dice.Where(d => !(r.HitsTriggerNothing && d.Success))))
             {
                 var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
                 values["self_wounds"] += effects.ExtraWounds;
