@@ -48,7 +48,7 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>
     /// Page 13: Aircraft "may only use Advance actions ... (even if Shaken)", and "their mandatory move doesn't break the staying idle
     /// requirement to stop being Shaken" — so Aircraft is read before Shaken, and a Shaken Aircraft is offered Advance, not Idle.
-    /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and page 13: Artillery mean Hold only.
+    /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and 3.5.1 p.13 Artillery mean Hold only (3.6.0 p.13 Artillery may move: GfEdition.ArtilleryHoldOnly).
     /// Page 7: Charge needs an enemy unit within charge distance.
     /// </summary>
     public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows) =>
@@ -60,7 +60,8 @@ public sealed partial class GrimdarkFutureRules
         if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return (actionRows.Where(a => a == Advance).ToList(), AircraftNote);
         if (unit.Conditions.Contains(Shaken)) return ([ActivationOption.Idle], ShakenNote);
         if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return (actionRows.Where(a => a == Hold).ToList(), ImmobileNote);
-        if (Lookup.UnitHas(state, props, unit.Id, Artillery)) return (actionRows.Where(a => a == Hold).ToList(), ArtilleryNote);
+        if (GfEdition.Of(state) is { ArtilleryHoldOnly: true } edition && Lookup.UnitHas(state, props, unit.Id, Artillery))
+            return (actionRows.Where(a => a == Hold).ToList(), edition.ArtilleryNote);
         // Instinctive: a unit that can charge must charge; one that can shoot must take an action it shoots in (p.7: Rush "can't shoot").
         switch (InstinctiveAttack(state, props, unit))
         {
@@ -76,7 +77,6 @@ public sealed partial class GrimdarkFutureRules
     public const string AircraftNote = "Aircraft: may only use Advance actions, even if Shaken (p.13)";
     public const string ShakenNote = "Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation (p.10)";
     public const string ImmobileNote = "Immobile: may only use Hold actions (p.14)";
-    public const string ArtilleryNote = "Artillery: may only use Hold actions (p.13)";
     public const string NoChargeNote = "No Charge: no enemy unit within charge distance (p.7)";
 
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch

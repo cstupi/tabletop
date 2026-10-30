@@ -12,12 +12,14 @@
     { "name": "Ambush", "kind": "unit", "ruleText": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambushers, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.", "effects": [] },
     { "name": "AP", "kind": "weapon", "takesParameter": true, "ruleText": "Targets get -X to Defense rolls when blocking hits from weapons with this special rule.",
       "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "defense", "amount": -1, "amountFromParameter": true } ] },
-    { "name": "Artillery", "kind": "model", "aggregation": "all", "ruleText": "May only use Hold actions. When this model shoots at enemies over 9\" away, it gets +1 to hit rolls. When enemy units shoot at this model from over 9\" away, they get -2 to hit rolls.",
+    { "name": "Artillery", "kind": "model", "aggregation": "majority", "ruleText": "When this model uses Hold actions and shoots at enemies over 12\" away, it gets +1 to hit rolls. If most models in this unit have this rule, as long as they haven't moved during this round, enemy units shooting at them from over 12\" away get -1 to hit rolls.",
       "effects": [
         { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": 1, "conditions": [
-          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] },
-        { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -2, "conditions": [
-          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] } ] },
+          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 12 },
+          { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Hold" ] } ] },
+        { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
+          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 12 },
+          { "kind": "actor_state", "subject": "self", "comparison": "neq", "values": [ "moved this round" ] } ] } ] },
     { "name": "Bane", "kind": "weapon", "ruleText": "Ignores Regeneration, and when attacking the target must re-roll unmodified Defense results of 6.",
       "effects": [
         { "subject": "opponent", "ordinal": 20, "kind": "force_reroll", "targetRoll": "defense", "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "defense", "raw" ] } ] },
