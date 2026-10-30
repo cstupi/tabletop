@@ -12,7 +12,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfAmbush
 {
     public const string Infiltrate = "Infiltrate", SurpriseAttack = "Surprise Attack", RapidAmbush = "Rapid Ambush", AmbushBeacon = "Ambush Beacon",
-        RepelAmbushers = "Repel Ambushers", AmbushReDeployment = "Ambush Re-Deployment", ReDeployment = "Re-Deployment";
+        RepelAmbushers = "Repel Ambushers", InfiltratingPrecisionStrike = "Infiltrating Precision Strike", AmbushReDeployment = "Ambush Re-Deployment", ReDeployment = "Re-Deployment";
     /// <summary>A unit that arrived from Ambush this round (Ambushing Piercing Shot: "on the round in which it deploys via this rule"); cleared as a round starts.</summary>
     public const string AmbushedThisRound = "ambushed this round";
     /// <summary>A unit removed and placed again by Re-Deployment; cleared as round one starts.</summary>
@@ -28,9 +28,11 @@ public static class GfAmbush
         return d.Properties.Any(p => Named(p.Name)) || d.Models.Any(m => m.Properties.Any(p => Named(p.Name)));
     }
 
-    /// <summary>"May be deployed anywhere over 3” away from enemy unit" (Infiltrate, and Surprise Attack, which "counts as having Infiltrate"); else Ambush's 9".</summary>
+    /// <summary>"May be deployed anywhere over 3” away from enemy unit" (Infiltrate, and Surprise Attack and 3.6 Infiltrating Precision Strike, which "count as having
+    /// Infiltrate"); else Ambush's 9".</summary>
     public static double Reach(GameState state, Guid unit) => Reach(state.Projection.Units[unit].Definition);
-    public static double Reach(Tabletop.Content.Unit d) => Carries(d, Infiltrate) || Carries(d, SurpriseAttack) ? 3 : GfNames.AmbushDistance;
+    public static double Reach(Tabletop.Content.Unit d) =>
+        Carries(d, Infiltrate) || Carries(d, SurpriseAttack) || Carries(d, InfiltratingPrecisionStrike) ? 3 : GfNames.AmbushDistance;
 
     /// <summary>The distance an Ambusher keeps from an enemy unit's models: its own reach, or over 12" from a unit with Repel Ambushers.</summary>
     public static double Kept(GameState state, Guid enemyUnit, double reach) => Kept(state.Projection.Units[enemyUnit].Definition, reach);

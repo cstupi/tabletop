@@ -45,6 +45,14 @@ public class GfBatch3DeploymentTests
     }
 
     [Fact]
+    public void Infiltrating_Precision_Strike_counts_as_having_Infiltrate_and_deploys_over_3_inches()
+    {
+        var (h, ambusher) = Picked([(2, GfAmbush.InfiltratingPrecisionStrike, null)]);                                  // 3.6: "Counts as having Infiltrate"
+        Assert.NotNull(GrimdarkFutureRules.Instance.PlacementBreach(h.State, At(h, ambusher, 10, 6).Moves));
+        Assert.Null(GrimdarkFutureRules.Instance.PlacementBreach(h.State, At(h, ambusher, 10, 9).Moves));             // a gap of 3.74"
+    }
+
+    [Fact]
     public void An_Infiltrate_unit_without_Ambush_is_set_aside_and_arrives_as_an_Ambusher_over_3_inches()
     {
         var (h, ambusher) = Picked([], own: [(2, GfAmbush.Infiltrate, null)], withAmbush: false);       // counts as having Ambush: set aside, then offered in round two

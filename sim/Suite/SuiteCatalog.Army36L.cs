@@ -26,13 +26,18 @@ public static partial class SuiteCatalog
             Game(Books36.MachineCults, "machine-cults-grounded-evasion", Play.Shot, ["Grounded Evasion"], Tough12L(1), [],
                 [Modifier("Grounded Evasion", "hit", -1, "\"If a unit where most models have this rule has most of them within 1\" of terrain, enemies get -1 to hit rolls when attacking them\"")],
                 units: 1, carriers: Most(1, "Grounded Evasion"), board: Ruins).In36(),
+            // The same with no terrain on the table: the rule's units are not within 1" of terrain, and the -1 is not given.
+            Game(Books36.MachineCults, "machine-cults-grounded-evasion-in-the-open", Play.Shot, [], Tough12L(1), [],
+                [NoModifier("Grounded Evasion", On("Grounded Evasion"), "\"has most of them within 1\" of terrain\" (none on the table)")],
+                units: 1, carriers: Most(1, "Grounded Evasion")).In36(),
             Game(Books36.RobotLegions, "robot-legions-imprecise", Play.Shoots, ["Imprecise"], [], [],
                 [Modifier("Imprecise", "hit", -1, "\"Gets -1 to hit when attacking.\"")], weapon: [R(0, "Imprecise")], units: 2).In36(),
-            // Unit 2 is set aside and arrives as an Ambusher at (17, 15), about 11" from the opponents' unit 1 at (16, 3) (their unit 2 at (30, 3)), so it
-            // may charge in the round it arrives; the rule's side charges whenever it may.
+            // Unit 2 is set aside and arrives as an Ambusher at (17, 10), about 6" from the opponents' unit 1 at (16, 3) (their unit 2 at (30, 3)): inside
+            // Ambush's 9" and over Infiltrate's 3", so it is placed only as Infiltrate, and may charge in the round it arrives; the rule's side charges whenever it may.
             Game(Books36.ElvenJesters, "elven-jesters-infiltrating-precision-strike", Play.Charges, ["Infiltrating Precision Strike"], [R(2, "Infiltrating Precision Strike")], [],
-                [PrecisionOnArrival("\"Counts as having Infiltrate, and gets +1 to hit rolls in melee on the round in which it deploys via this rule\"")],
-                units: 2, setAside: [2], length: 26, anchors: new Dictionary<int, Point2> { [2] = new(17, 15) },
+                [PrecisionOnArrival("\"Counts as having Infiltrate, and gets +1 to hit rolls in melee on the round in which it deploys via this rule\""),
+                 ArrivesAsInfiltrate("\"Counts as having Infiltrate\": \"may be deployed anywhere over 3” away from enemy unit\"")],
+                units: 2, setAside: [2], length: 26, anchors: new Dictionary<int, Point2> { [2] = new(17, 10) },
                 enemyAnchors: new Dictionary<int, Point2> { [1] = new(16, 3), [2] = new(30, 3) }).In36(),
             Game(Books36.OrcMarauders, "orc-marauders-precision-charge", Play.Charges, ["Precision Charge"], All3("Precision Charge"), [],
                 [GrantedModifier("Precision Charge", By("Precision Charge", when: When.Charging), "Precision Charge", "hit", 1, "\"This model gets +1 to hit rolls when charging.\"")]).In36(),
@@ -82,6 +87,11 @@ public static partial class SuiteCatalog
             Game(Books36.MachineCults, "machine-cults-versatile-warrior", Play.Shoots, ["Versatile Warrior"], Each(2, "Versatile Warrior"), [],
                 [Modifier("Versatile Warrior", "hit", 1, "\"pick one effect: until the end of the activation, when shooting/charging enemies over 9\"/6\" away, all models with this rule in it either get AP(+1) or get +1 to hit rolls\"")],
                 more: s => { UsePicks(Books36.MachineCults.Army, 1, "Versatile Warrior")(s); Choose("Versatile Warrior", "+1 to hit")(s); }).In36(),
+            // Shooting from 4.5", inside the 9" band: +1 to hit chosen, and not given.
+            Game(Books36.MachineCults, "machine-cults-versatile-warrior-within-9", Play.Shoots, [], [R(1, "Versatile Warrior")], [],
+                [NoModifier("Versatile Warrior", By("Versatile Warrior", when: When.Shooting), "\"when shooting/charging enemies over 9\"/6\" away\" (shooting from 4.5\")")],
+                more: s => { UsePicks(Books36.MachineCults.Army, 1, "Versatile Warrior")(s); Choose("Versatile Warrior", "+1 to hit")(s); },
+                units: 1, enemyUnits: 1, length: 26, anchors: Born36.Near, enemyAnchors: Born36.NearEnemy).In36(),
         ];
 
         const string DodgeText = "\"If most models in this unit have this rule, as long as they aren't Fatigued, enemy units get -1 to hit rolls in melee against them\"";

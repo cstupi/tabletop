@@ -63,5 +63,26 @@ public static partial class SuiteCatalog
                 }
                 return Reasons(verdicts);
             }, [entry]);
+
+        /// <summary>"Counts as having Infiltrate": every arrival of a holding unit is over 3" from every enemy model, and one is within 9" (closer than
+        /// Ambush's distance, so placed under Infiltrate's).</summary>
+        static GameCheck ArrivesAsInfiltrate(string quote) =>
+            GameCheck.Each($"Infiltrating Precision Strike: {quote}", run =>
+            {
+                const string entry = "Infiltrating Precision Strike";
+                var log = LogQueries.Of(run);
+                var gaps = Arrivals(run, u => Holds(run, u, entry)).Select(a => Gap(run, log, a.Model, a.At, a.Seq, u => !Named(run, Books36.ElvenJesters.Army)(u))).ToList();
+                var reasons = Reasons([.. gaps.Select(g => g > 3 ? null : $"placed {g:0.00}\" from an enemy")]).ToList();
+                if (!gaps.Any(g => g <= 9)) reasons.Add("no arrival within 9\" of an enemy");
+                return reasons;
+            }, ["Infiltrating Precision Strike"]);
+
+        /// <summary>The rule idle where its condition fails: no hit roll of the occasion's attacks carries its modifier, and there is at least one.</summary>
+        static GameCheck NoModifier(string entry, Occasion occasion, string quote) =>
+            Exact(entry, $"{quote}: no {entry} modifier", (run, log) =>
+                from a in Of(run, log, occasion)
+                where a.Hit is not null
+                from r in a.Hit!.Rolls("hit")
+                select r.Modifiers.Any(m => m.Source == entry) ? $"a hit roll under {entry}" : null);
     }
 }
