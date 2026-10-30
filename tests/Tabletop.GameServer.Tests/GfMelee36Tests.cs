@@ -125,7 +125,7 @@ public class GfMelee36Tests
         sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, pikes.Id), condition, true)]);
         sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
         Assert.Equal("strike_back", sim.AskFor(Samples.Team2).Question);                             // no counter Ask: the pike strikes with the rest
-        Assert.Empty(sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id));
+        Assert.DoesNotContain(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id);
         sim.Answer(Samples.Team2, new Chosen("strike"));
         var back = sim.Emitted.OfType<SequenceStarted>().Single(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id);
         Assert.Equal(pikes.Models[0].Weapons.Select(w => w.Id), back.Context.WeaponIds);
