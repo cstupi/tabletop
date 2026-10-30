@@ -56,11 +56,9 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today, in process with no pin: `PASSED: 631 of 631 games passed, 0 failing on known defects, 0 unexpected; 1060 of 1060 entries covered, 61 not automated`.
-308 games run under 3.5.1 and 323 under 3.6.0: `core` 22 and 22 and `special` 15 and 17 (13 shared; 4 are 3.6.0-only,
-`special-indirect-on-hold`, `special-hero-aura`, `special-assault-and-cumbersome`, `special-shred-and-amplifier`; 2 are 3.5.1-only), each
-shared game's 3.6.0 run named `<name>@3.6`; `army:3.5:<uid>` 223 and `army:3.6:<uid>` 236; `spells:3.5` 48 and `spells:3.6` 48.
-Coverage per set: 3.5 545 of 545 (88 by pattern, 0 not automated); 3.6 515 of 515 (85 by pattern, 61 not automated).
+Today, on `gf-3-6-0` in process with no pin: `PASSED: 652 of 652 games passed, 0 failing on known defects, 0 unexpected; 1079 of 1079 entries covered, 43 not automated`.
+Each shared game's 3.6.0 run is named `<name>@3.6`. Coverage per set: 3.5 545 of 545 (88 by pattern, 0 not automated); 3.6 534 of 534
+(87 by pattern, 43 not automated: the text-only entries in Known rule gaps).
 `--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
@@ -95,42 +93,41 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
 
-**First: the 3.6.0 text-only rules played.** Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`, plan
-`docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks, five phases; `GfAttack.cs` split first). Nothing of it is built.
+In order:
 
-### Miniatures: resume the zombie army (outside the repo)
+1. **Merge `gf-3-6-0`.** The main checkout is on it (232+ commits over `main`; local only, unpushed). Start Docker Desktop, then
+   `docker compose up -d` and run what Checks lists as not run on this branch: E2E (`MigrationTests` first; migrations 023–026),
+   `sim -- lifecycle` (8 shapes incl. `two-players-3.6`), the socket-driver rules suite. Fix what fails, then merge to `main`.
+   The build ledger with every ruling is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the owner's edition ruling.
+2. **The 3.6.0 text-only rules played** (the 43 not automated). Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`,
+   plan `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks; `GfAttack.cs` split first). Nothing built.
+   Brace and Parry's text comes from Army Forge's `GET /api/rules/common/2`. Owner asked for the plan only; build when told.
+3. **Production signup by email code fails for new addresses.** Not a code defect (login_or_create serves both; a new
+   address works on the Stytch test project). Reproduced 2026-10-29: `POST https://tabletop.cstupi.com/v1/auth/otp` for a
+   new address returns 422 at once and sends nothing. Likeliest cause: the live Stytch project has no verified billing
+   (`billing_not_verified_for_email`: live projects email only the account's own domain until a card is added). The owner
+   decides on billing; the log line `/v1/auth/otp: Stytch 400 <error_type>` on docker1 confirms it (reading it needs the
+   owner's approval). There is no magic link anywhere: web and Godot both email a 6-digit code.
 
-Generated unit miniatures (GLB) live under `C:\Users\clays\Downloads\` (WSL `/mnt/c/Users/clays/Downloads/`), never in this
-repo. The owner's look rulings are in the memory note `miniatures-look-painted`; the coordinator steps are the user skill
-`army-miniatures` (`~/.claude/skills/army-miniatures/SKILL.md`, its "Python only" line superseded by Blender).
+### Miniatures: the zombie army (outside the repo)
 
-- `pyromania/`: the Battle Sisters army (Army Forge `sNkKzFUrB7IV`), 14 GLBs in `final/` (2000 px views in `final/hq/`),
-  built by the Python pipeline in `src/`. Done. `miniatures-kit.zip` is the shareable Python-era kit; replace it once
-  the Blender kit exists.
-- `mixed-zombies/`: the zombie army (Army Forge `cyQHIIkOQQcb`, list in `src/list.json`). Built in Blender 2.92
-  (`/mnt/c/Program Files/Blender Foundation/Blender 2.92/blender.exe`, headless from WSL; scripts in `src/blender/`,
-  wrappers `src/bl`, `src/build.sh`, notes in `src/README.txt`). `final/infected-zombie-a.glb` (7.4 MB, built
-  2026-10-28 21:37, with `hq/`, close-ups and compare PNGs) is the **owner-approved baseline**: "I think that zombie is
-  good enough". The hair and face stay as they are. The build agent was stopped at shutdown before its report.
+Generated miniatures (GLB) live under `/mnt/c/Users/clays/Downloads/`, never in this repo. The look rulings are the memory
+note `miniatures-look-painted`; the coordinator steps are the user skill `army-miniatures`, which points at the kit.
+Blender runs on the CPU only, at Idle priority, `-t 4`, at most 2 processes. Ask the owner before any `--gpu` run: a GPU
+bake stuttered their game.
 
-Next, in order (one Opus agent; the owner wants future armies to reach this level fast):
-1. Review the 21:37 renders, and fill `src/README.txt` (stats, shortfalls, Blender against the Python pipeline) if it is
-   incomplete.
-2. Build the reusable Blender kit at `Downloads/minis-kit/`:
-   - `kit/`: the shared toolkit, without the `t_*.py`, probe and debug files, and with the army folder passed in.
-   - `templates/humanoid/`: the zombie build, driven by a spec for each model (pose, body and rot, clothing, gear,
-     palette, head, base).
-   - One build command producing the GLB, the hq images and close-ups, and the checks (100k tris, 8 MB).
-   - `README.md`: the Army Forge fetch (`https://army-forge.onepagerules.com/api/tts?id=<ID>`), the process, the rulings,
-     and `bar/` (the approved zombie, plus Pyromania's `warrior-sister-a` as the armour reference).
-   - Proof: `infected-zombie-a` rebuilds from its spec with no visible loss, and one clearly different second spec builds.
-3. Point the `army-miniatures` skill and a new shareable zip at the kit.
-4. Only then the rest of the zombie army, each archetype's master shown to the owner before its variants:
-   - 20 Infected Zombies (variants of the master)
-   - Infected Leader
-   - 5 Plague Brothers (32 mm)
-   - 3 Plague Destroyers (40 mm)
-   - the flying Plague Drone (60 mm)
+- `minis-kit/`: the Blender 5.2 kit (`README.md`; `kit/build <army> <names|--all> [--gpu]`; templates `humanoid`,
+  `armoured`, `brute`, `flyer`; `bar/`). `infected-zombie-a` rebuilds through it with no visible loss (`mixed-zombies/final/port-check.png`).
+  Not done: a shareable zip of the kit (Pyromania's `miniatures-kit.zip` is the Python-era one).
+- `mixed-zombies/` (Army Forge `cyQHIIkOQQcb`; specs in `src/specs/`; the approved 2.92 build kept in `baseline-2026-10-28/`).
+  Built in `final/` with `hq/`, close-ups, compare and `contact-sheet.png`: `infected-zombie-a` (approved), variants
+  `b`–`g`, and the first models of the other types: `infected-leader`, `plague-brother-a`, `plague-destroyer-a`, `plague-drone`.
+  **Waiting on the owner** (renders sent 2026-10-30). Claude's review: zombie variants good; leader close (pistol a plain
+  block, energy fist a grey box); brother and destroyer below the bar (smooth rounded "balloon" armour, block feet, box
+  helmet with goggles, no spikes, chain mail, cables or growths; destroyer head tiny, gauntlet a slab); drone toy-like
+  (strawberry eyes, flat opaque wings, smooth worm tendrils). Recommended: accept the variants, polish the leader, redo
+  brother, destroyer and drone before their variants. Still to build after approval: 13 more zombie variants (20 in all),
+  plague-brother variants plus the Plague Sprayer brother (weapon not in the kit yet), two more destroyers.
 
 ### 2026-10-26, v0.1.29
 
