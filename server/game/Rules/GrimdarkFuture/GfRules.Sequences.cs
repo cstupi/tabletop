@@ -29,7 +29,7 @@ public sealed partial class GrimdarkFutureRules
         GfMoves.Reposition(),
         GfMorale.MoraleTest(),
         GfMelee.Charge(),
-        GfMelee.Melee(),
+        GfMelee.Melee(Edition),
         GfCasting.Casting(),
         GfCasting.SpellHits(),
         GfCasting.SpellTest(),
