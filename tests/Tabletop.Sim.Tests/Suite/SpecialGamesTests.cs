@@ -30,9 +30,18 @@ public class SpecialGamesTests
         var rules = TestProperties.RulebookDocument.Entries.Select(e => e.Name).Order().ToList();
         Assert.Equal(33, rules.Count);
         var relics = PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, "relic-wargear.part.json")!.Entries.Select(e => e.Name).ToHashSet();
-        Assert.Equal(rules.Concat(relics).Order(), Games.SelectMany(g => g.Covers).Distinct().Order().ToList());
+        var games = Games.Where(g => g.Edition == RuleSets.Gf351).ToList();
+        Assert.Equal(rules.Concat(relics).Order(), games.SelectMany(g => g.Covers).Distinct().Order().ToList());
         // A defect exhibit covers nothing; a relic game (p.36) covers its relics alone.
-        Assert.All(Games.Where(g => g.Known.Count == 0 && g.Covers.Count > 0 && !g.Covers.All(relics.Contains)), g => Assert.InRange(g.Covers.Count, 3, 5));
+        Assert.All(games.Where(g => g.Known.Count == 0 && g.Covers.Count > 0 && !g.Covers.All(relics.Contains)), g => Assert.InRange(g.Covers.Count, 3, 5));
+    }
+
+    [Fact]
+    public void The_3_6_special_games_cover_every_3_6_core_rule_and_the_relic_wargear()
+    {
+        var rules = PropertiesSeeder.EmbeddedPart(GfEdition.V360.ContentFolder, "core.properties.json")!.Entries.Select(e => e.Name).ToList();
+        var relics = PropertiesSeeder.EmbeddedPart(GfEdition.V360.ContentFolder, "relic-wargear.part.json")!.Entries.Select(e => e.Name);
+        Assert.Equal(rules.Concat(relics).Distinct().Order(), Games.Where(g => g.Edition == RuleSets.Gf360).SelectMany(g => g.Covers).Distinct().Order().ToList());
     }
 
     [Fact]

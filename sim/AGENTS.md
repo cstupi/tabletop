@@ -123,6 +123,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   twice (`SuiteCatalog.Expand`), the 3.6 run named `<name>@3.6`, the 3.5.1 one keeping the bare name; a game under 3.6 alone is
   `<name>@3.6` too. Groups `army:<edition>:<uid>` and `spells:<edition>:<uid>` (`SuiteCatalog.ArmyGroup`, `SpellsGroup`; today's are
   `army:3.5:<uid>`); `--only <name>` selects the 3.5.1 run, `--only <name>@3.6` the 3.6 one, a group both. Core and special games whose checks quote no rule the 3.6 set changes run both (`.BothEditions()` in their catalog list); the rest are 3.5.1-only. Army and spell games are single-edition (`Expand` throws on more than one: the books' uids differ per edition), and `BookOf` takes the three-part group only.
+- `SuiteCatalog.Core36.cs` and `SuiteCatalog.Special36*.cs` hold the 3.6-only games, one per rule whose 3.6.0 text changed or is new: a game declared `.In36()` (`Scripts36`, `Edition = RuleSets.Gf360`) runs under 3.6.0 alone as `<name>@3.6`, its checks quoting `3.6.0 p.N`; `core-side-battle` there runs both (`.BothEditions()`).
 - Coverage: per shipped set (`SuiteRunner.CoverageOf`), every entry of each set with the games of its edition that cover it, whether it fired in all of them, and its exact checks. A
   run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does. A text-only
   entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
