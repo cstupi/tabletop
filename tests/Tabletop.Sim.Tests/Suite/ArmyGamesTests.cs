@@ -54,7 +54,6 @@ public class ArmyGamesTests
     /// </summary>
     static readonly string[] Uncovered36 =
     [
-        "Split",
     ];
 
     /// <summary>
