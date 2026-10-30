@@ -95,6 +95,9 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
 
+**First: the 3.6.0 text-only rules played.** Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`, plan
+`docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks, five phases; `GfAttack.cs` split first). Nothing of it is built.
+
 ### Miniatures: resume the zombie army (outside the repo)
 
 Generated unit miniatures (GLB) live under `C:\Users\clays\Downloads\` (WSL `/mnt/c/Users/clays/Downloads/`), never in this
@@ -146,13 +149,10 @@ Next, in order (one Opus agent; the owner wants future armies to reach this leve
 - Checked on `main` before the tag: unit (all projects), E2E (Management 61, GameServer 40, Sim 340 with the lifecycle shapes), rules suite
   307 of 307, viewer 1,692 and its 6 stack tests, web 134.
 
-### 2026-10-28, v0.1.31
+### 2026-10-28, v0.1.30 and v0.1.31
 
-The web app's upload and library preview draws a GLB's embedded textures: `connect-src` admits `blob:`, which three.js
-fetches them through. The README opens with the release command.
-
-### 2026-10-28, v0.1.30
-
+- **v0.1.31:** the web app's upload and library preview draws a GLB's embedded textures (`connect-src` admits `blob:`, which three.js
+  fetches them through); the README opens with the release command.
 - **Godot setup screen** (spec `2026-10-27-godot-setup-screen-design.md`): a fixed head holds Start setup / End setup; the setup
   body opens on Terrain (search, catalog grouped by what a piece does as the browser's, Random table, Add my terrain, Clear), then
   closed Objectives, Table, Deployment zones, Layouts, Game settings and Players with counts in their headings. The terrain card shows
@@ -407,7 +407,8 @@ printed spell range replaces Army Forge's `inRange` in 96 spells (the dump's val
 whose effect the grammar cannot express or whose grant is not played: Burn the Heretic (Blessed Sisters) and Shifting Form (Change
 Disciples, Daemons of Change, Titan Lords Change Disciples) for "loses N spell tokens"; Triangulation Bots (Robot Legions) for its
 empty attack type; and 24 spells granting a text-only rule (Pierce 7, Smash 6, Decimate 4, Scourge 2, Destructive 2, Enhanced
-Wolfborn 2, Enhanced Rapid Blink 1). Brace and Parry have no description in any 3.6.0 book, the dump or the rulebook.
+Wolfborn 2, Enhanced Rapid Blink 1). Brace and Parry are described by no book and no rulebook page; Army Forge's common-rules endpoint
+(`GET https://army-forge.onepagerules.com/api/rules/common/2`) has both texts. The plan above makes every entry of this section played.
 
 **3.6.0 rules that are text-only** (`played: false` in `grimdark-future-3.6/army-rules.part.json`; the card shows them as not
 automated, a game plays nothing for them):
@@ -442,9 +443,8 @@ A Counter in Melee strike is not listed in the applied-rules log; only weapons n
 hills.
 
 **3.6.0 army import and melee.** An import classifies rule levels against the 3.6 catalog (a solo Unique Hero is a Hero on its model),
-and the 3.6 melee result counts the defender's Fear whether or not it struck.
-
-**Next structural task.** `server/game/Rules/GrimdarkFuture/GfAttack.cs` is 818 lines, over the 500-line limit; split it.
+and the 3.6 melee result counts the defender's Fear whether or not it struck. `server/game/Rules/GrimdarkFuture/GfAttack.cs` is 818 lines, over
+the 500-line limit; the plan's Task 0.1 splits it.
 
 **3.5.1 latent: AP floor rows.** `grimdark-future-3.5.1/army-rules.part.json` carries no `floor` on the AP rows of Fortified (:54),
 Fortified Growth (:55, both rows), Guardian (:61) and Primeborn (:149), whose text reads "to a min. of AP(0)". The file is pinned by
