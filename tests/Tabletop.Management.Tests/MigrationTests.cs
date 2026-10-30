@@ -32,6 +32,7 @@ public class MigrationTests : IClassFixture<TestDatabase>
         Assert.Contains("amount_dice", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='effect'"));
         Assert.Contains("steep", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='asset_volume'"));
         Assert.Contains("steep", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='terrain_volume'"));
+        Assert.Contains("modify_parameter", await c.ExecuteScalarAsync<string>("select pg_get_constraintdef(oid) from pg_constraint where conname = 'effect_floor_check'"));
     }
 
     [Fact]
