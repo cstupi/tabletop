@@ -115,4 +115,16 @@ public class RollEffects36Tests
         Assert.DoesNotContain(part36.Entries, e => e.Name == "Shred");   // so the composed 3.6 Shred comes from its core file
         Assert.Contains(part351.Entries, e => e.Name == "Shred");        // 3.5.1 keeps it in its part, not its core
     }
+
+    /// <summary>3.6.0 p.13 Aircraft: "units targeting them get -12" range and -1 to hit rolls." 3.5.1 takes the range only.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, 0)]
+    [InlineData(RuleSets.Gf360, -1)]
+    public void Shooting_at_an_aircraft_is_minus_one_to_hit_under_3_6_and_unmodified_under_3_5_1(string rulesId, int expected)
+    {
+        var shooter = Unit("S", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
+        var plan = HitPlan(rulesId, shooter, Unit("T", "4+", "4+", [P("Aircraft")], 2, []));
+        Assert.Equal(expected, plan.NetModifier);
+        Assert.Equal(expected == 0 ? [] : ["Aircraft"], plan.Modifiers.Select(m => m.Source));
+    }
 }
