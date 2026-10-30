@@ -48,4 +48,24 @@ public class RollEffects36Tests
         var shooter = Unit("S", "4+", "4+", [], 1, [], Gun("Mortar", "24\"", 1, P("Indirect"), P("Unstoppable")));
         Assert.Equal(expected, HitPlan(rulesId, shooter, Unit("T", "4+", "4+", [], 2, []), "Advance").NetModifier);
     }
+    /// <summary>A Precision Debuff's once row granted to the shooter: an enemy's pick is not the shooter's rule; one its own side placed is.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, true, 0)]
+    [InlineData(RuleSets.Gf360, true, 0)]
+    [InlineData(RuleSets.Gf351, false, 0)]
+    [InlineData(RuleSets.Gf360, false, -1)]
+    public void Unstoppable_ignores_an_enemys_precision_debuff_and_keeps_its_own_sides_under_3_6(string rulesId, bool enemyCaster, int expected)
+    {
+        var properties = rulesId == RuleSets.Gf360 ? TestProperties.Core36 : TestProperties.Core;
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Beam", "24\"", 1, P("Unstoppable")));
+        var b = Unit("B", "4+", "4+", [], 1, []);
+        var state = State([a], [b]);
+        foreach (var row in properties.Entry("Precision Debuff")!.Effects.Where(e => e.Duration == EffectDuration.Once))
+            state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null, new GrantAdded(a.Id, new Grant(Guid.CreateVersion7(), row.Id, "Precision Debuff", enemyCaster ? b.Id : a.Id, 1)), null));
+        var live = LiveProperties.Settle(new Interaction(state, properties, Party.Of(state, a.Id, a.Models.Select(m => m.Id), a.Models.SelectMany(m => m.Weapons.Select(w => w.Id))), Party.Whole(state, b.Id), AttackKind.Shooting, "Hold", 12, []));
+        Assert.Equal(-1, live.Effects(Side.Attacker, EffectKind.ModifyRoll).Where(x => x.Effect.TargetRoll == "hit").Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter)));   // the debuff acts
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit");
+        Assert.Equal(expected, plan.NetModifier);
+        Assert.Equal(expected == 0, plan.Ignored?.Contains(new IgnoredEffect("Precision Debuff", "Unstoppable", -1)) ?? false);
+    }
 }
