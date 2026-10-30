@@ -20,9 +20,9 @@ static partial class SpecialGames
 {
     public static IEnumerable<TestGame> All() =>
     [
-        Regrowth(), BlastDeadly(), Gunline(), Artillery(), Charge(), Swift(), EternalFlame(), Command(), Deployment(),
-        Aircraft(), CastMidMove(), AmbushCloseQuarters(), TakedownPicksOne(),
-        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk(),
+        Regrowth(), BlastDeadly().BothEditions(), Gunline(), Artillery(), Charge(), Swift().BothEditions(), EternalFlame().BothEditions(), Command(), Deployment(),
+        Aircraft(), CastMidMove(), AmbushCloseQuarters().BothEditions(), TakedownPicksOne().BothEditions(),
+        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk().BothEditions(),
     ];
 
     // ---- Building blocks ---------------------------------------------------------------------------------------------------------------

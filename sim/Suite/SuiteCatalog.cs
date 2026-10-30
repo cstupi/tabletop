@@ -22,7 +22,7 @@ public static partial class SuiteCatalog
     /// game under 3.6 is named &lt;name&gt;@3.6 while the 3.5.1 one keeps the bare name, and a book group names the edition.
     /// </summary>
     public static IReadOnlyList<TestGame> Expand(IEnumerable<TestGame> games) =>
-        [.. games.SelectMany(g => (g.Editions ?? [g.Edition]).Select(edition => g with
+        [.. games.SelectMany(g => EditionsOf(g).Select(edition => g with
         {
             Name = edition == RuleSets.Gf351 ? g.Name : $"{g.Name}@{EditionLabel(edition)}",
             Group = InEdition(g.Group, edition),
@@ -31,6 +31,17 @@ public static partial class SuiteCatalog
             Editions = null,
         }))];
 
+    private static IReadOnlyList<string> EditionsOf(TestGame g)
+    {
+        var editions = g.Editions ?? [g.Edition];
+        if (editions.Count > 1 && (g.Group.StartsWith(ArmyPrefix, StringComparison.Ordinal) || g.Group.StartsWith(SpellsPrefix, StringComparison.Ordinal)))
+            throw new InvalidOperationException($"'{g.Name}' is an army or spell game and runs under one edition: the books' uids differ between editions");
+        return editions;
+    }
+
+    /// <summary>The game runs under 3.5.1 and 3.6: its checks quote no rule the 3.6 set changes. Not for an army or spell game.</summary>
+    public static TestGame BothEditions(this TestGame game) => game with { Editions = [RuleSets.Gf351, RuleSets.Gf360] };
+
     /// <summary>A book's army group under an edition: army:3.5:&lt;uid&gt;.</summary>
     public static string ArmyGroup(string rulesId, string uid) => $"{ArmyPrefix}{RuleSets.EditionOf(rulesId)}:{uid}";
 
@@ -38,7 +49,8 @@ public static partial class SuiteCatalog
     public static string SpellsGroup(string rulesId, string uid) => $"{SpellsPrefix}{RuleSets.EditionOf(rulesId)}:{uid}";
 
     /// <summary>The book uid an army or spells group names.</summary>
-    public static string BookOf(string group) => group[(group.IndexOf(':', group.IndexOf(':') + 1) + 1)..];
+    public static string BookOf(string group) =>
+        group.Split(':') is [_, _, var uid] ? uid : throw new ArgumentException($"'{group}' is not an army:<edition>:<uid> or spells:<edition>:<uid> group", nameof(group));
 
     /// <summary>A rules id as the report shows it: its army edition (3.5, 3.6), or the id itself when it is no shipped set.</summary>
     public static string EditionLabel(string rulesId) => RuleSets.All.Contains(rulesId) ? RuleSets.EditionOf(rulesId) : rulesId;

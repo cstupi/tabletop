@@ -179,7 +179,7 @@ internal static partial class CoreGames
                 Require(log.Frames.Where(f => f.Sequence == "transport-destroyed").ToList(), "no transport was destroyed with anybody inside", wreck =>
                 {
                     var unit = wreck.Actor!.Value;
-                    if (!log.Children(wreck).Any(c => c.Sequence == "dangerous-terrain")) return "the occupants took no dangerous terrain test";
+                    if (!log.Children(wreck).Any(c => c.Sequence is "dangerous-terrain" or "dangerous-terrain-36")) return "the occupants took no dangerous terrain test";
                     var place = wreck.Steps.FirstOrDefault(s => s.Step.Step == "place");
                     if (place is null) return "the occupants were never placed";
                     if (log.LivingModels(unit, place.Seq) > 0 && !place.Step.Changes.OfType<ConditionSet>().Any(c => c is { Condition: "shaken", Present: true } && c.Subject.Id == unit)) return "the occupants were not Shaken";

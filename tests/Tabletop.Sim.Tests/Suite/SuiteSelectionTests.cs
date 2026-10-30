@@ -11,9 +11,9 @@ public class SuiteSelectionTests
         SuiteFixtures.Game(name: "melee-brawl", group: "core"),
         SuiteFixtures.Game(name: "volley", group: "core"),
         SuiteFixtures.Game(name: "furious-counter", group: "special"),
-        SuiteFixtures.Game(name: "orc-rules", group: "army:orc"),
-        SuiteFixtures.Game(name: "orc-spells", group: "spells:orc"),
-        SuiteFixtures.Game(name: "elf-spells", group: "spells:elf"),
+        SuiteFixtures.Game(name: "orc-rules", group: "army:3.5:orc"),
+        SuiteFixtures.Game(name: "orc-spells", group: "spells:3.5:orc"),
+        SuiteFixtures.Game(name: "elf-spells", group: "spells:3.5:elf"),
     ];
 
     static IEnumerable<string> Names(params string[] only) => SuiteCatalog.Select(Games, only).Select(g => g.Name);
@@ -24,9 +24,9 @@ public class SuiteSelectionTests
         Assert.Equal(Games.Select(g => g.Name), Names());
         Assert.Equal(["melee-brawl", "volley"], Names("core"));
         Assert.Equal(["furious-counter"], Names("special"));
-        Assert.Equal(["orc-rules"], Names("army:orc"));
-        Assert.Equal(["orc-spells"], Names("spells:orc"));
-        Assert.Equal(["volley", "orc-rules", "elf-spells"], Names("elf-spells", "volley", "army:orc"));   // the games' own order
+        Assert.Equal(["orc-rules"], Names("army:3.5:orc"));
+        Assert.Equal(["orc-spells"], Names("spells:3.5:orc"));
+        Assert.Equal(["volley", "orc-rules", "elf-spells"], Names("elf-spells", "volley", "army:3.5:orc"));   // the games' own order
         Assert.Equal(["volley"], Names("volley", "volley"));
     }
 
@@ -37,7 +37,8 @@ public class SuiteSelectionTests
         [
             SuiteFixtures.Game(name: "volley", group: "core") with { Editions = [RuleSets.Gf351, RuleSets.Gf360] },
             SuiteFixtures.Game(name: "brawl", group: "core"),
-            SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf351, "orc")) with { Editions = [RuleSets.Gf351, RuleSets.Gf360] },
+            SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf351, "orc")),
+            SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf360, "orc")) with { Edition = RuleSets.Gf360 },
         ]);
 
         Assert.Equal(["volley", "volley@3.6", "brawl", "orc-rules", "orc-rules@3.6"], games.Select(g => g.Name));
@@ -51,6 +52,23 @@ public class SuiteSelectionTests
         Assert.Equal(["volley@3.6"], Picked("volley@3.6"));
         Assert.Equal(["volley", "volley@3.6", "brawl"], Picked("core"));
         Assert.Equal(["orc-rules@3.6"], Picked("army:3.6:orc"));
+    }
+
+    [Fact]
+    public void An_army_or_spell_game_with_more_than_one_edition_is_refused()
+    {
+        var both = new[] { RuleSets.Gf351, RuleSets.Gf360 };
+        var army = Assert.Throws<InvalidOperationException>(() => SuiteCatalog.Expand([SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf351, "orc")) with { Editions = both }]));
+        Assert.Contains("orc-rules", army.Message);
+        Assert.Throws<InvalidOperationException>(() => SuiteCatalog.Expand([SuiteFixtures.Game(name: "orc-spells", group: SuiteCatalog.SpellsGroup(RuleSets.Gf351, "orc")) with { Editions = both }]));
+    }
+
+    [Fact]
+    public void BookOf_takes_a_three_part_group_only()
+    {
+        Assert.Equal("orc", SuiteCatalog.BookOf("army:3.5:orc"));
+        Assert.Throws<ArgumentException>(() => SuiteCatalog.BookOf("army:orc"));
+        Assert.Throws<ArgumentException>(() => SuiteCatalog.BookOf("core"));
     }
 
     [Fact]
