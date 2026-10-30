@@ -28,7 +28,7 @@ export interface ModelSlot {
 }
 export interface Unit { id: Guid; ordinal: number; name: string; stats: Record<string, string>; properties: PropertyInstance[]; models: ModelSlot[]; reserve?: UnitReserve }
 export interface UnitReserve { property: string; of: Guid }
-export interface Army { id: Guid; name: string; gameSystem: string; source: string; units: Unit[] }
+export interface Army { id: Guid; name: string; gameSystem: string; edition: string; source: string; units: Unit[] }
 export interface TerrainVolume { id: Guid; volume: Volume }
 
 // Identity
@@ -84,7 +84,7 @@ export interface FolderRequest { name: string; parentId: Guid | null }
 export interface BulkAssetsResponse { done: Guid[]; notFound: Guid[] }
 
 // Armies
-export interface ArmySummary { id: Guid; name: string; gameSystem: string; source: string; units: number; models: number }
+export interface ArmySummary { id: Guid; name: string; gameSystem: string; edition: string; source: string; units: number; models: number }
 /** Which of Army Forge's two published bases the import writes for the whole army: `round` (circle or oval) or `square` (square or rectangle). */
 export interface ImportRequest { source: string }
 export interface UnitPatch { unitId: Guid; assetId: Guid | null }
