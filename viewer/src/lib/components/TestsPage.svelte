@@ -6,7 +6,7 @@
   import { fromUrl } from '../recording/source';
   import { fetchSuite, recordingUrl, runEvents, spectate, startRun, type SuiteGameResult } from '../suite/client';
   import {
-    applyEvent, canRun, counts, coverageCell, failed, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup,
+    applyEvent, canRun, counts, coverageCell, editionName, editionsOf, failed, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleEdition, toggleGame, toggleGroup,
     type Page,
   } from '../suite/model';
 
@@ -17,6 +17,7 @@
   let loadError: string | null = $state(null);
 
   const groups = $derived(groupsOf(page.games));
+  const editions = $derived(editionsOf(page.games));
   const tally = $derived(counts(page));
 
   $effect(() => {
@@ -72,6 +73,19 @@
       {#if page.message !== null}<span class="error">{page.message}</span>{/if}
     </div>
 
+    {#if editions.length > 1}
+      <div class="bar">
+        <span class="muted">edition</span>
+        {#each editions as e (e.edition)}
+          <label>
+            <input type="checkbox" checked={page.games.filter((g) => g.edition === e.edition).every((g) => page.selected.has(g.name))}
+              onchange={() => (page = toggleEdition(page, e.edition))} />
+            {e.name}
+          </label>
+        {/each}
+      </div>
+    {/if}
+
     {#each groups as group (group.name)}
       <section>
         <h3>
@@ -88,6 +102,7 @@
               <input type="checkbox" checked={page.selected.has(game.name)} onchange={() => (page = toggleGame(page, game.name))} />
               {game.name}
             </label>
+            <span class="muted">{game.ruleSet}</span>
             {#if r !== undefined}
               <strong class={r.passed ? 'ok' : 'error'}>{r.passed ? 'passed' : 'failed'}</strong>
               {#if r.recordingPath !== null}<button onclick={() => watch(r)}>Watch</button>{/if}
@@ -108,12 +123,12 @@
     {#if page.coverage.length > 0}
       <h3>Coverage</h3>
       <table>
-        <thead><tr><th>entry</th><th>kind</th><th>fired</th><th>games</th><th>exact checks</th></tr></thead>
+        <thead><tr><th>entry</th><th>kind</th><th>edition</th><th>fired</th><th>games</th><th>exact checks</th></tr></thead>
         <tbody>
-          {#each page.coverage as c (c.kind + c.name)}
+          {#each page.coverage as c (c.edition + c.kind + c.name)}
             {@const cell = coverageCell(c)}
             <tr>
-              <td>{c.name}</td><td class="muted">{c.kind}</td>
+              <td>{c.name}</td><td class="muted">{c.kind}</td><td class="muted">{editionName(page.games, c.edition)}</td>
               <td class={cell.tone}>{cell.text}</td>
               <td class="muted">{c.games.join(', ')}</td>
               <td>{#each c.exact as x (x.game + x.check)}<div class={x.passed ? 'ok' : 'error'}>{x.game}: {x.check}</div>{/each}</td>
