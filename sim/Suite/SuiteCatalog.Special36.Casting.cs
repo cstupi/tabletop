@@ -77,4 +77,68 @@ static partial class SpecialGames
             ],
             dice: [new("casting", 0, [5], new RollKey(Actor: "Red unit 1"))]);
     }
+
+    // ---- special-shred-and-amplifier@3.6 -----------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Shred, Spell Amplifier. Red unit 1 (three models, a Shred Rifle each) Holds and shoots Blue unit 1 (six one-wound models on Defense 4+,
+    /// no gun): its hits are fixed to [4,4,4] and Blue's defense to [1,1,6]. Red unit 2 (one Caster(2) with Spell Amplifier, book
+    /// z65fgu0l29i4lnlu) Holds and casts Shock Speed on itself, the casting die fixed to 3.
+    /// </summary>
+    static TestGame ShredAndAmplifier36()
+    {
+        const string name = "special-shred-and-amplifier";
+        var cast = new HashSet<Guid>();   // the activation frames that have cast: one Shock Speed, every later window passed
+        var script = Plays((ask, _) => AskPicks.Activate(ask, "Red unit 1", "Hold") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Activate(ask, "Blue unit 1", "Hold"),
+            ("react", (ask, p) => ask.Prompt != "Before attacking" ? null
+                : ShooterOf(ask, p) == "Red unit 2" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") && !cast.Contains(ask.FrameId ?? Guid.Empty) ? new Chosen("cast") : new Passed()),
+            ("cast", (ask, p) => { if (p.Stack.FirstOrDefault(x => x.Id == ask.FrameId) is { } f && p.Stack.LastOrDefault(x => x.Sequence == "hold") is { } hold) cast.Add(hold.Id); return AskPicks.Spell(ask, p, "Shock Speed", "Red unit 2"); }),
+            ("spell_targets", (ask, p) => AskPicks.Pieces(ask, p, "Red unit 2")),
+            (AskQuestions.SpendTokens, (_, _) => new TokensSpent(new Dictionary<Guid, int>())),
+            ("declare_targets", (ask, p) => ShooterOf(ask, p) == "Red unit 1" ? AllAt(ask, p, "Blue unit 1") : null));
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
+                .Army("Red", 2, 3, weapons: [Gun("Shred Rifle", 24, 1, Rule("Shred"))], unitStats: Stats(4, 4), armyBook: "z65fgu0l29i4lnlu", sizes: new Dictionary<int, int> { [2] = 1 },
+                    models: [new ScenarioModel(2, 1, [new(0, "Caster", 2), new(0, "Spell Amplifier")], Weapons: [Blade("Staff", 1)])],
+                    anchors: new Dictionary<int, Point2> { [1] = new(10, 20), [2] = new(24, 20) })
+                .Army("Blue", 1, 6, weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(8, 4) })
+                .Build(),
+            ["Shred", "Spell Amplifier"],
+            [
+                Exact("3.6.0 p.15 Shred: \"For each unmodified result of 1 to block hits, this weapon deals 1 extra wound\" (defense [1,1,6]: two wounds and two more)", ["Shred"], run =>
+                    Each(Attacks(run).Where(a => a.Weapon == "Shred Rifle" && a.Block is not null), "a Shred Rifle volley", a =>
+                    {
+                        var ones = a.Block!.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count(d => d.Raw == 1));
+                        var taken = WoundsSet(a.Assigns).Count(w => w.Wounds > 0);   // one-wound models: each wound sets 1
+                        return ones == 2 && Unblocked(a) == 2 && taken == Unblocked(a) + ones ? null : $"{Unblocked(a)} unblocked, {ones} unmodified 1s, {taken} wounds taken";
+                    })),
+                Exact("3.6.0 p.15 Spell Amplifier: \"Gets +1 to casting rolls\" (a raw 3 casts at 4+)", ["Spell Amplifier"], run =>
+                {
+                    var rolls = Steps(run).SelectMany(s => s.Step.Rolls).Where(r => r.Roll == "casting").ToList();
+                    return rolls.FirstOrDefault(r => r.Modifiers.Count(m => m.Source == "Spell Amplifier" && m.Amount == 1) != 1) is { } wrong ? $"casting roll {Show(wrong)}"
+                        : Judged(rolls, "a casting roll", 0);
+                }),
+            ],
+            // Shred's Applied is read off the defense faces as rolled (RollEffects.PerDie), and the fix edits them after: the extra wound a face as it
+            // stands adds (roll-to-block's extra_wounds_<roll>_<face>, which deal-wounds reads) is the evidence.
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Shred"] = ExtraWoundOnAOne },
+            dice:
+            [
+                new("hit", 0, [4, 4, 4], new RollKey(Weapon: "Shred Rifle")),
+                new("defense", 0, [1, 1, 6], new RollKey(Weapon: "Shred Rifle")),
+                new("casting", 0, [3], new RollKey(Actor: "Red unit 2")),
+            ]);
+    }
+
+    /// <summary>A roll-to-block whose defense roll, as it stands after edits, shows a raw 1 that its step maps to an extra wound (extra_wounds_&lt;roll&gt;_1).</summary>
+    static bool ExtraWoundOnAOne(IReadOnlyList<GameEvent> log)
+    {
+        var edits = log.Select(e => e.Payload).OfType<DiceEdited>().SelectMany(d => d.Replaced.Select(r => (d.RollId, r.Index, r.New))).ToList();
+        foreach (var step in log.Select(e => e.Payload).OfType<StepCompleted>().Where(s => s.Step == "roll-to-block"))
+            foreach (var (roll, i) in step.Rolls.Where(r => r.Roll == "defense").Select((r, i) => (r, i)))
+            {
+                var dice = roll.Dice.Select((d, at) => edits.LastOrDefault(x => x.RollId == roll.Id && x.Index == at) is { New: { } n } ? n : d).ToList();
+                if (dice.Any(d => d.Raw == 1) && step.Values?.GetValueOrDefault($"extra_wounds_{i}_1") > 0) return true;
+            }
+        return false;
+    }
 }

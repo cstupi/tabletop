@@ -19,6 +19,11 @@ static partial class SpecialGames
         Charge36().In36(),
         Command36().In36(),
         CastMidMove36().In36(),
+        Aircraft36().In36(),
+        IndirectOnHold36().In36(),
+        HeroAura36().In36(),
+        AssaultAndCumbersome36().In36(),
+        ShredAndAmplifier36().In36(),
     ];
 
     /// <summary>Every shoot_or_not answered shoot and every strike_back strike; activations by the pick given, else the policy.</summary>

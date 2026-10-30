@@ -231,4 +231,136 @@ static partial class SpecialGames
                 new("hit", 0, [5, 4], new RollKey(Actor: "Blue unit 1", Target: "Red unit 1", Weapon: "Lascannon")),
             ]);
     }
+
+    // ---- special-indirect-on-hold@3.6 --------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Indirect over two rounds, with no model moving. Red unit 1 (one mortar at (6, 22)) faces Blue unit 1 (one model at (6, 2)) across a
+    /// 4"-tall sight-blocking wall (x 4–8, y 11.5–12.5); Red unit 2 (one mortar at (24, 22)) faces Blue unit 2 (one model at (24, 2)) past Blue unit
+    /// 3 (one model at (24.3, 8)), which hides most of it. Both Red units Hold and fire in round 1 and Advance without moving in round 2; Blue
+    /// holds and has no gun. Red unit 2's hit rolls are fixed to a 6 so its target rolls a defense die each round.
+    /// </summary>
+    static TestGame IndirectOnHold36()
+    {
+        const string name = "special-indirect-on-hold";
+        var script = Plays((ask, p) => p.Scheduler.Round == 1
+                ? AskPicks.Activate(ask, "Red unit 1", "Hold") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal))
+                : AskPicks.Activate(ask, "Red unit 1", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Advance") ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
+            ("move", (ask, p) => ask.Legal is MoveRegion region && Scripts36.UnitOf(p, region) is "Red unit 1" or "Red unit 2" ? new Destinations([]) : null),
+            ("declare_targets", (ask, p) => ShooterOf(ask, p) switch { "Red unit 1" => AllAt(ask, p, "Blue unit 1"), "Red unit 2" => AllAt(ask, p, "Blue unit 2"), _ => null }));
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(2).Table(36, 24).Scripted(script)
+                .Army("Red", 2, 1, weapons: [Gun("Mortar", 36, 1, Rule("Indirect"))], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 22), [2] = new(24, 22) })
+                .Army("Blue", 3, 1, modelRules: [new(1, "Tough", 6), new(2, "Tough", 6), new(3, "Tough", 6)], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 6),
+                    anchors: new Dictionary<int, Point2> { [1] = new(6, 2), [2] = new(24, 2), [3] = new(24.3, 8) })
+                .Terrain("wall", new Point3(6, 12, 0), volumes:
+                    [new Volume(VolumeKind.Solid, Footprint.Rect(4, 1), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.BlocksLineOfSight, null)])
+                .Build(),
+            ["Indirect"],
+            [
+                Exact("3.6.0 p.14 Indirect: \"When using Hold actions and shooting, may target enemies that are not in line of sight as if in line of sight\" (after an Advance, the unit behind the wall is no target)", ["Indirect"], run =>
+                {
+                    var log = LogQueries.Of(run);
+                    var hidden = log.UnitNamed("Blue unit 1");
+                    var asks = log.AsksOf("declare_targets").Where(a => a.Frame is { } f && f.Context.ActorUnitId == log.UnitNamed("Red unit 1")).ToList();
+                    var held = asks.Where(a => a.Frame!.Nearest("hold", "advance")?.Sequence == "hold").ToList();
+                    var advanced = asks.Where(a => a.Frame!.Nearest("hold", "advance")?.Sequence == "advance").ToList();
+                    if (!held.Any(a => a.Ask.Legal is Assignment t && t.Targets.Contains(hidden))) return "the mortar holding was not offered the unit behind the wall";
+                    if (!Attacks(run).Any(a => a.Actor == "Red unit 1" && a.Target == "Blue unit 1" && a.Action == "Hold" && a.Determine?.Applied?.Contains("Indirect") == true))
+                        return "the mortar holding did not shoot the unit behind the wall with Indirect";
+                    var shotAfterAdvance = Attacks(run).Any(a => a.Actor == "Red unit 1" && a.Target == "Blue unit 1" && a.Action == "Advance");
+                    return shotAfterAdvance || advanced.Any(a => a.Ask.Legal is Assignment t && t.Targets.Contains(hidden)) ? "the mortar was offered or shot the unit behind the wall after an Advance" : null;
+                }),
+                Exact("3.6.0 p.14 Indirect: \"When using Hold actions and shooting ... ignores cover from Sight Blockers\"; 3.6.0 p.12 Cover: \"behind sight blockers ... they get +1 to Defense rolls\"", ["Indirect"], run =>
+                {
+                    var blocks = Attacks(run).Where(a => a.Actor == "Red unit 2" && a.Target == "Blue unit 2" && a.Block is not null).SelectMany(a => a.Block!.Rolls.Where(r => r.Roll == "defense").Select(r => (a.Action, Roll: r))).ToList();
+                    var held = blocks.Where(b => b.Action == "Hold").ToList();
+                    var advanced = blocks.Where(b => b.Action == "Advance").ToList();
+                    if (held.Count == 0 || advanced.Count == 0) return $"{held.Count} defense roll(s) after a Hold and {advanced.Count} after an Advance; both are needed";
+                    if (held.FirstOrDefault(b => b.Roll.Cover is not { InCover: true, IgnoredBy: "Indirect" } || b.Roll.Modifiers.Any(m => m.Source == "cover")) is { Roll: not null } h)
+                        return $"after a Hold: cover {h.Roll.Cover}, {Show(h.Roll)}";
+                    return advanced.FirstOrDefault(b => b.Roll.Cover is not { InCover: true, IgnoredBy: null } || !b.Roll.Modifiers.Any(m => m.Source == "cover" && m.Amount == 1)) is { Roll: not null } v
+                        ? $"after an Advance: cover {v.Roll.Cover}, {Show(v.Roll)}" : null;
+                }),
+            ],
+            dice:
+            [
+                new("hit", 0, [6], new RollKey(Actor: "Red unit 2", Action: "Hold")),
+                new("hit", 0, [6], new RollKey(Actor: "Red unit 2", Action: "Advance")),
+            ]);
+    }
+
+    // ---- special-assault-and-cumbersome@3.6 --------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Assault, Cumbersome. Blue unit 1 (two Tough(6) models from (10, 6), blades) holds. Red unit 1 (one Tough(6) model armed only with a 12"
+    /// Assault Pistol) charges it, landing above its first model; Red unit 2 (the same, at (14, 16)) Holds and shoots it. Red units 3 and 4 (one
+    /// Cumbersome model each, 24" rifles, at (24, 18) and (30, 18)): unit 3 Advances 2" straight back, unit 4 Holds.
+    /// </summary>
+    static TestGame AssaultAndCumbersome36()
+    {
+        const string name = "special-assault-and-cumbersome";
+        var script = Plays((ask, _) => AskPicks.Activate(ask, "Red unit 1", "Charge") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Activate(ask, "Red unit 3", "Advance")
+                ?? AskPicks.Activate(ask, "Red unit 4", "Hold") ?? AskPicks.Activate(ask, "Blue unit 1", "Hold"),
+            ("charge_target", (ask, p) => AskPicks.Pieces(ask, p, "Blue unit 1")),
+            ("move", (ask, p) => Scripts36.Charging(new Dictionary<string, Point2> { ["Red unit 1"] = new(10, 6 + Scripts36.Touch) })(ask, p)
+                ?? (ask.Legal is MoveRegion { ContactWith: null, Containment: null } region && Scripts36.UnitOf(p, region) == "Red unit 3"
+                    ? new Destinations([.. region.ModelIds.Select(id => Scripts36.MoveBy(p, id, 0, 2))]) : null)),
+            ("declare_targets", (ask, p) => AllAt(ask, p, "Blue unit 1")));
+        var pistol = Gun("Assault Pistol", 12, 1, Rule("Assault"));
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
+                .Army("Red", 4, 1, modelRules: [new(1, "Tough", 6), new(2, "Tough", 6), new(3, "Cumbersome"), new(4, "Cumbersome")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4),
+                    models: [new ScenarioModel(1, 1, Weapons: [pistol]), new ScenarioModel(2, 1, Weapons: [pistol])],
+                    anchors: new Dictionary<int, Point2> { [1] = new(10, 18), [2] = new(14, 16), [3] = new(24, 18), [4] = new(30, 18) })
+                .Army("Blue", 1, 2, modelRules: [new(1, "Tough", 6)], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(10, 6) })
+                .Build(),
+            ["Assault", "Cumbersome"],
+            [
+                Exact("3.6.0 p.13 Assault: \"Counts as both a ranged weapon and a melee weapon\" (the pistol shoots from a Hold and strikes on the charge)", ["Assault"], run =>
+                {
+                    var log = LogQueries.Of(run);
+                    var pistols = log.FramesOf("attack-sequence").Where(f => f.Context.WeaponIds.Count > 0 && log.WeaponName(f.Context.WeaponIds[0]) == "Assault Pistol").ToList();
+                    var shot = pistols.Any(f => f.Parent?.Sequence == "shooting" && log.UnitName(f.Context.ActorUnitId!.Value) == "Red unit 2");
+                    var struck = pistols.Any(f => f.Parent?.Sequence == "melee" && log.UnitName(f.Context.ActorUnitId!.Value) == "Red unit 1"
+                        && f.Steps.Any(s => s.Name == "determine-attacks" && s.Value("attacks") == 1));
+                    return shot && struck ? null : $"the Assault Pistol {(shot ? "shot" : "never shot")} and {(struck ? "struck" : "never struck")}";
+                }),
+                Exact("3.6.0 p.14 Cumbersome: \"May only use Hold or Advance actions\"", ["Cumbersome"], run =>
+                    Each(ActivateOptions(run).Where(o => o.Unit is "Red unit 3" or "Red unit 4"), "an activation offer to a Cumbersome unit", o =>
+                        o.Actions.SequenceEqual(["Hold", "Advance"]) ? null : $"{o.Unit} offered {string.Join(",", o.Actions)}", need: 2)),
+                Exact("3.6.0 p.14 Cumbersome: \"but can’t shoot when moving\" (the Advance moved 2\": no shot; the Hold shot)", ["Cumbersome"], run =>
+                {
+                    var log = LogQueries.Of(run);
+                    var (moving, holding) = (log.UnitNamed("Red unit 3"), log.UnitNamed("Red unit 4"));
+                    var advance = log.FramesOf("advance").FirstOrDefault(f => f.Context.ActorUnitId == moving);
+                    if (advance is null) return "the Cumbersome unit never advanced";
+                    if (!log.Steps.Any(s => s.Frame == advance && s.Name == "move" && s.Step.Changes.OfType<ModelsMoved>().Any())) return "the Advance moved nothing";
+                    if (log.Descendants(advance).Any(f => f.Sequence == "shooting") || log.AsksOf("shoot_or_not").Any(a => a.Frame == advance)) return "the Cumbersome unit was offered a shot after moving";
+                    return log.FramesOf("shooting").Any(f => f.Context.ActorUnitId == holding) ? null : "the holding Cumbersome unit never shot";
+                }),
+            ],
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>>
+            {
+                // Neither rule completes a step of its own. The charger's only weapon is the pistol, so its attack inside the melee is Assault's
+                // evidence; the narrowed activation menu is Cumbersome's.
+                ["Assault"] = ChargerStruck,
+                ["Cumbersome"] = log => Offers(log).Where(o => o.Unit is "Red unit 3" or "Red unit 4").ToList() is { Count: > 0 } offers && offers.All(o => o.Actions.SequenceEqual(["Hold", "Advance"])),
+            });
+    }
+
+    /// <summary>Whether a melee frame started an attack-sequence for its own actor, the charger.</summary>
+    static bool ChargerStruck(IReadOnlyList<GameEvent> log)
+    {
+        var stack = new List<SequenceStarted>();
+        foreach (var e in log)
+            switch (e.Payload)
+            {
+                case SequenceStarted s:
+                    if (s.Sequence == "attack-sequence" && stack.Count > 0 && stack[^1] is { Sequence: "melee" } melee && melee.Context.ActorUnitId == s.Context.ActorUnitId) return true;
+                    stack.Add(s);
+                    break;
+                case SequenceFinished f: stack.RemoveAll(x => x.FrameId == f.FrameId); break;
+                case SequenceAbandoned a when stack.FindIndex(x => x.FrameId == a.FrameId) is var i and >= 0: stack.RemoveRange(i, stack.Count - i); break;
+            }
+        return false;
+    }
 }

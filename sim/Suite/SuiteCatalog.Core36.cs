@@ -28,8 +28,8 @@ internal static partial class CoreGames
     /// 3.6.0 p.9 who can strike and fatigue. Blue unit 1 (four models in a row along y 6, 1.76" apart) holds; Red unit 1 and Red unit 2 (one
     /// Tough(6) model each) charge it in turn, each landing straight above an end model, and Blue passes its close-in, so its second and third
     /// models stand 0.90" and 2.48" from the charger. Blue strikes back with a Rending blade twice in the round: its first strike back's dice
-    /// are fixed to 6s (Rending acts), its second, fatigued, to 6s too (they hit and trigger nothing). Red's own strikes are fixed to miss, so
-    /// Blue loses no model and the row stands.
+    /// are fixed to 6s (Rending acts), its second, fatigued, to 6s too (they hit and trigger nothing). Red's own strikes are fixed to miss and its
+    /// defense dice to block, so no melee is lost, nobody routs or consolidates into the row, and the row stands.
     /// </summary>
     static TestGame ChargeAndStrikeBack36()
     {
@@ -91,6 +91,8 @@ internal static partial class CoreGames
             new DiceFix("hit", 0, [1], new RollKey(Actor: "Red unit 2")),
             new DiceFix("hit", 0, [6, 6, 6], new RollKey(Actor: "Blue unit 1", Target: "Red unit 1")),
             new DiceFix("hit", 0, [6, 6, 6], new RollKey(Actor: "Blue unit 1", Target: "Red unit 2")),
+            new DiceFix("defense", 0, [6, 6, 6], new RollKey(Actor: "Blue unit 1", Target: "Red unit 1")),
+            new DiceFix("defense", 0, [6, 6, 6], new RollKey(Actor: "Blue unit 1", Target: "Red unit 2")),
         ]);
     }
 

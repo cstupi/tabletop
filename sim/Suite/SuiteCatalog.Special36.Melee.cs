@@ -163,4 +163,55 @@ static partial class SpecialGames
                 new("Fearless", 0, [4], new RollKey(Actor: "Red unit 4")),
             ]);
     }
+
+    // ---- special-hero-aura@3.6 ---------------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Hero. Red unit 1 and Red unit 4 are lone Tough(9) Heroes of Quality 2+, Red unit 4 Shaken from the start; Red unit 2 (three models of
+    /// Quality 5+) stands within 6" of Red unit 1 only, Red unit 3 (the same) within 6" of Red unit 4 only. Red holds, Red unit 4 last. Blue
+    /// unit 1 shoots Red unit 2 and Blue unit 2 Red unit 3; each volley is fixed to two unblocked hits, leaving one model of three, and each
+    /// morale test to a 3.
+    /// </summary>
+    static TestGame HeroAura36()
+    {
+        const string name = "special-hero-aura";
+        var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label is "Red unit 1: Hold" or "Red unit 2: Hold" or "Red unit 3: Hold")
+                ?? AskPicks.Activate(ask, "Blue unit 1", "Hold") ?? AskPicks.Activate(ask, "Blue unit 2", "Hold") ?? AskPicks.Option(ask, c => c.Label.StartsWith("Red unit 4", StringComparison.Ordinal)),
+            ("declare_targets", (ask, p) => ShooterOf(ask, p) switch { "Blue unit 1" => AllAt(ask, p, "Red unit 2"), "Blue unit 2" => AllAt(ask, p, "Red unit 3"), _ => null }));
+        ScenarioModel Hero(int unit) => new(unit, 1, [new(0, "Hero"), new(0, "Tough", 9)], Stats(2, 4));
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
+                .Army("Red", 4, 3, weapons: [Blade("Blade", 1)], unitStats: Stats(5, 5), sizes: new Dictionary<int, int> { [1] = 1, [4] = 1 },
+                    models: [Hero(1), Hero(4)], conditions: [(4, "shaken")],
+                    anchors: new Dictionary<int, Point2> { [1] = new(4, 20), [2] = new(7, 20), [3] = new(22, 20), [4] = new(28, 20) })
+                .Army("Blue", 2, 3, weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(8, 4), [2] = new(24, 4) })
+                .Build(),
+            ["Hero"],
+            [
+                Exact("3.6.0 p.14 Hero: \"units within 6” of friendly Heroes with Tough(9) or higher, may use the Hero's Quality for Morale Tests as long as the Hero isn't Shaken\" (2+ lent beside Red unit 1; Red unit 4 Shaken lends nothing)", ["Hero"], run =>
+                {
+                    var log = LogQueries.Of(run);
+                    string? Test(string unit, int threshold, bool lent)
+                    {
+                        var tests = log.FramesOf("morale-test").Where(f => f.Context.ActorUnitId == log.UnitNamed(unit)).ToList();
+                        if (tests.Count == 0) return $"{unit} took no morale test";
+                        var roll = log.Rolls("morale").FirstOrDefault(r => r.Frame == tests[0]);
+                        if (roll is null) return $"{unit} rolled no morale die";
+                        var hero = roll.Step.Lists("Hero");
+                        return roll.Roll.Threshold == threshold && hero == lent && roll.Dice[0].Success == (3 >= threshold)
+                            ? null : $"{unit}'s test {LogQueries.Show(roll)}, Hero {(hero ? "listed" : "not listed")}";
+                    }
+                    if (!log.HasCondition(log.UnitNamed("Red unit 4"), "shaken", log.FramesOf("morale-test").Select(f => f.Seq).DefaultIfEmpty(0).Max())) return "Red unit 4 was not Shaken at the tests";
+                    return Test("Red unit 2", 2, lent: true) ?? Test("Red unit 3", 5, lent: false);
+                }),
+            ],
+            dice:
+            [
+                new("hit", 0, [6, 6, 1], new RollKey(Actor: "Blue unit 1")),
+                new("defense", 0, [1, 1], new RollKey(Actor: "Blue unit 1")),
+                new("morale", 0, [3], new RollKey(Actor: "Red unit 2")),
+                new("hit", 0, [6, 6, 1], new RollKey(Actor: "Blue unit 2")),
+                new("defense", 0, [1, 1], new RollKey(Actor: "Blue unit 2")),
+                new("morale", 0, [3], new RollKey(Actor: "Red unit 3")),
+            ]);
+    }
 }
