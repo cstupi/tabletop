@@ -124,7 +124,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `<name>@3.6` too. Groups `army:<edition>:<uid>` and `spells:<edition>:<uid>` (`SuiteCatalog.ArmyGroup`, `SpellsGroup`); `--only <name>` selects the 3.5.1 run, `--only <name>@3.6` the 3.6 one, a group both. Core and special games whose checks quote no rule the 3.6 set changes run both (`.BothEditions()` in their catalog list); the rest are 3.5.1-only. Army and spell games are single-edition (`Expand` throws on more than one: the books' uids differ per edition), and `BookOf` takes the three-part group only.
 - `spells:3.6:<uid>`: `SpellGames.Books(set)` over the 3.6 set, one game per book with a played spell; a text-only spell (`played: false`) is
   neither cast nor covered. The tables are per edition (`SpellTables` 3.5.1, `SpellTables36` in `SuiteCatalog.Spells36.cs`), each check quoting
-  its edition's text. `army:3.6:<uid>` (`SuiteCatalog.Army36.cs`): a 3.5.1 game whose rule 3.6 keeps word for word plays again on the 3.6 book
+  its edition's text. `army:3.6:<uid>` (`SuiteCatalog.Army36.cs`): a 3.5.1 game whose rule 3.6 keeps word for word (quote and case changes included; `Requote36` gives its check names the 3.6 text) plays again on the 3.6 book
   that prints it (`Kept36`, `Books36`), a renamed rule gets its game under the 3.6 name, and Task 7.5's `SuiteCatalog.Army36<batch>.cs` cover
   the rules 3.6 rewrites.
 - `SuiteCatalog.Core36.cs` and `SuiteCatalog.Special36*.cs` hold the 3.6-only games, one per rule whose 3.6.0 text changed or is new: a game declared `.In36()` (`Scripts36`, `Edition = RuleSets.Gf360`) runs under 3.6.0 alone as `<name>@3.6`, its checks quoting `3.6.0 p.N`; `core-side-battle` there runs both (`.BothEditions()`).

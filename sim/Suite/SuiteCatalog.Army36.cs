@@ -64,6 +64,21 @@ public static partial class SuiteCatalog
             ("infected-colonies-no-retreat", null, null),
         ];
 
+        /// <summary>
+        /// The kept games whose check names quote text 3.6 prints with other quote marks, case or page: the 3.6 twin's check names carry the 3.6
+        /// text (Shred is a 3.6.0 core rule, p.15).
+        /// </summary>
+        static readonly IReadOnlyDictionary<string, (string Old, string New)[]> Requote36 = new Dictionary<string, (string Old, string New)[]>(StringComparer.Ordinal)
+        {
+            ["jackals-morale-debuff"] = [("-1 to morale test rolls", "-1 to Morale Test rolls")],
+            ["dark-elf-raiders-agile"] = [("+2” when using", "+2\" when using")],
+            ["plague-disciples-difficult-terrain-debuff"] = [("Difficult Terrain once\": p.11 Difficult", "Difficult terrain once\": 3.6.0 p.12 Difficult")],
+            ["wormhole-daemons-of-war-fatigue-debuff"] = [("must take a morale test. If failed, it becomes fatigued.", "must take a Morale Test. If failed, it becomes Fatigued.")],
+            ["robot-legions-infiltrate"] = [("over 3” away", "over 3\" away")],
+            ["pattern-debuff-defense"] = [("-1 to defense rolls once", "-1 to Defense rolls once")],
+            ["dwarf-guilds-shred"] = [("Shred: \"On unmodified results of 1 to block hits", "Shred: 3.6.0 p.15 \"For each unmodified result of 1 to block hits")],
+        };
+
         /// <summary>A 3.5.1 game under 3.6 on a 3.6 book: its group and its first army's book are the 3.6 book's; scenario, dice and checks stay.</summary>
         static TestGame Kept((string Name, string? Uid, string? Rename) kept)
         {
@@ -71,9 +86,11 @@ public static partial class SuiteCatalog
             var uid = kept.Uid ?? BookOf(game.Group);
             if (!Books36.ContainsKey(uid)) throw new InvalidOperationException($"'{kept.Name}': no 3.6 book {uid}");
             var name = kept.Rename ?? kept.Name;
+            var requote = Requote36.GetValueOrDefault(kept.Name) ?? [];
             return game with
             {
                 Name = name, Group = ArmyGroup(RuleSets.Gf360, uid), Edition = RuleSets.Gf360,
+                Checks = [.. game.Checks.Select(c => c with { Name = requote.Aggregate(c.Name, (n, r) => n.Replace(r.Old, r.New, StringComparison.Ordinal)) })],
                 Scenario = game.Scenario with { Name = name, Armies = [game.Scenario.Armies[0] with { ArmyBook = uid }, .. game.Scenario.Armies.Skip(1)] },
             };
         }
@@ -130,7 +147,7 @@ public static partial class SuiteCatalog
                 more: s => s.Match("counter", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "strike") ? new Chosen("strike") : null))),
             // 3.6.0 p.12 makes the dangerous terrain test the unit's: the 3.5.1 game's per-model dice no longer hold.
             Under36(Pick(Book36("31xjrm9ivdimkjxp"), "war-disciples-dangerous-terrain-debuff", Play.Shoots, "Dangerous Terrain Debuff",
-                [DangerousOnce("Dangerous Terrain Debuff", DebuffText + "counts as being in Dangerous Terrain once\": 3.6.0 p.12 Dangerous, \"the entire unit must take a Dangerous Terrain Test\"",
+                [DangerousOnce("Dangerous Terrain Debuff", DebuffText + "counts as being in Dangerous terrain once\": 3.6.0 p.12 Dangerous, \"the entire unit must take a Dangerous Terrain Test\"",
                     "dangerous-terrain-36")])),
             // "May only be taken once per army" is a list-building rule, and "counts as having Hero" is a grant the engine reads off the model
             // (GfNames.IsHero), which no step lists: a game with a Unique Hero model that plays to its end is what it has to show.

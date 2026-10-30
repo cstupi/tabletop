@@ -62,7 +62,6 @@ public static partial class SuiteCatalog
 
         public static readonly Dictionary<string, IReadOnlyList<DiceFix>> Dice = new(StringComparer.Ordinal)
         {
-            // The first target's blocks of Mutating Inferno, the game's first defense roll: two 1s and a 6 against Defense 4+.
             // Mutating Inferno's caster (unit 1) passes its first cast, so the game's first defense roll is its first target's blocks: two 1s and a
             // 6 against Defense 4+.
             ["04z57ua0bwth37zh"] = [new DiceFix("casting", 0, [6], new RollKey(Actor: "Daemons of Change unit 1")), new DiceFix("defense", 0, [1, 1, 6])],

@@ -21,8 +21,10 @@ public static partial class SuiteCatalog
         static GameCheck HitsOnWounds(string entry, int x, bool perKill, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from deal in log.Steps.Where(s => s.Frame.Sequence == "deal-wounds" && s.Step.Step == "retaliation").Select(s => s.Frame).DistinctBy(f => f.FrameId)
-                // Each assign step names the models it wounded (took_/killed_); a frame whose wounds carry on to a further assign has several.
-                let values = log.Steps.Where(s => s.Frame.FrameId == deal.FrameId && s.Step.Step == "assign").SelectMany(s => s.Step.Values ?? new Dictionary<string, int>()).ToList()
+                // The frame's values as its retaliation step reads them: every assign step's, a later one overwriting a key (took_ is the frame's running
+                // total per model; a frame whose wounds carry on to a further assign has several).
+                let values = log.Steps.Where(s => s.Frame.FrameId == deal.FrameId && s.Step.Step == "assign").SelectMany(s => s.Step.Values ?? new Dictionary<string, int>())
+                    .Aggregate(new Dictionary<string, int>(), (merged, kv) => { merged[kv.Key] = kv.Value; return merged; })
                 let owed = values.Where(kv => kv.Key.StartsWith(perKill ? "killed_" : "took_", StringComparison.Ordinal)
                         && Guid.TryParseExact(kv.Key[(kv.Key.IndexOf('_') + 1)..], "N", out var m) && run.Final.Models[m].Slot.Properties.Any(p => p.Name == entry))
                     .Sum(kv => perKill ? x : kv.Value * x)

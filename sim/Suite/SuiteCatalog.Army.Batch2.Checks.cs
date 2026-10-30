@@ -148,8 +148,9 @@ public static partial class SuiteCatalog
 
         /// <summary>
         /// "Counts as being in Dangerous Terrain once": the step that spends a grant of the entry is the unit's activation-terrain step, which owes a
-        /// test for every model (p.11: "roll one die for each model"), and the dangerous-terrain roll under it rolls that many dice. Under 3.6 the
-        /// test is the unit's (sequence dangerous-terrain-36, 3.6.0 p.12).
+        /// test, and the dangerous-terrain roll under it rolls the dice that step owes: under 3.5.1 one per model (p.11: "roll one die for each
+        /// model"), under 3.6.0 the unit's one test (sequence dangerous-terrain-36, 3.6.0 p.12: "roll as many dice as the number of wounds it would
+        /// take to fully destroy the unit").
         /// </summary>
         static GameCheck DangerousOnce(string entry, string quote, string sequence = "dangerous-terrain") =>
             Exact(entry, quote, (_, log) =>

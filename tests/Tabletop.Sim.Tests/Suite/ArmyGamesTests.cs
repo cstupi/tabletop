@@ -52,7 +52,7 @@ public class ArmyGamesTests
     /// 3.6 hand-part entries that are played but have no 3.6 game yet: their 3.6 text changed (Task 7.5 rewrote them and wrote one game per new
     /// mechanism, not one per entry) or they are new 3.6 names, so a 3.5.1 game's checks do not quote them. A game covering one removes it here.
     /// </summary>
-    static readonly string[] Unplayed36 =
+    static readonly string[] Uncovered36 =
     [
         "Bane Mark", "Bane in Melee Aura", "Bane when Shooting", "Bane when Shooting Aura", "Battleborn", "Changebound", "Counter in Melee Buff",
         "Darkborn", "Defensive Frenzy", "Defensive Growth", "Devout", "Disintegrate", "Enhanced Bloodborn", "Enhanced Changebound",
@@ -75,7 +75,7 @@ public class ArmyGamesTests
     ];
 
     /// <summary>
-    /// The 3.6 hand part's played entries each have a 3.6 game but those in Unplayed36, and each generated 3.6 wrapper a 3.6 game of its pattern.
+    /// The 3.6 hand part's played entries each have a 3.6 game but those in Uncovered36, and each generated 3.6 wrapper a 3.6 game of its pattern.
     /// </summary>
     [Fact]
     public void The_3_6_army_games_cover_every_played_3_6_army_book_rule_under_a_3_6_book()
@@ -91,7 +91,7 @@ public class ArmyGamesTests
         var wrappers = PropertiesSeeder.EmbeddedPart(GfEdition.V360.ContentFolder, PropertiesSeeder.GeneratedPartName)!.Entries
             .Where(e => e.Effects.Count > 0 && e.Played != false).Select(e => e.Name[(e.Name.LastIndexOf(' ') + 1)..]).Distinct();
         Assert.All(wrappers, pattern => Assert.Contains(army36, g => g.Pattern == pattern));
-        Assert.Equal(Unplayed36.Order(StringComparer.Ordinal), part.Entries.Where(e => e.Played != false && !covered.Contains(e.Name)).Select(e => e.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(Uncovered36.Order(StringComparer.Ordinal), part.Entries.Where(e => e.Played != false && !covered.Contains(e.Name)).Select(e => e.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]
