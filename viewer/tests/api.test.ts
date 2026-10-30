@@ -63,8 +63,8 @@ describe('the management api', () => {
   });
 
   it('listProperties reads the list', async () => {
-    const api = apiOf(jwt, '', fake(() => json([{ contentHash: 'h', name: 'GF', gameRules: 'gf' }])));
-    expect(await api.listProperties()).toEqual([{ contentHash: 'h', name: 'GF', gameRules: 'gf' }]);
+    const api = apiOf(jwt, '', fake(() => json([{ contentHash: 'h', name: 'GF', gameRules: 'gf', default: true }])));
+    expect(await api.listProperties()).toEqual([{ contentHash: 'h', name: 'GF', gameRules: 'gf', default: true }]);
   });
 
   it('randomTable posts the request and returns the terrain', async () => {

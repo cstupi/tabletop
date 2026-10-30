@@ -12,7 +12,7 @@ public sealed record Page<T>(IReadOnlyList<T> Items, Guid? Next);
 /// <summary>Joined: this account holds a participant row in the game.</summary>
 public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid CreatedBy, DateTimeOffset CreatedAt, int Participants, bool Joined = false);
 public sealed record CreateGameRequest(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps);
-public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules);
+public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules, bool Default = false);
 
 /// <summary>One catalog entry of a pinned property set (GET /v1/properties/{hash}/rules). Played is false on a generated text-only entry; a row without it is played.</summary>
 public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, string RuleText, bool Played = true);

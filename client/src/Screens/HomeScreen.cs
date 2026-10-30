@@ -246,7 +246,7 @@ public partial class HomeScreen : Control
         var form = new VBoxContainer(); dialog.AddChild(form);
         var problem = DialogText(variation: Variation.Warning);
         var name = NameField(dialog, problem, "", "A game name"); name.PlaceholderText = "game name"; form.AddChild(Field("Game name", name)); form.AddChild(problem);
-        var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(Field("Rule set", pack));
+        var pack = new OptionButton(); foreach (var p in packs) pack.AddItem(CreateDefaults.PackLabel(p)); pack.Select(CreateDefaults.DefaultIndex(packs)); form.AddChild(Field("Rule set", pack));
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(Field("Activation", shape));
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(Field("Enforcement", enforcement));
         var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{LobbyView.ArmyLabel(a)}, {a.Units} units"); form.AddChild(Field("Army", army));

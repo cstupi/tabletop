@@ -15,9 +15,9 @@ export function listsOf(all: readonly GameSummary[]): GameLists {
   };
 }
 
-/** HomeScreen's Create: the defaults the dialog opens with (first rule set, alternating activation, Enforcement 'warn'). */
+/** HomeScreen's Create: the defaults the dialog opens with (the default rule set, else the first, alternating activation, Enforcement 'warn'). */
 export function createDefaults(packs: readonly PropertiesSummary[]): CreateGameRequest | null {
-  const first = packs[0];
+  const first = packs.find((p) => p.default) ?? packs[0];
   if (first === undefined) return null;
   return { name: '', propertiesHash: first.contentHash, schedulerShape: 'alternating-activation', enforcement: 'warn', waitsBetweenSteps: false };
 }
