@@ -376,7 +376,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
                 if (_queued.Count > 0 && _socket is { } welcomed) _ = FlushQueued(welcomed);
                 break;
             case RulesOptionsMessage r:
-                Options = r.Options;                                       // sent before the GameInfo that follows, which raises the change
+                Options = r.Options; Zones = r.Zones; TerrainWords = r.TerrainWords;   // sent before the GameInfo that follows, which raises the change
                 break;
             case GameInfoMessage g:
                 Game = g.Game;

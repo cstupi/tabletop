@@ -52,8 +52,15 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
 }
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
-/// <summary>A lobby SetConfiguration moved the game to another rule set's id: the new ruleset's catalog, shaped as Welcome.Options, before its GameInfoMessage.</summary>
-public sealed record RulesOptionsMessage(RulesOptionCatalog Options) : SocketMessage;
+/// <summary>A lobby SetConfiguration moved the game to another rule set's id: the new ruleset's whole per-rules bundle (catalog, zone legs,
+/// terrain words), shaped as Welcome's, before its GameInfoMessage.</summary>
+public sealed record RulesOptionsMessage(RulesOptionCatalog Options) : SocketMessage
+{
+    /// <summary>As Welcome.Zones, under the new rule set.</summary>
+    public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
+    /// <summary>As Welcome.TerrainWords, under the new rule set.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
+}
 /// <summary>On connect from setup on, and after every setup edit (the whole draft).</summary>
 public sealed record BoardMessage(Board Board) : SocketMessage;
 /// <summary>The log from the start on connect, then live events. Filtered per viewer for sealed answers.</summary>
