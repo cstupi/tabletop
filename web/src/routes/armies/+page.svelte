@@ -76,10 +76,10 @@
   {:else}
     <div class="scroll-x">
       <table>
-        <thead><tr><th scope="col">Name</th><th scope="col">System</th><th scope="col" class="num">Units</th><th scope="col" class="num">Models</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">System</th><th scope="col">Edition</th><th scope="col" class="num">Units</th><th scope="col" class="num">Models</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>
           {#each armies as a (a.id)}
-            <tr><th scope="row"><a href="/armies/{a.id}">{a.name}</a></th><td>{a.gameSystem}</td><td class="num">{a.units}</td><td class="num">{a.models}</td>
+            <tr><th scope="row"><a href="/armies/{a.id}">{a.name}</a></th><td>{a.gameSystem}</td><td>{a.edition}</td><td class="num">{a.units}</td><td class="num">{a.models}</td>
               <td class="row-actions"><button onclick={() => doReimport(a)} disabled={!!busy} aria-label="Re-import {a.name}">Re-import</button> <button class="danger" onclick={() => remove(a)} disabled={!!busy || loadingMore} aria-label="Delete {a.name}">Delete</button></td></tr>
           {/each}
         </tbody>
