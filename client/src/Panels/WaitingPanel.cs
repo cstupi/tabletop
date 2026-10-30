@@ -23,10 +23,10 @@ public partial class WaitingPanel : VBoxContainer
         if (!WaitingView.Changed(_shown, lines)) return;
         _shown = lines;
         foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
-        Build(s, lines);
+        Build(s, game, lines);
     }
 
-    void Build(Session s, IReadOnlyList<WaitingLine> lines)
+    void Build(Session s, Tabletop.Protocol.GameInfo game, IReadOnlyList<WaitingLine> lines)
     {
         AddChild(new Label { Text = "Waiting for players", ThemeTypeVariation = Variation.Accent });
         AddChild(Wrapping(WaitingView.Title));
@@ -50,14 +50,14 @@ public partial class WaitingPanel : VBoxContainer
         if (pickers.Count == 0) return;
         Guarded.Run(async () =>
         {
-            var list = (await s.Management.ListArmies(null)).Items;
+            var options = LobbyView.ArmyOptions(game, (await s.Management.ListArmies(null)).Items);
             foreach (var (seat, box) in pickers)
             {
                 if (!IsInstanceValid(box) || !box.IsInsideTree()) continue;   // the rows were rebuilt while the list loaded
-                if (list.Count == 0) { box.SetItemText(0, "No armies: import one in the web app"); continue; }
-                foreach (var a in list) box.AddItem(LobbyView.ArmyLabel(a));
+                if (options.Count == 0) { box.SetItemText(0, "No armies: import one in the web app"); continue; }
+                LobbyPanel.AddArmies(box, options);
                 box.Disabled = false;
-                box.ItemSelected += i => { if (i > 0) Guarded.Send(s, seat.Pick(list[(int)i - 1].Id)); };
+                box.ItemSelected += i => { if (i > 0) Guarded.Send(s, seat.Pick(options[(int)i - 1].Army.Id)); };
             }
         }, text => { if (IsInstanceValid(error)) { error.Text = text; error.Visible = true; } });
     }

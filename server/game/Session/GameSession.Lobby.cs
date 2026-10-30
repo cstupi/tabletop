@@ -1,6 +1,7 @@
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Setup;
 using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Session;
@@ -160,6 +161,7 @@ public sealed partial class GameSession
         var owned = await _services.Rows.ReadArmyAsync(armyId, CancellationToken.None);
         if (owned is null) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no army {armyId}"); return null; }
         if (owned.OwnerId != me.AccountId) { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "not your army"); return null; }
+        if (ArmyLimits.EditionBreach(owned.Army.Edition, Info.GameRules) is { } edition) { await RefuseEdit(from, editId, RefusalReason.NotPermitted, edition); return null; }
         if (_services.Options.Army.Breach(owned.Army.Units) is { } unplayable) { await RefuseEdit(from, editId, RefusalReason.Illegal, $"this army cannot be played: {unplayable}"); return null; }
         return new OwnedArmyCheck(owned.Army);
     }

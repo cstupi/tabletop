@@ -22,6 +22,20 @@ public class LobbyViewTests
     }
 
     [Fact]
+    public void Army_options_list_the_games_edition_first_and_the_other_disabled_with_the_reason()
+    {
+        ArmySummary old = new(Guid.CreateVersion7(), "Orcs", "gf", "x", 1, 1, "3.5"), current = new(Guid.CreateVersion7(), "Elves", "gf", "y", 2, 3, "3.6");
+        var in36 = LobbyView.ArmyOptions(Samples.Game with { GameRules = "grimdark-future-3.6" }, [old, current]);
+        Assert.Equal([(current.Id, "Elves (3.6)", (string?)null), (old.Id, "Orcs (3.5)", "3.5 list: re-import it from Army Forge on the website")],
+            in36.Select(o => (o.Army.Id, o.Label, o.DisabledReason)));
+        Assert.Equal(["Elves (3.6)", "Orcs (3.5) · 3.5 list: re-import it from Army Forge on the website"], in36.Select(o => o.Text));
+
+        var in35 = LobbyView.ArmyOptions("grimdark-future", [old, current]);
+        Assert.Equal([(old.Id, (string?)null), (current.Id, "3.6 list: Army Forge no longer serves 3.5 lists")], in35.Select(o => (o.Army.Id, o.DisabledReason)));
+        Assert.Equal([true, false], in35.Select(o => o.Enabled));
+    }
+
+    [Fact]
     public void An_empty_team_is_joined_and_a_held_one_names_its_holder_and_the_creator()
     {
         var teams = LobbyView.Teams(Lobby(null, Samples.Team2), Me, isCreator: false);

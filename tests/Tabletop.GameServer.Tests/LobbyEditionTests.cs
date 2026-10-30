@@ -124,4 +124,54 @@ public class LobbyEditionTests
         await using var late = await TestClient.OpenAsync(f);
         Assert.Equal(Json(GrimdarkFutureRules.V351.OptionCatalog), Json((await late.ConnectAsync(g.Participants[1].AccountId, g.GameId)).Options));
     }
+
+    [Fact]
+    public async Task A_3_5_army_is_refused_in_a_3_6_game_and_the_reverse()
+    {
+        Army? v35 = null, v36 = null;
+        var (f, g, creator, other) = await LobbyAsync(seeded =>
+        {
+            v35 = db.SeedArmyAsync(seeded.CreatorAccountId).GetAwaiter().GetResult();
+            v36 = db.SeedArmyAsync(seeded.CreatorAccountId, Tabletop.Content.Tests.ArmyTests.Sample() with { Edition = ArmyEditions.V36 }).GetAwaiter().GetResult();
+        });
+        await using var _ = creator; await using var __ = other; using var ___ = f;
+
+        // The seeded game plays 3.5.1: the 3.6 army is refused, nothing written.
+        await creator.SendAsync(Edit(new PickArmy(v36!.Id)));
+        var refused = await creator.ExpectAsync<Refused>();
+        Assert.Equal((RefusalReason.NotPermitted, "this army is a 3.6 list; the game plays Grimdark Future 3.5"), (refused.Reason, refused.Detail));
+        Assert.Null(db.GameRows.Participant(g.Participants[0].ParticipantId)!.ArmyId);
+        await creator.SendAsync(Edit(new PickArmy(v35!.Id)));
+        Assert.Equal(v35.Id, (await other.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == g.Participants[0].ParticipantId).ArmyId);
+
+        var v360 = await db.SeedPropertiesAsync(RuleSets.Gf360, "Grimdark Future v3.6.0");
+        await creator.SendAsync(Edit(Configure(v360)));
+        await other.ExpectAsync<GameInfoMessage>();
+        await creator.SendAsync(Edit(new PickArmy(v35.Id)));
+        refused = await creator.ExpectAsync<Refused>();
+        Assert.Equal((RefusalReason.NotPermitted, "this army is a 3.5 list; the game plays Grimdark Future 3.6"), (refused.Reason, refused.Detail));
+        await creator.SendAsync(Edit(new PickArmy(v36.Id)));
+        Assert.Equal(v36.Id, (await other.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == g.Participants[0].ParticipantId).ArmyId);
+    }
+
+    [Fact]
+    public async Task EndSetup_refuses_a_mismatched_army()
+    {
+        // A row that already holds another edition's army (picked before the check, or written past it): EndSetup checks it as it snapshots it.
+        var (f, g, creator, other) = await LobbyAsync(seeded =>
+        {
+            var v36 = db.SeedArmyAsync(seeded.Participants[1].AccountId, Tabletop.Content.Tests.ArmyTests.Sample() with { Edition = ArmyEditions.V36 }).GetAwaiter().GetResult();
+            db.GameRows.SetParticipantArmyAsync(seeded.Participants[1].ParticipantId, v36.Id, CancellationToken.None).GetAwaiter().GetResult();
+        });
+        await using var _ = creator; await using var __ = other; using var ___ = f;
+
+        await creator.SendAsync(Edit(new StartSetup())); await creator.ExpectAsync<BoardMessage>();
+        await creator.SendAsync(Edit(new EndSetup()));
+        var refused = await creator.ExpectAsync<Refused>();
+        var name = (await db.GameRows.ReadGameAsync(g.GameId, CancellationToken.None))!.Participants.Single(p => p.Id == g.Participants[1].ParticipantId).Name;
+        Assert.Equal(RefusalReason.NotPermitted, refused.Reason);
+        Assert.Equal($"{name}'s army cannot be played: this army is a 3.6 list; the game plays Grimdark Future 3.5", refused.Detail);
+        Assert.Equal(GameStatus.Setup, db.GameRows.Game(g.GameId)!.Status);
+    }
 }
+
