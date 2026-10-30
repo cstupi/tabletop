@@ -113,17 +113,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Bloodborn.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Enhanced Changebound",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If most models in this unit have Changebound, enemies attacking them always get -1 to hit rolls from Changebound (instead of only when shooting/charging from over 9\u0022/6\u0022 away).",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Bloodborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Changebound Aura",
@@ -131,8 +132,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Changebound.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Changebound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Clan Warrior Aura",
@@ -140,8 +151,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Clan Warrior.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Clan Warrior",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Darkborn Aura",
@@ -149,17 +170,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Darkborn.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Enhanced Devout",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If this model has Devout, the target always takes hits on unmodified hit results of 6 from Devout (instead of only when shooting/charging enemies over 9\u0022/6\u0022 away).",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Darkborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Devout Aura",
@@ -167,8 +189,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Devout.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Devout",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Ferocious Aura",
@@ -180,22 +212,23 @@
       "played": false
     },
     {
-      "name": "Enhanced Guardian",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If most models in this unit have Guardian, hits they take count as having AP(-2) from Guardian (instead of only AP(-1)).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Enhanced Guardian Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Guardian.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Guardian",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Guerrilla Aura",
@@ -212,8 +245,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Harassing.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Harassing",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Havocbound Aura",
@@ -221,8 +264,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Havocbound.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Havocbound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Highborn Aura",
@@ -230,8 +283,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Highborn.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Highborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Hive Bond Aura",
@@ -239,8 +302,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Hive Bond.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Hive Bond",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Hold the Line Aura",
@@ -248,8 +321,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Hold the Line.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Hold the Line",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Infected Aura",
@@ -257,8 +340,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Infected.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Infected",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Knightborn Aura",
@@ -266,17 +359,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Knightborn.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Enhanced Lustbound",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If this model has Lustbound, it moves \u002B2\u0022 on Advance and \u002B4\u0022 on Rush/Charge from Lustbound (instead of only \u002B1\u0022 and \u002B2\u0022).",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Knightborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Lustbound Aura",
@@ -284,8 +378,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Lustbound.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Lustbound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Machine-Fog Aura",
@@ -293,8 +397,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Machine-Fog.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Machine-Fog",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Mischievous Aura",
@@ -302,17 +416,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Mischievous.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Enhanced Plaguebound",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If most models in this unit have Plaguebound, they ignore wounds on rolls of 5-6 from Plaguebound (instead of only on 6\u002B).",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Mischievous",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Plaguebound Aura",
@@ -320,17 +435,52 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Plaguebound.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Plaguebound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Primal Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Primal once (next time the effect would apply).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Primal",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Rapid Blink Aura",
@@ -338,8 +488,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Rapid Blink.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Rapid Blink",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Scrapper Aura",
@@ -347,8 +507,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Scrapper.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Scrapper",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Scurry Aura",
@@ -356,26 +526,52 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Scurry.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Scurry",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Self-Repair Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Self-Repair once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Enhanced Shadowborn",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If most models in this unit have Shadowborn, enemy units shooting/charging it get -8\u0022/-4\u0022 range to a min. of 6\u0022 from Shadowborn (instead of only -4\u0022/-2\u0022).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Self-Repair",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Shadowborn Aura",
@@ -383,17 +579,52 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Shadowborn.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Shadowborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Shadowborn Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Shadowborn once (next time the effect would apply).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Shadowborn",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Sturdy Aura",
@@ -401,8 +632,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Sturdy.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Sturdy",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Targeting Visor Aura",
@@ -410,17 +651,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Targeting Visor.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Enhanced Warbound",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If this model has Warbound, enemies always take wounds on unmodified results of 1 to block from Warbound (instead of only when shooting/charging enemies over 9\u0022/6\u0022 away).",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Targeting Visor",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Warbound Aura",
@@ -428,8 +670,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Warbound.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Warbound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Watchborn Aura",
@@ -437,8 +689,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Watchborn.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Watchborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Wolfborn Aura",
@@ -446,8 +708,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Wolfborn.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Wolfborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Entrenched Buff",
@@ -1423,15 +1695,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Shadowborn",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When a unit where most models have this rule is targeted by an enemy unit for shooting/charging, that enemy unit gets -4\u0022/-2\u0022 range to a min. of 6\u0022.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Shielded Aura",

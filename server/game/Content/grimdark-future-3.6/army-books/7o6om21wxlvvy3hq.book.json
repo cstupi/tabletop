@@ -115,8 +115,18 @@
         "count": 3,
         "range": 18
       },
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Havocbound",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Havoc Trauma",

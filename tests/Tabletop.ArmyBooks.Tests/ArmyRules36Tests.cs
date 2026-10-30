@@ -7,16 +7,7 @@ namespace Tabletop.ArmyBooks.Tests;
 public class ArmyRules36Tests
 {
     /// <summary>Entries still holding their 3.5.1 text and effects: 3.6.0 changed the text, and Task 7.5 authors each against it.</summary>
-    static readonly string[] AwaitingTheir36Text =
-    [
-        "Battleborn", "Changebound", "Darkborn",
-        "Havocbound",
-        "Highborn",
-        "Knightborn", "Lustbound",
-        "Plaguebound",
-        "Primeborn",
-        "Warbound", "Watchborn", "Wolfborn"
-    ];
+    static readonly string[] AwaitingTheir36Text = [];
 
     static string? Up(string relative)
     {

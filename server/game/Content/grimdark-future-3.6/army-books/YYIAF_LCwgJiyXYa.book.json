@@ -80,8 +80,18 @@
         "count": 2,
         "range": 12
       },
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Lustbound",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Beautiful Pain",
