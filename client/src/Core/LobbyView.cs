@@ -17,6 +17,15 @@ public sealed record ArmySeat(Guid? TeamId, string Label, Guid? ArmyId)
 /// <summary>One row of the lobby's Players list. Selected indexes SeatChoices; Army is the seat's army's name, null with none.</summary>
 public sealed record LobbySeat(Guid ParticipantId, string Name, string Seat, bool HasArmy, int Selected, string? Army = null);
 public sealed record SeatChoice(Guid? TeamId, string Label);
+/// <summary>One army in a picker. An army of another edition than the game's is listed disabled, with the reason (rule-set versions spec → A 3.5
+/// army in a 3.6 game, and the reverse); the game server refuses it either way.</summary>
+public sealed record ArmyOption(ArmySummary Army, string? DisabledReason)
+{
+    public string Label => LobbyView.ArmyLabel(Army);
+    public bool Enabled => DisabledReason is null;
+    /// <summary>The picker's text: the label, and the reason when disabled.</summary>
+    public string Text => DisabledReason is null ? Label : $"{Label} · {DisabledReason}";
+}
 
 /// <summary>
 /// The lobby's seat and team buttons, as the game server's lobby authority has them: a player joins an empty team; a team another
@@ -27,6 +36,20 @@ public static class LobbyView
 {
     /// <summary>An army in a picker: its name and the edition it was imported under.</summary>
     public static string ArmyLabel(ArmySummary a) => $"{a.Name} ({a.Edition})";
+
+    public const string ReimportReason = "3.5 list: re-import it from Army Forge on the website", NoLongerServedReason = "3.6 list: Army Forge no longer serves 3.5 lists";
+
+    /// <summary>A picker's armies for a game: the game's edition first, the rest disabled with the reason.</summary>
+    public static IReadOnlyList<ArmyOption> ArmyOptions(GameInfo game, IReadOnlyList<ArmySummary> armies) => ArmyOptions(game.GameRules, armies);
+
+    /// <summary>A picker's armies for a game on <paramref name="gameRules"/> (the create dialog's selected set). A rule set this build does not
+    /// ship disables nothing.</summary>
+    public static IReadOnlyList<ArmyOption> ArmyOptions(string gameRules, IReadOnlyList<ArmySummary> armies)
+    {
+        var edition = RuleSets.All.Contains(gameRules) ? RuleSets.EditionOf(gameRules) : null;
+        return armies.Select(a => new ArmyOption(a, edition is null || a.Edition == edition ? null : a.Edition == ArmyEditions.V35 ? ReimportReason : NoLongerServedReason))
+            .OrderBy(o => o.Enabled ? 0 : 1).ToList();
+    }
 
     public const string CreatorOnly = "Only the game's creator changes the configuration.";
 

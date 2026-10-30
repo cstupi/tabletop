@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Panels;
 using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
@@ -249,7 +250,18 @@ public partial class HomeScreen : Control
         var pack = new OptionButton(); foreach (var p in packs) pack.AddItem(CreateDefaults.PackLabel(p)); pack.Select(CreateDefaults.DefaultIndex(packs)); form.AddChild(Field("Rule set", pack));
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(Field("Activation", shape));
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(Field("Enforcement", enforcement));
-        var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{LobbyView.ArmyLabel(a)}, {a.Units} units"); form.AddChild(Field("Army", army));
+        // The army list follows the selected set: another edition's armies are listed disabled with the reason.
+        var army = new OptionButton(); form.AddChild(Field("Army", army));
+        IReadOnlyList<ArmyOption> options = [];
+        void ListArmies()
+        {
+            options = LobbyView.ArmyOptions(packs[pack.Selected].GameRules, armies);
+            army.Clear(); army.AddItem("No army (pick one in the lobby)");
+            LobbyPanel.AddArmies(army, options, o => o.Enabled ? $"{o.Label}, {o.Army.Units} units" : o.Text);
+            army.Select(0);
+        }
+        ListArmies();
+        pack.ItemSelected += _ => ListArmies();
         if (armies.Count == 0) form.AddChild(DialogText("You have no armies yet: import one in the web app.", Variation.Dim));
         dialog.Confirmed += () => Run(async () =>
         {
@@ -257,7 +269,7 @@ public partial class HomeScreen : Control
             // WaitsBetweenSteps is a development flag (spec: in-game UX → Flow between steps); players never get the "Continue" stops.
             var game = await session.Management.CreateGame(new CreateGameRequest(name.Text.Trim(), packs[pack.Selected].ContentHash,
                 shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), WaitsBetweenSteps: false));
-            Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
+            Guid? armyId = army.Selected <= 0 ? null : options[army.Selected - 1].Army.Id;
             if (armyId is { } id)
             {
                 var gameId = game.Id;

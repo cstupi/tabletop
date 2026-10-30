@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  armyLabel, armySeats, endSetupText, members, pickArmy, place, players, seatChoices, seatLine, teamChoices, waitingForCreator,
+  armyLabel, armyOptions, armySeats, endSetupText, members, pickArmy, place, players, seatChoices, seatLine, teamChoices, waitingForCreator,
 } from '../src/lib/lobby/lobbyView';
 import { isCreator } from '../src/lib/lobby/seats';
 import type { GameInfo, Participant, TableState } from '../src/lib/protocol/wire.generated';
@@ -15,6 +15,19 @@ const game = (participants: Participant[], status: GameInfo['status'] = 'lobby')
 describe('LobbyView', () => {
   it('the army label is the name and the edition', () => {
     expect(armyLabel({ id: 'a', name: 'Orcs', gameSystem: 'gf', source: 'x', units: 1, models: 1, edition: '3.6' })).toBe('Orcs (3.6)');
+  });
+
+  it("army options list the game's edition first and the other disabled with the reason", () => {
+    const old = { id: 'o', name: 'Orcs', gameSystem: 'gf', source: 'x', units: 1, models: 1, edition: '3.5' };
+    const current = { id: 'e', name: 'Elves', gameSystem: 'gf', source: 'y', units: 2, models: 3, edition: '3.6' };
+    const in36 = armyOptions('grimdark-future-3.6', [old, current]);
+    expect(in36.map((o) => [o.army.id, o.label, o.disabledReason])).toEqual([
+      ['e', 'Elves (3.6)', null], ['o', 'Orcs (3.5)', '3.5 list: re-import it from Army Forge on the website'],
+    ]);
+    expect(in36.map((o) => o.text)).toEqual(['Elves (3.6)', 'Orcs (3.5) · 3.5 list: re-import it from Army Forge on the website']);
+    expect(armyOptions('grimdark-future', [old, current]).map((o) => [o.army.id, o.disabledReason])).toEqual([
+      ['o', null], ['e', '3.6 list: Army Forge no longer serves 3.5 lists'],
+    ]);
   });
 
   it('the seat line names my teams and asks for an army', () => {

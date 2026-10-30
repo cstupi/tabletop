@@ -47,11 +47,12 @@ public partial class LobbyPanel : VBoxContainer
         {
             var list = (await s.Management.ListArmies(null)).Items;
             if (!IsInstanceValid(this)) return;
+            var options = LobbyView.ArmyOptions(game, list);
             foreach (var (seat, box) in pickers)
             {
-                foreach (var a in list) box.AddItem(LobbyView.ArmyLabel(a));
-                if (seat.ArmyId is { } picked) { var at = list.ToList().FindIndex(a => a.Id == picked); if (at >= 0) box.Select(at + 1); }
-                box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : list[(int)i - 1].Id));
+                AddArmies(box, options);
+                if (seat.ArmyId is { } picked) { var at = options.ToList().FindIndex(o => o.Army.Id == picked); if (at >= 0) box.Select(at + 1); }
+                box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : options[(int)i - 1].Army.Id));
             }
         }, Problem);
         var config = settings.Body;
@@ -115,6 +116,18 @@ public partial class LobbyPanel : VBoxContainer
 
     /// <summary>The warning line, shown only while it has something to say: an empty label still takes a row.</summary>
     void Problem(string? text) { if (!IsInstanceValid(_error)) return; _error.Text = text ?? ""; _error.Visible = text is { Length: > 0 }; }
+
+    /// <summary>The armies after a picker's first item: another edition's disabled, its reason in the text and the tooltip.</summary>
+    internal static void AddArmies(OptionButton box, IReadOnlyList<ArmyOption> options, Func<ArmyOption, string>? text = null)
+    {
+        foreach (var o in options)
+        {
+            box.AddItem(text?.Invoke(o) ?? o.Text);
+            var at = box.ItemCount - 1;
+            box.SetItemDisabled(at, !o.Enabled);
+            if (o.DisabledReason is { } why) box.SetItemTooltip(at, why);
+        }
+    }
 
     /// <summary>A field under its name.</summary>
     static Control Named(string label, Control field)

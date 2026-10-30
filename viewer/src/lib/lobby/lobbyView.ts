@@ -18,6 +18,29 @@ export interface LobbySeat {
 /** An army in a picker: its name and the edition it was imported under. */
 export const armyLabel = (a: ArmySummary): string => `${a.name} (${a.edition})`;
 
+/** One army in a picker. An army of another edition than the game's is listed disabled, with the reason; the game server refuses it either way. */
+export interface ArmyOption {
+  readonly army: ArmySummary; readonly label: string; readonly disabledReason: string | null;
+  /** The picker's text: the label, and the reason when disabled. */
+  readonly text: string;
+}
+export const REIMPORT_REASON = '3.5 list: re-import it from Army Forge on the website';
+export const NO_LONGER_SERVED_REASON = '3.6 list: Army Forge no longer serves 3.5 lists';
+/** RuleSets.EditionOf (libs/Tabletop.Content/RuleSets.cs): the army edition a game on each shipped rule set takes. */
+const EDITION_OF: Readonly<Record<string, string>> = { 'grimdark-future': '3.5', 'grimdark-future-3.6': '3.6' };
+
+/** A picker's armies for a game on `gameRules`: the game's edition first, the rest disabled with the reason. A rule set this build does not
+ *  ship disables nothing. */
+export function armyOptions(gameRules: string, armies: readonly ArmySummary[]): ArmyOption[] {
+  const edition = EDITION_OF[gameRules] ?? null;
+  const options = armies.map((army): ArmyOption => {
+    const label = armyLabel(army);
+    const disabledReason = edition === null || army.edition === edition ? null : army.edition === '3.5' ? REIMPORT_REASON : NO_LONGER_SERVED_REASON;
+    return { army, label, disabledReason, text: disabledReason === null ? label : `${label} · ${disabledReason}` };
+  });
+  return [...options.filter((o) => o.disabledReason === null), ...options.filter((o) => o.disabledReason !== null)];
+}
+
 export const CREATOR_ONLY = "Only the game's creator changes the configuration.";
 export const NO_TEAM = 'No team';
 export const NO_PLAYERS = 'No players yet';
