@@ -66,7 +66,7 @@
       "effects": [
         { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" },
         { "subject": "self", "ordinal": 30, "kind": "grant_property", "targetEntry": "AP", "amount": 4, "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
-    { "name": "Scout", "kind": "unit", "ruleText": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 12\" of their deployment zone. Players alternate in placing Scout units, starting with the player that activates next.", "effects": [] },
+    { "name": "Scout", "kind": "unit", "ruleText": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 9\" of their deployment zone, over 9\" away from non-Scout enemy units. Players alternate in placing Scout units, starting with the player that activates next.", "effects": [] },
     { "name": "Slow", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule move -2\" when using Advance, and -4\" when using Rush/Charge.",
       "effects": [
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": -2 },

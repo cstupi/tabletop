@@ -16,7 +16,9 @@ namespace Tabletop.Sim.Run;
 /// 9” away from enemy units"). So an anchor is skipped where any base would touch a model on the table or leave the zone, and an
 /// Ambusher's anchor is drawn from the whole table and skipped where any base is within 9" of an enemy model (the distances the
 /// army-book deployment rules change, GfAmbush: Infiltrate's 3", Repel Ambushers' 12"); next to a friendly Ambush Beacon it is drawn
-/// within 6" of the beacon first, where no enemy distance holds.
+/// within 6" of the beacon first, where no enemy distance holds. Under 3.6 a Scout (scout_distance: 3.6.0 p.15 "over 9” away from
+/// non-Scout enemy units", GfEdition.ScoutClearance) is drawn in its zone and skipped the same way where any base is within 9" of a model
+/// of an enemy unit that is not itself a Scout.
 /// A unit the scenario anchors (ScenarioArmy.Anchors) goes there.
 /// </summary>
 public static class HandPlacement
@@ -57,6 +59,8 @@ public static class HandPlacement
             : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
                 ? BeaconAnchor(shelved, offsets, table, occupied, Beacons(projection, scenario, teamId), chooser)
                     ?? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId, GfAmbush.Reach(unit.Definition)), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser, scenario.Zones)
+                : projection.Scheduler.Round < 1 && unit.Conditions.Contains(scenario.SetAsideCondition) && ScoutClearance(scenario) is > 0 and var clearance
+                    ? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser, scenario.Zones, ScoutEnemies(projection, scenario, teamId, clearance))
                 : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser, scenario.Zones);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
@@ -67,12 +71,12 @@ public static class HandPlacement
     private const double ScanStep = 0.25;
 
     /// <summary>
-    /// A random anchor at which every base of the grid is on the table, fully inside the zone and touches no model on the table (2D: the server
-    /// rests the new base on what is under it); when every draw misses, the first such anchor of a 0.25" scan of the zone's bounding box; the
+    /// A random anchor at which every base of the grid is on the table, fully inside the zone, touches no model on the table (2D: the server
+    /// rests the new base on what is under it) and stands over each of <paramref name="enemies"/>' kept distance (a 3.6 Scout's); when every draw misses, the first such anchor of a 0.25" scan of the zone's bounding box; the
     /// zone's centre only when nothing fits (a placement the server then judges).
     /// </summary>
     public static Point2 ChooseAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table,
-        IReadOnlyList<PlacedModel> occupied, Chooser chooser, ZoneLegs? legs = null)
+        IReadOnlyList<PlacedModel> occupied, Chooser chooser, ZoneLegs? legs = null, IReadOnlyList<(PlacedModel Body, double Kept)>? enemies = null)
     {
         // Candidates are drawn from the zone's bounding box, so a thin zone is not missed 39 times in 40.
         var vertices = shape is null ? [] : ZoneStyles.Resolve(shape, table, legs).SelectMany(p => p.Vertices).ToList();
@@ -82,7 +86,8 @@ public static class HandPlacement
         {
             var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
             return placed.All(pm => Geometry.Table.ContainsBase(table, pm)) && !placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))
-                && (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm, legs)));
+                && (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm, legs)))
+                && (enemies is null || placed.All(pm => enemies.All(e => Distance.EdgeToEdge(pm, e.Body) > e.Kept + AmbushMargin)));
         }
         for (var attempt = 0; attempt < Attempts; attempt++)
         {
@@ -156,6 +161,17 @@ public static class HandPlacement
         projection.Models.Values
             .Where(m => m.Location is OnTable && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) != teamId)
             .Select(m => (new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement), GfAmbush.Kept(projection.Units[m.UnitId].Definition, reach))).ToList();
+
+    /// <summary>The game's edition's Scout clearance (3.6.0 p.15 9"; 0 under 3.5.1); 0 for a game that is not Grimdark Future.</summary>
+    private static double ScoutClearance(CompiledScenario scenario) =>
+        scenario.Info.GameRules is RuleSets.Gf351 or RuleSets.Gf360 ? GfEdition.Of(scenario.Info.GameRules).ScoutClearance : 0;
+
+    /// <summary>Each model on the table of an enemy unit that is not itself a Scout, with the clearance a 3.6 Scout keeps from it.</summary>
+    private static IReadOnlyList<(PlacedModel Body, double Kept)> ScoutEnemies(Projection projection, CompiledScenario scenario, Guid teamId, double clearance) =>
+        projection.Models.Values
+            .Where(m => m.Location is OnTable && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) != teamId
+                && !GfAmbush.Carries(projection.Units[m.UnitId].Definition, GfNames.Scout))
+            .Select(m => (new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement), clearance)).ToList();
 
     private static PlacedModel Placed(ModelSlot slot, Point2 at) =>
         new(new ModelBody(slot.Base, slot.Height), new Placement(new Point3(at.X, at.Y, 0), new Yaw(0)));
