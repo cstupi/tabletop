@@ -174,12 +174,15 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 
 - Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
   the game socket (`ClientSocket` outside play, `SocketDriver` in it); nothing is written to Postgres, so it needs no database connection.
-- Shapes (`LifecycleShapes.All`): `two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`.
+- Shapes (`LifecycleShapes.All`): `two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`, `two-players-3.6`.
   Account 0 creates; `lifecycle-player-0..7` take seats, `lifecycle-spectator` joins every played game and is the driver's recorder. Never deleted.
 - Armies come from `POST /v1/dev/armies/import` (dev mode only) with the body `LifecycleArmy.List(book)` builds: book 0 is management's
   Army Forge fixture (embedded from `tests/Tabletop.Management.Tests/Fixtures/`), cut to three units, and the `ambusher` shape adds Ambush
   to its Beast Riders; books 1..3 are `Lifecycle/Armies/<uid>.json`, three units each cut from Human Defense Force, Battle Brothers and Orc
   Marauders. A `Seat` names its book. Nothing calls Army Forge.
+- `LifecycleShape.Rules` (default `Gf351`) is the game-rules id the game is created on and `Edition` the army edition it takes; the import
+  body carries `edition`. `two-players-3.6` is `two-players` on `Gf360`: both seats bring book 3 from `Lifecycle/Armies/3.6/` (three units
+  cut from the 3.6 Army Forge dump), and the lobby step asserts the set is the default.
 - After play every shape is read by `FreeForAllChecks` (`Suite/`; p.50 and p.6): the roll-off ranks every team, deployment and each
   round's turns go round the order one unit a turn, every model stands in its team's zone at round one, round one follows the deployment
   order and later rounds who finished activating first, every team on the table takes turns, and `game_ended` names the teams holding the

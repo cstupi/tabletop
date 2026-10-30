@@ -77,4 +77,27 @@ public class LifecycleRunnerTests
         var endpoints = new LifecycleEndpoints(new Uri("http://127.0.0.1:5100"), new Uri("ws://127.0.0.1:5200/ws"));
         Assert.Equal("ws://127.0.0.1:5200/ws?watch=1", endpoints.WatchUri.ToString());
     }
+
+    [Fact]
+    public void The_3_6_shape_plays_two_players_on_the_3_6_rule_set_and_every_other_shape_on_3_5_1()
+    {
+        var shape = LifecycleShapes.Select(["two-players-3.6"])[0];
+        Assert.Equal(Tabletop.Content.RuleSets.Gf360, shape.Rules);
+        Assert.Equal(LifecycleShapes.Select(["two-players"])[0].Seats.Select(s => s.Team), shape.Seats.Select(s => s.Team));
+        Assert.Equal(Tabletop.Content.ArmyEditions.V36, shape.Edition);
+        Assert.All(shape.Seats, s => Assert.Equal(3, s.Book));
+        Assert.All(shape.Seats, s => Assert.Equal(3, LifecycleArmy.List(s.Book, edition: shape.Edition)["units"]!.AsArray().Count));
+        Assert.All(LifecycleShapes.All.Where(s => s.Name != "two-players-3.6"), s =>
+        {
+            Assert.Equal(Tabletop.Content.RuleSets.Gf351, s.Rules);
+            Assert.Equal(Tabletop.Content.ArmyEditions.V35, s.Edition);
+        });
+    }
+
+    [Fact]
+    public void The_import_body_carries_the_shapes_edition()
+    {
+        Assert.Equal("""{"source":"lifecycle","list":{"a":1},"edition":"3.6"}""",
+            ManagementApi.ImportBody(new System.Text.Json.Nodes.JsonObject { ["a"] = 1 }, "3.6").ToJsonString());
+    }
 }

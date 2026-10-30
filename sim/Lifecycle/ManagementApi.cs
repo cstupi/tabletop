@@ -9,7 +9,7 @@ using Tabletop.Sim.Drivers;
 namespace Tabletop.Sim.Lifecycle;
 
 // Mirrors of Tabletop.Management's DTOs, as the client mirrors them (client/src/Core/ManagementDtos.cs), read under ContentJson.
-public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules);
+public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules, bool Default = false);
 public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, string RuleText, bool Played = true);
 public sealed record CreateGameRequest(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps);
 public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid CreatedBy, DateTimeOffset CreatedAt, int Participants,
@@ -53,8 +53,11 @@ public sealed class ManagementApi : IDisposable
     public Task<IReadOnlyList<RuleTextDto>> RulesAsync(string hash, CancellationToken ct) => GetAsync<IReadOnlyList<RuleTextDto>>($"/v1/properties/{hash}/rules", ct);
     public Task<GameInfo> CreateGameAsync(CreateGameRequest request, CancellationToken ct) => SendAsync<GameInfo>(HttpMethod.Post, "/v1/games", request, HttpStatusCode.Created, ct);
     public Task<GameInfo> JoinAsync(Guid game, CancellationToken ct) => SendAsync<GameInfo>(HttpMethod.Post, $"/v1/games/{game}/join", new { }, HttpStatusCode.OK, ct);
-    public Task<Army> ImportArmyAsync(JsonObject list, CancellationToken ct) =>
-        SendAsync<Army>(HttpMethod.Post, "/v1/dev/armies/import", new { source = LifecycleArmy.Source, list }, HttpStatusCode.Created, ct);
+    public Task<Army> ImportArmyAsync(JsonObject list, string edition, CancellationToken ct) =>
+        SendAsync<Army>(HttpMethod.Post, "/v1/dev/armies/import", ImportBody(list, edition), HttpStatusCode.Created, ct);
+
+    /// <summary>The dev import's body: the list, stamped with the army edition.</summary>
+    public static JsonObject ImportBody(JsonObject list, string edition) => new() { ["source"] = LifecycleArmy.Source, ["list"] = list.DeepClone(), ["edition"] = edition };
 
     /// <summary>The game, or null on 404.</summary>
     public async Task<GameInfo?> GameAsync(Guid game, CancellationToken ct)

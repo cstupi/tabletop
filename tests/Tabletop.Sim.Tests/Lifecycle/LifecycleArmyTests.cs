@@ -45,4 +45,17 @@ public class LifecycleArmyTests
             });
         }
     }
+
+    [Fact]
+    public void The_3_6_list_is_the_3_6_cut_of_the_same_book_and_the_3_5_list_stays_as_it_was()
+    {
+        var book = LifecycleArmy.Books[3];
+        var v36 = LifecycleArmy.List(3, edition: "3.6");
+        Assert.Equal(3, v36["units"]!.AsArray().Count);
+        Assert.All(v36["units"]!.AsArray(), u => { Assert.Null(u!["joinToUnit"]); Assert.Equal(book, (string)u["armyId"]!); });
+        Assert.Equal(Names(LifecycleArmy.List(3)), Names(v36));
+        Assert.NotEqual(LifecycleArmy.List(3).ToJsonString(), v36.ToJsonString());
+        Assert.Equal(LifecycleArmy.List(3).ToJsonString(), LifecycleArmy.List(3, edition: "3.5").ToJsonString());
+        Assert.Throws<ArgumentException>(() => LifecycleArmy.List(1, edition: "3.6"));
+    }
 }
