@@ -67,11 +67,11 @@ public static class GfCasting
 
     /// <summary>
     /// 3.6.0 p.13 "Once per activation, before attacking" (GfEdition.OneCastWindow): one cast window per activation, in which the caster may
-    /// still try several spells, one try each. The activation frame records the window as Values["cast_offered_&lt;unit&gt;"] once a
-    /// before-attacking Ask has offered the cast, and as Values["cast_closed_&lt;unit&gt;"] once that window is over: passed, or the unit moved
-    /// on after it (a stop to cast is the window; moving again ends it). GfHooks.ReactionsAt offers no cast once it is closed.
+    /// still try several spells, one try each (decision 2). The activation frame records Values["cast_used_&lt;unit&gt;"] once a casting frame
+    /// has run there, and Values["cast_closed_&lt;unit&gt;"] once that window is over: after a cast, a pass at the checkpoint or a move segment
+    /// ends it. Being offered a cast and passing uses nothing. GfHooks.ReactionsAt offers no cast once it is closed.
     /// </summary>
-    static string OfferedKey(Guid unit) => $"cast_offered_{unit:N}";
+    static string UsedKey(Guid unit) => $"cast_used_{unit:N}";
     static string ClosedKey(Guid unit) => $"cast_closed_{unit:N}";
 
     public static bool WindowClosed(FrameView? frame, Guid unit)
@@ -81,24 +81,21 @@ public static class GfCasting
         return false;
     }
 
-    /// <summary>A casting checkpoint completing after its window ran: the window is marked offered when its Ask offered the cast, and closed when that Ask was passed.</summary>
+    /// <summary>A casting checkpoint completing after its window ran: a casting child marks the window used; a pass (no child) after a cast closes it.</summary>
     public static Dictionary<string, int>? MarkWindow(StepContext ctx, Dictionary<string, int>? values = null)
     {
         if (!GfEdition.Of(ctx.State).OneCastWindow) return values;
         var unit = ctx.Frame.Context.ActorUnitId!.Value;
-        if (!ctx.History.Asks.Any(a => a.Ask.WindowKind == GfNames.BeforeAttacking && a.Ask.Question == AskQuestions.React && a.Ask.Legal is Options o && o.Choices.Any(c => c.Id == CastOption)))
-            return values;
-        values ??= [];
-        values[OfferedKey(unit)] = 1;
-        if (ctx.History.Children.Count == 0) values[ClosedKey(unit)] = 1;
+        if (ctx.History.Children.Any(c => c.Sequence == GfNames.CastingSeq)) (values ??= [])[UsedKey(unit)] = 1;
+        else if (ctx.History.Children.Count == 0 && ctx.Frame.Value(UsedKey(unit)) > 0) (values ??= [])[ClosedKey(unit)] = 1;
         return values;
     }
 
-    /// <summary>A move segment after the window was offered closes it (MarkWindow).</summary>
+    /// <summary>A move segment after a cast closes the window (MarkWindow).</summary>
     public static void MarkMovedOn(StepContext ctx, IDictionary<string, int> values)
     {
         var unit = ctx.Frame.Context.ActorUnitId!.Value;
-        if (GfEdition.Of(ctx.State).OneCastWindow && ctx.Frame.Value(OfferedKey(unit)) > 0) values[ClosedKey(unit)] = 1;
+        if (GfEdition.Of(ctx.State).OneCastWindow && ctx.Frame.Value(UsedKey(unit)) > 0) values[ClosedKey(unit)] = 1;
     }
 
     /// <summary>

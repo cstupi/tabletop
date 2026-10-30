@@ -121,13 +121,14 @@ public class GfCasting36Tests
     }
 
     /// <summary>A Rush stops to open the window, casts (a failed Ward) or passes, and then moves on: 3.5.1's "at any point before attacking" opens the
-    /// window again after the move (Shroud is untried); 3.6.0's "once per activation" does not. Between spells the one window stays open, so a stop is still offered.</summary>
+    /// window again after the move (Shroud is untried); 3.6.0's "once per activation" does not after a cast. Between spells the one window stays open, so
+    /// a stop is still offered; a pass casts nothing, so the window is still the unit's to use.</summary>
     [Theory]
-    [InlineData(RuleSets.Gf351, true)]
-    [InlineData(RuleSets.Gf360, true)]
-    [InlineData(RuleSets.Gf351, false)]
-    [InlineData(RuleSets.Gf360, false)]
-    public void The_cast_window_opens_once_per_activation_under_3_6(string rules, bool cast)
+    [InlineData(RuleSets.Gf351, true, true)]
+    [InlineData(RuleSets.Gf360, true, false)]
+    [InlineData(RuleSets.Gf351, false, true)]
+    [InlineData(RuleSets.Gf360, false, true)]
+    public void The_cast_window_opens_once_per_activation_under_3_6(string rules, bool cast, bool offeredAfterMove)
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
         var (state, inner) = Under(rules, State([wizard], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20));
@@ -137,10 +138,29 @@ public class GfCasting36Tests
         sim.Answer(Samples.Team1, new Destinations([], Continues: true));
         Assert.Equal(AskQuestions.React, sim.AskFor(Samples.Team1).Question);
         if (cast) CastAndFail(sim); else sim.Answer(Samples.Team1, new Passed());
-        var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
-        Assert.Equal(rules == RuleSets.Gf351 || cast, region.Stoppable);
+        Assert.True(Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Stoppable);
         sim.Answer(Samples.Team1, new Destinations([Shifted(sim, wizard.Models[0].Id, 3)]));
-        Assert.Equal(rules == RuleSets.Gf351, sim.AskForOrNull(Samples.Team1)?.Question == AskQuestions.React);
-        if (rules == RuleSets.Gf360) Assert.Empty(sim.State.Projection.Stack);
+        var window = sim.AskForOrNull(Samples.Team1);
+        Assert.Equal(offeredAfterMove, window?.Question == AskQuestions.React && Assert.IsType<Options>(window.Legal).Choices.Any(c => c.Id == GfCasting.CastOption));
+        if (!offeredAfterMove) Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    /// <summary>An Aircraft's checkpoint before its one segment, passed, leaves the cast to the checkpoint after it; a cast before the move ends the window.</summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void An_aircraft_that_passes_before_its_move_may_cast_after_it_under_3_6(bool castBefore, bool offeredAfter)
+    {
+        var jet = Unit("Jet", "4+", "4+", [P(GfNames.Aircraft)], 1, [P("Caster", 3)]);
+        var (state, inner) = Under(RuleSets.Gf360, State([jet], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 30));
+        var sim = new Sim(state, inner, Book, new ScriptedDice(1));
+        sim.Append([new SpellTokensSet(jet.Models[0].Id, 3)]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(jet.Id, [], [], GfNames.Advance));
+        Assert.Equal(AskQuestions.React, sim.AskFor(Samples.Team1).Question);
+        if (castBefore) CastAndFail(sim);
+        sim.Answer(Samples.Team1, new Passed());                                       // the window (reopened after a cast: Shroud is untried)
+        Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        sim.Answer(Samples.Team1, new Destinations([Shifted(sim, jet.Models[0].Id, 31)]));
+        Assert.Equal(offeredAfter, sim.AskForOrNull(Samples.Team1)?.Question == AskQuestions.React);
     }
 }

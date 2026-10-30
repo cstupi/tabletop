@@ -90,8 +90,8 @@ public static class GfHooks
     }
 
     /// <summary>
-    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13), under 3.6.0
-    /// in the activation's one cast window only. At every point,
+    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13); under 3.6.0
+    /// only until the activation's one cast window is over. At every point,
     /// each unit the point concerns (the actor; at after-melee the charger and then the defender) offers its live move rows at that point
     /// (army-rule hooks spec), one reaction per entry, pushing `reposition`. A Shaken unit offers nothing: 3.5.1 p.10 says being idle means it "can't
     /// take any actions, or use any active special rules, such as casting spells, using buffs/debuffs on units, re-positioning, etc.".

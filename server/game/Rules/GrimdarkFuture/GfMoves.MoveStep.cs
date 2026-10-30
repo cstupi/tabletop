@@ -13,8 +13,8 @@ public static partial class GfMoves
     /// 2 the casting checkpoint: react-or-pass to the actor's own team; a cast, or a stop (Destinations.Continues), with budget left goes back to phase 0
     /// (Repeat), otherwise the step completes. p.13 Caster(X) is "at any point before attacking", so a stop with the models where they stand is how a
     /// unit casts before it moves; it is not a move. An Aircraft moves in one segment (IsAircraft) and gets the checkpoint before it as well, in
-    /// Values["before_move"]. Under 3.6.0 p.13 ("Once per activation") the checkpoint marks the one cast window (GfCasting.MarkWindow), and a
-    /// segment moved after it closes it (GfCasting.MarkMovedOn), so a stop to cast is that window and no later checkpoint offers a cast.
+    /// Values["before_move"]. Under 3.6.0 p.13 ("Once per activation") the checkpoint marks the one cast window used once a cast ran
+    /// (GfCasting.MarkWindow), and a pass or a segment moved after that cast closes it (GfCasting.MarkMovedOn), so no later checkpoint offers a cast.
     /// </summary>
     public sealed class MoveStep(string action, bool ignoreSeparation) : IStep
     {
