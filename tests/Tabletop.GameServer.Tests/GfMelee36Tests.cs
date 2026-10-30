@@ -61,4 +61,22 @@ public class GfMelee36Tests
         sim.Answer(Samples.Team2, new Passed());
         Assert.Equal(fights, sim.Emitted.OfType<SequenceStarted>().Any(s => s.Sequence == GfNames.Melee));
     }
+    /// <summary>3.5.1 p.13 Counter "strikes first", and Impact loses one die per Counter model; 3.6.0 p.14 Impact(X): "When charging, before either unit
+    /// attacks, roll X dice". Every die is a 6, so the order is the only difference: two Impact(2) riders against one Counter pike.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, 3, false)]
+    [InlineData(RuleSets.Gf360, 4, true)]
+    public void Impact_rolls_before_counter_and_loses_no_dice_to_counter_under_3_6(string rules, int impactDice, bool impactFirst)
+    {
+        var riders = Unit("Riders", "4+", "4+", [], 2, [P("Impact", 2), P("Tough", 2)], Melee("Thrust", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf(rules, State([riders], [pikes], x1: -3, x2: 0), 6);
+        sim.Start(GfNames.Melee, MeleeOf(riders, pikes));
+        Assert.Equal(impactDice, sim.Steps("impact").First().Rolls.Single().Dice.Count);
+        var started = sim.Emitted.OfType<SequenceStarted>().ToList();
+        var impactHits = started.FindIndex(s => s.Sequence == GfNames.ResolveHits && s.Context.ActorUnitId == riders.Id);
+        var counterStrike = started.FindIndex(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id);
+        Assert.True(impactHits >= 0 && counterStrike >= 0);
+        Assert.Equal(impactFirst, impactHits < counterStrike);
+    }
 }

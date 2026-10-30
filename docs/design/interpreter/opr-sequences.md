@@ -18,7 +18,7 @@ edges and the free-for-all roll-off.
 | `idle` | `activation-terrain`, `activation-start` | `GfMoves` | the scheduler, for an Idle activation (p.11: a unit activated in dangerous terrain tests) |
 | `charge` | `activation-terrain`, `charge-target`, `move`, `crossing`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
-| `melee` | `melee-start`, `counter`, `impact`, `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage`, `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
+| `melee` | `melee-start`, `counter`, `impact` (3.6.0: `impact`, `counter`), `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage`, `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
 | `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
 | `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
 | `deal-wounds` | `assign`, `disgorge`, `caster-group`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfSpellSupport`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
@@ -397,7 +397,7 @@ sequenceDiagram
     C->>M: fight: Push melee, or Finish when no charger model is in reach
     M->>M: melee-start: record both units' WoundsThisActivation
     M->>A: counter: the defender's Counter weapons strike first
-    M->>M: impact: Impact(X) dice minus one per Counter model in reach, threshold 2; the repeat resolves the hits as the dice then stand
+    M->>M: impact: Impact(X) dice (3.5.1: minus one per Counter model), threshold 2; the repeat resolves the hits as the dice then stand
     M->>A: charger-attacks, then set fatigued on the charger
     M->>DT: strike-back: Options([strike, pass])
     DT-->>M: Chosen
@@ -408,7 +408,7 @@ sequenceDiagram
 ```
 
 The defender is asked three times in one charge: close in, strike back, and allocation inside
-each `deal-wounds`. `Counter` resolves before `Impact`; the book leaves the order ambiguous. `melee-start` has to record both units' `WoundsThisActivation` **before**
+each `deal-wounds`. Under 3.5.1 `counter` precedes `impact` (the book leaves the order ambiguous) and each Counter model takes one Impact die; under 3.6.0 `impact` precedes `counter` (p.14 *"before either unit attacks"*) and Counter takes no dice (`GfEdition.ImpactBeforeCounter`, `CounterReducesImpact`). `melee-start` has to record both units' `WoundsThisActivation` **before**
 anything strikes, because `compare` subtracts that baseline. A step inserted before `melee-start`
 that causes a wound would be counted twice.
 

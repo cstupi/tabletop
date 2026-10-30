@@ -11,8 +11,9 @@ public static class GfMelee
 {
     /// <summary>Outline labels: p.9 ("must pick one valid target"; Charge moves; the target's models "must move by up to 3”"; The melee sequence).</summary>
     public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep().Labelled("Pick target"), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true).Labelled("Charge move"), new GfRuleHits.CrossingStep(), new DefenderClosesStep().Labelled("Target moves"), new FightStep().Labelled("Melee")]);
-    /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.</summary>
-    public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
+    /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.
+    /// 3.5.1 resolves Counter before Impact; 3.6.0 p.14 rolls Impact "before either unit attacks" (GfEdition.ImpactBeforeCounter).</summary>
+    public static Sequence Melee(GfEdition e) => new(GfNames.Melee, [new MeleeStartStep(), .. e.ImpactBeforeCounter ? (IStep[])[new ImpactStep(e), new CounterStep()] : [new CounterStep(), new ImpactStep(e)], new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
     /// <summary>The unit's melee weapons. A Limited weapon fired before the melee under way (or, outside one, ever) is left out (p.14 "may only be used once
     /// per game"), so the list is the same on each run of a melee step.</summary>
@@ -232,10 +233,10 @@ public static class GfMelee
         }
     }
 
-    /// <summary>p.14's `Impact(X)` and p.13's `Counter`: X dice per Impact(X) model, unless fatigued, less one per defending model with Counter; hits at the effect's threshold.
-    /// Two phases: roll (Repeat), then push resolve-hits when the dice as they then stand hold a hit (ImpactHits), so an edit between the two counts.
-    /// Values["hits"] is the hits as rolled.</summary>
-    sealed class ImpactStep : IStep
+    /// <summary>p.14's `Impact(X)`: X dice per Impact(X) model, unless fatigued; hits at the effect's threshold. Under 3.5.1 (GfEdition.CounterReducesImpact) p.13's
+    /// `Counter` takes one die per defending model with Counter; 3.6.0 p.14 drops that. Two phases: roll (Repeat), then push resolve-hits when the dice as they then
+    /// stand hold a hit (ImpactHits), so an edit between the two counts. Values["hits"] is the hits as rolled.</summary>
+    sealed class ImpactStep(GfEdition edition) : IStep
     {
         public string Name => "impact";
         public StepOutcome Run(StepContext ctx)
@@ -247,7 +248,7 @@ public static class GfMelee
             var live = ctx.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
             var impacts = RollEffects.OwnRolls(live, Side.Attacker, c => c.Kind == EffectKind.AddHit);   // Impact's conditions (charging, not fatigued) were judged in pass one's read
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
-            var counterModels = Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
+            var counterModels = !edition.CounterReducesImpact ? 0 : Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
             var dice = Math.Max(0, impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter)) - counterModels);
             if (counterModels > 0) ctx.Applied.Add("Counter");
             var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
