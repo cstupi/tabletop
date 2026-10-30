@@ -12,7 +12,9 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// </summary>
 public static class GfContainers
 {
-    public static Sequence TransportDestroyed() => new(GfNames.TransportDestroyedSeq, [new WreckTestStep(), new PlaceSurvivorsStep()]);
+    /// <summary>Under 3.6 (GfEdition.ReinforcementOnShaken) Reinforcement's removal offer follows the Shaken survivors' placement.</summary>
+    public static Sequence TransportDestroyed(GfEdition edition) => new(GfNames.TransportDestroyedSeq, edition.ReinforcementOnShaken
+        ? [new WreckTestStep(), new PlaceSurvivorsStep(), new GfReserves.OfferRemovalStep(afterMorale: false)] : [new WreckTestStep(), new PlaceSurvivorsStep()]);
 
     /// <summary>
     /// Destroyed containers still on the table: `assign` leaves a container holding anybody in place at its Tough capacity, so this is the

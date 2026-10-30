@@ -71,13 +71,17 @@ public static class GfObjectives
             .Select(t => (t, state.Projection.Control.Count(kv => kv.Value == t.Id && markers.Contains(kv.Key)))).ToList();
     }
 
-    /// <summary>Units named by a deploy_ambusher Ask closed since this round's round_started (the Asks RoundBoundaryStep reads).</summary>
+    /// <summary>Units named by a deploy_ambusher Ask closed since this round's round_started (the Asks RoundBoundaryStep reads); under 3.6 (GfEdition.PlacedUnitsHoldNoObjectives)
+    /// also the reserves a `place-reserve` started this round placed (Spawn / Split: "Units placed via Spawn can’t seize or contest objectives on the round they are placed").</summary>
     static HashSet<Guid> ArrivedByAmbushThisRound(GameState state)
     {
         var since = SchedulerLog.Of(state).SinceRound.Select(e => e.Payload).ToList();
         // Reinforcement: "Units that deploy via Reinforcement can't seize or contest objectives on the round they deploy" (GfReserves).
         var asks = since.OfType<AskOpened>().Where(o => o.Ask.Question is AskQuestions.DeployAmbusher or AskQuestions.DeployReinforcement).Select(o => o.Ask.Id).ToHashSet();
-        return since.OfType<AskClosed>().Where(c => asks.Contains(c.AskId))
+        var arrived = since.OfType<AskClosed>().Where(c => asks.Contains(c.AskId))
             .SelectMany(c => c.Answers).Select(a => a.Answer).OfType<SelectedPieces>().SelectMany(s => s.PieceIds).ToHashSet();
+        if (GfEdition.Of(state).PlacedUnitsHoldNoObjectives)
+            arrived.UnionWith(since.OfType<SequenceStarted>().Where(s => s.Sequence == GfReserves.PlaceReserveSeq && s.Context.TargetUnitIds.Count > 0).Select(s => s.Context.TargetUnitIds[0]));
+        return arrived;
     }
 }

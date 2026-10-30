@@ -134,9 +134,11 @@ public static partial class GfAttack
         {
             var target = ctx.Frame.Context.TargetUnitIds[0];
             if (ctx.Frame.Frame.Steps is [.., { Step: "assign", Values: { } rolled } last] && rolled.TryGetValue(IgnoreWoundsKey, out var pending))
-                return Apply(ctx, target, pending, RecordedAllocation(rolled), TakedownModel(ctx.Frame) is { } t && Lookup.AliveModels(ctx.State, target).Contains(t) ? t : null, last.Rolls);
+                return Apply(ctx, target, pending, RecordedAllocation(rolled), TakedownModel(ctx.Frame) is { } t && Lookup.AliveModels(ctx.State, target).Contains(t) || SelfWoundModels(ctx, target) is not null, last.Rolls);
             var wounds = ctx.Frame.Values.ContainsKey("wounds_left") ? ctx.Frame.Value("wounds_left") : WoundsToDeal(ctx.Frame);
             if (wounds <= 0) return new Finish([]);
+            // 3.6 Hazardous: "this model takes one wound": each self wound on the model that rolled it, nothing asked, nothing carried over.
+            if (SelfWoundModels(ctx, target) is { } own) return Apply(ctx, target, wounds, own, fixedModels: true, null);
             var team = ctx.TeamOf(target) ?? throw new InvalidOperationException("target unit has no team");
             // A Takedown group named its model, so nothing is asked and no ordering is consulted: p.15's Tough-first and heroes-last
             // decide the prompt's targets, and there is no prompt (p.14).
@@ -159,7 +161,7 @@ public static partial class GfAttack
                     allocation = new Dictionary<Guid, int> { [first] = wounds };
             }
             else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
-            return Apply(ctx, target, wounds, allocation.Where(kv => kv.Value > 0).Select(kv => (kv.Key, kv.Value)).ToList(), takedown, null);
+            return Apply(ctx, target, wounds, allocation.Where(kv => kv.Value > 0).Select(kv => (kv.Key, kv.Value)).ToList(), takedown is not null, null);
         }
 
         const string IgnoreWoundsKey = "ignore_wounds";
@@ -171,7 +173,7 @@ public static partial class GfAttack
 
         /// <summary>The segment's wounds on the allocated models. `ignoreRolls` null: roll to ignore wounds when a rule says so, and stop there with the
         /// segment recorded; otherwise the rolling run's dice, one record per model that rolled, in the allocation's order, read as they now stand.</summary>
-        static StepOutcome Apply(StepContext ctx, Guid target, int wounds, IReadOnlyList<(Guid Model, int Count)> allocation, Guid? takedown, IReadOnlyList<RollRecord>? ignoreRolls)
+        static StepOutcome Apply(StepContext ctx, Guid target, int wounds, IReadOnlyList<(Guid Model, int Count)> allocation, bool fixedModels, IReadOnlyList<RollRecord>? ignoreRolls)
         {
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
@@ -237,9 +239,9 @@ public static partial class GfAttack
             changes.AddRange(Consumed(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
-            var left = takedown is null ? wounds - allocation.Sum(a => a.Count) + spilled : 0;
+            var left = !fixedModels ? wounds - allocation.Sum(a => a.Count) + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
-            var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = takedown is null ? spilled : 0 };
+            var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = !fixedModels ? spilled : 0 };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
     }
@@ -487,12 +489,16 @@ public static partial class GfAttack
     /// by the value, best first, so the pools and therefore the dice cursor do not depend on model order.
     /// </summary>
     static IReadOnlyList<(int Quality, int Attacks)> Attacks(StepContext ctx, LiveSet live, IEnumerable<Guid> models, IReadOnlyList<Guid> weapons, AttackKind kind) =>
-        models.Select(m => (Quality: GfRolls.HitQuality(ctx, live, kind, m),
-                            Attacks: ctx.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).Sum(w => StatReader.Attacks(ctx.State, w.Id))
-                                + RegenerativeStrength(ctx, m, kind, weapons)))
-              .Where(x => x.Attacks > 0)
+        PerModelAttacks(ctx, live, models, weapons, kind)
               .GroupBy(x => x.Quality).Select(g => (Quality: g.Key, Attacks: g.Sum(x => x.Attacks)))
               .OrderBy(x => x.Quality).ToList();
+
+    /// <summary>Each model with attacks, in the given order, with the Quality value its attacks are tested against.</summary>
+    static IReadOnlyList<(Guid Model, int Quality, int Attacks)> PerModelAttacks(StepContext ctx, LiveSet live, IEnumerable<Guid> models, IReadOnlyList<Guid> weapons, AttackKind kind) =>
+        models.Select(m => (Model: m, Quality: GfRolls.HitQuality(ctx, live, kind, m),
+                            Attacks: ctx.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).Sum(w => StatReader.Attacks(ctx.State, w.Id))
+                                + RegenerativeStrength(ctx, m, kind, weapons)))
+              .Where(x => x.Attacks > 0).ToList();
 
     /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it. A text-only entry (the 3.6 set's)
     /// plays nothing, as the marker rules' Played gate (GfMarkers).</summary>
@@ -661,14 +667,19 @@ public static partial class GfAttack
             var living = Lookup.LivingModels(ctx.State, ix.Defender!.UnitId);
             var cap = TakedownModel(ctx.Frame) is { } picked && living.Contains(picked) ? 1 : ctx.Frame.Value("defender_models", living.Count);
             var values = new Dictionary<string, int> { ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
+            var rollers = HazardRollers(ctx, live, ix, kind);
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
                 IReadOnlyList<string>? Triggers(Die d) => plan.HitsTriggerNothing && d.Success ? null : RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit);
-                var rolled = ctx.Roll(plan, attacks, Triggers);
-                var added = rolled.HitsTriggerNothing == true ? 0 : rolled.Dice.Sum(d => AddedAttacks(live, d));
-                // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
-                if (added > 0) ctx.Roll(plan, added, d => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false));
+                foreach (var (model, dice) in Shares(rollers, quality, attacks))
+                {
+                    var rolled = ctx.Roll(plan, dice, d => HazardLabels(ctx, Triggers(d), model));
+                    MarkRoller(ctx, values, model);
+                    var added = rolled.HitsTriggerNothing == true ? 0 : rolled.Dice.Sum(d => AddedAttacks(live, d));
+                    // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
+                    if (added > 0) { ctx.Roll(plan, added, d => HazardLabels(ctx, RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false), model)); MarkRoller(ctx, values, model); }
+                }
             }
             return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
         }
@@ -696,13 +707,14 @@ public static partial class GfAttack
         public StepOutcome Run(StepContext ctx)
         {
             var (_, live, _) = Settle(ctx);
+            var attributed = HazardAttributed(ctx, live);
             var rolls = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["self_wounds"] = 0 };
             // 3.6.0 p.9: a fatigued hit is no roll of 6 for special rules, so its die reads nothing; a failed die's rows (Hazardous) still act.
-            foreach (var die in rolls.SelectMany(r => r.Dice.Where(d => !(r.HitsTriggerNothing == true && d.Success))))
+            foreach (var (die, roller) in rolls.Zip(HitRollers(ctx.Frame)).SelectMany(x => x.First.Dice.Where(d => !(x.First.HitsTriggerNothing == true && d.Success)).Select(d => (d, x.Second))))
             {
                 var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
-                values["self_wounds"] += effects.ExtraWounds;
+                AddSelfWounds(ctx, values, roller, effects.ExtraWounds, attributed);
                 if (!die.Success) continue;
                 values["extra_hits"] += effects.ExtraHits;
                 if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
