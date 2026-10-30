@@ -15,12 +15,10 @@ public static partial class SuiteCatalog
     {
         static readonly (string Uid, string Army)
             WarDaemons36 = ("prsajf5ot936qznk", "Daemons of War"), Inquisition36 = ("jpc0kyil0juwy602", "Human Inquisition"),
-            Sisters36J = ("7oi8zeiqfamiur21", "Blessed Sisters"), Custodians36 = ("ewbra8nv3nq3k27p", "Custodian Brothers"),
-            Hdf36 = ("z65fgu0l29i4lnlu", "Human Defense Force"), Saurians36 = ("U6hwlur14RpnInZr", "Saurian Starhosts"),
+            Sisters36J = ("7oi8zeiqfamiur21", "Blessed Sisters"), Saurians36 = ("U6hwlur14RpnInZr", "Saurian Starhosts"),
             Orcs36 = ("1wj1ysgxpuuz9bc7", "Orc Marauders"), PlagueDaemons36 = ("fmuqw5lr5l6dq0mq", "Daemons of Plague"),
-            Cults36 = ("zz3kp5ry7ks6mxcx", "Soul-Snatcher Cults"), Dwarves36 = ("fk1mkbp8apvltu0z", "Dwarf Guilds"),
-            Guerrillas36J = ("5wbcv465hacdwvkb", "Rebel Guerrillas"), DarkElves36 = ("q11la9v8h1heu9ja", "Dark Elf Raiders"),
-            TitanLords36 = ("3j10zage1lddt6sr", "Titan Lords"), Infected36 = ("dnthspt7c0klhmt8", "Infected Colonies");
+            Dwarves36 = ("fk1mkbp8apvltu0z", "Dwarf Guilds"),
+            Guerrillas36J = ("5wbcv465hacdwvkb", "Rebel Guerrillas"), TitanLords36 = ("3j10zage1lddt6sr", "Titan Lords"), Infected36 = ("dnthspt7c0klhmt8", "Infected Colonies");
 
         /// <summary>The entry on models 1 and 2 of each of the units' three: "most models" have it, not all.</summary>
         static IReadOnlyList<ScenarioModel> Most(int units, string entry, params ScenarioRule[] also) =>

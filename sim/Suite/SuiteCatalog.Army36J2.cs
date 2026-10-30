@@ -11,7 +11,7 @@ public static partial class SuiteCatalog
             MachineCults36J = ("7el7k3hgy5pb9o9i", "Machine Cults"), War36J = ("31xjrm9ivdimkjxp", "War Disciples"),
             BattleBrothers36 = ("78qp9l5alslt6yj8", "Battle Brothers"), Robots36J = ("4k5amkxoybdiqotm", "Robot Legions"),
             Change36J = ("r6hr29338u4micfw", "Change Disciples"), Ratmen36J = ("hk70l4d471plza00", "Ratmen Clans"),
-            ChangeDaemons36 = ("04z57ua0bwth37zh", "Daemons of Change"), Jackals36 = ("BKi_hJaJflN8ZorH", "Jackals"),
+            Jackals36 = ("BKi_hJaJflN8ZorH", "Jackals"),
             Dao36J = ("z8205ez2boggzs22", "DAO Union"), HighElves36J = ("7i7blhft75q9zfdc", "High Elf Fleets"),
             Dynasty36 = ("vux1Y5vvULmaxZ8P", "Eternal Dynasty");
 
