@@ -30,16 +30,25 @@ public static class RollEffects
             added.Add((modifier, src));
         }
         // What a suppression took away, for the log (detailed-log spec): the modify_roll rows of removed properties that would have applied, and the
-        // negative hit modifiers a to_hit_penalties suppression drops. Cover's is the CoverVerdict's to say.
+        // negative hit modifiers a to_hit_penalties or foreign_to_hit_penalties suppression drops. Cover's is the CoverVerdict's to say.
         var ignored = live.RemovedRows(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll)
             .Select(x => new IgnoredEffect(x.Removed.Entry.Name, x.By.Entry.Name, x.Effect.EffectiveAmount(x.Removed.Parameter))).ToList();
         live.ReadRemoved(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll);
         if (live.SuppressedModifiers.Contains(TargetModifier.Cover) && modifiers.RemoveAll(m => m.Source == "cover") > 0) live.ReadSuppressedModifier(TargetModifier.Cover);
-        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties))
+        if (roll == hitRollName)
         {
-            var by = string.Join(", ", live.Suppressors(TargetModifier.ToHitPenalties));
-            ignored.AddRange(modifiers.Where(m => m.Amount < 0).Select(m => new IgnoredEffect(m.Via is { } via && m.Source == "AP" ? $"{via} {m.Source}" : m.Source, by, m.Amount)));
-            if (modifiers.RemoveAll(m => m.Amount < 0) > 0) live.ReadSuppressedModifier(TargetModifier.ToHitPenalties);
+            // ToHitPenalties drops every negative modifier; ForeignToHitPenalties keeps those from the roller's own rules (LiveSet.OwnedBy). A base modifier has no
+            // rule behind it, so it is foreign.
+            var sources = added.ToDictionary(x => x.Modifier, x => x.Source, ReferenceEqualityComparer.Instance);
+            bool Own(RollModifier m) => sources.TryGetValue(m, out var src) && live.OwnedBy(src, roller);
+            foreach (var kind in new[] { TargetModifier.ToHitPenalties, TargetModifier.ForeignToHitPenalties })
+            {
+                if (!live.SuppressedModifiers.Contains(kind)) continue;
+                bool Drops(RollModifier m) => m.Amount < 0 && (kind == TargetModifier.ToHitPenalties || !Own(m));
+                var by = string.Join(", ", live.Suppressors(kind));
+                ignored.AddRange(modifiers.Where(Drops).Select(m => new IgnoredEffect(m.Via is { } via && m.Source == "AP" ? $"{via} {m.Source}" : m.Source, by, m.Amount)));
+                if (modifiers.RemoveAll(Drops) > 0) live.ReadSuppressedModifier(kind);
+            }
         }
         foreach (var (modifier, src) in added)
             if (modifiers.Any(m => ReferenceEquals(m, modifier))) live.Read(src); else live.Spend(src);

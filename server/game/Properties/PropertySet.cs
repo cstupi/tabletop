@@ -32,7 +32,8 @@ public enum EffectKind { ModifyRoll, ModifyStat, ReplaceStat, ForceReroll, Roll,
 public enum TargetTerrain { Difficult, Dangerous }
 public enum TargetQuantity { Hits, Wounds, Attacks }
 public enum TargetResult { Wound, MoraleTest }
-public enum TargetModifier { Cover, ToHitPenalties, RangePenalties }
+/// <summary>ForeignToHitPenalties: the negative hit modifiers that are not from the roller's own rules (3.6.0 p.15 Unstoppable); ToHitPenalties: all of them.</summary>
+public enum TargetModifier { Cover, ToHitPenalties, RangePenalties, ForeignToHitPenalties }
 public enum CapKind { ModelsInTargetUnit }
 /// <summary>Interaction: the row acts whenever it holds. Once: a grant spent the next time it applies (spell library). Marker and SpentMarker: one grant per
 /// marker a rule places on a unit (army-book rules spec, batch 6), stacking; a Marker stays for the game, a SpentMarker goes with its fellows the first time
