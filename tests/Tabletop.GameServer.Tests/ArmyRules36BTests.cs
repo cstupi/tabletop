@@ -7,7 +7,7 @@ using static Tabletop.GameServer.Tests.Infrastructure.Armies;
 
 namespace Tabletop.GameServer.Tests;
 
-/// <summary>The 3.6 hand part's unit, defensive and utility rules (Task 7.5B) that reach the engine through a shape new to their name.</summary>
+/// <summary>The 3.6 hand part's unit, defensive and utility rules that reach the engine through a shape new to their name.</summary>
 public class ArmyRules36BTests
 {
     static readonly PropertySet Core36 = TestProperties.Core36;
