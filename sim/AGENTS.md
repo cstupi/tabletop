@@ -73,7 +73,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `ScenarioArmy.Models` (builder `models:`) gives one model its own rules, stats or weapons (`ScenarioModel(unit, model, ...)`, 1-based):
   a Hero in a unit, a lone caster.
 - `ScenarioArmy.Reserves` (builder `reserves:`) marks a unit as an import's reserve unit (`ScenarioReserve`: the rule, and the unit or model
-  holding it); it stays on the shelf until its rule places it. `HandPlacement` places a Reinforcement copy within 12" of a table edge.
+  holding it); it stays on the shelf until its rule places it. `HandPlacement` places a Reinforcement copy within 12" of a table edge (3.6: 9", over 9" from enemy models; `GfEdition.ReinforcementEdgeReach`, `ReinforcementClearance`).
 - `HandPlacement` anchors an Ambusher over its distance from enemy models (`GfAmbush`), and under 3.6 a Scout in its zone over 9" from
   models of non-Scout enemy units (`GfEdition.ScoutClearance`, read from `CompiledScenario.Info.GameRules`).
 - `Scenario.OptionalRules` (builder `Options`) is the game's optional-rules map, in `GameInfo` and the socket seeder's row.

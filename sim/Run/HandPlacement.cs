@@ -55,7 +55,8 @@ public static class HandPlacement
             .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
         var army = scenario.Scenario.Armies[scenario.ParticipantIds.ToList().IndexOf(unit.ParticipantId)];   // the unit's own army: a team may seat several
         var anchor = army.Anchors.TryGetValue(unit.Definition.Ordinal, out var fixedAt) ? fixedAt
-            : unit.Definition.Reserve is { Property: GfReserves.Reinforcement } ? EdgeAnchor(shelved, offsets, table, occupied, chooser) ?? ChooseAnchor(shelved, offsets, null, table, occupied, chooser)
+            : unit.Definition.Reserve is { Property: GfReserves.Reinforcement } ? EdgeAnchor(shelved, offsets, table, occupied, chooser, Edition(scenario), ReinforcementEnemies(projection, scenario, teamId))
+                ?? ChooseAnchor(shelved, offsets, null, table, occupied, chooser)
             : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
                 ? BeaconAnchor(shelved, offsets, table, occupied, Beacons(projection, scenario, teamId), chooser)
                     ?? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId, GfAmbush.Reach(unit.Definition)), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser, scenario.Zones)
@@ -132,9 +133,10 @@ public static class HandPlacement
         return null;
     }
 
-    /// <summary>Reinforcement: an anchor at which every base is fully within 12" of one table edge (GfReserves.NearEdge) and touches no model; null when none was drawn.</summary>
+    /// <summary>Reinforcement: an anchor at which every base is fully within 12" of one table edge (3.6: 9", GfEdition.ReinforcementEdgeReach; GfReserves.NearEdge),
+    /// touches no model and, under 3.6, stands over 9" from every enemy model (GfEdition.ReinforcementClearance); null when none was drawn.</summary>
     private static Point2? EdgeAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, TableSize table,
-        IReadOnlyList<PlacedModel> occupied, Chooser chooser)
+        IReadOnlyList<PlacedModel> occupied, Chooser chooser, GfEdition edition, IReadOnlyList<PlacedModel> enemies)
     {
         for (var attempt = 0; attempt < AmbushAttempts; attempt++)
         {
@@ -142,7 +144,8 @@ public static class HandPlacement
             var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
             if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
             if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
-            if (placed.All(pm => GfReserves.NearEdge(table, pm))) return candidate;
+            if (placed.All(pm => GfReserves.NearEdge(table, pm, edition.ReinforcementEdgeReach)
+                && enemies.All(e => edition.ReinforcementClearance <= 0 || Distance.EdgeToEdge(pm, e) > edition.ReinforcementClearance + AmbushMargin))) return candidate;
         }
         return null;
     }
@@ -163,6 +166,13 @@ public static class HandPlacement
             .Select(m => (new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement), GfAmbush.Kept(projection.Units[m.UnitId].Definition, reach))).ToList();
 
     /// <summary>The game's edition's Scout clearance (3.6.0 p.15 9"; 0 under 3.5.1); 0 for a game that is not Grimdark Future.</summary>
+    private static GfEdition Edition(CompiledScenario scenario) =>
+        scenario.Info.GameRules is RuleSets.Gf351 or RuleSets.Gf360 ? GfEdition.Of(scenario.Info.GameRules) : GfEdition.V351;
+
+    private static IReadOnlyList<PlacedModel> ReinforcementEnemies(Projection projection, CompiledScenario scenario, Guid teamId) =>
+        projection.Models.Values.Where(m => m.Location is OnTable && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) != teamId)
+            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+
     private static double ScoutClearance(CompiledScenario scenario) =>
         scenario.Info.GameRules is RuleSets.Gf351 or RuleSets.Gf360 ? GfEdition.Of(scenario.Info.GameRules).ScoutClearance : 0;
 
