@@ -500,11 +500,11 @@ public static partial class GfAttack
                                 + RegenerativeStrength(ctx, m, kind, weapons)))
               .Where(x => x.Attacks > 0).ToList();
 
-    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it. A text-only entry (the 3.6 set's)
-    /// plays nothing, as the marker rules' Played gate (GfMarkers).</summary>
+    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it (3.5.1). A text-only entry plays
+    /// nothing, as the marker rules' Played gate (GfMarkers); 3.6's rolls dice instead (GfEdition.StrikeTurnRolls, GfStrikeRolls36).</summary>
     static int RegenerativeStrength(StepContext ctx, Guid model, AttackKind kind, IReadOnlyList<Guid> weapons)
     {
-        if (kind != AttackKind.Melee || ctx.Properties.Entry(GfNames.RegenerativeStrength) is not { Played: true } || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
+        if (kind != AttackKind.Melee || GfEdition.Of(ctx.State).StrikeTurnRolls || ctx.Properties.Entry(GfNames.RegenerativeStrength) is not { Played: true } || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
         var x = GfMarkers.RegenerativeStrength(ctx.State, model);
         if (x > 0) ctx.Applied.Add(GfNames.RegenerativeStrength);
         return x;

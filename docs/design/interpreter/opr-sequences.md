@@ -20,7 +20,7 @@ or, where a step's logic differs, by a per-edition copy (`dangerous-terrain-36`,
 | `idle` | `activation-terrain`, `activation-start` | `GfMoves` | the scheduler, for an Idle activation (p.11: a unit activated in dangerous terrain tests) |
 | `charge` | `activation-terrain`, `charge-target`, `move`, `crossing`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
-| `melee` | `melee-start`, `counter`, `impact` (3.6.0: `impact`, `counter`), `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage`, `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
+| `melee` | `melee-start`, `counter`, `impact` (3.6.0: `impact`, `counter`), `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage` (3.6.0: `charger-strike-rolls`, `charger-attacks`, `defender-strike-rolls`, `strike-back`), `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
 | `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
 | `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
 | `deal-wounds` | `assign`, `disgorge`, `caster-group`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfSpellSupport`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
@@ -39,7 +39,7 @@ or, where a step's logic differs, by a per-edition copy (`dangerous-terrain-36`,
 | `ambush-redeploy` | `remove` | `GfAmbush` | the `activation-end` window, for a unit all of whose models hold Ambush Re-Deployment |
 | `coordinate` | `coordinate-pick`, `coordinate-act`, `coordinate-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds Coordinate |
 | `rule-hits` | `hit`, `score-hits`, `resolve` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct`, `pick-rule`'s `rule-effects` (Surprise Attack) |
-| `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage`, an action's `crossing` (Crossing Attack) |
+| `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage` (3.6.0: `charger-strike-rolls` and `defender-strike-rolls`, Ravage 6+ and Regenerative Strength 4+), an action's `crossing` (Crossing Attack) |
 | `rally` | `rally` | `GfMarkers` | `IGameRules.RoundBoundaryStep`, for a Shaken unit holding Steadfast, Battleborn or Honor Code |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 

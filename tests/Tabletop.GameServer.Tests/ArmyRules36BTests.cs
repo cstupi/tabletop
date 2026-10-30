@@ -74,18 +74,4 @@ public class ArmyRules36BTests
         Assert.Contains(row.Conditions, c => c is { Kind: ConditionKind.RollResult, Number: 6, Values: ["hit", "raw"] });
     }
 
-    /// <summary>"Regenerative Strength" (3.6.0) rolls dice at its strike turn, which no grammar point plays, so its 3.6 entry is text-only: a 3.6 model that
-    /// ignored wounds strikes with its weapon's own attacks, not 3.5.1's "+X attacks".</summary>
-    [Fact]
-    public void Text_only_regenerative_strength_adds_no_attacks_under_3_6()
-    {
-        Assert.False(Core36.Entry("Regenerative Strength")!.Played);
-        var a = Unit("A", "4+", "4+", [], 1, [P("Regenerative Strength"), P("Regeneration"), P("Tough", 6)], Melee("Claw", 1));
-        var b = Unit("B", "4+", "4+", [], 1, [], Melee("Sword", 1));
-        var sim = Sim.Gf36(State([a], [b], x1: -3, x2: 0), [1, 1, 6, 6, .. Enumerable.Repeat(1, 20)]);
-        sim.Start(GfNames.RuleHitsSeq, new SequenceContext(b.Id, [a.Id], [], "Test|2"));   // two hits, both blocks fail, both wounds ignored
-        Assert.Equal(2, GfMarkers.RegenerativeStrength(sim.State, a.Models[0].Id));
-        sim.Start(GfNames.Melee, MeleeOf(a, b));
-        Assert.Equal(1, sim.Steps("roll-to-hit").First().Rolls.Sum(r => r.Dice.Count));
-    }
 }
