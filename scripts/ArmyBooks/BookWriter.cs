@@ -8,7 +8,7 @@ public static class BookWriter
 {
     static readonly JsonSerializerOptions Indented = new(PropertiesJson.Options) { WriteIndented = true, NewLine = "\n" };
 
-    public static IReadOnlyList<BookDocument> Build(IReadOnlyList<AfBook> books)
+    public static IReadOnlyList<BookDocument> Build(IReadOnlyList<AfBook> books, string rulesId)
     {
         var ordered = books.OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
         var translated = ordered.Select(b => (Book: b, Spells: b.Spells.Select(s => SpellTranslator.Translate(b, s)).ToList())).ToList();
@@ -21,7 +21,7 @@ public static class BookWriter
             foreach (var v in variants)
                 rename[v.Key] = variants.Count == 1 ? group.Key : $"{group.Key} ({v.Select(x => x.Book.Name).Order(StringComparer.Ordinal).First()})";
         }
-        return translated.Select(t => new BookDocument(t.Book.Uid, t.Book.Name, t.Book.VersionString, "grimdark-future",
+        return translated.Select(t => new BookDocument(t.Book.Uid, t.Book.Name, t.Book.VersionString, rulesId,
             t.Spells.Select(s => s with { Name = rename[PropertiesJson.EntryCanonical(s)] }).ToList())).ToList();
     }
 

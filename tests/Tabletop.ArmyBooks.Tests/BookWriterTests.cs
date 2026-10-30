@@ -8,9 +8,15 @@ public class BookWriterTests
         .Select(f => ArmyForgeJson.ReadBook(File.ReadAllText(f))).ToList();
 
     [Fact]
+    public void The_books_name_the_rules_id_they_were_built_for()
+    {
+        Assert.All(BookWriter.Build(All(), "grimdark-future-3.6"), b => Assert.Equal("grimdark-future-3.6", b.GameRules));
+    }
+
+    [Fact]
     public void Reprints_merge_and_colliding_names_are_qualified_by_the_first_book_that_holds_each_variant()
     {
-        var books = BookWriter.Build(All());
+        var books = BookWriter.Build(All(), "grimdark-future");
         var names = books.SelectMany(b => b.Spells).Select(s => s.Name).Distinct().ToList();
         Assert.Contains("Shield Breaker (Blood Brothers)", names);
         Assert.Contains("Shield Breaker (Blood Prime Brothers)", names);
@@ -28,8 +34,8 @@ public class BookWriterTests
     [Fact]
     public void Output_is_deterministic()
     {
-        var a = BookWriter.Build(All()).Select(BookWriter.Serialize).ToList();
-        var b = BookWriter.Build(All().Reverse().ToList()).Select(BookWriter.Serialize).ToList();
+        var a = BookWriter.Build(All(), "grimdark-future").Select(BookWriter.Serialize).ToList();
+        var b = BookWriter.Build(All().Reverse().ToList(), "grimdark-future").Select(BookWriter.Serialize).ToList();
         Assert.Equal(a.Order(StringComparer.Ordinal), b.Order(StringComparer.Ordinal));
     }
 
@@ -37,14 +43,14 @@ public class BookWriterTests
     public void A_rule_no_document_holds_is_refused_and_so_is_an_invalid_composition()
     {
         var core = new PropertySetDocument("core", "grimdark-future", [], [], [], []);
-        var problems = BookWriter.Check(BookWriter.Build(All()), core, new PropertySetDocument("part", "grimdark-future", [], [], [], []));
+        var problems = BookWriter.Check(BookWriter.Build(All(), "grimdark-future"), core, new PropertySetDocument("part", "grimdark-future", [], [], [], []));
         Assert.Contains(problems, p => p.Contains("names no rule 'Bane'"));
     }
 
     [Fact]
     public void Serialize_uses_line_feeds_only()
     {
-        foreach (var b in BookWriter.Build(All()).Where(b => b.Spells.Count > 0).Take(3))
+        foreach (var b in BookWriter.Build(All(), "grimdark-future").Where(b => b.Spells.Count > 0).Take(3))
         {
             var text = BookWriter.Serialize(b);
             Assert.DoesNotContain('\r', text);
@@ -58,7 +64,7 @@ public class BookWriterTests
         static IEnumerable<IReadOnlyList<EffectDocument>> Groups(IReadOnlyList<EffectDocument> rows) =>
             new[] { rows }.Concat(rows.SelectMany(r => Groups(r.Children)));
         static IEnumerable<EffectDocument> Flat(IReadOnlyList<EffectDocument> rows) => rows.SelectMany(r => new[] { r }.Concat(Flat(r.Children)));
-        var spells = BookWriter.Build(All()).SelectMany(b => b.Spells).ToList();
+        var spells = BookWriter.Build(All(), "grimdark-future").SelectMany(b => b.Spells).ToList();
         foreach (var s in spells)
         {
             foreach (var g in Groups(s.Effects))

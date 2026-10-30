@@ -44,7 +44,7 @@ public static class RuleWriter
         return names;
     }
 
-    public static (PropertySetDocument? Part, RuleReport? Report, IReadOnlyList<string> Problems) Build(IReadOnlyList<AfBook> books, PropertySetDocument core, PropertySetDocument hand)
+    public static (PropertySetDocument? Part, RuleReport? Report, IReadOnlyList<string> Problems) Build(IReadOnlyList<AfBook> books, PropertySetDocument core, PropertySetDocument hand, string rulesId)
     {
         var ordered = books.OrderBy(b => b.Name, StringComparer.Ordinal).ToList();
         var descriptions = new Dictionary<string, (string Text, string Book)>(StringComparer.Ordinal);
@@ -86,7 +86,7 @@ public static class RuleWriter
             var weaponOnly = !scope[name];
             entries.Add(new EntryDocument(name, weaponOnly ? CatalogKind.Weapon : CatalogKind.Model, false, weaponOnly ? null : Aggregation.Any, null, null, text, null, [], Played: false));
         }
-        var part = new PropertySetDocument("Grimdark Future army-book rules (generated)", "grimdark-future", [], [], [], entries);
+        var part = new PropertySetDocument("Grimdark Future army-book rules (generated)", rulesId, [], [], [], entries);
         var generated = GroupOrder.Where(g => g.EndsWith("base in catalog")).Sum(g => counts[g]);
         return (part, new RuleReport(generated, GroupOrder.Select(g => (g, counts[g])).ToList(), noDescription), []);
     }
