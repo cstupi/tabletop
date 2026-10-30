@@ -22,7 +22,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 
 - `ScenarioCatalog` holds `skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `final-round`, `final-round-warn`, `final-round-silent`, `casting`, `army-rules`, `objectives`. `--list` prints them.
 - A scenario has a seed, a round cap, a scheduler shape, an enforcement setting, armies, terrain, an optional `AnswerScript` and `Expectation`s.
-- `ScenarioCompiler` turns it into a `CompiledScenario`; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
+- `ScenarioCompiler` turns it into a `CompiledScenario`; `CorePropertiesOf(rulesId)` gives an edition's shipped set and `CoreProperties` is 3.5.1's; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
 - `RunLoop` asks the driver for open Asks, answers each, drains events, and ends in a `RunOutcome`: `Ended`, `RoundLimit`, `Stuck`, `Failed` or `Paused`.
 - `AnswerPolicy` picks uniformly over exactly the legal set the server sent, one case per `LegalSet` shape. It never narrows the set.
   The one Ask it does not draw is `game_over` (warn's End or Continue after round 4), which it answers End, so a `warn` run finishes.

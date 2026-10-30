@@ -1,3 +1,5 @@
+using Tabletop.Content;
+using Tabletop.Sim.Scenarios;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -80,7 +82,7 @@ public class CoreGamesSocketTests(PostgresFixture pg) : IDisposable
     async Task<SuiteSocket> SocketAsync()
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
-            PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+            ScenarioCompiler.CoreDocuments[RuleSets.Gf351], Ct);
         return new TestPool(pg).Socket(() => new FactoryConnector(_factory));
     }
 }

@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Npgsql;
 using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Properties;
@@ -175,7 +176,7 @@ public class PostgresSocketRowsTests(PostgresFixture pg) : SocketRowsContract, I
     protected override IRowSeeder Seeder => pg;
     protected override IEventLog Log => new PostgresEventLog(pg.Db);
     protected override Task SeedCorePropertiesAsync() =>
-        new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), CancellationToken.None);
+        new PostgresPropertiesStore(pg.Db).SeedAsync(ScenarioCompiler.CoreDocuments[RuleSets.Gf351], CancellationToken.None);
 
     public Task InitializeAsync() => Task.CompletedTask;
 

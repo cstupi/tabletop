@@ -14,7 +14,7 @@ public sealed partial class LifecycleGame
     {
         _step = "properties";
         var sets = await Creator.PropertiesAsync(ct);
-        var first = sets.FirstOrDefault(s => s.GameRules == "grimdark-future");
+        var first = sets.FirstOrDefault(s => s.GameRules == RuleSets.Gf351);
         Check(first is not null, "GET /v1/properties lists no grimdark-future set");
         Check(first!.ContentHash == CurrentHash, $"GET /v1/properties lists {first.ContentHash} ({first.Name}) first, not the game server's set {CurrentHash}");
         _hash = first.ContentHash;
