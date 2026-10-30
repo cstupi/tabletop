@@ -365,15 +365,18 @@ both halves because under `warn` or `silent` an out-of-set `Chosen` still reache
 and must still say what the player meant (scheduler spec → Enforcement). The client renders
 `Label` and `Pieces` and never parses the id. When the ruleset limits a unit's actions,
 `Note` carries the reason in the book's words and page (`GfRules.ActivationChoices`: Aircraft p.13, Shaken p.10,
-Immobile p.14, Artillery p.13, no enemy in charge range p.7); every option of that unit carries the same note.
+Immobile p.14, Artillery p.13 under 3.5.1, Cumbersome 3.6.0 p.14, no enemy in charge range p.7); every option of that unit carries the same note.
 
 For Grimdark Future the legal set is *units of this team with an empty action record and at least
 one model on the table*, crossed with `ActionsFor`:
 
 ```csharp
+var edition = GfEdition.Of(state);
 if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return actionRows.Where(a => a == Advance).ToList();
 if (unit.Conditions.Contains(Shaken)) return [ActivationOption.Idle];
-if (Lookup.UnitHas(state, props, unit.Id, Immobile) || Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();
+if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return actionRows.Where(a => a == Hold).ToList();
+if (edition.ArtilleryHoldOnly && Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();      // 3.5.1 only
+if (edition.HasCumbersome && Lookup.UnitHas(state, props, unit.Id, Cumbersome)) return actionRows.Where(a => a is Hold or Advance).ToList();   // 3.6.0 only
 // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
 return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0 ? actionRows.Where(a => a != Charge).ToList() : actionRows;
 ```
@@ -384,7 +387,11 @@ break the staying idle requirement to stop being Shaken"*. `Aircraft` is therefo
 `Shaken`, and a Shaken Aircraft is offered `Advance`, not `Idle`. Page 10 gives every other Shaken
 unit *"must spend their activation being idle and doing nothing, which stops them from being
 Shaken at the end of their activation"*, which is `ActivationOption.Idle`, a `const string` that
-is not an action row and runs no sequence. Page 14 gives `Immobile`, and page 13 gives `Artillery` (*"May only use Hold actions"*): `Hold` only. The action rows
+is not an action row and runs no sequence. Page 14 gives `Immobile`, and page 13 gives `Artillery` (*"May only use Hold actions"*): `Hold` only. 3.6.0 p.13 lets
+Artillery move (its shooting modifier depends on whether it moved this round), so `GfEdition.ArtilleryHoldOnly` is true only for
+3.5.1 and the Artillery limit is not applied under 3.6.0; 3.6.0 p.14 gives `Cumbersome` (*"May only use Hold or Advance actions"*),
+`GfEdition.HasCumbersome`, with `GfEdition.CumbersomeNote`. Both are read through `GfEdition.Of(state)`; the notes come from the
+edition. The action rows
 come from `PropertySet.Actions` in catalog order (`Hold`, `Advance`, `Rush`, `Charge`), because
 actions are named per ruleset rather than enumerated.
 
@@ -1303,7 +1310,10 @@ keys `Resolved` on `sequence_finished`, and reads the completed step carrying `p
 | [`docs/architecture.md`](../../architecture.md) | the load-bearing seam, the command/event spine, undo by replay, enforcement, Turn scheduling (*"No engine code branches on ruleset identity"*) |
 | [`docs/schema.md`](../../schema.md) | `game.scheduler_shape`, `game_event (game_id, seq, kind, payload)` |
 
-### Rulebook: Grimdark Future v3.5.1
+### Rulebook: Grimdark Future v3.5.1 and 3.6.0
+
+The pages below are 3.5.1's, a bare `p.N`. The 3.6.0 pages read for the edition differences are 3.6.0 p.13 (Artillery) and 3.6.0 p.14
+(Cumbersome); every other scheduler reading is the same text in both editions.
 
 | Page | Read for |
 | --- | --- |

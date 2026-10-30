@@ -491,6 +491,11 @@ arrived, and what they are*).
 Migration `003_account_starter.sql` adds `account.starter_seeded_at timestamptz null`
 (`docs/schema.md` → *`account` records whether its starter meshes were seeded*).
 
+Migrations `023_army_edition.sql`, `024_foreign_to_hit_penalties.sql` and `025_steep_terrain.sql` (under
+`Persistence/Migrations/`) add `army.edition text not null` checked in `('3.5', '3.6')` with no default (rows before it are `'3.5'`,
+except a list carrying a rule name only 3.6.0 books use, which is `'3.6'`), the `foreign_to_hit_penalties` value of
+`effect.target_modifier`, and `steep` on `asset_volume` and `terrain_volume` (`docs/schema.md`).
+
 Migration `004_properties_seeded_at.sql` adds `properties.seeded_at timestamptz not null default now()`; the game
 server's seeder sets it on every seed, and `GET /v1/properties` lists one set per `(game_rules, name)`, the latest
 (`docs/schema.md` → *`properties` records when it was last seeded*).
@@ -692,8 +697,12 @@ fetch established:
 | `combined: true` on two entries whose `joinToUnit` cross-reference | one unit of double size; sizes and loadout counts add |
 | `joinToUnit` on an entry that is not a `combined` partner | a hero joining that unit; its models become models of that unit (the plan's ruling 2). This list carries no such entry, so the join path is tested against hand-written lists |
 
-`ArmyForgeImport.ToArmy(list, source, catalog)` is a pure function: no database, no HTTP. The
-mapping is the most heavily unit-tested piece in the module.
+`ArmyForgeImport.ToArmy(list, source, catalog, edition)` is a pure function: no database, no HTTP. The
+mapping is the most heavily unit-tested piece in the module. The list carries no edition, so the stamp is the import
+time's: `Army.Edition` (`'3.5'` | `'3.6'`, `ArmyEditions`) defaults to `ArmyEditions.Served`, the edition Army Forge serves
+(`'3.6'`), and is stored as `army.edition`. An `ArmySnapshot` keeps it. The game server refuses an army whose edition is not the
+game's (`ArmyLimits.EditionBreach`); this module stores and stamps it and judges nothing. `ArmyBookReserves` reads the units file of the
+edition (`Content/Armies/army-book-units.<edition>.json`), and startup requires the file of every edition in `ArmyEditions.All`.
 
 ```mermaid
 flowchart TD
@@ -1212,10 +1221,10 @@ writes `builtin/`.
 | `GET /v1/layouts` | → `LayoutSummary(Id, Name, Size, Terrain, Markers)[]` | owner |
 | `POST /v1/layouts` | `TableState` with `Name` → `201 TableState` | owner |
 | `GET`/`PATCH`/`DELETE /v1/layouts/{id}` | `PatchLayoutRequest(Name?, State?)` → `TableState` / `204` | owner |
-| `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules)[]`, one per `(GameRules, Name)`, the latest seeded | bearer |
+| `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules, Default)[]`, one per `(GameRules, Name)`, the latest seeded; `Default` is true for the set of `RuleSets.Default` (`grimdark-future-3.6`), which the create dialogs preselect | bearer |
 | `GET /v1/properties/{hash}/rules` | → `CatalogRuleText(Name, Kind, TakesParameter, RuleText, Played)[]` by name; `404` for an unknown hash | bearer |
 | `GET /v1/properties/{hash}/grants` | → `GrantableEffect(EntryName, EffectId, Duration)[]`: the set's top-level `once`, `marker` and `spent_marker` effect rows by entry then ordinal, what the client's Add a grant names in an `AddGrant`; `404` for an unknown hash | bearer |
-| `GET /v1/games?limit&after&joined` | → `Page<GameSummary>` | bearer, public |
+| `GET /v1/games?limit&after&joined` | → `Page<GameSummary>`; `GameSummary.RuleSet` is the name of the set the game is pinned to (`Grimdark Future v3.5.1`, `Grimdark Future v3.6.0`) | bearer, public |
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer, public |
 | `POST /v1/games/{id}/join` | → `GameInfo`. Joins the game, no team | bearer |
@@ -1281,7 +1290,7 @@ and a build whose environment is unset serves `404` for it.
 | Module | Must honour |
 | --- | --- |
 | Game server | verify the JWT exactly as here: JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string, the Stytch role ids in the top-level claim `roles` (an array; absent means none); verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
-| Interpreter, through the OPR properties document | author an Age of Fantasy content set. `aof` lists import (the plan's ruling 5), a game pins a set by `properties.content_hash`, and the only authored document is `grimdark-future-core.properties.json`, whose catalog is Grimdark Future's army books and spells. An Age of Fantasy army can therefore be imported before anything exists to play it with, and nothing detects the mismatch: `army.game_system` and `properties.game_rules` are both `grimdark-future`, which is what lets one rules implementation serve both |
+| Interpreter, through the OPR properties document | author an Age of Fantasy content set. `aof` lists import (the plan's ruling 5), a game pins a set by `properties.content_hash`, and the only authored documents are each Grimdark Future edition's `core.properties.json` (`grimdark-future-3.5.1/`, `grimdark-future-3.6/`), whose catalogs are that edition's army books and spells. An Age of Fantasy army can therefore be imported before anything exists to play it with, and nothing detects the mismatch: `army.game_system` is `grimdark-future` and `properties.game_rules` is an edition's id, which is what lets one rules implementation serve both |
 | Interpreter, through the OPR properties document | declare `Quality` and `Defense` at `model` level beside their `unit` declarations, because a joined hero's slots carry both as slot stats and `slot_stat` has no foreign key to `stat_definition` to catch the gap. **Both are discharged.** A joined hero attacks at its own Quality and blocks on the unit's Defense until every other model is dead, so the slot's `Quality` is read for every hit roll and the slot's `Defense` once the unit holds one model, and a `unit`-kind entry on a slot is the whole unit's rule in `Gather` and `UnitHas` alike (the interpreter design's ruling 13) |
 | Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |
 | Client shell | send `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; treat `426` as a screen; refresh with `POST /v1/auth/session/refresh` about once a minute; apply `ManifestEntry.Scale/Orientation` to another participant's mesh; mirror `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member |
@@ -1452,7 +1461,7 @@ erDiagram
 
 *The account and the library. `blob.uploaded`, `blob.content_type` and `account.starter_seeded_at` come from this module's
 migrations `002` and `003`. `ASSET_VOLUME` is abbreviated here: it carries all
-six declaration booleans and the full footprint, seventeen columns mapped by one `VolumeRow`.*
+eight declaration booleans and the full footprint, nineteen columns mapped by one `VolumeRow`.*
 
 ```mermaid
 erDiagram
@@ -1473,6 +1482,7 @@ erDiagram
         text name
         text game_system
         text source
+        text edition
     }
     UNIT {
         uuid id PK
@@ -1861,9 +1871,9 @@ JWKS endpoint takes no credentials, which an unauthenticated `curl` shows. Army 
 `access-control-allow-origin: *`) and saved as the fixture.
 
 **Rulebook.** No page of Grimdark Future is read by this module. It stores content and enforces no
-rule. The one number from the rules side is the triangle warning threshold, 100,000, and that is a
+rule, in either edition. The one number from the rules side is the triangle warning threshold, 100,000, and that is a
 product decision from mesh conversion rather than a rulebook figure. Pages 6, 16, 17–18, 19 and 49
-of Grimdark Future v3.5.1 are read by the setup phase, whose rows this module stores as layouts but
+of Grimdark Future v3.5.1 are read by the setup phase (a 3.6.0 page is cited `3.6.0 p.N`; none is read here), whose rows this module stores as layouts but
 never interprets.
 
 **Sibling design documents** in `docs/design/`: `contracts/`, `geometry/`, `game-server/`,

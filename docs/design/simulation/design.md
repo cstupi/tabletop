@@ -173,11 +173,12 @@ flowchart LR
 
 `CompiledScenario` is what `Hydrator` would have read from Postgres: a `GameInfo` already at
 `GameStatus.Playing`, a `Board` over a frozen `TableState`, and one `ArmySnapshot` per
-participant. `ScenarioCompiler.CoreProperties` reaches the core Grimdark Future `PropertySet`
-through the production path, `PropertiesJson.ToSet(PropertiesSeeder.EmbeddedDocuments().Single(
-d => d.GameRules == GrimdarkFutureRules.RulesId), Guid.CreateVersion7)`. That is the same
-embedded `grimdark-future-core.properties.json` the game server's `TestProperties.Core` reads,
-reached without referencing a test project.
+participant. `ScenarioCompiler.CorePropertiesOf(rulesId)` reaches an edition's shipped Grimdark Future `PropertySet`
+through the production path, `PropertiesJson.ToSet(CoreDocuments[rulesId], Guid.CreateVersion7)`, where `CoreDocuments` is
+`PropertiesSeeder.EmbeddedDocuments()` keyed by game-rules id: the composed document of that edition's embedded
+`core.properties.json`, parts and books. `CoreProperties` is `CorePropertiesOf(RuleSets.Gf351)`; the game server's
+`TestProperties.Core` (3.5.1) and `Core36` read the same documents, reached without referencing a test project. The scenario's
+`GameInfo.GameRules` names the edition, so the engine under test is the game's own `GrimdarkFutureRules` instance.
 
 `Base.Circle(1.26)` and a height of `1.5` are a 32 mm base in inches, the same two numbers the
 scheduler plan's `TestArmies.Build` uses, so a scenario and a fixture describe the same model.
@@ -771,8 +772,13 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   end), `special` (the 33 core special rules, three to five a game), `army:<edition>:<book uid>` (the army rules, by the
   book that prints them; `army:3.5:<uid>`) and `spells:<edition>:<book uid>` (every spell, generated per book by `SpellGames`,
   cast by name).
-- **Editions.** A game runs under `TestGame.Edition` (a game-rules id, default `grimdark-future`); `Editions` runs it once per
-  edition, the 3.6 run named `<name>@3.6`. Coverage is per shipped set: each set against the games of its edition.
+- **Editions.** A game runs under `TestGame.Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names another), so every
+  existing game keeps running against 3.5.1 unchanged. `Editions: [Gf351, Gf360]` (`.BothEditions()` in the catalog list) runs a
+  game twice, the 3.6.0 run named `<name>@3.6` and the 3.5.1 run keeping the bare name; core and special games whose checks quote
+  no rule that 3.6.0 changes run both; a game whose checks quote a changed rule stays
+  3.5.1-only until a 3.6.0 copy with 3.6.0 quotes is written, and the catalog holds none yet. Army and spell games are single-edition: their books' uids differ per edition.
+  Coverage is per shipped set: each set's every entry is checked against the games of its edition, so an entry a 3.6.0 game
+  does not cover fails a full run. The viewer's Tests page shows the edition column and filters by it.
 - **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own
   checks. Fired reads `StepCompleted.Applied` and `RollModifier.Source` in the effective log; a rule that acts in the
   scheduler or in action legality gives its game an `Evidence` predicate. An exact check names the entries it is about
@@ -811,7 +817,9 @@ running stack, with no row written directly.
 
 - **Shapes.** `LifecycleShapes.All`: `two-players`, `self-play`, `team-game`, `late-joiner` (setup ends with a team empty; the
   joiner takes it while deployment waits for players), `ambusher` (the creator's Beast Riders set aside, placed in round 2 or
-  later) and `leave-and-delete` (a lobby game). Accounts `lifecycle-player-0..3` take the seats, `lifecycle-spectator` records.
+  later), `leave-and-delete` (a lobby game) and `two-players-3.6` (`two-players` created on `RuleSets.Gf360`, both seats bringing a 3.6
+  army; the lobby step asserts the default set is the one picked). `LifecycleShape.Rules` and `Edition` choose the set and the army
+  edition; the import body carries `edition`. Accounts `lifecycle-player-0..3` take the seats, `lifecycle-spectator` records.
 - **Path.** `ManagementApi` per account: the dev mint, `GET /v1/properties` and its rules, `POST /v1/games`, join, leave, the
   game's `GET`, `?joined=true`, delete; armies through `POST /v1/dev/armies/import` (dev mode only), whose body is management's
   Army Forge fixture cut to three units (`LifecycleArmy`). `ClientSocket` holds an account's socket outside play: the connect,
@@ -1440,7 +1448,9 @@ compares the two drivers run for run, and a socket step costs what the server ta
   of game state, which is invariant 2.
 - `docs/schema.md` → `GAME`, `TEAM`, `PARTICIPANT`, `GAME_EVENT`.
 
-### Rulebook: Grimdark Future v3.5.1
+### Rulebook: Grimdark Future v3.5.1 and 3.6.0
+
+Bare pages are 3.5.1; the suite's 3.6.0 games cite `3.6.0 p.N` in their quotes.
 
 - p.6, deployment alternates one unit a turn, which is what a `deploy` Ask and a hand placement
   reproduce.

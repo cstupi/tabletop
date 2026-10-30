@@ -124,16 +124,17 @@ the magnitude comes from the entry's `X`, so `AP(3)` is `Math.Sign(-1) * 3`.
 `architecture.md` → Rules as data, *How authored content reaches those tables*, names the mechanism.
 This section is its design.
 
-A set is authored as files under `server/game/Content/`, embedded in the game server's assembly:
-`grimdark-future-core.properties.json` (the rulebook's rules), `grimdark-future-army-rules.part.json`
-(army-book rules written by hand), `grimdark-future-army-book-rules.part.json` and 48
-`army-books/<uid>.book.json` (written by `scripts/ArmyBooks`, never by hand). `PropertiesSeeder.EmbeddedDocuments`
-returns one composed document per `*.properties.json`: `Compose` unions its entries with every part's and every
+A set is authored as files under `server/game/Content/<GfEdition.ContentFolder>/`, embedded in the game server's assembly, one
+folder per edition (`grimdark-future-3.5.1/` for the game-rules id `grimdark-future`, `grimdark-future-3.6/` for `grimdark-future-3.6`),
+the same files in each: `core.properties.json` (the rulebook's rules), `army-rules.part.json` and `relic-wargear.part.json`
+(written by hand), `army-book-rules.part.json` and `army-books/<uid>.book.json` (48 books under 3.5.1, 49 under 3.6.0, written by
+`scripts/ArmyBooks`, never by hand). Each file's `gameRules` field names its edition's id. `PropertiesSeeder.EmbeddedDocuments`
+returns one composed document per `*.properties.json`, so two, one per edition: `Compose` unions its entries with every part's and every
 book's spells of the same `gameRules`, writes an entry two sources carry once when their canonical forms are equal
 and refuses two different entries of one name, and lists each book as a `BookRecord(Uid, Name, Version, Spells)`
 in uid order with its spell names in the book's order. The composed document has the ten tables' shape without
-ids, and is what validates, hashes and seeds; the core document's `name` is `Grimdark Future v3.5.1`, so the
-listed set is the one holding every book ([the spell library](../../superpowers/specs/2026-10-02-spell-library-design.md)
+ids, and is what validates, hashes and seeds; the core document's `name` is the edition's display name (`Grimdark Future v3.5.1`,
+`Grimdark Future v3.6.0`), so each edition's listed set is the one holding that edition's books ([the spell library](../../superpowers/specs/2026-10-02-spell-library-design.md)
 → One set holds every book).
 `PropertiesJson.Canonical` serialises it with the lists whose order carries no meaning sorted
 (`stats` by level then name, `actions`, `rolls` and `entries` by name, `books` by uid, all `StringComparer.Ordinal`)

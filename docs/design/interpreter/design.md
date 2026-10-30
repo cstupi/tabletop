@@ -19,7 +19,7 @@ suspension. Undo-by-replay, hydration and crash recovery are the same mechanism 
 | Directory | Contents |
 | --- | --- |
 | `server/game/Properties/` | `PropertySet`, `PropertySetDocument`, `PropertiesJson`, `IPropertiesStore`, `PostgresPropertiesStore`, `PropertiesSeeder` |
-| `server/game/Content/` | `grimdark-future-core.properties.json` (the rulebook's rules), `grimdark-future-army-rules.part.json` (hand-written army-book rules), `grimdark-future-army-book-rules.part.json` and `army-books/<uid>.book.json` (48 books, written by `scripts/ArmyBooks`), embedded resources composed into one set |
+| `server/game/Content/<edition>/` | `grimdark-future-3.5.1/` and `grimdark-future-3.6/`, each `core.properties.json` (the rulebook's rules), `army-rules.part.json` and `relic-wargear.part.json` (hand-written), `army-book-rules.part.json` and `army-books/<uid>.book.json` (48 books under 3.5.1, 49 under 3.6.0, written by `scripts/ArmyBooks`), embedded resources composed into one set per edition |
 | `server/game/Dice/` | `IDiceSource`, `DiceSource`, `ScriptedDice`, `DiceCursor`, `RollPlan`, `Roller`, `RollOutcome` |
 | `server/game/Effects/` | `Interaction`, `Conditions`, `LiveProperties`, `RollEffects`, `StatReader`, `Lookup` |
 | `server/game/Interpreter/` | `Steps`, `FrameReader`, `StepContext`, `SequenceInterpreter`, `Windows`, `Battlefield` |
@@ -170,7 +170,8 @@ Command / Event spine, Rules enforcement, Undo, Abilities, Rules as data, Pinnin
 [`docs/schema.md`](../../schema.md) → `Properties` is ten tables, One `effect` table for every kind,
 An army book is a row and lists its spells, A condition is a row, Worked against the book; [`docs/data-model.md`](../../data-model.md).
 
-**Rulebook.** Grimdark Future v3.5.1, read for this plan: p.7 (the four actions and their
+**Rulebook.** Grimdark Future v3.5.1, read for this plan (a 3.6.0 page is cited `3.6.0 p.N`; the two editions' differences are
+in [the rule-set versions spec](../../superpowers/specs/2026-10-29-rule-set-versions-design.md)): p.7 (the four actions and their
 distances), p.8 (shooting, weapon groups, two targets, the worked attack example), p.9 (melee
 reach, striking back, fatigue), p.10 (who won, consolidation, morale, Shaken), p.11 (terrain:
 cover, difficult, dangerous), p.13–15 (every special rule), p.21 (solid buildings), p.30–35 and

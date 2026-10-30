@@ -1014,6 +1014,15 @@ password filled in every connect logs in afresh, because a session JWT lasts fiv
 reusing one would break the reconnect after a desync. A second socket for the same participant closes the first with code `1000`, which
 the viewer reports as a plain close.
 
+**Rule sets.** The viewer shows the server's set name, never an id, and encodes no edition: `GameInfo.RuleSet` (the
+`properties.name` of the game's set, `Grimdark Future v3.5.1` or `v3.6.0`) reaches `RecordingMeta.ruleSet`, and
+`ruleSetText` (`play/headerText.ts`) prints it in `PlaybackView` and the play header, falling back to `gameRules` for a recording
+made before the field. The create dialog preselects `PropertiesSummary.Default` and the lobby's Rule set `<select>` sends the
+chosen set's hash in `SetConfiguration`; `rules_options` replaces the connection's options, zone legs and terrain words
+(`Welcome.Zones`, `Welcome.TerrainWords`, carried to a recording as `RecordingMeta.zones` and `terrainWords`), which is how Side
+Battle's legs and the terrain labels follow the edition. Each army `<select>` lists the game's edition first and another
+edition's armies disabled, with the reason read off the army's own `edition` field. The Tests page filters by edition, each labelled with its set name, and shows the set name on every game and coverage row.
+
 **Left to break.** A recording whose `meta.gameRules` or `meta.propertiesHash` the viewer has never
 seen is drawn anyway, because the viewer holds no ruleset and nothing it draws depends on one. Only
 `schemaVersion` gates a file. A live game shows no deployment-zone outlines. `CLIENT_VERSION` is
@@ -1112,7 +1121,7 @@ threshold for the same reason.
 | [`2026-10-25-play-ui-design.md`](../../superpowers/specs/2026-10-25-play-ui-design.md) | the play page's layout: top bar, roster, board, right column; site classes only; words, not ids |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | a participant with no team is a spectator |
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | a participant with no team is never addressed by an Ask, which is what a spectator is |
-| [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed seven terrain declarations the palette colours |
+| [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed set of eight terrain declarations the palette colours |
 | [`2026-08-29-geometry-values-design.md`](../../superpowers/specs/2026-08-29-geometry-values-design.md) | the corner frame, yaw 0 facing `+y`, base shapes |
 | [`2026-08-29-web-app-design.md`](../../superpowers/specs/2026-08-29-web-app-design.md) | the Svelte, Vite and Vitest versions only; no code is shared |
 | [`docs/architecture.md`](../../architecture.md) | the command/event spine, the applier as rules-free and run on both sides, one world unit is one inch |
@@ -1128,7 +1137,7 @@ threshold for the same reason.
 
 ### Rulebook
 
-No page of Grimdark Future v3.5.1 is read by this module. The one rules fact it depends on, that
+No page of Grimdark Future v3.5.1 or 3.6.0 is read by this module. The one rules fact it depends on, that
 OPR's frontline zone is an absolute twelve-inch inset rather than a fraction of the table, reaches
 it as resolved `RecordedPoint` rings in `RecordedZone.Polygons`.
 

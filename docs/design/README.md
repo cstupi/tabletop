@@ -283,7 +283,15 @@ The split is between what is edited per ruleset and what is edited every day:
 | `Properties` | Rows in ten tables, named by hash per game; a game not ended runs its game rules' current set | Stat declarations, the catalog of named rules, effects, conditions, actions, rolls, army books and the spells each lists |
 | `GameRules` | C# behind an interface | Turn structure, sequence definitions, dice conventions, threshold derivation, scheduler policy |
 
-Only OPR's `GameRules` is implemented. Warhammer 40,000's core rules were read twice as a
+Only OPR's `GameRules` is implemented, in two editions of Grimdark Future. An **edition** is a rule-set id:
+`grimdark-future` is 3.5.1 and `grimdark-future-3.6` is 3.6.0 (`RuleSets` in `Tabletop.Content`). Each id owns its own
+`Properties` content folder, its own current hash and its own effect aliases, so a rule fix moves every game of its
+edition and no game of the other. A **rule set** is one seeded property set (`GET /v1/properties` returns the newest per
+id); the core document's `name` (`Grimdark Future v3.5.1`, `Grimdark Future v3.6.0`) is what every UI shows, never the id.
+The C# is shared: `GfEdition.Of(state)` reads `state.Info.GameRules` and returns what differs, and a step whose logic
+changes has a per-edition copy chosen in the sequence catalog. A game takes its edition from the set it picks; new games
+default to 3.6.0, existing games stay on 3.5.1, and an army carries the edition it was imported in
+([rule-set versions](../superpowers/specs/2026-10-29-rule-set-versions-design.md)). Warhammer 40,000's core rules were read twice as a
 falsifier and produced fifteen constraints on what the engine must not contain: nine from
 action sequences, six from the scheduler. Those constraints are the generalisation budget, and
 they are the reason no engine code branches on ruleset identity.
@@ -507,4 +515,4 @@ them.
 One world unit is one inch. The table origin is a corner: x along the width, y along the
 length, z up. Identifiers are UUIDv7, generated in application code. C# only in .NET projects,
 `net10.0`, no GDScript. Diagrams are mermaid, as in `../data-model.md`. Rulebook page cites are
-Grimdark Future v3.5.1.
+Grimdark Future v3.5.1 as a bare `p.N`; a page of Grimdark Future v3.6.0 is cited `3.6.0 p.N`.
