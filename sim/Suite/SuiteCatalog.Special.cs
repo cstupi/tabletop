@@ -22,7 +22,7 @@ static partial class SpecialGames
     [
         Regrowth(), BlastDeadly().BothEditions(), Gunline(), Artillery(), Charge(), Swift().BothEditions(), EternalFlame().BothEditions(), Command(), Deployment(),
         Aircraft(), CastMidMove(), AmbushCloseQuarters().BothEditions(), TakedownPicksOne().BothEditions(),
-        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk().BothEditions(),
+        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk().BothEditions(), .. All36(),
     ];
 
     // ---- Building blocks ---------------------------------------------------------------------------------------------------------------
