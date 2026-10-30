@@ -29,6 +29,12 @@ public static class Generation
         if (problems.Count == 0)
         {
             built = BookWriter.Build(books, rulesId);
+            if (rulesId != RuleSets.RulesIdOf("3.5"))
+            {
+                var (live, demoted) = BookWriter.DemoteUndefinedGrants(built, core, hand);
+                built = live;
+                if (demoted.Count > 0) notes.Add($"text-only spells (undefined grant: <rule>): {demoted.Count}\n    {string.Join("\n    ", demoted)}");
+            }
             problems.AddRange(BookWriter.Check(built, core, hand, rules));
         }
         var textOnly = books.SelectMany(b => b.Spells.Where(SpellTranslator.IsTextOnly).Select(sp => $"{b.Name}: {sp.Name.Trim()}")).ToList();

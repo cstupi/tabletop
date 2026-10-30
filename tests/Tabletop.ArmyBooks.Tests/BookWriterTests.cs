@@ -73,4 +73,15 @@ public class BookWriterTests
                 Assert.Equal(c.Values.Order(StringComparer.Ordinal).ToList(), c.Values.ToList());
         }
     }
+
+    [Fact]
+    public void A_spell_granting_an_undefined_rule_is_demoted_to_text_only()
+    {
+        var core = new PropertySetDocument("core", "grimdark-future", [], [], [], []);
+        var books = BookWriter.Build(All(), "grimdark-future").Where(b => b.Spells.Any(s => s.Effects.Any(f => f.TargetEntry is not null))).Take(1).ToList();
+        var (demoted, list) = BookWriter.DemoteUndefinedGrants(books, core, core);
+        Assert.NotEmpty(list);
+        Assert.All(demoted.SelectMany(b => b.Spells).Where(s => s.Played == false), s => Assert.Empty(s.Effects));
+        Assert.Contains(demoted.SelectMany(b => b.Spells), s => s.Played == false);
+    }
 }
