@@ -32,9 +32,13 @@ public static partial class SuiteCatalog
                         ? new Destinations(m.ModelIds.Select((id, i) => new ModelRelocation(id, new OnShelf(),
                             new OnTable(new Placement(new Point3(c.Position.X + 4.5, c.Position.Y + (i - 1) * 1.5, 0), new Yaw(0))))).ToList())
                         : null))),
-            In36(With(Game(Ratmen36, "ratmen-clans-reinforcement-36", Play.Shot, ["Reinforcement"], [R(1, "Reinforcement")], [],
-                [Reinforced36("\"you may place a new copy of it fully within 9\" of any table edge, over 9\" away from enemy units\"")],
-                units: 2, sizes: new Dictionary<int, int> { [1] = 1, [2] = 1 }, reserves: [new ScenarioReserve(2, "Reinforcement", 1)], enemyAttacks: 4,
+            // By construction: the opponent's one rifle (three attacks) fixed to kill two of the three rats, whose end-of-activation morale test (p.10, half
+            // or less) is fixed to fail into Shaken; the removal is answered remove and the copy picked at round two's start.
+            In36(With(Game(Ratmen36, "ratmen-clans-reinforcement-36", Play.Shot, ["Reinforcement"], [R(1, "Reinforcement")],
+                [Fix("hit", 6, 6, 1), Fix("defense", 1, 1), new DiceFix("morale", 0, [1], new RollKey(Actor: $"{Ratmen36.Army} unit 1"))],
+                [Reinforced36("\"When a unit where all models have this rule is Shaken, you may remove it from the table as destroyed. At the beginning of the next round after a unit where all models have this rule is destroyed, after Ambushers have been deployed, you may place a new copy of it fully within 9\" of any table edge, over 9\" away from enemy units\"")],
+                units: 2, sizes: new Dictionary<int, int> { [1] = 3, [2] = 3 }, reserves: [new ScenarioReserve(2, "Reinforcement", 1)],
+                enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2,
                 more: s => s.Match(GfReserves.RemoveQuestion, (_, _) => new Chosen("remove"))
                     .Match(AskQuestions.DeployReinforcement, (ask, _) => ask.Legal is PieceSelection { Eligible: [var copy, ..] } ? new SelectedPieces([copy]) : null)),
                 ("Reinforcement", Deployed(AskQuestions.DeployReinforcement)))),
@@ -85,32 +89,39 @@ public static partial class SuiteCatalog
             });
 
         /// <summary>
-        /// Each Reinforcement copy's arrival: in one event, after its original left the table, every base fully within 9" of one table edge and over 9" from every
-        /// enemy model on the table; and the original's removal was offered only once it was Shaken.
+        /// Each removal offer (`reinforcement_remove`): made to a Shaken unit; answered remove, its models leave the table, and its copy arrives at a later
+        /// round's start in one event, every base fully within 9" of one table edge and over 9" from every enemy model on the table. No offer is a failure.
         /// </summary>
         static GameCheck Reinforced36(string quote) =>
             Exact(GfReserves.Reinforcement, quote, (run, _) =>
             {
                 var log = LogQueries.Of(run);
                 PlacedModel Body(Guid m, Placement p) => new(new ModelBody(run.Final.Models[m].Slot.Base, run.Final.Models[m].Slot.Height), p);
+                var offers = log.AsksOf(GfReserves.RemoveQuestion).ToList();
+                if (offers.Count == 0) return ["no removal offered to a Shaken unit"];
+                var arrivals = Arrivals(run, u => run.Final.Units[u].Definition.Reserve?.Property == GfReserves.Reinforcement).ToList();
                 var verdicts = new List<string?>();
-                foreach (var unit in Arrivals(run, u => run.Final.Units[u].Definition.Reserve?.Property == GfReserves.Reinforcement).GroupBy(a => run.Final.Models[a.Model].UnitId))
+                foreach (var offer in offers)
                 {
-                    if (unit.Select(a => a.Seq).Distinct().Count() > 1) { verdicts.Add("placed in more than one event"); continue; }
-                    var seq = unit.First().Seq;
+                    if (offer.Frame?.Context.ActorUnitId is not { } original || !log.HasCondition(original, GfNames.Shaken, offer.Seq)) { verdicts.Add("removal offered to a unit not Shaken"); continue; }
+                    if (offer.Answer is not Chosen { OptionId: "remove" }) continue;
+                    if (log.Living(original, log.Events[^1].Seq + 1) > 0) { verdicts.Add("removed, yet its models stand"); continue; }
+                    var copy = run.Final.Units.Values.FirstOrDefault(u => u.Definition.Reserve is { Property: GfReserves.Reinforcement } r && r.Of == original)?.Id;
+                    var mine = arrivals.Where(a => copy is { } c && run.Final.Models[a.Model].UnitId == c).ToList();
+                    if (mine.Count == 0) { verdicts.Add("its copy never arrived"); continue; }
+                    if (mine.Select(a => a.Seq).Distinct().Count() > 1) { verdicts.Add("placed in more than one event"); continue; }
+                    var seq = mine[0].Seq;
+                    if (seq <= offer.Seq || mine[0].Round <= (log.Events.Where(e => e.Seq <= offer.Seq).Select(e => e.Payload).OfType<RoundStarted>().LastOrDefault()?.Round ?? 0)) { verdicts.Add("arrived before the round after its removal"); continue; }
                     var before = log.LocationsBefore(seq);
-                    var of = run.Final.Units[unit.Key].Definition.Reserve!.Of;
-                    var team = run.Final.Units[unit.Key].ParticipantId;
+                    var team = run.Final.Units[copy!.Value].ParticipantId;
                     var enemies = before.Where(kv => kv.Value is OnTable && run.Final.Units[log.UnitOf(kv.Key)].ParticipantId != team).Select(kv => Body(kv.Key, ((OnTable)kv.Value).Placement)).ToList();
-                    foreach (var (model, at, _, _) in unit)
+                    foreach (var (model, at, _, _) in mine)
                     {
                         var self = Body(model, new Placement(new Point3(at.X, at.Y, 0), new Yaw(0)));
-                        verdicts.Add(run.Final.Units[of].Definition.Models.Any(m => before[m.Id] is OnTable) ? "placed while its original stood"
-                            : !GfReserves.NearEdge(run.Game.Scenario.Table, self, 9) ? "placed beyond 9\" of every edge"
+                        verdicts.Add(!GfReserves.NearEdge(run.Game.Scenario.Table, self, 9) ? "placed beyond 9\" of every edge"
                             : enemies.Any(e => Distance.EdgeToEdge(self, e) <= 9 + 0.01) ? "placed within 9\" of an enemy model" : null);
                     }
                 }
-                verdicts.AddRange(log.AsksOf(GfReserves.RemoveQuestion).Select(a => a.Frame?.Context.ActorUnitId is { } u && log.HasCondition(u, GfNames.Shaken, a.Seq) ? null : "removal offered to a unit not Shaken"));
                 return verdicts;
             });
 
