@@ -2,6 +2,7 @@
 // LobbyView (client/src/Core/LobbyView.cs), word for word: the lobby's seat and team buttons as the game server's lobby authority has them.
 
 import type { GameInfo, LeaveTeam, Participant, PickArmy, PickTeam, TableState } from '../protocol/wire.generated';
+import type { ArmySummary } from '../api/types';
 import { mine, teamsOf } from './seats';
 
 export interface TeamChoice {
@@ -13,6 +14,9 @@ export interface ArmySeat { readonly teamId: string | null; readonly label: stri
 export interface LobbySeat {
   readonly participantId: string; readonly name: string; readonly seat: string; readonly selected: number; readonly army: string | null;
 }
+
+/** An army in a picker: its name and the edition it was imported under. */
+export const armyLabel = (a: ArmySummary): string => `${a.name} (${a.edition})`;
 
 export const CREATOR_ONLY = "Only the game's creator changes the configuration.";
 export const NO_TEAM = 'No team';

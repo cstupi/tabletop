@@ -18,7 +18,7 @@ public sealed record PropertiesSummary(string ContentHash, string Name, string G
 public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, string RuleText, bool Played = true);
 /// <summary>An effect row a grant can carry (GET /v1/properties/{hash}/grants): an AddGrant names its entry and this id.</summary>
 public sealed record GrantableEffectDto(string EntryName, Guid EffectId, string Duration);
-public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models);
+public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models, string Edition = "3.5");
 public sealed record LayoutSummary(Guid Id, string Name, TableSize Size, int Terrain, int Markers);
 /// <summary>POST /v1/layouts/random: the draft's size and zone rows; no seed lets the server pick one.</summary>
 public sealed record RandomTableRequest(TableSize Size, Planet Planet, IReadOnlyList<DeploymentZone>? Zones, int? Seed);

@@ -49,7 +49,7 @@ public partial class LobbyPanel : VBoxContainer
             if (!IsInstanceValid(this)) return;
             foreach (var (seat, box) in pickers)
             {
-                foreach (var a in list) box.AddItem(a.Name);
+                foreach (var a in list) box.AddItem(LobbyView.ArmyLabel(a));
                 if (seat.ArmyId is { } picked) { var at = list.ToList().FindIndex(a => a.Id == picked); if (at >= 0) box.Select(at + 1); }
                 box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : list[(int)i - 1].Id));
             }

@@ -25,6 +25,9 @@ public sealed record SeatChoice(Guid? TeamId, string Label);
 /// </summary>
 public static class LobbyView
 {
+    /// <summary>An army in a picker: its name and the edition it was imported under.</summary>
+    public static string ArmyLabel(ArmySummary a) => $"{a.Name} ({a.Edition})";
+
     public const string CreatorOnly = "Only the game's creator changes the configuration.";
 
     /// <summary>Where I sit, and what that means once play starts: one team, several (self-play: one player on both sides), or none.</summary>

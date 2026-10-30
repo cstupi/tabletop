@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  armySeats, endSetupText, members, pickArmy, place, players, seatChoices, seatLine, teamChoices, waitingForCreator,
+  armyLabel, armySeats, endSetupText, members, pickArmy, place, players, seatChoices, seatLine, teamChoices, waitingForCreator,
 } from '../src/lib/lobby/lobbyView';
 import { isCreator } from '../src/lib/lobby/seats';
 import type { GameInfo, Participant, TableState } from '../src/lib/protocol/wire.generated';
@@ -13,6 +13,10 @@ const game = (participants: Participant[], status: GameInfo['status'] = 'lobby')
 });
 
 describe('LobbyView', () => {
+  it('the army label is the name and the edition', () => {
+    expect(armyLabel({ id: 'a', name: 'Orcs', gameSystem: 'gf', source: 'x', units: 1, models: 1, edition: '3.6' })).toBe('Orcs (3.6)');
+  });
+
   it('the seat line names my teams and asks for an army', () => {
     const g = game([row('p1', 'a1', 'Ann', { teamId: T1 })]);
     expect(seatLine(g, 'p1')).toBe('You are on Team 1. Pick your army below.');
