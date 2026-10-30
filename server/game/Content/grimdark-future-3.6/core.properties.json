@@ -38,7 +38,7 @@
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": 2 },
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": 4 },
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": 4 } ] },
-    { "name": "Fear", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "This model counts as having dealt +X wounds when checking who won melee.", "effects": [] },
+    { "name": "Fear", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "When in melee with this model, enemies count as having taken +X wounds when checking who won.", "effects": [] },
     { "name": "Fearless", "kind": "model", "aggregation": "all", "ruleText": "When a unit where all models have this rule fails a morale test, roll one die. On a 4+ it counts as passed instead.",
       "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 4, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "morale_test" } ] } ] },
     { "name": "Flying", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may move through units and terrain, and ignore terrain effects whilst moving.", "effects": [] },

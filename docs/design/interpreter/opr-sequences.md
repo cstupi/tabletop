@@ -413,15 +413,18 @@ sequenceDiagram
     M->>DT: strike-back: Options([strike, pass])
     DT-->>M: Chosen
     M->>A: the defender's attack-sequence, then set fatigued on the defender
-    M->>M: compare: wounds each way, Fear(X) added, a destroyed unit always loses
+    M->>M: compare (3.5.1): wounds caused each way since melee-start plus Fear(X); fewer caused loses; a destroyed unit always loses
+    M->>M: compare (3.6.0): wounds each unit took this activation (dangerous-terrain included) plus the enemy's Fear(X); more taken loses; a destroyed unit always loses
     M->>M: the loser pushes morale-test with Action = melee - a tie tests nobody
     M->>CT: consolidate: 3 inches if a unit died, else the charger falls back 1 inch
 ```
 
 The defender is asked three times in one charge (four under 3.6.0, with `counter`): close in, strike back, and allocation inside
 each `deal-wounds`. Under 3.5.1 `counter` precedes `impact` (the book leaves the order ambiguous) and each Counter model takes one Impact die; under 3.6.0 `impact` precedes `counter` (p.14 *"before either unit attacks"*) and Counter takes no dice (`GfEdition.ImpactBeforeCounter`, `CounterReducesImpact`). Under 3.6.0 the defender's team is asked `counter` (p.13 *"May strike first with this weapon when charged, unless this unit is Fatigued"*; `GfEdition.CounterOptional`), and a Fatigued or Shaken defender (p.10, *"counting as Fatigued"*) is not asked and has no Counter strike (`CounterLostWhenFatigued`); either way `counter` records `counter_held` and the Counter weapons strike with the rest in `strike-back`. Counter-Attack (*"Strikes first when charged"*) is not asked under either edition. `melee-start` has to record both units' `WoundsThisActivation` **before**
-anything strikes, because `compare` subtracts that baseline. A step inserted before `melee-start`
-that causes a wound would be counted twice.
+anything strikes, because `compare` subtracts that baseline under 3.5.1. A step inserted before `melee-start`
+that causes a wound would be counted twice. Under 3.6.0 (`GfEdition.MeleeLossByWoundsTaken`, p.10 *"compare the number of wounds each
+unit took during this activation instead. The unit with the highest total loses"*) `compare` reads `WoundsThisActivation` whole, so the
+charge move's dangerous-terrain wounds count against the charger; `charger_wounds` and `defender_wounds` then hold the wounds each unit took.
 
 `charge-target` offers enemy units with a model a charger model reaches in base contact within `StatReader.ActionDistance(Charge)`
 along a path round every impassable volume (`Movement.ContactDistance`; p.9 *"has a clear path to reach it"*, *"charge moves
