@@ -54,19 +54,12 @@ public class ArmyGamesTests
     /// </summary>
     static readonly string[] Uncovered36 =
     [
-        "Bane Mark", "Bane in Melee Aura", "Bane when Shooting", "Bane when Shooting Aura", "Counter in Melee Buff",
-        "Defensive Frenzy", "Defensive Growth", "Devout", "Disintegrate",
-        "Entrenched", "Evasive", "Ferocious", "Fortified", "Fortified Growth", "Grounded Defense", "Grounded Precision", "Guarded", "Guardian",
-        "Guerrilla", "Harassing", "Hit & Run", "Hit & Run Fighter", "Hit & Run Shooter", "Honor Code",
-        "Increased Shooting Range", "Increased Shooting Range Aura", "Increased Shooting Range Buff", "Increased Shooting Range Mark",
-        "Indirect when Shooting Aura", "Infected", "Inquisitorial Agent", "Lacerate", "Machine-Fog", "Martial Prowess",
-        "Melee Evasion", "Melee Shrouding", "Melee Slayer", "Piercing Debuff", "Piercing Fighter Aura", "Piercing Frenzy", "Piercing Growth",
-        "Piercing Shooter Aura", "Piercing Shooting Mark", "Piercing Spotter", "Piercing Target", "Precision Frenzy",
-        "Precision Growth", "Precision Spotter", "Precision Target", "Protected", "Protection Feat", "Ranged Shrouding",
-        "Ranged Slayer", "Rending in Melee", "Rending in Melee Aura", "Rending when Shooting Aura", "Screened", "Scurry", "Self-Repair",
-        "Sergeant", "Shatter", "Shielded", "Shred Mark", "Shred in Melee", "Shred in Melee Aura", "Shred when Shooting",
-        "Shred when Shooting Aura", "Speed Debuff", "Speed Feat", "Split", "Steadfast", "Sturdy", "Takedown Shot", "Takedown Strike",
-        "Targeting Visor", "Thrust in Melee Aura", "Unstoppable in Melee", "Unstoppable in Melee Aura", "Unstoppable when Shooting Aura",
+        "Defensive Frenzy", "Defensive Growth", "Devout", "Disintegrate", "Entrenched", "Evasive",
+        "Ferocious", "Fortified", "Fortified Growth", "Grounded Defense", "Guarded", "Guardian",
+        "Guerrilla", "Harassing", "Honor Code", "Infected", "Inquisitorial Agent", "Machine-Fog",
+        "Martial Prowess", "Melee Evasion", "Melee Shrouding", "Protected", "Protection Feat", "Ranged Shrouding",
+        "Screened", "Scurry", "Self-Repair", "Sergeant", "Shatter", "Shielded",
+        "Speed Debuff", "Speed Feat", "Split", "Steadfast", "Sturdy", "Targeting Visor",
         "Unwieldy Debuff", "Vengeance", "Versatile Reach",
     ];
 
