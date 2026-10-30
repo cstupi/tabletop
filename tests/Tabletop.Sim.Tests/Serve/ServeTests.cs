@@ -65,6 +65,8 @@ public sealed class ServeTests : IAsyncLifetime
         Assert.Equal(SuiteFixtures.Name, game.GetProperty("name").GetString());
         Assert.Equal(SuiteFixtures.Group, game.GetProperty("group").GetString());
         Assert.Equal("AP", Assert.Single(game.GetProperty("covers").EnumerateArray()).GetString());
+        Assert.Equal("grimdark-future", game.GetProperty("edition").GetString());
+        Assert.Equal(ScenarioCompiler.CoreProperties.Name, game.GetProperty("ruleSet").GetString());
     }
 
     [Fact]

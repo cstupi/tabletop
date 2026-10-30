@@ -41,7 +41,7 @@ public class ArmyGamesTests
         Assert.All(covered.Where(generated.Contains), c => Assert.Contains(Army, g => g.Pattern is not null && g.Covers.Contains(c)));   // a wrapper only by its pattern's game
         var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.5.1/army-books"), "*.book.json")
             .Select(f => Path.GetFileName(f)[..^".book.json".Length]).ToHashSet();
-        Assert.All(Army, g => Assert.Contains(g.Group[SuiteCatalog.ArmyPrefix.Length..], books));
+        Assert.All(Army, g => Assert.Contains(SuiteCatalog.BookOf(g.Group), books));
         Assert.All(Army, g => Assert.All(g.Covers, c => Assert.Contains(c, g.Scenario.Armies[0].Rules())));          // a game covers only what its first army carries
         Assert.All(Army, g => Assert.All(g.Scenario.Armies[0].Rules().Except(Staging), r =>                           // and every rule that army carries is its group's
             Assert.Contains(r, Army.Where(x => x.Group == g.Group).SelectMany(x => x.Covers))));

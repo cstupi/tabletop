@@ -56,7 +56,7 @@ public sealed record ExactResult(string Game, string Check, bool Passed);
 
 /// <summary>
 /// A themed sim scenario with what it covers (catalog entry names: rules and spells), the dice it fixes and the checks it makes.
-/// Group is core, special, army:&lt;book uid&gt; or spells:&lt;book uid&gt;. Evidence: for an entry that acts where no step completes (in the
+/// Group is core, special, army:&lt;edition&gt;:&lt;book uid&gt; or spells:&lt;edition&gt;:&lt;book uid&gt;. Evidence: for an entry that acts where no step completes (in the
 /// scheduler or in action legality), the game's own predicate over the effective log stands in for Fired.In.
 /// Pattern: the Army Forge pattern whose generated wrappers this game covers.
 /// </summary>
@@ -69,6 +69,13 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
         Evidence?.TryGetValue(entry, out var evidence) == true
             ? evidence(EventApplier.EffectiveLog(effectiveLog))
             : Suite.Fired.In(effectiveLog, entry);
+
+    /// <summary>The game-rules id this game runs under (RuleSets); the scenario's, 3.5.1 unless it names one. SuiteCatalog.Expand sets the
+    /// scenario's rules to it, and the runner compiles under it.</summary>
+    public string Edition { get; init; } = Scenario.Rules;
+
+    /// <summary>The editions the game runs under, once each (SuiteCatalog.Expand); null is Edition alone.</summary>
+    public IReadOnlyList<string>? Editions { get; init; }
 
     /// <summary>The engine defects this game is pinned to; empty for a game expected to pass.</summary>
     public IReadOnlyList<KnownDefect> Known { get; init; } = [];

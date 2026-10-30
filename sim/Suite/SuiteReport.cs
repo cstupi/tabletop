@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -14,6 +15,9 @@ public sealed record SuiteGameResult(string Name, string Group, bool Passed, IRe
     string Replay, string? RecordingPath, Guid? GameId, string? Spectator = null, IReadOnlyList<string>? Known = null,
     IReadOnlyList<string>? Pinned = null, IReadOnlyList<string>? Stale = null, double? DurationSeconds = null)
 {
+    /// <summary>The game-rules id the game ran under (TestGame.Edition).</summary>
+    public string Edition { get; init; } = RuleSets.Gf351;
+
     /// <summary>The failures with each pinned defect's lines marked, the defect ids when every failure is pinned, and the pins nothing matched.</summary>
     public static (IReadOnlyList<string> Failures, IReadOnlyList<string>? Known, IReadOnlyList<string>? Stale) Attribute(
         IReadOnlyList<string> failures, IReadOnlyList<KnownDefect> pins)
@@ -63,7 +67,7 @@ public sealed record SuiteReport(Guid RunId, IReadOnlyList<SuiteGameResult> Game
         yield return $"games ({Games.Count(g => g.Passed)}/{Games.Count} passed, {KnownCount} failing on known defects, {UnexpectedCount} unexpected)";
         foreach (var g in Games)
         {
-            yield return $"  {g.Verdict}  {g.Name}  [{g.Group}]  seed {g.Seed}";
+            yield return $"  {g.Verdict}  {g.Name}  [{g.Group}]  {SuiteCatalog.EditionLabel(g.Edition)}  seed {g.Seed}";
             foreach (var pin in g.StaleLines) yield return $"          {pin}";
             foreach (var f in g.Failures) yield return $"          {f.Split('\n')[0]}";
             if (!g.Passed) yield return $"          replay: {g.Replay}";
@@ -71,27 +75,31 @@ public sealed record SuiteReport(Guid RunId, IReadOnlyList<SuiteGameResult> Game
     }
 
     /// <summary>
-    /// The coverage totals, then every counted entry and the text-only ones; with problemsOnly, only the entries that fail the run
-    /// (uncovered, not fired, a pattern not passed) or an exact check.
+    /// Per shipped set the run lists entries of: its coverage totals, then every counted entry and the text-only ones, each line naming
+    /// the set's edition; with problemsOnly, only the entries that fail the run (uncovered, not fired, a pattern not passed) or an exact check.
     /// </summary>
     public IEnumerable<string> CoverageLines(bool problemsOnly)
     {
-        var counted = Coverage.Where(c => c.Counts).ToList();
-        var uncovered = counted.Count(c => c.Uncovered);
-        var silent = counted.Count(c => !c.Uncovered && !c.Fired);
-        var byPattern = counted.Count(c => c.State == CoverageState.Pattern && !c.Uncovered);
-        var textOnly = Coverage.Where(c => !c.Counts).Select(c => c.Name).ToList();
-        yield return $"coverage ({counted.Count - uncovered}/{counted.Count} covered, {byPattern} by pattern, {silent} covered but not fired; {textOnly.Count} not automated)";
-        foreach (var c in counted.Where(c => !problemsOnly || c.Uncovered || !c.Fired || c.Exact.Any(x => !x.Passed)))
+        foreach (var set in Coverage.GroupBy(c => c.Edition))
         {
-            var state = c.Uncovered ? "UNCOVERED"
-                : c.State == CoverageState.Pattern ? c.Fired ? "covered by pattern" : "PATTERN NOT PASSED"
-                : c.Fired ? "fired" : "NOT FIRED";
-            var exact = c.Exact.Count == 0 ? "" : $"  exact {c.Exact.Count(x => x.Passed)}/{c.Exact.Count}"
-                + string.Concat(c.Exact.Where(x => !x.Passed).Select(x => $"  FAIL {x.Game}: {x.Check}"));
-            yield return $"  {c.Kind,-5}  {c.Name}  {state}{(c.Uncovered ? "" : $"  ({string.Join(", ", c.Games)})")}{exact}";
+            var edition = SuiteCatalog.EditionLabel(set.Key);
+            var counted = set.Where(c => c.Counts).ToList();
+            var uncovered = counted.Count(c => c.Uncovered);
+            var silent = counted.Count(c => !c.Uncovered && !c.Fired);
+            var byPattern = counted.Count(c => c.State == CoverageState.Pattern && !c.Uncovered);
+            var textOnly = set.Where(c => !c.Counts).Select(c => c.Name).ToList();
+            yield return $"coverage {edition} ({counted.Count - uncovered}/{counted.Count} covered, {byPattern} by pattern, {silent} covered but not fired; {textOnly.Count} not automated)";
+            foreach (var c in counted.Where(c => !problemsOnly || c.Uncovered || !c.Fired || c.Exact.Any(x => !x.Passed)))
+            {
+                var state = c.Uncovered ? "UNCOVERED"
+                    : c.State == CoverageState.Pattern ? c.Fired ? "covered by pattern" : "PATTERN NOT PASSED"
+                    : c.Fired ? "fired" : "NOT FIRED";
+                var exact = c.Exact.Count == 0 ? "" : $"  exact {c.Exact.Count(x => x.Passed)}/{c.Exact.Count}"
+                    + string.Concat(c.Exact.Where(x => !x.Passed).Select(x => $"  FAIL {x.Game}: {x.Check}"));
+                yield return $"  {edition}  {c.Kind,-5}  {c.Name}  {state}{(c.Uncovered ? "" : $"  ({string.Join(", ", c.Games)})")}{exact}";
+            }
+            if (textOnly.Count > 0 && !problemsOnly) yield return $"not automated ({textOnly.Count}): {string.Join(", ", textOnly)}";
         }
-        if (textOnly.Count > 0 && !problemsOnly) yield return $"not automated ({textOnly.Count}): {string.Join(", ", textOnly)}";
     }
 
     /// <summary>PASSED or FAILED, the game counts, the coverage counts and the run id, on one line.</summary>

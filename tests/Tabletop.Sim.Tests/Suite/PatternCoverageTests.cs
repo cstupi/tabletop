@@ -66,7 +66,7 @@ public class PatternCoverageTests
         var table = new SuiteReport(Guid.CreateVersion7(), [], coverage, true).Table();
         Assert.Contains("  rule   Stealth Aura  covered by pattern  (aura)", table);
         Assert.Contains("not automated (1): Banner", table);
-        Assert.Contains("coverage (2/2 covered, 1 by pattern, 0 covered but not fired; 1 not automated)", table);
+        Assert.Contains("coverage 3.5 (2/2 covered, 1 by pattern, 0 covered but not fired; 1 not automated)", table);
     }
 
     [Fact]

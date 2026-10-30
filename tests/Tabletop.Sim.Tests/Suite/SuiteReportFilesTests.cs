@@ -45,13 +45,19 @@ public class SuiteReportFilesTests
         Assert.Equal(3UL, game.GetProperty("seed").GetUInt64());
         Assert.Equal(SuiteRunner.ReplayOf(Game(), DriverKind.InProcess), game.GetProperty("replay").GetString());
         Assert.True(game.GetProperty("durationSeconds").GetDouble() > 0);
+        Assert.Equal("grimdark-future", game.GetProperty("edition").GetString());
         Assert.Equal("AP", root.GetProperty("coverage")[0].GetProperty("name").GetString());
+        Assert.Equal("grimdark-future", root.GetProperty("coverage")[0].GetProperty("edition").GetString());
 
         var md = await File.ReadAllTextAsync(mdPath);
         Assert.Contains("PASSED: 1 of 1 games passed", md.Split('\n').Take(4).Aggregate((a, b) => a + "\n" + b));
         Assert.Contains("## Failures (0)", md);
         Assert.Contains("## Coverage", md);
         Assert.Contains("AP  fired", md);
+        Assert.Contains("| Verdict | Game | Edition | Group | Seed | Seconds |", md);
+        Assert.Contains($"| pass | {Name} | 3.5 | {Group} | 3 |", md);
+        Assert.Contains("coverage 3.5 (1/1 covered", md);
+        Assert.Contains("  3.5  rule   AP  fired", md);
 
         // The console: no coverage table, the verdict and the report's paths.
         var console = output.ToString();

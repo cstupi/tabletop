@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 using Tabletop.Protocol;
 using Tabletop.Sim.Run;
@@ -64,6 +65,29 @@ public class FiredAndCoverageTests
         // Spells are entries too, and kind spell.
         var spell = set.Entries.First(e => e.Kind == CatalogKind.Spell).Name;
         Assert.Equal("spell", coverage.Single(c => c.Name == spell).Kind);
+    }
+
+    [Fact]
+    public void Coverage_of_two_sets_reports_both_each_from_its_own_editions_games()
+    {
+        var a = Run("a", ["Furious"], Step(1, applied: ["Furious"]));
+        var b = Run("b", ["Furious", "AP"], Step(1, applied: ["Furious"]));
+        b = b with { Game = b.Game with { Edition = RuleSets.Gf360 } };
+        var coverage = SuiteRunner.CoverageOf([a, b], fullRun: true, passed: new HashSet<string> { "a", "b" });
+
+        var (v351, v360) = (ScenarioCompiler.CorePropertiesOf(RuleSets.Gf351), ScenarioCompiler.CorePropertiesOf(RuleSets.Gf360));
+        Assert.Equal(v351.Entries.Count, coverage.Count(c => c.Edition == RuleSets.Gf351));
+        Assert.Equal(v360.Entries.Count, coverage.Count(c => c.Edition == RuleSets.Gf360));
+        Assert.Equal([(RuleSets.Gf351, "a"), (RuleSets.Gf360, "b")],
+            coverage.Where(c => c.Name == "Furious").Select(c => (c.Edition, Assert.Single(c.Games))));
+        Assert.True(coverage.Single(c => c.Name == "AP" && c.Edition == RuleSets.Gf351).Uncovered);   // a 3.6 game never covers a 3.5.1 entry
+        Assert.False(coverage.Single(c => c.Name == "AP" && c.Edition == RuleSets.Gf360).Uncovered);
+        Assert.False(Coverage.Complete(coverage));
+
+        // A limited run lists only what its games cover, under each game's edition.
+        var limited = SuiteRunner.CoverageOf([b], fullRun: false, passed: new HashSet<string> { "b" });
+        Assert.Equal(["AP", "Furious"], limited.Select(c => c.Name).Order());
+        Assert.All(limited, c => Assert.Equal(RuleSets.Gf360, c.Edition));
     }
 
     /// <summary>

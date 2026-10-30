@@ -47,7 +47,7 @@ included), about 3 min.
 **The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 45 s);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts (`sim-player-0..8`).
-`--only core,special,army:<book uid>,spells:<book uid>,<game name>` selects; `--keep` keeps recordings (and a socket run's
+`--only core,special,army:<edition>:<book uid>,spells:<edition>:<book uid>,<game name>` selects (`army:3.5:<uid>`; a 3.6 run is `<game name>@3.6`); `--keep` keeps recordings (and a socket run's
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. Every run writes
 `recordings/suite-<run id>.md` and `.json` (copied to `suite-latest.md` and `.json`; rewritten after each game, so an aborted run
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints

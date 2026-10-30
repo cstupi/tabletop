@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 
 namespace Tabletop.Sim.Suite;
@@ -12,6 +13,9 @@ public enum CoverageState { Own, Pattern, NotAutomated }
 public sealed record CoverageEntry(string Name, string Kind, IReadOnlyList<string> Games, bool Fired, IReadOnlyList<ExactResult> Exact,
     CoverageState State = CoverageState.Own)
 {
+    /// <summary>The game-rules id of the set the entry is from (PropertySet.GameRules): each shipped set is covered on its own.</summary>
+    public string Edition { get; init; } = RuleSets.Gf351;
+
     /// <summary>No selected game covers the entry; a full run fails on any. A text-only entry is never uncovered.</summary>
     public bool Uncovered => State != CoverageState.NotAutomated && Games.Count == 0;
     /// <summary>Whether the entry counts against coverage: every entry but a text-only one (army-book rules spec → Coverage).</summary>
@@ -19,7 +23,7 @@ public sealed record CoverageEntry(string Name, string Kind, IReadOnlyList<strin
 }
 
 /// <summary>
-/// Every catalog entry of the pinned set (rules and spells), against the games that ran. Entries with no effect rows are hook rules the
+/// Every catalog entry of one shipped set (rules and spells), against the games that ran under it; each entry carries the set's game rules. Entries with no effect rows are hook rules the
 /// ruleset implements by name, so they count. A text-only entry (Played false) is listed, on a full run, as not automated and is not
 /// counted. A generated wrapper is covered by pattern: by the games whose Pattern is its name's last word, when those passed and its base
 /// (its one row's target) is covered and fired. A run limited by --only lists only the entries its games cover, so it never fails on coverage.
@@ -50,6 +54,7 @@ public static class Coverage
         var textOnly = fullRun ? set.Entries.Where(e => !e.Played).Select(e => new CoverageEntry(e.Name, "rule", [], false, [], CoverageState.NotAutomated)) : [];
         return own.Values.Concat(wrappers).Concat(textOnly)
             .Where(c => fullRun || !c.Uncovered)
+            .Select(c => c with { Edition = set.GameRules })
             .OrderBy(c => c.Kind, StringComparer.Ordinal).ThenBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
     }

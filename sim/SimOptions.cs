@@ -94,7 +94,7 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
     public static string Usage => """
         dotnet run --project sim -- suite [options]
 
-          --only A,B            game names or groups (core, special, army:<book>, spells:<book>); repeatable; default every game
+          --only A,B            game names (name, name@3.6) or groups (core, special, army:3.5:<book>, spells:3.5:<book>); repeatable; default every game
           --driver in-process   the default; or socket (the stack up, as for a scenario's socket run)
           --keep                keep the games: recordings in --out, and a socket run's rows
           --out DIR             where the report (suite-<run id>.json and .md, copied to suite-latest.*) and kept recordings go (default: ./recordings)

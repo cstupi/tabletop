@@ -29,7 +29,7 @@ public class SpellGamesTests
     public void Every_book_with_spells_has_one_game_that_covers_its_spells_in_the_books_order()
     {
         var books = Set.Books.Values.Where(b => b.Spells.Count > 0).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
-        Assert.Equal(books.Select(b => SuiteCatalog.SpellsPrefix + b.Uid), BookGames.Select(g => g.Group));
+        Assert.Equal(books.Select(b => SuiteCatalog.SpellsGroup(Set.GameRules, b.Uid)), BookGames.Select(g => g.Group));
         Assert.Equal(books.Select(b => b.Spells), BookGames.Select(g => g.Covers));
         Assert.Equal(BookGames.Count, BookGames.Select(g => g.Name).Distinct().Count());
         Assert.All(BookGames, g => Assert.StartsWith(SpellGames.NamePrefix, g.Name));
@@ -48,7 +48,7 @@ public class SpellGamesTests
         Assert.All(BookGames, g =>
         {
             var army = g.Scenario.Armies[0];
-            Assert.Equal(g.Group[SuiteCatalog.SpellsPrefix.Length..], army.ArmyBook);
+            Assert.Equal(SuiteCatalog.BookOf(g.Group), army.ArmyBook);
             Assert.Equal((g.Covers.Count, 1), (army.Units, army.ModelsPerUnit));
             Assert.Equal(Enumerable.Range(1, army.Units), army.ModelRules.Where(r => r.Name == "Caster").Select(r => r.Unit));
             Assert.Null(g.Scenario.Armies[1].ArmyBook);
