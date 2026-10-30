@@ -775,7 +775,7 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
 - **Editions.** A game runs under `TestGame.Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names another), so every
   existing game keeps running against 3.5.1 unchanged. `Editions: [Gf351, Gf360]` (`.BothEditions()` in the catalog list) runs a
   game twice, the 3.6.0 run named `<name>@3.6` and the 3.5.1 run keeping the bare name; core and special games whose checks quote
-  no rule that 3.6.0 changes run both (seven games carry `.BothEditions()`); a game whose checks quote a changed rule stays
+  no rule that 3.6.0 changes run both; a game whose checks quote a changed rule stays
   3.5.1-only until a 3.6.0 copy with 3.6.0 quotes is written, and the catalog holds none yet. Army and spell games are single-edition: their books' uids differ per edition.
   Coverage is per shipped set: each set's every entry is checked against the games of its edition, so an entry a 3.6.0 game
   does not cover fails a full run. The viewer's Tests page shows the edition column and filters by it.
