@@ -112,5 +112,10 @@ public sealed class UnknownGameRulesException(string id) : Exception($"No GameRu
 
 public static class GameRulesRegistry
 {
-    public static IGameRules Resolve(string id) => id == GrimdarkFutureRules.RulesId ? GrimdarkFutureRules.Instance : throw new UnknownGameRulesException(id);
+    public static IGameRules Resolve(string id) => id switch
+    {
+        Tabletop.Content.RuleSets.Gf351 => GrimdarkFutureRules.V351,
+        Tabletop.Content.RuleSets.Gf360 => GrimdarkFutureRules.V360,
+        _ => throw new UnknownGameRulesException(id),
+    };
 }
