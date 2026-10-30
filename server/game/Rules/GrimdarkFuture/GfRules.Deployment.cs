@@ -87,6 +87,32 @@ public sealed partial class GrimdarkFutureRules
     }
 
     /// <summary>
+    /// 3.6 Fanatic and Vanguard: "After this model is deployed, it may be placed anywhere fully within 9" of its position, over 9" away from non-Vanguard
+    /// enemy units" (GfEdition.VanguardClearance; 3.5.1's text has no distance). The rule's placement is its `reposition` frame's move Ask: a landing
+    /// with any base within the clearance of a model of an enemy unit that does not carry Vanguard (GfAmbush.Carries: the rule or its Aura) is refused,
+    /// measured base to base (p.5).
+    /// </summary>
+    public static AnswerBreachFound? VanguardBreach(GameState state, Ask ask, MoveRegion region, Destinations answer)
+    {
+        var clearance = GfEdition.Of(state).VanguardClearance;
+        if (clearance <= 0 || ask.FrameId is not { } id || state.Projection.Stack.FirstOrDefault(f => f.Id == id) is not { Sequence: GfNames.RepositionSeq } frame
+            || frame.Context.Action is not (GfNames.Fanatic or GfNames.Vanguard)) return null;
+        var p = state.Projection;
+        var moves = GfAnswers.Moves(state, region, answer);
+        var moving = moves.Select(m => m.ModelId).ToHashSet();
+        foreach (var move in moves)
+        {
+            if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model)) continue;
+            var team = Teams.Of(state, model.UnitId);
+            var placed = Battlefield.At(state, model.Id, at);
+            if (p.Models.Values.Any(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team && !GfAmbush.Carries(state, o.UnitId, GfNames.Vanguard)
+                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= clearance + 1e-6))
+                return new(GfNames.VanguardDistanceRule, $"{model.Slot.Name} would be placed within {clearance}\" of a non-Vanguard enemy unit: {frame.Context.Action} places it over {clearance}\" away from them");
+        }
+        return null;
+    }
+
+    /// <summary>
     /// A set-aside unit arriving from the shelf once rounds have begun is an Ambusher (Scouts arrive before round one). Page 13 Ambush: "At the
     /// start of any round after the first, may be deployed anywhere over 9” away from enemy units": every base of it stays over 9" from every
     /// enemy model on the table, measured base to base (p.5).

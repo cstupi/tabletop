@@ -25,6 +25,7 @@ public sealed record GfEdition(
     int? HeroAuraTough,                                           // S10
     bool IndirectNeedsHold,                                       // S12
     double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
+    double VanguardClearance,                                     // F6b: Fanatic, Vanguard "over 9" away from non-Vanguard enemy units"; 0 none
     bool AircraftTransportUnreachable,                            // S15
     bool UnstoppableKeepsOwnPenalties,                            // S16
     bool PlacedUnitsHoldNoObjectives,                             // F6a: Spawn / Split "can't seize or contest objectives on the round they are placed"
@@ -58,6 +59,7 @@ public sealed record GfEdition(
         HeroAuraTough: null,
         IndirectNeedsHold: false,
         ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
+        VanguardClearance: 0,
         AircraftTransportUnreachable: false,
         UnstoppableKeepsOwnPenalties: false,
         PlacedUnitsHoldNoObjectives: false,
@@ -91,6 +93,7 @@ public sealed record GfEdition(
         HeroAuraTough: 9,
         IndirectNeedsHold: true,
         ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",
+        VanguardClearance: 9,
         AircraftTransportUnreachable: true,
         UnstoppableKeepsOwnPenalties: true,
         PlacedUnitsHoldNoObjectives: true,

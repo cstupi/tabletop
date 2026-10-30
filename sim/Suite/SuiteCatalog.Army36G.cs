@@ -5,7 +5,7 @@ namespace Tabletop.Sim.Suite;
 
 /// <summary>
 /// The 3.6 rules task F6b's engine work makes playable, one game per mechanism, grouped army:3.6:&lt;book uid&gt;: the morale test's range and
-/// opponent (Hive Bond, Hold the Line); the rolled moves (Bounding, Dash, Rapid Blink, Wolfborn); the strike-turn rolls (Ravage, Regenerative Strength).
+/// opponent (Hive Bond, Hold the Line); the rolled moves (Bounding, Dash, Rapid Blink, Wolfborn); the strike-turn rolls (Ravage, Regenerative Strength); the placement's clearance (Fanatic, Vanguard).
 /// </summary>
 public static partial class SuiteCatalog
 {
@@ -13,7 +13,7 @@ public static partial class SuiteCatalog
     {
         static readonly (string Uid, string Army) Hdf36 = ("z65fgu0l29i4lnlu", "Human Defense Force"), ChangeDaemons36 = ("04z57ua0bwth37zh", "Daemons of Change"),
             Custodians36 = ("ewbra8nv3nq3k27p", "Custodian Brothers"), Jesters36 = ("nyh41t82jugcdq8m", "Elven Jesters"), WolfBrothers36 = ("yxjboa8oma9bbdck", "Wolf Brothers"),
-            DarkElves36 = ("q11la9v8h1heu9ja", "Dark Elf Raiders");
+            Cults36 = ("zz3kp5ry7ks6mxcx", "Soul-Snatcher Cults"), DarkElves36 = ("q11la9v8h1heu9ja", "Dark Elf Raiders");
 
         public static IReadOnlyList<TestGame> Army36G { get; } =
         [
@@ -40,7 +40,28 @@ public static partial class SuiteCatalog
                 [StrengthDice("\"roll as many dice as tokens on it before attacking ... For each 4+ the target takes one wound\""),
                  OncePerRound("Regenerative Strength", "\"Once per round, when it’s this model’s turn to strike in melee\"")],
                 enemy: [R(1, "Tough", 6)], enemyUnits: 1, enemyModels: 1, enemyAttacks: 1, length: 26, more: Activates(c => c.Label.EndsWith(": Charge", StringComparison.Ordinal))), DarkElves36),
+            In36(Batch3Game(Cults36, "soul-snatcher-cults-fanatic", Play.Moves, "Fanatic", [R(1, "Fanatic")], PlacedClear("Fanatic", Cults36.Army),
+                units: 1, more: UsePicks(Cults36.Army, 1, "Fanatic")), Cults36),
+            In36(Batch3Game(Ratmen36, "ratmen-clans-vanguard", Play.Moves, "Vanguard", [R(1, "Vanguard")], PlacedClear("Vanguard", Ratmen36.Army),
+                units: 1, more: UsePicks(Ratmen36.Army, 1, "Vanguard")), Ratmen36),
         ];
+
+        /// <summary>Fanatic, Vanguard: every placement the rule's reposition frame makes is in deployment, within 9" (its Ask's allowance), and over 9" from
+        /// every model of an enemy unit without Vanguard.</summary>
+        static GameCheck PlacedClear(string entry, string army) =>
+            Exact(entry, $"\"After this model is deployed, it may be placed anywhere fully within 9\" of its position, over 9\" away from non-Vanguard enemy units\"", (run, _) =>
+            {
+                var log = LogQueries.Of(run);
+                var offered = log.Asks.Where(a => a.Ask.Question == "move" && a.Frame is { Sequence: "reposition" } f && f.Context.Action == entry)
+                    .Select(a => a.Frame!.Round != 0 ? $"offered in round {a.Frame.Round}" : a.Ask.Legal is MoveRegion m && m.Allowance == 9 ? null : $"allowed {(a.Ask.Legal as MoveRegion)?.Allowance}\"");
+                var placed = from s in log.Steps
+                             where s.Frame.Sequence == "reposition" && s.Frame.Context.Action == entry
+                             from mv in s.Step.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves)
+                             where mv.To is OnTable
+                             let gap = Gap(run, log, mv.ModelId, ((OnTable)mv.To).Placement.Position.Horizontal, s.Seq, u => !Named(run, army)(u) && !Holds(run, u, "Vanguard"))
+                             select gap > 9 ? null : $"placed {gap:0.00}\" from a non-Vanguard enemy";
+                return [.. offered, .. placed];
+            });
 
         /// <summary>"Once per round": at most one `rule-wounds` frame of the entry per unit and round.</summary>
         static GameCheck OncePerRound(string entry, string quote) =>
