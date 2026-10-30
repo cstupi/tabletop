@@ -226,8 +226,9 @@ public static partial class GfMoves
     /// when that model's own path is over 6", whatever the action: DangerousFor36), and whether a model went in or
     /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying). A model that has taken the test this activation owes none;
     /// Tested is the models these dice are for, which the caller marks (MarkTested). Each is read along the path the model's base takes within
-    /// `remaining` (what this segment had left; the whole allowance when not given).</summary>
-    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null)
+    /// `remaining` (what this segment had left; the whole allowance when not given). `usedBefore` is what earlier segments of the same move used
+    /// (the move step's distance_used_tenths): 3.6.0 p.12 Unstable reads "moves over 6”" over the whole movement, as p.11's cap does.</summary>
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null, double usedBefore = 0)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
         var rules = TerrainFor(ctx, unit, live);
@@ -272,10 +273,10 @@ public static partial class GfMoves
                 strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size, standing, Battlefield.Terrain(ctx.State), avoid, steep);
             var path = Path(dangerous);
             // 3.6.0 p.12: Unstable ground is dangerous to a path over 6", so such a path goes round it when that fits, as round Dangerous ground.
-            if (byDistance && path.Distance > GfNames.UnstableDistance + 1e-6 && Movement.VolumesOnPath(start, path.Path, unstable).Count > 0) path = Path(unstable);
+            if (byDistance && usedBefore + path.Distance > GfNames.UnstableDistance + 1e-6 && Movement.VolumesOnPath(start, path.Path, unstable).Count > 0) path = Path(unstable);
             used = Math.Max(used, path.Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer: the volumes the base touches along its path.
-            if (Movement.VolumesOnPath(start, path.Path, byDistance ? DangerousFor36(terrain, path.Distance) : dangerous).Count > 0) exposed.Add(m.ModelId);
+            if (Movement.VolumesOnPath(start, path.Path, byDistance ? DangerousFor36(terrain, usedBefore + path.Distance) : dangerous).Count > 0) exposed.Add(m.ModelId);
             crossedDifficult |= Movement.VolumesOnPath(start, path.Path, [.. difficult, .. Movement.SteepEntering(start, steep)]).Count > 0;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }

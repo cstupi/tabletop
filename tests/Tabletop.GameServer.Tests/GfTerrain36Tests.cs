@@ -1,4 +1,6 @@
 using Tabletop.Content;
+using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Geometry;
@@ -16,12 +18,12 @@ namespace Tabletop.GameServer.Tests;
 /// </summary>
 public class GfTerrain36Tests
 {
-    /// <summary>A 4"-wide ruin centred on (x, -20), 30" long so no path goes round it.</summary>
-    static TerrainPlacement Ruin(double x) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), new Point3(x, -20, 0), new Yaw(0), 1,
-        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(4, 30), new Point2(0, 0), new Yaw(0), 0, 4,
+    /// <summary>A ruin centred on (x, -20), by default 4" wide and 30" long so no path goes round it.</summary>
+    static TerrainPlacement Ruin(double x, double width = 4, double length = 30) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), new Point3(x, -20, 0), new Yaw(0), 1,
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(width, length), new Point2(0, 0), new Yaw(0), 0, 4,
             TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge, null))]);
 
-    /// <summary>A steep hill, a circle of radius 3 centred on (x, -20), 30" long sideways so no path goes round it.</summary>
+    /// <summary>A steep hill, 6" wide and 30" long, centred on (x, -20), so no path goes round it.</summary>
     static TerrainPlacement Hill(double x) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("hill"), new Point3(x, -20, 0), new Yaw(0), 1,
         [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(6, 30), new Point2(0, 0), new Yaw(0), 0, 2,
             TerrainDeclarations.Steep, null))]);
@@ -89,6 +91,44 @@ public class GfTerrain36Tests
         sim.Start(GfNames.RushSeq, new SequenceContext(off.Id, [], [], GfNames.Rush));
         ask = sim.AskFor(Samples.Team1);
         Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, (MoveRegion)ask.Legal, By(sim, off, 11)));
+    }
+
+    static readonly EntryDocument Ward = new("Ward", CatalogKind.Spell, false, null, 1, "Test Book", "Target up to two friendly units within 24\" get Regeneration once.",
+        new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 2, 24),
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, "Regeneration", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]);
+
+    [Theory]
+    [InlineData(RuleSets.Gf351, 0)]
+    [InlineData(RuleSets.Gf360, 1)]
+    public void Unstable_reads_the_whole_move_across_a_stop(string rules, int tests)
+    {
+        // A Fast caster's Advance (8") in two 4" segments round a stop: -20 → -16 → -12, into the ruin at x -16..-12 on the second.
+        // 3.6.0 p.12 "moves over 6”" is the movement, 8", not either segment.
+        var wizard = Unit("Wizard", "4+", "4+", [P("Fast")], 1, [P("Caster", 3)]);
+        var state = State([wizard], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, terrain: [Ruin(-14)]).Under(rules);
+        var sim = new Sim(state, rules == RuleSets.Gf360 ? GrimdarkFutureRules.V360 : GrimdarkFutureRules.V351, TestProperties.WithSpells(Ward), new ScriptedDice(4));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(wizard.Id, [], [], GfNames.Advance));
+        Assert.True(Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Stoppable);
+        sim.Answer(Samples.Team1, By(sim, wizard, 4) with { Continues = true });
+        Assert.Empty(sim.Steps("test"));
+        sim.Answer(Samples.Team1, new Passed());                                                    // the window after the stop
+        sim.Answer(Samples.Team1, By(sim, wizard, 4));
+        Assert.Equal(tests, sim.Steps("test").Count);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void A_path_over_six_inches_goes_round_a_small_unstable_ruin_when_that_fits(string rules)
+    {
+        // Fast Advance (8"): -12 → -5, 7" straight through a 2" ruin at x -9.5..-7.5; round it is under 8". 3.5.1 Advance: not dangerous anyway.
+        var fast = Unit("A", "4+", "4+", [P("Fast")], 1, []);
+        var sim = Sim.Gf(rules, State([fast], [Unit("B", "4+", "4+", [], 1, [])], x1: -12, x2: 20, terrain: [Ruin(-8.5, 2, 2)]), Fours);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(fast.Id, [], [], GfNames.Advance));
+        sim.Answer(Samples.Team1, By(sim, fast, 7));
+        Assert.Empty(sim.Steps("test"));
+        Assert.Equal(-5, ((OnTable)sim.Model(fast.Models[0].Id).Location).Placement.Position.X, 3);
     }
 
     [Fact]

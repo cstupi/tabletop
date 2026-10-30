@@ -1053,6 +1053,7 @@ erDiagram
         bool difficult
         bool dangerous
         bool dangerous_rush_charge
+        bool steep
     }
     DEPLOYMENT_ZONE {
         text shape
