@@ -76,6 +76,9 @@ public static class GfReserves
 
     static bool Holds(Unit d, string rule) => d.Properties.Any(p => p.Name == rule) || d.Models.Any(m => m.Properties.Any(p => p.Name == rule));
 
+    /// <summary>"A unit where all models have this rule": the unit's own entry, or every model's.</summary>
+    static bool HoldsAll(Unit d, string rule) => d.Properties.Any(p => p.Name == rule) || d.Models.All(m => m.Properties.Any(p => p.Name == rule));
+
     static Guid? Anchor(GameState state, Guid unit) =>
         Lookup.LivingModels(state, unit).Where(m => GfAttack.AtCapacity(state, m) && !(GfMoves.IsContainer(state, m) && Lookup.OccupantUnits(state, m).Count > 0)).Cast<Guid?>().FirstOrDefault();
 
@@ -184,9 +187,10 @@ public static class GfReserves
     /// <summary>
     /// 3.6 Reinforcement's "When a unit where all models have this rule is Shaken, you may remove it from the table as destroyed", the morale test's last step
     /// under GfEdition.ReinforcementOnShaken: when this test made the unit Shaken (it rolled, failed, and was neither routed nor held by No Retreat) and its
-    /// copy waits, one Ask; "remove" puts its models on the shelf.
+    /// copy waits, one Ask; "remove" puts its models on the shelf. After a destroyed transport's `place` (p.15: its survivors are Shaken) the same offer
+    /// follows the placement (`afterMorale` false).
     /// </summary>
-    public sealed class OfferRemovalStep : IStep
+    public sealed class OfferRemovalStep(bool afterMorale = true) : IStep
     {
         public string Name => RemoveStep;
         public StepOutcome Run(StepContext ctx)
@@ -199,10 +203,11 @@ public static class GfReserves
                 return new Complete([new ModelsMoved(Lookup.AliveModels(ctx.State, unit).Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList())]);
             }
             var steps = ctx.Frame.Frame.Steps;
-            var rolled = steps.Any(s => s.Step == "test" && s.Rolls.Any(r => r.Roll == GfNames.Morale));
-            var shook = steps.LastOrDefault(s => s.Step == "consequence")?.Values is { } v && v.GetValueOrDefault("passed") == 0 && v.GetValueOrDefault("routed") == 0;
+            var rolled = !afterMorale || steps.Any(s => s.Step == "test" && s.Rolls.Any(r => r.Roll == GfNames.Morale));
+            var shook = afterMorale ? steps.LastOrDefault(s => s.Step == "consequence")?.Values is { } v && v.GetValueOrDefault("passed") == 0 && v.GetValueOrDefault("routed") == 0
+                : steps.Any(s => s.Step == "place");
             if (!rolled || !shook || !ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken) || Lookup.AliveModels(ctx.State, unit).Count == 0
-                || !Holds(ctx.Projection.Units[unit].Definition, Reinforcement) || Waiting(ctx.State, Reinforcement, unit) is null) return new Complete([]);
+                || !HoldsAll(ctx.Projection.Units[unit].Definition, Reinforcement) || Waiting(ctx.State, Reinforcement, unit) is null) return new Complete([]);
             return new OpenAsks([ctx.Ask(RemoveQuestion, $"Reinforcement: remove {ctx.Projection.Units[unit].Definition.Name} from the table as destroyed?", ctx.TeamOf(unit)!.Value,
                 new Options([new AskOption("remove", "Remove as destroyed", [unit]), new AskOption("pass", "Keep it on the table", [])]))]);
         }

@@ -109,4 +109,41 @@ public class GfReserves36Tests
         Assert.Contains(GfNames.Shaken, sim.State.Projection.Units[plain.Id].Conditions);
         Assert.Null(sim.AskForOrNull(Samples.Team1));
     }
+
+    /// <summary>"When a unit where all models have this rule is Shaken": a unit its destroyed transport's survivors leave Shaken (p.15) is offered removal too.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, false)]
+    [InlineData(RuleSets.Gf360, true)]
+    public void A_unit_shaken_by_its_destroyed_transport_is_offered_removal_under_3_6(string rules, bool offered)
+    {
+        var rats = Unit("Rats", "4+", "4+", [P("Reinforcement")], 2, []);
+        var copy = Unit("Rats", "4+", "4+", [], 2, []) with { Reserve = new UnitReserve("Reinforcement", rats.Id) };
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
+        var sim = Sim.Gf(rules, State([rats, copy, bus], [Unit("E", "4+", "4+", [], 1, [])]));
+        var container = bus.Models[0].Id;
+        Stand(sim, (container, 30, 24));
+        sim.Append([new ModelsMoved([.. rats.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container)))])]);
+        sim.Start(GfNames.TransportDestroyedSeq, new SequenceContext(rats.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Destinations([.. rats.Models.Select((m, i) => new ModelRelocation(m.Id, new Inside(container), new OnTable(new Placement(new Point3(32.5 + 1.5 * i, 24, 0), new Yaw(0)))))]));
+        Assert.Contains(GfNames.Shaken, sim.State.Projection.Units[rats.Id].Conditions);
+        Assert.All(rats.Models, m => Assert.IsType<OnTable>(sim.Model(m.Id).Location));
+        var ask = sim.AskForOrNull(Samples.Team1);
+        Assert.Equal(offered, ask is { Question: GfReserves.RemoveQuestion });
+        if (!offered) return;
+        sim.Answer(Samples.Team1, new Chosen("remove"));
+        Assert.All(rats.Models, m => Assert.IsType<OnShelf>(sim.Model(m.Id).Location));
+        Assert.Equal([copy.Id], GfReserves.Reinforcements(sim.State, Samples.Team1));
+    }
+
+    [Fact]
+    public void A_unit_where_not_all_models_hold_reinforcement_is_not_offered_removal_under_3_6()
+    {
+        var rats = Unit("Rats", "4+", "4+", [], 2, []);
+        rats = rats with { Models = [rats.Models[0] with { Properties = [P("Reinforcement")] }, rats.Models[1]] };
+        var copy = Unit("Rats", "4+", "4+", [], 2, []) with { Reserve = new UnitReserve("Reinforcement", rats.Id) };
+        var sim = Sim.Gf36(State([rats, copy], [Unit("E", "4+", "4+", [], 1, [])]), 1);
+        sim.Start(GfNames.MoraleTest, new SequenceContext(rats.Id, [], [], "wounds"));
+        Assert.Contains(GfNames.Shaken, sim.State.Projection.Units[rats.Id].Conditions);
+        Assert.Null(sim.AskForOrNull(Samples.Team1));
+    }
 }

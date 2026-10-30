@@ -674,11 +674,11 @@ public static partial class GfAttack
                 IReadOnlyList<string>? Triggers(Die d) => plan.HitsTriggerNothing && d.Success ? null : RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit);
                 foreach (var (model, dice) in Shares(rollers, quality, attacks))
                 {
-                    var rolled = ctx.Roll(plan, dice, Triggers);
+                    var rolled = ctx.Roll(plan, dice, d => HazardLabels(ctx, Triggers(d), model));
                     MarkRoller(ctx, values, model);
                     var added = rolled.HitsTriggerNothing == true ? 0 : rolled.Dice.Sum(d => AddedAttacks(live, d));
                     // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
-                    if (added > 0) { ctx.Roll(plan, added, d => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false)); MarkRoller(ctx, values, model); }
+                    if (added > 0) { ctx.Roll(plan, added, d => HazardLabels(ctx, RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false), model)); MarkRoller(ctx, values, model); }
                 }
             }
             return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
@@ -707,13 +707,14 @@ public static partial class GfAttack
         public StepOutcome Run(StepContext ctx)
         {
             var (_, live, _) = Settle(ctx);
+            var attributed = HazardAttributed(ctx, live);
             var rolls = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["self_wounds"] = 0 };
             // 3.6.0 p.9: a fatigued hit is no roll of 6 for special rules, so its die reads nothing; a failed die's rows (Hazardous) still act.
             foreach (var (die, roller) in rolls.Zip(HitRollers(ctx.Frame)).SelectMany(x => x.First.Dice.Where(d => !(x.First.HitsTriggerNothing == true && d.Success)).Select(d => (d, x.Second))))
             {
                 var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
-                AddSelfWounds(ctx, values, roller, effects.ExtraWounds);
+                AddSelfWounds(ctx, values, roller, effects.ExtraWounds, attributed);
                 if (!die.Success) continue;
                 values["extra_hits"] += effects.ExtraHits;
                 if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;

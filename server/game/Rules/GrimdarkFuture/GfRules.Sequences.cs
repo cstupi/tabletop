@@ -43,7 +43,7 @@ public sealed partial class GrimdarkFutureRules
         GfRuleHits.RuleHits(),
         GfRuleHits.RuleWounds(),
         GfMarkers.Rally(),
-        GfContainers.TransportDestroyed(),
+        GfContainers.TransportDestroyed(Edition),
         GfReserves.PlaceReserve(),
     }.ToDictionary(s => s.Name);
 
