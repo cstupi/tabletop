@@ -83,6 +83,7 @@ dotnet test tests/Tabletop.Client.Tests   # the Godot-free core
 
 ## Conventions and pitfalls
 
+- `dotnet build client/Tabletop.csproj` compiles the Godot project from WSL; run it after editing a node file.
 - `src/Core/` is compiled into `tests/Tabletop.Client.Tests` by `<Compile Include="../../client/src/Core/**/*.cs">`. A `using Godot` there breaks the tests; `check-client` fails on it. Core may reference only the three libs and the BCL.
 - `check-client` also fails on a colour literal (`new Color(`, `Colors.`, `Color.FromHtml`, a target-typed `Modulate = new(`, and similar) under `src/Hud`, `src/Panels` or `src/Screens`: use `Ui` or a `Variation` (a `Flat` button sets `Variation.FlatButton`; the check does not test that). It also fails on: a physics body or collision shape in `client/scenes`; Godot physics types in `client/src`; a rules-engine type (`Tabletop.GameServer`, `IRulesEngine`, `CommandDispatcher`, `Legality`, and similar) in `client/src`.
 - Every `ScrollContainer` sets `VerticalScrollMode = Reserve` (and `HorizontalScrollMode = Disabled`): content whose height depends on its width (wrapping labels, `HFlowContainer`) otherwise flips the bar on and off, and each flip queues another deferred re-layout in the same flush until Godot's message queue overflows ("Object was deleted while awaiting a callback", then a crash). `GameScreen.QueueLayout` also caps itself at four passes a frame and warns past that.
