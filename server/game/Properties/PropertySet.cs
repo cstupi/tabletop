@@ -15,8 +15,9 @@ public enum CatalogKind { Unit, Model, Weapon, Spell }
 public enum Aggregation { All, Any, Majority, None }
 public enum TargetSide { Friendly, Enemy }
 public enum TargetGrain { Unit, Model }
-/// <summary>Who a spell or a pick entry may target. LineOfSight null: the target must be in sight (p.13, and a Mark's or Debuff's "in line of
-/// sight"); false: range alone (a Buff's "pick one friendly unit within 12""). Requires: an entry the target must hold, the unit (unit grain)
+/// <summary>Who a spell or a pick entry may target. LineOfSight null: the target must be in sight (3.5.1 p.13, and a Mark's or Debuff's "in line of
+/// sight"); false: range alone (a Buff's "pick one friendly unit within 12""); true, kept on a spell only: its own "in line of sight", which 3.6.0
+/// p.13's core rule no longer asks of a spell's null (GfCasting.Targets). Requires: an entry the target must hold, the unit (unit grain)
 /// or the model (model grain): a pick's "pick one friendly model … with X".</summary>
 public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null, string? Requires = null);
 

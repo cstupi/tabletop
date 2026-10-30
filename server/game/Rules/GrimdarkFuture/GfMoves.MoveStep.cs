@@ -13,7 +13,8 @@ public static partial class GfMoves
     /// 2 the casting checkpoint: react-or-pass to the actor's own team; a cast, or a stop (Destinations.Continues), with budget left goes back to phase 0
     /// (Repeat), otherwise the step completes. p.13 Caster(X) is "at any point before attacking", so a stop with the models where they stand is how a
     /// unit casts before it moves; it is not a move. An Aircraft moves in one segment (IsAircraft) and gets the checkpoint before it as well, in
-    /// Values["before_move"].
+    /// Values["before_move"]. Under 3.6.0 p.13 ("Once per activation") the checkpoint marks the one cast window used once a cast ran
+    /// (GfCasting.MarkWindow), and a pass or a segment moved after that cast closes it (GfCasting.MarkMovedOn), so no later checkpoint offers a cast.
     /// </summary>
     public sealed class MoveStep(string action, bool ignoreSeparation) : IStep
     {
@@ -49,7 +50,8 @@ public static partial class GfMoves
             {
                 if (Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) is { } before) return before;
                 // A cast reopens the window with a fresh history; a pass, or nothing offered, goes on to the move.
-                return ctx.History.Children.Count > 0 ? new Complete([], null, Repeat: true) : new Complete([], new Dictionary<string, int> { ["before_move"] = 1 }, Repeat: true);
+                return ctx.History.Children.Count > 0 ? new Complete([], GfCasting.MarkWindow(ctx), Repeat: true)
+                    : new Complete([], GfCasting.MarkWindow(ctx, new Dictionary<string, int> { ["before_move"] = 1 }), Repeat: true);
             }
             switch (ctx.Frame.Value("phase"))
             {
@@ -82,6 +84,7 @@ public static partial class GfMoves
                     MarkTested(ctx.State, unit, values, tested);
                     if (segment > 0)
                     {
+                        GfCasting.MarkMovedOn(ctx, values);
                         var (spent, held) = ConsumeKeepingFlying(live);
                         changes.AddRange(spent);
                         foreach (var name in granted) ctx.Applied.Add(name);
@@ -99,7 +102,7 @@ public static partial class GfMoves
                     var reacted = ctx.History.Children.Count > 0;
                     var resumes = remaining > 0 && !aircraft;
                     var stopped = resumes && ctx.Frame.Value("continues") > 0;
-                    return new Complete([], new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }, Repeat: reacted || stopped);
+                    return new Complete([], GfCasting.MarkWindow(ctx, new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }), Repeat: reacted || stopped);
             }
         }
 
