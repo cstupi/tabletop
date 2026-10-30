@@ -88,6 +88,7 @@ public class FiredAndCoverageTests
         var limited = SuiteRunner.CoverageOf([b], fullRun: false, passed: new HashSet<string> { "b" });
         Assert.Equal(["AP", "Furious"], limited.Select(c => c.Name).Order());
         Assert.All(limited, c => Assert.Equal(RuleSets.Gf360, c.Edition));
+        Assert.All(coverage, c => Assert.Equal(ScenarioCompiler.CorePropertiesOf(c.Edition).Name, c.RuleSet));
     }
 
     /// <summary>

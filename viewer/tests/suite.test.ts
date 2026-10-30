@@ -10,7 +10,7 @@ const games = [
 ];
 const result = (name: string, passed = true): SuiteGameResult =>
   ({ name, group: 'core', passed, edition: 'grimdark-future', failures: passed ? [] : ['no'], seed: 1, replay: 'r', recordingPath: 'p', gameId: null, spectator: null });
-const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [], state: 'own' as const, edition: 'grimdark-future' }], passed: true };
+const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [], state: 'own' as const, edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' }], passed: true };
 
 const stream = (chunks: string[]) => new Response(new ReadableStream({
   start(c) { for (const s of chunks) c.enqueue(new TextEncoder().encode(s)); c.close(); },
@@ -101,7 +101,7 @@ describe('page model', () => {
 });
 
 describe('coverage cell', () => {
-  const entry = (state: 'own' | 'pattern' | 'not_automated', fired: boolean) => ({ name: 'X', kind: 'rule', games: [], fired, exact: [], state, edition: 'grimdark-future' });
+  const entry = (state: 'own' | 'pattern' | 'not_automated', fired: boolean) => ({ name: 'X', kind: 'rule', games: [], fired, exact: [], state, edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' });
   it('shows a text-only entry as muted, not as a failure', () => {
     expect(coverageCell(entry('not_automated', false))).toEqual({ text: 'not automated', tone: 'muted' });
   });

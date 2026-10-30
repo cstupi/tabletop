@@ -17,7 +17,7 @@ export type ExactResult = { readonly game: string; readonly check: string; reado
 export type CoverageState = 'own' | 'pattern' | 'not_automated';
 export type CoverageEntry = {
   readonly name: string; readonly kind: string; readonly games: readonly string[]; readonly fired: boolean;
-  readonly exact: readonly ExactResult[]; readonly state: CoverageState; readonly edition: string;
+  readonly exact: readonly ExactResult[]; readonly state: CoverageState; readonly edition: string; readonly ruleSet: string;
 };
 export type SuiteReport = {
   readonly runId: string; readonly games: readonly SuiteGameResult[]; readonly coverage: readonly CoverageEntry[];
