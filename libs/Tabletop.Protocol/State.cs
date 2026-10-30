@@ -54,10 +54,12 @@ public sealed record IgnoredEffect(string Source, string By, int Amount = 0, int
 /// and null elsewhere and in logs written before it. FaceTriggers: what each raw face sets off on this roll (Die.Triggered), one entry per
 /// face that sets anything off, so a die a forced reroll or SetDice replaces carries its new face's; null when no face does and in logs written
 /// before it. Ignored: the roll modifiers a suppression took away (detailed-log spec), cover aside (Cover says it); null when none and in
-/// logs written before it. Replay applies this; it never re-rolls.
+/// logs written before it. HitsTriggerNothing: the roll's successful dice set off no special rule (3.6.0 p.9, a fatigued melee's hits), so
+/// score-hits reads no extra hit or grant off them and FaceTriggers names nothing for them; null elsewhere and in logs written before it.
+/// Replay applies this; it never re-rolls.
 /// </summary>
 public sealed record RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null,
-    CoverVerdict? Cover = null, IReadOnlyList<FaceTriggers>? FaceTriggers = null, IReadOnlyList<IgnoredEffect>? Ignored = null)
+    CoverVerdict? Cover = null, IReadOnlyList<FaceTriggers>? FaceTriggers = null, IReadOnlyList<IgnoredEffect>? Ignored = null, bool? HitsTriggerNothing = null)
 {
     /// <summary>The die with what its raw face sets off on this roll.</summary>
     public Die Stamp(Die die) => FaceTriggers?.FirstOrDefault(f => f.Raw == die.Raw)?.Triggered is { } t ? die with { Triggered = t } : die with { Triggered = null };

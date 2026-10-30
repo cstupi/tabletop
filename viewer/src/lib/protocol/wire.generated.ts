@@ -606,6 +606,7 @@ export interface RollRecord {
   readonly cover?: CoverVerdict;
   readonly faceTriggers?: readonly FaceTriggers[];
   readonly ignored?: readonly IgnoredEffect[];
+  readonly hitsTriggerNothing?: boolean;
 }
 
 export interface RoundEnded {

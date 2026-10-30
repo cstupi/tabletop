@@ -10,9 +10,10 @@ public sealed record RollConvention(int Sides, int? ModifierCap, int? AlwaysFail
 
 /// <summary>One roll, settled: the threshold GameRules derived, the modifiers the two passes and the players contributed, and the per-die rules.
 /// RerollRaw faces are re-rolled whatever the die scored; RerollSuccessfulRaw faces only when the die succeeded ("re-roll successful unmodified results").
-/// Ignored: the modifiers a suppression took away, for the log (RollRecord.Ignored).</summary>
+/// Ignored: the modifiers a suppression took away, for the log (RollRecord.Ignored). HitsTriggerNothing: a successful die sets off no roll-result
+/// row (3.6.0 p.9's fatigued hits "don’t count as rolls of 6 for special rules"); a failed die's rows still act. Carried onto the record.</summary>
 public sealed record RollPlan(string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, RollConvention Convention, int? RequiredRaw, IReadOnlySet<int> RerollRaw,
-    IReadOnlySet<int>? RerollSuccessfulRaw = null, ThresholdBasis? Basis = null, CoverVerdict? Cover = null, IReadOnlyList<IgnoredEffect>? Ignored = null)
+    IReadOnlySet<int>? RerollSuccessfulRaw = null, ThresholdBasis? Basis = null, CoverVerdict? Cover = null, IReadOnlyList<IgnoredEffect>? Ignored = null, bool HitsTriggerNothing = false)
 {
     public bool Rerolls(Die die) => RerollRaw.Contains(die.Raw) || (die.Success && RerollSuccessfulRaw?.Contains(die.Raw) == true);
 
