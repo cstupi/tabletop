@@ -25,49 +25,6 @@
       ]
     },
     {
-      "name": "Anti-Cover",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "This weapon ignores Cover.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Anti-Cover Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Anti-Cover on its weapons when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Anti-Cover when Shooting",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Anti-Cover on its weapons when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Anti-Cover when Shooting Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Anti-Cover on its weapons when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Anti-Regen",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "This weapon ignores Regeneration.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bane in Melee Buff",
       "kind": "model",
       "takesParameter": false,
@@ -104,33 +61,6 @@
       "played": false
     },
     {
-      "name": "Bravery Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get \u002B1 to Morale Test rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Bravery Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B1 to Morale Test rolls once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Counter in Melee",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Counter on its weapons in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Counter in Melee Aura",
       "kind": "model",
       "takesParameter": false,
@@ -145,14 +75,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Counter in Melee.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Crossing Strike",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Once per activation, when this model moves through enemy units, pick one of them and attack it with this weapon as if it was shooting. This weapon may only be used in this way.",
       "effects": [],
       "played": false
     },
@@ -1043,22 +965,23 @@
       "played": false
     },
     {
-      "name": "Piercing Charge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets AP(\u002B1) on its weapons when charging.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Piercing Charge Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Piercing Charge.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Piercing Charge",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Piercing Marksman Aura",
@@ -1863,15 +1786,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Thrust in Melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Unique Hero",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Counts as having Hero, and this model may only be taken once per army.",
       "effects": [],
       "played": false
     },

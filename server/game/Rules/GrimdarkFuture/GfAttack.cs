@@ -99,7 +99,7 @@ public static partial class GfAttack
         // Heroes are deferred before the Tough ordering is read, not after it. p.15 writes "heroes must be assigned wounds last,
         // even if already wounded" as a parenthetical inside the continuation clause, so it is an exception to that clause: a
         // wounded Tough hero waits for every other model rather than soaking the next wound.
-        var notHeroes = living.Where(m => !state.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero)).ToList();
+        var notHeroes = living.Where(m => !state.Projection.Models[m].Slot.Properties.Any(p => GfNames.IsHero(p.Name))).ToList();
         var pool = notHeroes.Count > 0 ? notHeroes : living;
         var plain = pool.Where(m => !IsTough(state, m)).ToList();
         if (plain.Count > 0) return plain;
@@ -113,7 +113,7 @@ public static partial class GfAttack
     static bool HeroDeferred(GameState state, Guid unit)
     {
         var living = Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m)).ToList();
-        bool IsHero(Guid m) => state.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero);
+        bool IsHero(Guid m) => state.Projection.Models[m].Slot.Properties.Any(p => GfNames.IsHero(p.Name));
         return living.Any(IsHero) && living.Any(m => !IsHero(m));
     }
 

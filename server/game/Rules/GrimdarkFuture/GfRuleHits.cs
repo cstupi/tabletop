@@ -153,7 +153,7 @@ public static class GfRuleHits
             var (rule, weapon, x) = Carried(ctx, unit);
             if (ctx.History.Children.Count > 0)
             {
-                if (rule == GfNames.Strafing) ctx.Applied.Add(GfNames.Strafing);   // the weapon's attack is the rule acting; Crossing Attack's dice name it themselves
+                if (rule is { } strafing && GfNames.IsStrafing(strafing)) ctx.Applied.Add(strafing);   // the weapon's attack is the rule acting; Crossing Attack's dice name it themselves
                 return new Complete([]);
             }
             if (rule is null) return new Complete([]);
@@ -162,7 +162,7 @@ public static class GfRuleHits
             if (ctx.History.LastClosed("crossing_target") is { } closed)
             {
                 if (GfAnswers.Pieces(closed.Single, closed.Ask) is not [var target, ..]) return new Complete([]);
-                return rule == GfNames.Strafing
+                return GfNames.IsStrafing(rule)
                     ? new Push(GfNames.AttackSequence, new SequenceContext(unit, [target], [weapon!.Value], ctx.Frame.Context.Action))
                     : new Push(GfNames.RuleWoundsSeq, new SequenceContext(unit, [target], [], Key(rule, x)));
             }
@@ -175,7 +175,7 @@ public static class GfRuleHits
             foreach (var m in Lookup.LivingModels(ctx.State, unit))
                 if (Lookup.ModelParameter(ctx.State, m, GfNames.CrossingAttack) is { } x) return (GfNames.CrossingAttack, null, x);
             foreach (var m in Lookup.LivingModels(ctx.State, unit))
-                if (ctx.Projection.Models[m].Slot.Weapons.FirstOrDefault(w => w.Properties.Any(p => p.Name == GfNames.Strafing)) is { } w) return (GfNames.Strafing, w.Id, 0);
+                if (ctx.Projection.Models[m].Slot.Weapons.SelectMany(w => w.Properties.Where(p => GfNames.IsStrafing(p.Name)).Select(p => (w, p.Name))).FirstOrDefault() is ({ } w, { } name)) return (name, w.Id, 0);
             return (null, null, 0);
         }
 

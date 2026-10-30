@@ -128,7 +128,7 @@ public static class GfRolls
             verdict = verdict with { IgnoredBy = live.Suppressors(TargetModifier.Cover).FirstOrDefault() };
         var living = Lookup.LivingModels(ctx.State, live.Interaction.Defender!.UnitId);
         var alone = takedown ?? (defenderModels == 1 && living.Count == 1 ? living[0] : (Guid?)null);
-        if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => p.Name == GfNames.Hero) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
+        if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => GfNames.IsHero(p.Name)) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
             ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Defender, GfNames.DefenseRoll,
             shooting && inCover ? [new RollModifier("cover", 1)] : [],
@@ -147,7 +147,7 @@ public static class GfRolls
         var unit = live.Interaction.Attacker.UnitId;
         var own = StatReader.TargetNumber(live, Side.Attacker, Quality);
         var heroes = Lookup.LivingModels(ctx.State, unit)
-            .Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero))
+            .Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => GfNames.IsHero(p.Name)))
             .Select(m => StatReader.TargetNumber(live, Side.Attacker, ModelQuality, m))
             .Concat(GfEdition.Of(ctx.State).HeroAuraTough is { } tough ? LentQualities(ctx, live, unit, tough) : []).ToList();
         var best = heroes.Prepend(own).MinBy(r => r.Value)!;   // the first minimum: a tie stays the unit's own
@@ -164,7 +164,7 @@ public static class GfRolls
         var mine = Lookup.LivingModels(state, unit);
         foreach (var other in Scheduler.TeamUnits.Of(state, team).Where(u => u.Id != unit && !u.Conditions.Contains(GfNames.Shaken)))
         {
-            var lenders = Lookup.LivingModels(state, other.Id).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero)
+            var lenders = Lookup.LivingModels(state, other.Id).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => GfNames.IsHero(p.Name))
                 && (Lookup.ModelParameter(state, m, GfNames.Tough) ?? 0) >= tough
                 && mine.Any(o => Battlefield.Distance(state, m, o) <= HeroAuraRange + 1e-6)).ToList();
             if (lenders.Count == 0) continue;

@@ -27,6 +27,9 @@ public static class GfNames
     /// <summary>Army-book rules spec, batch 8: the rules the grammar additions leave to the ruleset.</summary>
     public const string HeavyImpact = "Heavy Impact", NoRetreat = "No Retreat";
     public const string Deathstrike = "Deathstrike", Retaliate = "Retaliate", SelfDestruct = "Self-Destruct", Ravage = "Ravage", CrossingAttack = "Crossing Attack", Strafing = "Strafing";
+    /// <summary>3.6.0 book rules the C# half reads by name. Crossing Strike (3.5 Strafing) and Unique Hero ("Counts as having Hero") are read beside the 3.5 name
+    /// under either edition, as no 3.5 book carries the 3.6 one; Counter in Melee gives a model's weapons Counter (GfMelee.StrikesFirst).</summary>
+    public const string CrossingStrike = "Crossing Strike", CounterInMelee = "Counter in Melee", UniqueHero = "Unique Hero";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
     /// <summary>3.6.0 p.12: the unit's Dangerous Terrain Test (GfMoves.DangerousTerrain36), beside 3.5.1 p.11's per-model one.</summary>
@@ -85,6 +88,10 @@ public static class GfNames
     public const string Rounds = Scheduler.SchedulerBase.RoundsPhase;
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough", Hero = "Hero";
+    /// <summary>Hero, or 3.6.0 Unique Hero: "Counts as having Hero".</summary>
+    public static bool IsHero(string name) => name is Hero or UniqueHero;
+    /// <summary>Strafing, or its 3.6.0 name Crossing Strike (the same text).</summary>
+    public static bool IsStrafing(string name) => name is Strafing or CrossingStrike;
     /// <summary>p.13 Flying and p.14 Strider: the movement rules a move reads from the unit's live set (GfMoves.TerrainFor).</summary>
     public const string Flying = "Flying", Strider = "Strider";
     /// <summary>p.36 Relic Wargear, Mystic Banners: "The Hero and its unit may ignore all terrain effects." Read with Flying and Strider (GfMoves.TerrainFor).</summary>

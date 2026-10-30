@@ -30,16 +30,27 @@ public static class GfMelee
         !w.Stats.ContainsKey(GfNames.Range) || (GfEdition.Of(state).HasAssault && w.Properties.Any(p => p.Name == GfNames.Assault));
 
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
-    static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
-    /// <summary>p.13 Counter's strike-first weapons, and every melee weapon of a defender with Counter-Attack ("Strikes first when charged"). A Counter the
-    /// counter step held back (3.6.0 p.13: passed, or lost to fatigue) strikes with the rest.</summary>
-    static bool StrikesFirst(StepContext ctx, Weapon w) => (IsCounter(w) && !CounterHeld(ctx)) || CounterAttacks(ctx);
+    const string CounterInMeleeKey = "counter_in_melee";
+    /// <summary>The defender's strike-first test, settled once: p.13 Counter's weapons, and every melee weapon of a defender with Counter-Attack ("Strikes
+    /// first when charged"). 3.6.0 Counter in Melee ("This model gets Counter on its weapons in melee") makes a holding model's weapons Counter weapons, and
+    /// every model's when granted to the unit; a granted one is spent by the counter step, so every later step reads what that step recorded. A Counter
+    /// the counter step held back (3.6.0 p.13: passed, or lost to fatigue) strikes with the rest.</summary>
+    static Func<Weapon, bool> StrikesFirst(StepContext ctx)
+    {
+        var live = DefenderLive(ctx);
+        if (CounterAttacks(ctx, live)) return _ => true;
+        if (CounterHeld(ctx)) return _ => false;
+        var holders = live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.CounterInMelee).ToList();
+        var everyModel = holders.Any(p => p.ModelId is null) || ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterInMeleeKey) == 1);
+        var carried = holders.Select(p => p.ModelId).OfType<Guid>().SelectMany(m => ctx.Projection.Models[m].Slot.Weapons.Select(w => w.Id)).ToHashSet();
+        return w => everyModel || carried.Contains(w.Id) || w.Properties.Any(p => p.Name == "Counter");
+    }
     const string CounterHeldKey = "counter_held";
     static bool CounterHeld(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterHeldKey) == 1);
     const string CounterAttackKey = "counter_attack";
     /// <summary>The defender's Counter-Attack, innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
-    static bool CounterAttacks(StepContext ctx) =>
-        ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || DefenderLive(ctx).Has(Side.Attacker, GfNames.CounterAttack);
+    static bool CounterAttacks(StepContext ctx, LiveSet? live = null) =>
+        ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || (live ?? DefenderLive(ctx)).Has(Side.Attacker, GfNames.CounterAttack);
     static LiveSet DefenderLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
     static LiveSet ChargerLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
     /// <summary>Unwieldy: "Strikes last when charging": the charger's weapon, or every weapon of a charger the rule was granted to.</summary>
@@ -244,7 +255,7 @@ public static class GfMelee
         public StepOutcome Run(StepContext ctx)
         {
             var defender = Defender(ctx);
-            var counters = MeleeWeapons(ctx.State, defender, w => StrikesFirst(ctx, w));
+            var counters = MeleeWeapons(ctx.State, defender, StrikesFirst(ctx));
             if (counters.Count == 0) return new Complete([]);
             if (!Recorded(ctx, Name) && !CounterAttacks(ctx) && (edition.CounterOptional || edition.CounterLostWhenFatigued))
             {
@@ -262,8 +273,10 @@ public static class GfMelee
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);
             var values = new Dictionary<string, int> { [StruckKey] = 1 };
-            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), IsCounter).Count > 0) ctx.Applied.Add("Counter");
+            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), w => w.Properties.Any(p => p.Name == "Counter")).Count > 0) ctx.Applied.Add("Counter");
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
+            if (live.On(Side.Attacker).Any(p => p.Entry.Name == GfNames.CounterInMelee && p.ModelId is null)) values[CounterInMeleeKey] = 1;   // granted to the unit
+            live.Use(Side.Attacker, GfNames.CounterInMelee);
             return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
         }
     }
@@ -340,7 +353,8 @@ public static class GfMelee
         {
             var (charger, defender) = (Charger(ctx), Defender(ctx));
             var counterStruck = CounterStruck(ctx);
-            var weapons = MeleeWeapons(ctx.State, defender, w => !StrikesFirst(ctx, w));   // p.13: the Counter weapon's strike already happened in `counter`
+            var first = StrikesFirst(ctx);
+            var weapons = MeleeWeapons(ctx.State, defender, w => !first(w));   // p.13: the Counter weapon's strike already happened in `counter`
             // Striking under way comes before the living-model checks: a strike back that destroys the charger still fatigues (p.9).
             if (Recorded(ctx, Name)) return Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
             if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
