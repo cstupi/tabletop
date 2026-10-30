@@ -79,7 +79,9 @@ public static partial class SpellTranslator
     static EffectDocument Row(EffectKind kind, EffectSubject subject, EffectDuration duration, int ordinal = 10) =>
         new(subject, ordinal, kind, null, null, null, null, null, null, null, null, false, null, null, null, duration, [], []);
 
-    /// <summary>Row 1 and 2: hits are numberDigit × the spell's value (all 141 damage spells); weapon rules are grant children; the roll sentence sets target_roll.</summary>
+    const string RollSentence = "Roll as many dice as hits";
+
+    /// <summary>Row 1 and 2: hits are numberDigit × the spell's value (all 141 damage spells); weapon rules are grant children; the roll sentence (the generation's or the printed text's) sets target_roll.</summary>
     static EffectDocument Damage(AfSpell spell, AfGenPart e, string where)
     {
         if (e.Text("hits-wounds") != "hits") throw Bad(where, $"hits-wounds '{e.Text("hits-wounds")}'");
@@ -88,7 +90,8 @@ public static partial class SpellTranslator
         return Row(EffectKind.AddHit, EffectSubject.Self, EffectDuration.Interaction) with
         {
             Amount = Int(e.Text("numberDigit"), where) * spell.Threshold,
-            TargetRoll = string.IsNullOrEmpty(e.Text("spellHitRoll")) ? null : "hit",
+            // The 3.6 dump's generation can leave spellHitRoll out where the printed text has the sentence: the printed text is the authority.
+            TargetRoll = !string.IsNullOrEmpty(e.Text("spellHitRoll")) || spell.Effect.Contains(RollSentence, StringComparison.Ordinal) ? "hit" : null,
             Children = children,
         };
     }

@@ -48,6 +48,52 @@ public class ArmyGamesTests
             Assert.Contains(r, army351.Where(x => x.Group == g.Group).SelectMany(x => x.Covers))));
     }
 
+    /// <summary>
+    /// 3.6 hand-part entries that are played but have no 3.6 game yet: their 3.6 text changed (Task 7.5 rewrote them and wrote one game per new
+    /// mechanism, not one per entry) or they are new 3.6 names, so a 3.5.1 game's checks do not quote them. A game covering one removes it here.
+    /// </summary>
+    static readonly string[] Uncovered36 =
+    [
+        "Bane Mark", "Bane in Melee Aura", "Bane when Shooting", "Bane when Shooting Aura", "Battleborn", "Changebound", "Counter in Melee Buff",
+        "Darkborn", "Defensive Frenzy", "Defensive Growth", "Devout", "Disintegrate", "Enhanced Bloodborn", "Enhanced Changebound",
+        "Enhanced Clan Warrior", "Enhanced Darkborn", "Enhanced Devout", "Enhanced Ferocious", "Enhanced Guardian", "Enhanced Harassing",
+        "Enhanced Havocbound", "Enhanced Highborn", "Enhanced Hive Bond", "Enhanced Hold the Line", "Enhanced Infected", "Enhanced Knightborn",
+        "Enhanced Lustbound", "Enhanced Machine-Fog", "Enhanced Mischievous", "Enhanced Primal", "Enhanced Scrapper", "Enhanced Scurry",
+        "Enhanced Self-Repair", "Enhanced Shadowborn", "Enhanced Sturdy", "Enhanced Targeting Visor", "Enhanced Warbound", "Enhanced Watchborn",
+        "Entrenched", "Evasive", "Ferocious", "Fortified", "Fortified Growth", "Grounded Defense", "Grounded Precision", "Guarded", "Guardian",
+        "Guerrilla", "Harassing", "Havocbound", "Highborn", "Hit & Run", "Hit & Run Fighter", "Hit & Run Shooter", "Honor Code",
+        "Increased Shooting Range", "Increased Shooting Range Aura", "Increased Shooting Range Buff", "Increased Shooting Range Mark",
+        "Indirect when Shooting Aura", "Infected", "Inquisitorial Agent", "Lacerate", "Lustbound", "Machine-Fog", "Martial Prowess",
+        "Melee Evasion", "Melee Shrouding", "Melee Slayer", "Piercing Debuff", "Piercing Fighter Aura", "Piercing Frenzy", "Piercing Growth",
+        "Piercing Shooter Aura", "Piercing Shooting Mark", "Piercing Spotter", "Piercing Target", "Plaguebound", "Precision Frenzy",
+        "Precision Growth", "Precision Spotter", "Precision Target", "Primeborn", "Protected", "Protection Feat", "Ranged Shrouding",
+        "Ranged Slayer", "Rending in Melee", "Rending in Melee Aura", "Rending when Shooting Aura", "Screened", "Scurry", "Self-Repair",
+        "Sergeant", "Shadowborn", "Shatter", "Shielded", "Shred Mark", "Shred in Melee", "Shred in Melee Aura", "Shred when Shooting",
+        "Shred when Shooting Aura", "Speed Debuff", "Speed Feat", "Split", "Steadfast", "Sturdy", "Takedown Shot", "Takedown Strike",
+        "Targeting Visor", "Thrust in Melee Aura", "Unstoppable in Melee", "Unstoppable in Melee Aura", "Unstoppable when Shooting Aura",
+        "Unwieldy Debuff", "Vengeance", "Versatile Reach", "Warbound", "Watchborn",
+    ];
+
+    /// <summary>
+    /// The 3.6 hand part's played entries each have a 3.6 game but those in Uncovered36, and each generated 3.6 wrapper a 3.6 game of its pattern.
+    /// </summary>
+    [Fact]
+    public void The_3_6_army_games_cover_every_played_3_6_army_book_rule_under_a_3_6_book()
+    {
+        var army36 = Army.Where(g => g.Edition == RuleSets.Gf360).ToList();
+        var covered = army36.SelectMany(g => g.Covers).ToHashSet();
+        var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.6/army-rules.part.json")));
+        var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.6/army-books"), "*.book.json")
+            .Select(f => Path.GetFileName(f)[..^".book.json".Length]).ToHashSet();
+        Assert.All(army36, g => Assert.Contains(SuiteCatalog.BookOf(g.Group), books));
+        Assert.All(army36, g => Assert.Equal(SuiteCatalog.BookOf(g.Group), g.Scenario.Armies[0].ArmyBook));
+        Assert.All(army36, g => Assert.All(g.Covers, c => Assert.Contains(c, g.Scenario.Armies[0].Rules())));          // a game covers only what its first army carries
+        var wrappers = PropertiesSeeder.EmbeddedPart(GfEdition.V360.ContentFolder, PropertiesSeeder.GeneratedPartName)!.Entries
+            .Where(e => e.Effects.Count > 0 && e.Played != false).Select(e => e.Name[(e.Name.LastIndexOf(' ') + 1)..]).Distinct();
+        Assert.All(wrappers, pattern => Assert.Contains(army36, g => g.Pattern == pattern));
+        Assert.Equal(Uncovered36.Order(StringComparer.Ordinal), part.Entries.Where(e => e.Played != false && !covered.Contains(e.Name)).Select(e => e.Name).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void The_defect_tables_are_the_games_the_catalog_pins()
     {

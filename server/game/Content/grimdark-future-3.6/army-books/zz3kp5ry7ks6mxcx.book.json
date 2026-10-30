@@ -205,6 +205,7 @@
           "subject": "self",
           "ordinal": 10,
           "kind": "add_hit",
+          "targetRoll": "hit",
           "amount": 6,
           "amountFromParameter": false,
           "duration": "interaction",

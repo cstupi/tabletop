@@ -35,9 +35,13 @@ public static class SpellGames
         NamePrefix + string.Join('-', new string([.. book.Name.ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : ' ')])
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-    /// <summary>The books with spells, in uid order.</summary>
+    /// <summary>
+    /// The books with a played spell, in uid order, each listing its played spells alone (PropertySet.SpellsOf): a text-only spell (played
+    /// false) is never offered to a caster, so no unit casts it and no game covers it.
+    /// </summary>
     public static IReadOnlyList<BookRecord> Books(PropertySet set) =>
-        set.Books.Values.Where(b => b.Spells.Count > 0).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
+        set.Books.Values.Select(b => b with { Spells = [.. set.SpellsOf(b.Uid).Select(e => e.Name)] }).Where(b => b.Spells.Count > 0)
+            .OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
 
     /// <summary>The spells in the order the book's units cast them: the setup's First, then the rest in the book's order.</summary>
     public static IReadOnlyList<string> CastingOrder(BookRecord book, SpellSetup? setup) =>
@@ -64,7 +68,7 @@ public static class SpellGames
     }
 
     /// <summary>
-    /// Where a model makes for: each unit its own lane across the 36" table, the book's units on the line y = 15 and the targets on y = 10, so
+    /// Where a model makes for: each unit its own lane across the 36" table, the book's units on the line y = 13 and the targets on y = 10, so
     /// every caster stands within 6" of a target unit with no other model between them, and no two units crowd one spot.
     /// </summary>
     static Point2? Lane(string army, int casters, Projection p, Guid model)
@@ -72,7 +76,7 @@ public static class SpellGames
         var name = AskPicks.UnitNameOf(p, model);
         if (name is null) return null;
         if (name.StartsWith(army + " unit ", StringComparison.Ordinal) && int.TryParse(name[(army.Length + 6)..], out var k))
-            return new Point2(36.0 * (k - 0.5) / casters, 15);
+            return new Point2(36.0 * (k - 0.5) / casters, 13);
         if (name.StartsWith(TargetArmy + " unit ", StringComparison.Ordinal) && int.TryParse(name[(TargetArmy.Length + 6)..], out var j))
             return new Point2(12.0 * j - 6, 10);
         return null;
@@ -104,6 +108,8 @@ public static class SpellGames
                 Enumerable.Range(1, order.Count).Select(k => AskPicks.Activate(ask, UnitName(army, k), "Advance"))
                     .Concat(Enumerable.Range(1, 3).Select(j => AskPicks.Activate(ask, UnitName(TargetArmy, j), blue(j)))).FirstOrDefault(a => a is not null))
             .Match(AskQuestions.React, (ask, _) => AskPicks.Labeled(ask, "Cast a spell"))
+            // A target unit the setup has shoot always shoots (the server's fixed option id), so no policy choice decides the occasion.
+            .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
             .Match("cast", (ask, p) => SpellOf(p) is { } spell ? AskPicks.Spell(ask, p, spell) : null)
             .Match(AskQuestions.SpendTokens, (ask, p) => ask.Legal is TokenSpend t && Casting(p) is { } unit
                 ? new TokensSpent(t.MaxByModel.ToDictionary(kv => kv.Key, kv => p.Models[kv.Key].UnitId == unit ? Math.Min(kv.Value, setup?.Bonus ?? 2) : 0)) : null)
@@ -121,15 +127,19 @@ public static class SpellGames
     public static TestGame Game(BookRecord book, ulong seed, PropertySet set, SpellSetup? setup = null, IReadOnlyList<DiceFix>? dice = null,
         IReadOnlyList<GameCheck>? checks = null) =>
         new(NameOf(book), SuiteCatalog.SpellsGroup(set.GameRules, book.Uid), Scenario(book, seed, set, setup), book.Spells, dice ?? [],
-            [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells), .. checks ?? []]);
+            [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells, ResolvedCheckOf(set.GameRules)), .. checks ?? []]);
 
     public const string ResolvedCheck = "resolved on a legal cast (p.13: \"Roll one die, on 4+ resolve the effect\"; p.5: \"a roll of 1 always counts as a fail\")";
+    public const string ResolvedCheck36 = "resolved on a legal cast (3.6.0 p.13: \"Pick a target and roll one die, and on 4+ resolve the spell's effect\"; 3.6.0 p.5: \"a roll of 1 always counts as a fail\")";
+
+    /// <summary>The resolved check's name under a set's game rules: its quotes are that edition's.</summary>
+    public static string ResolvedCheckOf(string rulesId) => rulesId == Tabletop.Content.RuleSets.Gf360 ? ResolvedCheck36 : ResolvedCheck;
 
     /// <summary>
     /// Every spell of the book resolved at least once on a cast whose die was not an unmodified 1, so its coverage never rests on a cast
     /// p.5 says fails.
     /// </summary>
-    public static GameCheck ResolvedUnderP5(IReadOnlyList<string> spells) => new(ResolvedCheck, run =>
+    public static GameCheck ResolvedUnderP5(IReadOnlyList<string> spells, string name = ResolvedCheck) => new(name, run =>
     {
         var q = LogQueries.Of(run);
         var unresolved = spells.Where(s => !Casts(q, s).Any(c => c.Passed && c.Die.Raw != 1 && Resolved(q, c, s))).ToList();

@@ -253,6 +253,9 @@ public sealed class LogQueries
         return taken;
     }
 
+    /// <summary>The wounds a model carried before that seq: its last WoundsSet, or none.</summary>
+    public int WoundsOn(Guid model, long seq) => _wounds.Where(w => w.Seq < seq && w.ModelId == model).Select(w => w.Wounds).LastOrDefault();
+
     /// <summary>Whether the subject (a unit or model id) carried the condition before that seq.</summary>
     public bool HasCondition(Guid subject, string condition, long seq) =>
         _conditions.LastOrDefault(c => c.Seq < seq && c.Subject.Id == subject && c.Condition == condition) is { Present: true };
