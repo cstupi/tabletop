@@ -96,4 +96,20 @@ public class RuleWriterTests
         Assert.Equal(RuleWriter.Serialize(Part()), RuleWriter.Serialize(reversed));
         Assert.EndsWith("\n", RuleWriter.Serialize(Part()));
     }
+
+    // A wrapper granting a text-only rule can never act: under 3.6 it is written text-only too, as a spell granting one is (DemoteUndefinedGrants).
+    static readonly PropertySetDocument HandTextOnlySwift = PropertiesJson.Parse("""
+    { "name": "hand", "gameRules": "grimdark-future", "entries": [ { "name": "Swift", "kind": "model", "aggregation": "none", "ruleText": "Sw.", "played": false } ] }
+    """);
+
+    [Fact]
+    public void Under_3_6_a_wrapper_whose_base_is_text_only_is_text_only()
+    {
+        var swift36 = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future-3.6").Part!.Entries.Single(e => e.Name == "Swift Buff");
+        Assert.Equal(((bool?)false, 0, (SpellTargeting?)null), (swift36.Played, swift36.Effects.Count, swift36.Targeting));
+        var report = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future-3.6").Report!;
+        Assert.Equal(1, report.Groups.Single(g => g.Group == "Buff, template text, base text-only").Count);
+        var swift35 = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future").Part!.Entries.Single(e => e.Name == "Swift Buff");
+        Assert.Equal("Swift", swift35.Effects.Single().TargetEntry);                // 3.5 output unchanged
+    }
 }
