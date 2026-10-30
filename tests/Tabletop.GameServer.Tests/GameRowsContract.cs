@@ -88,6 +88,13 @@ public abstract class GameRowsContract
     }
 
     [Fact]
+    public async Task A_read_army_carries_its_edition()
+    {
+        var seeded = await Seeder.SeedArmyAsync(await Seeder.SeedAccountAsync("Owner"), ArmyTests.Sample() with { Edition = ArmyEditions.V36 });
+        Assert.Equal("3.6", (await Rows.ReadArmyAsync(seeded.Id, Ct))!.Army.Edition);
+    }
+
+    [Fact]
     public async Task Weapons_and_properties_read_back_in_import_order_not_id_or_name_order()
     {
         var sample = ArmyTests.Sample();

@@ -6,7 +6,7 @@ using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Content.Armies;
 
-public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models);
+public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models, string Edition = ArmyEditions.V35);
 public sealed record ImportRequest(string Source);
 public sealed record UnitPatch(Guid UnitId, Guid? AssetId);
 public sealed record SlotPatch(Guid SlotId, Guid? AssetId, bool ClearAsset, Base? Base, double? Height);
@@ -25,7 +25,7 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
     {
         await using var c = await db.Open();
         await using var tx = await c.BeginTransactionAsync();
-        await c.ExecuteAsync("insert into army (id, owner_id, name, game_system, source) values (@Id, @ownerId, @Name, @GameSystem, @Source)", new { army.Id, ownerId, army.Name, army.GameSystem, army.Source }, tx);
+        await c.ExecuteAsync("insert into army (id, owner_id, name, game_system, source, edition) values (@Id, @ownerId, @Name, @GameSystem, @Source, @Edition)", new { army.Id, ownerId, army.Name, army.GameSystem, army.Source, army.Edition }, tx);
         foreach (var u in army.Units)
         {
             await c.ExecuteAsync("insert into unit (id, army_id, ordinal, name, reserve_property, reserve_of) values (@Id, @armyId, @Ordinal, @Name, @reserveProperty, @reserveOf)",
@@ -52,7 +52,7 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
     public async Task<Army?> Get(Guid ownerId, Guid id)
     {
         await using var c = await db.Open();
-        var head = await c.QuerySingleOrDefaultAsync<(string Name, string GameSystem, string Source)>("select name, game_system, source from army where id = @id and owner_id = @ownerId", new { id, ownerId });
+        var head = await c.QuerySingleOrDefaultAsync<(string Name, string GameSystem, string Source, string Edition)>("select name, game_system, source, edition from army where id = @id and owner_id = @ownerId", new { id, ownerId });
         if (head == default) return null;
         var units = (await c.QueryAsync<UnitRow>("select id as Id, ordinal as Ordinal, name as Name, reserve_property as ReserveProperty, reserve_of as ReserveOf from unit where army_id = @id order by ordinal", new { id })).ToList();
         var slots = (await c.QueryAsync<SlotRow>(@"select s.id as Id, s.unit_id as UnitId, s.ordinal as Ordinal, s.name as Name, s.base_shape as BaseShape, s.base_a::float8 as BaseA, s.base_b::float8 as BaseB, s.height::float8 as Height, s.asset_id as AssetId, s.army_book as ArmyBook
@@ -76,7 +76,7 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
             slots[u.Id].Select(s => new ModelSlot(s.Id, s.Ordinal, s.Name, Stats(slotStats, s.Id), Props(slotProps, s.Id),
                 new Base(Enum.Parse<BaseShape>(s.BaseShape, true), s.BaseA, s.BaseB), s.Height, s.AssetId,
                 weapons[s.Id].Select(w => new Weapon(w.Id, w.Name, Stats(weaponStats, w.Id), Props(weaponProps, w.Id))).ToList(), s.ArmyBook)).ToList(),
-            u.ReserveProperty is { } rule && u.ReserveOf is { } of ? new UnitReserve(rule, of) : null)).ToList());
+            u.ReserveProperty is { } rule && u.ReserveOf is { } of ? new UnitReserve(rule, of) : null)).ToList()) { Edition = head.Edition };
     }
 
     public async Task<IReadOnlyList<ArmySummary>> List(Guid ownerId, Http.Keyset page)
@@ -84,7 +84,7 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
         await using var c = await db.Open();
         return (await c.QueryAsync<ArmySummary>(@"select a.id as Id, a.name as Name, a.game_system as GameSystem, a.source as Source,
             (select count(*) from unit u where u.army_id = a.id)::int as Units,
-            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id)::int as Models
+            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id)::int as Models, a.edition as Edition
             from army a where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) order by a.id limit @limit", new { ownerId, after = page.After, limit = page.Limit })).ToList();
     }
 

@@ -110,12 +110,12 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
     public async Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        Guid owner; string name, system, source;
-        await using (var cmd = new NpgsqlCommand("select owner_id, name, game_system, source from management.army where id = $1", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        Guid owner; string name, system, source, edition;
+        await using (var cmd = new NpgsqlCommand("select owner_id, name, game_system, source, edition from management.army where id = $1", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
         {
             if (!await r.ReadAsync(ct)) return null;
-            (owner, name, system, source) = (r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3));
+            (owner, name, system, source, edition) = (r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4));
         }
         var stats = new Dictionary<Guid, Dictionary<string, string>>();
         var props = new Dictionary<Guid, List<PropertyInstance>>();
@@ -148,6 +148,6 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
             while (await r.ReadAsync(ct))
                 units.Add(new Unit(r.GetGuid(0), r.GetInt32(1), r.GetString(2), S(r.GetGuid(0)), P(r.GetGuid(0)), slots.TryGetValue(r.GetGuid(0), out var ss) ? ss : [],
                     NullableString(r, 3) is { } reserve && NullableGuid(r, 4) is { } of ? new UnitReserve(reserve, of) : null));
-        return new OwnedArmy(new Army(armyId, name, system, source, units), owner);
+        return new OwnedArmy(new Army(armyId, name, system, source, units) { Edition = edition }, owner);
     }
 }

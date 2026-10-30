@@ -20,6 +20,16 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task An_army_keeps_its_edition_and_the_summary_shows_it()
+    {
+        var owner = await NewAccount();
+        var army = SmallArmy() with { Edition = ArmyEditions.V36 };
+        await Armies.Insert(owner, army);
+        Assert.Equal("3.6", (await Armies.Get(owner, army.Id))!.Edition);
+        Assert.Equal("3.6", (await Armies.List(owner, new Keyset(10, null))).Single().Edition);
+    }
+
+    [Fact]
     public async Task Army_count_is_the_owners_armies()
     {
         var owner = await NewAccount();

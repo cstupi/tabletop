@@ -19,6 +19,9 @@ public class ArmyTests
     }
 
     [Fact]
+    public void An_army_is_3_5_unless_stamped() { Assert.Equal("3.5", Sample().Edition); Assert.Equal("3.6", (Sample() with { Edition = ArmyEditions.V36 }).Edition); }
+
+    [Fact]
     public void Snapshot_copies_units_and_has_no_army_id()
     {
         var army = Sample();

@@ -26,7 +26,11 @@ public sealed record Unit(
 public sealed record UnitReserve(string Property, Guid Of);
 
 /// <summary>GameSystem is the GameRules identifier; Source is where it was imported from.</summary>
-public sealed record Army(Guid Id, string Name, string GameSystem, string Source, IReadOnlyList<Unit> Units);
+public sealed record Army(Guid Id, string Name, string GameSystem, string Source, IReadOnlyList<Unit> Units)
+{
+    /// <summary>One of <see cref="ArmyEditions.All"/>. An init property, so positional construction stays 3.5.</summary>
+    public string Edition { get; init; } = ArmyEditions.V35;
+}
 
 /// <summary>
 /// The army as it stood when setup ended: name, game system and the whole unit tree, with no edge back to the army and no Source.
