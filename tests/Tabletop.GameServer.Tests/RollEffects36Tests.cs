@@ -1,7 +1,11 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Effects;
+using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.GameServer.Scheduler;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
 using static Tabletop.GameServer.Tests.Infrastructure.Armies;
@@ -67,5 +71,32 @@ public class RollEffects36Tests
         var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit");
         Assert.Equal(expected, plan.NetModifier);
         Assert.Equal(expected == 0, plan.Ignored?.Contains(new IgnoredEffect("Precision Debuff", "Unstoppable", -1)) ?? false);
+    }
+    /// <summary>3.6.0 p.15 Spell Amplifier: "Gets +1 to casting rolls."</summary>
+    [Fact]
+    public void Spell_amplifier_adds_one_to_the_casting_roll()
+    {
+        var plain = Unit("W", "4+", "4+", [], 1, []);
+        var amplified = Unit("A", "4+", "4+", [], 1, [P("Spell Amplifier")]);
+        static int Net(Tabletop.Content.Unit caster)
+        {
+            var state = State([caster], [Unit("E", "4+", "4+", [], 1, [])]);
+            var frame = new FrameView(new Frame(Guid.CreateVersion7(), "x", new SequenceContext(caster.Id, [], [], GfNames.Advance)), 0, new Dictionary<string, int>(), StepHistory.Empty, null);
+            var ctx = new StepContext(state, TestProperties.Core36, GrimdarkFutureRules.Instance, frame, new Roller(new ScriptedDice(4), state.RngSeed, 0));
+            var live = LiveProperties.Settle(new Interaction(state, TestProperties.Core36, Party.Whole(state, caster.Id), null, AttackKind.Shooting, GfNames.Advance, null, []));
+            return GfRolls.CastingPlan(ctx, live, 0).NetModifier;
+        }
+        Assert.Equal((0, 1), (Net(plain), Net(amplified)));
+    }
+
+    /// <summary>3.6.0 p.15 Shred is a core entry; 3.5.1 keeps it in its army-rules part.</summary>
+    [Fact]
+    public void Shred_is_a_core_entry_under_3_6()
+    {
+        Assert.Equal(CatalogKind.Weapon, TestProperties.Core36.Entry("Shred")!.Kind);
+        var part36 = PropertiesSeeder.EmbeddedPart("grimdark-future-3.6", "army-rules.part.json")!;
+        var part351 = PropertiesSeeder.EmbeddedPart("grimdark-future-3.5.1", "army-rules.part.json")!;
+        Assert.DoesNotContain(part36.Entries, e => e.Name == "Shred");   // so the composed 3.6 Shred comes from its core file
+        Assert.Contains(part351.Entries, e => e.Name == "Shred");        // 3.5.1 keeps it in its part, not its core
     }
 }
