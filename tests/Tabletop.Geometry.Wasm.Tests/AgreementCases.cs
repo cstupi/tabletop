@@ -38,6 +38,7 @@ public static class AgreementCases
     static Piece Crate(double x, double y) => PieceAt(x, y, 0, 1, Vol(VolumeKind.Solid, Footprint.Rect(2, 2), 1, TerrainDeclarations.None));
     static Piece Block(double x, double y) => PieceAt(x, y, 0, 1, Vol(VolumeKind.Solid, Footprint.Rect(4, 4), 3, Impassable));
     static Piece Bridge(double x, double y) => PieceAt(x, y, 0, 1, Vol(VolumeKind.Solid, Footprint.Rect(6, 6), 5, TerrainDeclarations.None, bottom: 4));
+    static Piece SteepHill(double x, double y) => PieceAt(x, y, 0, 1, Vol(VolumeKind.Area, Footprint.Circle(1.5), 0.1, TerrainDeclarations.Steep));
 
     /// <summary>A busy table: two catalog pieces, a hill, ten 25 mm and 32 mm models around them.</summary>
     static (Piece[] Terrain, PlacedModel[] Models) Busy()
@@ -146,6 +147,13 @@ public static class AgreementCases
         var terms = new ContactTerms(3, false, true, new ContactMove(3, [], [], null));
         var found = Contacts.Of(bodies, proposed, Volumes([wallP]), terms).Select(kv => new ContactFound(kv.Key, kv.Value.Kind, kv.Value.UnitId)).ToArray();
         Add("contacts_every_kind", "Contacts", new ContactsRequest(bodies, proposed, [wallP], terms), found);
+        // Steep: going onto the hill caps the way round the line of five (Movement.SteepEntering).
+        var steepMover = Cb(ua, 10, 10); var hillP = SteepHill(14, 10);
+        ContactBody[] steepBodies = [steepMover, Cb(ub, 12, 8), Cb(ub, 12, 9), Cb(ub, 12, 10), Cb(ub, 12, 11), Cb(ub, 12, 12)];
+        var steepProposed = new Dictionary<Guid, Placement> { [steepMover.Id] = Pl(14, 10) };
+        var steepTerms = new ContactTerms(null, false, true, new ContactMove(8, [], [], 6, [hillP.Volumes[0].Id]));
+        Add("contacts_steep_caps_the_way_round", "Contacts", new ContactsRequest(steepBodies, steepProposed, [hillP], steepTerms),
+            Contacts.Of(steepBodies, steepProposed, Volumes([hillP]), steepTerms).Select(kv => new ContactFound(kv.Key, kv.Value.Kind, kv.Value.UnitId)).ToArray());
         var placement = new ContactTerms(null, true, false);
         Add("contacts_placement_on_a_base", "Contacts", new ContactsRequest([onBaseMover, target], new Dictionary<Guid, Placement> { [onBaseMover.Id] = Pl(30.5, 30) }, [], placement),
             Contacts.Of([onBaseMover, target], new Dictionary<Guid, Placement> { [onBaseMover.Id] = Pl(30.5, 30) }, [], placement).Select(kv => new ContactFound(kv.Key, kv.Value.Kind, kv.Value.UnitId)).ToArray());

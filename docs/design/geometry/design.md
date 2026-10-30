@@ -654,9 +654,9 @@ The two are never both set: *a unit may not embark and disembark in one activati
 transport embarks the whole unit, so the answer is a `Destinations` whose `To` is
 `Inside(container)` for every model.
 
-### 14. The seven declarations, read geometrically
+### 14. The eight declarations, read geometrically
 
-Seven flags, and they are OPR's own terrain types, read from the Grimdark Future and Age of
+Eight flags, and they are OPR's own terrain types, read from the Grimdark Future and Age of
 Fantasy advanced rulebooks whose terrain sections are word-for-word identical. **No effects are
 stored.** A flag says *this is difficult*. The ruleset says what that costs. How each flag is
 read here:
@@ -669,10 +669,11 @@ read here:
 | `Cover` | `Cover.InsideCoverVolumes` | whole base inside the footprint and vertical range |
 | `Difficult` | `Movement.Region`/`Check`, `VolumesOnPath` | *in or through* along the path taken, which goes round when that fits the allowance |
 | `Dangerous` | `Movement.Check`, `VolumesOnPath` | the same, over the dangerous list; a path goes round when that fits |
-| `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only |
+| `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only; under 3.6.0 p.12 Unstable, for a model whose own path is over 6" |
+| `Steep` | `Movement.Check` (`steep`), `Movement.SteepEntering` | 3.6.0 p.12 *"Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain"* (3.5.1 p.12 Hills *"Difficult when moving up"*): difficult for a move whose base centre starts outside the footprint, open for one that starts inside |
 
 Which classes read a flag at all: `LineOfSight` and `Cover` filter on declarations themselves.
-`Movement` does **not**. It is handed two pre-filtered lists, because the server already
+`Movement` does **not**. It is handed pre-filtered lists (the steep list is narrowed per start by `SteepEntering`), because the server already
 decided which volumes count for this move. `Containment`, `Overlap`, `Collision` (but for the walls its caller names) and `Distance`
 read no declaration at all; they read `VolumeKind` (Solid or Area) or nothing. `Impassable` is
 orthogonal to Solid-versus-Area, so all four combinations are real: a climbable hill, an

@@ -111,6 +111,20 @@ public class MovementTests
         Assert.False(check.WithinAllowance);
     }
 
+    [Fact] public void A_steep_volume_is_difficult_when_entered_and_open_when_left()
+    {
+        // 3.6.0 p.12: "Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain."
+        var hill = Fx.Cylinder(8, 0, 4, 0, 3, VolumeKind.Area, TerrainDeclarations.Steep);
+        var onto = Movement.Check(Start, new(8, 0), 12, [], [], 6, null, steep: [hill]);
+        Assert.True(onto.EntersDifficult);
+        Assert.False(onto.WithinAllowance);                                                  // 8" onto it, over the 6" cap
+        var off = Movement.Check(Fx.Model(8, 0), new(18, 0), 12, [], [], 6, null, steep: [hill]);
+        Assert.False(off.EntersDifficult);
+        Assert.True(off.WithinAllowance);                                                    // 10" off it, open
+        Assert.Equal([hill.Id], Movement.SteepEntering(Start, [hill]).Select(v => v.Id));
+        Assert.Empty(Movement.SteepEntering(Fx.Model(8, 0), [hill]));
+    }
+
     [Fact] public void Check_applies_the_difficult_cap()
     {
         var r = Movement.Check(Start, new(4, 0), 12, [], [Forest], 6, null);                // in the forest
