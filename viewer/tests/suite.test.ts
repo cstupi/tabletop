@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fetchSuite, recordingUrl, runEvents, spectate, startRun, SuiteError, type RunEvent, type SuiteGameResult } from '../src/lib/suite/client';
-import { applyEvent, canRun, counts, coverageCell, editionName, editionsOf, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleEdition, toggleGame, toggleGroup } from '../src/lib/suite/model';
+import { applyEvent, canRun, counts, coverageCell, editionsOf, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleEdition, toggleGame, toggleGroup } from '../src/lib/suite/model';
 
 const games = [
   { name: 'core-a', group: 'core', covers: ['Rending'], edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' },
@@ -120,7 +120,6 @@ describe('editions', () => {
       { edition: 'grimdark-future', name: 'Grimdark Future 3.5.1' },
       { edition: 'grimdark-future-3.6', name: 'Grimdark Future 3.6.0' },
     ]);
-    expect(editionName(games, 'grimdark-future-3.6')).toBe('Grimdark Future 3.6.0');
   });
   it('toggles every game of an edition', () => {
     let p = toggleEdition(initial(games), 'grimdark-future-3.6');

@@ -93,10 +93,6 @@ export function editionsOf(games: readonly SuiteGame[]): Edition[] {
   return [...seen].map(([edition, name]) => ({ edition, name }));
 }
 
-/** The set's name for an edition id (a coverage entry carries only the id); the id itself when no game of it is listed. */
-export const editionName = (games: readonly SuiteGame[], edition: string): string =>
-  games.find((g) => g.edition === edition)?.ruleSet ?? edition;
-
 /** Selects every game of the edition, or deselects them all when they are all selected. */
 export function toggleEdition(page: Page, edition: string): Page {
   const names = page.games.filter((g) => g.edition === edition).map((g) => g.name);
