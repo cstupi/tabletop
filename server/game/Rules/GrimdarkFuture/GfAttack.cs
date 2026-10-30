@@ -329,8 +329,16 @@ public static partial class GfAttack
     public static AttackKind KindOf(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => weapons.Contains(w.Id))?.Stats.ContainsKey(GfNames.Range) == true ? AttackKind.Shooting : AttackKind.Melee;
 
+    /// <summary>p.9 who can strike, model to model: 3.5.1 "within 2” horizontally and 4” vertically"; 3.6.0 p.9 "All models that are within 3” of an
+    /// enemy model from the target unit (horizontally or vertically), may attack it." Read from the game's edition.</summary>
+    internal static bool WithinStrike(GameState state, Guid model, Guid enemy)
+    {
+        var edition = GfEdition.Of(state);
+        return Battlefield.Distance(state, model, enemy) <= edition.MeleeHorizontal && Battlefield.Vertical(state, model, enemy) <= edition.MeleeVertical;
+    }
+
     /// <summary>
-    /// p.8: models with line of sight to a target model and a weapon in range of it; p.9: within 2" horizontally and 4" vertically.
+    /// p.8: models with line of sight to a target model and a weapon in range of it; p.9 who can strike (`WithinStrike`, by edition).
     /// Containment answers before any of that (p.15): a unit inside a container and a unit outside it cannot target each other at
     /// all, and two units in one container — or an occupant and the container model itself — need no measurement, because there is
     /// no distance and no sight line inside a box. Everything armed is eligible then; only the weapon check survives.
@@ -348,7 +356,7 @@ public static partial class GfAttack
         {
             var mine = state.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).ToList();
             if (mine.Count == 0) return false;
-            if (kind == AttackKind.Melee) return targets.Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical);
+            if (kind == AttackKind.Melee) return targets.Any(t => WithinStrike(state, m, t));
             var range = mine.Max(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0);
             return targets.Any(t => Battlefield.Distance(state, m, t) <= range && (sight is null || sight.CanSee(m, t)));
         }
