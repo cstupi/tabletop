@@ -80,14 +80,6 @@
       ]
     },
     {
-      "name": "Decimate",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "When attacking units with more than half of their total size or Tough value (for single-model units), the target must re-roll unmodified Defense results of 6.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Defensive Growth Aura",
       "kind": "model",
       "takesParameter": false,
@@ -105,14 +97,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Demolish",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Ignores Cover, and when attacking units with most models within 1\u0022 of terrain, this weapon gets AP(\u002B1).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Dodge",
@@ -557,22 +541,6 @@
       ]
     },
     {
-      "name": "Fracture",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "For each unmodified result of 6 to hit, those hits get AP(\u002B2).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Fragment",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "When attacking units where most models have Defense 5\u002B to Defense 6\u002B, the target must re-roll successful unmodified Defense results of 5-6.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Furious Aura",
       "kind": "model",
       "takesParameter": false,
@@ -933,26 +901,10 @@
       ]
     },
     {
-      "name": "Obliterate",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Ignores Regeneration, and when attacking units where most models have Tough(3) or higher, the target must re-roll successful unmodified Defense results of 5-6.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Parry",
       "kind": "weapon",
       "takesParameter": false,
       "ruleText": "",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Pierce",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon\u0027s range away, this weapon gets AP(\u002B1).",
       "effects": [],
       "played": false
     },
@@ -981,8 +933,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Piercing Marksman.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Piercing Marksman",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Precision Charge",
@@ -1076,22 +1038,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Puncture",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Ignores Regeneration, and when attacking units where most models have Defense 2\u002B to Defense 3\u002B, this weapon gets AP(\u002B2).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Purge",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "When attacking units that are Shaken or Fatigued, this weapon gets AP(\u002B2).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Quick Shot Aura",
@@ -1327,14 +1273,6 @@
       ]
     },
     {
-      "name": "Reap",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "When attacking units that are Shaken or Fatigued, the target must re-roll successful unmodified Defense results of 5-6.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Regeneration Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1449,14 +1387,6 @@
       "played": false
     },
     {
-      "name": "Scourge",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Scout Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1554,14 +1484,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Smash",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "When attacking units over half of this weapon\u0027s range away, the target must re-roll unmodified Defense results of 6.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Speed Feat Aura",

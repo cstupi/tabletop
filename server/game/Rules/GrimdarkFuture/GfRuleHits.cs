@@ -98,12 +98,14 @@ public static class GfRuleHits
     }
 
     /// <summary>Ravage: "When it's this model's turn to attack in melee, roll X dice. For each 6+ the target takes one wound." The striking unit's turn: the
-    /// charger's before its strikes, the defender's when it strikes back (or struck first with Counter).</summary>
+    /// charger's before its strikes, the defender's when it strikes back (or struck first with Counter). A text-only entry (3.6.0's "Once per round ...
+    /// unless this unit is Fatigued", which no step plays yet) rolls nothing, as the marker rules' Played gate (GfMarkers).</summary>
     public sealed class RavageStep(string name, bool charger) : IStep
     {
         public string Name => name;
         public StepOutcome Run(StepContext ctx)
         {
+            if (ctx.Properties.Entry(GfNames.Ravage) is not { Played: true }) return new Complete([]);
             var (attacker, target) = charger ? (ctx.Frame.Context.ActorUnitId!.Value, ctx.Frame.Context.TargetUnitIds[0]) : (ctx.Frame.Context.TargetUnitIds[0], ctx.Frame.Context.ActorUnitId!.Value);
             if (ctx.History.Children.Count > 0) return new Complete([]);
             if (!charger && !GfMelee.DefenderStruck(ctx)) return new Complete([]);

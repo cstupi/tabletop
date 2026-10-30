@@ -116,29 +116,8 @@
         "range": 12,
         "lineOfSight": true
       },
-      "effects": [
-        {
-          "subject": "self",
-          "ordinal": 10,
-          "kind": "add_hit",
-          "amount": 6,
-          "amountFromParameter": false,
-          "duration": "interaction",
-          "conditions": [],
-          "children": [
-            {
-              "subject": "self",
-              "ordinal": 20,
-              "kind": "grant_property",
-              "targetEntry": "Destructive",
-              "amountFromParameter": false,
-              "duration": "interaction",
-              "conditions": [],
-              "children": []
-            }
-          ]
-        }
-      ]
+      "effects": [],
+      "played": false
     },
     {
       "name": "Shadow Dance",

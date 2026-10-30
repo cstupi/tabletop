@@ -33,7 +33,7 @@ public static class Generation
             {
                 var (live, demoted) = BookWriter.DemoteUndefinedGrants(built, core, hand);
                 built = live;
-                if (demoted.Count > 0) notes.Add($"text-only spells (undefined grant: <rule>): {demoted.Count}\n    {string.Join("\n    ", demoted)}");
+                if (demoted.Count > 0) notes.Add($"text-only spells (undefined or text-only grant: <rule>): {demoted.Count}\n    {string.Join("\n    ", demoted)}");
             }
             problems.AddRange(BookWriter.Check(built, core, hand, rules));
         }

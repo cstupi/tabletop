@@ -9,20 +9,12 @@ public class ArmyRules36Tests
     /// <summary>Entries still holding their 3.5.1 text and effects: 3.6.0 changed the text, and Task 7.5 authors each against it.</summary>
     static readonly string[] AwaitingTheir36Text =
     [
-        "Bane Mark", "Bane in Melee Aura", "Bane when Shooting", "Bane when Shooting Aura", "Battleborn", "Changebound", "Darkborn",
-        "Destructive",
-        "Grounded Precision", "Havocbound",
-        "Highborn", "Hit & Run", "Hit & Run Fighter", "Hit & Run Shooter", "Increased Shooting Range",
-        "Increased Shooting Range Aura", "Increased Shooting Range Buff", "Increased Shooting Range Mark", "Indirect when Shooting Aura",
-        "Knightborn", "Lacerate", "Lustbound",
-        "Melee Slayer", "Mind Control", "Piercing Debuff", "Piercing Fighter Aura", "Piercing Frenzy", "Piercing Growth",
-        "Piercing Shooter Aura", "Piercing Shooting Mark", "Piercing Spotter", "Piercing Tag", "Piercing Target", "Plaguebound",
-        "Precision Frenzy", "Precision Growth", "Precision Spotter", "Precision Tag", "Precision Target", "Primeborn",
-        "Ranged Slayer", "Ravage",
-        "Rending in Melee", "Rending in Melee Aura", "Rending when Shooting Aura",
-        "Shred Mark", "Shred in Melee", "Shred in Melee Aura", "Shred when Shooting", "Shred when Shooting Aura", "Slayer",
-        "Takedown Shot", "Takedown Strike", "Targeting Visor",
-        "Thrust in Melee Aura", "Unstoppable in Melee", "Unstoppable in Melee Aura", "Unstoppable when Shooting Aura",
+        "Battleborn", "Changebound", "Darkborn",
+        "Havocbound",
+        "Highborn",
+        "Knightborn", "Lustbound",
+        "Plaguebound",
+        "Primeborn",
         "Warbound", "Watchborn", "Wolfborn"
     ];
 
