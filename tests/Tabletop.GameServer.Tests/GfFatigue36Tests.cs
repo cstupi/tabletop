@@ -66,4 +66,20 @@ public class GfFatigue36Tests
         sim.Answer(Samples.Team2, new Chosen("strike"));
         Assert.Equal(pools, sim.Steps("roll-to-hit").Last().Rolls.Count);
     }
+
+    /// <summary>3.6 Hazardous: "this model's unit takes one wound on unmodified rolls of 1 to hit". A 1 is no hit, so fatigue's clause leaves it.</summary>
+    [Fact]
+    public void A_fatigued_hazardous_one_still_wounds_its_own_unit_under_3_6()
+    {
+        var charger = Unit("Charger", "4+", "6+", [], 1, [], Melee("Sword", 1));
+        var tired = Unit("Tired", "4+", "4+", [], 1, [P("Tough", 3)], Melee("Drill", 1, P("Hazardous")));
+        var sim = Sim.Gf36(State([charger], [tired], x1: -3, x2: 0), 1, 1, 1, 1);                      // charger misses; strike-back 1
+        sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, tired.Id), GfNames.Fatigued, true)]);
+        sim.Start(GfNames.Melee, MeleeOf(charger, tired));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var roll = sim.Steps("roll-to-hit").Last().Rolls.Single();
+        Assert.True(roll.HitsTriggerNothing);
+        Assert.Equal(["Hazardous +1 wound"], roll.Dice.Single().Triggered!);
+        Assert.Equal(1, sim.Steps("score-hits").Last().Values!["self_wounds"]);
+    }
 }

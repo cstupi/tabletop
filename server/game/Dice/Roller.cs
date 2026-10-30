@@ -29,7 +29,7 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         if (count > MaxDice) { Log.LogWarning("A {Roll} roll of {Count} dice was clamped to {Max}", plan.Roll, count, MaxDice); count = MaxDice; }
         var rolled = Enumerable.Range(0, count).Select(_ => Judge(plan, Draw(plan))).ToList();
-        var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled, plan.RequiredRaw, plan.Basis, plan.Cover, Ignored: plan.Ignored, HitsTriggerNothing: plan.HitsTriggerNothing);
+        var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled, plan.RequiredRaw, plan.Basis, plan.Cover, Ignored: plan.Ignored, HitsTriggerNothing: plan.HitsTriggerNothing ? true : null);
         var replaced = new List<DieReplacement>();
         for (var i = 0; i < rolled.Count; i++)
             if (plan.Rerolls(rolled[i])) replaced.Add(new DieReplacement(i, rolled[i], Judge(plan, Draw(plan))));   // once, never again
