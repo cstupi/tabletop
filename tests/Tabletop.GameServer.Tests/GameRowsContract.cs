@@ -24,6 +24,7 @@ public abstract class GameRowsContract
         Assert.NotNull(game);
         Assert.Equal((GameStatus.Lobby, "Friday", seeded.CreatorAccountId, "grimdark-future", SchedulerShape.AlternatingActivation, Enforcement.Warn),
             (game.Status, game.Name, game.CreatedBy, game.GameRules, game.SchedulerShape, game.Enforcement));
+        Assert.False(string.IsNullOrEmpty(game.RuleSet));   // the properties row's name
         Assert.Equal(seeded.RngSeed, game.RngSeed);      // the stored dice seed arrives with the rest of the row; this server never writes it
         Assert.Equal([1, 2], game.Teams.Select(t => t.Ordinal));
         Assert.Equal(3, game.Participants.Count);

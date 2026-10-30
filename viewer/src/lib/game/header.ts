@@ -4,6 +4,7 @@
 
 import type { ConnectionState } from '../connection/gameConnection';
 import type { Edit, GameStatus } from '../protocol/wire.generated';
+import { ruleSetText } from '../play/headerText';
 import { STATUS_LABEL } from '../games/present';
 import { endSetupText } from '../lobby/lobbyView';
 import { waitingFor } from '../lobby/lobbyPage';
@@ -15,6 +16,8 @@ export interface HeaderStrip {
   readonly title: string;
   readonly status: GameStatus | null;
   readonly statusLabel: string;
+  /** The rule set's name beside the title; null before the welcome. */
+  readonly ruleSet: string | null;
   /** "Connecting…", "Reconnecting…", "Disconnected"; null while connected. */
   readonly connection: string | null;
   readonly primary: { readonly label: string; readonly edit: Edit } | null;
@@ -45,6 +48,7 @@ export function headerOf(snap: ConnectionState | null, creator: boolean): Header
     title: game?.name ?? 'Game',
     status,
     statusLabel: status === null ? '' : STATUS_LABEL[status],
+    ruleSet: game === null ? null : ruleSetText(game),
     connection: snap === null ? CONNECTION.connecting : CONNECTION[snap.phase],
     primary,
     waiting: game === null || watcher || status !== 'setup' ? null : waitingFor(game, creator),

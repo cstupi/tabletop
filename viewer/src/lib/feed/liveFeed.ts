@@ -82,7 +82,7 @@ export function liveFeed(
       participants: info.participants.filter((p) => p.teamId === team.id).map((p) => p.name),
     }));
     return {
-      scenario: info.name, seed: 0, driver: 'live', gameRules: info.gameRules,
+      scenario: info.name, seed: 0, driver: 'live', gameRules: info.gameRules, ruleSet: info.ruleSet,
       propertiesHash: info.propertiesHash, schedulerShape: info.schedulerShape,
       enforcement: info.enforcement, teams, outcome: 'live',
       rounds, lastSeq, startedAt: new Date(started).toISOString(), durationMs: Date.now() - started,

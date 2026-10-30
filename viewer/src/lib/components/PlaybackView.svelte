@@ -12,6 +12,7 @@
   import type { Hit } from '../board/pick';
   import { attachFeed, detachFeed, IDLE, type Feed, type FeedState } from '../feed/feed';
   import { EMPTY, frameOf, reduce, type Timeline as TimelineState, type TimelineAction } from '../timeline/timeline';
+  import { ruleSetText } from '../play/headerText';
 
   let { feed, models = 'bases' }: { feed: Feed | null; models?: 'bases' | 'circles' } = $props();
 
@@ -101,7 +102,7 @@
           <div class="pad">
             {#if feedState.meta !== null}
               <p>{feedState.meta.scenario} · seed {feedState.meta.seed} · {feedState.meta.driver}</p>
-              <p class="muted">{feedState.meta.gameRules} · {feedState.meta.schedulerShape} · {feedState.meta.enforcement}</p>
+              <p class="muted">{ruleSetText(feedState.meta)} · {feedState.meta.schedulerShape} · {feedState.meta.enforcement}</p>
               <p>outcome: <strong>{feedState.meta.outcome}</strong>{feedState.meta.outcomeDetail === undefined ? '' : ` — ${feedState.meta.outcomeDetail}`}</p>
               <p class="muted">{feedState.meta.rounds} round(s), last seq {feedState.meta.lastSeq}, {Math.round(feedState.meta.durationMs)} ms</p>
               {#each feedState.meta.teams as team (team.id)}<p>Team {team.ordinal}: {team.name}</p>{/each}

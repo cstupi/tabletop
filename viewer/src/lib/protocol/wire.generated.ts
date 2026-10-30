@@ -300,6 +300,7 @@ export interface GameInfo {
   readonly teams: readonly Team[];
   readonly participants: readonly Participant[];
   readonly optionalRules: { readonly [key: string]: string };
+  readonly ruleSet?: string;
 }
 
 export interface GameInfoMessage {

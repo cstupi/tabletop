@@ -55,6 +55,7 @@ public partial class LobbyPanel : VBoxContainer
             }
         }, Problem);
         var config = settings.Body;
+        config.AddChild(Wrapping(HeaderView.RuleSetLine(game), Variation.Dim));
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
         var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(Named("Game name", name));
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(Named("Activation", shape));

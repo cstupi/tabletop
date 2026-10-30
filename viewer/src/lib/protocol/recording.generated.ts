@@ -193,4 +193,5 @@ export interface RecordingMeta {
   readonly lastSeq: number;
   readonly startedAt: string;
   readonly durationMs: number;
+  readonly ruleSet?: string;
 }

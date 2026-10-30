@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { notActivatedText, outlineText, scoreText, waitingLine } from '../src/lib/play/headerText';
+import { notActivatedText, outlineText, ruleSetText, scoreText, waitingLine } from '../src/lib/play/headerText';
 import { REPLAYING, WATCHING } from '../src/lib/play/headerView';
 import { Names } from '../src/lib/play/names';
 import { ASK_ID, TEAM1, askOf, projectionOf, sample } from './play';
@@ -18,6 +18,11 @@ describe('headerText', () => {
     expect(waitingLine(open, n, [], true, [TEAM1])).toBe(WATCHING);
     expect(waitingLine(open, n, [], false, [TEAM1])).toBe('Your move: activate');
     expect(waitingLine(open, n, [], false, [])).toBe('Team 1: activate');
+  });
+
+  it('the rule set shows by name, an old recording by its rules id', () => {
+    expect(ruleSetText({ ruleSet: 'Grimdark Future v3.6.0', gameRules: 'grimdark-future' })).toBe('Grimdark Future v3.6.0');
+    expect(ruleSetText({ gameRules: 'grimdark-future' })).toBe('grimdark-future');
   });
 
   it('a done step is ticked', () => {

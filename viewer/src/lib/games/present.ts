@@ -30,6 +30,9 @@ export function ago(iso: string, now: Date = new Date()): string {
   return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** The row's rule set chip text: the set's name; null when the row has none. */
+export const ruleSetLine = (game: GameSummary): string | null => game.ruleSet ?? null;
+
 /** "Ann, Ben and 2 more"; "No players yet". */
 export function playersLine(names: readonly string[]): string {
   if (names.length === 0) return 'No players yet';
