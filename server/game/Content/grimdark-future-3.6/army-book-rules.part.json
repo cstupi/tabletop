@@ -25,15 +25,6 @@
       ]
     },
     {
-      "name": "Bane in Melee Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Bane on its weapons in melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bounding Aura",
       "kind": "model",
       "takesParameter": false,
@@ -192,15 +183,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Enhanced Ferocious Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit Enhanced Ferocious.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Enhanced Guardian Aura",
@@ -990,15 +972,6 @@
       ]
     },
     {
-      "name": "Indirect Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Indirect on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Infiltrate Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1588,15 +1561,6 @@
       ]
     },
     {
-      "name": "Rending Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Rending on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Scout Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1897,15 +1861,6 @@
       ]
     },
     {
-      "name": "Thrust in Melee Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Thrust in Melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Unpredictable Fighter Aura",
       "kind": "model",
       "takesParameter": false,
@@ -2010,29 +1965,11 @@
       ]
     },
     {
-      "name": "Unstoppable Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unstoppable on their weapons against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Versatile Defense Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Versatile Defense.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Versatile Expert",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, pick one effect: until the end of the activation all models with this rule in this unit either get AP(\u002B1) when attacking, or get \u002B1 to hit rolls when attacking.",
       "effects": [],
       "played": false
     },
@@ -2054,15 +1991,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Versatile Warrior",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this unit is activated, pick one effect: until the end of the activation, when shooting/charging enemies over 9\u0022/6\u0022 away, all models with this rule in it either get AP(\u002B1) or get \u002B1 to hit rolls.",
-      "effects": [],
-      "played": false
     }
   ]
 }
