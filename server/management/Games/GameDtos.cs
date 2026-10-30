@@ -4,7 +4,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Management.Games;
 
-public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules);
+public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules, bool Default);
 public sealed record CreateGameRequest(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps);
 /// <summary>A row of the game browser. ParticipantNames: the account names of its participants, in join order.</summary>
 /// <summary>A row of the public game list. Joined: the caller holds a participant row in the game (what the client's Replay offers).</summary>

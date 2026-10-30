@@ -16,6 +16,7 @@ public sealed record GrantableEffect(string EntryName, Guid EffectId, string Dur
 public sealed class GameRepository(Database db) : IGameRepository
 {
     private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy, string OptionalRules);
+    private sealed record PropertiesRow(string ContentHash, string Name, string GameRules);
     private sealed record ParticipantRow(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId);
     // CreatedAt comes back as DateTime (Npgsql's CLR type for timestamptz), not DateTimeOffset: Dapper picks a
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
@@ -27,12 +28,12 @@ public sealed class GameRepository(Database db) : IGameRepository
     public async Task<IReadOnlyList<PropertiesSummary>> ListProperties()
     {
         await using var c = await db.Open();
-        return (await c.QueryAsync<PropertiesSummary>("""
+        return (await c.QueryAsync<PropertiesRow>("""
             select ContentHash, Name, GameRules from (
                 select distinct on (game_rules, name) content_hash as ContentHash, name as Name, game_rules as GameRules, seeded_at
                 from properties order by game_rules, name, seeded_at desc) latest
             order by seeded_at desc
-            """)).ToList();
+            """)).Select(p => new PropertiesSummary(p.ContentHash, p.Name, p.GameRules, p.GameRules == RuleSets.Default)).ToList();
     }
 
     /// <summary>Every catalog entry of a pinned set, by name; null when no set has this hash.</summary>
