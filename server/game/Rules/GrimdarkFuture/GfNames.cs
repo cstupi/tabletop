@@ -29,6 +29,8 @@ public static class GfNames
     public const string Deathstrike = "Deathstrike", Retaliate = "Retaliate", SelfDestruct = "Self-Destruct", Ravage = "Ravage", CrossingAttack = "Crossing Attack", Strafing = "Strafing";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
+    /// <summary>3.6.0 p.12: the unit's Dangerous Terrain Test (GfMoves.DangerousTerrain36), beside 3.5.1 p.11's per-model one.</summary>
+    public const string DangerousTerrain36 = "dangerous-terrain-36";
     public const string DangerousTerrain = "dangerous-terrain", CastingSeq = "casting", SpellHitsSeq = "spell-hits", RollOffSeq = "roll-off";
     /// <summary>The roll-off's two step names. The scheduler reads the order off the step_completed named by the second.</summary>
     public const string RollOffRollStep = "roll-off", RollOffOrderStep = "order";

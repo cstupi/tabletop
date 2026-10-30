@@ -79,7 +79,7 @@ public static partial class GfMoves
                         ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2,
                         [GfNames.EnteredDifficultKey] = entered || ctx.Frame.Value(GfNames.EnteredDifficultKey) > 0 ? 1 : 0, ["continues"] = continues ? 1 : 0,
                     };
-                    MarkTested(values, tested);
+                    MarkTested(ctx.State, unit, values, tested);
                     if (segment > 0)
                     {
                         var (spent, held) = ConsumeKeepingFlying(live);
@@ -89,7 +89,7 @@ public static partial class GfMoves
                     }
                     return new Complete(changes, values, Repeat: true);
                 }
-                case 1 when ctx.History.Children.Count == 0: return new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], action));
+                case 1 when ctx.History.Children.Count == 0: return new Push(DangerousSeq(ctx.State), new SequenceContext(unit, [], [], action));
                 case 1: return new Complete([], new Dictionary<string, int> { ["phase"] = 2 }, Repeat: true);
                 default:
                     if (Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) is { } window) return window;

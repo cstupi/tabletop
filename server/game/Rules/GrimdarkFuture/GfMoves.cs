@@ -183,12 +183,12 @@ public static partial class GfMoves
             }
             // Write the dice count first, then push: the child reads dangerous_dice off this frame, so it must be settled before the push.
             // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
-            if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(GfNames.DangerousTerrain, ctx.Frame.Context);
+            if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(DangerousSeq(ctx.State), ctx.Frame.Context);
             // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
             var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx));
             if (standing.Count == 0) return new Complete([]);
-            var values = new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) };
-            MarkTested(values, standing);
+            var values = new Dictionary<string, int> { ["dangerous_dice"] = OwedDice(ctx.State, unit, standing) };   // 3.6.0 p.12: the whole unit's wounds
+            MarkTested(ctx.State, unit, values, standing);
             return new Complete(RollEffects.Consume(live), values, Repeat: true);
         }
     }
@@ -271,9 +271,9 @@ public static partial class GfMoves
         if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true));
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.MovedThisRound)) changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.MovedThisRound, true)); }
-        // p.11: a model that has taken the test this activation (activated in it, or an earlier segment) owes none for this move.
-        var testing = rules.IgnoresDangerous ? [] : exposed.Where(m => !TestedThisActivation(ctx.Frame, m)).ToList();
-        return (changes, (int)Math.Round(used * 10), DangerousDice(ctx.State, testing), crossedDifficult && !strider, testing);
+        // p.11: a model that has taken the test this activation (activated in it, or an earlier segment) owes none for this move; 3.6.0 p.12: the unit, once.
+        var testing = rules.IgnoresDangerous ? [] : Untested(ctx, unit, exposed);
+        return (changes, (int)Math.Round(used * 10), OwedDice(ctx.State, unit, testing), crossedDifficult && !strider, testing);
     }
 
     /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.</summary>
@@ -348,7 +348,7 @@ public static partial class GfMoves
         public StepOutcome Run(StepContext ctx)
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value; var entry = ctx.Frame.Context.Action!;
-            if (ctx.Frame.Value("dangerous_dice") > 0) return ctx.History.Children.Count == 0 ? new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], entry)) : new Complete([]);
+            if (ctx.Frame.Value("dangerous_dice") > 0) return ctx.History.Children.Count == 0 ? new Push(DangerousSeq(ctx.State), new SequenceContext(unit, [], [], entry)) : new Complete([]);
             var live = Lone(ctx, unit, ActionOf(ctx.Frame));
             if (Offered(live, entry) is not var (source, row)) return new Finish([]);
             if (row.Kind == EffectKind.Place) return Place(ctx, unit, entry, live, source, row);
@@ -366,7 +366,7 @@ public static partial class GfMoves
             var (spent, held) = ConsumeKeepingFlying(live);
             changes.AddRange(spent);
             held["dangerous_dice"] = dice;
-            MarkTested(held, tested);
+            MarkTested(ctx.State, unit, held, tested);
             return new Complete(changes, held, Repeat: dice > 0);
         }
 
