@@ -57,7 +57,7 @@ switch (args.FirstOrDefault())
             Console.Error.WriteLine($"dump file missing under {dir}: {ex.Message}");
             return 2;
         }
-        var (built, rules, report, reserveUnits, problems) = g;
+        var (built, rules, report, reserveUnits, problems, notes) = g;
         if (problems.Count > 0) { foreach (var p in problems) Console.Error.WriteLine(p); return 1; }
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
         var rulesPath = Arg("--rules", Path.Combine(content, "army-book-rules.part.json"));
@@ -69,6 +69,7 @@ switch (args.FirstOrDefault())
         Console.WriteLine($"wrote {rulesPath}: {report!.Generated} generated, {rules!.Entries.Count - report.Generated} text-only");
         foreach (var (group, count) in report.Groups) Console.WriteLine($"  {group}: {count}");
         if (report.NoDescription.Count > 0) Console.WriteLine($"  no description: {string.Join(", ", report.NoDescription)}");
+        foreach (var n in notes) Console.WriteLine($"  {n}");
         return 0;
     }
     default:

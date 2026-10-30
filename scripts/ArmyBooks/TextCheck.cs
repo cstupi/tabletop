@@ -13,7 +13,7 @@ public static partial class TextCheck
         var problems = new List<string>(); var text = spell.Effect; var where = spell.Name.Trim();
         var a = spell.Generation.Assignment; var e = spell.Generation.Effect;
         var plural = a.Text("numberText") == "one" ? "" : "s";
-        var clause = $"Pick {a.Text("numberText")} {a.Text("friendly-enemy")} {a.Text("target")}{plural} {a.Text("inRange")}";
+        var clause = $"Pick {a.Text("numberText")} {a.Text("friendly-enemy")} {a.Text("target")}{plural} {(SpellTranslator.RangeCorrection(spell) is { } c ? a.Text("inRange")!.Replace(c.Generation.ToString(), c.Printed.ToString()) : a.Text("inRange"))}";
         if (!text.StartsWith(clause, StringComparison.Ordinal)) problems.Add($"{where}: generation says '{clause}'; the text does not");
         if (a.Text("inLoS") is { Length: > 0 } sight && !text.Contains(sight, StringComparison.Ordinal)) problems.Add($"{where}: generation says '{sight}'; the text does not");
         if (entry.Effects.FirstOrDefault(f => f.Kind == EffectKind.AddHit) is { } hits && !(Hits().Match(text) is { Success: true } m && m.Groups[1].Value == hits.Amount.ToString()))

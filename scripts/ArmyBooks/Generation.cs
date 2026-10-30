@@ -3,7 +3,7 @@ using Tabletop.GameServer.Properties;
 
 namespace Tabletop.ArmyBooks;
 
-public sealed record Generated(IReadOnlyList<BookDocument> Books, PropertySetDocument? Rules, RuleReport? Report, string Units, List<string> Problems);
+public sealed record Generated(IReadOnlyList<BookDocument> Books, PropertySetDocument? Rules, RuleReport? Report, string Units, List<string> Problems, IReadOnlyList<string> Notes);
 
 public static class Generation
 {
@@ -19,6 +19,9 @@ public static class Generation
             catch (GenerationException ex) { return ex.Problems; }
         })).ToList();
         IReadOnlyList<BookDocument> built = [];
+        var notes = new List<string>();
+        foreach (var b in books) foreach (var sp in b.Spells)
+            if (SpellTranslator.RangeCorrection(sp) is { } rc) notes.Add($"range from text: {b.Name} {sp.Name.Trim()} {rc.Generation} → {rc.Printed}");
         var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand, rulesId);
         problems.AddRange(ruleProblems);
         var (reserveUnits, reserveProblems) = ReserveUnits.Build(raw);
@@ -28,6 +31,8 @@ public static class Generation
             built = BookWriter.Build(books, rulesId);
             problems.AddRange(BookWriter.Check(built, core, hand, rules));
         }
-        return new Generated(built, rules, report, reserveUnits, problems);
+        var textOnly = books.SelectMany(b => b.Spells.Where(SpellTranslator.IsTextOnly).Select(sp => $"{b.Name}: {sp.Name.Trim()}")).ToList();
+        if (textOnly.Count > 0) notes.Add($"text-only spells: {string.Join("; ", textOnly)}");
+        return new Generated(built, rules, report, reserveUnits, problems, notes);
     }
 }

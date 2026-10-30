@@ -11,6 +11,27 @@ public static partial class SpellTranslator
     public static IReadOnlyDictionary<string, EntryDocument> Overrides { get; } = new Dictionary<string, EntryDocument>();
 
     [GeneratedRegex(@"(-?\+?\d+)")] private static partial Regex Number();
+    [GeneratedRegex("^Pick [^\"]*? within (\\d+)\"")] private static partial Regex PrintedRangeRx();
+
+    /// <summary>The effect id Army Forge uses for "loses N spell tokens", which the effect grammar has no kind for: the spell is written text-only.</summary>
+    const string TokenLossEffect = "Urj6dU6Tua8B";
+
+    /// <summary>The range the printed text states ("Pick one enemy unit within 18" …"), or null when it states none.</summary>
+    public static int? PrintedRange(AfSpell spell) => PrintedRangeRx().Match(spell.Effect) is { Success: true } m ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : null;
+
+    /// <summary>The range the generation names and the printed text states, when they differ: the printed text is the authority.</summary>
+    public static (int Generation, int Printed)? RangeCorrection(AfSpell spell)
+    {
+        var generation = Int(spell.Generation.Assignment.Text("inRange"), spell.Name.Trim());
+        return PrintedRange(spell) is { } printed && printed != generation ? (generation, printed) : null;
+    }
+
+    /// <summary>True when the translation falls back to a text-only spell: an effect the grammar has no kind for, or an attack type the structured field leaves empty or unknown.</summary>
+    public static bool IsTextOnly(AfSpell spell)
+    {
+        var e = spell.Generation.Effect;
+        return e.Id == TokenLossEffect || (e.Parameters.Any(p => p.Name == "attackType") && e.Text("attackType") is not ("when shooting" or "in melee" or "when attacking"));
+    }
 
     public static EntryDocument Translate(AfBook book, AfSpell spell)
     {
@@ -21,8 +42,9 @@ public static partial class SpellTranslator
             a.Text("friendly-enemy") switch { "friendly" => TargetSide.Friendly, "enemy" => TargetSide.Enemy, var x => throw Bad(where, $"side '{x}'") },
             a.Text("target") switch { "unit" => TargetGrain.Unit, "model" => TargetGrain.Model, var x => throw Bad(where, $"target '{x}'") },
             a.Text("numberText") switch { "one" => 1, "up to two" => 2, "up to three" => 3, var x => throw Bad(where, $"count '{x}'") },
-            Int(a.Text("inRange"), where),
+            PrintedRange(spell) ?? Int(a.Text("inRange"), where),
             a.Text("inLoS") is { Length: > 0 } ? true : null);   // 3.6: the spell's own "in line of sight"; 3.5 dumps carry none, so 3.5.1 stays null
+        if (IsTextOnly(spell)) return new EntryDocument(spell.Name.Trim(), CatalogKind.Spell, false, null, spell.Threshold, null, spell.Effect, targeting, [], false);
         IReadOnlyList<EffectDocument> rows = e.Id switch
         {
             "QFjxWsOHTCSi" => [Damage(spell, e, where)],

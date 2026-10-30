@@ -138,6 +138,35 @@ public class SpellTranslatorTests
         Assert.True(SpellTranslator.Translate(b, seen).Targeting!.LineOfSight);
     }
 
+    static AfSpell With(AfSpell s, string effect, string? effectId = null, params AfParam[] more) =>
+        s with { Effect = effect, Generation = s.Generation with { Effect = s.Generation.Effect with { Id = effectId ?? s.Generation.Effect.Id, Parameters = [.. s.Generation.Effect.Parameters, .. more] } } };
+
+    [Fact]
+    public void The_printed_range_beats_the_generations()
+    {
+        var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
+        Assert.Null(SpellTranslator.RangeCorrection(terror));
+        var longer = terror with { Effect = terror.Effect.Replace("within 6\"", "within 12\"") };
+        Assert.Equal((6, 12), SpellTranslator.RangeCorrection(longer));
+        Assert.Equal(12, SpellTranslator.Translate(b, longer).Targeting!.Range);
+        Assert.Empty(TextCheck.Problems(longer, SpellTranslator.Translate(b, longer)));
+    }
+
+    [Fact]
+    public void A_token_loss_effect_or_an_empty_attack_type_falls_back_to_a_text_only_spell()
+    {
+        var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
+        var loss = With(terror, terror.Effect, "Urj6dU6Tua8B");
+        var empty = With(terror, terror.Effect, "i1BVqztsr1V6", new AfParam("attackType", JsonDocument.Parse("\"\"").RootElement.Clone()));
+        foreach (var s in new[] { loss, empty })
+        {
+            var entry = SpellTranslator.Translate(b, s);
+            Assert.True(SpellTranslator.IsTextOnly(s));
+            Assert.Equal((false, 0), (entry.Played, entry.Effects.Count));
+        }
+        Assert.False(SpellTranslator.IsTextOnly(terror));
+    }
+
     public static IEnumerable<EntryDocument> AllTranslated() =>
         Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "books")).Order(StringComparer.Ordinal)
             .Select(f => ArmyForgeJson.ReadBook(File.ReadAllText(f))).SelectMany(b => b.Spells.Select(s => SpellTranslator.Translate(b, s)));
