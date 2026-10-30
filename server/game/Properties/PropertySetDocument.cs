@@ -139,7 +139,7 @@ public static class PropertiesJson
         if (f.CapKind is not null && f.Kind != EffectKind.Multiply) problems.Add(At("cap_kind is multiply only"));
         if (f.Replacement is not null && f.Kind != EffectKind.ReplaceStat) problems.Add(At("replacement is replace_stat only"));
         if (f.Kind == EffectKind.ReplaceStat && f.Replacement is null && !f.AmountFromParameter) problems.Add(At("replace_stat needs a replacement or the parameter"));
-        if (f.Floor is not null && f.Kind != EffectKind.ModifyStat) problems.Add(At("floor is modify_stat only"));
+        if (f.Floor is not null && f.Kind is not (EffectKind.ModifyStat or EffectKind.ModifyParameter)) problems.Add(At("floor is modify_stat or modify_parameter only"));
         if (f.TargetTerrain is not null && f.Kind != EffectKind.CountAsTerrain) problems.Add(At("target_terrain is count_as_terrain only"));
         if (f.Kind == EffectKind.AddHit && f.TargetQuantity is TargetQuantity.Wounds && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             problems.Add(At("add_hit wounds is per die: it needs a roll_result condition"));
