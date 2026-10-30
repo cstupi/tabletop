@@ -401,7 +401,7 @@ Limited weapon with no eligible target is not marked used; the book is silent. `
 actor check.
 
 **3.6.0 army books (generated).** `generate --edition 3.6` writes 49 books, 196 spells and
-`army-book-rules.part.json` (85 generated, 26 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.json`. The
+`army-book-rules.part.json` (85 generated, 26 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.3.5.json`. The
 printed spell range replaces Army Forge's `inRange` in 96 spells (the dump's value is 6" short of the text; each prints as
 `range from text`). Printed text is the authority. A text-only spell (`effects: []`, `played: false`, not offered to cast) is one
 whose effect the grammar cannot express or whose grant is not played: Burn the Heretic (Blessed Sisters) and Shifting Form (Change
