@@ -88,6 +88,11 @@ public static partial class SuiteCatalog
         public static IReadOnlyList<TestGame> Army36 =>
         [
             .. Kept36.Select(Kept),
+            // Kept rules whose 3.5.1 game also played a rule 3.6 rewrites (Evasive, Shatter): on their own.
+            Under36(Game(Book36("U6hwlur14RpnInZr"), "saurian-starhosts-teleport", Play.ShotWhileMoving, ["Teleport"],
+                [R(1, "Teleport"), R(2, "Teleport"), R(3, "Teleport")], [], [Teleport()])),
+            Under36(Game(Book36("BKi_hJaJflN8ZorH"), "jackals-scrapper", Play.Shoots, ["Scrapper"], [R(1, "Scrapper"), R(2, "Scrapper")], [],
+                [Rerolls("Scrapper", By("Scrapper"), [6], successOnly: false, SixesRerolled)])),
             // Renamed in 3.6 (7.4), each on a 3.6 book that prints the new name.
             Under36(Game(Book36("hk70l4d471plza00"), "ratmen-clans-anti-cover", Play.Shoots, ["Anti-Cover"], [], [],
                 [NoCover("Anti-Cover", With("Anti-Cover"), "\"This weapon ignores Cover.\"")], weapon: [R(0, "Anti-Cover")], units: 2, board: EnemyRuins)),
