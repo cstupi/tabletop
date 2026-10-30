@@ -317,17 +317,36 @@ public static partial class GfAttack
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => weapons.Contains(w.Id)).Any(w => w.Properties.Any(p => p.Name == GfNames.Takedown));
 
     /// <summary>The attack kind of the frame's group: a weapon-less group under a spell-hits frame is a spell's hits (spell library → `spell`); a
-    /// weapon-less group elsewhere is Impact's, which is melee; otherwise the weapons decide.</summary>
+    /// weapon-less group elsewhere is Impact's, which is melee; an attack-sequence the melee sequence pushed is melee, whatever its weapons
+    /// (3.6.0 p.13 Assault strikes with a weapon that has a Range); otherwise the weapons decide.</summary>
     public static AttackKind KindOf(StepContext ctx)
     {
-        if (ctx.Frame.Context.WeaponIds.Count == 0)
-            for (var f = ctx.Frame; f is not null; f = f.Parent)
-                if (f.Frame.Sequence == GfNames.SpellHitsSeq) return AttackKind.Spell;
+        for (var f = ctx.Frame; f is not null; f = f.Parent)
+        {
+            if (ctx.Frame.Context.WeaponIds.Count == 0 && f.Frame.Sequence == GfNames.SpellHitsSeq) return AttackKind.Spell;
+            if (f.Frame.Sequence == GfNames.AttackSequence && f.Parent?.Frame.Sequence == GfNames.Melee) return AttackKind.Melee;
+        }
         return KindOf(ctx.State, ctx.Frame.Context.WeaponIds);
     }
 
+    /// <summary>The kind the weapons alone give: Shooting when one has a Range. A frame's kind is `KindOf(ctx)`, which knows a melee strike with an Assault weapon.</summary>
     public static AttackKind KindOf(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => weapons.Contains(w.Id))?.Stats.ContainsKey(GfNames.Range) == true ? AttackKind.Shooting : AttackKind.Melee;
+
+    /// <summary>The attack-sequence frame was pushed by a melee: a melee frame was open when it started. Walks the effective log's frame stack.</summary>
+    public static bool StartedInMelee(GameState state, Guid frameId)
+    {
+        var open = new List<(Guid Id, string Sequence)>();
+        foreach (var e in EventApplier.EffectiveLog(state.Applier.Log))
+            switch (e.Payload)
+            {
+                case SequenceStarted s when s.FrameId == frameId: return open.Count > 0 && open[^1].Sequence == GfNames.Melee;
+                case SequenceStarted s: open.Add((s.FrameId, s.Sequence)); break;
+                case SequenceFinished f: open.RemoveAll(x => x.Id == f.FrameId); break;
+                case SequenceAbandoned a when open.FindIndex(x => x.Id == a.FrameId) is var i and >= 0: open.RemoveRange(i, open.Count - i); break;
+            }
+        return false;
+    }
 
     /// <summary>p.9 who can strike, model to model: 3.5.1 "within 2” horizontally and 4” vertically"; 3.6.0 p.9 "All models that are within 3” of an
     /// enemy model from the target unit (horizontally or vertically), may attack it." Read from the game's edition.</summary>
@@ -473,7 +492,7 @@ public static partial class GfAttack
     /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it.</summary>
     static int RegenerativeStrength(StepContext ctx, Guid model, AttackKind kind, IReadOnlyList<Guid> weapons)
     {
-        if (kind != AttackKind.Melee || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => !w.Stats.ContainsKey(GfNames.Range)) is not { } first || !weapons.Contains(first.Id)) return 0;
+        if (kind != AttackKind.Melee || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
         var x = GfMarkers.RegenerativeStrength(ctx.State, model);
         if (x > 0) ctx.Applied.Add(GfNames.RegenerativeStrength);
         return x;

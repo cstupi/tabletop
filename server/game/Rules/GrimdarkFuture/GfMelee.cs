@@ -21,8 +21,13 @@ public static class GfMelee
     {
         var used = GfAttack.FiredLimited(state, state.Projection.Stack.LastOrDefault(f => f.Sequence == GfNames.Melee)?.Id);
         return Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons)
-            .Where(w => !w.Stats.ContainsKey(GfNames.Range) && !used.Contains(w.Id) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
+            .Where(w => IsMelee(state, w) && !used.Contains(w.Id) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
     }
+
+    /// <summary>A melee weapon has no Range (Army.cs); 3.6.0 p.13 Assault "Counts as both a ranged weapon and a melee weapon", so under 3.6 a
+    /// ranged weapon carrying Assault is one too (GfEdition.HasAssault). It still shoots: GfShooting.Groups reads Range alone.</summary>
+    public static bool IsMelee(GameState state, Weapon w) =>
+        !w.Stats.ContainsKey(GfNames.Range) || (GfEdition.Of(state).HasAssault && w.Properties.Any(p => p.Name == GfNames.Assault));
 
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
     static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");

@@ -86,6 +86,7 @@ public static class GfNames
     /// <summary>The Values key prefix a step writes for a granted Flying it used and kept (GfMoves.ConsumeKeepingFlying): "flying_held_{unit:N}_{grant:N}".</summary>
     public const string FlyingHeldPrefix = "flying_held_";
     public const string Artillery = "Artillery";                                                                        // 3.5.1 p.13: "May only use Hold actions" (GfEdition.ArtilleryHoldOnly); not in the core catalog, so read off a unit's own properties
+    public const string Assault = "Assault";                                                                            // 3.6.0 p.13: "Counts as both a ranged weapon and a melee weapon." (GfEdition.HasAssault; GfMelee.IsMelee)
     public const string Transport = "Transport";                                                                        // p.15; its (X) is read for a passenger put in before deployment (GfRules.Facts Fits); embarking in play does not check it
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup
