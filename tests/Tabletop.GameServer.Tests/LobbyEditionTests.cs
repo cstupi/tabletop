@@ -44,9 +44,14 @@ public class LobbyEditionTests
         await watcher.ConnectAsync(g.Participants[1].AccountId, g.GameId);
 
         await creator.SendAsync(Edit(Configure(v360)));
-        var info = (await other.ExpectAsync<GameInfoMessage>()).Game;
+        // The catalog comes first: both clients rebuild their option controls when the GameInfo lands.
+        var frames = await DrainAsync(other);
+        var options = frames.FindIndex(m => m is RulesOptionsMessage);
+        var game = frames.FindIndex(m => m is GameInfoMessage);
+        Assert.True(options >= 0 && game > options, string.Join(", ", frames.Select(m => m.GetType().Name)));
+        var info = ((GameInfoMessage)frames[game]).Game;
         Assert.Equal((RuleSets.Gf360, v360), (info.GameRules, info.PropertiesHash));
-        Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json((await other.ExpectAsync<RulesOptionsMessage>()).Options));
+        Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json(((RulesOptionsMessage)frames[options]).Options));
         Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json((await creator.ExpectAsync<RulesOptionsMessage>()).Options));
         Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json((await watcher.ExpectAsync<RulesOptionsMessage>()).Options));
 
@@ -76,7 +81,6 @@ public class LobbyEditionTests
         Assert.Null(info.Participants.Single(p => p.Id == g.Participants[0].ParticipantId).ArmyId);
         Assert.Equal(current!.Id, info.Participants.Single(p => p.Id == g.Participants[1].ParticipantId).ArmyId);
         Assert.Null(db.GameRows.Participant(g.Participants[0].ParticipantId)!.ArmyId);
-        await other.ExpectAsync<RulesOptionsMessage>();
     }
 
     [Fact]
@@ -90,6 +94,18 @@ public class LobbyEditionTests
         var info = (await other.ExpectAsync<GameInfoMessage>()).Game;
         Assert.Equal((RuleSets.Gf351, other351), (info.GameRules, info.PropertiesHash));
         Assert.DoesNotContain(await DrainAsync(other), m => m is RulesOptionsMessage);
+    }
+
+    [Fact]
+    public async Task A_set_whose_game_rules_this_build_does_not_ship_is_refused()
+    {
+        var unknown = await db.SeedPropertiesAsync("warhammer-40k", "Unknown rules");
+        var (f, g, creator, other) = await LobbyAsync();
+        await using var _ = creator; await using var __ = other; using var ___ = f;
+
+        await creator.SendAsync(Edit(Configure(unknown)));
+        Assert.Equal(RefusalReason.Unknown, (await creator.ExpectAsync<Refused>()).Reason);
+        Assert.Equal((RuleSets.Gf351, g.PropertiesHash), (db.GameRows.Game(g.GameId)!.GameRules, db.GameRows.Game(g.GameId)!.PropertiesHash));
     }
 
     [Fact]

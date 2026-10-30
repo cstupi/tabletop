@@ -126,27 +126,28 @@ public sealed partial class GameSession
 
     /// <summary>
     /// The creator's configuration. The hash's game rules decide the catalog the options are checked against; a hash of another rules id
-    /// (another edition) swaps Rules, clears every picked army of the other edition, and sends the new catalog after the GameInfo
-    /// (rule-set versions spec → How a game picks its edition).
+    /// (another edition) swaps Rules, clears every picked army of the other edition, and sends the new catalog before the GameInfo, since
+    /// both clients rebuild their option controls when the GameInfo lands (rule-set versions spec → How a game picks its edition).
     /// </summary>
     private async Task SetConfigurationAsync(ISessionClient from, Guid editId, SetConfiguration c)
     {
         var rows = _services.Rows; var ct = CancellationToken.None;
         if (await rows.PropertiesGameRulesAsync(c.PropertiesHash, ct) is not { } newId) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no properties {c.PropertiesHash}"); return; }
-        var newRules = newId == Rules.Id ? Rules : GameRulesRegistry.Resolve(newId);
+        IGameRules newRules;
+        try { newRules = newId == Rules.Id ? Rules : GameRulesRegistry.Resolve(newId); }
+        catch (UnknownGameRulesException) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no game rules {newId}"); return; }
         if (newRules.OptionProblems(c.OptionalRules) is { Count: > 0 } problems) { await RefuseEdit(from, editId, RefusalReason.Unknown, string.Join("; ", problems)); return; }
         await rows.SetConfigurationAsync(GameId, c, ct);
-        var changed = newRules != Rules;
-        if (changed)
+        if (newRules != Rules)
         {
+            Rules = newRules;   // the row is on the new set: the session follows it before anything else can fail
             var edition = RuleSets.EditionOf(newId);
             foreach (var p in Info.Participants.Where(p => p.ArmyId is not null))
                 if (await rows.ReadArmyAsync(p.ArmyId!.Value, ct) is { } owned && owned.Army.Edition != edition)
                     await rows.SetParticipantArmyAsync(p.Id, null, ct);
-            Rules = newRules;
+            await BroadcastAsync(new RulesOptionsMessage(Rules.OptionCatalog));
         }
         await ReloadInfoAsync();
-        if (changed) await BroadcastAsync(new RulesOptionsMessage(Rules.OptionCatalog));
     }
 
     /// <summary>The seat an army goes to: the account's row on teamId; with no team named, its first row (the oldest, the connection's).</summary>
