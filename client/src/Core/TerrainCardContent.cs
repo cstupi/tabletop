@@ -30,7 +30,7 @@ public sealed record TerrainCardContent(Guid PieceId, string Name, string Source
     };
 
     /// <summary>The selected piece's card when it is a terrain piece on the table, in setup or play.</summary>
-    public static TerrainCardContent? Of(TableState? table, GameStatus? status, Guid? selected)
+    public static TerrainCardContent? Of(TableState? table, GameStatus? status, Guid? selected, IReadOnlyDictionary<string, string>? words = null)
     {
         if (status is not (GameStatus.Setup or GameStatus.Playing or GameStatus.Ended) || selected is not { } id
             || table?.Terrain.FirstOrDefault(t => t.Id == id) is not { } t) return null;
@@ -38,7 +38,7 @@ public sealed record TerrainCardContent(Guid PieceId, string Name, string Source
         var height = t.Volumes.Count == 0 ? "" : $"{TerrainLabel.Inches(t.Position.Z + t.Volumes.Min(v => v.Volume.Bottom) * t.Scale)}–{TerrainLabel.Inches(t.Position.Z + t.Volumes.Max(v => v.Volume.Top) * t.Scale)}\"";
         var volumes = t.Volumes.Select(tv =>
         {
-            var v = tv.Volume; var flags = TerrainLabel.FlagsOf(v);
+            var v = tv.Volume; var flags = TerrainLabel.FlagsOf(v, words);
             return new TerrainCardVolume(tv.Id, v.Kind.ToString(), FootprintOf(v.Footprint, t.Scale), TerrainLabel.HeightsOf(t, v), flags.Count == 0 ? ["Open"] : flags, v.Notes);
         }).ToList();
         return new TerrainCardContent(t.Id, TerrainLabel.NameOf(t), source, FacingOf(t.Yaw), t.Scale, height, volumes, status == GameStatus.Setup);

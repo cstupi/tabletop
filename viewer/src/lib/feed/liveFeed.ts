@@ -58,6 +58,7 @@ export function liveFeed(
   const socket = open(options.url);
   let game: GameInfo | null = null;
   let zones: ZoneLegs | null = null;   // Welcome's Side Battle legs, carried in the meta as a recording carries them
+  let terrainWords: { readonly [name: string]: string } = {};   // Welcome's terrain words, likewise
   let projector: FrameProjector | null = null;
   const pending: GameEvent[] = [];
   let welcomed = false;
@@ -86,7 +87,7 @@ export function liveFeed(
       scenario: info.name, seed: 0, driver: 'live', gameRules: info.gameRules, ruleSet: info.ruleSet,
       propertiesHash: info.propertiesHash, schedulerShape: info.schedulerShape,
       enforcement: info.enforcement, teams, outcome: 'live',
-      rounds, lastSeq, startedAt: new Date(started).toISOString(), durationMs: Date.now() - started, zones: legs,
+      rounds, lastSeq, startedAt: new Date(started).toISOString(), durationMs: Date.now() - started, zones: legs, terrainWords,
     };
   }
 
@@ -152,6 +153,7 @@ export function liveFeed(
         clearTimeout(timeout);
         game = frame.game;
         zones = frame.zones;
+        terrainWords = frame.terrainWords ?? {};
         // A game ended before setup ever ran sends no board, so status stays open with nothing to draw.
         emitter.emit({ status: 'open', meta: metaOf(frame.game, frame.zones, 0, 0) });
         return;

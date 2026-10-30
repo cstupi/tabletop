@@ -16,11 +16,18 @@ export interface TerrainCard {
 }
 export interface MarkerCard { readonly pieceId: string; readonly name: string; readonly diameter: string; readonly label: string | null }
 
-/** TerrainLabel's order: the seven declarations with their words (spelled out, never the wire's names). */
+/** TerrainLabel's order: the eight declarations with their own words (spelled out, never the wire's names). */
 export const DECLARATION_WORDS: readonly (readonly [string, string])[] = [
   ['cover', 'Cover'], ['difficult', 'Difficult'], ['dangerous', 'Dangerous'], ['dangerous_on_rush_charge', 'Dangerous when rushing or charging'],
-  ['impassable', 'Impassable'], ['blocks_line_of_sight', 'Blocks line of sight'], ['see_in_and_out', 'See in and out'],
+  ['steep', 'Steep'], ['impassable', 'Impassable'], ['blocks_line_of_sight', 'Blocks line of sight'], ['see_in_and_out', 'See in and out'],
 ];
+
+/** Welcome's terrain words by declaration name (ConnectionState.terrainWords): the game's rule set's words. */
+export type TerrainWords = { readonly [name: string]: string };
+
+/** DECLARATION_WORDS in the server's words where `words` names the declaration, else its own. */
+export const declarationWords = (words?: TerrainWords | null): readonly (readonly [string, string])[] =>
+  words == null ? DECLARATION_WORDS : DECLARATION_WORDS.map(([name, word]) => [name, words[name] ?? word] as const);
 
 /** TerrainLabel.Inches: "0.#". */
 export const inches = (v: number): string => String(Number(v.toFixed(1)));
@@ -36,7 +43,7 @@ const kindWord = (kind: string): string => kind.charAt(0).toUpperCase() + kind.s
 const inPlay = (status: GameStatus | null): boolean => status === 'setup' || status === 'playing' || status === 'ended';
 
 /** The selected piece's card when it is a terrain piece on the table, in setup or play. */
-export function terrainCardOf(t: TableState | null, status: GameStatus | null, selected: string | null, catalog: Catalog): TerrainCard | null {
+export function terrainCardOf(t: TableState | null, status: GameStatus | null, selected: string | null, catalog: Catalog, terrainWords?: TerrainWords | null): TerrainCard | null {
   if (!inPlay(status) || selected === null) return null;
   const piece = t?.terrain.find((p) => p.id === selected);
   if (piece === undefined) return null;
@@ -45,7 +52,7 @@ export function terrainCardOf(t: TableState | null, status: GameStatus | null, s
     : `${inches(piece.position.z + Math.min(...piece.volumes.map((v) => v.volume.bottom)) * piece.scale)}–${inches(piece.position.z + Math.max(...piece.volumes.map((v) => v.volume.top)) * piece.scale)}"`;
   const volumes = piece.volumes.map((tv): CardVolume => {
     const set = new Set(declarationsOf(tv.volume.declarations));
-    const words = DECLARATION_WORDS.filter(([name]) => set.has(name)).map(([, word]) => word);
+    const words = declarationWords(terrainWords).filter(([name]) => set.has(name)).map(([, word]) => word);
     return {
       id: tv.id, kind: kindWord(tv.volume.kind), footprint: footprintOf(tv.volume, piece.scale), heights: heightsOf(piece, tv.volume),
       declarations: words.length === 0 ? ['Open'] : words, notes: tv.volume.notes ?? null,

@@ -12,16 +12,16 @@
     withNotes, withTop,
   } from './edits';
   import { NOTES } from './limits';
-  import { DECLARATION_WORDS, markerCardOf, terrainCardOf } from './terrainCard';
+  import { declarationWords, markerCardOf, terrainCardOf, type TerrainWords } from './terrainCard';
   import { declarationsOf } from '../live/project';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
-  let { draft, catalog, geometry, api, selected, send, report, onClose }: {
-    draft: TableState; catalog: Catalog; geometry: Geometry; api: Api; selected: string | null;
+  let { draft, catalog, geometry, api, selected, terrainWords = null, send, report, onClose }: {
+    draft: TableState; catalog: Catalog; geometry: Geometry; api: Api; selected: string | null; terrainWords?: TerrainWords | null;
     send: (edit: Edit) => Promise<void>; report: (text: string | null) => void; onClose: () => void;
   } = $props();
 
-  const card = $derived(terrainCardOf(draft, 'setup', selected, catalog));
+  const card = $derived(terrainCardOf(draft, 'setup', selected, catalog, terrainWords));
   const marker = $derived(markerCardOf(draft, 'setup', selected));
   const piece = $derived(card === null ? undefined : draft.terrain.find((t) => t.id === card.pieceId));
   const meshes = $derived([...catalog.terrain.values()].sort((a, b) => a.label.localeCompare(b.label)));
@@ -131,7 +131,7 @@
         </div>
         <fieldset>
           <legend>Rules</legend>
-          {#each DECLARATION_WORDS as [name, word] (name)}
+          {#each declarationWords(terrainWords) as [name, word] (name)}
             <label class="check"><input type="checkbox" checked={on.has(name)} onchange={(e) => edit(tv.id, withDeclaration(name, e.currentTarget.checked))} />{word}</label>
           {/each}
         </fieldset>

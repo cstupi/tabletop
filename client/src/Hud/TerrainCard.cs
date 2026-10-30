@@ -67,7 +67,7 @@ public partial class TerrainCard : VBoxContainer
     {
         var status = _s.Game?.Status; var selected = _input.Selected?.PieceId;
         var table = TerrainCardContent.TableOf(status, _s.Draft, _s.Projection);
-        object? content = (object?)TerrainCardContent.Of(table, status, selected) ?? MarkerCardContent.Of(table, status, selected);
+        object? content = (object?)TerrainCardContent.Of(table, status, selected, _s.TerrainWords) ?? MarkerCardContent.Of(table, status, selected);
         Visible = content is not null;
         if (Equals(content, _content)) return;
         var scroll = content is TerrainCardContent t && _content is TerrainCardContent was && was.PieceId == t.PieceId ? _card.ScrollVertical : 0;
@@ -156,7 +156,7 @@ public partial class TerrainCard : VBoxContainer
         heights.AddChild(new Label { Text = "from" }); heights.AddChild(Spin(tv.Volume.Bottom, 60, x => Edit(SetupEdits.WithBottom(x))));
         heights.AddChild(new Label { Text = "to" }); heights.AddChild(Spin(tv.Volume.Top, 60, x => Edit(SetupEdits.WithTop(x))));
         var flags = new HFlowContainer(); into.AddChild(flags);
-        foreach (var (flag, text) in TerrainLabel.Declarations)
+        foreach (var (flag, text) in TerrainLabel.DeclarationsIn(_s.TerrainWords))
         {
             var cb = new CheckBox { Text = text, ButtonPressed = tv.Volume.Declarations.HasFlag(flag) };
             cb.Toggled += on => Edit(SetupEdits.WithDeclaration(flag, on));

@@ -17,6 +17,8 @@ export type ContactKind = 'on_base' | 'crosses' | 'too_close' | 'in_impassable';
 export interface ContactBody { readonly id: string; readonly unitId: string; readonly body: ModelBody; readonly at?: Placement }
 export interface ContactMove {
   readonly allowance: number; readonly impassable: readonly string[]; readonly difficult: readonly string[]; readonly difficultCap?: number;
+  /** MoveRegion.steepVolumeIds: difficult for a model that starts outside one (Movement.SteepEntering). */
+  readonly steep?: readonly string[];
 }
 export interface ContactTerms {
   readonly separation?: number; readonly passesModels: boolean; readonly landing: boolean;

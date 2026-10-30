@@ -39,6 +39,10 @@ describe('the terrain list', () => {
 
   it('says what a piece does in words', () => {
     expect(terrainSummary(catalog.terrain.get('large-forest')!)).toBe('Cover, Difficult, Blocks line of sight, See in and out');
+    const words = { see_in_and_out: 'Dense', blocks_line_of_sight: 'Sight blocking' };
+    expect(terrainSummary(catalog.terrain.get('large-forest')!, words)).toBe('Cover, Difficult, Sight blocking, Dense');
+    expect(matches(catalog.terrain.get('large-forest')!, 'dense', words)).toBe(true);
+    expect(terrainGroups(catalog, '', words)[0]!.title).toBe('Sight blocking');
     expect(terrainSummary(catalog.terrain.get('hill-small')!)).toBe('Open');
   });
 

@@ -24,6 +24,7 @@ export function move(g: Geometry, p: Projection, legal: MoveRegion, proposed: Re
     move: {
       allowance: legal.allowance, impassable: legal.impassableVolumeIds, difficult: legal.difficultVolumeIds,
       ...(legal.difficultCap === undefined ? {} : { difficultCap: legal.difficultCap }),
+      ...(legal.steepVolumeIds === undefined ? {} : { steep: legal.steepVolumeIds }),
     },
     size,
   });

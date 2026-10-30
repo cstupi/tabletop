@@ -42,7 +42,7 @@ describe('the terrain card', () => {
   });
 
   it('words, inches and facing', () => {
-    expect(DECLARATION_WORDS).toHaveLength(7);
+    expect(DECLARATION_WORDS).toHaveLength(8);
     expect(DECLARATION_WORDS.map(([, w]) => w)).toContain('Blocks line of sight');
     const plain = table();
     const library: TableState = { ...plain, terrain: [{ ...plain.terrain[0]!, mesh: { assetId: '0198-abcd' } }] };

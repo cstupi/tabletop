@@ -43,6 +43,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public RulesOptionCatalog Options { get; private set; } = RulesOptionCatalog.Empty;
     /// <summary>Side Battle's legs under the game's rule set, from Welcome; every zone shape the client draws or measures resolves with them.</summary>
     public Tabletop.Geometry.ZoneLegs Zones { get; private set; } = Tabletop.Geometry.ZoneLegs.Default;
+    /// <summary>The Welcome's terrain words by declaration name (the game rule set's words); TerrainLabel and TerrainGroups keep their own for a name not listed.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords { get; private set; } = new Dictionary<string, string>();
     public TableState? Draft { get; private set; }
     public EventApplier? Applier { get; private set; }
     /// <summary>What the table shows: an undo's prediction, else the replay's position (Session.Replay), else the live projection.</summary>
@@ -367,7 +369,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         {
             case Welcome w:
                 _welcomed = true; _attempt = 0;
-                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones;
+                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones; TerrainWords = w.TerrainWords;
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
                 EnsureRuleTexts();
