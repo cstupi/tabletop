@@ -43,7 +43,7 @@
     { "name": "Fear", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "When in melee with this model, enemies count as having taken +X wounds when checking who won.", "effects": [] },
     { "name": "Fearless", "kind": "model", "aggregation": "majority", "ruleText": "When a unit where most models have this rule fails a morale test, roll one die. On a 4+ it counts as passed instead.",
       "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 4, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "morale_test" } ] } ] },
-    { "name": "Flying", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may move through units and terrain, and ignore terrain effects whilst moving.", "effects": [] },
+    { "name": "Flying", "kind": "model", "aggregation": "all", "ruleText": "May move through units and terrain, and ignores the effects of Difficult and Dangerous terrain.", "effects": [] },
     { "name": "Furious", "kind": "model", "aggregation": "all", "ruleText": "When charging, unmodified results of 6 to hit in melee deal 1 extra hit (only the original hit counts as a 6 for special rules).",
       "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
         { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] },
