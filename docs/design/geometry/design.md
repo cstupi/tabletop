@@ -106,7 +106,7 @@ is the one type that never crosses the wire. A deployment zone travels as a shap
 (`"frontline/1"`), and both ends call `ZoneStyles.Resolve` to get the polygons back.
 
 **Geometry to the game server.** The server owns which volumes count. `MoveRegion` carries
-`ImpassableVolumeIds`, `DifficultVolumeIds` and the `DifficultCap` that `GameRules` computed.
+`ImpassableVolumeIds`, `DifficultVolumeIds`, `SteepVolumeIds` and the `DifficultCap` that `GameRules` computed.
 `Movement.Region` takes those as plain parameters, so the library never references the protocol
 record. `GameRules` supplies every OPR constant at the call site: coherency `(1, 9)`, the 1"
 separation, the 6" cap, melee reach `EdgeToEdge <= 2 && Vertical <= 4`, objectives
@@ -672,6 +672,12 @@ read here:
 | `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only; under 3.6.0 p.12 Unstable, for a model whose own path is over 6" |
 | `Steep` | `Movement.Check` (`steep`), `Movement.SteepEntering` | 3.6.0 p.12 *"Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain"* (3.5.1 p.12 Hills *"Difficult when moving up"*): difficult for a move whose base centre starts outside the footprint, open for one that starts inside |
 
+The declarations are shared by both editions; the same Ruins, deep Rivers and Hills carry them under 3.5.1 and 3.6.0. What a
+flag is called follows the game's edition (`GfEdition.TerrainWords`): `BlocksLineOfSight` is Blocking (3.5.1) or Sight Blocking
+(3.6.0 p.12), `SeeInAndOut` is the forest's *see into and out of* or Dense, `DangerousOnRushCharge` is Dangerous for a Rush or
+Charge or Unstable, and `Steep` is Hills' *Difficult when moving up* or Steep. `Steep` is the one direction-dependent flag, so
+the Ask lists its volumes apart from plain difficult ones and `Movement.Check` reads them on server and both clients alike.
+
 Which classes read a flag at all: `LineOfSight` and `Cover` filter on declarations themselves.
 `Movement` does **not**. It is handed pre-filtered lists (the steep list is narrowed per start by `SteepEntering`), because the server already
 decided which volumes count for this move. `Containment`, `Overlap`, `Collision` (but for the walls its caller names) and `Distance`
@@ -881,7 +887,7 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 
 | Module | Obligation |
 | --- | --- |
-| Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
+| Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null, …, IReadOnlyList<Guid>? SteepVolumeIds = null)` (the other optional members are the move Ask's, see contracts) and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five and the steep list as plain parameters, so the library does not reference the record |
 | Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer on its open surface nearest the client's `To.Z` (`Collision.RestNear`, `Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` or `CoverTerrainBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
 | Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `MoveReach.Triangles`; hold a drag with `MoveReach.Clamp`; show `MoveReach.Route` as the ruler, its length as the readout; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
 
@@ -1181,7 +1187,7 @@ the answer differs.
 | 3 | What does *mostly inside* mean for a single model? | **The base centre inside the volume.** A centre test is exact and needs no new primitive; the unit threshold is *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the sight half is `Check` with `SightBlockersBetween` per model |
 | 4 | Is straight-line reach enough? | **No** (owner: a 12" Rush must be able to go round difficult terrain). A move is measured along its shortest path (p.5), and the client draws the area reachable round difficult terrain within the allowance or through it within the cap | `movement.md` |
 | 5 | Free-for-all's *2'x1'*, which way round? | **24" along the long edge, 12" along the short.** p.50 gives no orientation | Nothing |
-| 6 | Side Battle's anchoring | **Proportional to the table.** Legs are `0.75` of the long edge and `0.625` of the short, the p.22 diagram's 54" and 30" on 72×48; a diagonal has no table feature to anchor to. The diagram's own three labels are inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Anchored legs, `Leg(edge) = edge - 18`, invent a constant no page states and degenerate at 18". The other six styles stay anchored |
+| 6 | Side Battle's anchoring | **Proportional to the table.** Legs are `0.75` of the long edge and `0.625` of the short under 3.5.1, the p.22 diagram's 54" and 30" on 72×48 (3.6.0 p.21: `2/3` and `0.75`, 48" and 36"); a diagonal has no table feature to anchor to. The diagram's own three labels are inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Anchored legs, `Leg(edge) = edge - 18`, invent a constant no page states and degenerate at 18". The other six styles stay anchored |
 | 6a | Should every style scale with the table, so the split is not inconsistent? | **No:** *"We don't need to support skirmish at all."* One proportional style and six anchored ones is the shipped set. The two conventions agree exactly at 72×48, because Side Battle's fractions are chosen to reproduce that diagram, and diverge only as the table leaves the standard size | Nothing about the split. The ruling is about scope: the small-table behaviour the split would hurt is an accepted limit under Failure modes, and the built-in styles assume a table near 72×48 (`architecture.md` → Table and layout) |
 | 7 | Ovals as 64-gons? | **Accepted:** error under 0.2% of the radius, inside the tolerance `architecture.md` allows | Exact ellipse-ellipse distance has no closed form and needs an iterative solver on both client and server |
 | 8 | Is a terrain container needed as well as a model container? | **No**, and the overload is not written. Most terrain buildings are open, so there is no region to derive; garrisonable buildings are rare enough in play that the players agree how they work at the table. A building holds models by hand through the client's menu, so it releases them by hand | Nothing. `BaseFullyWithin` keeps its `PlacedModel` container and `MoveContainment.ExitingId` names a model. Buildings stay whole inside the deferred-by-design bucket they share with buildings as shootable targets |
@@ -1250,10 +1256,10 @@ bases move further than the total movement distance*), p.8 (in range, line of si
 friendly models of one's own unit), p.9–10 (charge; within 2" horizontally and 4" vertically),
 p.11 (the terrain types: impassable, cover, difficult, dangerous, sight blockers; *fully inside*
 versus *mostly inside*; *moves in or through*), p.12 (forests: see into and out of, not
-through), p.13–15 (`Transport(X)`), p.21 (solid buildings), p.22 (the six basic deployment
+through; Hills: *Difficult when moving up*), p.13–15 (`Transport(X)`), p.21 (solid buildings), p.22 (the six basic deployment
 styles, dimensions from the page's diagrams), p.50 (free-for-all's corner areas). The Age of
 Fantasy advanced rulebook's terrain section is word-for-word identical and is not a second
-example.
+example. Grimdark Future 3.6.0: p.12 (Sight Blocking, Dense, Unstable, Steep), p.21 (Side Battle's 48" and 36" legs).
 
 **Sibling design documents**, in `docs/design/`: contracts, game server, scheduler,
 interpreter and effects, client shell, management API, web app.
