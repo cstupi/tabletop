@@ -67,7 +67,7 @@ public class GfFatigue36Tests
         Assert.Equal(pools, sim.Steps("roll-to-hit").Last().Rolls.Count);
     }
 
-    /// <summary>3.6 Hazardous: "this model's unit takes one wound on unmodified rolls of 1 to hit". A 1 is no hit, so fatigue's clause leaves it.</summary>
+    /// <summary>3.6 Hazardous: "on unmodified results of 1 to hit this model takes one wound". A 1 is no hit, so fatigue's clause leaves it.</summary>
     [Fact]
     public void A_fatigued_hazardous_one_still_wounds_its_own_unit_under_3_6()
     {

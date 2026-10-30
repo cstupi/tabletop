@@ -103,6 +103,7 @@ public static class GfNames
     public const string Assault = "Assault";                                                                            // 3.6.0 p.13: "Counts as both a ranged weapon and a melee weapon." (GfEdition.HasAssault; GfMelee.IsMelee)
     public const string Transport = "Transport";                                                                        // p.15; its (X) is read for a passenger put in before deployment (GfRules.Facts Fits); embarking in play does not check it
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover
+    public const string Hazardous = "Hazardous";                                                                        // a weapon property; 3.6 GfAttack.HazardRollers
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup
     public const string SetAside = "set-aside";                                                                         // menu-written condition on a shelved unit
     public const double AmbushDistance = 9;

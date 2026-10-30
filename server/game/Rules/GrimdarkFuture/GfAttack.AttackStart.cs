@@ -77,7 +77,8 @@ public static partial class GfAttack
     }
 
     /// <summary>Wounds the attacking unit dealt itself (Hazardous: "this model's unit takes one wound on unmodified rolls of 1 to hit"), after
-    /// its hits resolved: a deal-wounds with no attacker, at its own unit, reading `wounds` off this frame.</summary>
+    /// its hits resolved: a deal-wounds with no attacker, at its own unit, reading `wounds` off this frame. Under 3.6 the wounds land on the models that rolled
+    /// the 1s (GfAttack.Hazardous36.cs).</summary>
     public sealed class SelfWoundsStep : IStep
     {
         public string Name => "self-wounds";
