@@ -16,8 +16,18 @@
         "count": 1,
         "range": 12
       },
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Spell Resistance",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Crackling Bolt",

@@ -61,24 +61,6 @@
       "played": false
     },
     {
-      "name": "Counter in Melee Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Counter on its weapons in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Counter in Melee Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Counter in Melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Dash Aura",
       "kind": "model",
       "takesParameter": false,
@@ -682,8 +664,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Grounded Defense.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Grounded Defense",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Grounded Evasion",
@@ -1600,22 +1592,23 @@
       "played": false
     },
     {
-      "name": "Spell Resistance",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When a unit where most models have this rule takes wounds, roll one die for each. If the wound was from a spell, then it is ignored on a 2\u002B. If the wound was not from a spell, then it is ignored on a 6\u002B instead.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Spell Resistance Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Spell Resistance.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Spell Resistance",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Steadfast Aura",

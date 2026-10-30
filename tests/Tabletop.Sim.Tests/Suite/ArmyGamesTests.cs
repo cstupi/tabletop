@@ -35,16 +35,17 @@ public class ArmyGamesTests
     public void The_army_games_cover_every_army_book_rule_once_each_under_a_shipped_book()
     {
         var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.5.1/army-rules.part.json")));
-        var covered = Army.SelectMany(g => g.Covers).ToList();
+        var army351 = Army.Where(g => g.Edition == RuleSets.Gf351).ToList();   // the 3.5.1 hand part's games; the 3.6 games are its own set's
+        var covered = army351.SelectMany(g => g.Covers).ToList();
         var generated = PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, PropertiesSeeder.GeneratedPartName)!.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet();
         Assert.Equal(part.Entries.Select(e => e.Name).Order(), covered.Where(c => !generated.Contains(c)).Order());
-        Assert.All(covered.Where(generated.Contains), c => Assert.Contains(Army, g => g.Pattern is not null && g.Covers.Contains(c)));   // a wrapper only by its pattern's game
+        Assert.All(covered.Where(generated.Contains), c => Assert.Contains(army351, g => g.Pattern is not null && g.Covers.Contains(c)));   // a wrapper only by its pattern's game
         var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.5.1/army-books"), "*.book.json")
             .Select(f => Path.GetFileName(f)[..^".book.json".Length]).ToHashSet();
-        Assert.All(Army, g => Assert.Contains(SuiteCatalog.BookOf(g.Group), books));
-        Assert.All(Army, g => Assert.All(g.Covers, c => Assert.Contains(c, g.Scenario.Armies[0].Rules())));          // a game covers only what its first army carries
-        Assert.All(Army, g => Assert.All(g.Scenario.Armies[0].Rules().Except(Staging), r =>                           // and every rule that army carries is its group's
-            Assert.Contains(r, Army.Where(x => x.Group == g.Group).SelectMany(x => x.Covers))));
+        Assert.All(army351, g => Assert.Contains(SuiteCatalog.BookOf(g.Group), books));
+        Assert.All(army351, g => Assert.All(g.Covers, c => Assert.Contains(c, g.Scenario.Armies[0].Rules())));          // a game covers only what its first army carries
+        Assert.All(army351, g => Assert.All(g.Scenario.Armies[0].Rules().Except(Staging), r =>                           // and every rule that army carries is its group's
+            Assert.Contains(r, army351.Where(x => x.Group == g.Group).SelectMany(x => x.Covers))));
     }
 
     [Fact]

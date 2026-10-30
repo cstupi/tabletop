@@ -494,10 +494,11 @@ public static partial class GfAttack
               .GroupBy(x => x.Quality).Select(g => (Quality: g.Key, Attacks: g.Sum(x => x.Attacks)))
               .OrderBy(x => x.Quality).ToList();
 
-    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it.</summary>
+    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it. A text-only entry (the 3.6 set's)
+    /// plays nothing, as the marker rules' Played gate (GfMarkers).</summary>
     static int RegenerativeStrength(StepContext ctx, Guid model, AttackKind kind, IReadOnlyList<Guid> weapons)
     {
-        if (kind != AttackKind.Melee || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
+        if (kind != AttackKind.Melee || ctx.Properties.Entry(GfNames.RegenerativeStrength) is not { Played: true } || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
         var x = GfMarkers.RegenerativeStrength(ctx.State, model);
         if (x > 0) ctx.Applied.Add(GfNames.RegenerativeStrength);
         return x;
