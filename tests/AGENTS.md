@@ -46,10 +46,11 @@ dotnet test --settings tests/e2e.runsettings         # the E2E suite; needs dock
 ```bash
 TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests   # viewer/src/lib/protocol/{recording,wire}.generated.ts
 TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests    # viewer/tests/fixtures/
-TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Management.Tests --filter BuiltinTables   # client/content/builtin/tables/*.json, after a catalog change
+TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Management.Tests --filter BuiltinTables   # client/content/builtin/tables/*.json, after a catalog change or a terrain declaration change (a hill's Steep)
 ```
 
 - A plain `dotnet test` fails when the generated types are stale.
+- 3.6 fixtures: `Tabletop.ArmyBooks.Tests/Fixtures/` holds a few books, `rules/` and `index.json` (`ArmyRules36Tests` reads the 3.6 dump and skips without it); a 3.6.0 game-rules test runs `Sim.Gf36(state, dice…)` under `TestProperties.Core36`; `Core36TextTests` pins 3.6 core texts to the skill's `v3.6.0/pages/`. The viewer's `combatlog.json` carries each army snapshot's `edition`, and `recording.generated.ts` the recording's `ruleSet`; both regenerate when a snapshot or the recording meta changes.
 - Fixtures are one recording plus the welcome, board and events frames per scenario. Ids differ between runs, so they are regenerated deliberately and never diffed against a previous version.
 - The call logs are regenerated before `calls.json`: `--filter CallLogFixture` in `Tabletop.Viewer.Tests`, then `--filter CallsViewerFixture` in `Tabletop.Client.Tests`.
 - After regenerating, run `cd viewer && npm test`.

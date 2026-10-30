@@ -69,6 +69,7 @@
 - `POST /v1/dev/armies/import` (`DevArmyImportEndpoint`, `{ "source": "...", "list": { Army Forge export } }`, signed in) exists only in dev mode
   beside it: `/v1/armies/import` without the fetch, the list taken from the body and stored through `ArmyEndpoints.ImportAsync` (the
   account's cap, game system, mapping, the same problems). The simulator's lifecycle suite imports through it, so it never calls Army Forge.
+  `DevArmyImportRequest` takes an optional `edition` (`ArmyEditions.All`: `'3.5'` or `'3.6'`; any other is 422); none stamps `ArmyEditions.Served` (`'3.6'`, what an Army Forge import stamps).
 - `./scripts/management` and compose set dev mode (`ASPNETCORE_ENVIRONMENT=Development` and `TABLETOP_DEV_MODE=1`). Compose publishes port 5100 on loopback only because of this route.
 
 ## Persistence

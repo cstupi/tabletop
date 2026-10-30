@@ -65,6 +65,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `cd web && npm run check`: `svelte-kit sync` and `svelte-check`.
 - `cd web && npm run build`: static output to `web/build`, SPA fallback `index.html`. Production builds set `TABLETOP_BLOB_ORIGIN`
   (the presigned URLs' origin) for the CSP; Caddy serves `web/build` (`deploy/README.md`).
+- An army shows its `edition` (`'3.5'` or `'3.6'`, from `ArmySummary`/`Army` in `src/lib/api/types.ts`) in the armies table and on the army page; an import takes no edition from the page: the server stamps `ArmyEditions.Served`. The page encodes no rule-set name.
 - `web/Dockerfile` (context: repo root, build arg `TABLETOP_BLOB_ORIGIN`): the same build served by Caddy on :8080 with SPA
   fallback and the `frame-ancestors` header (`web/Caddyfile`), plus the viewer's hosted build (`npm run build:hosted` in `viewer/`)
   at `/viewer/` with its own CSP header; the home-server stack's `web` service. Base image `caddy:2.11-alpine` (2.10 answered 206 to a
