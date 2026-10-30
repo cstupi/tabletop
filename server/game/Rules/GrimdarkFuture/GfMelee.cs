@@ -13,7 +13,7 @@ public static class GfMelee
     public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep().Labelled("Pick target"), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true).Labelled("Charge move"), new GfRuleHits.CrossingStep(), new DefenderClosesStep().Labelled("Target moves"), new FightStep().Labelled("Melee")]);
     /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.
     /// 3.5.1 resolves Counter before Impact; 3.6.0 p.14 rolls Impact "before either unit attacks" (GfEdition.ImpactBeforeCounter).</summary>
-    public static Sequence Melee(GfEdition e) => new(GfNames.Melee, [new MeleeStartStep(), .. e.ImpactBeforeCounter ? (IStep[])[new ImpactStep(e), new CounterStep()] : [new CounterStep(), new ImpactStep(e)], new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
+    public static Sequence Melee(GfEdition e) => new(GfNames.Melee, [new MeleeStartStep(), .. e.ImpactBeforeCounter ? (IStep[])[new ImpactStep(e), new CounterStep(e)] : [new CounterStep(e), new ImpactStep(e)], new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
     /// <summary>The unit's melee weapons. A Limited weapon fired before the melee under way (or, outside one, ever) is left out (p.14 "may only be used once
     /// per game"), so the list is the same on each run of a melee step.</summary>
@@ -26,8 +26,11 @@ public static class GfMelee
 
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
     static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
-    /// <summary>p.13 Counter's strike-first weapons, and every melee weapon of a defender with Counter-Attack ("Strikes first when charged").</summary>
-    static bool StrikesFirst(StepContext ctx, Weapon w) => IsCounter(w) || CounterAttacks(ctx);
+    /// <summary>p.13 Counter's strike-first weapons, and every melee weapon of a defender with Counter-Attack ("Strikes first when charged"). A Counter the
+    /// counter step held back (3.6.0 p.13: passed, or lost to fatigue) strikes with the rest.</summary>
+    static bool StrikesFirst(StepContext ctx, Weapon w) => (IsCounter(w) && !CounterHeld(ctx)) || CounterAttacks(ctx);
+    const string CounterHeldKey = "counter_held";
+    static bool CounterHeld(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterHeldKey) == 1);
     const string CounterAttackKey = "counter_attack";
     /// <summary>The defender's Counter-Attack, innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
     static bool CounterAttacks(StepContext ctx) =>
@@ -216,13 +219,30 @@ public static class GfMelee
 
     const string StruckKey = "struck";
 
-    sealed class CounterStep : IStep
+    /// <summary>3.5.1 p.13 Counter: "Strikes first with this weapon when charged". 3.6.0 p.13: "May strike first with this weapon when charged, unless this
+    /// unit is Fatigued" (GfEdition.CounterOptional, CounterLostWhenFatigued; a Shaken unit counts as Fatigued, p.10): the defender's team is asked
+    /// (`counter`), and a pass or a fatigued defender records counter_held, so the Counter weapons strike with the rest in strike-back. Counter-Attack
+    /// ("Strikes first when charged") puts every weapon first and is not asked.</summary>
+    sealed class CounterStep(GfEdition edition) : IStep
     {
         public string Name => "counter";
         public StepOutcome Run(StepContext ctx)
         {
-            var counters = MeleeWeapons(ctx.State, Defender(ctx), w => StrikesFirst(ctx, w));
+            var defender = Defender(ctx);
+            var counters = MeleeWeapons(ctx.State, defender, w => StrikesFirst(ctx, w));
             if (counters.Count == 0) return new Complete([]);
+            if (!Recorded(ctx, Name) && !CounterAttacks(ctx) && (edition.CounterOptional || edition.CounterLostWhenFatigued))
+            {
+                var held = new Dictionary<string, int> { [CounterHeldKey] = 1 };
+                if (edition.CounterLostWhenFatigued && ctx.Projection.Units[defender].Conditions is var c && (c.Contains(GfNames.Fatigued) || c.Contains(GfNames.Shaken)))
+                    return new Complete([], held);
+                if (edition.CounterOptional)
+                {
+                    if (ctx.History.LastClosed("counter") is not { } closed)
+                        return new OpenAsks([ctx.Ask("counter", "Strike first with Counter?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike first", [defender]), new AskOption("pass", "Strike with the rest", [])]))]);
+                    if (closed.Single is not Chosen { OptionId: "strike" }) return new Complete([], held);
+                }
+            }
             // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back. A granted Counter-Attack
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);

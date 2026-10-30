@@ -396,7 +396,9 @@ sequenceDiagram
     DT-->>C: Destinations or Passed
     C->>M: fight: Push melee, or Finish when no charger model is in reach
     M->>M: melee-start: record both units' WoundsThisActivation
-    M->>A: counter: the defender's Counter weapons strike first
+    M->>DT: counter (3.6.0, unless the defender is Fatigued or Shaken): Options([strike, pass])
+    DT-->>M: Chosen
+    M->>A: counter: the defender's Counter weapons strike first (3.6.0: on strike)
     M->>M: impact: Impact(X) dice (3.5.1: minus one per Counter model), threshold 2; the repeat resolves the hits as the dice then stand
     M->>A: charger-attacks, then set fatigued on the charger
     M->>DT: strike-back: Options([strike, pass])
@@ -407,8 +409,8 @@ sequenceDiagram
     M->>CT: consolidate: 3 inches if a unit died, else the charger falls back 1 inch
 ```
 
-The defender is asked three times in one charge: close in, strike back, and allocation inside
-each `deal-wounds`. Under 3.5.1 `counter` precedes `impact` (the book leaves the order ambiguous) and each Counter model takes one Impact die; under 3.6.0 `impact` precedes `counter` (p.14 *"before either unit attacks"*) and Counter takes no dice (`GfEdition.ImpactBeforeCounter`, `CounterReducesImpact`). `melee-start` has to record both units' `WoundsThisActivation` **before**
+The defender is asked three times in one charge (four under 3.6.0, with `counter`): close in, strike back, and allocation inside
+each `deal-wounds`. Under 3.5.1 `counter` precedes `impact` (the book leaves the order ambiguous) and each Counter model takes one Impact die; under 3.6.0 `impact` precedes `counter` (p.14 *"before either unit attacks"*) and Counter takes no dice (`GfEdition.ImpactBeforeCounter`, `CounterReducesImpact`). Under 3.6.0 the defender's team is asked `counter` (p.13 *"May strike first with this weapon when charged, unless this unit is Fatigued"*; `GfEdition.CounterOptional`), and a Fatigued or Shaken defender (p.10, *"counting as Fatigued"*) is not asked and has no Counter strike (`CounterLostWhenFatigued`); either way `counter` records `counter_held` and the Counter weapons strike with the rest in `strike-back`. Counter-Attack (*"Strikes first when charged"*) is not asked under either edition. `melee-start` has to record both units' `WoundsThisActivation` **before**
 anything strikes, because `compare` subtracts that baseline. A step inserted before `melee-start`
 that causes a wound would be counted twice.
 

@@ -518,7 +518,7 @@ once. `FrameId` is null for the scheduler's own Asks. `WindowKind` is the name a
 is null when the Ask is not a window. `AskQuestions` holds only the engine's own nine names:
 `activate`, `act_or_end_phase`, `deploy`, `deploy_scouts`, `deploy_ambusher`, `end_round`,
 `confirm`, `react`, `spend_tokens`. Every other name comes from `GameRules`, including `shoot_or_not`,
-`strike_back`, `remove_casualties`, a charge target, a spell's targets and a `Takedown`'s target model.
+`counter`, `strike_back`, `remove_casualties`, a charge target, a spell's targets and a `Takedown`'s target model.
 
 | `LegalSet` | Answer | Used for |
 | --- | --- | --- |
