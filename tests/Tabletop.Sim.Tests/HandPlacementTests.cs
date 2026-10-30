@@ -27,4 +27,22 @@ public class HandPlacementTests
             Assert.True(Distance.EdgeToEdge(placed, cover) > 1e-6, $"seed {seed}: {anchor} touches the covering base");
         }
     }
+
+    [Fact]
+    public void The_anchor_is_inside_the_zone_the_legs_resolve()
+    {
+        // side-battle/1 under 3.6.0 p.21's legs runs 36" up the short edge; a cover over y 0..29.5, x 0..54 leaves only the corner the
+        // 3.5.1 triangle (30" up) does not reach.
+        var legs = new ZoneLegs(2.0 / 3, 0.75);
+        var cover = new PlacedModel(new ModelBody(Base.Rect(29.5, 54), 1), new Placement(new Point3(27, 14.75, 0), new Yaw(0)));
+        var slots = new[] { Slot() };
+        for (var seed = 0ul; seed < 5; seed++)
+        {
+            var anchor = HandPlacement.ChooseAnchor(slots, [new Point2(0, 0)], "side-battle/1", Table, [cover], new Chooser(seed), legs);
+            var placed = new PlacedModel(new ModelBody(slots[0].Base, slots[0].Height), new Placement(new Point3(anchor.X, anchor.Y, 0), new Yaw(0)));
+            Assert.True(ZoneStyles.BaseFullyWithin("side-battle/1", Table, placed, legs), $"seed {seed}: {anchor} is not fully within the zone");
+            Assert.False(ZoneStyles.BaseFullyWithin("side-battle/1", Table, placed), $"seed {seed}: {anchor} is inside the 3.5.1 triangle too");
+            Assert.True(Distance.EdgeToEdge(placed, cover) > 1e-6, $"seed {seed}: {anchor} touches the covering base");
+        }
+    }
 }

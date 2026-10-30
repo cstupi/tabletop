@@ -6,18 +6,18 @@ using Tabletop.Geometry;
 namespace Tabletop.Client.Table;
 
 /// <summary>A deployment zone: the style's polygons for this ordinal, flat, just above the slab. Colour is the team's, or grey with no team yet.</summary>
-public partial class ZoneNode : Node3D, IDrawn<(DeploymentZone Zone, TableSize Size, Color Colour)>
+public partial class ZoneNode : Node3D, IDrawn<(DeploymentZone Zone, TableSize Size, ZoneLegs Legs, Color Colour)>
 {
     public Guid Id { get; private set; }
-    public (DeploymentZone Zone, TableSize Size, Color Colour) Drawn { get; set; }
+    public (DeploymentZone Zone, TableSize Size, ZoneLegs Legs, Color Colour) Drawn { get; set; }
     public int TeamOrdinal { get; private set; }
 
-    /// <summary>Once per node: a new shape, table size or colour gets a new node.</summary>
-    public void Build(DeploymentZone zone, TableSize size, Color colour)
+    /// <summary>Once per node: a new shape, table size, legs or colour gets a new node. Legs: Side Battle's, from Welcome (Session.Zones).</summary>
+    public void Build(DeploymentZone zone, TableSize size, ZoneLegs legs, Color colour)
     {
         Id = zone.Id; TeamOrdinal = zone.TeamOrdinal;
         IReadOnlyList<Polygon> polygons;
-        try { polygons = ZoneStyles.Resolve(zone.Shape, size); }
+        try { polygons = ZoneStyles.Resolve(zone.Shape, size, legs); }
         catch (ArgumentException) { GD.PushWarning($"Unknown zone shape '{zone.Shape}'; nothing drawn."); return; }
         foreach (var polygon in polygons)
         {

@@ -41,6 +41,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public GameInfo? Game { get; private set; }
     /// <summary>The game ruleset's optional rules and presets, from Welcome; the lobby builds its controls from it.</summary>
     public RulesOptionCatalog Options { get; private set; } = RulesOptionCatalog.Empty;
+    /// <summary>Side Battle's legs under the game's rule set, from Welcome; every zone shape the client draws or measures resolves with them.</summary>
+    public Tabletop.Geometry.ZoneLegs Zones { get; private set; } = Tabletop.Geometry.ZoneLegs.Default;
     public TableState? Draft { get; private set; }
     public EventApplier? Applier { get; private set; }
     /// <summary>What the table shows: an undo's prediction, else the replay's position (Session.Replay), else the live projection.</summary>
@@ -365,7 +367,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         {
             case Welcome w:
                 _welcomed = true; _attempt = 0;
-                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options;
+                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones;
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
                 EnsureRuleTexts();

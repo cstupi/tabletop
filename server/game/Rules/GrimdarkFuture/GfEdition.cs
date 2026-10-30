@@ -90,6 +90,8 @@ public sealed record GfEdition(
 
     public static GfEdition Of(GameState state) => Of(state.Info.GameRules);
 
+    public static ZoneLegs ZoneLegsOf(GfEdition edition) => new(edition.SideBattleLong, edition.SideBattleShort);
+
     public static GfEdition Of(string rulesId) =>
         rulesId == RuleSets.Gf360 ? V360 : rulesId == RuleSets.Gf351 ? V351 : throw new UnknownGameRulesException(rulesId);
 }

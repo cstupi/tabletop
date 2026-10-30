@@ -38,6 +38,7 @@ public sealed partial class GrimdarkFutureRules
         if (p.Scheduler.Round != 0 || p.Scheduler.Phase is not (Deployment or Scouts)) return null;
         var table = state.Board.Table;
         if (table.Zones.Count == 0) return null;
+        var legs = GfEdition.ZoneLegsOf(GfEdition.Of(state));
         foreach (var move in moves)
         {
             if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model) || model.Location is not OnShelf) continue;
@@ -46,9 +47,9 @@ public sealed partial class GrimdarkFutureRules
             var placed = new PlacedModel(new ModelBody(model.Slot.Base, model.Slot.Height), at);
             // Re-Deployment's units "deploy them again": within the zone, in the Scouts phase as before it.
             var again = p.Units[model.UnitId].Conditions.Contains(GfAmbush.ReDeployed);
-            if ((p.Scheduler.Phase == Deployment || again) && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed))
+            if ((p.Scheduler.Phase == Deployment || again) && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, legs))
                 return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it (p.6)");
-            if (p.Scheduler.Phase == Scouts && !again && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, ScoutReach))
+            if (p.Scheduler.Phase == Scouts && !again && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, ScoutReach, legs))
                 return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond 12\" of its deployment zone: Scouts deploy fully within 12\" of it (p.14)");
         }
         return null;

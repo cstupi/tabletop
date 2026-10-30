@@ -43,6 +43,19 @@ describe('the draft as a scene', () => {
     expect(asked).toHaveLength(4);
   });
 
+  it('zone polygons are asked with the welcome\'s legs, and other legs are asked again', () => {
+    const asked: unknown[] = [];
+    const zones = (_shape: string, _size: { width: number; length: number }, legs?: { sideBattleLong: number; sideBattleShort: number }) => {
+      asked.push(legs); return [[{ x: 0, y: 0 }]];
+    };
+    const draft = { ...table([]), zones: [{ id: 'a', shape: 'side-battle/1', teamOrdinal: 1 }] };
+    const legs = { sideBattleLong: 2 / 3, sideBattleShort: 0.75 };
+    sceneOfTable(draft, zones, () => '', legs);
+    sceneOfTable(draft, zones, () => '', legs);
+    sceneOfTable(draft, zones, () => '');
+    expect(asked).toEqual([legs, undefined]);
+  });
+
   it('declarations read from the wire string', () => {
     const scene = sceneOfTable(table([piece(10, 10, 0), piece(1, 1, 0, volume({ declarations: 'none' }))]), () => [], () => '');
     expect(scene.terrain[0]!.declarations).toEqual(['cover', 'difficult']);

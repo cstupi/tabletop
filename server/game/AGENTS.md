@@ -114,6 +114,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   `playing` on the map is frozen with the rest of the configuration. Grimdark Future reads it as `GfOptions.Of(state)`: `unit_sight_blocking`
   (`per_model` | `perimeter`), `line_of_sight` (`core` | `hybrid_true`), `melee_separation` (`on` | `off`).
 - Grimdark Future reads what differs between editions through `GfEdition.Of(state)` (`GfEdition.cs`: one record, two instances); `GrimdarkFutureRules.V351`/`V360` are the two rule sets, `RuleSets` (Tabletop.Content) holds the ids.
+- Zone legs: `IGameRules.Zones` (`ZoneLegs`, Grimdark Future: `GfEdition.ZoneLegsOf`, Side Battle 54"/30" under 3.5.1, 48"/36" under 3.6.0 on 72×48) goes out in `Welcome.Zones`, and `GrimdarkFutureRules.ZoneBreach` resolves the zone with the edition's. Every `ZoneStyles` call that judges or sends a zone passes the game's legs; a client resolves with the legs its Welcome carried.
 - `Sight.From` asks `IGameRules.SightPolicy(state)` (`ISightPolicy`; Grimdark Future: `GfSight`): with `Perimeters` each other unit blocks with
   `Bodies.Perimeter` keyed by its id in place of its bodies, except the target's own unit, which blocks per model; a unit `SeesThrough` passes
   (p.56 Hybrid: `GfSight.SizeClass`, elevation) blocks nothing on that pair's line, cover included. A shooting `determine-attacks`
@@ -160,7 +161,7 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - New content files need the `EmbeddedResource` glob in `Tabletop.GameServer.csproj`; its patterns are `Content/*/*.properties.json`, `Content/*/*.part.json`, `Content/*/army-books/*.book.json`, and the logical name turns `%(RecursiveDir)`'s separators into dots.
 - The game server writes a game's rows only in `lobby` or `setup`, a participant's team and army while deployment waits for players, `properties_hash` at hydration until the game ends, plus `playing` to `ended` once. Management writes at creation, end, leave and delete.
 - `WaitsBetweenSteps` is the per-game flag behind every "Continue" Ask (`SequenceInterpreter.cs`). Players never see it.
-- Every `IGameRules` wrapper that forwards by hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside`, `DeployInside`, `MaySetAside`, `AnswerBreach`, `PlacementBreach`, `OptionCatalog`, `OptionProblems` and `SightPolicy`, or a wrapped ruleset answers 1, nobody, never, nothing, nobody, nothing broken, no options and core sight.
+- Every `IGameRules` wrapper that forwards by hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside`, `DeployInside`, `MaySetAside`, `AnswerBreach`, `PlacementBreach`, `OptionCatalog`, `Zones`, `OptionProblems` and `SightPolicy`, or a wrapped ruleset answers 1, nobody, never, nothing, nobody, nothing broken, no options, the default zone legs and core sight.
 - `ProjectionDesyncException` at hydration is a server bug: every reconnect replays the same event.
 - The first `Connect` frame has `HandshakeTimeout` (5 s by default).
 - Schema changes are management migrations, never made here.

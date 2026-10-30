@@ -48,7 +48,7 @@ public sealed partial class LifecycleGame
         var ordinals = info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
         foreach (var failure in new[]
         {
-            FreeForAllChecks.RollOff(log, shape.Teams), FreeForAllChecks.DeploymentRotation(log), FreeForAllChecks.DeployedInZones(log, ordinals),
+            FreeForAllChecks.RollOff(log, shape.Teams), FreeForAllChecks.DeploymentRotation(log), FreeForAllChecks.DeployedInZones(log, ordinals, compiled.Zones),
             FreeForAllChecks.TurnOrder(log), FreeForAllChecks.TurnRotation(log), FreeForAllChecks.EveryTeamActivated(log), FreeForAllChecks.Winners(log),
         })
             Check(failure is null, failure!);

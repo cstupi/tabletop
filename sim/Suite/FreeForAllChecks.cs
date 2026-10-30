@@ -43,7 +43,7 @@ public static class FreeForAllChecks
     /// round one starts stands fully within its team's zone (`ordinals` maps team id to ordinal), or, with no ordinals, within one zone its team
     /// holds alone.
     /// </summary>
-    public static string? DeployedInZones(LogQueries log, IReadOnlyDictionary<Guid, int>? ordinals = null)
+    public static string? DeployedInZones(LogQueries log, IReadOnlyDictionary<Guid, int>? ordinals = null, ZoneLegs? legs = null)
     {
         var table = log.Final.Board.Table;
         var teamOf = log.Deployments.Where(d => d.Question == AskQuestions.Deploy).ToDictionary(d => d.Unit, d => d.Team);
@@ -58,7 +58,7 @@ public static class FreeForAllChecks
             var placed = new PlacedModel(new ModelBody(model.Slot.Base, model.Slot.Height), placement);
             var zones = ordinals is null ? table.Zones : table.Zones.Where(z => z.TeamOrdinal == ordinals.GetValueOrDefault(team)).ToList();
             if (zones.Count == 0) return $"team {ordinals?.GetValueOrDefault(team)} has no deployment zone";
-            var within = zones.FirstOrDefault(z => ZoneStyles.BaseFullyWithin(z.Shape, table.Size, placed));
+            var within = zones.FirstOrDefault(z => ZoneStyles.BaseFullyWithin(z.Shape, table.Size, placed, legs));
             if (within is null) return $"{model.Slot.Name} stands outside its team's deployment zone at round one";
             if (zoneOf.TryGetValue(team, out var held) && held != within.Shape) return $"{model.Slot.Name} stands in {within.Shape}, its team in {held}";
             zoneOf[team] = within.Shape;

@@ -172,6 +172,9 @@ public static class AgreementCases
         var size = new TableSize(72, 48);
         Add("zone_polygons_frontline", "ZonePolygons", new ZoneRequest("frontline/1", size, null, null), ZoneStyles.Resolve("frontline/1", size).Select(p => p.Vertices.ToArray()).ToArray());
         Add("zone_polygons_disordered", "ZonePolygons", new ZoneRequest("disordered/2", size, null, null), ZoneStyles.Resolve("disordered/2", size).Select(p => p.Vertices.ToArray()).ToArray());
+        var legs36 = new ZoneLegs(2.0 / 3, 0.75);
+        Add("zone_polygons_side_battle_36", "ZonePolygons", new ZoneRequest("side-battle/1", size, null, null, legs36), ZoneStyles.Resolve("side-battle/1", size, legs36).Select(p => p.Vertices.ToArray()).ToArray());
+        Add("zone_contains_side_battle_36", "ZoneContains", new ZoneRequest("side-battle/1", size, new Point2(2, 33), null, legs36), ZoneStyles.Contains("side-battle/1", size, new Point2(2, 33), legs36));
         Add("zone_contains_inside", "ZoneContains", new ZoneRequest("frontline/1", size, new Point2(10, 40), null), ZoneStyles.Contains("frontline/1", size, new Point2(10, 40)));
         Add("zone_contains_outside", "ZoneContains", new ZoneRequest("frontline/1", size, new Point2(10, 10), null), ZoneStyles.Contains("frontline/1", size, new Point2(10, 10)));
         var straddle = Model(10, 36); var inside = Model(10, 44);

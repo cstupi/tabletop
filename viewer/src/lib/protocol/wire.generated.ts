@@ -968,6 +968,7 @@ export interface Welcome {
   readonly participantId: string;
   readonly game: GameInfo;
   readonly options: RulesOptionCatalog;
+  readonly zones: ZoneLegs;
 }
 
 export interface WoundsSet {
@@ -984,4 +985,9 @@ export interface WoundsThisActivationSet {
 
 export interface Yaw {
   readonly degrees: number;
+}
+
+export interface ZoneLegs {
+  readonly sideBattleLong: number;
+  readonly sideBattleShort: number;
 }

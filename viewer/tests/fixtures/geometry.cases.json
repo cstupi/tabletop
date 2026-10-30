@@ -6400,6 +6400,61 @@
     ]
   },
   {
+    "name": "zone_polygons_side_battle_36",
+    "method": "ZonePolygons",
+    "request": {
+      "shape": "side-battle/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "legs": {
+        "sideBattleLong": 0.6666666666666666,
+        "sideBattleShort": 0.75
+      }
+    },
+    "expected": [
+      [
+        {
+          "x": 0,
+          "y": 0,
+          "length": 0
+        },
+        {
+          "x": 48,
+          "y": 0,
+          "length": 48
+        },
+        {
+          "x": 0,
+          "y": 36,
+          "length": 36
+        }
+      ]
+    ]
+  },
+  {
+    "name": "zone_contains_side_battle_36",
+    "method": "ZoneContains",
+    "request": {
+      "shape": "side-battle/1",
+      "size": {
+        "width": 72,
+        "length": 48
+      },
+      "point": {
+        "x": 2,
+        "y": 33,
+        "length": 33.06055050963308
+      },
+      "legs": {
+        "sideBattleLong": 0.6666666666666666,
+        "sideBattleShort": 0.75
+      }
+    },
+    "expected": true
+  },
+  {
     "name": "zone_contains_inside",
     "method": "ZoneContains",
     "request": {

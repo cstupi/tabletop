@@ -1,5 +1,6 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -11,6 +12,9 @@ public sealed record CompiledScenario(
     IReadOnlyList<Guid> TeamIds, IReadOnlyList<Guid> ParticipantIds,
     IReadOnlyDictionary<Guid, Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)
 {
+    /// <summary>Side Battle's legs under the game's rule set: what the server sends in Welcome.</summary>
+    public ZoneLegs Zones => GameRulesRegistry.Resolve(Info.GameRules).Zones;
+
     public Guid ParticipantFor(Guid teamId) => TeamOfParticipant.First(kv => kv.Value == teamId).Key;
 
     /// <summary>The participants a driver connects: every team's, or under self-play the one account's first row, whose connection plays every team.</summary>

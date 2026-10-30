@@ -103,15 +103,15 @@ public sealed class FrameProjector(CompiledScenario scenario)
                 t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale,
                 t.Volumes.Select(v => VolumeOf(v.Id, v.Volume)).ToList())).ToList(),
             table.Markers.Select(m => new RecordedMarker(m.Id, m.Kind.ToString().ToLowerInvariant(), m.Diameter, m.Label)).ToList(),
-            table.Zones.Select(z => new RecordedZone(z.Id, z.Shape, z.TeamOrdinal, RingsOf(z.Shape, table.Size))).ToList(),
+            table.Zones.Select(z => new RecordedZone(z.Id, z.Shape, z.TeamOrdinal, RingsOf(z.Shape, table.Size, s.Zones))).ToList(),
             models);
     }
 
-    private static IReadOnlyList<IReadOnlyList<RecordedPoint>> RingsOf(string shape, TableSize size)
+    private static IReadOnlyList<IReadOnlyList<RecordedPoint>> RingsOf(string shape, TableSize size, ZoneLegs legs)
     {
         try
         {
-            return ZoneStyles.Resolve(shape, size)
+            return ZoneStyles.Resolve(shape, size, legs)
                 .Select(g => (IReadOnlyList<RecordedPoint>)g.Vertices.Select(v => new RecordedPoint(v.X, v.Y)).ToList()).ToList();
         }
         catch (ArgumentException) { return []; }

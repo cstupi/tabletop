@@ -69,6 +69,13 @@ describe('GameConnection', () => {
     expect(h.conn.state).toMatchObject({ phase: 'connected', participantId: 'p1', game: setupGame, options: { options: [], presets: [] } });
   });
 
+  it('a welcome publishes its zone legs', async () => {
+    const h = harness();
+    expect(h.conn.state.zones).toBeNull();
+    await welcomed(h, { ...setupWelcome, zones: { sideBattleLong: 2 / 3, sideBattleShort: 0.75 } });
+    expect(h.conn.state.zones).toEqual({ sideBattleLong: 2 / 3, sideBattleShort: 0.75 });
+  });
+
   it('setup boards replace the draft', async () => {
     const h = harness();
     const s = await welcomed(h, setupWelcome);

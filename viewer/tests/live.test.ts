@@ -40,9 +40,9 @@ describe('the live feed', () => {
     const { game, board, events, recording } = loadFixture('skirmish');
     const { socket, last } = attach();
     socket.fire('open', {});
-    socket.deliver({ kind: 'welcome', participantId: 'p9', game });
+    socket.deliver({ kind: 'welcome', participantId: 'p9', game, zones: { sideBattleLong: 2 / 3, sideBattleShort: 0.75 } });
     expect(last()).toMatchObject({ status: 'open', frames: [] });
-    expect(last().meta).toMatchObject({ driver: 'live', outcome: 'live' });
+    expect(last().meta).toMatchObject({ driver: 'live', outcome: 'live', zones: { sideBattleLong: 2 / 3, sideBattleShort: 0.75 } });
     socket.deliver({ kind: 'board', board });
     expect(last().board!.models).toHaveLength(recording.board.models.length);
     socket.deliver({ kind: 'events', events: events.slice(0, 5) });

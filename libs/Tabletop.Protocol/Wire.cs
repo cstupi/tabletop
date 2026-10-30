@@ -43,6 +43,8 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
 {
     /// <summary>The game ruleset's optional rules and presets, for the lobby's controls.</summary>
     public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty;
+    /// <summary>Side Battle's legs under the game's rule set (IGameRules.Zones): what a client resolves the zone shapes with.</summary>
+    public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
 }
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;

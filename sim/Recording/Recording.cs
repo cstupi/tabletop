@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Tabletop.Geometry;
 
 namespace Tabletop.Sim.Recording;
 
@@ -33,7 +34,11 @@ public sealed record RecordingMeta(
     int Rounds,
     long LastSeq,
     DateTimeOffset StartedAt,
-    double DurationMs);
+    double DurationMs)
+{
+    /// <summary>Side Battle's legs under the game's rule set, as Welcome carries them.</summary>
+    public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
+}
 
 public sealed record RecordedTeam(Guid Id, int Ordinal, string Name, IReadOnlyList<string> Participants);
 
