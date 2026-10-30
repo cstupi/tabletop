@@ -175,6 +175,7 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - `Infrastructure/` holds the fixtures: `GameServerFactory`, `InMemorySeeder`, `InMemoryGameRows`, `PostgresFixture`, `SchedulerHarness`, `ScriptedStarter`, `FixedAskEngine`, `TestProperties`, `FakeRules`/`StubRules`, `RecordingClient`.
 - `ScriptedDice` fixes faces. Rules tests are named `Gf*Tests.cs`.
 - A 3.6.0 test: `Sim.Gf36(state, dice…)` runs the same `GameState` under `GrimdarkFutureRules.V360` and `TestProperties.Core36` (it puts the state `Under(RuleSets.Gf360)`, the `TestGames` extension that swaps `Info.GameRules` and `Rules`; the board's army snapshots keep their edition, so a setup-path test under 3.6 builds its armies with `Edition = ArmyEditions.V36`). A behaviour that differs by edition is a paired `[Theory]` with `[InlineData(RuleSets.Gf351, …)] [InlineData(RuleSets.Gf360, …)]` calling `Sim.Gf(rules, state, dice…)` (`GfMelee36Tests`).
+- `Core36TextTests` pins every 3.6 core special rule's text to the skill's v3.6.0 pages (pp. 13–15): Note paragraphs are in the entry, Example paragraphs are not. A rule wording change in `core.properties.json` (3.6) is checked against the page there.
 - `EventLogContract.cs` and `GameRowsContract.cs` run against both the in-memory fake and the Postgres adapter.
 
 ## Docs
