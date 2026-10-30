@@ -59,19 +59,23 @@ public static partial class SuiteCatalog
                 carriers: [new ScenarioModel(1, 1, [R(1, "Caster", 3)])], units: 4, length: 26,
                 more: s => { Casts(s); s.Match("cast_from", (ask, _) => AskPicks.Option(ask, c => c.Id != "self")); }),
             // Played under Rebel Guerrillas, whose Courage Buff is the pick it extends (Human Defense Force prints the rule).
-            Game(Guerrillas, "rebel-guerrillas-extended-buff-range", Play.Shoots, ["Extended Buff Range"], [R(1, "Extended Buff Range"), R(2, "Extended Buff Range"), R(3, "Extended Buff Range")], [],
+            ExtendedBuffRange(Guerrillas, "rebel-guerrillas-extended-buff-range", "Courage Buff"),
+            Game(Robots, "robot-legions-reanimation", Play.Shot, ["Reanimation"], [R(1, "Reanimation"), R(1, "Tough", 3), R(2, "Reanimation"), R(2, "Tough", 3)], [],
+                [Reanimates("\"roll as many dice as the max. number of models/wounds it could restore. For each 5+ you may restore one model/wound\"")], enemyAttacks: 4, units: 2),
+        ];
+
+        /// <summary>Extended Buff Range on a Hero that carries the book's pick Buff (buff), which it extends.</summary>
+        static TestGame ExtendedBuffRange((string Uid, string Army) book, string name, string buff) =>
+            Game(book, name, Play.Shoots, ["Extended Buff Range"], [R(1, "Extended Buff Range"), R(2, "Extended Buff Range"), R(3, "Extended Buff Range")], [],
                 [Exact("Extended Buff Range", "\"that Hero may use special rules that allow it to pick friendly units within 12\" … on this unit as if it was in range\": a unit beyond 12\" offered holds it and is within 24\"", (run, _) =>
                     from p in PatternLog.For(run).Picks
-                    where p.Entry == "Courage Buff" && p.Ask.Legal is PieceSelection
+                    where p.Entry == buff && p.Ask.Legal is PieceSelection
                     from unit in ((PieceSelection)p.Ask.Legal).Eligible
                     let apart = Apart(run, p.At, p.Carrier, unit)
                     where apart > 12
                     select !Holds(run, unit, "Extended Buff Range") ? "offered a unit beyond 12\" without the rule" : apart > 24 + 2 ? $"offered a unit {apart:0.##}\" away" : null)],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Extended Buff Range"), R(1, "Hero"), R(1, "Courage Buff")])], units: 3,
-                more: s => s.Match(AskQuestions.React, (ask, _) => AskPicks.Option(ask, c => c.Id.StartsWith("Courage Buff|", StringComparison.Ordinal)))
-                    .Match("rule_target", (ask, p) => ask.Legal is PieceSelection sel ? new SelectedPieces([sel.Eligible[^1]]) : null)),
-            Game(Robots, "robot-legions-reanimation", Play.Shot, ["Reanimation"], [R(1, "Reanimation"), R(1, "Tough", 3), R(2, "Reanimation"), R(2, "Tough", 3)], [],
-                [Reanimates("\"roll as many dice as the max. number of models/wounds it could restore. For each 5+ you may restore one model/wound\"")], enemyAttacks: 4, units: 2),
-        ];
+                carriers: [new ScenarioModel(1, 1, [R(1, "Extended Buff Range"), R(1, "Hero"), R(1, buff)])], units: 3,
+                more: s => s.Match(AskQuestions.React, (ask, _) => AskPicks.Option(ask, c => c.Id.StartsWith(buff + "|", StringComparison.Ordinal)))
+                    .Match("rule_target", (ask, p) => ask.Legal is PieceSelection sel ? new SelectedPieces([sel.Eligible[^1]]) : null));
     }
 }

@@ -48,6 +48,27 @@ public class ArmyGamesTests
             Assert.Contains(r, army351.Where(x => x.Group == g.Group).SelectMany(x => x.Covers))));
     }
 
+    /// <summary>
+    /// The 3.6 hand part's played entries each have a 3.6 game, and each generated 3.6 wrapper a 3.6 game of its pattern. Passes once Task 7.5 has
+    /// written a game for each rule it rewrites; until then it lists them.
+    /// </summary>
+    [Fact]
+    public void The_3_6_army_games_cover_every_played_3_6_army_book_rule_under_a_3_6_book()
+    {
+        var army36 = Army.Where(g => g.Edition == RuleSets.Gf360).ToList();
+        var covered = army36.SelectMany(g => g.Covers).ToHashSet();
+        var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.6/army-rules.part.json")));
+        var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.6/army-books"), "*.book.json")
+            .Select(f => Path.GetFileName(f)[..^".book.json".Length]).ToHashSet();
+        Assert.All(army36, g => Assert.Contains(SuiteCatalog.BookOf(g.Group), books));
+        Assert.All(army36, g => Assert.Equal(SuiteCatalog.BookOf(g.Group), g.Scenario.Armies[0].ArmyBook));
+        Assert.All(army36, g => Assert.All(g.Covers, c => Assert.Contains(c, g.Scenario.Armies[0].Rules())));          // a game covers only what its first army carries
+        var wrappers = PropertiesSeeder.EmbeddedPart(GfEdition.V360.ContentFolder, PropertiesSeeder.GeneratedPartName)!.Entries
+            .Where(e => e.Effects.Count > 0 && e.Played != false).Select(e => e.Name[(e.Name.LastIndexOf(' ') + 1)..]).Distinct();
+        Assert.All(wrappers, pattern => Assert.Contains(army36, g => g.Pattern == pattern));
+        Assert.Equal([], part.Entries.Where(e => e.Played != false && !covered.Contains(e.Name)).Select(e => e.Name).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void The_defect_tables_are_the_games_the_catalog_pins()
     {

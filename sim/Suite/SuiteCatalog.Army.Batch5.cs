@@ -16,12 +16,13 @@ public static partial class SuiteCatalog
         /// <summary>
         /// Hits a wound sets off (Retaliate: "X hits per wound taken"; Deathstrike, Self-Destruct: "If this model is killed in melee, the attacking unit takes X
         /// hits"): under each deal-wounds frame, the entry's rule-hits frames total X for each wound (or each kill) its carriers took there, aimed at the
-        /// frame's attacker, each landing the hits its number names.
+        /// frame's attacker, each landing the hits its number names. The wounds are read from every assign step of the frame.
         /// </summary>
         static GameCheck HitsOnWounds(string entry, int x, bool perKill, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from deal in log.Steps.Where(s => s.Frame.Sequence == "deal-wounds" && s.Step.Step == "retaliation").Select(s => s.Frame).DistinctBy(f => f.FrameId)
-                let values = log.Steps.Where(s => s.Frame.FrameId == deal.FrameId && s.Step.Step == "assign").Select(s => s.Step.Values ?? new Dictionary<string, int>()).LastOrDefault() ?? new Dictionary<string, int>()
+                // Each assign step names the models it wounded (took_/killed_); a frame whose wounds carry on to a further assign has several.
+                let values = log.Steps.Where(s => s.Frame.FrameId == deal.FrameId && s.Step.Step == "assign").SelectMany(s => s.Step.Values ?? new Dictionary<string, int>()).ToList()
                 let owed = values.Where(kv => kv.Key.StartsWith(perKill ? "killed_" : "took_", StringComparison.Ordinal)
                         && Guid.TryParseExact(kv.Key[(kv.Key.IndexOf('_') + 1)..], "N", out var m) && run.Final.Models[m].Slot.Properties.Any(p => p.Name == entry))
                     .Sum(kv => perKill ? x : kv.Value * x)

@@ -148,9 +148,10 @@ public static partial class SuiteCatalog
 
         /// <summary>
         /// "Counts as being in Dangerous Terrain once": the step that spends a grant of the entry is the unit's activation-terrain step, which owes a
-        /// test for every model (p.11: "roll one die for each model"), and the dangerous-terrain roll under it rolls that many dice.
+        /// test for every model (p.11: "roll one die for each model"), and the dangerous-terrain roll under it rolls that many dice. Under 3.6 the
+        /// test is the unit's (sequence dangerous-terrain-36, 3.6.0 p.12).
         /// </summary>
-        static GameCheck DangerousOnce(string entry, string quote) =>
+        static GameCheck DangerousOnce(string entry, string quote, string sequence = "dangerous-terrain") =>
             Exact(entry, quote, (_, log) =>
             {
                 var held = new Dictionary<Guid, string>();
@@ -163,7 +164,7 @@ public static partial class SuiteCatalog
                             case GrantAdded g: held[g.Grant.Id] = g.Grant.EntryName; break;
                             case GrantRemoved r when held.Remove(r.GrantId, out var name) && name == entry:
                                 var owed = s.Value("dangerous_dice");
-                                var rolled = log.Steps.Skip(s.Index + 1).FirstOrDefault(x => x.Frame.Sequence == "dangerous-terrain" && x.Ancestors.Any(a => a.FrameId == s.Frame.FrameId));
+                                var rolled = log.Steps.Skip(s.Index + 1).FirstOrDefault(x => x.Frame.Sequence == sequence && x.Ancestors.Any(a => a.FrameId == s.Frame.FrameId));
                                 var dice = rolled?.Rolls("dangerous-terrain").Sum(x => x.Dice.Count) ?? 0;
                                 verdicts.Add(s.Step.Step != "activation-terrain" ? $"spent at {s.Step.Step}" : owed == 0 ? "no test owed" : dice != owed ? $"{dice} dice for {owed} owed" : null);
                                 break;
