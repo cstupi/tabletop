@@ -407,8 +407,7 @@ printed spell range replaces Army Forge's `inRange` in 96 spells (the dump's val
 whose effect the grammar cannot express or whose grant is not played: Burn the Heretic (Blessed Sisters) and Shifting Form (Change
 Disciples, Daemons of Change, Titan Lords Change Disciples) for "loses N spell tokens"; Triangulation Bots (Robot Legions) for its
 empty attack type; and 24 spells granting a text-only rule (Pierce 7, Smash 6, Decimate 4, Scourge 2, Destructive 2, Enhanced
-Wolfborn 2, Enhanced Rapid Blink 1). The generator's console lists each. Two names have no description in any 3.6.0 book, the dump or
-the rulebook, so they are text-only: Brace and Parry.
+Wolfborn 2, Enhanced Rapid Blink 1). Brace and Parry have no description in any 3.6.0 book, the dump or the rulebook.
 
 **3.6.0 rules that are text-only** (`played: false` in `grimdark-future-3.6/army-rules.part.json`; the card shows them as not
 automated, a game plays nothing for them):
@@ -431,11 +430,8 @@ automated, a game plays nothing for them):
 Their generated wrappers (Enhanced Rapid Blink Aura, Enhanced Wolfborn Aura, Versatile Defense Aura) are text-only with them. The other
 generated text-only entries: Ravage Aura ("get Ravage(+1)": Ravage's dice are read from each model's own rule value, never from a
 grant), Quick Throw ("may always target enemies not in line of sight when shooting with Indirect weapons": 3.6.0 Indirect works only on a
-Hold and no effect lifts that), Spell Drain ("loses 2 spell tokens": no effect kind removes spell tokens). Every other generated 3.6.0
-name is a hand entry in `grimdark-future-3.6/army-rules.part.json` (Dodge, Grounded Evasion, Imprecise, Infiltrating Precision Strike,
-Precision Charge, Precision Fighter, Predator, Unstoppable when Shooting, Enhanced Guerrilla, Versatile Expert, Versatile Warrior, the
-Bane/Thrust in Melee Buffs, the Indirect/Rending/Unstoppable Marks, Enhanced Ferocious Aura). Enhanced
-Versatile Warrior is in neither part: no unit, upgrade or spell of any 3.6.0 book carries or grants it. A `once` grant read at one step
+Hold and no effect lifts that), Spell Drain ("loses 2 spell tokens": no effect kind removes spell tokens). Every other generated 3.6.0 name has a hand entry in
+`grimdark-future-3.6/army-rules.part.json`. Enhanced Versatile Warrior is in neither part: no unit, upgrade or spell of any 3.6.0 book carries or grants it. A `once` grant read at one step
 consumes every grant of that entry on the unit, so Thrust in Melee Buff plays its +1 to hit and not its AP(+1) (Bane Mark and
 Unstoppable Mark may lose their Regeneration half the same way); Predator's "may" is played as always-on, as Primal's is. Enhanced Watchborn is Watchborn
 without the range band. Counter in Melee is read as Counter.
