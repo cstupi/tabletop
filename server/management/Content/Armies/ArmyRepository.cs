@@ -82,9 +82,9 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
     public async Task<IReadOnlyList<ArmySummary>> List(Guid ownerId, Http.Keyset page)
     {
         await using var c = await db.Open();
-        return (await c.QueryAsync<ArmySummary>(@"select a.id as Id, a.name as Name, a.game_system as GameSystem, a.source as Source, a.edition as Edition,
+        return (await c.QueryAsync<ArmySummary>(@"select a.id as Id, a.name as Name, a.game_system as GameSystem, a.source as Source,
             (select count(*) from unit u where u.army_id = a.id)::int as Units,
-            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id)::int as Models
+            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id)::int as Models, a.edition as Edition
             from army a where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) order by a.id limit @limit", new { ownerId, after = page.After, limit = page.Limit })).ToList();
     }
 
