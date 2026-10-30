@@ -370,7 +370,7 @@ public static partial class GfAttack
         if (Battlefield.InsideReach(state, attacker, target) is { } reaches)
             return reaches ? Lookup.AliveModels(state, attacker).Where(m => state.Projection.Models[m].Slot.Weapons.Any(w => weapons.Contains(w.Id))).ToList() : [];
         var targets = Lookup.LivingModels(state, target);
-        var indirect = live.Has(Side.Attacker, GfNames.Indirect);
+        var indirect = IndirectApplies(live);
         bool Reaches(Guid m, Sight? sight)
         {
             var mine = state.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).ToList();
@@ -390,6 +390,11 @@ public static partial class GfAttack
         return eligible;
     }
 
+    /// <summary>p.14 Indirect's sight and cover halves: 3.5.1 whenever the weapon has it; 3.6.0 p.14 "When using Hold actions and shooting" only, the action
+    /// read off the interaction (the activation frame's `action_taken`; none, before an activation names its action, is not holding).</summary>
+    internal static bool IndirectApplies(LiveSet live) =>
+        live.Has(Side.Attacker, GfNames.Indirect) && (!GfEdition.Of(live.Interaction.State).IndirectNeedsHold || live.Interaction.ActionTaken == GfNames.Hold);
+
     /// <summary>
     /// Where each eligible shooting model aims, for the clients' shot beams: the nearest target model in its range that it sees, and the index into
     /// `LineOfSight.TargetPoints` of the point its clear line reaches (`SightLine.Seen`). A model sees past whatever blocks under the game's sight
@@ -400,7 +405,7 @@ public static partial class GfAttack
     {
         var targets = Lookup.LivingModels(state, target).Where(t => Battlefield.Placed(state, t) is not null).ToList();
         if (targets.Count == 0) return [];
-        var indirect = live.Has(Side.Attacker, GfNames.Indirect);
+        var indirect = IndirectApplies(live);
         var sight = Sight.From(state, attacker);
         var aims = new List<(Guid, Guid, int)>();
         foreach (var m in eligible)
@@ -421,7 +426,7 @@ public static partial class GfAttack
     /// and the verdict then is the full test's, ignored by Indirect. The +1 applies when the verdict is in cover and nothing ignored it (Applies).</summary>
     static CoverVerdict CoverOf(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible, Guid? takedown = null)
     {
-        var indirect = live.Has(Side.Attacker, GfNames.Indirect);
+        var indirect = IndirectApplies(live);
         var count = GfRolls.Cover(state, target, eligible, indirect, takedown);
         if (indirect && !count.Majority && GfRolls.Cover(state, target, eligible, ignoresSightObstructions: false, takedown) is { Majority: true } full)
         {
@@ -625,7 +630,7 @@ public static partial class GfAttack
             var (_, live, kind) = Settle(ctx);
             var attacker = ctx.Frame.Context.ActorUnitId!.Value;
             if (kind != AttackKind.Shooting || Battlefield.InsideReach(ctx.State, attacker, target) is not null) return models;
-            var sight = live.Has(Side.Attacker, GfNames.Indirect) ? null : Sight.From(ctx.State, attacker, alsoIgnoring: target);
+            var sight = IndirectApplies(live) ? null : Sight.From(ctx.State, attacker, alsoIgnoring: target);
             var shooters = Lookup.LivingModels(ctx.State, attacker).Select(m => (Id: m, Range: ctx.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id))
                 .Select(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0).DefaultIfEmpty(-1).Max())).Where(s => s.Range >= 0).ToList();
             return models.Where(t => ctx.Projection.Models[t].Location is OnTable
@@ -650,7 +655,7 @@ public static partial class GfAttack
             // p.13 caps Blast at "as many hits as models in the target unit" without saying when they are counted. p.8 fires all
             // weapons simultaneously, so the cap is fixed at the same moment as the attack counts: this reads the defender's model
             // count that determine-attacks carried down from the pushing frame.
-            if (kind == AttackKind.Shooting) live.Spend(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here; it is recorded where it acts (EligibleModels, InCover, its to-hit row)
+            if (kind == AttackKind.Shooting && IndirectApplies(live)) live.Spend(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here; it is recorded where it acts (EligibleModels, InCover, its to-hit row)
             // p.14 Takedown: the picked model is "resolved as if it was a unit of [1]", so a Takedown group's cap is that one model.
             var living = Lookup.LivingModels(ctx.State, ix.Defender!.UnitId);
             var cap = TakedownModel(ctx.Frame) is { } picked && living.Contains(picked) ? 1 : ctx.Frame.Value("defender_models", living.Count);
