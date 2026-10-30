@@ -26,14 +26,14 @@ public class RollEffectsTests
     {
         var (live, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)), Unit("T", "4+", "4+", [P("Aircraft")], 2, [P("Stealth")]), 12);
         var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, hitRollName: "hit");
-        Assert.Equal(4, plan.Threshold); Assert.Equal(-1, plan.NetModifier);                                      // 3.5.1 Aircraft is -12" to range only, with no to-hit modifier
+        Assert.Equal(4, plan.Threshold); Assert.Equal(-1, plan.NetModifier);                                      // 3.5.1 Aircraft is -12" to range only, with no to-hit modifier (3.6.0 p.13 adds -1 to hit rolls)
         Assert.Equal(["Stealth"], plan.Modifiers.Select(m => m.Source));
         Assert.Equal(12.0, StatReader.WeaponRange(live, Side.Attacker, live.Interaction.Attacker.WeaponIds[0]));
         var (unstoppable, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Beam", "24\"", 1, P("Unstoppable"))), Unit("T", "4+", "4+", [P("Aircraft")], 2, [P("Stealth")]), 12);
         Assert.Equal(0, RollEffects.Plan(unstoppable, Side.Attacker, "hit", 4, [], D6, null, "hit").NetModifier);
         Assert.Equal(24.0, StatReader.WeaponRange(unstoppable, Side.Attacker, unstoppable.Interaction.Attacker.WeaponIds[0]));   // -12" range penalty ignored
         var covered = RollEffects.Plan(unstoppable, Side.Defender, "defense", 4, [new RollModifier("cover", 1)], D6, null, "hit");
-        Assert.Equal(1, covered.NetModifier);                                                                     // p.15 Unstoppable ignores modifiers to its own weapon, not the target's cover
+        Assert.Equal(1, covered.NetModifier);                                                                     // p.15 Unstoppable ignores modifiers to its own weapon (3.6.0 p.15 keeps the penalties from the model's own special rules), not the target's cover
         var (blast, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Bomb", "24\"", 1, P("Blast", 3))), Unit("T", "4+", "4+", [], 2, []), 12);
         Assert.Empty(RollEffects.Plan(blast, Side.Defender, "defense", 4, [new RollModifier("cover", 1)], D6, null, "hit").Modifiers);   // p.13 Blast ignores cover
     }

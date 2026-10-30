@@ -180,7 +180,7 @@ public static partial class GfAttack
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
-            // Regeneration is aggregation all (3.5.1: "a unit where all models have this rule"), so LiveProperties.Gather settles it
+            // Regeneration is aggregation all under 3.5.1 ("a unit where all models have this rule") and majority under 3.6.0 (3.6.0 p.14: "most models"), so LiveProperties.Gather settles it
             // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
             // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
             // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … roll one die per wound") is this unit's for every wound of

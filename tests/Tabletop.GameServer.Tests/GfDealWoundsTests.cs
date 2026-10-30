@@ -156,7 +156,7 @@ public class GfDealWoundsTests
         var mixed = Unit("Pack", "4+", "4+", [], 2, []) with { Models = [Unit("R", "4+", "4+", [], 1, [P("Regeneration"), P("Tough", 6)]).Models[0], Unit("P", "4+", "4+", [], 1, [P("Tough", 6)]).Models[0] with { Ordinal = 2 }] };
         var sim3 = Start(plain, mixed, 2, [5, 5]);
         sim3.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [mixed.Models[0].Id] = 2 }));
-        Assert.Empty(sim3.Steps("assign").Single().Rolls);                                                      // aggregation all: 3.5.1 needs "a unit where all models have this rule"
+        Assert.Empty(sim3.Steps("assign").Single().Rolls);                                                      // aggregation all: 3.5.1 needs "a unit where all models have this rule"; 3.6.0 p.14 needs "most models"
         Assert.Equal(2, sim3.Model(mixed.Models[0].Id).Wounds);
     }
 
