@@ -46,6 +46,7 @@ dotnet test --settings tests/e2e.runsettings         # the E2E suite; needs dock
 ```bash
 TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests   # viewer/src/lib/protocol/{recording,wire}.generated.ts
 TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests    # viewer/tests/fixtures/
+TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Management.Tests --filter BuiltinTables   # client/content/builtin/tables/*.json, after a catalog change
 ```
 
 - A plain `dotnet test` fails when the generated types are stale.
