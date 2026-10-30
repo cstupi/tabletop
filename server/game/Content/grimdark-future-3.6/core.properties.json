@@ -40,7 +40,7 @@
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": 4 },
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": 4 } ] },
     { "name": "Fear", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "This model counts as having dealt +X wounds when checking who won melee.", "effects": [] },
-    { "name": "Fearless", "kind": "model", "aggregation": "all", "ruleText": "When a unit where all models have this rule fails a morale test, roll one die. On a 4+ it counts as passed instead.",
+    { "name": "Fearless", "kind": "model", "aggregation": "majority", "ruleText": "When a unit where most models have this rule fails a morale test, roll one die. On a 4+ it counts as passed instead.",
       "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 4, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "morale_test" } ] } ] },
     { "name": "Flying", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may move through units and terrain, and ignore terrain effects whilst moving.", "effects": [] },
     { "name": "Furious", "kind": "model", "aggregation": "all", "ruleText": "When charging, unmodified results of 6 to hit in melee deal 1 extra hit (only the original hit counts as a 6 for special rules).",
@@ -55,7 +55,7 @@
         "children": [ { "subject": "self", "ordinal": 0, "kind": "add_hit", "amount": 1 } ] } ] },
     { "name": "Indirect", "kind": "weapon", "ruleText": "When using Hold actions and shooting, may target enemies that are not in line of sight as if in line of sight, and ignores cover from Sight Blockers.", "effects": [] },
     { "name": "Limited", "kind": "weapon", "ruleText": "Weapons with this rule may only be used once per game.", "effects": [] },
-    { "name": "Regeneration", "kind": "model", "aggregation": "all", "ruleText": "When a unit where all models have this rule takes wounds, roll one die for each. On a 5+ it is ignored.",
+    { "name": "Regeneration", "kind": "model", "aggregation": "majority", "ruleText": "When a unit where most models have this rule takes wounds, roll one die for each. On a 5+ it is ignored.",
       "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 5, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "wound" } ] } ] },
     { "name": "Relentless", "kind": "model", "aggregation": "all", "ruleText": "When this model shoots at enemies over 9\" away, unmodified results of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
       "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
@@ -75,7 +75,7 @@
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": -4 },
         { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": -4 } ] },
     {"name": "Spell Amplifier", "kind": "model", "aggregation": "none", "ruleText": "Gets +1 to casting rolls.", "effects": [{"subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "casting", "amount": 1}]},
-    { "name": "Stealth", "kind": "model", "aggregation": "all", "ruleText": "When units where all models have this rule are shot from over 9\" away, enemy units get -1 to hit rolls.",
+    { "name": "Stealth", "kind": "model", "aggregation": "majority", "ruleText": "When units where most models have this rule are shot from over 9\" away, enemy units get -1 to hit rolls.",
       "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
         { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] } ] },
     { "name": "Strider", "kind": "model", "aggregation": "all", "ruleText": "May ignore the effects of difficult terrain when moving.", "effects": [] },
