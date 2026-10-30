@@ -50,8 +50,8 @@ public class LivePropertiesTests
         var state = State([Unit("Shooters", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1))], [stealthy]);
         var ix = new Interaction(state, Core, Party.Whole(state, state.Board.Armies[0].Snapshot.Units[0].Id), Party.Whole(state, stealthy.Id), AttackKind.Shooting, "Hold", 12, []);
         var live = LiveProperties.Settle(ix);
-        Assert.False(live.Has(Side.Defender, "Stealth"));                                           // all: one model lacks it
-        Assert.True(live.Has(Side.Defender, "Fearless"));                                           // all, and all three carry it (3.5.1: "a unit where all models have this rule"; 3.6.0 p.13: "most models")
+        Assert.False(live.Has(Side.Defender, "Stealth"));                                           // all: one model lacks it (3.5.1 p.14: "units where all models"; 3.6.0 p.15: "most models", under which two of three would carry it)
+        Assert.True(live.Has(Side.Defender, "Fearless"));                                           // all, and all three carry it (3.5.1: "a unit where all models have this rule"; 3.6.0 p.14: "most models")
         Assert.Equal(3, live.On(Side.Defender).Count(p => p.Entry.Name == "Tough"));                // none: per model, all three have it
         Assert.Single(live.On(Side.Defender).Where(p => p.Entry.Name == "Fearless"));               // collapsed: no (X)
     }
