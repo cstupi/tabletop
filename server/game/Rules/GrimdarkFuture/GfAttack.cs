@@ -329,15 +329,6 @@ public static partial class GfAttack
     public static AttackKind KindOf(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => weapons.Contains(w.Id))?.Stats.ContainsKey(GfNames.Range) == true ? AttackKind.Shooting : AttackKind.Melee;
 
-    /// <summary>
-    /// p.8: models with line of sight to a target model and a weapon in range of it; p.9: within 2" horizontally and 4" vertically.
-    /// Containment answers before any of that (p.15): a unit inside a container and a unit outside it cannot target each other at
-    /// all, and two units in one container — or an occupant and the container model itself — need no measurement, because there is
-    /// no distance and no sight line inside a box. Everything armed is eligible then; only the weapon check survives.
-    /// The occupant-and-container half of that clause is unreachable in a game: `ValidTargets` offers enemy units
-    /// only, a unit's own transport is friendly, and no unit may enter an enemy container, so the branch is written for
-    /// faithfulness to p.15 and is exercised only by a menu-written state.
-    /// </summary>
     /// <summary>p.9 who can strike, model to model: 3.5.1 "within 2” horizontally and 4” vertically"; 3.6.0 p.9 "All models that are within 3” of an
     /// enemy model from the target unit (horizontally or vertically), may attack it." Read from the game's edition.</summary>
     internal static bool WithinStrike(GameState state, Guid model, Guid enemy)
@@ -346,6 +337,15 @@ public static partial class GfAttack
         return Battlefield.Distance(state, model, enemy) <= edition.MeleeHorizontal && Battlefield.Vertical(state, model, enemy) <= edition.MeleeVertical;
     }
 
+    /// <summary>
+    /// p.8: models with line of sight to a target model and a weapon in range of it; p.9 who can strike (`WithinStrike`, by edition).
+    /// Containment answers before any of that (p.15): a unit inside a container and a unit outside it cannot target each other at
+    /// all, and two units in one container — or an occupant and the container model itself — need no measurement, because there is
+    /// no distance and no sight line inside a box. Everything armed is eligible then; only the weapon check survives.
+    /// The occupant-and-container half of that clause is unreachable in a game: `ValidTargets` offers enemy units
+    /// only, a unit's own transport is friendly, and no unit may enter an enemy container, so the branch is written for
+    /// faithfulness to p.15 and is exercised only by a menu-written state.
+    /// </summary>
     public static IReadOnlyList<Guid> EligibleModels(GameState state, LiveSet live, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind)
     {
         if (Battlefield.InsideReach(state, attacker, target) is { } reaches)
