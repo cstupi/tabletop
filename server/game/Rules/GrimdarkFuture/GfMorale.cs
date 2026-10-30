@@ -7,7 +7,9 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfMorale
 {
-    public static Sequence MoraleTest() => new(GfNames.MoraleTest, [new TestStep(), new OverrideStep(), new ConsequenceStep()]);
+    /// <summary>Under 3.6 (GfEdition.ReinforcementOnShaken) Reinforcement's removal offer follows the consequence.</summary>
+    public static Sequence MoraleTest(GfEdition edition) => new(GfNames.MoraleTest,
+        edition.ReinforcementOnShaken ? [new TestStep(), new OverrideStep(), new ConsequenceStep(), new GfReserves.OfferRemovalStep()] : [new TestStep(), new OverrideStep(), new ConsequenceStep()]);
 
     /// <summary>What caused a general morale test: the kind of the last attack at the unit in the effective log, a spell's hits being Spell and a
     /// strike a melee pushed being Melee (3.6.0 p.13 Assault strikes with a weapon that has a Range).

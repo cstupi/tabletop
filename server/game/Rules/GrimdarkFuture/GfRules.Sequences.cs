@@ -28,7 +28,7 @@ public sealed partial class GrimdarkFutureRules
         GfMoves.DangerousTerrain36(),
         GfMoves.Idle(),
         GfMoves.Reposition(),
-        GfMorale.MoraleTest(),
+        GfMorale.MoraleTest(Edition),
         GfMelee.Charge(),
         GfMelee.Melee(Edition),
         GfCasting.Casting(),

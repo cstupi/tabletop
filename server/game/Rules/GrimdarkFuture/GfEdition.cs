@@ -28,6 +28,7 @@ public sealed record GfEdition(
     bool AircraftTransportUnreachable,                            // S15
     bool UnstoppableKeepsOwnPenalties,                            // S16
     bool PlacedUnitsHoldNoObjectives,                             // F6a: Spawn / Split "can't seize or contest objectives on the round they are placed"
+    bool ReinforcementOnShaken, double ReinforcementEdgeReach, double ReinforcementClearance, // F6a: Reinforcement's removal when Shaken, edge strip, distance from enemies
     double SideBattleLong, double SideBattleShort,                // M1
     string HybridSightPage,
     string? ArtilleryNote,
@@ -58,6 +59,7 @@ public sealed record GfEdition(
         AircraftTransportUnreachable: false,
         UnstoppableKeepsOwnPenalties: false,
         PlacedUnitsHoldNoObjectives: false,
+        ReinforcementOnShaken: false, ReinforcementEdgeReach: 12, ReinforcementClearance: 0,
         SideBattleLong: 0.75, SideBattleShort: 0.625,
         HybridSightPage: "p.56",
         ArtilleryNote: "Artillery: may only use Hold actions (p.13)",
@@ -88,6 +90,7 @@ public sealed record GfEdition(
         AircraftTransportUnreachable: true,
         UnstoppableKeepsOwnPenalties: true,
         PlacedUnitsHoldNoObjectives: true,
+        ReinforcementOnShaken: true, ReinforcementEdgeReach: 9, ReinforcementClearance: 9,
         SideBattleLong: 2.0 / 3, SideBattleShort: 0.75,
         HybridSightPage: "3.6.0 p.58",
         ArtilleryNote: null,
