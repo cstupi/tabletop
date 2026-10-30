@@ -102,12 +102,6 @@ In order:
 2. **The 3.6.0 text-only rules played** (the 43 not automated). Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`,
    plan `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks; `GfAttack.cs` split first). Nothing built.
    Brace and Parry's text comes from Army Forge's `GET /api/rules/common/2`. Owner asked for the plan only; build when told.
-3. **Production signup by email code fails for new addresses.** Not a code defect (login_or_create serves both; a new
-   address works on the Stytch test project). Reproduced 2026-10-29: `POST https://tabletop.cstupi.com/v1/auth/otp` for a
-   new address returns 422 at once and sends nothing. Likeliest cause: the live Stytch project has no verified billing
-   (`billing_not_verified_for_email`: live projects email only the account's own domain until a card is added). The owner
-   decides on billing; the log line `/v1/auth/otp: Stytch 400 <error_type>` on docker1 confirms it (reading it needs the
-   owner's approval). There is no magic link anywhere: web and Godot both email a 6-digit code.
 
 ### Miniatures: the zombie army (outside the repo)
 
