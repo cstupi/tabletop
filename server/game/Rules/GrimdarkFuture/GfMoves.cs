@@ -198,7 +198,7 @@ public static partial class GfMoves
     {
         public string Name => "casting-window";
         public StepOutcome Run(StepContext ctx) =>
-            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], null, Repeat: ctx.History.Children.Count > 0);
+            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], GfCasting.MarkWindow(ctx), Repeat: ctx.History.Children.Count > 0);
     }
 
     /// <summary>

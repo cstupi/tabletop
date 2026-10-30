@@ -19,7 +19,7 @@ public sealed record GfEdition(
     IReadOnlyDictionary<TerrainDeclarations, string> TerrainWords, // C5: the card and label words; a flag not listed keeps today's word
     bool ArtilleryHoldOnly,                                       // S2
     bool HasAssault,                                              // S3
-    bool CasterTargetNeedsSight, bool SpendersNeedSight, bool SpendersMeasuredToCasterModel, // S4
+    bool CasterTargetNeedsSight, bool SpendersNeedSight, bool SpendersMeasuredToCasterModel, bool OneCastWindow, // S4
     bool ImpactBeforeCounter, bool CounterReducesImpact, bool CounterOptional, bool CounterLostWhenFatigued, // S5, S11
     bool HasCumbersome,                                           // S6
     int? HeroAuraTough,                                           // S10
@@ -47,7 +47,7 @@ public sealed record GfEdition(
         },
         ArtilleryHoldOnly: true,
         HasAssault: false,
-        CasterTargetNeedsSight: true, SpendersNeedSight: true, SpendersMeasuredToCasterModel: false,
+        CasterTargetNeedsSight: true, SpendersNeedSight: true, SpendersMeasuredToCasterModel: false, OneCastWindow: false,
         ImpactBeforeCounter: false, CounterReducesImpact: true, CounterOptional: false, CounterLostWhenFatigued: false,
         HasCumbersome: false,
         HeroAuraTough: null,
@@ -75,7 +75,7 @@ public sealed record GfEdition(
         },
         ArtilleryHoldOnly: false,
         HasAssault: true,
-        CasterTargetNeedsSight: false, SpendersNeedSight: false, SpendersMeasuredToCasterModel: true,
+        CasterTargetNeedsSight: false, SpendersNeedSight: false, SpendersMeasuredToCasterModel: true, OneCastWindow: true,
         ImpactBeforeCounter: true, CounterReducesImpact: false, CounterOptional: true, CounterLostWhenFatigued: true,
         HasCumbersome: true,
         HeroAuraTough: 9,

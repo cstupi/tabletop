@@ -35,7 +35,7 @@ public static class PropertiesJson
             Entries = (doc.Entries ?? []).Select(e => e with
             {
                 Effects = Fix(e.Effects), Played = e.Played == false ? false : null,
-                Targeting = e.Targeting is { LineOfSight: true } t ? t with { LineOfSight = null } : e.Targeting,
+                Targeting = e.Kind != CatalogKind.Spell && e.Targeting is { LineOfSight: true } t ? t with { LineOfSight = null } : e.Targeting,
             }).ToList(),
             Books = (doc.Books ?? []).Select(b => b with { Spells = b.Spells ?? [] }).ToList(),
         };

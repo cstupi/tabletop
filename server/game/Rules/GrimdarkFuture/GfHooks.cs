@@ -90,7 +90,8 @@ public static class GfHooks
     }
 
     /// <summary>
-    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13). At every point,
+    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13), under 3.6.0
+    /// in the activation's one cast window only. At every point,
     /// each unit the point concerns (the actor; at after-melee the charger and then the defender) offers its live move rows at that point
     /// (army-rule hooks spec), one reaction per entry, pushing `reposition`. A Shaken unit offers nothing: 3.5.1 p.10 says being idle means it "can't
     /// take any actions, or use any active special rules, such as casting spells, using buffs/debuffs on units, re-positioning, etc.".
@@ -100,8 +101,10 @@ public static class GfHooks
     {
         if (frame.Context.ActorUnitId is not { } actor) return [];
         var reactions = new List<Reaction>();
-        if (point == GfNames.BeforeAttacking && !Shaken(state, actor) && GfCasting.SpellOptions(state, props, actor).Count > 0 && Teams.Of(state, actor) is { } own)
-            reactions.Add(new Reaction(own, "cast", "Cast a spell", GfNames.CastingSeq, new SequenceContext(actor, [], [], null)));
+        // 3.6.0 p.13 "Once per activation": no cast once the activation's one window is over (GfCasting.WindowClosed).
+        if (point == GfNames.BeforeAttacking && !Shaken(state, actor) && !(GfEdition.Of(state).OneCastWindow && GfCasting.WindowClosed(frame, actor))
+            && GfCasting.SpellOptions(state, props, actor).Count > 0 && Teams.Of(state, actor) is { } own)
+            reactions.Add(new Reaction(own, GfCasting.CastOption, "Cast a spell", GfNames.CastingSeq, new SequenceContext(actor, [], [], null)));
         IEnumerable<Guid> units = point == GfNames.AfterMelee ? [actor, .. frame.Context.TargetUnitIds.Take(1)] : [actor];
         foreach (var unit in units)
         {
