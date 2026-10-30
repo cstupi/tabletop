@@ -1,7 +1,7 @@
 # scripts/ArmyBooks
 
 `Tabletop.ArmyBooks`: the console generator for the official Grimdark Future army books. Repo-level support, in `Tabletop.sln`, neither shipped nor referenced by a deliverable.
-Writes `server/game/Content/army-books/<uid>.book.json` and `server/game/Content/grimdark-future-army-book-rules.part.json`, which the game server composes into its properties set.
+Writes `server/game/Content/<folder>/army-books/<uid>.book.json` and `server/game/Content/<folder>/army-book-rules.part.json` (`<folder>` is `grimdark-future-3.5.1` or `grimdark-future-3.6`), which the game server composes into its properties set.
 
 ## Layout
 
@@ -16,9 +16,9 @@ Writes `server/game/Content/army-books/<uid>.book.json` and `server/game/Content
 ## How it works
 
 - Dumps live at `.superpowers/armyforge/<edition>/` (git-ignored), each with `index.json` and `books/`. `fetch` downloads the official book index and each book from Army Forge into the folder of the edition the index serves (`ArmyForgeJson.EditionOf`: the major.minor of the entries' `versionString`) and refuses a folder that holds another edition. The 3.5 dump cannot be fetched again; its backup is `/home/cstupi/backups/armyforge-gf-3.5-2026-10-29/`.
-- `generate --edition 3.5|3.6` (default 3.5) reads `<edition>/index.json` and `<edition>/books/*.json`, translates, checks, and rewrites the book files.
+- `generate --edition E` (3.5|3.6, default 3.5) reads `.superpowers/armyforge/E/` (`index.json`, `books/*.json`) and that edition's `core.properties.json` and `army-rules.part.json`, translates, checks, and writes that edition's `army-books/` and `army-book-rules.part.json`, both named for its rules id.
 - It fails and writes nothing on an unknown generation shape, a text mismatch, a rule named in neither the core document nor the part, an unresolvable name collision, or a composed document `PropertiesJson` refuses.
-- `generate` also writes the army-book rules part: every rule name on a unit, a weapon, an item or an upgrade that core and `grimdark-future-army-rules.part.json` do not define becomes a template wrapper (an Aura, Buff or Mark whose text is its template, X read ignoring case, and whose base the catalog holds) or a `played: false` text-only entry (`kind: weapon` when only weapons carry it). Two books describing one name differently fail the run. It prints the count per group and the names with no description.
+- `generate` also writes the army-book rules part: every rule name on a unit, a weapon, an item or an upgrade that core and `army-rules.part.json` do not define becomes a template wrapper (an Aura, Buff or Mark whose text is its template, X read ignoring case, and whose base the catalog holds) or a `played: false` text-only entry (`kind: weapon` when only weapons carry it). Two books describing one name differently fail the run. It prints the count per group and the names with no description.
 - `generate` also writes `server/management/Content/Armies/army-book-units.json` (`ReserveUnits`, `--units FILE`): every unit a book's Spawn or Split rating (*"Bot Swarms [3]"*) names, in the TTS export's shape, keyed by book uid and unit name, for the import's reserve units. A rating naming no unit of its book fails the run.
 - Output is deterministic: an unchanged dump writes identical bytes.
 - References `server/game` for `PropertiesJson` and `PropertySetDocument`.

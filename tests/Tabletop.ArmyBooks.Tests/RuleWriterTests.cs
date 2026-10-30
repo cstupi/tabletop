@@ -18,7 +18,13 @@ public class RuleWriterTests
     { "name": "hand", "gameRules": "grimdark-future", "entries": [ { "name": "Bane when Shooting", "kind": "model", "aggregation": "all", "ruleText": "This model gets Bane when shooting." } ] }
     """);
 
-    static PropertySetDocument Part() => RuleWriter.Build(Books(), Core, Hand).Part!;
+    static PropertySetDocument Part() => RuleWriter.Build(Books(), Core, Hand, "grimdark-future").Part!;
+    [Fact]
+    public void The_part_names_the_rules_id_it_was_built_for()
+    {
+        Assert.Equal("grimdark-future-3.6", RuleWriter.Build(Books(), Core, Hand, "grimdark-future-3.6").Part!.GameRules);
+    }
+
     static EntryDocument Entry(string name) => Part().Entries.Single(e => e.Name == name);
 
     [Fact]
@@ -58,7 +64,7 @@ public class RuleWriterTests
     [Fact]
     public void The_report_counts_the_groups_and_names_what_has_no_description()
     {
-        var report = RuleWriter.Build(Books(), Core, Hand).Report!;
+        var report = RuleWriter.Build(Books(), Core, Hand, "grimdark-future").Report!;
         Assert.Equal(3, report.Generated);
         var counts = report.Groups.ToDictionary(g => g.Group, g => g.Count);
         Assert.Equal(1, counts["Aura, template text, base in catalog"]);
@@ -76,7 +82,7 @@ public class RuleWriterTests
     [Fact]
     public void Two_descriptions_of_one_name_fail_and_nothing_is_built()
     {
-        var (part, report, problems) = RuleWriter.Build([.. Books(), Read("conflict/rules-c.json")], Core, Hand);
+        var (part, report, problems) = RuleWriter.Build([.. Books(), Read("conflict/rules-c.json")], Core, Hand, "grimdark-future");
         Assert.Null(part);
         Assert.Null(report);
         Assert.Equal(["'Precise' has two descriptions: Rules A and Rules C"], problems);
@@ -86,7 +92,7 @@ public class RuleWriterTests
     public void The_part_composes_validates_and_serializes_the_same_whatever_the_book_order()
     {
         Assert.Empty(BookWriter.Check([], Core, Hand, Part()));
-        var reversed = RuleWriter.Build(Books().Reverse().ToList(), Core, Hand).Part!;
+        var reversed = RuleWriter.Build(Books().Reverse().ToList(), Core, Hand, "grimdark-future").Part!;
         Assert.Equal(RuleWriter.Serialize(Part()), RuleWriter.Serialize(reversed));
         Assert.EndsWith("\n", RuleWriter.Serialize(Part()));
     }

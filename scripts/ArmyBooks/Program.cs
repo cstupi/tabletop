@@ -1,4 +1,5 @@
 using Tabletop.ArmyBooks;
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 
 var repo = new DirectoryInfo(AppContext.BaseDirectory);
@@ -42,7 +43,10 @@ switch (args.FirstOrDefault())
     }
     case "generate":
     {
-        var dir = Path.Combine(dump, Arg("--edition", "3.5"));
+        var edition = Arg("--edition", "3.5");
+        var rulesId = RuleSets.RulesIdOf(edition);
+        var folder = edition == "3.5" ? "grimdark-future-3.5.1" : "grimdark-future-3.6";
+        var dir = Path.Combine(dump, edition);
         List<AfBook> books;
         List<(string Uid, string Name, string Json)> raw;
         try
@@ -62,21 +66,21 @@ switch (args.FirstOrDefault())
             catch (GenerationException ex) { return ex.Problems; }
         })).ToList();
         IReadOnlyList<BookDocument> built = [];
-        var content = Path.Combine(repo.FullName, "server", "game", "Content");
-        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-core.properties.json")));
-        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-army-rules.part.json")));
-        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand);
+        var content = Path.Combine(repo.FullName, "server", "game", "Content", folder);
+        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "core.properties.json")));
+        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "army-rules.part.json")));
+        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand, rulesId);
         problems.AddRange(ruleProblems);
         var (reserveUnits, reserveProblems) = ReserveUnits.Build(raw);
         problems.AddRange(reserveProblems);
         if (problems.Count == 0)
         {
-            built = BookWriter.Build(books);
+            built = BookWriter.Build(books, rulesId);
             problems.AddRange(BookWriter.Check(built, core, hand, rules));
         }
         if (problems.Count > 0) { foreach (var p in problems) Console.Error.WriteLine(p); return 1; }
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
-        var rulesPath = Arg("--rules", Path.Combine(content, "grimdark-future-army-book-rules.part.json"));
+        var rulesPath = Arg("--rules", Path.Combine(content, "army-book-rules.part.json"));
         File.WriteAllText(rulesPath, RuleWriter.Serialize(rules!));
         var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName));
         File.WriteAllText(unitsPath, reserveUnits);
