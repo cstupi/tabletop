@@ -21,7 +21,7 @@ public static class GfNames
     public const string Coordinate = "Coordinate", DelayedAction = "Delayed Action", Instinctive = "Instinctive", InstinctiveCondition = "instinctive";
     public const string InquisitorialAgent = "Inquisitorial Agent", MartialProwess = "Martial Prowess";
     /// <summary>Army-book rules spec, batch 5: hits and wounds a rule deals outside an attack, and the rules that deal them.</summary>
-    public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds";
+    public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds", StrikeRollsSeq = "strike-rolls";
     /// <summary>Army-book rules spec, batch 6: the round-start roll that may end Shaken, and the rule read off a model's ignored wounds.</summary>
     public const string RallySeq = "rally", RegenerativeStrength = "Regenerative Strength";
     /// <summary>Army-book rules spec, batch 8: the rules the grammar additions leave to the ruleset.</summary>
@@ -76,6 +76,10 @@ public static class GfNames
     public const string AmbushDistanceRule = "ambush_distance";
     /// <summary>IGameRules.PlacementBreach rule name for a Scout placed within 9" of a non-Scout enemy unit (3.6.0 p.15: "over 9” away from non-Scout enemy units").</summary>
     public const string ScoutDistanceRule = "scout_distance";
+    /// <summary>IGameRules.AnswerBreach rule name for a Fanatic or Vanguard placement within 9" of a non-Vanguard enemy unit (3.6.0 books: "over 9" away from
+    /// non-Vanguard enemy units").</summary>
+    public const string VanguardDistanceRule = "vanguard_distance";
+    public const string Fanatic = "Fanatic", Vanguard = "Vanguard";
     /// <summary>IGameRules.AnswerBreach rule name for a deploy answer naming a unit already inside a Transport (p.15: it deploys with the Transport).</summary>
     public const string DeployInsideRule = "deploy_inside";
     /// <summary>IGameRules.AnswerBreach rule name for a pass to the activate Ask (p.7: "Players must activate one unit that has not been activated yet").</summary>

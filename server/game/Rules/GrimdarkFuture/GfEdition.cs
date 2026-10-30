@@ -25,11 +25,14 @@ public sealed record GfEdition(
     int? HeroAuraTough,                                           // S10
     bool IndirectNeedsHold,                                       // S12
     double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
+    double VanguardClearance,                                     // F6b: Fanatic, Vanguard "over 9" away from non-Vanguard enemy units"; 0 none
     bool AircraftTransportUnreachable,                            // S15
     bool UnstoppableKeepsOwnPenalties,                            // S16
     bool PlacedUnitsHoldNoObjectives,                             // F6a: Spawn / Split "can't seize or contest objectives on the round they are placed"
     bool ReinforcementOnShaken, double ReinforcementEdgeReach, double ReinforcementClearance, // F6a: Reinforcement's removal when Shaken, edge strip, distance from enemies
     bool HazardousOnModel,                                        // F6a: Hazardous's 1 wounds the model that rolled it, X wounds with Blast(X)/Deadly(X)
+    bool StrikeTurnRolls,                                         // F6b: Ravage and Regenerative Strength roll at the model's turn to strike, once per round, not Fatigued
+    bool AttackRangeRecorded,                                     // F6b: determine-attacks records `range_hundredths`, which a morale test after shooting reads ("when shot from over 9\" away")
     double SideBattleLong, double SideBattleShort,                // M1
     string HybridSightPage,
     string? ArtilleryNote,
@@ -57,11 +60,14 @@ public sealed record GfEdition(
         HeroAuraTough: null,
         IndirectNeedsHold: false,
         ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
+        VanguardClearance: 0,
         AircraftTransportUnreachable: false,
         UnstoppableKeepsOwnPenalties: false,
         PlacedUnitsHoldNoObjectives: false,
         ReinforcementOnShaken: false, ReinforcementEdgeReach: 12, ReinforcementClearance: 0,
         HazardousOnModel: false,
+        StrikeTurnRolls: false,
+        AttackRangeRecorded: false,
         SideBattleLong: 0.75, SideBattleShort: 0.625,
         HybridSightPage: "p.56",
         ArtilleryNote: "Artillery: may only use Hold actions (p.13)",
@@ -89,11 +95,14 @@ public sealed record GfEdition(
         HeroAuraTough: 9,
         IndirectNeedsHold: true,
         ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",
+        VanguardClearance: 9,
         AircraftTransportUnreachable: true,
         UnstoppableKeepsOwnPenalties: true,
         PlacedUnitsHoldNoObjectives: true,
         ReinforcementOnShaken: true, ReinforcementEdgeReach: 9, ReinforcementClearance: 9,
         HazardousOnModel: true,
+        StrikeTurnRolls: true,
+        AttackRangeRecorded: true,
         SideBattleLong: 2.0 / 3, SideBattleShort: 0.75,
         HybridSightPage: "3.6.0 p.58",
         ArtilleryNote: null,

@@ -36,7 +36,8 @@ interactions, and every predicate has to cope. Spell hits resolve with `AttackKi
 *when shooting* or *in melee* rule reaches them, and `SpellRules` carries the spell's granted weapon
 rules into the settled set. A morale test's interaction carries the attack kind that caused it:
 `melee` for p.10's melee test, the kind of the unit's last wound that activation for the general
-test, `spell` for a `take_test`. In a Charge's melee, `RangeInches` is the distance at the charge's
+test, `spell` for a `take_test`. After a melee or a shooting it also carries the opposing unit as the defender and a range (`GfMorale.Ix`): the
+charge's recorded range and, for the unit charged, `ActionTaken` `Charge`; the range the attack measured (3.6: `determine-attacks`' `range_hundredths`). In a Charge's melee, `RangeInches` is the distance at the charge's
 start, which the `charge-target` step records as `charge_range` in hundredths of an inch. `Party.Whole` uses `Lookup.AliveModels`, which is
 models still in play, container occupants included. An occupant unit's own properties are
 therefore still gathered when a wrecked transport wounds it.
@@ -167,7 +168,7 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 13 | `CountAsTerrain` | two | `GfMoves` reads the `TargetTerrain` row: `difficult` caps the holder's next move at 6", `dangerous` runs the `dangerous-terrain` test at its next activation, an idle one included | spells granting either terrain type |
 | 14 | `TakeTest` | two | `GfCasting`'s `effects` step pushes `spell-test`, which pushes `morale-test` for the target with p.10's consequence; the row's children apply when the test fails | morale-test spells |
 | 15 | `SetCondition` | two | `spell-test`'s `consequence` sets `TargetCondition` on the target's unit; at an `at_point`, the rule's rows are a choice: `GfHooks.ReactionsAt` offers the rule once and `choose-effect` sets the row picked (the unit's chosen conditions clear as its next activation starts), read by the rule's `actor_state` rows | *Terrifying Fury* (`fatigued`); Versatile Attack, Speed Feat |
-| 16 | `Move` | two | `spell-test`'s `consequence` opens a `move` Ask to the caster's team over the target's alive models, `Amount` inches under that unit's own move rules, which may pass; at an `at_point`, `GfHooks.ReactionsAt` offers it and `reposition` moves the holder | *Deep Hypnosis*; `Hit & Run Fighter`, `Harassing`, `Guerrilla` |
+| 16 | `Move` | two | `spell-test`'s `consequence` opens a `move` Ask to the caster's team over the target's alive models, `Amount` inches under that unit's own move rules, which may pass; at an `at_point`, `GfHooks.ReactionsAt` offers it and `reposition` moves the holder; with `AmountDice` (`d3`, `d3+1`) `reposition` rolls the distance once chosen and moves the holding models | *Deep Hypnosis*; `Hit & Run Fighter`, `Harassing`, `Guerrilla`; 3.6.0 `Rapid Blink`, `Wolfborn`, Bounding, Dash |
 | 17 | `Place` | two | `GfHooks.ReactionsAt` offers it at its `at_point` and `reposition` places the holder, `Amount` inches or `AmountDice` (`d3`, or `d3+1`: a D3 plus one per die) | `Teleport`, `Rapid Blink`, `Wolfborn`, Bounding, Dash |
 | 18 | `RemoveWounds` | two | a pick entry's use row: `pick-rule`'s `rule-effects` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model | `Mend` |
 

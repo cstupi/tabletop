@@ -133,7 +133,8 @@ public static class GfHooks
 
     static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
     static string Label(string entry, Effect row) => row.Kind == EffectKind.Place
-        ? $"{entry}: place within {(row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + (row.AmountDice == "d3+1" ? "D3+1" : "D3"))}\""
+        ? $"{entry}: place within {Amount(row)}\""
         : row.Kind == EffectKind.SetCondition ? $"{entry}: pick an effect"
-        : $"{entry}: move up to {row.Amount}\"";
+        : $"{entry}: move up to {Amount(row)}\"";
+    static string? Amount(Effect row) => row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + (row.AmountDice == "d3+1" ? "D3+1" : "D3");
 }

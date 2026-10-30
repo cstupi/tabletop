@@ -29,7 +29,7 @@ public static partial class GfAttack
 
     /// <summary>"Charges enemies over 9" away", "charged from over 9" away": in the melee of a Charge, the distance the charge-target step recorded
     /// before the move (spell library, Grammar additions). Null outside a charge.</summary>
-    static double? ChargeRange(FrameView? frame)
+    internal static double? ChargeRange(FrameView? frame)
     {
         for (var f = frame; f is not null; f = f.Parent)
             if (f.Frame.Sequence == GfNames.ChargeSeq && f.Values.TryGetValue(GfNames.ChargeRangeKey, out var hundredths)) return hundredths / 100.0;
@@ -500,11 +500,11 @@ public static partial class GfAttack
                                 + RegenerativeStrength(ctx, m, kind, weapons)))
               .Where(x => x.Attacks > 0).ToList();
 
-    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it. A text-only entry (the 3.6 set's)
-    /// plays nothing, as the marker rules' Played gate (GfMarkers).</summary>
+    /// <summary>Regenerative Strength's "+X attacks" in melee, on the model's first melee weapon when this group holds it (3.5.1). A text-only entry plays
+    /// nothing, as the marker rules' Played gate (GfMarkers); 3.6's rolls dice instead (GfEdition.StrikeTurnRolls, GfStrikeRolls36).</summary>
     static int RegenerativeStrength(StepContext ctx, Guid model, AttackKind kind, IReadOnlyList<Guid> weapons)
     {
-        if (kind != AttackKind.Melee || ctx.Properties.Entry(GfNames.RegenerativeStrength) is not { Played: true } || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
+        if (kind != AttackKind.Melee || GfEdition.Of(ctx.State).StrikeTurnRolls || ctx.Properties.Entry(GfNames.RegenerativeStrength) is not { Played: true } || ctx.Projection.Models[model].Slot.Weapons.FirstOrDefault(w => GfMelee.IsMelee(ctx.State, w)) is not { } first || !weapons.Contains(first.Id)) return 0;
         var x = GfMarkers.RegenerativeStrength(ctx.State, model);
         if (x > 0) ctx.Applied.Add(GfNames.RegenerativeStrength);
         return x;
@@ -556,6 +556,9 @@ public static partial class GfAttack
     /// p.14's joined hero is alone. `in_cover` is p.11's majority, settled at that same moment and carried here for
     /// `roll-to-block`. A melee push settles no `in_cover`, which melee does not read; a push that settled nothing falls back to the live reading.
     /// </summary>
+    /// <summary>The attack's range as its interaction measured it, in hundredths of an inch, on determine-attacks (GfEdition.AttackRangeRecorded).</summary>
+    public const string RangeKey = "range_hundredths";
+
     sealed class DetermineAttacksStep : IStep
     {
         public string Name => "determine-attacks";
@@ -581,6 +584,7 @@ public static partial class GfAttack
             else if (kind == AttackKind.Shooting) WriteCover(values, CoverOf(ctx.State, live, ix.Defender.UnitId, eligible));
             else values["in_cover"] = 0;
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
+            if (GfEdition.Of(ctx.State).AttackRangeRecorded && ix.RangeInches is { } range) values[RangeKey] = (int)Math.Round(range * 100);
             if (kind == AttackKind.Shooting)
                 foreach (var (shooter, target, point) in Aims(ctx.State, live, ix.Attacker.UnitId, ix.Defender.UnitId, eligible, ctx.Frame.Context.WeaponIds))
                     values[$"aim_{shooter}_{target}"] = point;

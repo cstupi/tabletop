@@ -14,15 +14,27 @@ public static class GfMorale
     /// <summary>What caused a general morale test: the kind of the last attack at the unit in the effective log, a spell's hits being Spell and a
     /// strike a melee pushed being Melee (3.6.0 p.13 Assault strikes with a weapon that has a Range).
     /// Null when nothing attacked it.</summary>
-    public static AttackKind? CauseOf(GameState state, Guid unit)
+    public static AttackKind? CauseOf(GameState state, Guid unit) => Cause(state, unit).Kind;
+
+    /// <summary>CauseOf with the attacking unit: the actor of that attack (none for a spell's hits).</summary>
+    static (AttackKind? Kind, Guid? By, double? Range) Cause(GameState state, Guid unit)
     {
-        foreach (var e in EventApplier.EffectiveLog(state.Applier.Log).Reverse())
-            if (e.Payload is SequenceStarted s && s.Context.TargetUnitIds.Contains(unit))
+        var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
+        for (var i = log.Count - 1; i >= 0; i--)
+            if (log[i].Payload is SequenceStarted s && s.Context.TargetUnitIds.Contains(unit))
             {
-                if (s.Sequence == GfNames.SpellHitsSeq) return AttackKind.Spell;
-                if (s.Sequence == GfNames.AttackSequence && s.Context.WeaponIds.Count > 0) return GfAttack.KindOf(state, s.Context.WeaponIds) is AttackKind.Shooting && GfEdition.Of(state).HasAssault && GfAttack.StartedInMelee(state, s.FrameId) ? AttackKind.Melee : GfAttack.KindOf(state, s.Context.WeaponIds);
+                if (s.Sequence == GfNames.SpellHitsSeq) return (AttackKind.Spell, null, null);
+                if (s.Sequence == GfNames.AttackSequence && s.Context.WeaponIds.Count > 0)
+                {
+                    var kind = GfAttack.KindOf(state, s.Context.WeaponIds) is AttackKind.Shooting && GfEdition.Of(state).HasAssault && GfAttack.StartedInMelee(state, s.FrameId) ? AttackKind.Melee : GfAttack.KindOf(state, s.Context.WeaponIds);
+                    // The range the attack measured when it was made (determine-attacks' range_hundredths), not where the units stand now: the test comes at
+                    // the end of the activation, after any move the shooter made since.
+                    var range = log.Skip(i + 1).Select(e => e.Payload).OfType<StepCompleted>().FirstOrDefault(c => c.FrameId == s.FrameId && c.Step == "determine-attacks")
+                        ?.Values?.TryGetValue(GfAttack.RangeKey, out var h) == true ? h / 100.0 : (double?)null;
+                    return (kind, s.Context.ActorUnitId, range);
+                }
             }
-        return null;
+        return (null, null, null);
     }
 
     /// <summary>The morale test's own die and its override dice, as they now stand: a test step's record named `morale`, and every record
@@ -35,11 +47,41 @@ public static class GfMorale
         return steps.Where(s => s.Step == "override").SelectMany(s => s.Rolls).Any(r => Dice.RollOutcome.Successes(r) > 0);
     }
 
+    /// <summary>
+    /// The test's interaction: the testing unit is the attacker side, the unit whose attack caused the test the defender side. "When shot/charged from
+    /// over 9"/6" away" (3.6.0 Hive Bond, Hold the Line) reads the range and the opponent's action: after a melee, the distance the charge-target step
+    /// recorded and, for the unit charged, the charger's Charge; after shooting, the range the attack measured (determine-attacks' `range_hundredths`,
+    /// GfEdition.AttackRangeRecorded; none under 3.5.1). A spell's test
+    /// and a test with no attack behind it carry neither.
+    /// </summary>
     static Interaction Ix(StepContext ctx, Guid unit)
     {
-        var cause = ctx.Frame.Context.Action switch { "melee" => AttackKind.Melee, "spell" => AttackKind.Spell, _ => CauseOf(ctx.State, unit) };
-        return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, cause, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit));
+        var terrain = Battlefield.TerrainUnder(ctx.State, unit);
+        if (ctx.Frame.Context.Action == "spell")
+            return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, AttackKind.Spell, ctx.Frame.Context.Action, null, terrain);
+        if (ctx.Frame.Context.Action == "melee" && MeleeOf(ctx.Frame) is { } melee)
+        {
+            var (charger, defender) = (melee.Frame.Context.ActorUnitId, melee.Frame.Context.TargetUnitIds.FirstOrDefault());
+            var opponent = unit == defender ? charger : defender;
+            var charged = unit == defender && melee.Frame.Context.Action == GfNames.Charge;
+            return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Opponent(ctx.State, opponent), AttackKind.Melee,
+                charged ? GfNames.Charge : ctx.Frame.Context.Action, GfAttack.ChargeRange(ctx.Frame), terrain);
+        }
+        var (cause, by, range) = ctx.Frame.Context.Action == "melee" ? (AttackKind.Melee, null, null) : Cause(ctx.State, unit);
+        return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), cause == AttackKind.Shooting ? Opponent(ctx.State, by) : null, cause, ctx.Frame.Context.Action,
+            cause == AttackKind.Shooting ? range : null, terrain);
     }
+
+    static FrameView? MeleeOf(FrameView frame)
+    {
+        for (var f = frame.Parent; f is not null; f = f.Parent)
+            if (f.Frame.Sequence == GfNames.Melee) return f;
+        return null;
+    }
+
+    /// <summary>The opposing unit as a whole party, while it still has a model in play.</summary>
+    static Party? Opponent(GameState state, Guid? unit) =>
+        unit is { } u && state.Projection.Units.ContainsKey(u) && Lookup.AliveModels(state, u).Count > 0 ? Party.Whole(state, u) : null;
 
     static IReadOnlyList<(LiveProperty Source, Effect Roll)> OverrideRolls(LiveSet live) =>
         RollEffects.OwnRolls(live, Side.Attacker, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.MoraleTest });

@@ -378,15 +378,18 @@ public static partial class GfMoves
             var live = Lone(ctx, unit, ActionOf(ctx.Frame));
             if (Offered(live, entry) is not var (source, row)) return new Finish([]);
             if (row.Kind == EffectKind.Place) return Place(ctx, unit, entry, live, source, row);
-            var allowance = row.EffectiveAmount(null);
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, row);
+            // "move all models with this rule in it by up to D3"": a rolled move takes the holding models (the whole unit when the rule is granted).
+            var allowance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
+            var movers = row.AmountDice is null ? Lookup.AliveModels(ctx.State, unit) : Holders(ctx, unit, entry);
             if (ctx.History.LastClosed("move") is not { } closed)
             {
                 var rules = TerrainFor(ctx, unit, live);
                 var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
-                return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep), allowPass: true)]);   // the cap ApplyMove holds the move to
+                return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance:0.#}\"", ctx.ActorTeam!.Value,
+                    new MoveRegion(movers, allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
-            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed), null);
+            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, [.. GfAnswers.Moves(ctx.State, closed).Where(m => row.AmountDice is null || movers.Contains(m.ModelId))], null);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
             live.Read(source);
             var (spent, held) = ConsumeKeepingFlying(live);
@@ -400,15 +403,9 @@ public static partial class GfMoves
         /// A declined offer or a landing refused everywhere consumes nothing: a grant is spent only by the placement it makes (the dice are rolled once chosen, never at the offer).</summary>
         static StepOutcome Place(StepContext ctx, Guid unit, string entry, LiveSet live, LiveProperty source, Effect row)
         {
-            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0)
-            {
-                // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
-                var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
-                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (int)Math.Round(Inches(record, row) * 10) }, Repeat: true);
-            }
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, row);
             var distance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
-            var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();
-            var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
+            var models = Holders(ctx, unit, entry);
             if (ctx.History.LastClosed("move") is not { } placed)
                 return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
                     PlacementRegion(models, distance, IsAircraft(ctx, unit)), allowPass: true)]);
@@ -417,6 +414,21 @@ public static partial class GfMoves
             live.Read(source);
             changes.AddRange(RollEffects.Consume(live));
             return new Complete(changes);
+        }
+
+        /// <summary>The roll of a rolled distance, recorded in tenths on the frame, then the step repeats to ask.</summary>
+        static StepOutcome RollDistance(StepContext ctx, string entry, Effect row)
+        {
+            // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
+            var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
+            return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (int)Math.Round(Inches(record, row) * 10) }, Repeat: true);
+        }
+
+        /// <summary>The unit's models carrying the rule, or the whole unit when none does (the rule held by a grant).</summary>
+        static IReadOnlyList<Guid> Holders(StepContext ctx, Guid unit, string entry)
+        {
+            var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();
+            return holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();
         }
 
         /// <summary>p.4's D3, a D6 halved and rounded up, per die; "D3+1" (Bounding, Dash) adds one per die.</summary>

@@ -106,7 +106,7 @@ erDiagram
 
 `effect` is one table for eighteen kinds. Six columns serve a single kind each: `threshold`,
 `cap_kind`, `replacement`, `target_terrain` (`count_as_terrain`), `target_condition` (`set_condition`) and
-`amount_dice` (`place`). The self-reference carries nesting. `condition_value` exists
+`amount_dice` (`place`, `move`, `remove_wounds`). The self-reference carries nesting. `condition_value` exists
 because one predicate can name a set: `Fast` applies to *Rush/Charge*. The `properties_hash`
 column that every child table carries as part of its key is elided for width, as are the
 `entry_name` and `condition_id` foreign keys and the `position` columns. [`schema-diagram.md`](../../schema-diagram.md) has them in full.
@@ -169,7 +169,7 @@ Consequences:
 `aggregation` is set exactly when `kind` is `model`; `cost` and `targeting` exactly when `kind`
 is `spell`, except that a `model` pick entry carries `targeting` too; `threshold` only on `roll`, `cap_kind` only on
 `multiply`, `replacement` only on `replace_stat`, `target_terrain` exactly on `count_as_terrain`, `target_condition`
-exactly on `set_condition`, `amount_dice` (`d3`) only on `place`; a `roll` effect has at least one child; an `add_hit`
+exactly on `set_condition`, `amount_dice` (`d3`, `d3+1`) only on `place`, `move` and `remove_wounds`; a `roll` effect has at least one child; an `add_hit`
 of `wounds` or `attacks` carries a `roll_result` condition; `range`, `round_number`, `usage_count` and `at_point` take
 no subject, while `holds_property` and `most_models` need one and name exactly one value; a text-only entry
 (`played = false`) has no effects; a `spell` entry's top-level effect is `add_hit`, `take_test`, or carries
