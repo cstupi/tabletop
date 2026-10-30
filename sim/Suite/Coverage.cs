@@ -16,6 +16,9 @@ public sealed record CoverageEntry(string Name, string Kind, IReadOnlyList<strin
     /// <summary>The game-rules id of the set the entry is from (PropertySet.GameRules): each shipped set is covered on its own.</summary>
     public string Edition { get; init; } = RuleSets.Gf351;
 
+    /// <summary>The set's name (PropertySet.Name): the viewer shows it, never the id.</summary>
+    public string RuleSet { get; init; } = "";
+
     /// <summary>No selected game covers the entry; a full run fails on any. A text-only entry is never uncovered.</summary>
     public bool Uncovered => State != CoverageState.NotAutomated && Games.Count == 0;
     /// <summary>Whether the entry counts against coverage: every entry but a text-only one (army-book rules spec → Coverage).</summary>
@@ -54,7 +57,7 @@ public static class Coverage
         var textOnly = fullRun ? set.Entries.Where(e => !e.Played).Select(e => new CoverageEntry(e.Name, "rule", [], false, [], CoverageState.NotAutomated)) : [];
         return own.Values.Concat(wrappers).Concat(textOnly)
             .Where(c => fullRun || !c.Uncovered)
-            .Select(c => c with { Edition = set.GameRules })
+            .Select(c => c with { Edition = set.GameRules, RuleSet = set.Name })
             .OrderBy(c => c.Kind, StringComparer.Ordinal).ThenBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
     }

@@ -1,10 +1,13 @@
 // Client for the runner service (sim serve): GET /suite, POST /runs, GET /runs/{id}/events.
-export type SuiteGame = { readonly name: string; readonly group: string; readonly covers: readonly string[] };
+export type SuiteGame = { readonly name: string; readonly group: string; readonly covers: readonly string[];
+  /** A game-rules id (`grimdark-future`, `grimdark-future-3.6`) and that set's name; show the name. */
+  readonly edition: string; readonly ruleSet: string;
+};
 export type DriverName = 'in-process' | 'socket';
 export type RunRequest = { readonly only: readonly string[]; readonly driver: DriverName; readonly keep: boolean };
 
 export type SuiteGameResult = {
-  readonly name: string; readonly group: string; readonly passed: boolean; readonly failures: readonly string[];
+  readonly name: string; readonly group: string; readonly edition: string; readonly passed: boolean; readonly failures: readonly string[];
   readonly seed: number; readonly replay: string; readonly recordingPath: string | null; readonly gameId: string | null;
   /** The account a live feed connects as (a participant with no team); set for a kept socket game. */
   readonly spectator: string | null;
@@ -14,7 +17,7 @@ export type ExactResult = { readonly game: string; readonly check: string; reado
 export type CoverageState = 'own' | 'pattern' | 'not_automated';
 export type CoverageEntry = {
   readonly name: string; readonly kind: string; readonly games: readonly string[]; readonly fired: boolean;
-  readonly exact: readonly ExactResult[]; readonly state: CoverageState;
+  readonly exact: readonly ExactResult[]; readonly state: CoverageState; readonly edition: string; readonly ruleSet: string;
 };
 export type SuiteReport = {
   readonly runId: string; readonly games: readonly SuiteGameResult[]; readonly coverage: readonly CoverageEntry[];

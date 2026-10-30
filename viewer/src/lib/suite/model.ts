@@ -83,3 +83,21 @@ export function coverageCell(c: CoverageEntry): CoverageCell {
   if (c.state === 'pattern') return { text: c.fired ? 'by pattern' : 'by pattern: not fired', tone: c.fired ? 'ok' : 'error' };
   return { text: c.fired ? 'yes' : 'no', tone: c.fired ? 'ok' : 'error' };
 }
+
+export type Edition = { readonly edition: string; readonly name: string };
+
+/** The editions the suite runs under, in catalog order, each with its rule set's name. */
+export function editionsOf(games: readonly SuiteGame[]): Edition[] {
+  const seen = new Map<string, string>();
+  for (const g of games) if (!seen.has(g.edition)) seen.set(g.edition, g.ruleSet);
+  return [...seen].map(([edition, name]) => ({ edition, name }));
+}
+
+/** Selects every game of the edition, or deselects them all when they are all selected. */
+export function toggleEdition(page: Page, edition: string): Page {
+  const names = page.games.filter((g) => g.edition === edition).map((g) => g.name);
+  const all = names.every((n) => page.selected.has(n));
+  const selected = new Set(page.selected);
+  for (const n of names) all ? selected.delete(n) : selected.add(n);
+  return { ...page, selected };
+}
