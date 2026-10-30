@@ -109,9 +109,7 @@ public sealed partial class GameSession
                 await rows.SetParticipantArmyAsync(SeatFor(seats, a.TeamId)!.Id, armyId, ct); break;
             case PickArmy a: await rows.SetParticipantArmyAsync(SeatFor(seats, a.TeamId)!.Id, null, ct); break;
             case SetConfiguration when !creator: await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator configures the game"); return;
-            case SetConfiguration c when !await rows.PropertiesExistAsync(c.PropertiesHash, ct): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no properties {c.PropertiesHash}"); return;
-            case SetConfiguration c when Rules.OptionProblems(c.OptionalRules) is { Count: > 0 } problems: await RefuseEdit(from, editId, RefusalReason.Unknown, string.Join("; ", problems)); return;
-            case SetConfiguration c: await rows.SetConfigurationAsync(GameId, c, ct); break;
+            case SetConfiguration c: await SetConfigurationAsync(from, editId, c); return;
             case StartSetup when !IsCreator(from): await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator starts setup"); return;
             case StartSetup when Info.Status != GameStatus.Lobby: await RefuseEdit(from, editId, RefusalReason.WrongStatus, "setup has already started"); return;
             case StartSetup:
@@ -122,6 +120,32 @@ public sealed partial class GameSession
                 await BroadcastAsync(new BoardMessage(new Board(draft, [])));
                 return;
             case EndSetup: await HandleEndSetupAsync(from, editId); return;
+        }
+        await ReloadInfoAsync();
+    }
+
+    /// <summary>
+    /// The creator's configuration. The hash's game rules decide the catalog the options are checked against; a hash of another rules id
+    /// (another edition) swaps Rules, clears every picked army of the other edition, and sends the new catalog before the GameInfo, since
+    /// both clients rebuild their option controls when the GameInfo lands (rule-set versions spec → How a game picks its edition).
+    /// </summary>
+    private async Task SetConfigurationAsync(ISessionClient from, Guid editId, SetConfiguration c)
+    {
+        var rows = _services.Rows; var ct = CancellationToken.None;
+        if (await rows.PropertiesGameRulesAsync(c.PropertiesHash, ct) is not { } newId) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no properties {c.PropertiesHash}"); return; }
+        IGameRules newRules;
+        try { newRules = newId == Rules.Id ? Rules : GameRulesRegistry.Resolve(newId); }
+        catch (UnknownGameRulesException) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no game rules {newId}"); return; }
+        if (newRules.OptionProblems(c.OptionalRules) is { Count: > 0 } problems) { await RefuseEdit(from, editId, RefusalReason.Unknown, string.Join("; ", problems)); return; }
+        await rows.SetConfigurationAsync(GameId, c, ct);
+        if (newRules != Rules)
+        {
+            Rules = newRules;   // the row is on the new set: the session follows it before anything else can fail
+            var edition = RuleSets.EditionOf(newId);
+            foreach (var p in Info.Participants.Where(p => p.ArmyId is not null))
+                if (await rows.ReadArmyAsync(p.ArmyId!.Value, ct) is { } owned && owned.Army.Edition != edition)
+                    await rows.SetParticipantArmyAsync(p.Id, null, ct);
+            await BroadcastAsync(new RulesOptionsMessage(Rules.OptionCatalog));
         }
         await ReloadInfoAsync();
     }

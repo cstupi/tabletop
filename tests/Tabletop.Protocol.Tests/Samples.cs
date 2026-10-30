@@ -86,7 +86,10 @@ public static class Samples
     public static readonly SocketMessage[] Messages =
     [
         new Connect("jwt", Guid.CreateVersion7(), ProtocolVersion.Current), new CommandMessage(Guid.CreateVersion7(), Commands[0]),
-        new EditMessage(Guid.CreateVersion7(), Edits[0]), new Welcome(P1, Game), new GameInfoMessage(Game), new BoardMessage(Board),
+        new EditMessage(Guid.CreateVersion7(), Edits[0]), new Welcome(P1, Game), new GameInfoMessage(Game),
+        new RulesOptionsMessage(new RulesOptionCatalog([new RulesOption("line_of_sight", "Line of sight method", "3.6.0 p.58", [new RulesOptionValue("core", "Core line of sight")], "core")],
+            [new RulesPreset("Core rules", new Dictionary<string, string>(), null)])),
+        new BoardMessage(Board),
         new EventsMessage([new GameEvent(1, P1, Events[0], null), new GameEvent(2, null, Events[5], "outside the legal set")]),
         new PresenceMessage(new Presence(P1, new Cursor(new Point3(1, 2, 3), Model), new Selection(Unit, []), [new PresencePlacement(Model, new Point3(1, 1, 0), new Yaw(0), PlacementKind.Held)], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0), MeasureMode.Straight))),
         new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1), new AtRest(2),

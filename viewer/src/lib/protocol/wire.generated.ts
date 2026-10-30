@@ -639,6 +639,11 @@ export interface RulesOptionValue {
   readonly label: string;
 }
 
+export interface RulesOptionsMessage {
+  readonly kind: 'rules_options';
+  readonly options: RulesOptionCatalog;
+}
+
 export interface RulesPreset {
   readonly name: string;
   readonly optionalRules: { readonly [key: string]: string };
@@ -792,7 +797,7 @@ export interface SightQuery {
   readonly targetUnitId: string;
 }
 
-export type SocketMessage = Connect | Welcome | GameInfoMessage | BoardMessage | EventsMessage | Refused | Rejected | CommandMessage | EditMessage | AtRest | Reauth | SightQuery | SightAnswer | ModelFacts;
+export type SocketMessage = Connect | Welcome | GameInfoMessage | RulesOptionsMessage | BoardMessage | EventsMessage | Refused | Rejected | CommandMessage | EditMessage | AtRest | Reauth | SightQuery | SightAnswer | ModelFacts;
 
 export interface SpellTokensSet {
   readonly kind: 'spell_tokens_set';
