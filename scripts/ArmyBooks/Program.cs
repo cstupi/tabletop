@@ -47,37 +47,17 @@ switch (args.FirstOrDefault())
         var rulesId = RuleSets.RulesIdOf(edition);
         var folder = edition == "3.5" ? "grimdark-future-3.5.1" : "grimdark-future-3.6";
         var dir = Path.Combine(dump, edition);
-        List<AfBook> books;
-        List<(string Uid, string Name, string Json)> raw;
-        try
-        {
-            var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dir, "index.json")));
-            raw = index.Select(e => (e.Uid, e.Name, File.ReadAllText(Path.Combine(dir, "books", e.Uid + ".json")))).ToList();
-            books = index.Zip(raw).Select(p => ArmyForgeJson.ReadBook(p.Second.Json) with { Name = p.First.Name, VersionString = p.First.VersionString }).ToList();
-        }
+        var content = Path.Combine(repo.FullName, "server", "game", "Content", folder);
+        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "core.properties.json")));
+        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "army-rules.part.json")));
+        Generated g;
+        try { g = Generation.Run(dir, core, hand, rulesId); }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             Console.Error.WriteLine($"dump file missing under {dir}: {ex.Message}");
             return 2;
         }
-        var problems = books.SelectMany(b => b.Spells.SelectMany(s =>
-        {
-            try { return TextCheck.Problems(s, SpellTranslator.Translate(b, s)).Select(p => $"{b.Name}: {p}"); }
-            catch (GenerationException ex) { return ex.Problems; }
-        })).ToList();
-        IReadOnlyList<BookDocument> built = [];
-        var content = Path.Combine(repo.FullName, "server", "game", "Content", folder);
-        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "core.properties.json")));
-        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "army-rules.part.json")));
-        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand, rulesId);
-        problems.AddRange(ruleProblems);
-        var (reserveUnits, reserveProblems) = ReserveUnits.Build(raw);
-        problems.AddRange(reserveProblems);
-        if (problems.Count == 0)
-        {
-            built = BookWriter.Build(books, rulesId);
-            problems.AddRange(BookWriter.Check(built, core, hand, rules));
-        }
+        var (built, rules, report, reserveUnits, problems) = g;
         if (problems.Count > 0) { foreach (var p in problems) Console.Error.WriteLine(p); return 1; }
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
         var rulesPath = Arg("--rules", Path.Combine(content, "army-book-rules.part.json"));
