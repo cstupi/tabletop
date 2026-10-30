@@ -4,7 +4,7 @@
 // reauthenticates every minute and rebuilds from the server on every connect. It judges nothing: the server refuses.
 
 import type {
-  Board, Command, Connect, Edit, GameEvent, GameInfo, Refused, RulesOptionCatalog, SightAnswer, SocketMessage, TableState,
+  Board, Command, Connect, Edit, GameEvent, GameInfo, Refused, RulesOptionCatalog, SightAnswer, SocketMessage, TableState, ZoneLegs,
 } from '../protocol/wire.generated';
 import { PROTOCOL_VERSION } from '../protocol/wire.generated';
 import { Applier, ProjectionDesyncError, type Projection } from '../live/apply';
@@ -19,6 +19,8 @@ export interface ConnectionState {
   /** Welcome's participant row; the all-zero id for an admin watcher. */
   readonly participantId: string | null;
   readonly options: RulesOptionCatalog;
+  /** Welcome's Side Battle legs, which every zone shape resolves with; null before the welcome. */
+  readonly zones: ZoneLegs | null;
   /** Setup: the last board's table. */
   readonly draft: TableState | null;
   /** From playing on: the snapshot the log applies to. */
@@ -98,7 +100,7 @@ type Send = {
 };
 
 const INITIAL: ConnectionState = {
-  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, draft: null, board: null, log: [], projection: null,
+  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, draft: null, board: null, log: [], projection: null,
   maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), catchingUp: true, closeReason: null,
 };
 
@@ -257,7 +259,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         welcomed = true;
         attempt = 0;
         clearTimeout(welcomeTimer);
-        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, closeReason: null });
+        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, closeReason: null });
         reauthTimer = setInterval(() => void reauth(), reauthEvery);
         flush();
         return;

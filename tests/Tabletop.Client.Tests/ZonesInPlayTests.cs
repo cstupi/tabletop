@@ -31,4 +31,17 @@ public class ZonesInPlayTests : IDisposable
         Assert.Equal(2, board.Table.Zones.Count);
         Assert.Equal(board.Table.Zones.Select(z => (z.Id, z.Shape, z.TeamOrdinal)), _s.Projection!.Board.Table.Zones.Select(z => (z.Id, z.Shape, z.TeamOrdinal)));
     }
+
+    [Fact]
+    public async Task The_welcomes_zone_legs_are_kept()
+    {
+        var game = Samples.Game;
+        _http.Answer(HttpStatusCode.OK, new SessionResponse("a.jwt.z", new AccountRow(game.Participants[0].AccountId, "Clay")));
+        await _s.LoginWithPasswordAsync("c@example.com", "pw");
+        Assert.Equal(Tabletop.Geometry.ZoneLegs.Default, _s.Zones);
+        await _s.ConnectAsync(game.Id);
+        var legs = new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75);
+        _sockets.Last.Deliver(new Welcome(Samples.P1, game) { Zones = legs });
+        Assert.Equal(legs, _s.Zones);
+    }
 }

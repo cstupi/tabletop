@@ -194,4 +194,10 @@ export interface RecordingMeta {
   readonly startedAt: string;
   readonly durationMs: number;
   readonly ruleSet?: string;
+  readonly zones: ZoneLegs;
+}
+
+export interface ZoneLegs {
+  readonly sideBattleLong: number;
+  readonly sideBattleShort: number;
 }

@@ -46,4 +46,12 @@ public class GfEditionTests
         Assert.Contains("p.56", GrimdarkFutureRules.V351.OptionCatalog.Options.Single(o => o.Key == "line_of_sight").Page);
         Assert.Contains("3.6.0 p.58", GrimdarkFutureRules.V360.OptionCatalog.Options.Single(o => o.Key == "line_of_sight").Page);
     }
+
+    /// <summary>Welcome carries IGameRules.Zones: Side Battle's legs, 3.5.1 p.22 (54", 30") and 3.6.0 p.21 (48", 36") on 72×48.</summary>
+    [Fact]
+    public void The_zone_legs_are_the_editions()
+    {
+        Assert.Equal(Tabletop.Geometry.ZoneLegs.Default, GrimdarkFutureRules.V351.Zones);
+        Assert.Equal(new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75), GrimdarkFutureRules.V360.Zones);
+    }
 }

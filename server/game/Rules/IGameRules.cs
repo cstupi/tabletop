@@ -89,6 +89,8 @@ public interface IGameRules
     // Optional rules (optional-rules spec). The map is GameInfo.OptionalRules; nothing outside the ruleset reads its keys.
     /// <summary>The ruleset's optional rules and presets, sent in Welcome for the lobby. Empty by default. Wrapping rulesets must forward it.</summary>
     RulesOptionCatalog OptionCatalog => RulesOptionCatalog.Empty;
+    /// <summary>Side Battle's legs under this rule set, sent in Welcome and read by the deployment-zone breach. ZoneLegs.Default by default. Wrapping rulesets must forward it.</summary>
+    Tabletop.Geometry.ZoneLegs Zones => Tabletop.Geometry.ZoneLegs.Default;
     /// <summary>What is wrong with an optional-rules map: an unknown key or value. A set_configuration with any is refused. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => optionalRules.Keys.Select(k => $"unknown option {k}").ToList();
     /// <summary>What blocks sight in this state under the game's optional rules (Sight.From reads it). Each model's body, by default. Wrapping rulesets must forward it.</summary>

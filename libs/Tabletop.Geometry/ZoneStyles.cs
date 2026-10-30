@@ -4,7 +4,7 @@ namespace Tabletop.Geometry;
 /// The built-in deployment zone styles: Grimdark Future p.22 (the six basic styles) and p.50 (free-for-all corners).
 /// A shape id is "<style>/<n>", n the team ordinal the setup phase assigns in order. A zone is a set of polygons.
 /// Measurements are anchored to table features — edges, corners, edge midpoints — never scaled (geometry values → Deployment shapes),
-/// except Side Battle, whose legs are fractions of their edges: 3/4 of the long and 5/8 of the short, the p.22 diagram's 54" and 30" on 72×48.
+/// except Side Battle, whose legs are fractions of their edges (<see cref="ZoneLegs"/>), which the rule set's edition gives.
 /// </summary>
 public static class ZoneStyles
 {
@@ -26,8 +26,9 @@ public static class ZoneStyles
     }
 
     /// <summary>The polygons a shape id resolves to on a table, in the table frame (origin at the table's corner, 0..W × 0..L).</summary>
-    public static IReadOnlyList<Polygon> Resolve(string shapeId, TableSize table)
+    public static IReadOnlyList<Polygon> Resolve(string shapeId, TableSize table, ZoneLegs? legs = null)
     {
+        var (sideLong, sideShort) = legs ?? ZoneLegs.Default;
         var slash = shapeId.LastIndexOf('/');
         if (slash < 0 || !int.TryParse(shapeId[(slash + 1)..], out var n))
             throw new ArgumentException($"Malformed shape id '{shapeId}'.", nameof(shapeId));
@@ -43,9 +44,9 @@ public static class ZoneStyles
             // Ground War: 24" in from each short edge.
             (GroundWar, 1) => [Rect(0, 24, 0, b)],
             (GroundWar, 2) => [Rect(a - 24, a, 0, b)],
-            // Side Battle: a triangle in each of two opposite corners, legs proportional to the edges they run along — 54" and 30" on 72×48, with a 24" band between.
-            (SideBattle, 1) => [Tri(P(0, 0), P(a * SideBattleLong, 0), P(0, b * SideBattleShort))],
-            (SideBattle, 2) => [Tri(P(a, b), P(a * (1 - SideBattleLong), b), P(a, b * (1 - SideBattleShort)))],
+            // Side Battle: a triangle in each of two opposite corners, legs proportional to the edges they run along.
+            (SideBattle, 1) => [Tri(P(0, 0), P(a * sideLong, 0), P(0, b * sideShort))],
+            (SideBattle, 2) => [Tri(P(a, b), P(a * (1 - sideLong), b), P(a, b * (1 - sideShort)))],
             // Disordered: a diamond through the edge midpoints; one team has both corners on one long edge, the other team the other two.
             (Disordered, 1) => [Tri(P(0, b / 2), P(a / 2, b), P(0, b)), Tri(P(a / 2, b), P(a, b / 2), P(a, b))],
             (Disordered, 2) => [Tri(P(0, 0), P(a / 2, 0), P(0, b / 2)), Tri(P(a / 2, 0), P(a, 0), P(a, b / 2))],
@@ -65,13 +66,13 @@ public static class ZoneStyles
         return shapes.Select(s => new Polygon(s.Select(f.ToTable).ToList())).ToList();
     }
 
-    public static bool Contains(string shapeId, TableSize table, Point2 p) => Resolve(shapeId, table).Any(z => z.Contains(p));
+    public static bool Contains(string shapeId, TableSize table, Point2 p, ZoneLegs? legs = null) => Resolve(shapeId, table, legs).Any(z => z.Contains(p));
 
     /// <summary>Rulebook p.6 "fully within": the whole base inside one of the zone's polygons.</summary>
-    public static bool BaseFullyWithin(string shapeId, TableSize table, PlacedModel model)
+    public static bool BaseFullyWithin(string shapeId, TableSize table, PlacedModel model, ZoneLegs? legs = null)
     {
         var outline = model.BaseOutline();
-        return Resolve(shapeId, table).Any(z => new PolygonOutline(z.Vertices).ContainsOutline(outline));
+        return Resolve(shapeId, table, legs).Any(z => new PolygonOutline(z.Vertices).ContainsOutline(outline));
     }
 
     /// <summary>
@@ -80,20 +81,17 @@ public static class ZoneStyles
     /// base, the centre pushed out by the radius for a circular one. A zone of two polygons is measured to each in turn, which can only refuse a
     /// base straddling the point where they meet.
     /// </summary>
-    public static bool BaseFullyWithin(string shapeId, TableSize table, PlacedModel model, double inches)
+    public static bool BaseFullyWithin(string shapeId, TableSize table, PlacedModel model, double inches, ZoneLegs? legs = null)
     {
         var limit = inches + Tolerance.Distance;
         var outline = model.BaseOutline();
-        return Resolve(shapeId, table).Select(z => new PolygonOutline(z.Vertices)).Any(z => outline switch
+        return Resolve(shapeId, table, legs).Select(z => new PolygonOutline(z.Vertices)).Any(z => outline switch
         {
             CircleOutline c => z.DistanceTo(c.Centre) + c.Radius <= limit,
             PolygonOutline p => p.Vertices.All(v => z.DistanceTo(v) <= limit),
             var other => throw new ArgumentOutOfRangeException(nameof(model), other.GetType().Name),
         });
     }
-
-    /// <summary>Side Battle scales with the table: 3/4 of the long edge and 5/8 of the short are the p.22 diagram's 54" and 30" on 72×48.</summary>
-    const double SideBattleLong = 0.75, SideBattleShort = 0.625;
 
     static Point2 P(double u, double v) => new(u, v);
     static IReadOnlyList<Point2> Tri(Point2 p, Point2 q, Point2 r) => [p, q, r];
@@ -107,4 +105,14 @@ public static class ZoneStyles
         public double Short => XIsLong ? Table.Length : Table.Width;
         public Point2 ToTable(Point2 uv) => XIsLong ? uv : new(uv.Y, uv.X);
     }
+}
+
+/// <summary>
+/// Side Battle's legs as fractions of the edges they run along, measured from zone A's corner: <paramref name="SideBattleLong"/> of the long edge,
+/// <paramref name="SideBattleShort"/> of the short. Grimdark Future 3.5.1 p.22 draws 54" and 30" on 72×48 (<see cref="Default"/>, 3/4 and 5/8);
+/// 3.6.0 p.21 draws 48" and 36" (2/3 and 3/4). The game server sends the game's legs in Welcome.
+/// </summary>
+public sealed record ZoneLegs(double SideBattleLong, double SideBattleShort)
+{
+    public static ZoneLegs Default { get; } = new(0.75, 0.625);
 }

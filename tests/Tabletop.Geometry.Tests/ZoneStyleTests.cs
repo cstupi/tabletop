@@ -47,6 +47,20 @@ public class ZoneStyleTests
         Assert.Contains(other.Vertices, v => Math.Abs(v.X - 45) < 1e-6 && Math.Abs(v.Y) < 1e-6);
         Assert.Contains(other.Vertices, v => Math.Abs(v.X) < 1e-6 && Math.Abs(v.Y - 27.5) < 1e-6);
     }
+    [Fact] public void Side_battle_legs_36_and_48_under_the_3_6_0_diagram()
+    {
+        // 3.6.0 p.21: legs 36" up the short edge and 48" along the long edge on 72×48.
+        var legs = new ZoneLegs(2.0 / 3, 0.75);
+        var tri = Assert.Single(ZoneStyles.Resolve("side-battle/1", Opr, legs));
+        Assert.Contains(tri.Vertices, v => Math.Abs(v.X - 48) < 1e-6 && Math.Abs(v.Y) < 1e-6);
+        Assert.Contains(tri.Vertices, v => Math.Abs(v.X) < 1e-6 && Math.Abs(v.Y - 36) < 1e-6);
+        var b = Assert.Single(ZoneStyles.Resolve("side-battle/2", Opr, legs));
+        Assert.Contains(b.Vertices, v => Math.Abs(v.X - 24) < 1e-6 && Math.Abs(v.Y - 48) < 1e-6);
+        Assert.Contains(b.Vertices, v => Math.Abs(v.X - 72) < 1e-6 && Math.Abs(v.Y - 12) < 1e-6);
+        Assert.True(ZoneStyles.Contains("side-battle/1", Opr, new(2, 33), legs));
+        Assert.False(ZoneStyles.Contains("side-battle/1", Opr, new(2, 33)));
+        Assert.Equal(ZoneLegs.Default, new ZoneLegs(0.75, 0.625));
+    }
     [Fact] public void Disordered_gives_each_team_two_corners()
     {
         Assert.Equal(2, ZoneStyles.Resolve("disordered/1", Opr).Count);

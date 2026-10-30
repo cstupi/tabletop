@@ -56,8 +56,8 @@ public static class HandPlacement
             : unit.Definition.Reserve is { Property: GfReserves.Reinforcement } ? EdgeAnchor(shelved, offsets, table, occupied, chooser) ?? ChooseAnchor(shelved, offsets, null, table, occupied, chooser)
             : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
                 ? BeaconAnchor(shelved, offsets, table, occupied, Beacons(projection, scenario, teamId), chooser)
-                    ?? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId, GfAmbush.Reach(unit.Definition)), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
-                : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
+                    ?? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId, GfAmbush.Reach(unit.Definition)), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser, scenario.Zones)
+                : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser, scenario.Zones);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
             new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();
@@ -72,17 +72,17 @@ public static class HandPlacement
     /// zone's centre only when nothing fits (a placement the server then judges).
     /// </summary>
     public static Point2 ChooseAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table,
-        IReadOnlyList<PlacedModel> occupied, Chooser chooser)
+        IReadOnlyList<PlacedModel> occupied, Chooser chooser, ZoneLegs? legs = null)
     {
         // Candidates are drawn from the zone's bounding box, so a thin zone is not missed 39 times in 40.
-        var vertices = shape is null ? [] : ZoneStyles.Resolve(shape, table).SelectMany(p => p.Vertices).ToList();
+        var vertices = shape is null ? [] : ZoneStyles.Resolve(shape, table, legs).SelectMany(p => p.Vertices).ToList();
         var (minX, maxX) = vertices.Count == 0 ? (0, table.Width) : (vertices.Min(v => v.X), vertices.Max(v => v.X));
         var (minY, maxY) = vertices.Count == 0 ? (0, table.Length) : (vertices.Min(v => v.Y), vertices.Max(v => v.Y));
         bool Fits(Point2 candidate)
         {
             var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
             return placed.All(pm => Geometry.Table.ContainsBase(table, pm)) && !placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))
-                && (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm)));
+                && (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm, legs)));
         }
         for (var attempt = 0; attempt < Attempts; attempt++)
         {

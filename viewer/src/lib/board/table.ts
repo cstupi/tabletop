@@ -2,13 +2,14 @@
 // A setup draft (a TableState) as a board Scene, and the drag ghost. No geometry import: the zone polygons come in as a function
 // (Geometry.zonePolygons in setup), so the board stays free of the WebAssembly.
 
-import type { Placement, TableSize, TableState, TerrainPlacement } from '../protocol/wire.generated';
+import type { Placement, TableSize, TableState, TerrainPlacement, ZoneLegs } from '../protocol/wire.generated';
 import { type Scene, type Shape, type TerrainShape, worldOutline } from './frame';
 import type { Overlay } from './interaction';
 import { DECLARATIONS } from './palette';
 import type { Point } from './transform';
 
-export type ZonePolygons = (shape: string, size: TableSize) => readonly (readonly Point[])[];
+/** `legs`: Side Battle's, from the game's Welcome (ConnectionState.zones); absent is the geometry's default. */
+export type ZonePolygons = (shape: string, size: TableSize, legs?: ZoneLegs) => readonly (readonly Point[])[];
 
 const declarationsOf = (wire: string): readonly string[] => {
   const present = new Set(wire.split(',').map((s) => s.trim()));
@@ -23,19 +24,19 @@ const outlines = (piece: TerrainPlacement, at: Placement): Shape[] => piece.volu
 /** One terrain piece's outlines at a placement other than its own: the drag's ghost. */
 export const pieceOutlines = (piece: TerrainPlacement, at: Placement): Shape[] => outlines(piece, at);
 
-/** A zone's polygons are fixed by its shape and the table's size: each source is asked once per pair, not on every scene rebuild. */
+/** A zone's polygons are fixed by its shape, the table's size and the legs: each source is asked once per triple, not on every scene rebuild. */
 const zoneMemo = new WeakMap<ZonePolygons, Map<string, readonly (readonly Point[])[]>>();
-function zonePolygonsOf(zones: ZonePolygons, shape: string, size: TableSize): readonly (readonly Point[])[] {
+function zonePolygonsOf(zones: ZonePolygons, shape: string, size: TableSize, legs: ZoneLegs | undefined): readonly (readonly Point[])[] {
   let kept = zoneMemo.get(zones);
   if (kept === undefined) { kept = new Map(); zoneMemo.set(zones, kept); }
-  const key = `${shape}|${size.width}|${size.length}`;
+  const key = `${shape}|${size.width}|${size.length}|${legs === undefined ? '' : `${legs.sideBattleLong}|${legs.sideBattleShort}`}`;
   let polygons = kept.get(key);
-  if (polygons === undefined) { polygons = zones(shape, size); kept.set(key, polygons); }
+  if (polygons === undefined) { polygons = legs === undefined ? zones(shape, size) : zones(shape, size, legs); kept.set(key, polygons); }
   return polygons;
 }
 
-/** A TableState as a Scene: terrain outlines labelled with `name`, markers, zones resolved by `zones`, no models. */
-export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piece: TerrainPlacement) => string): Scene {
+/** A TableState as a Scene: terrain outlines labelled with `name`, markers, zones resolved by `zones` with `legs`, no models. */
+export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piece: TerrainPlacement) => string, legs?: ZoneLegs): Scene {
   const terrain: TerrainShape[] = table.terrain.flatMap((piece) => {
     const shapes = outlines(piece, { position: piece.position, yaw: piece.yaw });
     return piece.volumes.map(({ id, volume: v }, i) => ({
@@ -49,7 +50,7 @@ export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piec
     terrain,
     zones: table.zones.map((z) => ({
       id: z.id, shape: z.shape, teamOrdinal: z.teamOrdinal,
-      polygons: zonePolygonsOf(zones, z.shape, table.size).map((points): Shape => ({ kind: 'polygon', points })),
+      polygons: zonePolygonsOf(zones, z.shape, table.size, legs).map((points): Shape => ({ kind: 'polygon', points })),
     })),
     markers: table.markers.map((m) => ({
       id: m.id, kind: m.kind, label: m.label ?? m.kind, centre: { x: m.position.x, y: m.position.y }, radius: m.diameter / 2,

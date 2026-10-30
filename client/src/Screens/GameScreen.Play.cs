@@ -95,7 +95,7 @@ public partial class GameScreen
             if (CameraFocus.FollowTarget(batch, p) is { } at) Table.Camera.Follow(WorldFrame.ToGodot(at), _session.Settings.CameraFollow);
             // Playing both sides: when the next Ask is the other team's, the camera goes to that team's side of the table.
             var acting = _session.MyTeamId;
-            if (_session.MyTeamIds.Count > 1 && acting != _acting && acting is { } team && _session.Game is { } g && CameraFocus.TeamSide(p, g, team) is { } side)
+            if (_session.MyTeamIds.Count > 1 && acting != _acting && acting is { } team && _session.Game is { } g && CameraFocus.TeamSide(p, g, team, _session.Zones) is { } side)
                 Table.Camera.Centre(WorldFrame.ToGodot(side));
             _acting = acting;
         };

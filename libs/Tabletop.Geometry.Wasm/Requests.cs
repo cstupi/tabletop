@@ -27,6 +27,7 @@ public sealed record NearestRequest(IReadOnlyList<PlacedModel> From, IReadOnlyLi
 public sealed record Nearest(double Distance, int From, int To);
 public sealed record RingRequest(IReadOnlyList<PlacedModel> Models, double Range);
 public sealed record Segment(Point2 A, Point2 B);
-public sealed record ZoneRequest(string Shape, TableSize Size, Point2? Point, PlacedModel? Model);
+/// <summary>Legs: Side Battle's, from the game's Welcome; null is ZoneLegs.Default.</summary>
+public sealed record ZoneRequest(string Shape, TableSize Size, Point2? Point, PlacedModel? Model, ZoneLegs? Legs = null);
 public sealed record TableRequest(TableSize Size, PlacedModel Model);
 public sealed record ExitRequest(ModelBody Body, PlacedModel Container, double Within, Point2 At, IReadOnlyList<Guid> Impassable, IReadOnlyList<Piece> Terrain, TableSize Size);

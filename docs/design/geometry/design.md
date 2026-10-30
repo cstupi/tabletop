@@ -702,7 +702,7 @@ Three facts the rulebook settles, all from geometry values → Deployment shapes
 Every argument about absolute versus proportional insets is an argument about small tables, and
 the 30×22 skirmish table is not a target. That scope is what makes the split between one
 proportional style and six anchored ones acceptable rather than merely tolerated. Side Battle's
-fractions are chosen to reproduce the p.22 diagram's 54" and 30" legs on 72×48, so at 72×48 the
+fractions are chosen to reproduce the edition's diagram legs on 72×48, so at 72×48 the
 two conventions are the same polygon, and they part company in proportion to the table's
 departure from it. The tables where the divergence is large are the tables that are out of
 scope. What the absolute insets do below their own size is an accepted limit, listed under
@@ -715,7 +715,8 @@ them as read from the six diagram images on a 72×48 table, every figure a label
 diagram. One diagram is internally
 inconsistent. Side Battle's 54" and 30" legs put the perpendicular gap between the two
 hypotenuses at 24.5", not the 24" its arrow says. The legs are the shape and the band is
-illustration (the plan's ruling 6).
+illustration (the plan's ruling 6). Grimdark Future 3.6.0 p.21 draws Side Battle's legs 48"
+along the long edge and 36" up the short, which leave exactly the 24" band.
 
 A shape id is `"<style>/<n>"`, `n` the team ordinal the setup phase assigns in order.
 `ShapesOf(style)` is the list `SetZoneStyle.Shapes` carries. The server's `DraftEditor` writes
@@ -739,8 +740,14 @@ flowchart TD
     end
 ```
 
-Side Battle **scales with the table**: its legs are `0.75` of the long edge and `0.625` of the
-short, which is the diagram's 54" and 30" on 72×48 and 45" and 27.5" on a 60×44 table. It is the
+Side Battle **scales with the table**, and its legs differ by edition. `ZoneLegs(SideBattleLong,
+SideBattleShort)` holds them as fractions of the long and short edge: 3.5.1 p.22 is `0.75` and
+`0.625` (`ZoneLegs.Default`), the diagram's 54" and 30" on 72×48 and 45" and 27.5" on a 60×44
+table; 3.6.0 p.21 is `2/3` and `0.75`, 48" and 36" on 72×48 (`GfEdition.SideBattleLong`/`Short`).
+`IGameRules.Zones` gives the game's legs; the game server judges deployment with them and sends
+them in `Welcome.Zones`, and the clients and the sim resolve every zone shape with what they
+received (`RecordingMeta.Zones` in a recording). Every `ZoneStyles` entry point takes an optional
+`ZoneLegs`, absent meaning `Default`. The diagram above is 3.5.1's. It is the
 one exception to fact 3 above, and geometry values → Deployment shapes names it as such. An
 anchored reading, `Leg(edge) = max(0, edge - 18)`, has to invent a constant no page states, and
 degenerates to a zero-area triangle at 18"; a fraction of a positive edge is always positive.
@@ -751,7 +758,7 @@ The seven styles as implemented:
 | --- | --- | --- |
 | `frontline` | 1 | 12" bands along both long edges. Also p.6's core deployment, *"fully within 12" of their table edge"* |
 | `ground-war` | 1 | 24" bands along both short edges |
-| `side-battle` | 1 | a triangle in each of two opposite corners, legs `0.75a` and `0.625b`. The only proportional style |
+| `side-battle` | 1 | a triangle in each of two opposite corners, legs `ZoneLegs`' fractions of `a` and `b` (3.5.1: `0.75a`, `0.625b`; 3.6.0: `2a/3`, `0.75b`). The only proportional style |
 | `disordered` | 2 | a diamond through the four edge midpoints; each team keeps the two triangles on its long edge |
 | `spearhead` | 1 | a triangle on each short edge, apex 24" in at the edge's centre |
 | `opposing-forces` | 1 | a 24"×24" square in two diagonally opposite corners |
@@ -818,7 +825,7 @@ Decisions the plan took because **no spec said anything**:
 | A move is measured along its **shortest path** (p.5), found over the base's configuration space | p.5 measures what the base travels; p.9 "charge moves don't have to be in a straight line"; a model must be able to go round a wall or a wood | Straight-line reach (a model could not reach behind a wall, and a Rush past a wood was capped) | `movement.md` |
 | Ovals are convex 64-gons | Error under 0.2% of the radius, inside the tolerance the architecture allows | Exact ellipse-ellipse distance: no closed form, needs an iterative solver on both sides | The plan's ruling 7; Task 3 |
 | Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.50 gives no orientation | The other way round, a two-number change per corner | The plan's ruling 5; Task 13 |
-| Side Battle legs are `0.75` of the long edge and `0.625` of the short | The style is proportional to the table; those fractions are the p.22 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which overrun any table shorter than 54" or narrower than 30" | The plan's ruling 6; Task 13; geometry values → Deployment shapes |
+| Side Battle legs are `0.75` of the long edge and `0.625` of the short under 3.5.1, `2/3` and `0.75` under 3.6.0 | The style is proportional to the table; those fractions are the 3.5.1 p.22 diagram's 54" and 30" and the 3.6.0 p.21 diagram's 48" and 36" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which overrun any table shorter than 54" or narrower than 30" | The plan's ruling 6; Task 13; geometry values → Deployment shapes |
 | The drawn area is a quadtree of cells down to 0.25", cut by marching squares | Exact crossings (bisected at obstacles), few triangles in open ground, built once per model per Ask | 180 rays from the start (cannot show reach round a corner) | `movement.md` |
 | `RimSamples = 8`, `OvalVertices = 64` | On a circular base, eight rim points subtend 2.8° at 10", so the sliver between adjacent rays is under 0.24" at mid-range; a 64-gon oval samples every eighth vertex by index, even in parametric angle rather than arc length, so the figure holds only for the circle; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
 | `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand, and releases them the same way | A `WorldVolume` overload: five lines and one test, declined | The plan's ruling 8; Task 6 |
@@ -852,7 +859,7 @@ plan.
 | `sealed record MovePath(IRL<Point2> Points, double Distance, bool EntersDifficult)` *added* | |
 | `sealed class MoveReach` *added* | `static MoveReach Build(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MovePath Route(Point2 to, bool shortest = false)`; `Point2 Clamp(Point2 target, double? cap = null)`; `IRL<Point2> Triangles(Func<Point2, double>? least = null)`; `Origin`, `Allowance`, `CappedByDifficultTerrain` |
 | `static class Movement` *added* | `const int Rays = 180` (the disembark region's rays), `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null, Func<Point2, double>? least = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null, IRL<WorldVolume>? dangerous = null)`; `double? ContactDistance(PlacedModel start, PlacedModel target, double limit, IRL<WorldVolume> impassable, TableSize? table)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)`; `IRL<Guid> VolumesOnPath(PlacedModel start, IRL<Point2> path, IRL<WorldVolume>)`; `FarthestOnTable`, `RoomAlong` |
-| `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches)` |
+| `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize, ZoneLegs? = null)`; `bool Contains(string shapeId, TableSize, Point2, ZoneLegs? = null)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, ZoneLegs? = null)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches, ZoneLegs? = null)`; `sealed record ZoneLegs(double SideBattleLong, double SideBattleShort)` with `Default` (0.75, 0.625) |
 
 Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 `CircleOutline`, `PolygonOutline`, `Polygon.OnSegment`, `Bodies.BaseOutline`, `Bodies.Place`,
@@ -1005,7 +1012,7 @@ model to move.
 **The library holds no state.** Every class is `static` and every method is a pure function of
 its arguments. There is no cache, no spatial index and no mutable field. `Tolerance.Distance`,
 `Bodies.OvalVertices`, `LineOfSight.RimSamples`, `Movement.Rays`, `Movement.Step` and `Collision.Step` are the
-only public constants; `ZoneStyles`' two Side Battle fractions are private, and `ZoneStyles.All`
+only public constants; Side Battle's fractions come in as `ZoneLegs`, and `ZoneStyles.All`
 is the only static collection. The event log rebuilds the
 *placements* that this library then measures.
 

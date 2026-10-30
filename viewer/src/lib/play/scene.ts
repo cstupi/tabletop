@@ -6,7 +6,7 @@ import { baseOutline, type MarkerShape, type ModelShape, type OffTable, type Sce
 import { sceneOfTable, type ZonePolygons } from '../board/table';
 import { rotate } from '../board/transform';
 import type { Projection } from '../live/apply';
-import type { GameInfo, Marker, Placement, TerrainPlacement } from '../protocol/wire.generated';
+import type { GameInfo, Marker, Placement, TerrainPlacement, ZoneLegs } from '../protocol/wire.generated';
 
 /**
  * Ghosts (a move's or a deploy's proposed placements) override where a model is drawn; shelf and inside models go to offTable; a moved
@@ -14,8 +14,9 @@ import type { GameInfo, Marker, Placement, TerrainPlacement } from '../protocol/
  */
 export function sceneOfPlay(
   p: Projection, game: GameInfo, zones: ZonePolygons, name: (piece: TerrainPlacement) => string, ghosts: ReadonlyMap<string, Placement> = new Map(),
+  legs?: ZoneLegs,
 ): Scene {
-  const base = sceneOfTable(p.board.table, zones, name);
+  const base = sceneOfTable(p.board.table, zones, name, legs);
   const teamOf = new Map(game.participants.filter((x) => x.teamId !== undefined).map((x) => [x.id, x.teamId!]));
   const ordinalOf = new Map(game.teams.map((t) => [t.id, t.ordinal]));
   const ordinalOfModel = (unitId: string): number => {

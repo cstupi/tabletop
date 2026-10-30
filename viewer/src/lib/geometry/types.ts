@@ -1,4 +1,4 @@
-import type { Base, Placement, Point3, TableSize, TerrainPlacement, Yaw } from '../protocol/wire.generated';
+import type { Base, Placement, Point3, TableSize, TerrainPlacement, Yaw, ZoneLegs } from '../protocol/wire.generated';
 
 export type { Base, Placement, Point3, TableSize, TerrainPlacement, Yaw };
 
@@ -51,10 +51,11 @@ export interface Geometry {
   nearestPair(from: readonly PlacedModel[], to: readonly PlacedModel[]): Nearest | null;
   /** The union outline of the rings at `range` from each model's base edge (RangeOutline.Of). */
   rangeOutline(models: readonly PlacedModel[], range: number): Segment[];
-  zonePolygons(shape: string, size: TableSize): XY[][];
-  zoneContains(shape: string, size: TableSize, point: XY): boolean;
+  /** `legs`: Side Battle's, from the game's Welcome; absent is ZoneLegs.Default. */
+  zonePolygons(shape: string, size: TableSize, legs?: ZoneLegs): XY[][];
+  zoneContains(shape: string, size: TableSize, point: XY, legs?: ZoneLegs): boolean;
   /** The whole base inside one of the zone's polygons (p.6 "fully within"). */
-  zoneHoldsBase(shape: string, size: TableSize, model: PlacedModel): boolean;
+  zoneHoldsBase(shape: string, size: TableSize, model: PlacedModel, legs?: ZoneLegs): boolean;
   tableHoldsBase(size: TableSize, model: PlacedModel): boolean;
   /** Containment.ExitYaw (p.7, p.15): a facing a disembarking model's position is legal at, or null; `impassable` are the volume ids the Ask names. */
   exitYaw(body: ModelBody, container: PlacedModel, within: number, at: XY, terrain: Terrain, impassable: readonly string[], size: TableSize): Yaw | null;
