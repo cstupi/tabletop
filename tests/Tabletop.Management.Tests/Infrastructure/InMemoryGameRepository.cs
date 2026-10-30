@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Games;
 using Tabletop.Management.Http;
@@ -23,7 +24,7 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
                 .GroupBy(p => (p.Value.GameRules, p.Value.Name))
                 .Select(g => g.MaxBy(p => p.Value.SeededAt))
                 .OrderByDescending(p => p.Value.SeededAt)
-                .Select(p => new PropertiesSummary(p.Key, p.Value.Name, p.Value.GameRules)).ToList());
+                .Select(p => new PropertiesSummary(p.Key, p.Value.Name, p.Value.GameRules, p.Value.GameRules == RuleSets.Default)).ToList());
     }
 
     public Task<IReadOnlyList<CatalogRuleText>?> RuleTexts(string hash)

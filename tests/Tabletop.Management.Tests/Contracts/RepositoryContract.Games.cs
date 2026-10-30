@@ -127,8 +127,18 @@ public abstract partial class RepositoryContract
         await SeedProperties(newer, name, "grimdark-future", DateTimeOffset.UtcNow);
         await SeedProperties(aof, name, "age-of-fantasy", DateTimeOffset.UtcNow.AddDays(-2));
         var listed = (await Games.ListProperties()).Where(p => p.Name == name).ToList();
-        Assert.Equal([new PropertiesSummary(newer, name, "grimdark-future"), new PropertiesSummary(aof, name, "age-of-fantasy")], listed);   // the create dialog's default is the first
+        Assert.Equal([new PropertiesSummary(newer, name, "grimdark-future", false), new PropertiesSummary(aof, name, "age-of-fantasy", false)], listed);   // the create dialog's default is the first
         Assert.NotNull(await Games.Create(await NewAccount(), GameRequest(older)));
+    }
+
+    [Fact]
+    public async Task Properties_flag_the_default_rule_set()
+    {
+        var old = await NewProperties(RuleSets.Gf351);
+        var current = await NewProperties(RuleSets.Default);
+        var listed = (await Games.ListProperties()).ToDictionary(p => p.ContentHash);
+        Assert.False(listed[old].Default);
+        Assert.True(listed[current].Default);
     }
 
     [Fact]
