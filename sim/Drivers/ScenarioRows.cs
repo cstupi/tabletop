@@ -11,7 +11,7 @@ namespace Tabletop.Sim.Drivers;
 ///
 /// This is also how an in-process run sets the RNG seed: ReadGameAsync hands back the scenario's own
 /// GameInfo, whose RngSeed the compiler set from the scenario seed, so Hydrator reaches GameState.RngSeed
-/// by the ordinary path. The socket driver has to write the rng_seed column instead (Task 8).
+/// by the ordinary path. The socket driver has to write the rng_seed column instead (SocketRowSeeder).
 /// </summary>
 public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRows
 {

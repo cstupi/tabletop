@@ -14,7 +14,7 @@ public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure =
 /// <param name="RecordingPath">
 /// Where the recording was written, or null. <b><c>RunLoop</c> never sets this and always leaves it null.</b>
 /// The loop builds a <c>Recording</c> on demand through <c>BuildRecording</c> but writes no file and knows no
-/// output directory; whoever writes the file owns the path, which is <c>Program.PlayAsync</c> (Task 10)
+/// output directory; whoever writes the file owns the path, which is <c>Program.PlayAsync</c>,
 /// returning <c>report with { RecordingPath = path }</c> after <c>RecordingJson.WriteAsync</c>.
 /// </param>
 public sealed record RunReport(

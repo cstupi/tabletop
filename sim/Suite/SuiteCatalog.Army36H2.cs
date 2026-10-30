@@ -19,28 +19,28 @@ public static partial class SuiteCatalog
         public static IReadOnlyList<TestGame> Army36H2 =>
         [
             // Both sides hold (Shoots) on a 20" table (zones overlap), the rule's units 6" from the one Tough(3) unit: every shot is a Hold within 9", which 3.5.1's "over 9\" away" never gives AP.
-            Under36(Game(Book36("z8205ez2boggzs22"), "dao-union-ranged-slayer", Play.Shoots, ["Ranged Slayer"], Both("Ranged Slayer"), [],
+            Game(Books36.DaoUnion, "dao-union-ranged-slayer", Play.Shoots, ["Ranged Slayer"], Both("Ranged Slayer"), [],
                 [ApGrant("Ranged Slayer", By("Ranged Slayer", when: When.Shooting), 2, "\"When using Hold actions and shooting, this model's weapons get AP(+2) if most models in the target have Tough(3) or higher.\" (within 9\")")],
-                enemyUnits: 1, length: 20, anchors: new Dictionary<int, Point2> { [1] = new(12, 13), [2] = new(24, 13) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(18, 7) })),
+                enemyUnits: 1, length: 20, anchors: new Dictionary<int, Point2> { [1] = new(12, 13), [2] = new(24, 13) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(18, 7) }).In36(),
             // The books print X = 1; the pick's 18" is met by the anchors.
-            Under36(AnchoredH(Marking(Book36("ewbra8nv3nq3k27p"), "Piercing Target", 1,
+            AnchoredH(Marking(Books36.CustodianBrothers, "Piercing Target", 1,
                 [TokensH(PerMarker("Piercing Target", "defense", -1, onTarget: true, TargetH + " Friendly units get AP(+1) on their weapons when attacking them.\" (X 1)", ap: true)),
-                 OneTokenH("Piercing Target", TargetH + "\" (X 1)")]), 15, 11)),
-            Under36(AnchoredH(Marking(Book36("7oi8zeiqfamiur21"), "Precision Target", 1,
+                 OneTokenH("Piercing Target", TargetH + "\" (X 1)")]), 15, 11).In36(),
+            AnchoredH(Marking(Books36.BlessedSisters, "Precision Target", 1,
                 [TokensH(PerMarker("Precision Target", "hit", 1, onTarget: true, TargetH + " Friendly units get +1 to hit rolls when attacking them.\" (X 1)")),
-                 OneTokenH("Precision Target", TargetH + "\" (X 1)")]), 15, 11)),
-            Under36(Game(Book36("jpc0kyil0juwy602"), "human-inquisition-takedown-shot", Play.Shoots, ["Takedown Shot"], [], [],
+                 OneTokenH("Precision Target", TargetH + "\" (X 1)")]), 15, 11).In36(),
+            Game(Books36.HumanInquisition, "human-inquisition-takedown-shot", Play.Shoots, ["Takedown Shot"], [], [],
                 [OnceAtTwoPlus("Takedown Shot", "\"Once per game, when this model shoots, it may make X extra attacks against the target at Quality 2+\" (X 1)")],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Shot", 1)], Weapons: [Gun(1, [], 60), TakedownWeapon("Takedown Shot", 60), Blade(1)])], units: 1)),
-            Under36(Game(Book36("hk70l4d471plza00"), "ratmen-clans-takedown-strike", Play.Charges, ["Takedown Strike"], [], [],
+                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Shot", 1)], Weapons: [Gun(1, [], 60), TakedownWeapon("Takedown Shot", 60), Blade(1)])], units: 1).In36(),
+            Game(Books36.RatmenClans, "ratmen-clans-takedown-strike", Play.Charges, ["Takedown Strike"], [], [],
                 [OnceAtTwoPlus("Takedown Strike", "\"Once per game, when it's this model's turn to strike in melee, it may make X attacks at Quality 2+\" (X 1)")],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Strike", 1)], Weapons: [Blade(1), TakedownWeapon("Takedown Strike", null)])], units: 1)),
+                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Strike", 1)], Weapons: [Blade(1), TakedownWeapon("Takedown Strike", null)])], units: 1).In36(),
             IndirectAuraH(),
             // Only the opponents move, so every melee is a charge at the Buff's unit, which buffs itself each activation; every counter Ask is answered strike.
-            Under36(Pick(Book36("zpaY1LFqVk-ZJdvW"), "voidspace-stalkers-counter-in-melee-buff", Play.Charged, "Counter in Melee Buff",
+            Pick(Books36.VoidspaceStalkers, "voidspace-stalkers-counter-in-melee-buff", Play.Charged, "Counter in Melee Buff",
                 [CounterBuffH("Counter in Melee Buff", BuffText + "Counter in Melee.\": 3.6.0 p.13 Counter, \"May strike first with this weapon when charged\"")],
                 enemyUnits: 2, grants: false,
-                more: s => s.Match("counter", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "strike") ? new Chosen("strike") : null))),
+                more: s => s.Match("counter", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "strike") ? new Chosen("strike") : null)).In36(),
         ];
 
         /// <summary>
@@ -85,7 +85,7 @@ public static partial class SuiteCatalog
                     reasons.Add("after an Advance, it was offered or shot the unit behind the wall");
                 return reasons;
             }, [entry]);
-            return Under36(new TestGame(name, ArmyGroup(RuleSets.Gf351, "04z57ua0bwth37zh"), scenario, [entry], [RollOff], [check]));
+            return (new TestGame(name, ArmyGroup(RuleSets.Gf351, "04z57ua0bwth37zh"), scenario, [entry], [RollOff], [check])).In36();
         }
     }
 }

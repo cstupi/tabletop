@@ -13,7 +13,7 @@ using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
 
 namespace Tabletop.Sim.Tests.Suite;
 
-/// <summary>The army group (Task 6): what it covers, its exact checks over hand-built logs, and every game played in process.</summary>
+/// <summary>The army group: what it covers, its exact checks over hand-built logs, and every game played in process.</summary>
 public class ArmyGamesTests
 {
     static IReadOnlyList<TestGame> Army => [.. SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.ArmyPrefix))];
@@ -49,7 +49,7 @@ public class ArmyGamesTests
     }
 
     /// <summary>
-    /// 3.6 hand-part entries that are played but have no 3.6 game yet: their 3.6 text changed (their 3.6 games cover one per new
+    /// 3.6 hand-part entries that are played but have no 3.6 game yet: their 3.6 text changed (their games in SuiteCatalog.Army36&lt;batch&gt;.cs are one per
     /// mechanism, not one per entry) or they are new 3.6 names, so a 3.5.1 game's checks do not quote them. A game covering one removes it here.
     /// </summary>
     static readonly string[] Uncovered36 =

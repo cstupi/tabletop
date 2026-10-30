@@ -7,7 +7,7 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// The engine's 3.6 readings of the reserve rules and Hazardous (task F6a), grouped army:3.6:&lt;book uid&gt;: Spawn's unit seizes and contests nothing on the
+/// The engine's 3.6 readings of the reserve rules and Hazardous, grouped army:3.6:&lt;book uid&gt;: Spawn's unit seizes and contests nothing on the
 /// round it is placed; Reinforcement's copy of a destroyed unit stands fully within 9" of a table edge and over 9" from enemy units; Hazardous's 1 to hit wounds
 /// the model that rolled it, X wounds with Blast(X).
 /// </summary>
@@ -15,14 +15,12 @@ public static partial class SuiteCatalog
 {
     private static partial class ArmyGames
     {
-        static readonly (string Uid, string Army) Robots36 = ("4k5amkxoybdiqotm", "Robot Legions"), Ratmen36 = ("hk70l4d471plza00", "Ratmen Clans");
-
         /// <summary>The Spawn model's anchor and the marker 5" east of it: out of the carrier's 3", under the spawned models placed 4.5" east of it.</summary>
         static readonly Point2 SpawnAt = new(8, 32);
 
         public static IReadOnlyList<TestGame> Army36F =>
         [
-            In36(Game(Robots36, "robot-legions-spawn-objectives", Play.Shoots, ["Spawn"], [], [],
+            Game(Books36.RobotLegions, "robot-legions-spawn-objectives", Play.Shoots, ["Spawn"], [], [],
                 [NoObjectivesOnPlacedRound("Spawn", "\"Units placed via Spawn can’t seize or contest objectives on the round they are placed\"")],
                 carriers: [new ScenarioModel(1, 1, [R(1, "Spawn")])], units: 2, sizes: new Dictionary<int, int> { [1] = 1, [2] = 3 }, reserves: [new ScenarioReserve(2, "Spawn", 1, 1)],
                 anchors: new Dictionary<int, Point2> { [1] = SpawnAt },
@@ -31,20 +29,20 @@ public static partial class SuiteCatalog
                     .Match("place", (ask, p) => ask.Legal is MoveRegion { Containment.ExitingId: { } at } m && p.Models[at].Location is OnTable { Placement: var c }
                         ? new Destinations(m.ModelIds.Select((id, i) => new ModelRelocation(id, new OnShelf(),
                             new OnTable(new Placement(new Point3(c.Position.X + 4.5, c.Position.Y + (i - 1) * 1.5, 0), new Yaw(0))))).ToList())
-                        : null))),
+                        : null)).In36(),
             // By construction: the opponent's one rifle (three attacks) fixed to kill two of the three rats, whose end-of-activation morale test (p.10, half
             // or less) is fixed to fail into Shaken; the removal is answered remove and the copy picked at round two's start.
-            In36(With(Game(Ratmen36, "ratmen-clans-reinforcement-36", Play.Shot, ["Reinforcement"], [R(1, "Reinforcement")],
-                [Fix("hit", 6, 6, 1), Fix("defense", 1, 1), new DiceFix("morale", 0, [1], new RollKey(Actor: $"{Ratmen36.Army} unit 1"))],
+            With(Game(Books36.RatmenClans, "ratmen-clans-reinforcement-36", Play.Shot, ["Reinforcement"], [R(1, "Reinforcement")],
+                [Fix("hit", 6, 6, 1), Fix("defense", 1, 1), new DiceFix("morale", 0, [1], new RollKey(Actor: $"{Books36.RatmenClans.Army} unit 1"))],
                 [Reinforced36("\"When a unit where all models have this rule is Shaken, you may remove it from the table as destroyed. At the beginning of the next round after a unit where all models have this rule is destroyed, after Ambushers have been deployed, you may place a new copy of it fully within 9\" of any table edge, over 9\" away from enemy units\"")],
                 units: 2, sizes: new Dictionary<int, int> { [1] = 3, [2] = 3 }, reserves: [new ScenarioReserve(2, "Reinforcement", 1)],
                 enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2,
                 more: s => s.Match(GfReserves.RemoveQuestion, (_, _) => new Chosen("remove"))
                     .Match(AskQuestions.DeployReinforcement, (ask, _) => ask.Legal is PieceSelection { Eligible: [var copy, ..] } ? new SelectedPieces([copy]) : null)),
-                ("Reinforcement", Deployed(AskQuestions.DeployReinforcement)))),
-            In36(Game(Ratmen36, "ratmen-clans-hazardous-blast", Play.Shoots, ["Hazardous"], [], [],
+                ("Reinforcement", Deployed(AskQuestions.DeployReinforcement))).In36(),
+            Game(Books36.RatmenClans, "ratmen-clans-hazardous-blast", Play.Shoots, ["Hazardous"], [], [],
                 [HazardOnTheRoller("Hazardous", 3, "\"on unmodified results of 1 to hit this model takes one wound, or X wounds if this weapon has the Blast(X)/Deadly(X) rule\"")],
-                weapon: [R(0, "Hazardous"), R(0, "Blast", 3)], units: 2)),
+                weapon: [R(0, "Hazardous"), R(0, "Blast", 3)], units: 2).In36(),
         ];
 
         /// <summary>

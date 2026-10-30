@@ -395,8 +395,7 @@
             },
             "bottom": 0,
             "top": 2,
-            "declarations": "cover, steep",
-            "notes": "3.5.1 p.12: units on top may ignore one unit/terrain for line of sight (not enforced; 3.6.0 drops it)"
+            "declarations": "cover, steep"
           }
         }
       ]

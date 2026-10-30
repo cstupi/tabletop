@@ -17,12 +17,6 @@ public static partial class SuiteCatalog
 
         private static partial class Born36
         {
-            static readonly (string Uid, string Army)
-                Battle = ("78qp9l5alslt6yj8", "Battle Brothers"), Change = ("r6hr29338u4micfw", "Change Disciples"), Dark = ("xp5zwh73lg1uaym4", "Dark Brothers"),
-                Havoc = ("7o6om21wxlvvy3hq", "Havoc Brothers"), HighElves = ("7i7blhft75q9zfdc", "High Elf Fleets"), Lust = ("drqw1iswxmuugp3d", "Lust Disciples"),
-                Plague = ("jlray7cwf8mvw5sn", "Plague Disciples"), BloodPrime = ("7ex2x15bpkmy1alv", "Blood Prime Brothers"),
-                Void = ("zpaY1LFqVk-ZJdvW", "Voidspace Stalkers"), War = ("31xjrm9ivdimkjxp", "War Disciples"), Watch = ("rvvb3kdn2x2pqkki", "Watch Brothers");
-
             const string Shrouded = "\"that enemy unit gets -4\"/-2\" range to a min. of 6\"\"";
             const string WatchbornText = "\"pick one effect: until the end of the activation, when shooting/charging enemies over 9\"/6\" away, all models with this rule in it either get AP(+1) or get +1 to hit rolls\"";
 
@@ -52,51 +46,51 @@ public static partial class SuiteCatalog
             internal static IReadOnlyList<TestGame> Base =>
             [
                 // The two units start Shaken, the rule on two of each unit's three models.
-                In36(Game(Battle, "battle-brothers-battleborn", Play.Shot, ["Battleborn"], [], [],
+                Game(Books36.BattleBrothers, "battle-brothers-battleborn", Play.Shot, ["Battleborn"], [], [],
                     [Rallies("Battleborn", "\"If a unit where most models have this rule is Shaken at the beginning of the round, roll one die. On a 4+, it stops being Shaken.\"")],
-                    units: 2, carriers: Most("Battleborn", 2), conditions: [(1, "shaken"), (2, "shaken")])),
+                    units: 2, carriers: Most("Battleborn", 2), conditions: [(1, "shaken"), (2, "shaken")]).In36(),
                 // Both sides hold in their deployment zones, so every shot is from over 9".
-                In36(Game(Change, "change-disciples-changebound", Play.Shot, ["Changebound"], [], [],
+                Game(Books36.ChangeDisciples, "change-disciples-changebound", Play.Shot, ["Changebound"], [], [],
                     [Modifier("Changebound", "hit", -1, "\"If most models in this unit have this rule, enemy units shooting/charging them from over 9\"/6\" away get -1 to hit rolls\"")],
-                    units: 2, carriers: Most("Changebound", 2))),
-                In36(Game(Dark, "dark-brothers-darkborn", Play.Charged, ["Darkborn"], Lasting(3), [],
-                    [ChargeAt("Darkborn", 10, Shrouded + " (charging)")], enemyUnits: 4, carriers: Most("Darkborn", 3))),
-                In36(Game(Dark, "dark-brothers-darkborn-shot", Play.Shot, ["Darkborn"], Lasting(2), [],
-                    [ShotWithin("Darkborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Darkborn", 2))),
-                In36(Game(Void, "voidspace-stalkers-shadowborn", Play.Charged, ["Shadowborn"], Lasting(3), [],
-                    [ChargeAt("Shadowborn", 10, Shrouded + " (charging)")], enemyUnits: 4, carriers: Most("Shadowborn", 3))),
-                In36(Game(Void, "voidspace-stalkers-shadowborn-shot", Play.Shot, ["Shadowborn"], Lasting(2), [],
-                    [ShotWithin("Shadowborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Shadowborn", 2))),
-                In36(Game(Havoc, "havoc-brothers-havocbound", Play.Shoots, ["Havocbound"], Each(2, "Havocbound"), [],
-                    [ApGrant("Havocbound", By("Havocbound", when: When.Shooting), 1, "\"When this model shoots/charges enemies over 9\"/6\" away, its weapons get AP(+1)\" (shooting)")])),
+                    units: 2, carriers: Most("Changebound", 2)).In36(),
+                Game(Books36.DarkBrothers, "dark-brothers-darkborn", Play.Charged, ["Darkborn"], Lasting(3), [],
+                    [ChargeAt("Darkborn", 10, Shrouded + " (charging)")], enemyUnits: 4, carriers: Most("Darkborn", 3)).In36(),
+                Game(Books36.DarkBrothers, "dark-brothers-darkborn-shot", Play.Shot, ["Darkborn"], Lasting(2), [],
+                    [ShotWithin("Darkborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Darkborn", 2)).In36(),
+                Game(Books36.VoidspaceStalkers, "voidspace-stalkers-shadowborn", Play.Charged, ["Shadowborn"], Lasting(3), [],
+                    [ChargeAt("Shadowborn", 10, Shrouded + " (charging)")], enemyUnits: 4, carriers: Most("Shadowborn", 3)).In36(),
+                Game(Books36.VoidspaceStalkers, "voidspace-stalkers-shadowborn-shot", Play.Shot, ["Shadowborn"], Lasting(2), [],
+                    [ShotWithin("Shadowborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Shadowborn", 2)).In36(),
+                Game(Books36.HavocBrothers, "havoc-brothers-havocbound", Play.Shoots, ["Havocbound"], Each(2, "Havocbound"), [],
+                    [ApGrant("Havocbound", By("Havocbound", when: When.Shooting), 1, "\"When this model shoots/charges enemies over 9\"/6\" away, its weapons get AP(+1)\" (shooting)")]).In36(),
                 // It charges from 4.5": no AP(+1).
-                In36(With(Game(Havoc, "havoc-brothers-havocbound-within-6", Play.Charges, ["Havocbound"], [R(1, "Havocbound")], [],
+                With(Game(Books36.HavocBrothers, "havoc-brothers-havocbound-within-6", Play.Charges, ["Havocbound"], [R(1, "Havocbound")], [],
                     [NoAp("Havocbound", By("Havocbound", when: When.Charging), "\"When this model shoots/charges enemies over 9\"/6\" away\" (charging from 4.5\")")],
-                    units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy), ("Havocbound", log => Attacked(log)))),
-                In36(Game(HighElves, "high-elf-fleets-highborn", Play.Shoots, ["Highborn"], Each(2, "Highborn"), [],
+                    units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy), ("Havocbound", log => Attacked(log))).In36(),
+                Game(Books36.HighElfFleets, "high-elf-fleets-highborn", Play.Shoots, ["Highborn"], Each(2, "Highborn"), [],
                     [RangeBonus("Highborn", By("Highborn", when: When.Shooting), 12, 4, "\"This model gets +4\"/+2\" range when shooting/charging.\" (shooting)")],
-                    gunRange: 12, length: 26, anchors: Apart, enemyAnchors: ApartEnemy)),
+                    gunRange: 12, length: 26, anchors: Apart, enemyAnchors: ApartEnemy).In36(),
                 // Advance and Rush keep p.7's 6" and 12" (3.5.1's Highborn moved +2" on each).
-                In36(Game(HighElves, "high-elf-fleets-highborn-charge", Play.Moves, ["Highborn"], Each(4, "Highborn"), [],
-                    [Allowance("Highborn", null, "\"This model gets +4\"/+2\" range when shooting/charging.\" (charging; no other move)", ("advance", 6), ("rush", 12), ("charge", 14))])),
-                In36(Game(Lust, "lust-disciples-lustbound", Play.Moves, ["Lustbound"], Each(4, "Lustbound"), [],
-                    [Allowance("Lustbound", null, "\"Moves +1\" when using Advance, and +2\" when using Rush/Charge.\"", ("advance", 7), ("rush", 14), ("charge", 14))])),
+                Game(Books36.HighElfFleets, "high-elf-fleets-highborn-charge", Play.Moves, ["Highborn"], Each(4, "Highborn"), [],
+                    [Allowance("Highborn", null, "\"This model gets +4\"/+2\" range when shooting/charging.\" (charging; no other move)", ("advance", 6), ("rush", 12), ("charge", 14))]).In36(),
+                Game(Books36.LustDisciples, "lust-disciples-lustbound", Play.Moves, ["Lustbound"], Each(4, "Lustbound"), [],
+                    [Allowance("Lustbound", null, "\"Moves +1\" when using Advance, and +2\" when using Rush/Charge.\"", ("advance", 7), ("rush", 14), ("charge", 14))]).In36(),
                 // Carried's shot (three wounds), the rule on two of the three models.
-                In36(Game(Plague, "plague-disciples-plaguebound", Play.Shot, ["Plaguebound"], [], [Fix("hit", 6, 6, 6), Fix("defense", 1, 1, 1)],
+                Game(Books36.PlagueDisciples, "plague-disciples-plaguebound", Play.Shot, ["Plaguebound"], [], [Fix("hit", 6, 6, 6), Fix("defense", 1, 1, 1)],
                     [IgnoreWounds("Plaguebound", 6, "\"When a unit where most models have this rule takes wounds, roll one die for each. On a 6+ it is ignored.\"")],
-                    units: 1, enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4, carriers: Most("Plaguebound", 1))),
-                In36(Game(BloodPrime, "blood-prime-brothers-primeborn", Play.Shot, ["Primeborn"], Lasting(1), [Fix("hit", 6, 6, 6)],
+                    units: 1, enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4, carriers: Most("Plaguebound", 1)).In36(),
+                Game(Books36.BloodPrimeBrothers, "blood-prime-brothers-primeborn", Play.Shot, ["Primeborn"], Lasting(1), [Fix("hit", 6, 6, 6)],
                     [ApGrant("Primeborn", On("Primeborn"), 0, "\"When units where most models have this rule take hits, those hits count as having AP(-1), to a min. of AP(0).\" (against AP(1), shot from 4.5\")")],
                     units: 1, enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, enemyWeapon: [R(0, "AP", 1)], carriers: Most("Primeborn", 1),
-                    length: 26, anchors: Near, enemyAnchors: NearEnemy)),
-                In36(Game(War, "war-disciples-warbound", Play.Shoots, ["Warbound"], Each(2, "Warbound"), [],
-                    [ExtraWounds("Warbound", By("Warbound", when: When.Shooting), [1], "\"When this model shoots/charges enemies over 9\"/6\" away, unmodified results of 1 to block hits from weapons deal 1 extra wound.\" (shooting)")])),
+                    length: 26, anchors: Near, enemyAnchors: NearEnemy).In36(),
+                Game(Books36.WarDisciples, "war-disciples-warbound", Play.Shoots, ["Warbound"], Each(2, "Warbound"), [],
+                    [ExtraWounds("Warbound", By("Warbound", when: When.Shooting), [1], "\"When this model shoots/charges enemies over 9\"/6\" away, unmodified results of 1 to block hits from weapons deal 1 extra wound.\" (shooting)")]).In36(),
                 // It shoots from 4.5": no extra wound on a 1.
-                In36(Game(War, "war-disciples-warbound-within-9", Play.Shoots, ["Warbound"], [R(1, "Warbound")], [Fix("defense", 1)],
+                (Game(Books36.WarDisciples, "war-disciples-warbound-within-9", Play.Shoots, ["Warbound"], [R(1, "Warbound")], [Fix("defense", 1)],
                     [ExtraWounds("Warbound", By("Warbound"), [], "\"When this model shoots/charges enemies over 9\"/6\" away\" (shooting from 4.5\")")],
-                    units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy) with { Evidence = new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Warbound"] = Attacked } }),
-                In36(Game(Watch, "watch-brothers-watchborn", Play.Shoots, ["Watchborn"], Each(2, "Watchborn"), [],
-                    [Modifier("Watchborn", "hit", 1, WatchbornText)], more: s => { UsePicks(Watch.Army, 1, "Watchborn")(s); Choose("Watchborn", "+1 to hit")(s); })),
+                    units: 1, enemyUnits: 1, length: 26, anchors: Near, enemyAnchors: NearEnemy) with { Evidence = new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Warbound"] = Attacked } }).In36(),
+                Game(Books36.WatchBrothers, "watch-brothers-watchborn", Play.Shoots, ["Watchborn"], Each(2, "Watchborn"), [],
+                    [Modifier("Watchborn", "hit", 1, WatchbornText)], more: s => { UsePicks(Books36.WatchBrothers.Army, 1, "Watchborn")(s); Choose("Watchborn", "+1 to hit")(s); }).In36(),
             ];
         }
     }

@@ -125,7 +125,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `spells:3.6:<uid>`: `SpellGames.Books(set)` over the 3.6 set, one game per book with a played spell; a text-only spell (`played: false`) is
   neither cast nor covered. The tables are per edition (`SpellTables` 3.5.1, `SpellTables36` in `SuiteCatalog.Spells36.cs`), each check quoting
   its edition's text. `army:3.6:<uid>` (`SuiteCatalog.Army36.cs`): a 3.5.1 game whose rule 3.6 keeps word for word (quote and case changes included; `Requote36` gives its check names the 3.6 text) plays again on the 3.6 book
-  that prints it (`Kept36`, `Books36`), a renamed rule gets its game under the 3.6 name, and Task 7.5's `SuiteCatalog.Army36<batch>.cs` cover
+  that prints it (`Kept36`, `Books36`), a renamed rule gets its game under the 3.6 name, and `SuiteCatalog.Army36<batch>.cs` cover
   the rules 3.6 rewrites.
 - `SuiteCatalog.Core36.cs` and `SuiteCatalog.Special36*.cs` hold the 3.6-only games, one per rule whose 3.6.0 text changed or is new: a game declared `.In36()` (`Scripts36`, `Edition = RuleSets.Gf360`) runs under 3.6.0 alone as `<name>@3.6`, its checks quoting `3.6.0 p.N`; `core-side-battle` there runs both (`.BothEditions()`).
 - Coverage: per shipped set (`SuiteRunner.CoverageOf`), every entry of each set with the games of its edition that cover it, whether it fired in all of them, and its exact checks. A
