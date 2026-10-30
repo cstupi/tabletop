@@ -59,4 +59,21 @@ public class GfMeleeCompare36Tests
         Assert.Equal((chargerValue, defenderValue, 2), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));
         Assert.Contains(sim.Steps("compare").First().Applied ?? [], a => a == "Fear");
     }
+    /// <summary>3.6.0 p.14 Fear(X): "When in melee with this model, enemies count as having taken +X wounds when checking who won": no condition that the
+    /// Fear model attacked. A defender with Fear(1) and no Counter strikes back; every attack misses. 3.5.1 p.13 adds Fear to the wounds the defender caused.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, 0, 1)]
+    [InlineData(RuleSets.Gf360, 1, 0)]
+    public void A_striking_back_defenders_fear_adds_to_the_chargers_taken_total_3_6_0_p14(string rules, int chargerValue, int defenderValue)
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [P("Fear", 1)], Melee("Fist", 1));
+        var sim = Sim.Gf(rules, State([charger], [target], x1: -3, x2: 0), 1, 1, 6, 6);               // both attacks miss; the charger passes its morale test
+        sim.Start(GfNames.Melee, new SequenceContext(charger.Id, [target.Id], charger.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Charge));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        Assert.Contains(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == target.Id);
+        var compare = sim.Steps("compare").First();
+        Assert.Equal((chargerValue, defenderValue, 1), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));
+        Assert.Contains(compare.Applied ?? [], a => a == "Fear");
+    }
 }

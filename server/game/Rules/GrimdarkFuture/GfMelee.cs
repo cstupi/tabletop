@@ -139,10 +139,10 @@ public static class GfMelee
 
     /// <summary>3.6.0 p.10: the wounds the unit took during this activation (its WoundsThisActivation, every deal-wounds frame on it since the activation
     /// began, the charge move's dangerous-terrain test included), plus 3.6.0 p.14 Fear(X) over the enemy's models ("enemies count as having taken +X
-    /// wounds"), counted as 3.5.1 counts it: when the enemy attacked.</summary>
-    public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy, bool feared)
+    /// wounds when checking who won"), whether or not the enemy attacked.</summary>
+    public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy)
     {
-        var fear = feared ? Lookup.LivingModels(ctx.State, enemy).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0) : 0;
+        var fear = Lookup.LivingModels(ctx.State, enemy).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0);
         if (fear > 0) ctx.Applied.Add("Fear");
         return ctx.Projection.Units[unit].WoundsThisActivation + fear;
     }
@@ -410,8 +410,8 @@ public static class GfMelee
             }
             var struck = ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && s.Answer is Chosen { OptionId: "strike" }) || CounterStruck(ctx);
             var byTaken = GfEdition.Of(ctx.State).MeleeLossByWoundsTaken;
-            var chargerWounds = byTaken ? WoundsTaken(ctx, charger, defender, feared: struck) : WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
-            var defenderWounds = byTaken ? WoundsTaken(ctx, defender, charger, feared: true) : WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
+            var chargerWounds = byTaken ? WoundsTaken(ctx, charger, defender) : WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
+            var defenderWounds = byTaken ? WoundsTaken(ctx, defender, charger) : WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
             var chargerDead = Lookup.LivingModels(ctx.State, charger).Count == 0; var defenderDead = Lookup.LivingModels(ctx.State, defender).Count == 0;
             var (chargerLosing, defenderLosing) = byTaken ? (chargerWounds > defenderWounds, defenderWounds > chargerWounds) : (defenderWounds > chargerWounds, chargerWounds > defenderWounds);
             var loser = defenderDead ? 2 : chargerDead ? 1 : defenderLosing ? 2 : chargerLosing ? 1 : 0;

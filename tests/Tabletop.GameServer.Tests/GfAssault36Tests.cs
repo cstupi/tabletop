@@ -47,7 +47,7 @@ public class GfAssault36Tests
         var melee = Fight(RuleSets.Gf360, raiders, target, -3);
         Assert.True(Attacked(melee, raiders.Id, Pistol(raiders)));
         Assert.Equal(1, melee.Steps("determine-attacks").First().Values!["eligible_models"]);
-        Assert.False(melee.Steps("determine-attacks").First().Values!.Keys.Any(k => k.StartsWith("aim_")));   // no shooting aims: p.9 reach decides who strikes
+        Assert.DoesNotContain(melee.Steps("determine-attacks").First().Values!.Keys, k => k.StartsWith("aim_"));   // no shooting aims: p.9 reach decides who strikes
         Assert.Equal(0, melee.Steps("determine-attacks").First().Values!["in_cover"]);
         var hit = melee.Steps("roll-to-hit").First().Rolls.Single(r => r.Roll == GfNames.Hit);
         Assert.Equal(4, hit.Threshold);                                                                 // a Quality test, as any melee strike

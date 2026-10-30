@@ -49,7 +49,7 @@ public class ArmyGamesTests
     }
 
     /// <summary>
-    /// 3.6 hand-part entries that are played but have no 3.6 game yet: their 3.6 text changed (Task 7.5 rewrote them and wrote one game per new
+    /// 3.6 hand-part entries that are played but have no 3.6 game yet: their 3.6 text changed (their 3.6 games cover one per new
     /// mechanism, not one per entry) or they are new 3.6 names, so a 3.5.1 game's checks do not quote them. A game covering one removes it here.
     /// </summary>
     static readonly string[] Uncovered36 =

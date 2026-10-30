@@ -6,7 +6,7 @@ namespace Tabletop.ArmyBooks.Tests;
 /// 3.6 book describes or carries, and its text is that book's. Skips without the dump (git-ignored).</summary>
 public class ArmyRules36Tests
 {
-    /// <summary>Entries still holding their 3.5.1 text and effects: 3.6.0 changed the text, and Task 7.5 authors each against it.</summary>
+    /// <summary>Entries still holding their 3.5.1 text and effects: 3.6.0 changed the text, and each is authored against it here.</summary>
     static readonly string[] AwaitingTheir36Text = [];
 
     static string? Up(string relative)

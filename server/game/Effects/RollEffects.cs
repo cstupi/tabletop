@@ -39,7 +39,8 @@ public static class RollEffects
         {
             // ToHitPenalties drops every negative modifier; ForeignToHitPenalties keeps those from the roller's own rules (LiveSet.OwnedBy). A base modifier has no
             // rule behind it, so it is foreign.
-            var sources = added.ToDictionary(x => x.Modifier, x => x.Source, ReferenceEqualityComparer.Instance);
+            var sources = new Dictionary<RollModifier, LiveProperty>(ReferenceEqualityComparer.Instance);
+            foreach (var (modifier, src) in added) sources.Add(modifier, src);
             bool Own(RollModifier m) => sources.TryGetValue(m, out var src) && live.OwnedBy(src, roller);
             foreach (var kind in new[] { TargetModifier.ToHitPenalties, TargetModifier.ForeignToHitPenalties })
             {
