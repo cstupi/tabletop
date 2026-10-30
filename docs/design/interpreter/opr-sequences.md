@@ -1,6 +1,6 @@
 # Grimdark Future's sequences
 
-Nineteen sequences, what each step does, which rulebook page it comes from, and where the
+Thirty sequences, what each step does, which rulebook page it comes from, and where the
 composition is subtle. [design.md](design.md) designs the generic interpreter they run on.
 Everything here lives in `server/game/Rules/GrimdarkFuture/`, the only directory in the module
 allowed to name an OPR rule.

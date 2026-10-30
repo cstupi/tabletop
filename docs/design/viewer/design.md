@@ -242,20 +242,14 @@ loud. Reflection cannot see the converter's output, so the wire test asserts the
 declaration.
 
 `EmitRequest` carries `Module`, `Options`, `Roots`, `PrunedUnions` and `Rename`. `PrunedUnions`
-narrows `SocketMessage` to the seven frames the live feed reads: `Connect`, `Welcome`,
-`GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected`. No `Command`, no `Edit`,
-no `Presence`, no `Ping`, no `AtRest`. `Rename` is empty until two reachable types share a `Name`.
+narrows `SocketMessage` to the fifteen of the wire's eighteen frames a playing client sends or reads: `Connect`, `Welcome`,
+`GameInfoMessage`, `RulesOptionsMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected`, `CommandMessage`, `EditMessage`,
+`AtRest`, `Reauth`, `SightQuery`, `SightAnswer`, `ModelFacts`. No `Presence`, no `PresenceEnded`, no `Ping`. `Rename` is empty until two reachable types share a `Name`.
 The emitter throws when that happens rather than overwriting a declaration.
 
-`AtRest(long Seq)`, wire kind `at_rest`, is the thirteenth `SocketMessage` kind. It is pruned
-away. The frame announces that the game server has finished
-processing and has nothing further to emit, which replaces the simulator's 250 millisecond quiet
-window. The viewer has no quiet window to replace. It republishes on every `EventsMessage`, so its
-frame list is current the moment an events frame is decoded, and idleness changes nothing it draws.
-Declaring a kind no branch reads would also move the checked-in golden file for no behavioural
-reason. Pruning is therefore the side this falls on, and the two generated modules are byte for byte
-the same with the kind declared in C# as without it. Wanting an idle indicator later costs one member
-in `PrunedUnions`, one entry in `HANDLED` and one `case`.
+`AtRest(long Seq)`, wire kind `at_rest`, announces that the game server has finished processing and has nothing further to emit. It
+is in the pruned union: the play connection (`gameConnection.ts`) settles on it. The live feed does not read it: it republishes on
+every `EventsMessage`, so its frame list is current the moment an events frame is decoded, and idleness changes nothing it draws.
 
 Output is deterministic in two ways that the golden file records. Declarations are sorted by name,
 so `RecordedAsk` is first in `recording.generated.ts`. Members within an interface follow
@@ -685,8 +679,8 @@ connection state: the projection is mutated in place, so a derivation keyed on i
 | Plain Vite and Svelte 5, no SvelteKit | one screen, no redirect target, no route to split, no server-side anything; `?recording=<url>` needs no router | SvelteKit, which `web/` uses for Stytch redirect paths and code splitting | **(plan)** plan Task 1 |
 | The resolution frame stack is not ported | no field of a `RecordedFrame` reads it; the C# recording does not show a reroll in `rolls` either | porting `Projection.Stack` for six no-op event kinds | **(plan)** plan Task 9 |
 | The score and the passed teams live in the header, not in a tab | the score is wanted continuously and must not cost a tab change | a fifth tab, or drawing them on the board | **(plan)** plan Task 8, ruling 5 |
-| `at_rest` is pruned out of the generated wire union | the viewer republishes on every `EventsMessage` and has no quiet window to replace, so a rest signal changes nothing it draws; the generated surface stays the smallest thing the live feed reads | declaring the kind, which moves the golden file and adds a declaration with no reader | plan Task 2 |
-| An unrecognised wire kind is dropped by a membership test, not by a `switch` on a closed union | the union in TypeScript is a pruned seven of thirteen, so the set of kinds actually read is the authority; the protocol grows without an edit here | narrowing on the generated union alone, which faults on a kind it cannot name | **(plan)** plan Task 11 |
+| The live feed does not read `at_rest`, though the generated union declares it | the viewer republishes on every `EventsMessage` and has no quiet window to replace, so a rest signal changes nothing the feed draws; only the play connection settles on it | a `HANDLED` entry and a `case` with no reader | plan Task 2 |
+| An unrecognised wire kind is dropped by a membership test, not by a `switch` on a closed union | the union in TypeScript is a pruned fifteen of eighteen, so the set of kinds actually read is the authority; the protocol grows without an edit here | narrowing on the generated union alone, which faults on a kind it cannot name | **(plan)** plan Task 11 |
 | The TypeScript applier throws `ProjectionDesyncError` where the C# throws `ProjectionDesyncException` | written with `!`, the port would spread `undefined` into a fresh marker and diverge silently; the agreement test would still pass | a `!` per lookup, or skipping the change and carrying on | plan Task 9 |
 | A desync stops the live feed and the operator reconnects | the tool exists to make server behaviour visible, and the connect sequence redelivers the whole log | an automatic reconnect loop, which repairs the symptom and hides the fault | **(plan)** plan Task 11 |
 | `CLIENT_VERSION` is the literal `1`, not generated | `Connect.ClientVersion` is one integer, not worth a second emitter mode; the protocol version stays `1`, because a thirteenth message kind is additive | generating a constant from `ProtocolVersion.Current` | **(plan)** plan → *Interfaces needed*, item 6 |
@@ -701,7 +695,7 @@ connection state: the projection is mutated in place, so a derivation keyed on i
 | Module | Exports |
 | --- | --- |
 | `protocol/recording.generated.ts` | `SCHEMA_VERSION`, and one interface per recording type: `Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedPoint`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier` |
-| `protocol/wire.generated.ts` | `SocketMessage = Connect \| Welcome \| GameInfoMessage \| BoardMessage \| EventsMessage \| Refused \| Rejected`, seven of the wire's thirteen kinds, and the transitive closure: `GameInfo`, `Board`, `GameEvent`, `EventPayload`, `StateChange`, `Location`, `Ask`, `LegalSet`, `AskAnswer`, `Unit`, `ModelSlot`, `Marker`, `Grant`, `RollRecord`, `Die`, `TerrainPlacement`, `Volume`, `Footprint`, `Base`, `Point2`, `Point3`, `Yaw`, `Placement`, and the enums |
+| `protocol/wire.generated.ts` | `SocketMessage = Connect \| Welcome \| GameInfoMessage \| RulesOptionsMessage \| BoardMessage \| EventsMessage \| Refused \| Rejected \| CommandMessage \| EditMessage \| AtRest \| Reauth \| SightQuery \| SightAnswer \| ModelFacts`, fifteen of the wire's eighteen kinds, and the transitive closure: `GameInfo`, `Board`, `GameEvent`, `EventPayload`, `StateChange`, `Location`, `Ask`, `LegalSet`, `AskAnswer`, `Unit`, `ModelSlot`, `Marker`, `Grant`, `RollRecord`, `Die`, `TerrainPlacement`, `Volume`, `Footprint`, `Base`, `Point2`, `Point3`, `Yaw`, `Placement`, and the enums |
 | `recording/read.ts` | `class RecordingError`, `readRecording(unknown): Recording`, `parseRecording(string): Recording`, `teamOrdinals(Recording)`, `teamNames(Recording)` |
 | `recording/source.ts` | `type RecordingSource`, `fromFile(File)`, `fromUrl(string)`, `recordingUrlFrom(search): string \| null` |
 | `board/transform.ts` | `type Point`, `type Table`, `type Viewport`, `type View`, `MARGIN`, `fit`, `toScreen`, `toTable`, `zoomAt`, `panBy`, `gridStep`, `rotate` |
@@ -846,8 +840,8 @@ sequenceDiagram
 The socket also carries kinds the viewer never acts on: `presence`, `ping`, `presence_ended` and
 `at_rest`. `isServerFrame` tests membership of the `HANDLED` set of six server kinds, and the
 `switch` ends in a `default` that returns. An unrecognised kind therefore costs one lookup and never
-a fault. `at_rest` is pruned out of `wire.generated.ts`, so it arrives as a kind the generated union
-does not declare, which is the case that path exists to survive. A viewer that threw on an
+a fault. `at_rest` and `rules_options` are declared in `wire.generated.ts` but not in `HANDLED`, so the live feed meets them as kinds it
+does not read, which is the case that path exists to survive. A viewer that threw on an
 unrecognised kind would die the next time the protocol grew one.
 
 Three orderings matter. Events can arrive before the board, so `liveFeed` holds them in `pending`
@@ -1104,7 +1098,7 @@ threshold for the same reason.
 | Drawing a badge on a container for the models inside it | needs no schema change and is a refinement | deferred by the plan |
 | Deployment zones on the live feed | needs `ZoneStyles` in the browser or a resolved-zone message | plan → *Interfaces needed*, item 1 |
 | A generated `CLIENT_VERSION` | one integer is not worth a second emitter mode | plan → *Interfaces needed*, item 6 |
-| An idle indicator driven by `at_rest` | the frame is pruned out of the generated union, and nothing the viewer draws depends on the server being idle | plan Task 2 |
+| An idle indicator driven by `at_rest` | the live feed does not read the frame, and nothing it draws depends on the server being idle | plan Task 2 |
 | An automatic reconnect after a desync | a retry loop would hide the fault the tool exists to show | plan Task 11 |
 | Serving recordings from a server | neither server has the concept | plan ruling 3 |
 
