@@ -33,7 +33,7 @@ public class GeneratedOutputTests
             Assert.True(File.ReadAllBytes(Path.Combine(content, "army-books", book.Uid + ".book.json")).AsSpan().SequenceEqual(System.Text.Encoding.UTF8.GetBytes(BookWriter.Serialize(book))), $"{book.Uid}.book.json differs");
         Assert.Equal(48, Directory.GetFiles(Path.Combine(content, "army-books"), "*.book.json").Length);
         Same(Path.Combine(content, "army-book-rules.part.json"), RuleWriter.Serialize(g.Rules!));
-        Same(Path.Combine(repo, "server", "management", "Content", "Armies", ReserveUnits.FileName), g.Units);
+        Same(Path.Combine(repo, "server", "management", "Content", "Armies", ReserveUnits.FileName("3.5")), g.Units);
     }
 
     static void Same(string committed, string generated) =>

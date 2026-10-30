@@ -28,10 +28,24 @@ public class ArmyBookReservesTests
         Assert.All(swarms.Models, m =>
         {
             Assert.Contains(new PropertyInstance("Tough", 3), m.Properties);
-            Assert.Equal(["Swarm Attacks"], m.Weapons.Select(w => w.Name));
+            Assert.Equal(["Bot Claws"], m.Weapons.Select(w => w.Name));
             Assert.Equal(Robots, m.ArmyBook);
         });
         Assert.Null(army.Units[0].Reserve);
+    }
+
+    [Fact]
+    public void Each_edition_reads_its_own_units_file_and_the_served_edition_has_one()
+    {
+        ArmyBookReserves.RequireFiles(ArmyEditions.Served, ArmyEditions.All);
+        Assert.Equal(ArmyEditions.All.Order(), ArmyBookReserves.Editions);
+        Assert.Throws<InvalidOperationException>(() => ArmyBookReserves.RequireFiles("9.9", ArmyEditions.All));
+        var v35 = ArmyBookReserves.Entry(ArmyEditions.V35, Robots, ("Bot Swarms", 3));
+        var v36 = ArmyBookReserves.Entry(ArmyEditions.V36, Robots, ("Bot Swarms", 3));
+        Assert.Equal(["Swarm Attacks"], v35!.Loadout!.Select(l => l.Name));
+        Assert.Equal(["Bot Claws"], v36!.Loadout!.Select(l => l.Name));
+        Assert.Null(ArmyBookReserves.Entry(ArmyEditions.V35, "dnthspt7c0klhmt8", ("Infected Zombies", 5)));   // Voidspace Stalkers is a 3.6 book
+        Assert.Equal(ArmyEditions.V36, Import(Entry("a", "Lord", 1, "", Robots)).Edition);
     }
 
     [Fact]

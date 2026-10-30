@@ -62,7 +62,7 @@ switch (args.FirstOrDefault())
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
         var rulesPath = Arg("--rules", Path.Combine(content, "army-book-rules.part.json"));
         File.WriteAllText(rulesPath, RuleWriter.Serialize(rules!));
-        var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName));
+        var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName(edition)));
         File.WriteAllText(unitsPath, reserveUnits);
         Console.WriteLine($"wrote {unitsPath}");
         Console.WriteLine($"wrote {built.Count} books, {built.SelectMany(b => b.Spells).Select(s => s.Name).Distinct().Count()} spells");

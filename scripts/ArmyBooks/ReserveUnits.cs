@@ -7,12 +7,12 @@ namespace Tabletop.ArmyBooks;
 /// <summary>
 /// The units a book's Spawn and Split name (army-book rules spec → Readings, batch 7: "a new unit of X"), for the import to add as reserve units. Army Forge
 /// gives X as the rule's rating, the unit's name and size: <c>"rating": "Bot Swarms [3]"</c>. Each named unit is written in the TTS export's shape (rules,
-/// a loadout of weapons and items, bases), keyed by book uid and unit name, to <c>server/management/Content/Armies/army-book-units.json</c>.
+/// a loadout of weapons and items, bases), keyed by book uid and unit name, to <c>server/management/Content/Armies/army-book-units.&lt;edition&gt;.json</c>.
 /// </summary>
 public static partial class ReserveUnits
 {
     public static readonly string[] Rules = ["Spawn", "Split"];
-    public const string FileName = "army-book-units.json";
+    public static string FileName(string edition) => $"army-book-units.{edition}.json";
 
     [GeneratedRegex(@"^(?<name>.+?)\s*\[(?<size>\d+)\]$")] private static partial Regex RatingShape();
 

@@ -36,7 +36,7 @@ public static class ArmyForgeImport
         var merged = Merge(list.Units);
         if (merged.Count > ArmyLimits.MaxUnits) throw new InvalidArmyException($"The list has {merged.Count} units; at most {ArmyLimits.MaxUnits} import.");
         var units = merged.Select((m, i) => Unit(m, i + 1, catalog)).ToList();
-        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog));
+        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog), ArmyEditions.Served);
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units) { Edition = ArmyEditions.Served };
     }
 

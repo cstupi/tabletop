@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using Tabletop.Content;
 
@@ -8,7 +10,7 @@ namespace Tabletop.Management.Content.Armies;
 /// The reserve units an import adds for the army-book rules that place a unit the list does not hold (army-book rules spec → Readings, batch 7):
 /// Spawn ("place a new unit of X fully within 6" of it", one per carrying model), Split ("When this unit is fully destroyed, you may place a new unit of X",
 /// one per unit) and Reinforcement ("place a new copy of it … this rule doesn't apply to the new copy", one per unit where all models have it). X is the
-/// rule's rating, "Name [size]", resolved against the units the generator took from the carrying entry's army book (<c>army-book-units.json</c>). An added
+/// rule's rating, "Name [size]", resolved against the units the generator took from the carrying entry's army book (<c>army-book-units.&lt;edition&gt;.json</c>, the edition the import stamps). An added
 /// unit with such a rule of its own gets its reserve too. A reserve unit is appended after the list's units; reserves stop at the army limits.
 /// </summary>
 public static class ArmyBookReserves
@@ -20,11 +22,27 @@ public static class ArmyBookReserves
     sealed record BookUnit(int Size, JsonElement Quality, JsonElement Defense, AfBases? Bases, List<AfRule>? Rules, List<AfLoadoutItem>? Loadout);
 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
-    static readonly Lazy<IReadOnlyDictionary<string, Dictionary<string, BookUnit>>> Books = new(() =>
+    static readonly ConcurrentDictionary<string, IReadOnlyDictionary<string, Dictionary<string, BookUnit>>> Loaded = new();
+
+    /// <summary>Every edition a units file is embedded for.</summary>
+    public static IReadOnlyList<string> Editions => Assembly.GetExecutingAssembly().GetManifestResourceNames()
+        .Select(n => Regex.Match(n, @"^army-book-units\.(.+)\.json$")).Where(m => m.Success).Select(m => m.Groups[1].Value).Order().ToList();
+
+    /// <summary>The edition's units, keyed by book uid then unit name.</summary>
+    static IReadOnlyDictionary<string, Dictionary<string, BookUnit>> BooksOf(string edition) => Loaded.GetOrAdd(edition, e =>
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("army-book-units.json") ?? throw new InvalidOperationException("army-book-units.json is not embedded");
+        var name = $"army-book-units.{e}.json";
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name) ?? throw new InvalidOperationException($"{name} is not embedded");
         return JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, BookUnit>>>(stream, Json)!;
     });
+
+    /// <summary>Throws unless a units file is embedded for `served` and for every edition in `all`.</summary>
+    public static void RequireFiles(string served, IEnumerable<string> all)
+    {
+        var held = Editions;
+        var missing = all.Append(served).Distinct().Where(e => !held.Contains(e)).ToList();
+        if (missing.Count > 0) throw new InvalidOperationException($"No army-book-units file for edition {string.Join(", ", missing)}");
+    }
 
     /// <summary>"Name [size]" from a rating; null for any other.</summary>
     static (string Name, int Size)? Rating(AfRule r)
@@ -42,9 +60,9 @@ public static class ArmyBookReserves
             .Where(x => x is not null).Select(x => x!.Value);
 
     /// <summary>The book's unit X at X's size, as an export entry: a loadout line every model of the book's unit had goes to every model.</summary>
-    static AfUnit? Entry(string? book, (string Name, int Size) x)
+    public static AfUnit? Entry(string edition, string? book, (string Name, int Size) x)
     {
-        if (book is null || !Books.Value.TryGetValue(book, out var units) || !units.TryGetValue(x.Name, out var u)) return null;
+        if (book is null || !BooksOf(edition).TryGetValue(book, out var units) || !units.TryGetValue(x.Name, out var u)) return null;
         var loadout = (u.Loadout ?? []).Select(l => l with { Count = l.Count >= u.Size ? x.Size : Math.Min(l.Count, x.Size) }).ToList();
         return new AfUnit(Guid.NewGuid().ToString("N"), x.Name, x.Size, u.Quality, u.Defense, u.Rules, loadout, u.Bases, false, null, book);
     }
@@ -53,7 +71,7 @@ public static class ArmyBookReserves
         u.Properties.Any(p => p.Name == rule) || (all ? u.Models.Count > 0 && u.Models.All(m => m.Properties.Any(p => p.Name == rule)) : u.Models.Any(m => m.Properties.Any(p => p.Name == rule)));
 
     /// <summary>The list's units, then their reserve units. `entries` are each unit's export entries (host, then joined); `build` makes a unit from one entry.</summary>
-    public static List<Unit> Add(List<Unit> units, IReadOnlyList<IReadOnlyList<AfUnit>> entries, Func<AfUnit, int, Unit> build)
+    public static List<Unit> Add(List<Unit> units, IReadOnlyList<IReadOnlyList<AfUnit>> entries, Func<AfUnit, int, Unit> build, string edition)
     {
         var all = new List<Unit>(units);
         var sources = units.Select((u, i) => (Unit: u, Entries: entries[i])).ToList();
@@ -76,9 +94,9 @@ public static class ArmyBookReserves
             // Spawn: each carrying model, in slot order, takes the next of the entries' Spawn ratings.
             var carriers = unit.Models.Where(m => m.Properties.Any(p => p.Name == Spawn) || unit.Properties.Any(p => p.Name == Spawn)).ToList();
             foreach (var (model, x) in carriers.Zip(from.SelectMany(e => Ratings(e, Spawn))))
-                Reserve(Entry(model.ArmyBook, x), new UnitReserve(Spawn, model.Id));
+                Reserve(Entry(edition, model.ArmyBook, x), new UnitReserve(Spawn, model.Id));
             if (Holds(unit, Split, all: false) && from.SelectMany(e => Ratings(e, Split).Select(x => (Book: e.ArmyId, X: x))).FirstOrDefault() is { X.Name: not null } split)
-                Reserve(Entry(split.Book, split.X), new UnitReserve(Split, unit.Id));
+                Reserve(Entry(edition, split.Book, split.X), new UnitReserve(Split, unit.Id));
             if (unit.Reserve?.Property != Reinforcement && Holds(unit, Reinforcement, all: true) && Room(unit.Models.Count))
                 Append(Copy(unit, all.Count + 1) with { Reserve = new UnitReserve(Reinforcement, unit.Id) }, from);
         }
