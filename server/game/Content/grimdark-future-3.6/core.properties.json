@@ -46,7 +46,7 @@
       "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
         { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] },
         { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
-    { "name": "Hero", "kind": "model", "aggregation": "none", "ruleText": "Heroes with up to Tough(6) may deploy as part of one multi-model unit without another Hero. The hero may take morale tests on behalf of the unit, but must use the unit's Defense until all other models have been killed.", "effects": [] },
+    { "name": "Hero", "kind": "model", "aggregation": "none", "ruleText": "Heroes with up to Tough(6) may deploy as part of one multi-model unit without another Hero, but must use the unit's Defense until all other models have been killed. The Hero's unit, and units within 6\" of friendly Heroes with Tough(9) or higher, may use the Hero's Quality for Morale Tests as long as the Hero isn't Shaken.", "effects": [] },
     { "name": "Immobile", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may only use Hold actions.", "effects": [] },
     { "name": "Impact", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "When charging, before either unit attacks, roll X dice, unless this unit is Fatigued. For each 2+ the target takes 1 hit.",
       "effects": [ { "subject": "self", "ordinal": 20, "kind": "roll", "amount": 1, "amountFromParameter": true, "threshold": 2,
