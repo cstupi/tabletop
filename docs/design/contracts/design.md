@@ -180,10 +180,11 @@ likely call-site error in the library.
 top is standable, `Area` is stood inside), `Footprint`, `Offset`, `Yaw`, `Bottom`, `Top`,
 `Declarations`, `Notes`. `Bottom`/`Top` rather than one height makes a hill (`0–2`), a wall
 (`0–4`, thin footprint) and a second storey (`4–8`, nothing beneath) one mechanism (geometry values →
-Collision volumes). Declarations are the six OPR terrain types as a `[Flags]` enum, beside free
+Collision volumes). Declarations are the eight OPR terrain declarations (`TerrainDeclarations`, the six types plus `DangerousOnRushCharge` and `Steep`) as a `[Flags]` enum, beside free
 `Notes` that nothing interprets. That closed-set-plus-open-field split is the rulebook's own:
 players "must agree on what terrain type rules each piece follows" (Grimdark Future v3.5.1 pp. 17,
-21). `Impassable` is orthogonal to `Solid`/`Area` and all four combinations are real, so it is a
+21; 3.6.0 pp.11–12 name the same types). Two editions read one declaration set: `GfEdition.TerrainWords` gives each flag its
+word per edition and `Welcome.TerrainWords` carries them. `Impassable` is orthogonal to `Solid`/`Area` and all four combinations are real, so it is a
 declaration rather than something implied by `Solid`.
 
 `WorldVolume(Guid Id, Volume Volume, TerrainTransform Transform)` is the placed form. Its `Id` is
@@ -526,7 +527,7 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 | `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Takedown`'s target model (p.14) |
 | `Allocation(Targets, Amount, MaxTargets?)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly, and at most `MaxTargets` targets get a count above zero (null: any) |
 | `Assignment(Items, Targets, MaxDistinctTargets, TargetsByItem?)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8); `TargetsByItem` is each group's own valid targets, `Targets` their union (null: every item may take any of `Targets`); an answer names at least one item, and an item it leaves out holds fire |
-| `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
+| `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?, …, SteepVolumeIds?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
 | `TokenSpend(MaxByModel)` | `TokensSpent(Counts)` | casting's simultaneous token spend, per spending model (p.13) |
 | `Confirmation` | `Confirmed` | the wait-between-steps confirm gate, the round boundary |
 | any, when `AllowPass` | `Passed` | a window's pass, a team passing its turn |
@@ -534,7 +535,10 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 `MoveRegion` is the continuous-action case `architecture.md` designs for. The server sends
 parameters, not an enumerated answer, and `Tabletop.Geometry` draws the consequence.
 `DifficultCap` is the whole-move cap `GameRules` computed, null when the ruleset has none. In OPR it
-is 6" and never a multiplier (`architecture.md` → Continuous actions).
+is 6" and never a multiplier (`architecture.md` → Continuous actions). `SteepVolumeIds` (null is none) lists the volumes that
+are difficult for a model whose base centre starts outside the footprint and open ground for one that starts inside (3.6.0 p.12
+Steep; 3.5.1 p.12 Hills, *"Difficult when moving up"*); it rides apart from `DifficultVolumeIds` because the reading depends on
+each model's start (`Movement.SteepEntering`).
 
 `MoveContainment(Enterable, ExitingId, ExitWithin)` is the newest field in the contract.
 `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire, but nothing
@@ -649,10 +653,10 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 | Direction | Kinds |
 | --- | --- |
 | Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`), `reauth` (`Reauth(ReauthId, SessionJwt)`: a refreshed token of the same account, still authorized for the game, moves the socket's expiry; anything else is `Refused(ReauthId, NotPermitted)`, and closes the socket `1008` when the account no longer holds it) |
-| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds, DeployInside, MaySetAside)`) |
+| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)` with `Options`, `Zones` and `TerrainWords`, the game's rule set's option catalog, Side Battle legs and terrain words), `game` (`GameInfoMessage`), `rules_options` (`RulesOptionsMessage(Options)` with `Zones` and `TerrainWords`: the lobby's edition change, sent before the `game` frame it belongs to), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds, DeployInside, MaySetAside)`) |
 | Both | `presence`, `ping` |
 
-Sixteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
+Eighteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
 which is what lets a kind be added to the union without a lockstep release of the client, the viewer
 and the simulator.
 
@@ -1133,7 +1137,7 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `sealed record Weapon(Guid Id, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties)` | a melee weapon has no `Range` stat at all |
 | `sealed record ModelSlot(Guid Id, int Ordinal, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties, Base Base, double Height, Guid? AssetId, IRL<Weapon> Weapons, string? ArmyBook = null)` | `Base`+`Height` are the hitbox, `AssetId` is appearance and soft; `ArmyBook` is the Army Forge book uid the slot was imported from, null when unknown |
 | `sealed record Unit(Guid Id, int Ordinal, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties, IRL<ModelSlot> Models)` | |
-| `sealed record Army(Guid Id, string Name, string GameSystem, string Source, IRL<Unit> Units)` | `GameSystem` is the `GameRules` identifier |
+| `sealed record Army(Guid Id, string Name, string GameSystem, string Source, IRL<Unit> Units)` | `GameSystem` is the `GameRules` identifier; `Edition` (`"3.5"` or `"3.6"`, `ArmyEditions`; an init property defaulting to 3.5) is the Army Forge edition it was imported in, and `ArmySnapshot` carries it too |
 | `sealed record ArmySnapshot(Guid Id, string Name, string GameSystem, IRL<Unit> Units)` | `static Of(Army, Guid id)`, no `ArmyId`, no `Source` |
 | `readonly record struct VisualRef` | `string? Builtin`, `Guid? AssetId`, `[JsonConstructor] VisualRef(string?, Guid?)` throwing unless exactly one, `bool IsBuiltin` `[JsonIgnore]`, `static OfBuiltin(string)`, `static OfAsset(Guid)` |
 | `sealed record TerrainVolume(Guid Id, Volume Volume)` | |
@@ -1157,14 +1161,14 @@ this table is the rest of the surface, with the exact member names later modules
 | `enum Enforcement { Silent, Warn, Strict }` | |
 | `sealed record Team(Guid Id, int Ordinal)` | |
 | `sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId)` | |
-| `sealed record GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, IRL<Team> Teams, IRL<Participant> Participants)` | what a lobby connect receives; `RngSeed` is the game's stored dice seed, server-only: `[JsonIgnore]`, never serialized, 0 when deserialized |
+| `sealed record GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, IRL<Team> Teams, IRL<Participant> Participants)` | what a lobby connect receives; `GameRules` is the edition's id (`grimdark-future` 3.5.1, `grimdark-future-3.6` 3.6.0) and the `RuleSet` init property the name of the set (`Grimdark Future v3.6.0`) shown beside the game, null from a source that does not read it; `RngSeed` is the game's stored dice seed, server-only: `[JsonIgnore]`, never serialized, 0 when deserialized |
 | `sealed record ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot)`; `sealed record Board(TableState Table, IRL<ArmyInPlay> Armies)` | `Armies` empty during setup |
 | `abstract record Location` | `OnTable(Placement)` `[table]`, `OnShelf` `[shelf]`, `Inside(Guid ContainerId)` `[inside]` |
 | `sealed record ModelRelocation(Guid ModelId, Location From, Location To)` | |
 | `enum SubjectKind { Unit, Model }`; `sealed record Subject(SubjectKind Kind, Guid Id)` | |
 | `sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)` | `EntryName` is the spell or pick entry that wrote it, `EffectId` the one effect row it holds |
 | `sealed record Die(int Raw, int Modified, bool Success)`; `sealed record RollModifier(string Source, int Amount)` | |
-| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null)` | `Threshold` null for the roll-off; `RequiredRaw` the raw face a roll judged on alone, null otherwise; `Basis` null for a threshold no stat gave and in logs written before it, and `EventApplier` does not read it |
+| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null)` | `Threshold` null for the roll-off; `HitsTriggerNothing` (`bool?`; 3.6.0 p.9, a fatigued melee's hits set off no special rule) and `RequiredRaw` the raw face a roll judged on alone, null otherwise; `Basis` null for a threshold no stat gave and in logs written before it, and `EventApplier` does not read it |
 | `sealed record ThresholdBasis(string Stat, int Printed, IRL<ThresholdChange> Changes)` | the stat a threshold was read from, its printed value and each change applied |
 | `sealed record ThresholdChange(string Source, int? SetTo, int Amount)` | a replace_stat row sets `SetTo`; a modify_stat row adds `Amount` |
 | `sealed record SequenceContext(Guid? ActorUnitId, IRL<Guid> TargetUnitIds, IRL<Guid> WeaponIds, string? Action)` | |
@@ -1730,6 +1734,9 @@ p. 14 (`Takedown`, `Scout`), p. 15 (`Transport(X)`, wounded `Tough` models and h
 last), p. 31 (the hero upgrade holding one token spendable only in a token spend), pp. 17-21
 (terrain types, placement styles, solid buildings and the 6" exit), p. 50 (free-for-all and team
 games).
+Grimdark Future 3.6.0, cited `3.6.0 p.N`: p.9 (a fatigued melee's hits, `RollRecord.HitsTriggerNothing`), p.12 (Steep,
+`MoveRegion.SteepVolumeIds`) and the terrain words by edition (`Welcome.TerrainWords`), p.21 (Side Battle's legs,
+`Welcome.Zones`).
 
 **Sibling design documents** under `docs/design/`: `geometry/`, `management-api/`, `web-app/`,
 `game-server/`, `client/`, `scheduler/`, `interpreter/`. All of them consume these three
