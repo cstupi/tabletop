@@ -1,6 +1,32 @@
-# Shipped through v0.1.24
+# Shipped
 
-What each batch up to v0.1.24 built, with the owner's rulings made along the way. `docs/handoff.md` holds the current state.
+What each batch built, with the owner's rulings made along the way. `docs/handoff.md` holds the current state.
+
+## 2026-10-30, Grimdark Future 3.6.0 as a second edition
+
+Branch `gf-3-6-0`, not tagged. Specs `2026-10-29-rule-set-versions-design.md`, `2026-10-29-gf-3-6-0-rules-diff.md`,
+`2026-10-29-gf-3-6-0-rules-diff-modules.md`.
+
+Owner ruling (2026-10-29): "both rulebooks stay playable. 3.6.0 is a second rule set beside 3.5.1, built by copying the existing
+rules and changing what differs; each game chooses one; existing and unfinished games stay on 3.5.1; new games default to 3.6.0."
+
+- **Two rule sets.** `grimdark-future` stays 3.5.1 (its content hash is pinned by a test); `grimdark-future-3.6` is 3.6.0. A
+  difference that is a number or a yes/no is a `GfEdition` value (`GfEdition.Of(state)`); a step whose logic changes has a 3.6 copy
+  beside the 3.5.1 one in the sequence catalog; a rule whose text changes has its `ruleText` replaced in the 3.6 core file. The
+  lobby offers the set by name; `rules_options` carries the catalog, zones and terrain words; the protocol version is 5.
+- **Armies know their edition.** `army.edition` (migration `023_army_edition.sql`), `PickArmy` and `EndSetup` refuse a mismatch;
+  the pickers' "3.5 list" and "3.6 list" reasons name the army's own `edition` field. The generator writes books per edition
+  (`generate --edition 3.5|3.6`): 49 3.6 books, 196 spells.
+- **Rules built for 3.6.0:** the core and special-rule differences, the 3.6 hand part and generated rules, spells, reserves, strike-turn
+  rolls, dice moves, placement distances, Steep terrain (`025_steep_terrain.sql`), foreign to-hit penalties
+  (`024_foreign_to_hit_penalties.sql`), and the AP floor on parameter rows (`026_parameter_floor.sql`).
+- **Rules suite:** 631 games (3.5.1 308, 3.6.0 323), coverage 3.5 545 of 545 and 3.6 515 of 515 (61 not automated).
+- **Rulings taken in the build:**
+  - The printed Army Forge spell text is the authority over its structured fields.
+  - A spell whose effect is a token loss, whose attack type is empty, or whose grant is undefined or text-only is text-only in 3.6.
+  - Counter in Melee is read as Counter, not as a Counter-Attack rename.
+  - Enhanced Watchborn is Watchborn without the range band.
+  - 3.5.1 content is byte-identical, so 3.5.1 keeps its latent AP-floor rows.
 
 ## 2026-10-24, v0.1.24
 
