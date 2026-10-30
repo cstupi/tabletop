@@ -72,11 +72,73 @@ public class GfMelee36Tests
         var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
         var sim = Sim.Gf(rules, State([riders], [pikes], x1: -3, x2: 0), 6);
         sim.Start(GfNames.Melee, MeleeOf(riders, pikes));
+        if (sim.AskForOrNull(Samples.Team2) is { Question: "counter" }) sim.Answer(Samples.Team2, new Chosen("strike"));   // 3.6.0 p.13: "May strike first"
         Assert.Equal(impactDice, sim.Steps("impact").First().Rolls.Single().Dice.Count);
         var started = sim.Emitted.OfType<SequenceStarted>().ToList();
         var impactHits = started.FindIndex(s => s.Sequence == GfNames.ResolveHits && s.Context.ActorUnitId == riders.Id);
         var counterStrike = started.FindIndex(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id);
         Assert.True(impactHits >= 0 && counterStrike >= 0);
         Assert.Equal(impactFirst, impactHits < counterStrike);
+    }
+
+    /// <summary>3.6.0 p.13 Counter: "May strike first with this weapon when charged, unless this unit is Fatigued." The defender's team chooses; 3.5.1 p.13
+    /// "Strikes first" asks nothing. Every die misses, so the Asks and the strike order are the only difference.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, false)]
+    [InlineData(RuleSets.Gf360, true)]
+    public void Counter_asks_the_defender_under_3_6_not_3_5_1(string rules, bool asks)
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf(rules, State([charger], [pikes], x1: -3, x2: 0), 1, 1);
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        Assert.Equal(asks, sim.AskForOrNull(Samples.Team2)?.Question == "counter");
+    }
+
+    [Fact]
+    public void Counter_asks_the_defender_and_a_pass_strikes_with_the_rest_under_3_6()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")), Melee("Dagger", 1));
+        var sim = Sim.Gf36(State([charger], [pikes], x1: -3, x2: 0), 1, 1, 1);                       // charger misses; pike and dagger miss
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        var ask = sim.AskFor(Samples.Team2);
+        Assert.Equal("counter", ask.Question);
+        Assert.Equal(["strike", "pass"], Assert.IsType<Options>(ask.Legal).Choices.Select(c => c.Id));
+        sim.Answer(Samples.Team2, new Chosen("pass"));
+        Assert.Equal("strike_back", sim.AskFor(Samples.Team2).Question);
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
+        Assert.Equal([charger.Id, pikes.Id, pikes.Id], attacks.Select(a => a.Context.ActorUnitId!.Value));   // the charger first; the pike and the dagger in the strike back
+        Assert.Equal(pikes.Models[0].Weapons.Select(w => w.Id).Order(), attacks.Skip(1).SelectMany(a => a.Context.WeaponIds).Order());
+        Assert.Contains(GfNames.Fatigued, sim.Unit(pikes.Id).Conditions);
+    }
+
+    [Theory]
+    [InlineData(GfNames.Fatigued)]
+    [InlineData(GfNames.Shaken)]                                                                       // p.10: Shaken "may strike back counting as Fatigued"
+    public void A_fatigued_defender_has_no_counter_under_3_6(string condition)
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf36(State([charger], [pikes], x1: -3, x2: 0), 1, 1);                          // charger misses; the pike misses in the strike back
+        sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, pikes.Id), condition, true)]);
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        Assert.Equal("strike_back", sim.AskFor(Samples.Team2).Question);                             // no counter Ask: the pike strikes with the rest
+        Assert.Empty(sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var back = sim.Emitted.OfType<SequenceStarted>().Single(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id);
+        Assert.Equal(pikes.Models[0].Weapons.Select(w => w.Id), back.Context.WeaponIds);
+    }
+
+    [Fact]
+    public void A_fatigued_defender_still_strikes_first_with_counter_under_3_5_1()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf(State([charger], [pikes], x1: -3, x2: 0), 1, 1);
+        sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, pikes.Id), GfNames.Fatigued, true)]);
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        Assert.Equal(pikes.Id, sim.Emitted.OfType<SequenceStarted>().First(s => s.Sequence == GfNames.AttackSequence).Context.ActorUnitId);
     }
 }
