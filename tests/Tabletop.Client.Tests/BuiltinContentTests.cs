@@ -47,10 +47,12 @@ public class BuiltinContentTests
     public void Hills_are_steep()
     {
         // 3.6.0 p.30 "Hill Counts as Cover and Steep terrain"; 3.5.1 p.12 Hills "Difficult when moving up".
+        // The terrain card carries no note for them: 3.5.1's line-of-sight allowance for units on top is not enforced and 3.6.0 drops it.
         foreach (var id in new[] { "hill", "large-hill", "small-dunes", "steep-hill" })
+        {
             Assert.Equal(TerrainDeclarations.Cover | TerrainDeclarations.Steep, BuiltinContent.Terrain[id].Volume.Declarations);
-        Assert.Contains("3.5.1 p.12", BuiltinContent.Terrain["hill"].Volume.Notes);
-        Assert.DoesNotContain("Difficult", BuiltinContent.Terrain["steep-hill"].Volume.Notes);
+            Assert.Null(BuiltinContent.Terrain[id].Volume.Notes);
+        }
     }
 
     [Fact]
