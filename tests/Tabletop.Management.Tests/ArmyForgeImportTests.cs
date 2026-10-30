@@ -11,6 +11,9 @@ public class ArmyForgeImportTests
     static readonly Dictionary<string, PropertyLevel> Catalog = new() { ["Tough"] = PropertyLevel.Model, ["Fast"] = PropertyLevel.Unit, ["Impact"] = PropertyLevel.Unit };
 
     [Fact]
+    public void Import_stamps_the_edition_army_forge_serves() => Assert.Equal(ArmyEditions.Served, ArmyForgeImport.ToArmy(Fixture(), "src", Catalog).Edition);
+
+    [Fact]
     public void Parses_the_real_export()
     {
         var list = Fixture();

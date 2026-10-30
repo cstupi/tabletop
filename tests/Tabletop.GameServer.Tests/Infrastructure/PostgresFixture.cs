@@ -94,7 +94,7 @@ public sealed class PostgresFixture : IAsyncLifetime, IRowSeeder
             foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
         }
-        await Run("insert into management.army (id, owner_id, name, game_system, source) values ($1, $2, $3, $4, $5)", army.Id, ownerId, army.Name, army.GameSystem, army.Source);
+        await Run("insert into management.army (id, owner_id, name, game_system, source, edition) values ($1, $2, $3, $4, $5, $6)", army.Id, ownerId, army.Name, army.GameSystem, army.Source, army.Edition);
         foreach (var u in army.Units)
         {
             await Run("insert into management.unit (id, army_id, ordinal, name, reserve_property, reserve_of) values ($1, $2, $3, $4, $5, $6)",
