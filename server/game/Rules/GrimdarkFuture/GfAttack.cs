@@ -46,7 +46,7 @@ public static partial class GfAttack
         var parent = frame.Parent ?? throw new InvalidOperationException("deal-wounds needs a parent frame");
         var defense = parent.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.DefenseRoll).ToList();
         if (defense.Count > 0) return defense.Select((r, i) => Dice.RollOutcome.Failures(r) + r.Dice.Sum(d => parent.Value(ExtraWoundsKey(i, d.Raw)))).Sum();
-        if (parent.Frame.Sequence == GfNames.DangerousTerrain) return GfMoves.DangerousWounds(parent);
+        if (parent.Frame.Sequence is GfNames.DangerousTerrain or GfNames.DangerousTerrain36) return GfMoves.DangerousWounds(parent);
         return parent.Value("wounds");
     }
 

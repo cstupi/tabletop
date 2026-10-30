@@ -24,6 +24,7 @@ edges and the free-for-all roll-off.
 | `deal-wounds` | `assign`, `disgorge`, `caster-group`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfSpellSupport`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
 | `morale-test` | `test`, `override`, `consequence` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
+| `dangerous-terrain-36` | `test`, `deal` | `GfMoves` (`GfMoves.Dangerous36.cs`) | the same pushers under 3.6.0 (`GfEdition.UnitDangerousTest`, `GfMoves.DangerousSeq`) |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
 | `casting` | `pick-spell`, `origin`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
 | `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects`, `pick-rule`'s `rule-effects` |
@@ -218,6 +219,14 @@ through dangerous terrain, or is activated in it, then it must take a dangerous 
 out of it, through several pieces, over several segments of a move a stop splits, or a charge and its move. Each step
 that writes `dangerous_dice` also writes `Values["dangerous_tested_<model>"]` for the models it covers, and `ApplyMove`
 leaves out every model so marked on the action's frame or any frame under which the move runs (`GfMoves.TestedThisActivation`).
+
+Under 3.6.0 the test is the unit's (3.6.0 p.12 *"If any model in a unit moves into or through Dangerous terrain, or activates in it,
+then the entire unit must take a Dangerous Terrain Test. To take a Dangerous Terrain Test, roll as many dice as the number of wounds
+it would take to fully destroy the unit, and for each result is 1 the unit takes one wound."*; 3.6.0 p.15 Transport says the same of
+a destroyed transport's passengers). The same pushers push `dangerous-terrain-36` (`GfMoves.DangerousSeq`): its `test`
+(`UnitDangerousTestStep`) rolls `GfMoves.WoundsToDestroy` dice, the sum over the unit's models in play of Tough (or 1) less wounds
+taken, at 2+, and `deal` is the 3.5.1 sequence's. The pusher writes `Values["dangerous_tested_unit_<unit>"]` beside the model marks,
+and `ApplyMove` owes no dice once the unit is so marked on any frame above the move.
 
 `shoot-or-not` (p.7–8: Hold and Advance may shoot) is three cases in order. A `Shaken` unit
 `Finish`es with `ConditionSet(unit, shaken, false)`, spending the activation idle and ceasing to

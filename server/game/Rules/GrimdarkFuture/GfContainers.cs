@@ -30,10 +30,10 @@ public static class GfContainers
         {
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
-            var dice = GfMoves.DangerousDice(ctx.State, Lookup.AliveModels(ctx.State, unit));
+            var dice = GfMoves.OwedDice(ctx.State, unit, Lookup.AliveModels(ctx.State, unit));   // 3.6.0 p.15 and p.12: the unit's wounds to destroy
             if (dice == 0) return new Complete([]);
             return ctx.Frame.Value("dangerous_dice") > 0
-                ? new Push(GfNames.DangerousTerrain, ctx.Frame.Context)
+                ? new Push(GfMoves.DangerousSeq(ctx.State), ctx.Frame.Context)
                 : new Complete([], new Dictionary<string, int> { ["dangerous_dice"] = dice }, Repeat: true);
         }
     }
