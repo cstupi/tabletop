@@ -15,7 +15,7 @@ public static partial class SuiteCatalog
         SpellGames.Books(ScenarioCompiler.CoreProperties).Select(book => SpellGames.Game(book, seed: 1,
             ScenarioCompiler.CoreProperties, SpellTables.Setups.GetValueOrDefault(book.Uid), SpellTables.Dice.GetValueOrDefault(book.Uid),
             SpellTables.Checks.GetValueOrDefault(book.Uid)) with { Known = SpellTables.Known.GetValueOrDefault(book.Uid) ?? [] })
-        .Append(EditedCastingDie());
+        .Append(EditedCastingDie()).Concat(Spells36());
 
     public const string EditedCastingDieName = "spells-edited-casting-die";
     public const string EditedCastCheck = "edited casting die (p.13: \"Roll one die, on 4+ resolve the effect\"; p.5: \"a roll of 1 always counts as a fail\")";
@@ -101,7 +101,7 @@ public static partial class SuiteCatalog
         public static readonly Dictionary<string, IReadOnlyList<KnownDefect>> Known = new(StringComparer.Ordinal);
 
         /// <summary>The unit after the caster's in the book's army, wrapping: "&lt;army&gt; unit k" → "&lt;army&gt; unit k+1".</summary>
-        static IReadOnlyList<string> NextUnit(string caster)
+        public static IReadOnlyList<string> NextUnit(string caster)
         {
             var cut = caster.LastIndexOf(' ');
             var k = int.Parse(caster[(cut + 1)..]);
@@ -147,37 +147,51 @@ public static partial class SuiteCatalog
     /// Mutating Inferno: each target takes 4 hits with no die rolled for them and rolls 4 blocks. The game's first defense roll is its first
     /// target's blocks, fixed to [1,1,1,6]: 3 failed blocks, 3 wounds.
     /// </summary>
-    static string? MutatingInferno(LogQueries q)
+    static string? MutatingInferno(LogQueries q) => FixedHits(q, "Mutating Inferno", 4, 3);
+
+    /// <summary>
+    /// A spell whose targets take a number of hits with no die rolled for them and roll that many blocks; the game's first defense roll is
+    /// its first target's blocks, fixed to faces with that many failures, each dealing one wound.
+    /// </summary>
+    static string? FixedHits(LogQueries q, string spell, int count, int failures)
     {
-        var hits = SpellHits(q, "Mutating Inferno");
+        var hits = SpellHits(q, spell);
         var first = q.Rolls("defense").FirstOrDefault();
         if (first is null || !first.Edited) return "the fixed block roll never happened";
-        if (first.Frame.Nearest("spell-hits") is not { } fixedHits || !hits.Any(h => h.Hits == fixedHits)) return "the game's first block roll is not Mutating Inferno's";
-        if (first.Dice.Count(d => !d.Success) != 3) return $"the fixed blocks {LogQueries.Show(first)} are not 3 failures";
-        if (Dealt(q, fixedHits) != 3) return $"the fixed blocks dealt {Dealt(q, fixedHits)} wounds, not 3";
-        return LogQueries.Each(hits, "Mutating Inferno target", h =>
+        if (first.Frame.Nearest("spell-hits") is not { } fixedHits || !hits.Any(h => h.Hits == fixedHits)) return $"the game's first block roll is not {spell}'s";
+        if (first.Dice.Count(d => !d.Success) != failures) return $"the fixed blocks {LogQueries.Show(first)} are not {failures} failures";
+        if (Dealt(q, fixedHits) != failures) return $"the fixed blocks dealt {Dealt(q, fixedHits)} wounds, not {failures}";
+        return LogQueries.Each(hits, $"{spell} target", h =>
             h.Hit.AllRolls.Count > 0 ? $"the hits rolled {h.Hit.AllRolls.Count} rolls; the text rolls none"
-            : h.Hit.Value("hits") != 4 ? $"hits {h.Hit.Value("hits")}, not 4"
-            : h.Blocks.Sum(r => r.Dice.Count) != 4 ? $"{h.Blocks.Sum(r => r.Dice.Count)} blocks rolled for 4 hits" : null);
+            : h.Hit.Value("hits") != count ? $"hits {h.Hit.Value("hits")}, not {count}"
+            : h.Blocks.Sum(r => r.Dice.Count) != count ? $"{h.Blocks.Sum(r => r.Dice.Count)} blocks rolled for {count} hits" : null);
     }
 
     /// <summary>
     /// Sky Blaze: 2 hits, one die each at no threshold to fail; each unmodified 6 adds a hit; every block is at AP(1). Read from the dice as
     /// they stand, which score-hits read.
     /// </summary>
-    static string? SkyBlaze(LogQueries q)
+    static string? SkyBlaze(LogQueries q) => RolledHits(q, "Sky Blaze", 2, 1);
+
+    /// <summary>
+    /// A spell of rolled hits with Surge: that many hits, one die each at no threshold to fail; each unmodified 6 adds a hit; every block is
+    /// at AP(ap) (none when ap is 0). Read from the dice as they stand, which score-hits read.
+    /// </summary>
+    static string? RolledHits(LogQueries q, string spell, int count, int ap)
     {
-        var hits = SpellHits(q, "Sky Blaze");
-        var failure = LogQueries.Each(hits, "Sky Blaze target", h =>
+        var hits = SpellHits(q, spell);
+        var failure = LogQueries.Each(hits, $"{spell} target", h =>
         {
-            if (h.Hit.Rolls("hit").SingleOrDefault() is not { Dice.Count: 2 } roll) return "did not roll 2 dice for 2 hits";
+            if (h.Hit.Rolls("hit").SingleOrDefault() is not { } roll || roll.Dice.Count != count)
+                return $"did not roll {count} dice for {count} hits: [{string.Join("; ", h.Hit.Rolls("hit").Select(LogQueries.Show))}]";
             if (roll.Dice.Any(d => !d.Success)) return $"a spell hit die failed: {LogQueries.Show(roll)}";
             var sixes = roll.Raw(6);
             if (h.Score.Value("extra_hits") != sixes) return $"{LogQueries.Show(roll)} gave {h.Score.Value("extra_hits")} extra hits";
-            if (h.Blocks.Sum(r => r.Dice.Count) != 2 + sixes) return $"{h.Blocks.Sum(r => r.Dice.Count)} blocks rolled for {2 + sixes} hits";
-            return h.Blocks.FirstOrDefault(r => !r.Roll.Modifiers.Contains(new RollModifier("AP", -1))) is { } bare ? $"a block without AP(1): {LogQueries.Show(bare)}" : null;
+            if (h.Blocks.Sum(r => r.Dice.Count) != count + sixes) return $"{h.Blocks.Sum(r => r.Dice.Count)} blocks rolled for {count + sixes} hits";
+            if (ap == 0) return h.Blocks.FirstOrDefault(r => r.Roll.Modifiers.Any(m => m.Source == "AP" && m.Amount != 0)) is { } ruled ? $"a block with AP: {LogQueries.Show(ruled)}" : null;
+            return h.Blocks.FirstOrDefault(r => !r.Roll.Modifiers.Contains(new RollModifier("AP", -ap))) is { } bare ? $"a block without AP({ap}): {LogQueries.Show(bare)}" : null;
         });
-        return failure ?? (hits.Any(h => h.Score.Value("extra_hits") > 0) ? null : "no Sky Blaze die rolled a 6; the seed must show Surge");
+        return failure ?? (hits.Any(h => h.Score.Value("extra_hits") > 0) ? null : $"no {spell} die rolled a 6; the seed must show Surge");
     }
 
     /// <summary>Breath of Change on the caster's own unit every round: one grant on a target that holds none; none on one that still holds it.</summary>
@@ -236,11 +250,13 @@ public static partial class SuiteCatalog
 
     /// <summary>
     /// Corrode Weapons: the target's first shooting blocks after the grant come from its AP(1) rifles and are rolled at no AP, in a step that
-    /// names the spell. A block from a weapon without AP proves nothing, so it fails the check.
+    /// names the spell. A block from a weapon without AP proves nothing, so it fails the check. The grant read is target unit 1's, the unit
+    /// the script has Advance and shoot (a cast whose scripted target was out of reach may have granted another).
     /// </summary>
     static string? CorrodeWeapons(LogQueries q)
     {
-        if (FirstGrant(q, "Corrode Weapons") is not var (at, grant)) return "Corrode Weapons never granted";
+        var shooter = SpellGames.UnitName(SpellGames.TargetArmy, 1);
+        if (FirstGrant(q, "Corrode Weapons", g => q.UnitName(g.UnitId) == shooter) is not var (at, grant)) return $"Corrode Weapons never granted to {shooter}";
         var corroded = q.Steps.FirstOrDefault(s => s.Seq > at.Seq && s.Name == "roll-to-block" && s.Rolls("defense").Any()
             && s.Frame.Context.ActorUnitId == grant.UnitId && s.Frame.Nearest("shooting") is not null);
         if (corroded is null) return "the target never shot a hit home after the grant";
@@ -277,7 +293,7 @@ public static partial class SuiteCatalog
 
     /// <summary>Both outcomes, as the seed rolls them.</summary>
     static string? BothOutcomes(IReadOnlyList<(LoggedFrame Frame, Guid Target, LoggedStep Test, bool Failed)> tests) =>
-        tests.Any(t => t.Failed) && tests.Any(t => !t.Failed) ? null : $"{tests.Count(t => t.Failed)} of {tests.Count} tests failed; the seed must give both outcomes";
+        tests.Any(t => t.Failed) && tests.Any(t => !t.Failed) ? null : $"{tests.Count(t => t.Failed)} of {tests.Count} tests failed ({string.Join(", ", tests.Select(t => string.Join(" ", t.Frame.Steps.Concat(t.Test.Frame.Steps).SelectMany(x => x.Rolls("morale")).Select(LogQueries.Show))))}); the seed must give both outcomes";
 
     /// <summary>Terrifying Fury: a failed test leaves the target Shaken and fatigued; a passed one makes it neither.</summary>
     static string? TerrifyingFury(LogQueries q)
