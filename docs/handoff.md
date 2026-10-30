@@ -428,8 +428,8 @@ id `admin` (it needs no permissions) and save the policy; then, under Users, ope
 role (or `PUT /v1/users/{user_id}` with `{"roles": ["admin"]}`). It reaches the session at the next login or
 refresh. `POST /v1/dev/sessions` with `"roles": ["admin"]` mints an admin without the dashboard.
 
-**The rulebooks.** The skill `grimdark-future-rules` (local plugin `licensed`, not committed) holds Grimdark Future
-v3.5.1 one file per printed page (`pages/p07.md` is p.7). The PDFs are in `/mnt/c/Users/clays/Downloads/`
+**The rulebooks.** The skill `grimdark-future-rules` (plugin `licensed`, tracked in `.claude/skills/licensed/`) holds Grimdark Future
+v3.5.1 one file per printed page (`v3.5.1/pages/p07.md` is p.7). The PDFs are in `/mnt/c/Users/clays/Downloads/`
 (`GF - Advanced_Rules_v3_5_1.pdf`, and Age of Fantasy v3.5.1 beside it); read nothing from older editions there.
 Citations use printed page numbers; `pypdf`'s `r.pages[N]` is printed page `N + 1`. Useful pages: 4-5 core rules and
 line of sight, 6 objectives and the roll-off, 7 rounds, actions and coherency, 8-10 shooting, charging, melee and
