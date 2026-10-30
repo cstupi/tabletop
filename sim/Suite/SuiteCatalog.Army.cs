@@ -15,7 +15,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8, .. ArmyGames.Batch9, .. ArmyGames.Army36B, .. ArmyGames.Army36A, .. ArmyGames.Army36C, .. ArmyGames.Army36F, .. ArmyGames.Army36, .. ArmyGames.Army36G];
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8, .. ArmyGames.Batch9, .. ArmyGames.Army36B, .. ArmyGames.Army36A, .. ArmyGames.Army36C, .. ArmyGames.Army36F, .. ArmyGames.Army36, .. ArmyGames.Army36G, .. ArmyGames.Army36I];
 
     private static partial class ArmyGames
     {
