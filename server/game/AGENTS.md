@@ -136,8 +136,8 @@ docker compose up -d                                        # Postgres, MinIO, m
 ./scripts/game                                              # host run in dev mode; stop the container first: docker compose stop game
 dotnet test tests/Tabletop.GameServer.Tests                 # unit; nothing running
 dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttack"
-./scripts/army-books fetch                                  # downloads books from Army Forge (the only network call)
-./scripts/army-books generate                               # rewrites Content/army-books/ and the army-book rules part from the fetched copy
+./scripts/army-books fetch                                  # downloads the served edition's books into .superpowers/armyforge/<edition>/ (the only network call)
+./scripts/army-books generate --edition 3.5                 # rewrites Content/army-books/ and the army-book rules part from the fetched copy of that edition
 ```
 
 - Under compose, `game` runs `dotnet watch run` over the bind-mounted repo with `TabletopBuildSlot=-game`, so it builds into `obj/Unix-game/` and `bin/-game/`. A host `dotnet build` never disturbs it.

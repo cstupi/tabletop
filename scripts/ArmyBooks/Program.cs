@@ -24,27 +24,36 @@ switch (args.FirstOrDefault())
     {
         // The only code path that calls Army Forge. Never run by a test.
         using var http = new HttpClient { BaseAddress = new Uri("https://army-forge.onepagerules.com") };
-        var index = await http.GetStringAsync("/api/army-books?filters=official&gameSystemSlug=grimdark-future");
-        Directory.CreateDirectory(Path.Combine(dump, "books"));
-        await File.WriteAllTextAsync(Path.Combine(dump, "index.json"), index);
-        foreach (var e in ArmyForgeJson.ReadIndex(index))
-            await File.WriteAllTextAsync(Path.Combine(dump, "books", e.Uid + ".json"), await http.GetStringAsync($"/api/army-books/{e.Uid}?gameSystem=2"));
-        Console.WriteLine($"fetched {ArmyForgeJson.ReadIndex(index).Count} books into {dump}");
+        var indexJson = await http.GetStringAsync("/api/army-books?filters=official&gameSystemSlug=grimdark-future");
+        var index = ArmyForgeJson.ReadIndex(indexJson);
+        var edition = ArmyForgeJson.EditionOf(index);
+        var dir = Path.Combine(dump, edition);
+        if (File.Exists(Path.Combine(dir, "index.json")))
+        {
+            var held = ArmyForgeJson.EditionOf(ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dir, "index.json"))));
+            if (held != edition) { Console.Error.WriteLine($"refusing: {dir} holds edition {held}, Army Forge serves {edition}"); return 1; }
+        }
+        Directory.CreateDirectory(Path.Combine(dir, "books"));
+        await File.WriteAllTextAsync(Path.Combine(dir, "index.json"), indexJson);
+        foreach (var e in index)
+            await File.WriteAllTextAsync(Path.Combine(dir, "books", e.Uid + ".json"), await http.GetStringAsync($"/api/army-books/{e.Uid}?gameSystem=2"));
+        Console.WriteLine($"fetched {index.Count} books into {dir}");
         return 0;
     }
     case "generate":
     {
+        var dir = Path.Combine(dump, Arg("--edition", "3.5"));
         List<AfBook> books;
         List<(string Uid, string Name, string Json)> raw;
         try
         {
-            var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dump, "index.json")));
-            raw = index.Select(e => (e.Uid, e.Name, File.ReadAllText(Path.Combine(dump, "books", e.Uid + ".json")))).ToList();
+            var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dir, "index.json")));
+            raw = index.Select(e => (e.Uid, e.Name, File.ReadAllText(Path.Combine(dir, "books", e.Uid + ".json")))).ToList();
             books = index.Zip(raw).Select(p => ArmyForgeJson.ReadBook(p.Second.Json) with { Name = p.First.Name, VersionString = p.First.VersionString }).ToList();
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
-            Console.Error.WriteLine($"dump file missing under {dump}: {ex.Message}");
+            Console.Error.WriteLine($"dump file missing under {dir}: {ex.Message}");
             return 2;
         }
         var problems = books.SelectMany(b => b.Spells.SelectMany(s =>
@@ -79,6 +88,6 @@ switch (args.FirstOrDefault())
         return 0;
     }
     default:
-        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
+        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--edition 3.5|3.6] [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
         return 2;
 }
