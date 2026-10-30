@@ -3,13 +3,14 @@ name: grimdark-future-rules
 description: Use when deciding whether a Grimdark Future (One Page Rules) game state, move, shot, charge, morale result, deployment or terrain setup is legal or correctly resolved; when checking an engine sequence, property or test against the rulebook; or when a doc or answer needs a rulebook page cited.
 ---
 
-# Grimdark Future rules (v3.5.1)
+# Grimdark Future rules (v3.5.1 and v3.6.0)
 
-The full rulebook text, one file per printed page, zero-padded: `pages/p01.md` … `pages/p71.md` (PDF page = printed page, so `pages/p15.md` is "rulebook p.15", the form the docs cite). Image-only content (the deployment diagrams on pp.22–24, the mission cards on pp.68–71) is transcribed into the same files. Source: `GF - Advanced_Rules_v3_5_1.pdf`.
+The full rulebook text, one file per printed page, zero-padded: `v3.5.1/pages/p01.md` … `v3.5.1/pages/p71.md` (PDF page = printed page, so `v3.5.1/pages/p15.md` is "rulebook p.15", the form the docs cite). Image-only content (the deployment diagrams on pp.22–24, the mission cards on pp.68–71) is transcribed into the same files. Source: `GF - Advanced_Rules_v3_5_1.pdf`.
 
 ## Answering a rules question
 
-1. Locate: the index below, or `grep -rn -i '<term>' .claude/skills/licensed/skills/grimdark-future-rules/pages/`. Grep for the rule's own words too ("within 6\"", "Shaken", "roll-off"), not only its name.
+0. Which edition: the game's `game_rules` — `grimdark-future` is v3.5.1 (`v3.5.1/pages/`), `grimdark-future-3.6` is v3.6.0 (`v3.6.0/pages/`). A bare `p.N` in code or docs means v3.5.1; a v3.6.0 citation is written `3.6.0 p.N`. When the question names no game, answer for both when they differ.
+1. Locate: the index below, or `grep -rn -i '<term>' .claude/skills/licensed/skills/grimdark-future-rules/<edition>/pages/` (`v3.5.1` or `v3.6.0`). Grep for the rule's own words too ("within 6\"", "Shaken", "roll-off"), not only its name.
 2. Read the whole page, and the page either side when a section continues. Examples and notes on a page change the rule they follow.
 3. Apply precedence (p.13): a special rule beats the standard rule; multiple instances of the same rule don't stack unless it has (X) or says so; simultaneous rules affecting one player are ordered by that player, affecting several by roll-off.
 4. Check scope. Pages 4–15 are the core game and always apply. Pages 16–67 are optional modules that apply only if the game uses them. A verdict that rests on one of them names the module.
@@ -17,7 +18,7 @@ The full rulebook text, one file per printed page, zero-padded: `pages/p01.md` �
 
 A unit's own special rules that are not in the reference on pp.13–15 come from its army book (the Army Forge snapshot), not from this book. In this repo, authored rule text is in `server/game/Content/*.properties.json` (`ruleText`), and the engine's sequences are in `server/game/Rules/GrimdarkFuture/` and `docs/design/interpreter/opr-sequences.md`. When checking the engine, compare against the page, not against those.
 
-## Page index
+## v3.5.1 page index
 
 | Pages | Section |
 |---|---|
@@ -54,7 +55,7 @@ A unit's own special rules that are not in the reference on pp.13–15 come from
 | 59–65 | Campaign rules |
 | 66–71 | Mission cards: rules (66–67), the cards (68–71) |
 
-## Special rules (pp.13–15)
+### v3.5.1 special rules (pp.13–15)
 
 - p.13: Aircraft, Ambush, AP(X), Artillery, Bane, Blast(X), Caster(X), Counter, Deadly(X), Fast, Fear(X), Fearless, Flying
 - p.14: Furious, Hero, Immobile, Impact(X), Indirect, Limited, Regeneration, Relentless, Reliable, Rending, Scout, Slow, Stealth, Strider, Surge, Takedown, Thrust
@@ -65,5 +66,6 @@ A unit's own special rules that are not in the reference on pp.13–15 come from
 - Answering from memory of other OPR editions or other games (Age of Fantasy, 40k). Only these pages count.
 - Reading the rule without its example. The examples settle edge cases (Blast vs model count p.13, Furious/Relentless p.14, Transport spaces p.15).
 - Treating an optional module (Advanced Actions, Command Points, Unit Psychology…) as a core rule, or treating a core rule as optional.
+- Citing a 3.6.0 page as a bare `p.N`, or reading a 3.6.0 page for a 3.5.1 game.
 - Paraphrasing. Quote the sentence. Paraphrase is how invented mechanics enter the code.
 - Measuring off a diagram on pp.22–24 at a size other than the drawn one without saying so. The labels are inches on the drawn table.
