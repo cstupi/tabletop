@@ -61,17 +61,17 @@ public class ArmyGamesTests
         "Enhanced Lustbound", "Enhanced Machine-Fog", "Enhanced Mischievous", "Enhanced Primal", "Enhanced Scrapper", "Enhanced Scurry",
         "Enhanced Self-Repair", "Enhanced Shadowborn", "Enhanced Sturdy", "Enhanced Targeting Visor", "Enhanced Warbound", "Enhanced Watchborn",
         "Entrenched", "Evasive", "Ferocious", "Fortified", "Fortified Growth", "Grounded Defense", "Grounded Precision", "Guarded", "Guardian",
-        "Guerrilla", "Harassing", "Havocbound", "Hazardous", "Highborn", "Hit & Run", "Hit & Run Fighter", "Hit & Run Shooter", "Honor Code",
+        "Guerrilla", "Harassing", "Havocbound", "Highborn", "Hit & Run", "Hit & Run Fighter", "Hit & Run Shooter", "Honor Code",
         "Increased Shooting Range", "Increased Shooting Range Aura", "Increased Shooting Range Buff", "Increased Shooting Range Mark",
         "Indirect when Shooting Aura", "Infected", "Inquisitorial Agent", "Lacerate", "Lustbound", "Machine-Fog", "Martial Prowess",
         "Melee Evasion", "Melee Shrouding", "Melee Slayer", "Piercing Debuff", "Piercing Fighter Aura", "Piercing Frenzy", "Piercing Growth",
         "Piercing Shooter Aura", "Piercing Shooting Mark", "Piercing Spotter", "Piercing Target", "Plaguebound", "Precision Frenzy",
         "Precision Growth", "Precision Spotter", "Precision Target", "Primeborn", "Protected", "Protection Feat", "Ranged Shrouding",
-        "Ranged Slayer", "Reinforcement", "Rending in Melee", "Rending in Melee Aura", "Rending when Shooting Aura", "Screened", "Scurry",
-        "Self-Repair", "Sergeant", "Shadowborn", "Shatter", "Shielded", "Shred Mark", "Shred in Melee", "Shred in Melee Aura",
-        "Shred when Shooting", "Shred when Shooting Aura", "Spawn", "Speed Debuff", "Speed Feat", "Split", "Steadfast", "Sturdy", "Takedown Shot",
-        "Takedown Strike", "Targeting Visor", "Thrust in Melee Aura", "Unstoppable in Melee", "Unstoppable in Melee Aura",
-        "Unstoppable when Shooting Aura", "Unwieldy Debuff", "Vengeance", "Versatile Reach", "Warbound", "Watchborn",
+        "Ranged Slayer", "Rending in Melee", "Rending in Melee Aura", "Rending when Shooting Aura", "Screened", "Scurry", "Self-Repair",
+        "Sergeant", "Shadowborn", "Shatter", "Shielded", "Shred Mark", "Shred in Melee", "Shred in Melee Aura", "Shred when Shooting",
+        "Shred when Shooting Aura", "Speed Debuff", "Speed Feat", "Split", "Steadfast", "Sturdy", "Takedown Shot", "Takedown Strike",
+        "Targeting Visor", "Thrust in Melee Aura", "Unstoppable in Melee", "Unstoppable in Melee Aura", "Unstoppable when Shooting Aura",
+        "Unwieldy Debuff", "Vengeance", "Versatile Reach", "Warbound", "Watchborn",
     ];
 
     /// <summary>
