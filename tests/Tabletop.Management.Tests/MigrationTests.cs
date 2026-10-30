@@ -79,5 +79,26 @@ public class MigrationTests : IClassFixture<TestDatabase>
     }
 
     [Fact]
+    public async Task Army_edition_is_checked_and_the_backfill_marks_3_6_lists_by_their_rule_names()
+    {
+        await using var c = new NpgsqlConnection(_db.ConnectionString);
+        var owner = Guid.CreateVersion7();
+        await c.ExecuteAsync("insert into management.account (id, name) values (@owner, 'edition test')", new { owner });
+        var a35 = Guid.CreateVersion7(); var a36 = Guid.CreateVersion7();
+        await c.ExecuteAsync("insert into management.army (id, owner_id, name, game_system, source, edition) values (@a35, @owner, 'old', 'grimdark-future', 's', '3.5'), (@a36, @owner, 'new', 'grimdark-future', 's', '3.5')", new { a35, a36, owner });
+        var unit = Guid.CreateVersion7();
+        await c.ExecuteAsync("insert into management.unit (id, army_id, ordinal, name) values (@unit, @a36, 0, 'u'); insert into management.unit_property (unit_id, name) values (@unit, 'Bravery Aura')", new { unit, a36 });
+
+        var script = typeof(Persistence.Migrator).Assembly.GetManifestResourceStream("Tabletop.Management.Persistence.Migrations.023_army_edition.sql")!;
+        await c.ExecuteAsync(await new StreamReader(script).ReadToEndAsync());
+
+        Assert.Equal("3.5", await c.ExecuteScalarAsync<string>("select edition from management.army where id=@a35", new { a35 }));
+        Assert.Equal("3.6", await c.ExecuteScalarAsync<string>("select edition from management.army where id=@a36", new { a36 }));
+        var e = await Assert.ThrowsAsync<PostgresException>(() => c.ExecuteAsync("insert into management.army (id, owner_id, name, game_system, source, edition) values (@id, @owner, 'x', 'grimdark-future', 's', '3.7')", new { id = Guid.CreateVersion7(), owner }));
+        Assert.Equal("23514", e.SqlState);
+        await c.ExecuteAsync("delete from management.account where id = @owner", new { owner });
+    }
+
+    [Fact]
     public void Running_the_migrator_twice_is_a_no_op() => Persistence.Migrator.Run(_db.ConnectionString);
 }
