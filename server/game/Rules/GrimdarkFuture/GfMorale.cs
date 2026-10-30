@@ -9,7 +9,8 @@ public static class GfMorale
 {
     public static Sequence MoraleTest() => new(GfNames.MoraleTest, [new TestStep(), new OverrideStep(), new ConsequenceStep()]);
 
-    /// <summary>What caused a general morale test: the kind of the last attack at the unit in the effective log, a spell's hits being Spell.
+    /// <summary>What caused a general morale test: the kind of the last attack at the unit in the effective log, a spell's hits being Spell and a
+    /// strike a melee pushed being Melee (3.6.0 p.13 Assault strikes with a weapon that has a Range).
     /// Null when nothing attacked it.</summary>
     public static AttackKind? CauseOf(GameState state, Guid unit)
     {
@@ -17,7 +18,7 @@ public static class GfMorale
             if (e.Payload is SequenceStarted s && s.Context.TargetUnitIds.Contains(unit))
             {
                 if (s.Sequence == GfNames.SpellHitsSeq) return AttackKind.Spell;
-                if (s.Sequence == GfNames.AttackSequence && s.Context.WeaponIds.Count > 0) return GfAttack.KindOf(state, s.Context.WeaponIds);
+                if (s.Sequence == GfNames.AttackSequence && s.Context.WeaponIds.Count > 0) return GfAttack.KindOf(state, s.Context.WeaponIds) is AttackKind.Shooting && GfEdition.Of(state).HasAssault && GfAttack.StartedInMelee(state, s.FrameId) ? AttackKind.Melee : GfAttack.KindOf(state, s.Context.WeaponIds);
             }
         return null;
     }

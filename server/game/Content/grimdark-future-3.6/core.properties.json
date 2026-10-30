@@ -20,6 +20,7 @@
         { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
           { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 12 },
           { "kind": "actor_state", "subject": "self", "comparison": "neq", "values": [ "moved this round" ] } ] } ] },
+    { "name": "Assault", "kind": "weapon", "ruleText": "Counts as both a ranged weapon and a melee weapon.", "effects": [] },
     { "name": "Bane", "kind": "weapon", "ruleText": "Ignores Regeneration, and when attacking the target must re-roll unmodified Defense results of 6.",
       "effects": [
         { "subject": "opponent", "ordinal": 20, "kind": "force_reroll", "targetRoll": "defense", "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "defense", "raw" ] } ] },
