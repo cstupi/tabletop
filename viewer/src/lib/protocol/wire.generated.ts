@@ -64,6 +64,7 @@ export interface ArmySnapshot {
   readonly name: string;
   readonly gameSystem: string;
   readonly units: readonly Unit[];
+  readonly edition: string;
 }
 
 export interface Ask {

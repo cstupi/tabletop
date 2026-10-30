@@ -12,16 +12,16 @@ public static class RuleSets
     /// <summary>The army edition ("3.5" | "3.6") a game on this rule set takes.</summary>
     public static string EditionOf(string rulesId) => rulesId switch
     {
-        Gf351 => "3.5",
-        Gf360 => "3.6",
+        Gf351 => ArmyEditions.V35,
+        Gf360 => ArmyEditions.V36,
         _ => throw new ArgumentException($"No rule set named '{rulesId}'.", nameof(rulesId)),
     };
 
     /// <summary>The rule set of an army edition ("3.5" | "3.6").</summary>
     public static string RulesIdOf(string edition) => edition switch
     {
-        "3.5" => Gf351,
-        "3.6" => Gf360,
+        ArmyEditions.V35 => Gf351,
+        ArmyEditions.V36 => Gf360,
         _ => throw new ArgumentException($"No rule set for edition '{edition}'.", nameof(edition)),
     };
 }

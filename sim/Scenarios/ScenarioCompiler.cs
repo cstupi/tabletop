@@ -114,6 +114,6 @@ public static class ScenarioCompiler
             {
                 Reserve = new UnitReserve(r.Property, r.OfModel is { } m ? units[r.OfUnit - 1].Models[m - 1].Id : units[r.OfUnit - 1].Id),
             };
-        return new ArmySnapshot(Guid.CreateVersion7(), a.Name, "grimdark-future", units);
+        return new ArmySnapshot(Guid.CreateVersion7(), a.Name, RuleSets.Gf351, units);
     }
 }
