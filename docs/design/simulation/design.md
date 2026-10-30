@@ -770,13 +770,14 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
 
 - **Groups.** `core` (pp.4–12: actions, terrain, shooting, melee, morale, transports, objectives, deployment, the round-4
   end), `special` (the 33 core special rules, three to five a game), `army:<edition>:<book uid>` (the army rules, by the
-  book that prints them; `army:3.5:<uid>`) and `spells:<edition>:<book uid>` (every spell, generated per book by `SpellGames`,
+  book that prints them; `army:3.5:<uid>`, `army:3.6:<uid>`) and `spells:<edition>:<book uid>` (every spell, generated per book by `SpellGames`,
   cast by name).
 - **Editions.** A game runs under `TestGame.Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names another), so every
   existing game keeps running against 3.5.1 unchanged. `Editions: [Gf351, Gf360]` (`.BothEditions()` in the catalog list) runs a
   game twice, the 3.6.0 run named `<name>@3.6` and the 3.5.1 run keeping the bare name; core and special games whose checks quote
-  no rule that 3.6.0 changes run both; a game whose checks quote a changed rule stays
-  3.5.1-only until a 3.6.0 copy with 3.6.0 quotes is written, and the catalog holds none yet. Army and spell games are single-edition: their books' uids differ per edition.
+  no rule that 3.6.0 changes run both. A rule 3.6.0 changes or adds has a 3.6.0-only game declared `.In36()`, its checks quoting
+  `3.6.0 p.N` (`SuiteCatalog.Core36.cs`, `Special36*.cs`: 4 `special` games run under 3.6.0 alone, 2 under 3.5.1 alone). Army and spell games are
+  single-edition: their books' uids differ per edition (`army:3.6:<uid>` 236 games, `spells:3.6:<uid>` 48, in `Army36*.cs` and `Spells36.cs`).
   Coverage is per shipped set: each set's every entry is checked against the games of its edition, so an entry a 3.6.0 game
   does not cover fails a full run. The viewer's Tests page shows the edition column and filters by it.
 - **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own

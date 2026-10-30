@@ -22,11 +22,18 @@ Writes `server/game/Content/<folder>/army-books/<uid>.book.json` and `server/gam
 - A spell's `inLoS` parameter ("in line of sight") writes `lineOfSight: true` on its targeting (3.6.0: the core Caster rule no longer asks sight of a spell); a 3.5 dump carries none.
 - The printed spell text is the authority on range: when `inRange` and the "within N\"" of the printed text disagree, the text's range is written and the run prints `range from text: <book> <spell> a → b` (the 3.6 dump's `inRange` is the 3.5 value, 96 spells).
 - A spell is written text-only (`effects: []`, `played: false`; `GfCasting` does not offer it) for effect id `Urj6dU6Tua8B` ("loses N spell tokens", no grammar kind) and for an empty or unknown `attackType`, and, under 3.6 only, when it names a rule neither the core nor the hand part defines, or one they define text-only (`played: false`) (`text-only spells (undefined or text-only grant: <rule>)` in the output, each line `undefined grant:` or `text-only grant:`). Playing those rules in the 3.6 hand part and regenerating makes such spells live.
-- `server/management/Content/Armies/army-book-units.json` is one file for both editions: a 3.6 run overwrites it with 3.6 units. Revert it (`git checkout`) until Task 7.3 splits it per edition.
 - `generate` also writes the army-book rules part: every rule name on a unit, a weapon, an item or an upgrade that core and `army-rules.part.json` do not define becomes a template wrapper (an Aura, Buff or Mark whose text is its template, X read ignoring case, and whose base the catalog holds) or a `played: false` text-only entry (`kind: weapon` when only weapons carry it); under 3.6 only, a template wrapper whose base core or the hand part defines text-only (`played: false`) is text-only too (group `<pattern>, template text, base text-only`). Two books describing one name differently fail the run. It prints the count per group and the names with no description.
-- `generate` also writes `server/management/Content/Armies/army-book-units.<edition>.json` (`ReserveUnits`, `--units FILE`): every unit a book's Spawn or Split rating (*"Bot Swarms [3]"*) names, in the TTS export's shape, keyed by book uid and unit name, for the import's reserve units. A rating naming no unit of its book fails the run.
+- `generate` also writes `server/management/Content/Armies/army-book-units.<edition>.json` (`army-book-units.3.5.json`, `army-book-units.3.6.json`; one units file per edition) (`ReserveUnits`, `--units FILE`): every unit a book's Spawn or Split rating (*"Bot Swarms [3]"*) names, in the TTS export's shape, keyed by book uid and unit name, for the import's reserve units. A rating naming no unit of its book fails the run.
 - Output is deterministic: an unchanged dump writes identical bytes.
 - References `server/game` for `PropertiesJson` and `PropertySetDocument`.
+
+## Per-edition workflow
+
+1. `./scripts/army-books fetch`: refreshes `.superpowers/armyforge/<edition>/` from Army Forge; the only network call.
+2. `./scripts/army-books generate --edition 3.6` (or `3.5`): writes that edition's `army-books/`, `army-book-rules.part.json` and units file; read the report: `range from text`, `text-only spells`, `no description`, and the per-group counts.
+3. A name the report lists under `no description` or as a text-only grant is authored in that edition's hand part (`server/game/Content/<folder>/army-rules.part.json`) with the book's printed text, then `generate` again; the spells that granted it become live. `AwaitingTheir36Text` in `tests/Tabletop.ArmyBooks.Tests/ArmyRules36Tests.cs` lists hand entries still on 3.5.1 text.
+4. `dotnet test tests/Tabletop.ArmyBooks.Tests` and `tests/Tabletop.GameServer.Tests` (`ContentFoldersTests` pins the 3.5.1 hash; it must not move).
+5. `dotnet run --project sim -- suite --only army:3.6:<uid>,spells:3.6:<uid>` for the books touched, then the full suite: a played rule needs a game that fires it (`sim/AGENTS.md` → The rules suite).
 
 ## Commands
 

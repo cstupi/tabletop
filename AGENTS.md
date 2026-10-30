@@ -1,6 +1,6 @@
 # Tabletop
 
-A virtual tabletop for One Page Rules (Grimdark Future v3.5.1) and later Warhammer 40,000: a Godot 4.7 / C# client and
+A virtual tabletop for One Page Rules (Grimdark Future v3.5.1 and v3.6.0, chosen per game) and later Warhammer 40,000: a Godot 4.7 / C# client and
 two .NET 10 servers. The rules run only on the game server. The client renders and measures, and there is no offline
 mode.
 
@@ -74,7 +74,7 @@ drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver 
 | Path | What |
 | --- | --- |
 | `docs/handoff.md` | Current state and next steps |
-| `docs/shipped.md` | What each batch through v0.1.24 built, with the owner's rulings |
+| `docs/shipped.md` | What each batch built, with the owner's rulings |
 | `docs/design/README.md` | System design and vocabulary; `docs/design/<module>/design.md` per module |
 | `docs/architecture.md` | Cross-cutting decisions and why |
 | `docs/superpowers/specs/` | Design sessions that settle behaviour |

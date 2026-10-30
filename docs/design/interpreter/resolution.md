@@ -497,7 +497,7 @@ no catalog entry. They are also the only mechanism available for "this directory
 
 ## Grimdark Future's sequences
 
-Nineteen sequences sit behind `IGameRules.Sequence(string)`. **Shooting and melee are one
+Thirty sequences sit behind `IGameRules.Sequence(string)`. **Shooting and melee are one
 four-step attack sequence invoked from two contexts.** Pages 8 and 9 give the same four steps
 word for word: Determine Attacks, Roll to Hit, Roll to Block, Remove Casualties. So there is one
 `attack-sequence` (`determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds`) pushing
