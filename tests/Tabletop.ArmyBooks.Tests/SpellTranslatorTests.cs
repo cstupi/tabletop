@@ -142,6 +142,15 @@ public class SpellTranslatorTests
         s with { Effect = effect, Generation = s.Generation with { Effect = s.Generation.Effect with { Id = effectId ?? s.Generation.Effect.Id, Parameters = [.. s.Generation.Effect.Parameters, .. more] } } };
 
     [Fact]
+    public void A_printed_roll_sentence_rolls_the_hits_when_the_generation_leaves_it_out()
+    {
+        var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
+        Assert.Null(SpellTranslator.Translate(b, terror).Effects![0].TargetRoll);
+        var rolled = terror with { Effect = terror.Effect + " Roll as many dice as hits to see if \"on rolls of 6\" effects trigger." };
+        Assert.Equal("hit", SpellTranslator.Translate(b, rolled).Effects![0].TargetRoll);
+    }
+
+    [Fact]
     public void The_printed_range_beats_the_generations()
     {
         var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
