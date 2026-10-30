@@ -15,6 +15,13 @@ public class LobbyViewTests
     };
 
     [Fact]
+    public void Army_label_is_name_and_edition()
+    {
+        Assert.Equal("Orcs (3.6)", LobbyView.ArmyLabel(new ArmySummary(Guid.Empty, "Orcs", "gf", "x", 1, 1, "3.6")));
+        Assert.Equal("Orcs (3.5)", LobbyView.ArmyLabel(new ArmySummary(Guid.Empty, "Orcs", "gf", "x", 1, 1)));
+    }
+
+    [Fact]
     public void An_empty_team_is_joined_and_a_held_one_names_its_holder_and_the_creator()
     {
         var teams = LobbyView.Teams(Lobby(null, Samples.Team2), Me, isCreator: false);

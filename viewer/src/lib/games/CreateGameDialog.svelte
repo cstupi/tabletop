@@ -6,6 +6,7 @@
   import type { ArmySummary, CreateGameRequest, Enforcement, PropertiesSummary, SchedulerShape } from '../api/types';
   import { createDefaults } from './listModel';
   import Loading from '../components/Loading.svelte';
+  import { armyLabel } from '../lobby/lobbyView';
   import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL } from '../lobby/lobbyPage';
 
   let { api, onCreated, onClose }: {
@@ -87,7 +88,7 @@
       <label>Your army
         <select bind:value={armyId}>
           <option value="">Choose in the lobby</option>
-          {#each armies as army (army.id)}<option value={army.id}>{army.name} · {army.units} units</option>{/each}
+          {#each armies as army (army.id)}<option value={army.id}>{armyLabel(army)} · {army.units} units</option>{/each}
         </select>
       </label>
       {#if armies.length === 0}<small class="dim">You have no armies yet: import one on the website's Armies page.</small>{/if}

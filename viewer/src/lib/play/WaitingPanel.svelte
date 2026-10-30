@@ -7,7 +7,7 @@
   import type { ArmySummary } from '../api/types';
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { sendEdit } from '../game/send';
-  import { pickArmy } from '../lobby/lobbyView';
+  import { armyLabel, pickArmy } from '../lobby/lobbyView';
   import { WAITING_TITLE, linesChanged, waitHolds, waitingLines, waitingTeams, type WaitingLine } from './waiting';
 
   let { connection, api, snap }: { connection: GameConnection; api: Api; snap: ConnectionState } = $props();
@@ -52,7 +52,7 @@
         <label>{seat.label}
           <select disabled={armies === null || armies.length === 0} onchange={(e) => { if (e.currentTarget.value !== '') void send(pickArmy(seat, e.currentTarget.value)); }}>
             <option value="">{armies !== null && armies.length === 0 ? 'No armies: import one in the web app' : 'Pick an army'}</option>
-            {#each armies ?? [] as army (army.id)}<option value={army.id}>{army.name}</option>{/each}
+            {#each armies ?? [] as army (army.id)}<option value={army.id}>{armyLabel(army)}</option>{/each}
           </select>
         </label>
       {/if}

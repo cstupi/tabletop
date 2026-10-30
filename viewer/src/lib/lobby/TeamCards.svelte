@@ -7,7 +7,7 @@
   import type { ConnectionState } from '../connection/gameConnection';
   import type { Edit } from '../protocol/wire.generated';
   import { watch } from './lobbyEdits';
-  import { armySeats, pickArmy, place } from './lobbyView';
+  import { armyLabel, armySeats, pickArmy, place } from './lobbyView';
   import { placeLabels, teamCards, unassigned, type CardPlayer } from './lobbyPage';
   import { teamsOf } from './seats';
 
@@ -55,7 +55,7 @@
         <label class="army-pick">Your army
           <select value={seat.armyId ?? ''} onchange={(e) => send(pickArmy(seat, e.currentTarget.value === '' ? null : e.currentTarget.value))}>
             <option value="">Choose an army…</option>
-            {#each armies as army (army.id)}<option value={army.id}>{army.name}</option>{/each}
+            {#each armies as army (army.id)}<option value={army.id}>{armyLabel(army)}</option>{/each}
           </select>
         </label>
         {#if armies.length === 0}<p class="dim hint">You have no armies yet: import one on the website's Armies page.</p>{/if}

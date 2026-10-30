@@ -55,7 +55,7 @@ public partial class WaitingPanel : VBoxContainer
             {
                 if (!IsInstanceValid(box) || !box.IsInsideTree()) continue;   // the rows were rebuilt while the list loaded
                 if (list.Count == 0) { box.SetItemText(0, "No armies: import one in the web app"); continue; }
-                foreach (var a in list) box.AddItem(a.Name);
+                foreach (var a in list) box.AddItem(LobbyView.ArmyLabel(a));
                 box.Disabled = false;
                 box.ItemSelected += i => { if (i > 0) Guarded.Send(s, seat.Pick(list[(int)i - 1].Id)); };
             }

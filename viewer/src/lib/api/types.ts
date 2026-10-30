@@ -15,7 +15,7 @@ export interface CreateGameRequest {
 export interface PropertiesSummary { readonly contentHash: string; readonly name: string; readonly gameRules: string }
 export interface ArmySummary {
   readonly id: string; readonly name: string; readonly gameSystem: string; readonly source: string;
-  readonly units: number; readonly models: number;
+  readonly units: number; readonly models: number; readonly edition: string;
 }
 export interface Page<T> { readonly items: readonly T[]; readonly next?: string | null }
 

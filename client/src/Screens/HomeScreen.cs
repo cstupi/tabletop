@@ -249,7 +249,7 @@ public partial class HomeScreen : Control
         var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(Field("Rule set", pack));
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(Field("Activation", shape));
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(Field("Enforcement", enforcement));
-        var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(Field("Army", army));
+        var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{LobbyView.ArmyLabel(a)}, {a.Units} units"); form.AddChild(Field("Army", army));
         if (armies.Count == 0) form.AddChild(DialogText("You have no armies yet: import one in the web app.", Variation.Dim));
         dialog.Confirmed += () => Run(async () =>
         {
