@@ -6,7 +6,9 @@ Everything here lives in `server/game/Rules/GrimdarkFuture/`, the only directory
 allowed to name an OPR rule.
 
 Read against Grimdark Future v3.5.1, pages 7–15 and 21, with 30–35 and 50 for the token economy's
-edges and the free-for-all roll-off.
+edges and the free-for-all roll-off. Both editions run these sequences: a bare `p.N` is 3.5.1, a 3.6.0 page is cited
+`3.6.0 p.N`, and where the editions differ the text gives both readings, chosen by `GfEdition.Of(state)` (`GfEdition.cs`)
+or, where a step's logic differs, by a per-edition copy (`dangerous-terrain-36`, the `melee` list built per edition).
 
 ## The catalogue
 

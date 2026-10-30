@@ -600,8 +600,9 @@ two instances, `V351` (also `Instance` and `RulesId`) and `V360`, each built fro
 a record of what differs between the editions: numbers and yes/no values (melee reach, Scout reach, Side Battle legs, the
 Counter and Impact order, Artillery and Cumbersome, the terrain words, the content folder name) read as
 `GfEdition.Of(state)`, which reads `state.Info.GameRules` as `GfOptions.Of` reads `OptionalRules`. A step whose logic differs
-has a copy per edition (`dangerous-terrain` and `dangerous-terrain-36`) chosen in the sequence catalog by edition; the 3.5.1 code
-paths are not edited for a 3.6.0 behaviour. `Id`, `OptionCatalog`, `Zones` and `TerrainWords` come from the edition. The id is
+has a copy per edition: `dangerous-terrain` and `dangerous-terrain-36` are both in the catalog and the pushers choose by
+`GfEdition.UnitDangerousTest` (`GfMoves.DangerousSeq`), and the `melee` sequence is built per instance (`GfMelee.Melee(Edition)`);
+the 3.5.1 code paths are not edited for a 3.6.0 behaviour. `Id`, `OptionCatalog`, `Zones` and `TerrainWords` come from the edition. The id is
 `game.game_rules`, copied from the chosen property set's row at create and at `SetConfiguration`; existing games hold
 `grimdark-future` and stay on 3.5.1.
 
