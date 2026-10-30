@@ -4,21 +4,24 @@ namespace Tabletop.GameServer.Properties;
 /// its hash becomes its game rules' current set (CurrentProperties).</summary>
 public sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesSeeder> log, CurrentProperties? current = null)
 {
-    /// <summary>The part scripts/ArmyBooks generates (army-book rules spec → Generator): template wrappers and text-only entries. Never edited by hand.</summary>
-    public const string GeneratedPart = "grimdark-future-army-book-rules.part.json";
+    /// <summary>The part scripts/ArmyBooks generates into each edition's folder (army-book rules spec → Generator): template wrappers and
+    /// text-only entries. Never edited by hand.</summary>
+    public const string GeneratedPartName = "army-book-rules.part.json";
 
-    /// <summary>One embedded `*.part.json` by file name, parsed; null when the assembly embeds none of that name.</summary>
-    public static PropertySetDocument? EmbeddedPart(string fileName)
+    /// <summary>One embedded `*.part.json` of one edition's content folder (GfEdition.ContentFolder) by file name, parsed; null when the
+    /// assembly embeds none of that name there.</summary>
+    public static PropertySetDocument? EmbeddedPart(string contentFolder, string fileName)
     {
         var asm = typeof(PropertiesSeeder).Assembly;
-        if (asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("." + fileName, StringComparison.Ordinal)) is not { } name) return null;
+        var suffix = $".Content.{contentFolder}.{fileName}";
+        if (asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(suffix, StringComparison.Ordinal)) is not { } name) return null;
         using var s = asm.GetManifestResourceStream(name)!;
         using var r = new StreamReader(s);
         return PropertiesJson.Parse(r.ReadToEnd());
     }
 
-    /// <summary>One composed document per embedded `*.properties.json`: that document, every `*.part.json` and every `*.book.json` of its
-    /// game rules folded in (spell library spec → One set holds every book).</summary>
+    /// <summary>One composed document per embedded `*.properties.json` (one per edition folder): that document, every `*.part.json` and
+    /// every `*.book.json` of its game rules folded in (spell library spec → One set holds every book).</summary>
     public static IReadOnlyList<PropertySetDocument> EmbeddedDocuments()
     {
         var asm = typeof(PropertiesSeeder).Assembly;

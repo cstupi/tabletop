@@ -1,0 +1,190 @@
+{
+  "uid": "4k5amkxoybdiqotm",
+  "name": "Robot Legions",
+  "version": "3.5.3",
+  "gameRules": "grimdark-future-3.6",
+  "spells": [
+    {
+      "name": "Triangulation Bots",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 18\u0022, which friendly units gets Indirect when shooting against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Indirect",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "attack_kind",
+              "comparison": "eq",
+              "values": [
+                "shooting"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Piercing Bots",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with AP(2).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 2,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 2,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Inspiring Bots",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two friendly units within 12\u0022, which get Rapid Advance once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 2,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Rapid Advance",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Flame Bots",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 9\u0022, which take 4 hits each.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 2,
+        "range": 9
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 4,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Mending Bots",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 12\u0022, which get Self-Repair Boost once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Self-Repair Boost",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Gauss Bots",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 6\u0022, which takes 9 hits with Destructive. Roll as many dice as hits to see if \u0022on rolls of 6\u0022 effects trigger.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 6
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "targetRoll": "hit",
+          "amount": 9,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Destructive",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

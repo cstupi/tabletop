@@ -16,7 +16,7 @@ The full rulebook text, one file per printed page, zero-padded: `v3.5.1/pages/p0
 4. Check scope. Pages 4–15 are the core game and always apply. Pages 16–67 are optional modules that apply only if the game uses them. A verdict that rests on one of them names the module.
 5. Answer with a verdict (legal / illegal / correct / wrong, or the resolved number), the page, and the quoted sentence(s) it rests on. When the book is silent or ambiguous, say so and quote the nearest text. p.4's "most important rule" (players decide; roll-off on disagreement) is the book's answer for a real gap. It is not a verdict.
 
-A unit's own special rules that are not in the reference on pp.13–15 come from its army book (the Army Forge snapshot), not from this book. In this repo, authored rule text is in `server/game/Content/*.properties.json` (`ruleText`), and the engine's sequences are in `server/game/Rules/GrimdarkFuture/` and `docs/design/interpreter/opr-sequences.md`. When checking the engine, compare against the page, not against those.
+A unit's own special rules that are not in the reference on pp.13–15 come from its army book (the Army Forge snapshot), not from this book. In this repo, authored rule text is in `server/game/Content/<edition>/` (`ruleText`), and the engine's sequences are in `server/game/Rules/GrimdarkFuture/` and `docs/design/interpreter/opr-sequences.md`. When checking the engine, compare against the page, not against those.
 
 ## v3.5.1 page index
 

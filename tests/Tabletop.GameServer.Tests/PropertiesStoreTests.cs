@@ -156,10 +156,10 @@ public class PropertiesStoreTests(PostgresFixture pg)
     public async Task The_embedded_documents_seed_at_startup()
     {
         var docs = PropertiesSeeder.EmbeddedDocuments();
-        Assert.Single(docs);
+        Assert.Equal(2, docs.Count);
         var hashes = await new PropertiesSeeder(_store, Microsoft.Extensions.Logging.Abstractions.NullLogger<PropertiesSeeder>.Instance).SeedEmbeddedAsync(CancellationToken.None);
-        Assert.Equal([PropertiesJson.Hash(docs[0])], hashes);
-        Assert.NotNull(await _store.LoadAsync(hashes[0], CancellationToken.None));
+        Assert.Equal(docs.Select(PropertiesJson.Hash), hashes);
+        foreach (var hash in hashes) Assert.NotNull(await _store.LoadAsync(hash, CancellationToken.None));
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
@@ -71,7 +72,7 @@ public class PatternCoverageTests
     [Fact]
     public void The_generated_part_is_read_from_the_server_assembly()
     {
-        Assert.Null(PropertiesSeeder.EmbeddedPart("no-such.part.json"));
-        Assert.NotNull(PropertiesSeeder.EmbeddedPart("grimdark-future-army-rules.part.json"));
+        Assert.Null(PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, "no-such.part.json"));
+        Assert.NotNull(PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, "army-rules.part.json"));
     }
 }

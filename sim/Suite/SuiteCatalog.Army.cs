@@ -6,7 +6,7 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// The army-book rules of grimdark-future-army-rules.part.json, grouped army:&lt;book uid&gt; by a book that prints them (a rule several books
+/// The army-book rules of Content/grimdark-future-3.5.1/army-rules.part.json, grouped army:&lt;book uid&gt; by a book that prints them (a rule several books
 /// print is played once, under one of them). A rule and its Boost are separate games where the dice decide the occasion. Every game is
 /// built so its occasion does not depend on the seed: the roll-off is fixed so the first army (the rule's) deploys and acts first, the
 /// script shoots and strikes back whenever asked, the core rule Immobile (p.14, "may only use Hold actions") keeps a side holding and

@@ -10,7 +10,7 @@ public sealed record PropertySetDocument(string Name, string GameRules, IReadOnl
     IReadOnlyList<string> Rolls, IReadOnlyList<EntryDocument> Entries, IReadOnlyList<BookRecord>? Books = null);
 /// <summary>An army book: its Army Forge uid, name and version, and the spell entries it lists, in its own order (spell library spec).</summary>
 public sealed record BookRecord(string Uid, string Name, string? Version, IReadOnlyList<string> Spells);
-/// <summary>A generated army-book file (`Content/army-books/&lt;uid&gt;.book.json`): the book's identity and its spells as entries.</summary>
+/// <summary>A generated army-book file (`Content/(`Content/army-books/&lt;uid&gt;.book.json`)lt;edition(`Content/army-books/&lt;uid&gt;.book.json`)gt;/army-books/(`Content/army-books/&lt;uid&gt;.book.json`)lt;uid(`Content/army-books/&lt;uid&gt;.book.json`)gt;.book.json`): the book's identity and its spells as entries.</summary>
 public sealed record BookDocument(string Uid, string Name, string? Version, string GameRules, IReadOnlyList<EntryDocument> Spells);
 /// <summary>Played: null when the entry is played (written only as `"played": false`, on a generated text-only entry).</summary>
 public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesParameter, Aggregation? Aggregation, int? Cost, string? Faction, string RuleText,

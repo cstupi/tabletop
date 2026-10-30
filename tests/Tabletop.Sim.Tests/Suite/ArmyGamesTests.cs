@@ -33,12 +33,12 @@ public class ArmyGamesTests
     [Fact]
     public void The_army_games_cover_every_army_book_rule_once_each_under_a_shipped_book()
     {
-        var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-army-rules.part.json")));
+        var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.5.1/army-rules.part.json")));
         var covered = Army.SelectMany(g => g.Covers).ToList();
-        var generated = PropertiesSeeder.EmbeddedPart(PropertiesSeeder.GeneratedPart)!.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet();
+        var generated = PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, PropertiesSeeder.GeneratedPartName)!.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet();
         Assert.Equal(part.Entries.Select(e => e.Name).Order(), covered.Where(c => !generated.Contains(c)).Order());
         Assert.All(covered.Where(generated.Contains), c => Assert.Contains(Army, g => g.Pattern is not null && g.Covers.Contains(c)));   // a wrapper only by its pattern's game
-        var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/army-books"), "*.book.json")
+        var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-3.5.1/army-books"), "*.book.json")
             .Select(f => Path.GetFileName(f)[..^".book.json".Length]).ToHashSet();
         Assert.All(Army, g => Assert.Contains(g.Group[SuiteCatalog.ArmyPrefix.Length..], books));
         Assert.All(Army, g => Assert.All(g.Covers, c => Assert.Contains(c, g.Scenario.Armies[0].Rules())));          // a game covers only what its first army carries
