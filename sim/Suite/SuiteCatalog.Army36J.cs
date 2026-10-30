@@ -16,7 +16,7 @@ public static partial class SuiteCatalog
         static readonly (string Uid, string Army)
             WarDaemons36 = ("prsajf5ot936qznk", "Daemons of War"), Inquisition36 = ("jpc0kyil0juwy602", "Human Inquisition"),
             Sisters36J = ("7oi8zeiqfamiur21", "Blessed Sisters"), Saurians36 = ("U6hwlur14RpnInZr", "Saurian Starhosts"),
-            Orcs36 = ("1wj1ysgxpuuz9bc7", "Orc Marauders"), PlagueDaemons36 = ("fmuqw5lr5l6dq0mq", "Daemons of Plague"),
+            Orcs36 = ("1wj1ysgxpuuz9bc7", "Orc Marauders"),
             Dwarves36 = ("fk1mkbp8apvltu0z", "Dwarf Guilds"),
             Guerrillas36J = ("5wbcv465hacdwvkb", "Rebel Guerrillas"), TitanLords36 = ("3j10zage1lddt6sr", "Titan Lords"), Infected36 = ("dnthspt7c0klhmt8", "Infected Colonies");
 
@@ -50,7 +50,8 @@ public static partial class SuiteCatalog
 
         /// <summary>
         /// The majority games keep their carriers standing: a unit that loses a carrier keeps the rule on one of two models, no longer "most" (the
-        /// engine reads it so), so the defending units are Tough(12) facing one enemy unit where its shots would otherwise kill.
+        /// engine reads it so), so the defending units are Tough(12) facing one enemy unit: under 3.5.1 the model without the rule
+        /// would otherwise die, after which "all models" holds there too.
         /// </summary>
         public static IReadOnlyList<TestGame> Army36J => [.. Army36J1, .. Army36J2];
 
@@ -61,9 +62,9 @@ public static partial class SuiteCatalog
             In36(Game(WarDaemons36, "daemons-of-war-defensive-frenzy", Play.Exchange, ["Defensive Frenzy"], [], [Fix("hit", 6, 6, 6), Fix("defense", 1, 1, 1)],
                 [PerMarker("Defensive Frenzy", "defense", 1, onTarget: true, "\"If most models in this unit have this rule, place one token on this unit when it fully destroys an enemy unit … For each token this unit gets +1 to Defense rolls\"")],
                 units: 2, carriers: Most(2, "Defensive Frenzy"), enemyUnits: 4, enemyModels: 1)),
-            In36(Game(Inquisition36, "human-inquisition-defensive-growth", Play.Shot, ["Defensive Growth"], [R(1, "Tough", 6)], [],
+            In36(Game(Inquisition36, "human-inquisition-defensive-growth", Play.Shot, ["Defensive Growth"], [R(1, "Tough", 12)], [],
                 [PerMarker("Defensive Growth", "defense", 1, onTarget: true, Growth36 + ", this unit gets +1 to Defense rolls\"", perTwo: true)],
-                units: 1, carriers: Most(1, "Defensive Growth"))),
+                units: 1, carriers: Most(1, "Defensive Growth"), enemyUnits: 1)),
             // Shoots: every shot crosses at least 12".
             In36(Game(Sisters36J, "blessed-sisters-devout", Play.Shoots, ["Devout"], [R(1, "Devout"), R(2, "Devout")], [],
                 [ExtraHits("Devout", Within(By("Devout", when: When.Shooting), 9, within: false), [6], Devout36)])),
@@ -96,9 +97,9 @@ public static partial class SuiteCatalog
             In36(Game(Cults36, "soul-snatcher-cults-grounded-defense", Play.Shot, ["Grounded Defense"], [], [Fix("hit", 6, 6, 6)],
                 [Modifier("Grounded Defense", "defense", 1, "\"If a unit where most models have this rule has most of them within 1\" of terrain, they get +1 to Defense rolls\"")],
                 units: 1, carriers: Most(1, "Grounded Defense"), board: Ruins)),
-            In36(Game(Dwarves36, "dwarf-guilds-guarded", Play.Shot, ["Guarded"], [], [Fix("hit", 6, 6, 6)],
+            In36(Game(Dwarves36, "dwarf-guilds-guarded", Play.Shot, ["Guarded"], [R(1, "Tough", 12), R(2, "Tough", 12)], [Fix("hit", 6, 6, 6)],
                 [Modifier("Guarded", "defense", 1, "\"If most models in this unit have this rule, they get +1 to Defense rolls when shot/charged from over 9\"/6\" away\"")],
-                units: 2, carriers: Most(2, "Guarded"))),
+                units: 2, carriers: Most(2, "Guarded"), enemyUnits: 1)),
             In36(Game(Custodians36, "custodian-brothers-guardian", Play.Shot, ["Guardian"], [R(1, "Tough", 12)], [Fix("hit", 6, 6, 6)],
                 [ApGrant("Guardian", On("Guardian", when: When.Shooting), 0, "\"When units where most models have this rule take hits, those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))")],
                 units: 1, carriers: Most(1, "Guardian"), enemyUnits: 1, enemyWeapon: [R(0, "AP", 1)])),

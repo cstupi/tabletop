@@ -54,7 +54,8 @@ public class ArmyGamesTests
     /// </summary>
     static readonly string[] Uncovered36 =
     [
-        "Fortified Growth", "Split",
+        "Fortified Growth",   // engine gap: four tokens leave AP(1) hits at AP(-1), past "to a min. of AP(0)"
+        "Split",
     ];
 
     /// <summary>
