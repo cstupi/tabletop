@@ -91,6 +91,9 @@ public interface IGameRules
     RulesOptionCatalog OptionCatalog => RulesOptionCatalog.Empty;
     /// <summary>Side Battle's legs under this rule set, sent in Welcome and read by the deployment-zone breach. ZoneLegs.Default by default. Wrapping rulesets must forward it.</summary>
     Tabletop.Geometry.ZoneLegs Zones => Tabletop.Geometry.ZoneLegs.Default;
+    /// <summary>The words a client shows for a terrain declaration under this rule set, keyed by its snake_case name (BuiltinTerrain.DeclarationNames),
+    /// sent in Welcome. Empty by default: a client keeps its own words. Wrapping rulesets must forward it.</summary>
+    IReadOnlyDictionary<string, string> TerrainWords => new Dictionary<string, string>();
     /// <summary>What is wrong with an optional-rules map: an unknown key or value. A set_configuration with any is refused. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => optionalRules.Keys.Select(k => $"unknown option {k}").ToList();
     /// <summary>What blocks sight in this state under the game's optional rules (Sight.From reads it). Each model's body, by default. Wrapping rulesets must forward it.</summary>

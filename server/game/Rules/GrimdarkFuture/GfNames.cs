@@ -39,6 +39,8 @@ public static class GfNames
     public const string IdleSeq = "idle", SpellTestSeq = "spell-test";                                                // p.10 idle activation; spell library take_test
     public const string TransportDestroyedSeq = "transport-destroyed";                                                  // p.15: a wrecked container disgorges (Task 19)
     public const double MeleeHorizontal = 2, MeleeVertical = 4, ChargeCloseIn = 3, Consolidate = 3, FallBack = 1, Separation = 1, CastRange = 18, DifficultCap = 6;
+    /// <summary>3.6.0 p.12 Unstable: "moves over 6” when moving into or through unstable terrain".</summary>
+    public const double UnstableDistance = 6;
     /// <summary>p.15 and p.21: a unit leaving a container "must stay fully within 6" of it".</summary>
     public const double ExitWithin = 6;
     /// <summary>p.13 Aircraft: "adding 30" to its total move".</summary>

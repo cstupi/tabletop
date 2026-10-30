@@ -16,6 +16,9 @@ public sealed record CompiledScenario(
     /// <summary>Side Battle's legs under the game's rule set: what the server sends in Welcome.</summary>
     public ZoneLegs Zones => GameRulesRegistry.Resolve(Info.GameRules).Zones;
 
+    /// <summary>The terrain words under the game's rule set: what the server sends in Welcome.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords => GameRulesRegistry.Resolve(Info.GameRules).TerrainWords;
+
     public Guid ParticipantFor(Guid teamId) => TeamOfParticipant.First(kv => kv.Value == teamId).Key;
 
     /// <summary>The participants a driver connects: every team's, or under self-play the one account's first row, whose connection plays every team.</summary>

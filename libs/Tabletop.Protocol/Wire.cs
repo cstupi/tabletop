@@ -46,6 +46,9 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
     public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty;
     /// <summary>Side Battle's legs under the game's rule set (IGameRules.Zones): what a client resolves the zone shapes with.</summary>
     public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
+    /// <summary>The words a client shows for a terrain declaration under the game's rule set (IGameRules.TerrainWords), keyed by its snake_case
+    /// name; a client keeps its own word for a name not listed.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
 }
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;

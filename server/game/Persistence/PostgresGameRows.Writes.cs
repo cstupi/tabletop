@@ -153,7 +153,7 @@ public sealed partial class PostgresGameRows
             Add("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                 t.Id, draft.Id, t.Mesh.Builtin, t.Mesh.AssetId, t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale);
             foreach (var v in t.Volumes)
-                Add($"insert into management.terrain_volume (id, terrain_placement_id, {VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 17).Select(i => "$" + i))})",
+                Add($"insert into management.terrain_volume (id, terrain_placement_id, {VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 18).Select(i => "$" + i))})",
                     [v.Id, t.Id, .. VolumeValues(v.Volume)]);
         }
         foreach (var m in draft.Markers)

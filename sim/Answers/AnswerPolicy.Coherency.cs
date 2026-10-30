@@ -96,7 +96,7 @@ public sealed partial class AnswerPolicy
         var standing = view.Projection.Models.Keys.Where(x => !m.ModelIds.Contains(x)).Select(x => (Id: x, At: view.PlacedOf(x))).Where(x => x.At is not null).ToList();
         var terms = new FormationTerms(m.Allowance, view.VolumesById(m.ImpassableVolumeIds), view.VolumesById(m.DifficultVolumeIds), m.DifficultCap,
             m.IgnoresTerrain ? [] : view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList(), view.Volumes, view.Table,
-            standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread);
+            standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread, SteepOf(m, view));
         return UnitFormation.InContact(chargers, standing.Where(x => units.Contains(view.ModelOf(x.Id).UnitId)).Select(x => x.At!.Value).ToList(), targets, terms);
     }
 
