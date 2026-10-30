@@ -123,6 +123,16 @@ public static class GfMelee
         return wounds + fear;
     }
 
+    /// <summary>3.6.0 p.10: the wounds the unit took during this activation (its WoundsThisActivation, every deal-wounds frame on it since the activation
+    /// began, the charge move's dangerous-terrain test included), plus 3.6.0 p.14 Fear(X) over the enemy's models ("enemies count as having taken +X
+    /// wounds"), counted as 3.5.1 counts it: when the enemy attacked.</summary>
+    public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy, bool feared)
+    {
+        var fear = feared ? Lookup.LivingModels(ctx.State, enemy).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0) : 0;
+        if (fear > 0) ctx.Applied.Add("Fear");
+        return ctx.Projection.Units[unit].WoundsThisActivation + fear;
+    }
+
     /// <summary>
     /// The enemy units this unit could charge: p.7 "Units may only take a Charge action if at least one model is within charge distance of the
     /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
@@ -342,7 +352,9 @@ public static class GfMelee
         }
     }
 
-    /// <summary>p.10: sum wounds caused each way; a destroyed unit always loses; the loser tests morale; a tie tests nobody. Values: charger_wounds, defender_wounds, loser (0 none, 1 charger, 2 defender).</summary>
+    /// <summary>p.10: sum wounds caused each way; a destroyed unit always loses; the loser tests morale; a tie tests nobody. Values: charger_wounds, defender_wounds, loser (0 none, 1 charger, 2 defender).
+    /// 3.6.0 p.10 (GfEdition.MeleeLossByWoundsTaken): "compare the number of wounds each unit took during this activation instead. The unit with the highest
+    /// total loses": charger_wounds and defender_wounds hold the wounds each unit took (WoundsTaken), the charge move's dangerous-terrain wounds included.</summary>
     sealed class CompareStep : IStep
     {
         public string Name => "compare";
@@ -355,10 +367,12 @@ public static class GfMelee
                 return AfterChild(ctx, () => new Push(GfNames.MoraleTest, new SequenceContext(loserUnit, [], [], "melee")));
             }
             var struck = ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && s.Answer is Chosen { OptionId: "strike" }) || CounterStruck(ctx);
-            var chargerWounds = WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
-            var defenderWounds = WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
+            var byTaken = GfEdition.Of(ctx.State).MeleeLossByWoundsTaken;
+            var chargerWounds = byTaken ? WoundsTaken(ctx, charger, defender, feared: struck) : WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
+            var defenderWounds = byTaken ? WoundsTaken(ctx, defender, charger, feared: true) : WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
             var chargerDead = Lookup.LivingModels(ctx.State, charger).Count == 0; var defenderDead = Lookup.LivingModels(ctx.State, defender).Count == 0;
-            var loser = defenderDead ? 2 : chargerDead ? 1 : chargerWounds > defenderWounds ? 2 : defenderWounds > chargerWounds ? 1 : 0;
+            var (chargerLosing, defenderLosing) = byTaken ? (chargerWounds > defenderWounds, defenderWounds > chargerWounds) : (defenderWounds > chargerWounds, chargerWounds > defenderWounds);
+            var loser = defenderDead ? 2 : chargerDead ? 1 : defenderLosing ? 2 : chargerLosing ? 1 : 0;
             var values = new Dictionary<string, int> { ["charger_wounds"] = chargerWounds, ["defender_wounds"] = defenderWounds, ["loser"] = loser, ["compared"] = 1 };
             var testing = loser == 1 ? charger : loser == 2 ? defender : (Guid?)null;
             var spent = GfAttack.SpendAttackStart(ctx, charger, [defender], AttackKind.Melee).Concat(GfAttack.SpendAttackStart(ctx, defender, [charger], AttackKind.Melee)).Distinct().ToList();
