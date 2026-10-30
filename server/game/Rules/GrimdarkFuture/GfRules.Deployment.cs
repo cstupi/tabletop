@@ -1,4 +1,3 @@
-using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Effects;
@@ -53,17 +52,17 @@ public sealed partial class GrimdarkFutureRules
             if ((p.Scheduler.Phase == Deployment || again) && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, legs))
                 return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it (p.6)");
             if (p.Scheduler.Phase == Scouts && !again && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, edition.ScoutReach, legs))
-                return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond {edition.ScoutReach}\" of its deployment zone: Scouts deploy fully within {edition.ScoutReach}\" of it ({ScoutPage(edition)})");
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond {edition.ScoutReach}\" of its deployment zone: Scouts deploy fully within {edition.ScoutReach}\" of it ({edition.ScoutPage})");
         }
         return null;
     }
-
-    static string ScoutPage(GfEdition edition) => edition.Id == RuleSets.Gf360 ? "3.6.0 p.15" : "p.14";
 
     /// <summary>
     /// 3.6.0 p.15 Scout: "may be deployed anywhere fully within 9” of their deployment zone, over 9” away from non-Scout enemy units"
     /// (GfEdition.ScoutClearance; 3.5.1 has none). In the Scouts phase, a Scout's base within the clearance of a model of an enemy unit that does not
     /// itself carry Scout (or a Scout Aura, GfAmbush.Carries) is refused, measured base to base (p.5). A Re-Deployed unit is not a Scout placement.
+    /// Scouts are recognised by GfAmbush.Carries because PlacementBreach has no PropertySet (as AmbushBreach); on today's content it agrees with
+    /// Lookup.UnitHas, Scout Aura being the only rule that grants Scout.
     /// </summary>
     public static AnswerBreachFound? ScoutBreach(GameState state, IReadOnlyList<ModelRelocation> moves)
     {
@@ -82,7 +81,7 @@ public sealed partial class GrimdarkFutureRules
                 && !GfAmbush.Carries(state, o.UnitId, Scout)
                 && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= edition.ScoutClearance + 1e-6);
             if (near)
-                return new(ScoutDistanceRule, $"{model.Slot.Name} would be placed within {edition.ScoutClearance}\" of a non-Scout enemy unit: Scouts deploy over {edition.ScoutClearance}\" away from them ({ScoutPage(edition)})");
+                return new(ScoutDistanceRule, $"{model.Slot.Name} would be placed within {edition.ScoutClearance}\" of a non-Scout enemy unit: Scouts deploy over {edition.ScoutClearance}\" away from them ({edition.ScoutPage})");
         }
         return null;
     }

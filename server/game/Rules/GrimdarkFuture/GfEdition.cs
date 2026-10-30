@@ -24,7 +24,7 @@ public sealed record GfEdition(
     bool HasCumbersome,                                           // S6
     int? HeroAuraTough,                                           // S10
     bool IndirectNeedsHold,                                       // S12
-    double ScoutReach, double ScoutClearance,                     // S13
+    double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
     bool AircraftTransportUnreachable,                            // S15
     bool UnstoppableKeepsOwnPenalties,                            // S16
     double SideBattleLong, double SideBattleShort,                // M1
@@ -52,7 +52,7 @@ public sealed record GfEdition(
         HasCumbersome: false,
         HeroAuraTough: null,
         IndirectNeedsHold: false,
-        ScoutReach: 12, ScoutClearance: 0,
+        ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
         AircraftTransportUnreachable: false,
         UnstoppableKeepsOwnPenalties: false,
         SideBattleLong: 0.75, SideBattleShort: 0.625,
@@ -80,7 +80,7 @@ public sealed record GfEdition(
         HasCumbersome: true,
         HeroAuraTough: 9,
         IndirectNeedsHold: true,
-        ScoutReach: 9, ScoutClearance: 9,
+        ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",
         AircraftTransportUnreachable: true,
         UnstoppableKeepsOwnPenalties: true,
         SideBattleLong: 2.0 / 3, SideBattleShort: 0.75,

@@ -15,11 +15,12 @@ namespace Tabletop.GameServer.Tests;
 public class GfScout36Tests
 {
     /// <summary>The Scouts phase with A's set-aside Scout picked. A's first unit stands at (10, 44), B's at (10, 4); B's second unit, a Scout
-    /// when <paramref name="enemyScout"/>, stands outside its zone at (10, 20) (placed under warn).</summary>
-    static (SchedulerHarness H, Guid Scout) ScoutPicked(bool enemyScout)
+    /// when <paramref name="enemyScout"/> (a model carrying Scout Aura when <paramref name="enemyAura"/>), stands outside its zone at (10, 20) (placed under warn).</summary>
+    static (SchedulerHarness H, Guid Scout) ScoutPicked(bool enemyScout, bool enemyAura = false)
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]),
-            TestArmies.Build("B", 2, 1, unitRules: enemyScout ? [(2, Scout, null)] : null)], enforcement: Enforcement.Warn, rules: GrimdarkFutureRules.Instance);
+            TestArmies.Build("B", 2, 1, unitRules: enemyScout ? [(2, Scout, null)] : null, modelRules: enemyAura ? [(2, "Scout Aura", null)] : null)],
+            enforcement: Enforcement.Warn, rules: GrimdarkFutureRules.Instance);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
         h.Run();
         var a = h.Units(0); var b = h.Units(1);
@@ -61,6 +62,21 @@ public class GfScout36Tests
         var (h, scout) = ScoutPicked(enemyScout: false);
         Assert.Equal(rule, Breach(h, rulesId, scout, 10, 28)?.Rule);                    // 8" between centres of B's (10, 20)
         Assert.Null(Breach(h, rulesId, scout, 40, 28));
+    }
+
+    [Fact]
+    public void The_scout_clearance_is_over_nine_inches_base_to_base()
+    {
+        var (h, scout) = ScoutPicked(enemyScout: false);
+        Assert.Equal(ScoutDistanceRule, Breach(h, RuleSets.Gf360, scout, 10, 30.2)?.Rule);  // centres 10.2" apart, bases 1.26" across: 8.94" between them
+        Assert.Null(Breach(h, RuleSets.Gf360, scout, 10, 30.4));                             // 9.14"
+    }
+
+    [Fact]
+    public void An_enemy_with_a_scout_aura_does_not_count()
+    {
+        var (h, scout) = ScoutPicked(enemyScout: false, enemyAura: true);
+        Assert.Null(Breach(h, RuleSets.Gf360, scout, 10, 28));
     }
 
     [Fact]
