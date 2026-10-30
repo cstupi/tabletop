@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -336,7 +337,7 @@ public class ArmyGamesSocketTests(PostgresFixture pg) : IDisposable
     [Fact]
     public async Task Every_army_game_gives_its_in_process_verdict_over_the_socket()
     {
-        await new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+        await new PostgresPropertiesStore(pg.Db).SeedAsync(ScenarioCompiler.CoreDocuments[RuleSets.Gf351], Ct);
         var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
         var army = SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.ArmyPrefix)).ToList();
         var report = await new SuiteRunner(army, socket).RunAsync(new SuiteOptions([.. army.Select(g => g.Name)], DriverKind.Socket, false, TempDir()), null, Ct);

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -35,11 +36,18 @@ public sealed record CompiledScenario(
 public static class ScenarioCompiler
 {
     // Declared first: static initializers run in textual order and CoreProperties reads it.
-    static PropertySetDocument CoreDocument { get; } =
-        PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId);
+    /// <summary>The embedded core documents, by rules id.</summary>
+    public static IReadOnlyDictionary<string, PropertySetDocument> CoreDocuments { get; } =
+        PropertiesSeeder.EmbeddedDocuments().ToDictionary(d => d.GameRules);
 
-    /// <summary>The shipped Grimdark Future set, through the production path: the game server's composed embedded document, every army book included.</summary>
-    public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
+    static readonly ConcurrentDictionary<string, PropertySet> Cache = new();
+
+    /// <summary>An edition's shipped set, through the production path: the game server's composed embedded document, every army book included.</summary>
+    public static PropertySet CorePropertiesOf(string rulesId) =>
+        Cache.GetOrAdd(rulesId, id => PropertiesJson.ToSet(CoreDocuments[id], Guid.CreateVersion7));
+
+    /// <summary>The Grimdark Future 3.5.1 set; every existing game stays on it.</summary>
+    public static PropertySet CoreProperties { get; } = CorePropertiesOf(RuleSets.Gf351);
 
     public static CompiledScenario Compile(Scenario s)
     {

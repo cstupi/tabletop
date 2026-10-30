@@ -1,3 +1,5 @@
+using Tabletop.Content;
+using Tabletop.Sim.Scenarios;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -84,7 +86,7 @@ public class SpecialGamesSocketTests(PostgresFixture pg) : IDisposable
     [Fact]
     public async Task The_special_games_pass_over_the_socket_but_for_their_known_defects()
     {
-        await new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+        await new PostgresPropertiesStore(pg.Db).SeedAsync(ScenarioCompiler.CoreDocuments[RuleSets.Gf351], Ct);
         var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
 
         var report = await new SuiteRunner(SpecialGamesTests.Games, socket).RunAsync(new SuiteOptions([SuiteCatalog.SpecialGroup], DriverKind.Socket, false, TempDir()), null, Ct);

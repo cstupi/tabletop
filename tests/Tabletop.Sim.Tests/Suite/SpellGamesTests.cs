@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -129,7 +130,7 @@ public class SpellGamesSocketTests(PostgresFixture pg) : IDisposable
     public async Task The_game_passes_over_the_socket(string name)
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
-            PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+            ScenarioCompiler.CoreDocuments[RuleSets.Gf351], Ct);
         var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
         var game = SuiteCatalog.All.Single(g => g.Name == name);
         var report = await new SuiteRunner([game], socket).RunAsync(new SuiteOptions([name], DriverKind.Socket, false, TempDir()), null, Ct);
