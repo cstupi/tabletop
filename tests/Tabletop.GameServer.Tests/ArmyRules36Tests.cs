@@ -57,6 +57,23 @@ public class ArmyRules36Tests
         Assert.Equal(defender.Id, first.Context.ActorUnitId);
     }
 
+    /// <summary>"This model gets Counter on its weapons in melee": a joined hero's rule (Gift of Lust) gives its own weapons Counter, not the unit's.</summary>
+    [Fact]
+    public void A_joined_hero_with_counter_in_melee_strikes_first_with_its_own_weapons_only()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var squad = Unit("Squad", "4+", "4+", [], 2, [], Melee("Knife", 1));
+        var hero = Unit("H", "4+", "4+", [], 1, [P("Hero"), P("Counter in Melee")], Melee("Spear", 1)).Models[0] with { Ordinal = 3 };
+        var joined = squad with { Models = [.. squad.Models, hero] };
+        var sim = Sim.Gf36(State([charger], [joined], x1: -3, x2: 0), Enumerable.Repeat(1, 20).ToArray());
+        sim.Start(GfNames.Melee, MeleeOf(charger, joined));
+        Assert.Equal("counter", sim.AskFor(Samples.Team2).Question);
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var first = sim.Emitted.OfType<SequenceStarted>().First(s => s.Sequence == GfNames.AttackSequence);
+        Assert.Equal(joined.Id, first.Context.ActorUnitId);
+        Assert.Equal(hero.Weapons.Select(w => w.Id), first.Context.WeaponIds);
+    }
+
     [Fact]
     public void A_fatigued_defender_with_counter_in_melee_strikes_with_the_rest_under_3_6()
     {

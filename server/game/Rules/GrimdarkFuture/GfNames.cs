@@ -27,7 +27,8 @@ public static class GfNames
     /// <summary>Army-book rules spec, batch 8: the rules the grammar additions leave to the ruleset.</summary>
     public const string HeavyImpact = "Heavy Impact", NoRetreat = "No Retreat";
     public const string Deathstrike = "Deathstrike", Retaliate = "Retaliate", SelfDestruct = "Self-Destruct", Ravage = "Ravage", CrossingAttack = "Crossing Attack", Strafing = "Strafing";
-    /// <summary>3.6.0 book names of 3.5 rules the C# half reads (Strafing, Counter-Attack, Hero); each read accepts both names under either edition, as no 3.5 book carries the 3.6 one.</summary>
+    /// <summary>3.6.0 book rules the C# half reads by name. Crossing Strike (3.5 Strafing) and Unique Hero ("Counts as having Hero") are read beside the 3.5 name
+    /// under either edition, as no 3.5 book carries the 3.6 one; Counter in Melee gives a model's weapons Counter (GfMelee.StrikesFirst).</summary>
     public const string CrossingStrike = "Crossing Strike", CounterInMelee = "Counter in Melee", UniqueHero = "Unique Hero";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
