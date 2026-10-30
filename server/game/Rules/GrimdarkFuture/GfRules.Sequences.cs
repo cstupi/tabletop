@@ -42,6 +42,7 @@ public sealed partial class GrimdarkFutureRules
         GfAmbush.AmbushRedeploy(),
         GfRuleHits.RuleHits(),
         GfRuleHits.RuleWounds(),
+        GfStrikeRolls36.StrikeRolls(),
         GfMarkers.Rally(),
         GfContainers.TransportDestroyed(Edition),
         GfReserves.PlaceReserve(),

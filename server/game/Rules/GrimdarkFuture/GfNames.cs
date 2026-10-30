@@ -21,7 +21,7 @@ public static class GfNames
     public const string Coordinate = "Coordinate", DelayedAction = "Delayed Action", Instinctive = "Instinctive", InstinctiveCondition = "instinctive";
     public const string InquisitorialAgent = "Inquisitorial Agent", MartialProwess = "Martial Prowess";
     /// <summary>Army-book rules spec, batch 5: hits and wounds a rule deals outside an attack, and the rules that deal them.</summary>
-    public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds";
+    public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds", StrikeRollsSeq = "strike-rolls";
     /// <summary>Army-book rules spec, batch 6: the round-start roll that may end Shaken, and the rule read off a model's ignored wounds.</summary>
     public const string RallySeq = "rally", RegenerativeStrength = "Regenerative Strength";
     /// <summary>Army-book rules spec, batch 8: the rules the grammar additions leave to the ruleset.</summary>

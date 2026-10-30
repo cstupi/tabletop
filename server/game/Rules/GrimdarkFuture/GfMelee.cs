@@ -15,8 +15,8 @@ public static class GfMelee
     /// 3.5.1 resolves Counter before Impact; 3.6.0 p.14 rolls Impact "before either unit attacks" (GfEdition.ImpactBeforeCounter). 3.5.1 Ravage rolls after each side's
     /// strikes are chosen (GfRuleHits.RavageStep); 3.6 Ravage and Regenerative Strength roll before each side strikes (GfEdition.StrikeTurnRolls, GfStrikeRolls36).</summary>
     public static Sequence Melee(GfEdition e) => new(GfNames.Melee, [new MeleeStartStep(), .. e.ImpactBeforeCounter ? (IStep[])[new ImpactStep(e), new CounterStep(e)] : [new CounterStep(e), new ImpactStep(e)], .. e.StrikeTurnRolls
-        ? (IStep[])[new GfStrikeRolls36.StrikeRollsStep("charger-strike-rolls", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new GfStrikeRolls36.StrikeRollsStep("defender-strike-rolls", charger: false), new StrikeBackStep().Labelled("Strike back")]
-        : [new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false)], new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
+        ? (IStep[])[new GfStrikeRolls36.StrikeTurnStep("charger-strike-rolls", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeChoiceStep(), new GfStrikeRolls36.StrikeTurnStep("defender-strike-rolls", charger: false), new StrikeBackStep(e).Labelled("Strike back")]
+        : [new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep(e).Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false)], new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
     /// <summary>The unit's melee weapons. A Limited weapon fired before the melee under way (or, outside one, ever) is left out (p.14 "may only be used once
     /// per game"), so the list is the same on each run of a melee step.</summary>
@@ -272,6 +272,9 @@ public static class GfMelee
                     if (closed.Single is not Chosen { OptionId: "strike" }) return new Complete([], held);
                 }
             }
+            // 3.6 Ravage, Regenerative Strength: its turn to strike is now, so its strike rolls come before the Counter strike (GfStrikeRolls36).
+            if (edition.StrikeTurnRolls && !Recorded(ctx, Name) && ctx.History.Children.Count == 0 && GfStrikeRolls36.Due(ctx, defender, Charger(ctx)) is { } rolls) return rolls;
+            if (edition.StrikeTurnRolls && !Recorded(ctx, Name) && ctx.History.Children is [.., var rolled] && !(rolled.Finished || rolled.Abandoned)) return new OpenAsks([]);
             // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back. A granted Counter-Attack
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);
@@ -349,7 +352,27 @@ public static class GfMelee
     /// back too, and it is fatigued for doing so: 3.5.1 p.10 reads "must stay idle, but may strike back counting as fatigued"
     /// (GfRolls.Fatigued reads the Shaken condition as fatigue). No Shaken guard belongs here.
     /// </summary>
-    sealed class StrikeBackStep : IStep
+    /// <summary>3.6 (GfEdition.StrikeTurnRolls): the defender's "Strike back?" asked before its strike rolls, recorded as `strike_back_chosen`, which
+    /// `defender-strike-rolls` and `strike-back` read. Nothing to strike with, or a side gone, records 0.</summary>
+    sealed class StrikeChoiceStep : IStep
+    {
+        public string Name => "strike-choice";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var (charger, defender) = (Charger(ctx), Defender(ctx));
+            var first = StrikesFirst(ctx);
+            static Complete Chosen(bool strike) => new([], new Dictionary<string, int> { [StrikeBackChosenKey] = strike ? 1 : 0 });
+            if (Lookup.LivingModels(ctx.State, defender).Count == 0 || Lookup.LivingModels(ctx.State, charger).Count == 0 || MeleeWeapons(ctx.State, defender, w => !first(w)).Count == 0) return Chosen(false);
+            if (ctx.History.LastClosed("strike_back") is { } closed) return Chosen(closed.Single is Chosen { OptionId: "strike" });
+            return new OpenAsks([StrikeBackAsk(ctx, defender)]);
+        }
+    }
+
+    public const string StrikeBackChosenKey = "strike_back_chosen";
+    static Ask StrikeBackAsk(StepContext ctx, Guid defender) =>
+        ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]));
+
+    sealed class StrikeBackStep(GfEdition edition) : IStep
     {
         public string Name => "strike-back";
         public StepOutcome Run(StepContext ctx)
@@ -362,10 +385,12 @@ public static class GfMelee
             if (Recorded(ctx, Name)) return Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
             if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
             if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
+            if (edition.StrikeTurnRolls)   // the choice was asked by strike-choice, before the strike rolls
+                return ctx.Frame.Value(StrikeBackChosenKey) == 1 && weapons.Count > 0 ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (ctx.History.LastClosed("strike_back") is { } closed)
                 return closed.Single is Chosen { OptionId: "strike" } ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
-            return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]))]);
+            return new OpenAsks([StrikeBackAsk(ctx, defender)]);
         }
     }
 

@@ -556,6 +556,9 @@ public static partial class GfAttack
     /// p.14's joined hero is alone. `in_cover` is p.11's majority, settled at that same moment and carried here for
     /// `roll-to-block`. A melee push settles no `in_cover`, which melee does not read; a push that settled nothing falls back to the live reading.
     /// </summary>
+    /// <summary>The attack's range as its interaction measured it, in hundredths of an inch, on determine-attacks (GfEdition.AttackRangeRecorded).</summary>
+    public const string RangeKey = "range_hundredths";
+
     sealed class DetermineAttacksStep : IStep
     {
         public string Name => "determine-attacks";
@@ -581,6 +584,7 @@ public static partial class GfAttack
             else if (kind == AttackKind.Shooting) WriteCover(values, CoverOf(ctx.State, live, ix.Defender.UnitId, eligible));
             else values["in_cover"] = 0;
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
+            if (GfEdition.Of(ctx.State).AttackRangeRecorded && ix.RangeInches is { } range) values[RangeKey] = (int)Math.Round(range * 100);
             if (kind == AttackKind.Shooting)
                 foreach (var (shooter, target, point) in Aims(ctx.State, live, ix.Attacker.UnitId, ix.Defender.UnitId, eligible, ctx.Frame.Context.WeaponIds))
                     values[$"aim_{shooter}_{target}"] = point;

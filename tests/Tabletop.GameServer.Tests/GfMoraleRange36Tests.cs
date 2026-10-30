@@ -80,4 +80,20 @@ public class GfMoraleRange36Tests
         sim.Start(GfNames.MoraleTest, new SequenceContext(target.Id, [], [], "wounds"));
         Assert.Equal(bonus, MoraleBonus(sim, "Hold the Line"));
     }
+
+    /// <summary>3.6.0 p.10 tests at the end of the activation: the range is the one the attack measured, not where the shooter stands after a later move.</summary>
+    [Theory]
+    [InlineData(-9.26, -12.26, 0)]   // shot from 8" edge to edge, then moved to 11"
+    [InlineData(-12.26, -9.26, 1)]   // shot from 11", then moved to 8"
+    public void The_range_is_the_shots_not_the_tests(double from, double to, int bonus)
+    {
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [P("Hold the Line"), P("Tough", 3)]);
+        var sim = Sim.Gf36(State([shooter], [target], x1: from, x2: 0), 6, 1, 3);
+        sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
+        var m = shooter.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
+        sim.Append([new ModelsMoved([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = to } }))])]);
+        sim.Start(GfNames.MoraleTest, new SequenceContext(target.Id, [], [], "wounds"));
+        Assert.Equal(bonus, MoraleBonus(sim, "Hold the Line"));
+    }
 }

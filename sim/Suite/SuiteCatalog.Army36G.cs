@@ -1,4 +1,5 @@
 using Tabletop.Content;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 
 namespace Tabletop.Sim.Suite;
@@ -17,9 +18,8 @@ public static partial class SuiteCatalog
 
         public static IReadOnlyList<TestGame> Army36G { get; } =
         [
-            // Both sides hold in their zones, over 9" apart: every morale test the shooting forces is "shot from over 9" away".
-            In36(Morale(Hives36, "alien-hives-hive-bond", "Hive Bond", [R(1, "Hive Bond")], 1, ShotFromOverNine), Hives36),
-            In36(Morale(Hdf36, "human-defense-force-hold-the-line", "Hold the Line", [R(1, "Hold the Line")], 1, ShotFromOverNine), Hdf36),
+            ShotNearAndFar(Hives36, "alien-hives-hive-bond", "Hive Bond"),
+            ShotNearAndFar(Hdf36, "human-defense-force-hold-the-line", "Hold the Line"),
             In36(Pick(ChangeDaemons36, "daemons-of-change-bounding", Play.Moves, "Bounding",
                 [MovedWithinRoll("Bounding", 1, "\"When this unit is activated, you may move all models with this rule in it by up to D3+1\"\"")], grants: false), ChangeDaemons36),
             In36(Pick(Custodians36, "custodian-brothers-dash", Play.Moves, "Dash",
@@ -29,7 +29,8 @@ public static partial class SuiteCatalog
             In36(Pick(WolfBrothers36, "wolf-brothers-wolfborn", Play.Moves, "Wolfborn",
                 [MovedWithinRoll("Wolfborn", 0, "\"When this unit is activated, you may move all models with this rule in it by up to D3\"\"")], grants: false), WolfBrothers36),
             In36(Game(Ratmen36, "ratmen-clans-ravage", Play.Charges, ["Ravage"], [R(1, "Ravage", 2), R(2, "Ravage", 2), R(3, "Ravage", 2)], [],
-                [WoundDice("Ravage", 2, "\"roll X dice before attacking ... For each 6+ the target takes one wound\" (X 2)"), OncePerRound("Ravage", "\"Once per round, when it’s this model’s turn to strike in melee\"")],
+                [WoundDice("Ravage", 2, "\"roll X dice before attacking ... For each 6+ the target takes one wound\" (X 2)"), OncePerRound("Ravage", "\"Once per round, when it’s this model’s turn to strike in melee\""),
+                 BeforeAttacking("Ravage", "\"roll X dice before attacking\"")],
                 units: 3), Ratmen36),
             // One Tough(6) opponent model of one attack: its first attack hits, the block fails and the Regeneration die ignores the wound, so the unit it struck
             // holds a token when it charges again.
@@ -61,6 +62,18 @@ public static partial class SuiteCatalog
                              let gap = Gap(run, log, mv.ModelId, ((OnTable)mv.To).Placement.Position.Horizontal, s.Seq, u => !Named(run, army)(u) && !Holds(run, u, "Vanguard"))
                              select gap > 9 ? null : $"placed {gap:0.00}\" from a non-Vanguard enemy";
                 return [.. offered, .. placed];
+            });
+
+        /// <summary>"before attacking": in each melee, the unit's rolls for the rule start before any of its attack-sequences there.</summary>
+        static GameCheck BeforeAttacking(string entry, string quote) =>
+            Exact(entry, quote, (run, _) =>
+            {
+                var log = LogQueries.Of(run);
+                return from w in log.FramesOf("rule-wounds")
+                       where Dealt(w.Start) is { } d && d.Rule == entry && w.Nearest("melee") is not null
+                       let melee = w.Nearest("melee")!
+                       let first = log.FramesOf("attack-sequence").Where(a => a.Context.ActorUnitId == w.Context.ActorUnitId && a.Nearest("melee")?.Id == melee.Id).Select(a => (long?)a.Seq).Min()
+                       select first is { } f && f < w.Seq ? "rolled after the unit's attacks" : null;
             });
 
         /// <summary>"Once per round": at most one `rule-wounds` frame of the entry per unit and round.</summary>
@@ -107,5 +120,44 @@ public static partial class SuiteCatalog
                     : m.Allowance == inches ? null : $"allowed {m.Allowance}\" after {Faces(roll.Dice)}");
 
         const string ShotFromOverNine = "\"they get +1 to Morale Test rolls when shot/charged from over 9\"/6\" away\"";
+
+        /// <summary>Two units carrying the rule, each shot by its own one-model opponent whose 14" gun reaches only it (across the 2" between the zones of a
+        /// 26" table): unit 1's from about 3", unit 2's from about 13". Each opponent's first volley hits twice and both blocks fail, so two of three models fall and the unit tests morale (p.10).</summary>
+        static TestGame ShotNearAndFar((string Uid, string Army) book, string name, string entry)
+        {
+            static RollKey By(int unit) => new(Actor: $"Opponents unit {unit}");
+            var game = Game(book, name, Play.Shot, [entry], [R(1, entry), R(2, entry)],
+                [new DiceFix("hit", 0, [6, 6, 1], By(1)), new DiceFix("defense", 0, [1, 1], By(1)), new DiceFix("hit", 0, [6, 6, 1], By(2)), new DiceFix("defense", 0, [1, 1], By(2))],
+                [MoraleByRange(entry, book.Army, ShotFromOverNine)],
+                units: 2, enemyUnits: 2, enemyModels: 1, enemyAttacks: 3, enemyRange: 14, rounds: 2, length: 26,
+                anchors: new Dictionary<int, Point2> { [1] = new(6, 15), [2] = new(30, 25) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(6, 11), [2] = new(30, 11) });
+            return In36(game, book);
+        }
+
+        /// <summary>Every morale test of a unit carrying the rule after shooting has the rule's +1 exactly when the shot that caused it came from over 9" (base
+        /// to base, where the shooter and the unit stood as the attack began); the game shows both a near and a far one.</summary>
+        static GameCheck MoraleByRange(string entry, string army, string quote) =>
+            Exact(entry, quote, (run, _) =>
+            {
+                var log = LogQueries.Of(run);
+                var verdicts = new List<string?>();
+                var seen = new HashSet<bool>();
+                foreach (var test in log.FramesOf("morale-test").Where(f => f.Context.ActorUnitId is { } u && Holds(run, u, entry) && f.Context.Action == "wounds"))
+                {
+                    var unit = test.Context.ActorUnitId!.Value;
+                    var shot = log.FramesOf("attack-sequence").LastOrDefault(f => f.Seq < test.Seq && f.Context.TargetUnitIds.Contains(unit));
+                    var roll = test.Steps.SelectMany(s => s.Rolls("morale")).FirstOrDefault();
+                    if (shot?.Context.ActorUnitId is not { } shooter || roll is null) continue;
+                    var gap = log.LocationsBefore(shot.Seq).Where(kv => kv.Value is OnTable && run.Final.Models[kv.Key].UnitId == unit)
+                        .Select(kv => Gap(run, log, kv.Key, ((OnTable)kv.Value).Placement.Position.Horizontal, shot.Seq, u => u == shooter)).DefaultIfEmpty(double.PositiveInfinity).Min();
+                    var far = gap > 9;
+                    seen.Add(far);
+                    var bonus = roll.Roll.Modifiers.Where(m => m.Source == entry).Sum(m => m.Amount);
+                    verdicts.Add(bonus == (far ? 1 : 0) ? null : $"{bonus:+0;-0;0} after a shot from {gap:0.00}\"");
+                }
+                if (!seen.Contains(false)) verdicts.Add("no test after a shot from 9\" or closer");
+                if (!seen.Contains(true)) verdicts.Add("no test after a shot from over 9\"");
+                return verdicts;
+            });
     }
 }

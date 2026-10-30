@@ -127,4 +127,34 @@ public class GfStrikeRolls36Tests
             Assert.Equal(1, sim.Model(b.Models[0].Id).Wounds);                                 // the 4 wounds, the 3 does not
         }
     }
+
+    /// <summary>"when it's this model's turn to strike": a defender that does not strike back rolls nothing, and its once-per-round use is not spent.</summary>
+    [Fact]
+    public void A_defender_that_does_not_strike_back_rolls_nothing()
+    {
+        var charger = Unit("C", "4+", "4+", [], 1, [P("Tough", 6)], Melee("Axe", 1));
+        var defender = Unit("D", "4+", "4+", [], 1, [P("Ravage", 2), P("Tough", 6)], Melee("Club", 1));
+        var sim = Sim.Gf36(State([charger], [defender], x1: -3, x2: 0), Ones);
+        sim.Start(GfNames.Melee, MeleeOf(charger, defender));
+        Assert.Equal("strike_back", sim.AskFor(Samples.Team2).Question);
+        sim.Answer(Samples.Team2, new Chosen("pass"));
+        for (var i = 0; i < 4 && sim.AskForOrNull(Samples.Team1) is { }; i++) sim.Answer(Samples.Team1, new Passed());
+        Assert.Empty(Rolls(sim, "Ravage"));
+        Assert.DoesNotContain(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == defender.Id);
+        Settle(sim, charger, defender);                                                   // charged again this round: it strikes, and rolls
+        Assert.Single(Rolls(sim, "Ravage"));
+    }
+
+    /// <summary>With Counter its turn to strike is the counter strike: its rolls come before it, ahead of the charger's attacks.</summary>
+    [Fact]
+    public void A_counter_defender_rolls_before_its_counter_strike()
+    {
+        var charger = Unit("C", "4+", "4+", [], 1, [P("Tough", 6)], Melee("Axe", 1));
+        var defender = Unit("D", "4+", "4+", [], 1, [P("Ravage", 2), P("Tough", 6)], Melee("Spear", 1, P("Counter")));
+        var sim = Fight(RuleSets.Gf360, charger, defender, Ones);
+        var order = Order(sim);
+        Assert.Equal((defender.Id, GfNames.RuleWoundsSeq), order[0]);
+        Assert.Equal((defender.Id, GfNames.AttackSequence), order[1]);
+        Assert.Single(Rolls(sim, "Ravage"));
+    }
 }

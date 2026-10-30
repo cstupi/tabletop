@@ -17,16 +17,24 @@ public static class GfMorale
     public static AttackKind? CauseOf(GameState state, Guid unit) => Cause(state, unit).Kind;
 
     /// <summary>CauseOf with the attacking unit: the actor of that attack (none for a spell's hits).</summary>
-    static (AttackKind? Kind, Guid? By) Cause(GameState state, Guid unit)
+    static (AttackKind? Kind, Guid? By, double? Range) Cause(GameState state, Guid unit)
     {
-        foreach (var e in EventApplier.EffectiveLog(state.Applier.Log).Reverse())
-            if (e.Payload is SequenceStarted s && s.Context.TargetUnitIds.Contains(unit))
+        var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
+        for (var i = log.Count - 1; i >= 0; i--)
+            if (log[i].Payload is SequenceStarted s && s.Context.TargetUnitIds.Contains(unit))
             {
-                if (s.Sequence == GfNames.SpellHitsSeq) return (AttackKind.Spell, null);
+                if (s.Sequence == GfNames.SpellHitsSeq) return (AttackKind.Spell, null, null);
                 if (s.Sequence == GfNames.AttackSequence && s.Context.WeaponIds.Count > 0)
-                    return (GfAttack.KindOf(state, s.Context.WeaponIds) is AttackKind.Shooting && GfEdition.Of(state).HasAssault && GfAttack.StartedInMelee(state, s.FrameId) ? AttackKind.Melee : GfAttack.KindOf(state, s.Context.WeaponIds), s.Context.ActorUnitId);
+                {
+                    var kind = GfAttack.KindOf(state, s.Context.WeaponIds) is AttackKind.Shooting && GfEdition.Of(state).HasAssault && GfAttack.StartedInMelee(state, s.FrameId) ? AttackKind.Melee : GfAttack.KindOf(state, s.Context.WeaponIds);
+                    // The range the attack measured when it was made (determine-attacks' range_hundredths), not where the units stand now: the test comes at
+                    // the end of the activation, after any move the shooter made since.
+                    var range = log.Skip(i + 1).Select(e => e.Payload).OfType<StepCompleted>().FirstOrDefault(c => c.FrameId == s.FrameId && c.Step == "determine-attacks")
+                        ?.Values?.TryGetValue(GfAttack.RangeKey, out var h) == true ? h / 100.0 : (double?)null;
+                    return (kind, s.Context.ActorUnitId, range);
+                }
             }
-        return (null, null);
+        return (null, null, null);
     }
 
     /// <summary>The morale test's own die and its override dice, as they now stand: a test step's record named `morale`, and every record
@@ -42,7 +50,8 @@ public static class GfMorale
     /// <summary>
     /// The test's interaction: the testing unit is the attacker side, the unit whose attack caused the test the defender side. "When shot/charged from
     /// over 9"/6" away" (3.6.0 Hive Bond, Hold the Line) reads the range and the opponent's action: after a melee, the distance the charge-target step
-    /// recorded and, for the unit charged, the charger's Charge; after shooting, the shooter's distance to the unit as the test is taken. A spell's test
+    /// recorded and, for the unit charged, the charger's Charge; after shooting, the range the attack measured (determine-attacks' `range_hundredths`,
+    /// GfEdition.AttackRangeRecorded; none under 3.5.1). A spell's test
     /// and a test with no attack behind it carry neither.
     /// </summary>
     static Interaction Ix(StepContext ctx, Guid unit)
@@ -58,9 +67,9 @@ public static class GfMorale
             return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Opponent(ctx.State, opponent), AttackKind.Melee,
                 charged ? GfNames.Charge : ctx.Frame.Context.Action, GfAttack.ChargeRange(ctx.Frame), terrain);
         }
-        var (cause, by) = ctx.Frame.Context.Action == "melee" ? (AttackKind.Melee, null) : Cause(ctx.State, unit);
-        var range = cause == AttackKind.Shooting && by is { } shooter ? Battlefield.UnitDistance(ctx.State, shooter, unit) : null;
-        return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), cause == AttackKind.Shooting ? Opponent(ctx.State, by) : null, cause, ctx.Frame.Context.Action, range, terrain);
+        var (cause, by, range) = ctx.Frame.Context.Action == "melee" ? (AttackKind.Melee, null, null) : Cause(ctx.State, unit);
+        return new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), cause == AttackKind.Shooting ? Opponent(ctx.State, by) : null, cause, ctx.Frame.Context.Action,
+            cause == AttackKind.Shooting ? range : null, terrain);
     }
 
     static FrameView? MeleeOf(FrameView frame)

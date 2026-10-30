@@ -37,7 +37,7 @@ interactions, and every predicate has to cope. Spell hits resolve with `AttackKi
 rules into the settled set. A morale test's interaction carries the attack kind that caused it:
 `melee` for p.10's melee test, the kind of the unit's last wound that activation for the general
 test, `spell` for a `take_test`. After a melee or a shooting it also carries the opposing unit as the defender and a range (`GfMorale.Ix`): the
-charge's recorded range and, for the unit charged, `ActionTaken` `Charge`; the shooter's distance to the unit as the test is taken. In a Charge's melee, `RangeInches` is the distance at the charge's
+charge's recorded range and, for the unit charged, `ActionTaken` `Charge`; the range the attack measured (3.6: `determine-attacks`' `range_hundredths`). In a Charge's melee, `RangeInches` is the distance at the charge's
 start, which the `charge-target` step records as `charge_range` in hundredths of an inch. `Party.Whole` uses `Lookup.AliveModels`, which is
 models still in play, container occupants included. An occupant unit's own properties are
 therefore still gathered when a wrecked transport wounds it.
