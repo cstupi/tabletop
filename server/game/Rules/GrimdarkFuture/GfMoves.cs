@@ -123,13 +123,17 @@ public static partial class GfMoves
     /// <summary>
     /// p.15: the containers a model of this unit could reach — a friendly container (IsFriendlyContainer) within the move's
     /// remaining allowance of one of the unit's models, by a path to base contact round every impassable volume (Movement.ContactDistance, the same
-    /// reading as charge-target's). Only one model has to reach it, so the answer is per container, not per model.
+    /// reading as charge-target's). Only one model has to reach it, so the answer is per container, not per model. Under 3.6.0 p.15
+    /// ("If the Transport is unreachable (for example because it’s flying), then units can’t embark in it", GfEdition.AircraftTransportUnreachable)
+    /// an Aircraft container is never in reach; deploying inside one (MayDeployInside) stays allowed.
     /// </summary>
     public static IReadOnlyList<Guid> ContainersInReach(StepContext ctx, Guid unit, double remaining, IReadOnlyList<WorldVolume> impassable)
     {
         var movers = Lookup.LivingModels(ctx.State, unit);
         if (movers.Count == 0) return [];
+        var unreachableAircraft = GfEdition.Of(ctx.State).AircraftTransportUnreachable;
         return ctx.Projection.Models.Values.Where(c => IsFriendlyContainer(ctx.State, unit, c.Id))
+            .Where(c => !(unreachableAircraft && IsAircraft(ctx, c.UnitId)))
             .Where(c => movers.Any(m => Battlefield.Distance(ctx.State, m, c.Id) <= remaining
                 && Movement.ContactDistance(Battlefield.Placed(ctx.State, m)!.Value, Battlefield.Placed(ctx.State, c.Id)!.Value, remaining, impassable, ctx.State.Board.Table.Size) is not null))
             .Select(c => c.Id).ToList();
