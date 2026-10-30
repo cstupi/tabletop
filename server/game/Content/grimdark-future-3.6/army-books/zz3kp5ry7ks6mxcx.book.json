@@ -68,8 +68,18 @@
         "count": 2,
         "range": 12
       },
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Grounded Defense",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Brain Burst",
