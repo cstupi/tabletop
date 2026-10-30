@@ -1,11 +1,10 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Properties;
-using Xunit.Abstractions;
 
 namespace Tabletop.ArmyBooks.Tests;
 
 /// <summary><c>generate --edition 3.5</c> over the 3.5 dump reproduces the committed 3.5.1 content byte for byte.</summary>
-public class GeneratedOutputTests(ITestOutputHelper output)
+public class GeneratedOutputTests
 {
     static string? Up(string relative)
     {
@@ -14,16 +13,11 @@ public class GeneratedOutputTests(ITestOutputHelper output)
         return null;
     }
 
-    [Fact]
+    [SkippableFact]
     public void The_3_5_pipeline_reproduces_the_committed_3_5_1_content()
     {
         var dump = Up(Path.Combine(".superpowers", "armyforge", "3.5", "index.json"));
-        if (dump is null)
-        {
-            // xunit 2.x has no runtime skip; the reason goes to the output.
-            output.WriteLine("SKIPPED: .superpowers/armyforge/3.5/index.json not found above the working directory (the dump is git-ignored).");
-            return;
-        }
+        Skip.If(dump is null, ".superpowers/armyforge/3.5/index.json not found above the working directory (the dump is git-ignored)");
         var sln = Up("Tabletop.sln");
         Assert.NotNull(sln);
         var repo = Path.GetDirectoryName(sln)!;
