@@ -104,6 +104,21 @@ public class ObjectivesTests
         Assert.Empty(Seize(s));                                          // round 3: Red counts again, both teams contest a marker nobody holds
     }
 
+    /// <summary>Spawn / Split 3.6: "Units placed via Spawn can’t seize or contest objectives on the round they are placed." 3.5.1's texts carry no such clause.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, true)]
+    [InlineData(RuleSets.Gf360, false)]
+    public void A_unit_placed_by_spawn_this_round_contests_only_under_3_5_1(string rules, bool contests)
+    {
+        var s = Game().Under(rules);
+        Apply(s, new RoundStarted(2, [Samples.Team1, Samples.Team2], []),
+            new SequenceStarted(Guid.CreateVersion7(), GfReserves.PlaceReserveSeq, new SequenceContext(null, [Red.Id], [], GfReserves.Spawn)));
+        Put(s, Red, 36, 27); Put(s, Blue, 36, 21);
+        Assert.Equal(contests ? [] : [new ObjectiveControlSet(Objective(s), Samples.Team2)], Seize(s));
+        Apply(s, new RoundStarted(3, [Samples.Team1, Samples.Team2], []));
+        Assert.Empty(Seize(s));                                          // the next round: Red contests in both editions
+    }
+
     [Fact]
     public void A_model_inside_a_transport_is_nowhere_near_a_marker()
     {

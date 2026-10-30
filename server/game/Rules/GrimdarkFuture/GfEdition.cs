@@ -27,6 +27,7 @@ public sealed record GfEdition(
     double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
     bool AircraftTransportUnreachable,                            // S15
     bool UnstoppableKeepsOwnPenalties,                            // S16
+    bool PlacedUnitsHoldNoObjectives,                             // F6a: Spawn / Split "can't seize or contest objectives on the round they are placed"
     double SideBattleLong, double SideBattleShort,                // M1
     string HybridSightPage,
     string? ArtilleryNote,
@@ -56,6 +57,7 @@ public sealed record GfEdition(
         ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
         AircraftTransportUnreachable: false,
         UnstoppableKeepsOwnPenalties: false,
+        PlacedUnitsHoldNoObjectives: false,
         SideBattleLong: 0.75, SideBattleShort: 0.625,
         HybridSightPage: "p.56",
         ArtilleryNote: "Artillery: may only use Hold actions (p.13)",
@@ -85,6 +87,7 @@ public sealed record GfEdition(
         ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",
         AircraftTransportUnreachable: true,
         UnstoppableKeepsOwnPenalties: true,
+        PlacedUnitsHoldNoObjectives: true,
         SideBattleLong: 2.0 / 3, SideBattleShort: 0.75,
         HybridSightPage: "3.6.0 p.58",
         ArtilleryNote: null,
