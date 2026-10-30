@@ -27,7 +27,6 @@ public sealed record GfEdition(
     double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
     double VanguardClearance,                                     // F6b: Fanatic, Vanguard "over 9" away from non-Vanguard enemy units"; 0 none
     bool AircraftTransportUnreachable,                            // S15
-    bool UnstoppableKeepsOwnPenalties,                            // S16
     bool PlacedUnitsHoldNoObjectives,                             // F6a: Spawn / Split "can't seize or contest objectives on the round they are placed"
     bool ReinforcementOnShaken, double ReinforcementEdgeReach, double ReinforcementClearance, // F6a: Reinforcement's removal when Shaken, edge strip, distance from enemies
     bool HazardousOnModel,                                        // F6a: Hazardous's 1 wounds the model that rolled it, X wounds with Blast(X)/Deadly(X)
@@ -62,7 +61,6 @@ public sealed record GfEdition(
         ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
         VanguardClearance: 0,
         AircraftTransportUnreachable: false,
-        UnstoppableKeepsOwnPenalties: false,
         PlacedUnitsHoldNoObjectives: false,
         ReinforcementOnShaken: false, ReinforcementEdgeReach: 12, ReinforcementClearance: 0,
         HazardousOnModel: false,
@@ -97,7 +95,6 @@ public sealed record GfEdition(
         ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",
         VanguardClearance: 9,
         AircraftTransportUnreachable: true,
-        UnstoppableKeepsOwnPenalties: true,
         PlacedUnitsHoldNoObjectives: true,
         ReinforcementOnShaken: true, ReinforcementEdgeReach: 9, ReinforcementClearance: 9,
         HazardousOnModel: true,

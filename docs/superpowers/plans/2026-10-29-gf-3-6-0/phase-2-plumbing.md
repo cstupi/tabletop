@@ -41,7 +41,6 @@ public sealed record GfEdition(
     bool IndirectNeedsHold,                                   // S12: false | true
     double ScoutReach, double ScoutClearance,                 // S13: 12, 0 | 9, 9
     bool AircraftTransportUnreachable,                        // S15: false | true
-    bool UnstoppableKeepsOwnPenalties,                        // S16: false | true
     double SideBattleLong, double SideBattleShort,            // M1: 0.75, 0.625 | 2.0/3, 0.75
     string HybridSightPage,                                   // "p.56" | "3.6.0 p.58"
     string? ArtilleryNote,                                    // "Artillery: may only use Hold actions (p.13)" | null
