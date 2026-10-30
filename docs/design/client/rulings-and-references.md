@@ -63,7 +63,10 @@ Specs:
 
 Also read: `docs/architecture.md`, `docs/schema.md`, `docs/data-model.md`.
 
-Rulebook: Grimdark Future v3.5.1. Page 7 (a move measures the base's displacement: *"no part of
+Rulebook: Grimdark Future v3.5.1, bare page numbers; a 3.6.0 page is cited `3.6.0 p.N`. The client holds no edition-specific
+rule and encodes no edition: zone legs, terrain words and option page strings arrive from the server (`Welcome`,
+`RulesOptionsMessage`) and the set's name is shown, never its id. The one 3.6.0 page read here is 3.6.0 p.29 (the same
+placement styles as p.17, which stay social). Page 7 (a move measures the base's displacement: *"no part of
 their bases move further than the total movement distance"*), page 15 (`Transport(X)`: *"only one
 model needs to reach the Transport for everyone to embark"*, *"must stay fully within 6" of it when
 exiting"*), page 17 (placement styles, social), page 18 (terrain size classes: scatter 1–3", large
