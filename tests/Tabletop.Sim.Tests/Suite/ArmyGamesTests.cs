@@ -54,13 +54,8 @@ public class ArmyGamesTests
     /// </summary>
     static readonly string[] Uncovered36 =
     [
-        "Defensive Frenzy", "Defensive Growth", "Devout", "Disintegrate", "Entrenched", "Evasive",
-        "Ferocious", "Fortified", "Fortified Growth", "Grounded Defense", "Guarded", "Guardian",
-        "Guerrilla", "Harassing", "Honor Code", "Infected", "Inquisitorial Agent", "Machine-Fog",
-        "Martial Prowess", "Melee Evasion", "Melee Shrouding", "Protected", "Protection Feat", "Ranged Shrouding",
-        "Screened", "Scurry", "Self-Repair", "Sergeant", "Shatter", "Shielded",
-        "Speed Debuff", "Speed Feat", "Split", "Steadfast", "Sturdy", "Targeting Visor",
-        "Unwieldy Debuff", "Vengeance", "Versatile Reach",
+        "Fortified Growth",   // engine gap: four tokens leave AP(1) hits at AP(-1), past "to a min. of AP(0)"
+        "Split",
     ];
 
     /// <summary>
