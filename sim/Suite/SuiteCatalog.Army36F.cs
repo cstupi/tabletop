@@ -7,7 +7,7 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// The engine's 3.6 readings of the reserve rules and Hazardous (task F6a), grouped army:3.6:&lt;book uid&gt;: Spawn's unit seizes and contests nothing on the
+/// The engine's 3.6 readings of the reserve rules and Hazardous, grouped army:3.6:&lt;book uid&gt;: Spawn's unit seizes and contests nothing on the
 /// round it is placed; Reinforcement's copy of a destroyed unit stands fully within 9" of a table edge and over 9" from enemy units; Hazardous's 1 to hit wounds
 /// the model that rolled it, X wounds with Blast(X).
 /// </summary>

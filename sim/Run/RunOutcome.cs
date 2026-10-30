@@ -17,7 +17,7 @@ public abstract record RunOutcome
     public sealed record RoundLimit(int Rounds) : RunOutcome;
     public sealed record Stuck(StuckReason Reason, string Detail) : RunOutcome;
     public sealed record Failed(string Detail) : RunOutcome;
-    /// <summary>StepAndWait: the loop stopped with this Ask open and answered nothing (Task 9).</summary>
+    /// <summary>StepAndWait: the loop stopped with this Ask open and answered nothing.</summary>
     public sealed record Paused(Guid AskId, string Question) : RunOutcome;
 
     public string Kind => this switch

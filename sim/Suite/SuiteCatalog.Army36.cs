@@ -9,7 +9,7 @@ public static partial class SuiteCatalog
     /// <summary>
     /// The army:3.6:&lt;uid&gt; games for the 3.6 hand part's entries whose text 3.6 keeps (7.4: unchanged, quote or case only) and for its renamed
     /// entries. A kept rule's 3.5.1 game plays again under 3.6 on the 3.6 book that prints it, with its exact checks as they are; a renamed rule
-    /// gets its game under its 3.6 name, quoting the 3.6 text. The rules 3.6 rewrites are Task 7.5's (SuiteCatalog.Army36&lt;batch&gt;.cs).
+    /// gets its game under its 3.6 name, quoting the 3.6 text. The rules 3.6 rewrites have their games in SuiteCatalog.Army36&lt;batch&gt;.cs.
     /// </summary>
     private static partial class ArmyGames
     {

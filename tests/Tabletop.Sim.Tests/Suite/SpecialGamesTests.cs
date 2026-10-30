@@ -11,7 +11,7 @@ using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
 
 namespace Tabletop.Sim.Tests.Suite;
 
-/// <summary>The special group (rules suite plan, Task 5): every core special rule, three to five a game, and the relic wargear (p.36), on both drivers.</summary>
+/// <summary>The special group: every core special rule, three to five a game, and the relic wargear (p.36), on both drivers.</summary>
 public class SpecialGamesTests
 {
     public static IReadOnlyList<TestGame> Games { get; } = SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.SpecialGroup).ToList();

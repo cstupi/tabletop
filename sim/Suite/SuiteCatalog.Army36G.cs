@@ -4,8 +4,8 @@ using Tabletop.Protocol;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// The 3.6 rules task F6b's engine work makes playable, one game per mechanism, grouped army:3.6:&lt;book uid&gt;: the morale test's range and
-/// opponent (Hive Bond, Hold the Line); the rolled moves (Bounding, Dash, Rapid Blink, Wolfborn); the strike-turn rolls (Ravage, Regenerative Strength); the placement's clearance (Fanatic, Vanguard).
+/// The 3.6 games of the morale test's range and opponent (Hive Bond, Hold the Line), the rolled moves (Bounding, Dash, Rapid Blink, Wolfborn),
+/// the strike-turn rolls (Ravage, Regenerative Strength) and the placement's clearance (Fanatic, Vanguard), one game per mechanism, grouped army:3.6:&lt;book uid&gt;.
 /// </summary>
 public static partial class SuiteCatalog
 {

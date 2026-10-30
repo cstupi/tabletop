@@ -136,7 +136,7 @@ public class InvariantTests
     /// <summary>
     /// Checks the effective-log prefix only: EffectiveLog after an Undone(N) is the prefix at or below N by
     /// construction, so no input makes this fail. The engine-level undo and redo check, which re-answers over the
-    /// socket after a real Undo, is Task 8's DriverAgreementTests. What this test pins is the one way the check
+    /// socket after a real Undo, is DriverAgreementTests'. What this test pins is the one way the check
     /// itself can go wrong: a log that already holds an undone range must be measured as its effective log.
     /// </summary>
     [Fact]
