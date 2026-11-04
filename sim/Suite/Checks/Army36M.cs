@@ -153,7 +153,7 @@ public static partial class SuiteCatalog
                 return reasons;
             }, [entry]);
 
-        /// <summary>The raw 1s, as the dice stand, on the defense rolls of attacks at the unit under the frame whose weapons carry the entry.</summary>
+        /// <summary>The raw 1s, as the dice stand, the unit rolled to block the attacks under the frame whose actor's weapons (those the attack fires) carry the entry.</summary>
         static int OnesUnderM(SuiteGameRun run, LogQueries q, LoggedFrame frame, Guid target, string entry) =>
             (from f in q.Descendants(frame).Prepend(frame)
              where f.Sequence == AttackSequence && f.Context.TargetUnitIds is [var t, ..] && t == target

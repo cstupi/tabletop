@@ -84,7 +84,7 @@ public static partial class SuiteCatalog
                 // Anchored so neither unit's models stand across another's line to the target: all forty dice of each volley are rolled whatever the seed.
                 anchors: new Dictionary<int, Point2> { [1] = new(4, 31), [2] = new(22, 26) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(10, 8) }).In36(),
 
-            // The charge: two hits of three dice, its defense dice a 1 and a 2 (2 wounds, only the 1 counts: 2 counted, not 4); the strike back: two hits,
+            // The charge: two hits of three dice; the defender's blocks of those Scourge hits are a 1 and a 2 (2 wounds, only the 1 counts: 2 counted, not 4); the strike back: two hits,
             // both defense dice 1s (2 wounds). The charger took 2, the defender 2 and 2 counted: the defender loses on the counted wounds alone.
             // Tough(3) on both, so nobody falls.
             Game(Books36.HavocBrothers, "havoc-brothers-scourge-melee", Play.Charges, ["Scourge"], [R(1, "Tough", 3)],
@@ -126,18 +126,18 @@ public static partial class SuiteCatalog
                 [Parried("Parry", ParryText + " (Parry(1))")],
                 weapon: [R(0, "Parry", 1)], units: 1, enemyUnits: 1, rounds: 1,
                 anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
-        
-            // Three Parry(3) models take two hits: the dice are the hits, not 9 (the cap). One hit ignored, one die to block.
+            // Five Parry(1) models (Change Warriors with Hand Weapons) take two hits: the dice are the hits, not 5 (the cap). One hit ignored, one die to block.
             Game(Books36.DaemonsOfChange, "daemons-of-change-parry-cap", Play.Charged, [], [R(1, "Tough", 12)],
                 [FixM("hit", "Opponents unit 1", 6, 6, 1), FixM("Parry", "Opponents unit 1", 6, 1)],
-                [Parried("Parry", ParryText + " (Parry(3), three models, two hits: 2 dice)")],
-                weapon: [R(0, "Parry", 3)], units: 1, enemyUnits: 1, rounds: 1,
+                [Parried("Parry", ParryText + " (Parry(1), five models, two hits: 2 dice)")],
+                weapon: [R(0, "Parry", 1)], units: 1, models: 5, enemyUnits: 1, rounds: 1,
                 anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
-            // One Parry(2) model takes three hits: X dice for its model, not one a hit (3) and not one a model (1). One hit ignored, two dice to block.
+            // One Parry(3) model (a Champion of Change with the Hand Weapon) takes four hits from three models with two attacks each: 3 dice, not one a hit (4)
+            // and not one a model (1). One hit ignored, three dice to block.
             Game(Books36.DaemonsOfChange, "daemons-of-change-parry-per-model", Play.Charged, [], [R(1, "Tough", 12)],
-                [FixM("hit", "Opponents unit 1", 6, 6, 6), FixM("Parry", "Opponents unit 1", 6, 1)],
-                [Parried("Parry", ParryText + " (Parry(2), one model, three hits: 2 dice)")],
-                weapon: [R(0, "Parry", 2)], units: 1, models: 1, enemyUnits: 1, rounds: 1,
+                [FixM("hit", "Opponents unit 1", 6, 6, 6, 6, 1, 1), FixM("Parry", "Opponents unit 1", 6, 1, 1)],
+                [Parried("Parry", ParryText + " (Parry(3), one model, four hits: 3 dice)")],
+                weapon: [R(0, "Parry", 3)], units: 1, models: 1, enemyUnits: 1, enemyBlade: 2, rounds: 1,
                 anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
         ];
     }
