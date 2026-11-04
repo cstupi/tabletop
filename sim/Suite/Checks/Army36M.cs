@@ -192,9 +192,10 @@ public static partial class SuiteCatalog
         /// <summary>
         /// "or if shooting wounds would trigger Morale Tests" (3.6.0 p.10: wounds that leave the unit with half or less of its starting size): on a target of
         /// one-wound models, a shooting attack with the entry is followed in its activation by the target's morale test exactly when its models left, less
-        /// N per raw 1 it rolled to block, are half its starting size or less; in one the models left alone are over half and it tests.
+        /// N per raw 1 it rolled to block, are half its starting size or less; with `tests`, in one the models left alone are over half and it tests; without, in one
+        /// the models left less N per raw 1 are over half and it does not (a failed block that is not a 1 counts nothing).
         /// </summary>
-        static GameCheck CountedMorale(string entry, int perOne, string quote) =>
+        static GameCheck CountedMorale(string entry, int perOne, string quote, bool tests = true) =>
             GameCheck.Each($"{entry}: {quote}", run =>
             {
                 var q = QueryM(run);
@@ -211,10 +212,10 @@ public static partial class SuiteCatalog
                     var left = q.Living(target, test?.Seq ?? next);
                     var expected = Math.Max(0, left - perOne * ones) * 2 <= starting;
                     verdicts.Add((test is not null) == expected ? null : $"{left} of {starting} left, {ones} ones: {(test is null ? "no test" : "a test")}");
-                    if (test is not null && left * 2 > starting) shown = true;
+                    if (tests ? test is not null && left * 2 > starting : test is null && expected == false) shown = true;
                 }
                 var reasons = Reasons(verdicts).ToList();
-                if (!shown) reasons.Add("no morale test taken on the counted wounds alone");
+                if (!shown) reasons.Add(tests ? "no morale test taken on the counted wounds alone" : "no attack judged without a test");
                 return reasons;
             }, [entry]);
     }

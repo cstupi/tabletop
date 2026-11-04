@@ -84,21 +84,30 @@ public static partial class SuiteCatalog
                 // Anchored so neither unit's models stand across another's line to the target: all forty dice of each volley are rolled whatever the seed.
                 anchors: new Dictionary<int, Point2> { [1] = new(4, 31), [2] = new(22, 26) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(10, 8) }).In36(),
 
-            // The charge: one hit of three dice, its defense die a 1 (1 wound, 2 counted); the strike back: two hits, both defense dice 1s (2 wounds). The
-            // charger took 2, the defender 1 and 2 counted: the defender loses on the counted wounds alone. Tough(3) on both, so nobody falls.
+            // The charge: two hits of three dice, its defense dice a 1 and a 2 (2 wounds, only the 1 counts: 2 counted, not 4); the strike back: two hits,
+            // both defense dice 1s (2 wounds). The charger took 2, the defender 2 and 2 counted: the defender loses on the counted wounds alone.
+            // Tough(3) on both, so nobody falls.
             Game(Books36.HavocBrothers, "havoc-brothers-scourge-melee", Play.Charges, ["Scourge"], [R(1, "Tough", 3)],
-                [FixM("hit", "Havoc Brothers unit 1", 6, 1, 1), FixM("defense", "Havoc Brothers unit 1", 1),
+                [FixM("hit", "Havoc Brothers unit 1", 6, 6, 1), FixM("defense", "Havoc Brothers unit 1", 1, 2),
                  FixM("hit", "Opponents unit 1", 6, 6, 1), FixM("defense", "Opponents unit 1", 1, 1)],
                 [CountedWounds("Scourge", 2, ScourgeText + " (melee)")],
                 weapon: [R(0, "Scourge")], units: 1, enemyUnits: 1, enemy: [R(1, "Tough", 3)], rounds: 1,
                 anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
 
-            // One model, four hit dice fixed to two hits, both defense dice 1s: two of five one-wound models fall (three left, over half) and 4 wounds count.
+            // One model, four hit dice fixed to one hit, its defense die a 1: one of five one-wound models falls (four left, over half) and 2 wounds count:
+            // 4 less 2 is 2, half or less of 5, so it tests; counting 1 per 1 would leave 3 and no test.
             Game(Books36.ChangeDisciples, "change-disciples-scourge-morale", Play.Shoots, ["Scourge"], [],
-                [FixM("hit", "Change Disciples unit 1", 6, 6, 1, 1), FixM("defense", "Change Disciples unit 1", 1, 1)],
+                [FixM("hit", "Change Disciples unit 1", 6, 1, 1, 1), FixM("defense", "Change Disciples unit 1", 1)],
                 [CountedMorale("Scourge", 2, ScourgeText + " (shooting; 3.6.0 p.10 \"half or less of its starting size\")")],
                 weapon: [R(0, "Scourge")], units: 1, models: 1, enemyUnits: 1, enemyModels: 5, enemy: [], rounds: 1)
                 .In36() with { Evidence = new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Scourge"] = CountedTestM } },
+
+            // Two hits, their defense dice a 1 and a 2, against nine one-wound models: two fall (seven left, over half) and only the 1 counts: 7 less 2 is 5,
+            // over half of 9, so no test; counting every failed block would leave 3 and a test. Covers nothing: the rule's game is the one above.
+            Game(Books36.ChangeDisciples, "change-disciples-scourge-failed-block", Play.Shoots, [], [],
+                [FixM("hit", "Change Disciples unit 1", 6, 6, 1, 1), FixM("defense", "Change Disciples unit 1", 1, 2)],
+                [CountedMorale("Scourge", 2, ScourgeText + " (shooting; a failed block that is not a 1 counts nothing)", tests: false)],
+                weapon: [R(0, "Scourge")], units: 1, models: 1, enemyUnits: 1, enemyModels: 9, enemy: [], rounds: 1).In36(),
 
             // Three Impact(2) models charge three Brace(1) Blades (one weapon type): 6 dice less 1.
             Game(Books36.DaemonsOfWar, "daemons-of-war-brace", Play.Charged, ["Brace"], [R(1, "Tough", 12)], [],
@@ -116,6 +125,19 @@ public static partial class SuiteCatalog
                 [FixM("hit", "Opponents unit 1", 6, 6, 6), FixM("Parry", "Opponents unit 1", 6, 6, 1)],
                 [Parried("Parry", ParryText + " (Parry(1))")],
                 weapon: [R(0, "Parry", 1)], units: 1, enemyUnits: 1, rounds: 1,
+                anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
+        
+            // Three Parry(3) models take two hits: the dice are the hits, not 9 (the cap). One hit ignored, one die to block.
+            Game(Books36.DaemonsOfChange, "daemons-of-change-parry-cap", Play.Charged, [], [R(1, "Tough", 12)],
+                [FixM("hit", "Opponents unit 1", 6, 6, 1), FixM("Parry", "Opponents unit 1", 6, 1)],
+                [Parried("Parry", ParryText + " (Parry(3), three models, two hits: 2 dice)")],
+                weapon: [R(0, "Parry", 3)], units: 1, enemyUnits: 1, rounds: 1,
+                anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
+            // One Parry(2) model takes three hits: X dice for its model, not one a hit (3) and not one a model (1). One hit ignored, two dice to block.
+            Game(Books36.DaemonsOfChange, "daemons-of-change-parry-per-model", Play.Charged, [], [R(1, "Tough", 12)],
+                [FixM("hit", "Opponents unit 1", 6, 6, 6), FixM("Parry", "Opponents unit 1", 6, 1)],
+                [Parried("Parry", ParryText + " (Parry(2), one model, three hits: 2 dice)")],
+                weapon: [R(0, "Parry", 2)], units: 1, models: 1, enemyUnits: 1, rounds: 1,
                 anchors: new Dictionary<int, Point2> { [1] = new(14, 15) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(14, 6) }).In36(),
         ];
     }
