@@ -60,10 +60,14 @@ internal static partial class CoreGames
     public static TestGame RoughGround()
     {
         const string name = "core-rough-ground";
+        // Red wins the roll-off (fixed) and its units 1 and 2 deploy 2" behind the minefield and Advance (the script) on their first activations: unit 1's
+        // test (its three dice, before any shot) is fixed to no 1, unit 2's first die to a 1, so the log holds both outcomes.
         var scenario = new ScenarioBuilder(name, seed: 1)
             .RoundCap(4).Table(48, 36)
-            .Army("Red", 3, 3, weapons: [Rifle(), HandWeapon()])
+            .Army("Red", 3, 3, weapons: [Rifle(), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(6, 25), [2] = new(22, 25), [3] = new(38, 25) })
             .Army("Blue", 3, 3, weapons: [Rifle(), HandWeapon()])
+            .Scripted(AnswerScript.Build().Match(AskQuestions.Activate, (ask, p) => p.Scheduler.Round == 1
+                ? AskPicks.Activate(ask, "Red unit 1", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Advance") : null).Build())
             .Terrain("bog", new Point3(24, (BogSouth + BogNorth) / 2, 0), volumes:
                 [new Volume(VolumeKind.Area, Footprint.Rect(48, BogNorth - BogSouth), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Difficult, null)])
             .Terrain("minefield", new Point3(24, (MinesSouth + MinesNorth) / 2, 0), volumes:
@@ -109,7 +113,8 @@ internal static partial class CoreGames
                 var rolledOne = tests.Select(t => t.Steps.SelectMany(s => s.Step.Rolls).Any(r => r.Roll == "dangerous-terrain" && log.Dice(r).Any(d => d.Raw == 1))).ToList();
                 return rolledOne.Contains(true) && rolledOne.Contains(false) ? null : "the logged dangerous terrain tests did not both roll a 1 and not";
             }),
-        ]);
+        ], dice: [new DiceFix("roll-off", 0, [6, 1]), new DiceFix("dangerous-terrain", 0, [6, 6, 6], new RollKey(Actor: "Red unit 1")),
+            new DiceFix("dangerous-terrain", 0, [1], new RollKey(Actor: "Red unit 2"))]);
     }
 
     // ---- core-transport-run ----------------------------------------------------------------------------------------------------------

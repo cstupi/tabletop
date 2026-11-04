@@ -17,6 +17,22 @@ internal static partial class CoreGames
     static AnswerScript EveryoneHolds() =>
         AnswerScript.Build().Match(AskQuestions.Activate, (ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold"))).Build();
 
+    /// <summary>
+    /// Every unit Holds and shoots (the server's fixed option id), and each shooter named in aims puts every weapon group at its target there (when every
+    /// group may take it).
+    /// </summary>
+    static AnswerScript EveryoneHoldsAiming(IReadOnlyDictionary<string, string> aims) =>
+        AnswerScript.Build().Match(AskQuestions.Activate, (ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold")))
+            .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
+            .Match("declare_targets", (ask, p) => p.Stack.LastOrDefault(f => f.Sequence == "shooting")?.Context.ActorUnitId is { } shooter
+                && AskPicks.UnitNameOf(p, shooter) is { } name && aims.TryGetValue(name, out var target) ? AllAt(ask, p, target) : null)
+            .Build();
+
+    /// <summary>A declare_targets answer with every weapon group at the named unit, when every group may take it; else null, for the policy.</summary>
+    static AskAnswer? AllAt(Ask ask, Projection p, string unit) =>
+        ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit) is var t && t != Guid.Empty
+            && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null;
+
     static Guid UnitNamed(CoreLog log, string name) => log.Run.Final.Units.Values.First(u => u.Definition.Name == name).Id;
 
     /// <summary>Each target set a unit's shooting was offered, with the seq of the step that offered it.</summary>

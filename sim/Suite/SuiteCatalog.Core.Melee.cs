@@ -100,15 +100,30 @@ internal static partial class CoreGames
 
     // ---- core-morale-break -----------------------------------------------------------------------------------------------------------
 
-    /// <summary>p.10 general morale, Shaken and idle activations: five-model squads shoot each other down. Round 4's end is under silent.</summary>
+    /// <summary>
+    /// p.10 general morale, Shaken and idle activations: five-model squads shoot each other down. Round 4's end is under silent. Every unit Holds and
+    /// Red k and Blue k shoot each other. Red wins the roll-off (fixed); Red 1's first volley is fixed to three hits and three failed blocks, so Blue 1 is
+    /// left at two of five and tests, fixed to fail; Blue 2's first volley misses with every die, so Red 2 shoots whole, and its fixed volley leaves Blue 2
+    /// at two of five, whose test is fixed to pass. Blue 1, Shaken, activates idle in round 2.
+    /// </summary>
     public static TestGame MoraleBreak()
     {
         const string name = "core-morale-break";
         var scenario = new ScenarioBuilder(name, seed: 3)
             .Enforcing(Enforcement.Silent).RoundCap(5).Table(48, 36)
-            .Army("Red", 3, 5, weapons: [Rifle(2)])
-            .Army("Blue", 3, 5, weapons: [Rifle(2)])
+            .Army("Red", 2, 5, weapons: [Rifle(2)], anchors: new Dictionary<int, Point2> { [1] = new(8, 25), [2] = new(30, 25) })
+            .Army("Blue", 2, 5, weapons: [Rifle(2)], anchors: new Dictionary<int, Point2> { [1] = new(8, 11), [2] = new(30, 11) })
+            .Scripted(EveryoneHoldsAiming(new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1", ["Red unit 2"] = "Blue unit 2", ["Blue unit 1"] = "Red unit 1", ["Blue unit 2"] = "Red unit 2" }))
             .Build();
+        int[] ThreeHits = [6, 6, 6, 1, 1, 1, 1, 1, 1, 1];
+        IReadOnlyList<DiceFix> dice =
+        [
+            new("roll-off", 0, [6, 1]),
+            new("hit", 0, ThreeHits, new RollKey(Actor: "Red unit 1")), new("defense", 0, [1, 1, 1], new RollKey(Actor: "Red unit 1")),
+            new("hit", 0, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], new RollKey(Actor: "Blue unit 2")),
+            new("hit", 0, ThreeHits, new RollKey(Actor: "Red unit 2")), new("defense", 0, [1, 1, 1], new RollKey(Actor: "Red unit 2")),
+            new("morale", 0, [1], new RollKey(Action: "wounds")), new("morale", 1, [6], new RollKey(Action: "wounds")),
+        ];
         return Game(name, scenario,
         [
             Check("p.10: \"At the end of an activation in which a unit takes wounds that leave it with half or less of its starting size ... it must take a morale test\"", log =>
@@ -141,7 +156,7 @@ internal static partial class CoreGames
             }),
             ShakenIdles(),
             FinalRound(Enforcement.Silent),
-        ]);
+        ], dice: dice);
     }
 
     /// <summary>p.10: "Shaken units must stay idle"; idling "stops them being Shaken at the end of the activation".</summary>

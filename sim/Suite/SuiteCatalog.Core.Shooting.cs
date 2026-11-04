@@ -84,10 +84,12 @@ internal static partial class CoreGames
     {
         const string name = "core-overkill";
         ScenarioWeapon Long(string weapon) => new(weapon, new Dictionary<string, string> { ["Range"] = "36\"", ["Attacks"] = "2" }, []);
+        // Red holds 32" from Blue (zones x 12-24 and 0-12 on this 24" by 48" table), inside its 36" rifles and beyond a 12" charge, so its first shooting is the game's first hit and defense rolls.
         var scenario = new ScenarioBuilder(name, seed: 7)
             .RoundCap(2).Table(24, 48)
-            .Army("Red", 1, 3, weapons: [Long("Rifle"), Long("Heavy Rifle")])
-            .Army("Blue", 1, 1, weapons: [HandWeapon()])
+            .Army("Red", 1, 3, weapons: [Long("Rifle"), Long("Heavy Rifle")], anchors: new Dictionary<int, Point2> { [1] = new(15, 10) })
+            .Army("Blue", 1, 1, weapons: [HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(4, 40) })
+            .Scripted(EveryoneHoldsAiming(new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1" }))
             .Build();
         return Game(name, scenario,
         [
@@ -188,7 +190,8 @@ internal static partial class CoreGames
                 anchors: new Dictionary<int, Point2> { [1] = new(16, below), [2] = new(20.5, below) })
             .Terrain("wall", new Point3(16, FenceY, 0), volumes:
                 [new Volume(VolumeKind.Solid, Footprint.Rect(6, 0.5), new Point2(0, 0), new Yaw(0), 0, 1.5, TerrainDeclarations.Cover | TerrainDeclarations.Difficult, null)])
-            .Scripted(EveryoneHolds())
+            // Red k shoots Blue k, so both Blue units are shot whatever the seed.
+            .Scripted(EveryoneHoldsAiming(new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1", ["Red unit 2"] = "Blue unit 2" }))
             .Build();
         string? Shots(CoreLog log, string unit, bool cover)
         {
