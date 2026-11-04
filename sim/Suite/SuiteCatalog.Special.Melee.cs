@@ -79,13 +79,18 @@ static partial class SpecialGames
     static DiceFix[] ChargeFixes => [new("roll-off", 0, [6, 1]), new("hit", 0, [3, 2], new RollKey(Actor: "Red unit 1", Weapon: "Lance", Action: "Charge")),
         new("hit", 0, [6], new RollKey(Actor: "Red unit 2", Weapon: "Lance", Action: "Charge"))];
 
-    /// <summary>Fast, Slow, Strider, Flying: four squads crossing a swamp that is difficult and dangerous.</summary>
+    /// <summary>
+    /// Fast, Slow, Strider, Flying: four squads crossing a swamp that is difficult and dangerous. Each squad deploys on its anchor across the swamp from an
+    /// enemy and Rushes at it in round 1 (the script), so all four move into the swamp before anyone shoots.
+    /// </summary>
     static TestGame Swift()
     {
         const string name = "special-swift-and-slow";
-        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(36, 30).Scripted(ShootAndStrike).Seeking(NearestEnemy)
-                .Army("Red", 2, 2, modelRules: [new(1, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4))
-                .Army("Blue", 2, 2, modelRules: [new(1, "Strider"), new(2, "Flying")], unitStats: Stats(4, 4))
+        var script = Plays((ask, p) => p.Scheduler.Round == 1
+            ? new[] { "Red unit 1", "Red unit 2", "Blue unit 1", "Blue unit 2" }.Select(u => AskPicks.Activate(ask, u, "Rush")).FirstOrDefault(a => a is not null) : null);
+        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(36, 30).Scripted(script).Seeking(NearestEnemy)
+                .Army("Red", 2, 2, modelRules: [new(1, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 25), [2] = new(26, 25) })
+                .Army("Blue", 2, 2, modelRules: [new(1, "Strider"), new(2, "Flying")], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 5), [2] = new(26, 5) })
                 .Terrain("swamp", new Point3(18, 15, 0), volumes:
                     [new Volume(VolumeKind.Area, Footprint.Rect(36, 14), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Difficult | TerrainDeclarations.Dangerous, null)])
                 .Build(),
