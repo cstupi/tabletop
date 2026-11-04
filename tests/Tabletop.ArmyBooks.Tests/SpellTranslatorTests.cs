@@ -162,17 +162,45 @@ public class SpellTranslatorTests
     }
 
     [Fact]
-    public void A_token_loss_effect_or_an_empty_attack_type_falls_back_to_a_text_only_spell()
+    public void Loses_spell_tokens_is_a_remove_spell_tokens_row_of_the_printed_number()
     {
         var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
-        var loss = With(terror, terror.Effect, "Urj6dU6Tua8B");
-        var empty = With(terror, terror.Effect, "i1BVqztsr1V6", new AfParam("attackType", JsonDocument.Parse("\"\"").RootElement.Clone()));
-        foreach (var s in new[] { loss, empty })
-        {
-            var entry = SpellTranslator.Translate(b, s);
-            Assert.True(SpellTranslator.IsTextOnly(s));
-            Assert.Equal((false, 0), (entry.Played, entry.Effects.Count));
-        }
+        const string text = "Pick one enemy unit within 6\" in line of sight, which loses 2 spell tokens. Note that the target may not spend those spell tokens to prevent this effect.";
+        var shifting = terror with { Effect = text, Generation = terror.Generation with { Effect = new AfGenPart("Urj6dU6Tua8B", [
+            new AfParam("gets/loses", JsonDocument.Parse("\"loses\"").RootElement.Clone()), new AfParam("numberDigit", JsonDocument.Parse("\"2\"").RootElement.Clone())]) } };
+        var entry = SpellTranslator.Translate(b, shifting);
+        Assert.False(SpellTranslator.IsTextOnly(shifting));
+        var row = entry.Effects.Single();
+        Assert.Equal((true, EffectKind.RemoveSpellTokens, 2, EffectDuration.Interaction, EffectSubject.Self), (entry.Played != false, row.Kind, row.Amount, row.Duration, row.Subject));
+        Assert.Null(row.TargetRoll ?? row.TargetEntry ?? row.TargetAction ?? row.TargetCondition);
+        Assert.Empty(row.Children);
+        Assert.Empty(TextCheck.Problems(shifting, entry));
+        var wrong = shifting with { Effect = text.Replace("loses 2", "loses 3") };
+        Assert.Contains(TextCheck.Problems(wrong, SpellTranslator.Translate(b, wrong)), p => p.Contains("2 spell tokens"));
+    }
+
+    [Fact]
+    public void An_empty_attack_type_on_a_weapon_rule_grant_writes_the_grant_with_no_attack_condition()
+    {
+        var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
+        var indirect = With(terror, "Pick one enemy unit within 6\" in line of sight, which friendly units gets Indirect on their weapons against once (next time the effect would apply).", "54xO9EKTj-ix",
+            new AfParam("weaponRule", JsonDocument.Parse("{\"id\":\"8Ck9GAwUK824\",\"name\":\"Indirect\"}").RootElement.Clone()),
+            new AfParam("attackType", JsonDocument.Parse("\"\"").RootElement.Clone()));
+        var entry = SpellTranslator.Translate(b, indirect);
+        Assert.False(SpellTranslator.IsTextOnly(indirect));
+        var row = entry.Effects.Single();
+        Assert.Equal((true, EffectKind.GrantProperty, "Indirect", EffectDuration.Once), (entry.Played != false, row.Kind, row.TargetEntry, row.Duration));
+        Assert.Empty(row.Conditions);
+    }
+
+    [Fact]
+    public void An_unknown_attack_type_is_still_refused_and_an_empty_one_on_a_roll_or_loses_stays_text_only()
+    {
+        var b = Book("78qp9l5alslt6yj8"); var terror = b.Spells.Single(s => s.Name.Trim() == "Psychic Terror");
+        var odd = With(terror, terror.Effect, "i1BVqztsr1V6", new AfParam("attackType", JsonDocument.Parse("\"\"").RootElement.Clone()));
+        Assert.True(SpellTranslator.IsTextOnly(odd));
+        var entry = SpellTranslator.Translate(b, odd);
+        Assert.Equal((false, 0), (entry.Played, entry.Effects.Count));
         Assert.False(SpellTranslator.IsTextOnly(terror));
     }
 
