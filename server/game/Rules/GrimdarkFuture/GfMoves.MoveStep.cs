@@ -31,8 +31,8 @@ public static partial class GfMoves
             var allowance = (target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
                 ? StatReader.ActionDistance(ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Party.Whole(ctx.State, target), AttackKind.Melee, GfNames.Charge, null, [])), Side.Attacker, action)
                 : own) + (aircraft ? GfNames.AircraftMove : 0);
-            // A once grant read here acts when the unit moves, where the segment spends it: listed as applied there, not on every run of the step
-            // (a window, a dangerous test, a segment that went nowhere and keeps it).
+            // A once grant read here acts when the unit moves: listed as applied on each segment that moved, not on every run of the step
+            // (a window, a dangerous test, a segment that went nowhere). The segment holds it and the move's end spends it.
             var granted = live.GrantsRead.Select(r => ctx.Projection.Units.GetValueOrDefault(r.UnitId)?.Grants.FirstOrDefault(g => g.Id == r.GrantId)?.EntryName)
                 .OfType<string>().Distinct().ToList();
             foreach (var name in granted) ctx.Applied.Remove(name);
@@ -85,8 +85,10 @@ public static partial class GfMoves
                     if (segment > 0)
                     {
                         GfCasting.MarkMovedOn(ctx, values);
+                        // p.7 / 3.6.0 p.7: one Advance, Rush or Charge, which a stop does not end. A once grant a segment used is held for the rest of
+                        // the action's move and spent once, when the move step ends (ReleaseHeld); a Flying a spell granted is kept to the activation's end.
                         var (spent, held) = ConsumeKeepingFlying(live);
-                        changes.AddRange(spent);
+                        foreach (var r in spent.OfType<GrantRemoved>()) values[$"{GfNames.MoveHeldPrefix}{r.UnitId:N}_{r.GrantId:N}"] = 1;
                         foreach (var name in granted) ctx.Applied.Add(name);
                         foreach (var (key, value) in held) values[key] = value;
                     }
@@ -102,8 +104,22 @@ public static partial class GfMoves
                     var reacted = ctx.History.Children.Count > 0;
                     var resumes = remaining > 0 && !aircraft;
                     var stopped = resumes && ctx.Frame.Value("continues") > 0;
-                    return new Complete([], GfCasting.MarkWindow(ctx, new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }), Repeat: reacted || stopped);
+                    var goesOn = reacted || stopped;
+                    return new Complete(goesOn ? [] : ReleaseHeld(ctx), GfCasting.MarkWindow(ctx, new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }), Repeat: goesOn);
             }
+        }
+
+        /// <summary>The once grants the action's segments used (GfNames.MoveHeldPrefix keys on this frame), released by Consume's rule as the move ends: a grant
+        /// already gone, or on a unit no longer in play, removes nothing.</summary>
+        static IReadOnlyList<StateChange> ReleaseHeld(StepContext ctx)
+        {
+            var held = new List<(Guid, Guid)>();
+            foreach (var key in ctx.Frame.Values.Keys.Where(k => k.StartsWith(GfNames.MoveHeldPrefix, StringComparison.Ordinal)))
+            {
+                var ids = key[GfNames.MoveHeldPrefix.Length..].Split('_');
+                if (ids.Length == 2 && Guid.TryParseExact(ids[0], "N", out var unit) && Guid.TryParseExact(ids[1], "N", out var grant)) held.Add((unit, grant));
+            }
+            return RollEffects.Release(ctx.State, ctx.Properties, held);
         }
 
         /// <summary>p.9 Charge moves: the charge target's models on the table, which the charge reaches (GfMoves.ChargeLanding, ChargeContactBreach); null for every other move.</summary>

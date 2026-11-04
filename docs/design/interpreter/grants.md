@@ -44,8 +44,16 @@ too, or a granted hook-name rule would never fire.
   `GrantRemoved` for every grant held by a step of the frame or its descendants that is still on its unit, with the other
   grants of the same entry on that unit. So Thrust in Melee Buff's grant gives its +1 to hit at `roll-to-hit` and its
   AP(+1) at `roll-to-block`, and Bane Mark's re-roll and its Regeneration suppression both act. Outside an attack root
-  (a morale test, a reposition, a casting roll, a move) a step consumes at once. A grant held by an attack that is
+  (a morale test, a reposition, a casting roll) a step consumes at once. A grant held by an attack that is
   abandoned stays on the unit, as a grant that never applied does.
+- **A once grant read by an Advance, Rush or Charge move is released when the move ends.** p.7 (3.6.0 p.7: *"When
+  using an Advance action, all models in the unit may move by up to 6”"*) makes the move one action, which a stop does
+  not end, so *"next time the effect would apply"* is the action's whole move. Each segment of `GfMoves.MoveStep` that
+  moves writes `move_held_<unit>_<grant>` (`GfNames.MoveHeldPrefix`) for the grants it read and removes nothing; the
+  run that ends the step releases them by Consume's rule. Shock Speed cast at a stop of a Slow unit's Advance makes the
+  allowance 6", and after a 1" stop 5" remain; the next move action reads no grant. A segment that moved nothing holds
+  nothing, so a move that stands still keeps the grant. A move abandoned mid-move (`SequenceAbandoned`) leaves the
+  grant on the unit, as an abandoned attack does.
 - **A granted `Flying` lasts the activation** in which it first applied; the turn-end hook removes it
   (`GfMoves.ConsumeKeepingFlying`). A spell's forced move flies with it but neither spends nor holds it.
 - **A model-grain target's grant lands on the model's unit**, because the store is the unit's.

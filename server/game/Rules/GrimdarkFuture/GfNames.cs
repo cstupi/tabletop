@@ -111,6 +111,8 @@ public static class GfNames
     public const string EternalFlame = "Banner of Eternal Flame";
     /// <summary>The Values key prefix a step writes for a granted Flying it used and kept (GfMoves.ConsumeKeepingFlying): "flying_held_{unit:N}_{grant:N}".</summary>
     public const string FlyingHeldPrefix = "flying_held_";
+    /// <summary>The Values key prefix the move step writes for a once grant a segment used, held to the end of the action's move (GfMoves.MoveStep): "move_held_{unit:N}_{grant:N}".</summary>
+    public const string MoveHeldPrefix = "move_held_";
     public const string Artillery = "Artillery";                                                                        // 3.5.1 p.13: "May only use Hold actions" (GfEdition.ArtilleryHoldOnly); not in the core catalog, so read off a unit's own properties
     public const string Cumbersome = "Cumbersome";                                                                      // 3.6.0 p.14: "May only use Hold or Advance actions, but can’t shoot when moving." (GfEdition.HasCumbersome)
     public const string Assault = "Assault";                                                                            // 3.6.0 p.13: "Counts as both a ranged weapon and a melee weapon." (GfEdition.HasAssault; GfMelee.IsMelee)
