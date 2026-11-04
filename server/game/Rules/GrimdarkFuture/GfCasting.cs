@@ -6,7 +6,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
-public static class GfCasting
+public static partial class GfCasting
 {
     public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new OriginStep(), new TokenSpendStep(), new RollStep(), new ResultStep(), new TargetsStep(), new EffectsStep()]);
     /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
@@ -97,118 +97,6 @@ public static class GfCasting
         var unit = ctx.Frame.Context.ActorUnitId!.Value;
         if (GfEdition.Of(ctx.State).OneCastWindow && ctx.Frame.Value(UsedKey(unit)) > 0) values[ClosedKey(unit)] = 1;
     }
-
-    /// <summary>
-    /// p.13's caps, grouped by the team that owns them: every eligible model keyed to the tokens it holds, which is one team's slice of
-    /// TokenSpend.MaxByModel, and whose keys are that team's own models for the spend step's ownership check. Called from spend-tokens,
-    /// so the caster's entry is already net of the spell's cost.
-    /// </summary>
-    public static IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, int>> SpendCapacity(GameState state, Guid casterModel) =>
-        EligibleSpenders(state, casterModel).GroupBy(m => Teams.Of(state, m.UnitId)).Where(g => g.Key is not null)
-            .ToDictionary(g => g.Key!.Value, g => (IReadOnlyDictionary<Guid, int>)g.ToDictionary(m => m.Id, m => m.SpellTokens));
-
-    /// <summary>
-    /// The per-model eligibility test itself, the caster first and the rest nearest the caster's unit next — an order the log and the Ask
-    /// list their models in, and nothing more, since the player names its own payers. The caster's own model is an entry whenever it
-    /// still holds a token: p.13 does not exclude it, and it is admitted without measurement, being a model of the caster's own unit.
-    /// That is the one exception to a test positional on both ends, and it is deliberate: an occupant has no line of sight out (p.15),
-    /// so for a caster inside a container `mine` is empty and no other model's tokens reach the roll, while its own still do. A model
-    /// inside a container never spends on a cast outside.
-    /// 3.5.1 p.13 measures to any model of the caster's unit with the spender in line of sight of it ("within 18” in line of sight of the
-    /// caster’s unit"); 3.6.0 p.13 to the caster model alone, with no sight ("Models within 18” of the Caster"): GfEdition.SpendersNeedSight,
-    /// SpendersMeasuredToCasterModel. The anchor is still a living model on the table, so a caster inside a container is reached by nobody.
-    /// </summary>
-    public static IReadOnlyList<ModelInPlay> EligibleSpenders(GameState state, Guid casterModel)
-    {
-        var self = state.Projection.Models[casterModel];
-        var edition = GfEdition.Of(state);
-        var mine = Lookup.LivingModels(state, self.UnitId).Where(c => !edition.SpendersMeasuredToCasterModel || c == casterModel).ToList();
-        var spenders = new List<ModelInPlay>();
-        if (self.SpellTokens > 0) spenders.Add(self);
-        var sights = new Dictionary<Guid, Sight>();                                                                // one per spending unit, not per pair
-        Sight From(Guid unit) => sights.TryGetValue(unit, out var s) ? s : sights[unit] = Sight.From(state, unit);
-        // A model holding tokens that is no caster is a Spell Accumulator: it spends only for a friendly caster of another unit in its reach (GfSpellSupport).
-        var accumulators = GfSpellSupport.Accumulators(state, casterModel).Select(m => m.Id).ToHashSet();
-        spenders.AddRange(state.Projection.Models.Values.Where(m => m.Id != casterModel && m.Location is OnTable && m.SpellTokens > 0
-                && (GfSpellSupport.CasterValue(state, m.Id) is not null ? mine.Any(c => Battlefield.Distance(state, c, m.Id) <= GfNames.CastRange && (!edition.SpendersNeedSight || From(m.UnitId).CanSee(m.Id, c))) : accumulators.Contains(m.Id)))
-            .OrderBy(m => mine.Min(c => Battlefield.Distance(state, c, m.Id))));
-        return spenders;
-    }
-
-    /// <summary>A spell's targets from its caster model (Targets).</summary>
-    public static IReadOnlyList<Guid> SpellTargets(StepContext ctx, Guid casterModel, CatalogEntry spell) => Targets(ctx.State, casterModel, spell.Targeting!, spell: true);
-
-    /// <summary>
-    /// p.15 first: containment answers before range and sight, so no spell crosses a container's wall either way, and a caster inside
-    /// one reaches the units in there with it and the container itself with nothing to measure. Otherwise a unit is a target when one
-    /// of its models is within range of the caster model and in its line of sight (p.13), or within range alone when the targeting
-    /// says so (a Buff: "pick one friendly unit within 12""). A model-grain targeting offers those models. Spells and pick entries share it.
-    /// A spell's target under 3.6.0 p.13 ("Pick a target and roll one die", GfEdition.CasterTargetNeedsSight false) needs sight only when the
-    /// spell's own targeting says LineOfSight true; a pick entry's null is its "in line of sight" in both editions.
-    /// OncePerRound (Mind Control: "Units may only be moved once per round in this way"): a unit a use of the entry moved this round is none (MovedByThisRound).
-    /// </summary>
-    public static IReadOnlyList<Guid> Targets(GameState state, Guid casterModel, SpellTargeting t, bool spell = false, string? entry = null)
-    {
-        var needsSight = t.LineOfSight ?? (!spell || GfEdition.Of(state).CasterTargetNeedsSight);
-        var casterUnit = state.Projection.Models[casterModel].UnitId; var team = Teams.Of(state, casterUnit);
-        var moved = t.OncePerRound && entry is not null ? MovedByThisRound(state, entry) : [];
-        var candidates = state.Projection.Units.Values.Where(u => (Teams.Of(state, u.Id) == team) == (t.Side == TargetSide.Friendly) && !moved.Contains(u.Id)).Select(u => u.Id).ToList();
-        var result = new List<Guid>();
-        var sight = new Lazy<Sight>(() => Sight.From(state, casterUnit));                                            // built once for every candidate model
-        foreach (var unit in candidates)
-        {
-            var reaches = Battlefield.InsideReach(state, casterUnit, unit);
-            var models = reaches switch
-            {
-                true => Lookup.AliveModels(state, unit),
-                false => [],
-                null => Lookup.LivingModels(state, unit).Where(m => Battlefield.Distance(state, casterModel, m) <= t.Range
-                    && (m == casterModel || !needsSight || sight.Value.CanSee(casterModel, m))).ToList(),
-            };
-            // "with Caster", "with Tough": the unit holds the rule (one of its models or the unit itself), or the model does.
-            if (t.Requires is { } rule)
-                models = t.Grain == TargetGrain.Model ? models.Where(m => Holds(state, m, rule)).ToList()
-                    : state.Projection.Units[unit].Definition.Properties.Any(p => p.Name == rule) || Lookup.AliveModels(state, unit).Any(m => Holds(state, m, rule)) ? models : [];
-            if (models.Count == 0) continue;
-            if (t.Grain == TargetGrain.Unit) result.Add(unit); else result.AddRange(models);
-        }
-        // Extended Buff Range: "If this unit is within 24" of another friendly unit with this rule that has a Hero in it, then that Hero may use special rules
-        // that allow it to pick friendly units within 12" (except for spells) on this unit as if it was in range." A Buff's pick (range alone) only.
-        if (t is { Side: TargetSide.Friendly, Grain: TargetGrain.Unit, LineOfSight: false, Requires: null } && Holds(state, casterModel, GfNames.Hero) && Extends(state, casterUnit))
-            result.AddRange(candidates.Where(u => u != casterUnit && !result.Contains(u) && Extends(state, u) && Battlefield.UnitDistance(state, casterUnit, u) is { } d && d <= ExtendedReach));
-        return result;
-    }
-
-    /// <summary>
-    /// The units a use of the entry moved since the round began, by any carrying model of any unit: a ModelsMoved in a step completed while a pick-rule
-    /// frame of the entry was open (its own steps and its spell-test's forced move). A unit picked whose test passed was not moved.
-    /// </summary>
-    static HashSet<Guid> MovedByThisRound(GameState state, string entry)
-    {
-        var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
-        var from = log.FindLastIndex(p => p is RoundStarted) + 1;
-        var open = new List<(Guid Frame, bool Use)>();
-        var moved = new HashSet<Guid>();
-        foreach (var p in log.Skip(from))
-            switch (p)
-            {
-                case SequenceStarted s: open.Add((s.FrameId, s.Sequence == GfNames.PickRuleSeq && GfPick.Parse(s.Context.Action) is var (name, _) && name == entry)); break;
-                case SequenceFinished f: open.RemoveAll(x => x.Frame == f.FrameId); break;
-                case SequenceAbandoned a: open.RemoveAll(x => x.Frame == a.FrameId); break;
-                case StepCompleted c when open.Any(x => x.Use):
-                    foreach (var m in c.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves))
-                        if (state.Projection.Models.TryGetValue(m.ModelId, out var model)) moved.Add(model.UnitId);
-                    break;
-            }
-        return moved;
-    }
-
-    static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule || rule == GfNames.Hero && GfNames.IsHero(p.Name));
-
-    public const string ExtendedBuffRange = "Extended Buff Range";
-    const double ExtendedReach = 24;
-    static bool Extends(GameState state, Guid unit) =>
-        state.Projection.Units[unit].Definition.Properties.Any(p => p.Name == ExtendedBuffRange) || Lookup.AliveModels(state, unit).Any(m => Holds(state, m, ExtendedBuffRange));
 
     /// <summary>
     /// The entry a spell-hits or spell-test frame resolves, read off its parent: a casting frame's picked spell, or a pick-rule frame's entry
@@ -399,28 +287,6 @@ public static class GfCasting
             var ix = GfAttack.AttackInteraction(ctx, casterUnit, targetUnit, [], null, null);
             return effect.Conditions.All(c => c.Kind is ConditionKind.RollResult or ConditionKind.AtPoint or ConditionKind.UsageCount || Conditions.Holds(ix, Side.Attacker, c, new LiveProperty(Side.Attacker, spell, null, null, null, null), null));
         }
-    }
-
-    /// <summary>remove_spell_tokens: n tokens off these models, each emptied in turn from the one holding the most (a tie in the order given), to zero.</summary>
-    internal static IReadOnlyList<StateChange> TakeTokens(GameState state, IEnumerable<Guid> models, int n)
-    {
-        var changes = new List<StateChange>();
-        foreach (var m in models.Select(id => state.Projection.Models[id]).Where(m => m.SpellTokens > 0).OrderByDescending(m => m.SpellTokens))
-        {
-            if (n <= 0) break;
-            var take = Math.Min(n, m.SpellTokens);
-            changes.Add(new SpellTokensSet(m.Id, m.SpellTokens - take));
-            n -= take;
-        }
-        return changes;
-    }
-
-    /// <summary>The piece a spell-test frame's parent picked for it: the casting's target at its `target_index`, or the pick-rule's at its `effect_index`.</summary>
-    static Guid? PickedPiece(StepContext ctx, FrameView parent)
-    {
-        var picked = parent.Frame.Sequence == GfNames.PickRuleSeq ? GfPick.PickedTargets(ctx.State, parent) : GfAnswers.Pieces(ctx.State, parent, "targets", "spell_targets");
-        var index = parent.Value(parent.Frame.Sequence == GfNames.PickRuleSeq ? "effect_index" : "target_index");
-        return index < picked.Count ? picked[index] : null;
     }
 
     /// <summary>A spell's weapon rules for the hit interaction: the child rules of its add_hit rows that hold for this target, settled into the attacker's
