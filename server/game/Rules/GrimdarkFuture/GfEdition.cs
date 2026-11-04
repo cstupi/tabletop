@@ -32,6 +32,7 @@ public sealed record GfEdition(
     bool HazardousOnModel,                                        // Hazardous's 1 wounds the model that rolled it, X wounds with Blast(X)/Deadly(X)
     bool StrikeTurnRolls,                                         // Ravage and Regenerative Strength roll at the model's turn to strike, once per round, not Fatigued
     bool AttackRangeRecorded,                                     // determine-attacks records `range_hundredths`, which a morale test after shooting reads ("when shot from over 9\" away")
+    bool HasParry,                                                // Parry's roll opens resolve-hits under a melee (GfParry); 3.6 books carry the rule
     double SideBattleLong, double SideBattleShort,                // M1
     string HybridSightPage,
     string? ArtilleryNote,
@@ -66,6 +67,7 @@ public sealed record GfEdition(
         HazardousOnModel: false,
         StrikeTurnRolls: false,
         AttackRangeRecorded: false,
+        HasParry: false,
         SideBattleLong: 0.75, SideBattleShort: 0.625,
         HybridSightPage: "p.56",
         ArtilleryNote: "Artillery: may only use Hold actions (p.13)",
@@ -100,6 +102,7 @@ public sealed record GfEdition(
         HazardousOnModel: true,
         StrikeTurnRolls: true,
         AttackRangeRecorded: true,
+        HasParry: true,
         SideBattleLong: 2.0 / 3, SideBattleShort: 0.75,
         HybridSightPage: "3.6.0 p.58",
         ArtilleryNote: null,
