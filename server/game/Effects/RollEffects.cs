@@ -5,7 +5,8 @@ using Tabletop.Protocol;
 namespace Tabletop.GameServer.Effects;
 
 /// <summary>What one die does beyond its success, for the side that rolled it: extra hits it scores, extra wounds that side's unit takes, per-hit grants.</summary>
-public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants, int ExtraAttacks = 0);
+/// <summary>ExtraAttacks are the rows that add attacks as they fire; OptionalAttacks the rows the roller's team may decline (`optional`).</summary>
+public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants, int ExtraAttacks = 0, int OptionalAttacks = 0);
 
 public static class RollEffects
 {
@@ -76,7 +77,8 @@ public static class RollEffects
     }
 
     /// <summary>What one die does beyond its success: extra hits and per-hit grants of a rule. A row that adds wounds acts on the die whatever it scored and is
-    /// read; one that adds hits, attacks or a grant acts only on a success, so its source is recorded only then (ReadPerDie spends a granted one).</summary>
+    /// read; one that adds hits, attacks or a grant acts only on a success, so its source is recorded only then (ReadPerDie spends a granted one). An optional
+    /// attacks row is returned apart and not recorded: it acts only when the roller's team takes the dice, which the step that asks records.</summary>
     public static DieEffects PerDie(LiveSet live, Side roller, Die die, string roll)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified, die.Success);
@@ -87,9 +89,9 @@ public static class RollEffects
         var grants = live.Effects(roller, EffectKind.GrantProperty, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .ToList();
         if (die.Success)
-            foreach (var x in adds.Where(x => x.Effect.TargetQuantity != TargetQuantity.Wounds).Concat(grants)) live.Record(x.Source);
-        var attacks = adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
-        return new DieEffects(extra, wounds, grants.Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList(), attacks);
+            foreach (var x in adds.Where(x => x.Effect.TargetQuantity != TargetQuantity.Wounds && !x.Effect.Optional).Concat(grants)) live.Record(x.Source);
+        int Attacks(bool optional) => adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks && x.Effect.Optional == optional).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        return new DieEffects(extra, wounds, grants.Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList(), Attacks(false), Attacks(true));
     }
 
     /// <summary>The wounds a die showing this face adds (a roll-result add_hit row on wounds, which acts whatever the die scored). Pure: PerDie reads

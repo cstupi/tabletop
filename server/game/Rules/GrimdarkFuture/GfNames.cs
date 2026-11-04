@@ -35,6 +35,8 @@ public static class GfNames
     /// <summary>Parry (Army Forge's common rules): "When this unit takes hits in melee, roll X dice per model with this rule in it, up to as many dice as hits
     /// taken. For each 6+ one hit is ignored (defender picks which)." (GfParry.ParryStep).</summary>
     public const string Parry = "Parry";
+    /// <summary>The Ask an optional add_hit attacks row opens at `roll-to-hit` (Predator: "this model may roll +1 attack"): Yes rolls the added dice, No or a pass rolls none.</summary>
+    public const string ExtraAttacks = "extra_attacks";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
     /// <summary>3.6.0 p.12: the unit's Dangerous Terrain Test (GfMoves.DangerousTerrain36), beside 3.5.1 p.11's per-model one.</summary>
@@ -111,6 +113,8 @@ public static class GfNames
     public const string Cumbersome = "Cumbersome";                                                                      // 3.6.0 p.14: "May only use Hold or Advance actions, but can’t shoot when moving." (GfEdition.HasCumbersome)
     public const string Assault = "Assault";                                                                            // 3.6.0 p.13: "Counts as both a ranged weapon and a melee weapon." (GfEdition.HasAssault; GfMelee.IsMelee)
     public const string Transport = "Transport";                                                                        // p.15; its (X) is read for a passenger put in before deployment (GfRules.Facts Fits); embarking in play does not check it
+    /// <summary>Quick Throw (3.6.0): "This model may always target enemies that are not in line of sight when shooting with Indirect weapons (instead of only when using Hold actions)." (GfAttack.IndirectApplies)</summary>
+    public const string QuickThrow = "Quick Throw";
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover
     public const string Hazardous = "Hazardous";                                                                        // a weapon property; 3.6 GfAttack.HazardRollers
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup

@@ -154,6 +154,7 @@ public static class PropertiesJson
         foreach (var c in f.Conditions)
             if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount or ConditionKind.AtPoint or ConditionKind.WeaponRange && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
         if (f.Optional && f.Kind != EffectKind.AddHit) problems.Add(At("optional is add_hit only"));
+        else if (f.Optional && f.TargetQuantity != TargetQuantity.Attacks) problems.Add(At("optional is add_hit attacks only"));
         if (f.Kind == EffectKind.RemoveSpellTokens && f.Amount is not >= 1) problems.Add(At("remove_spell_tokens needs an amount of 1 or more"));
         if (f.Kind == EffectKind.RemoveSpellTokens && (f.TargetRoll ?? f.TargetEntry ?? f.TargetAction ?? f.TargetCondition) is not null
             || f.Kind == EffectKind.RemoveSpellTokens && (f.TargetStat, f.TargetQuantity, f.TargetResult, f.TargetModifier, f.TargetTerrain) != default)
