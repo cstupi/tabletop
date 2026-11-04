@@ -16,34 +16,69 @@ public static partial class SuiteCatalog
         var set = ScenarioCompiler.CorePropertiesOf(RuleSets.Gf360);
         return SpellGames.Books(set).Select(book => SpellGames.Game(book, seed: 1, set, SpellTables36.Setups.GetValueOrDefault(book.Uid),
             SpellTables36.Dice.GetValueOrDefault(book.Uid), SpellTables36.Checks.GetValueOrDefault(book.Uid)))
-            // Defense 2+ keeps the targets standing, and each target its casters (1-3 at target unit 1, 4-5 at 2, 6 at 3), so many blocks are rolled both over
-            // half (units 2 and 3, and unit 1 before its fourth wound) and at or under it (unit 1 after).
-            .Append(Repeated36(set, "jlray7cwf8mvw5sn", "Rapid Putrefaction", DecimateName36, DecimateCheck36, RapidPutrefaction, [1, 1],
-                new SpellSetup(TargetModels: 1, TargetTough: 8, Anchored: true, TargetDefense: 2, Targets: new Dictionary<string, Func<string, IReadOnlyList<string>>>
-                    { ["Rapid Putrefaction"] = caster => [SpellGames.UnitName(SpellGames.TargetArmy, int.Parse(caster[(caster.LastIndexOf(' ') + 1)..]) switch { <= 3 => 1, <= 5 => 2, _ => 3 })] })))
-            .Append(Repeated36(set, "nyh41t82jugcdq8m", "Light Fragments", DestructiveName36, DestructiveCheck36, LightFragments, [1, 1, 1, 1, 1, 1],
-                new SpellSetup(TargetModels: 1, TargetTough: 8, Anchored: true)));
+            .Concat(Repeated36Games(set));
     }
 
-    public const string DecimateName36 = "spells-plague-disciples-decimate", DestructiveName36 = "spells-elven-jesters-destructive";
+    public const string DecimateName36 = "spells-plague-disciples-decimate", DestructiveName36 = "spells-elven-jesters-destructive",
+        SmashName36 = "spells-battle-brothers-smash", PierceName36 = "spells-orc-marauders-pierce", ScourgeName36 = "spells-dwarf-guilds-scourge";
 
     /// <summary>The 3.6 spell games that are no book's game: each casts one spell from every unit (SpellGamesTests leaves them out of the per-book checks).</summary>
-    public static readonly IReadOnlyList<string> RepeatedSpellGames36 = [DecimateName36, DestructiveName36];
+    public static readonly IReadOnlyList<string> RepeatedSpellGames36 = [DecimateName36, DestructiveName36, SmashName36, PierceName36, ScourgeName36];
+
+    /// <summary>Each caster's one target, by its unit number: "&lt;army&gt; unit k" casts at Targets unit targets[k - 1].</summary>
+    static IReadOnlyDictionary<string, Func<string, IReadOnlyList<string>>> Aimed(string spell, params int[] targets) =>
+        new Dictionary<string, Func<string, IReadOnlyList<string>>> { [spell] = caster => [SpellGames.UnitName(SpellGames.TargetArmy, targets[int.Parse(caster[(caster.LastIndexOf(' ') + 1)..]) - 1])] };
+
+    /// <summary>Unit k of the book's army passes its first cast.</summary>
+    static DiceFix Passes(string army, int k) => new("casting", 0, [6], new RollKey(Actor: SpellGames.UnitName(army, k)));
+
+    /// <summary>Unit k's first block roll (its first cast's target's) set to the faces.</summary>
+    static DiceFix Blocks(string army, int k, params int[] faces) => new("defense", 0, faces, new RollKey(Actor: SpellGames.UnitName(army, k)));
 
     /// <summary>
-    /// A book's spell game whose six units all cast one spell, at single-model Tough(8) targets of the setup (a single-model unit's size is its Tough, so a wounded
-    /// target crosses half), every unit deployed on its lane (Anchored). Units 1 and 2 stand within the spell's 12" of target unit 1, unit 3 too: in round 1 units 1 and 2 pass their casts and
-    /// their first blocks there are set to the faces given (failures, each a wound), and unit 3 passes its cast at it, so target unit 1 is at or under
-    /// half when unit 3's hits land; the other targets are hit fresh. Covers nothing: its check reports against the spell.
+    /// The games of one spell cast by six units, every unit deployed on its lane (Anchored): the book's units at x 3, 9 … 33 on y = 13, the targets at
+    /// x 6, 18, 30 on y = 10.
     /// </summary>
-    static TestGame Repeated36(Tabletop.GameServer.Properties.PropertySet set, string uid, string spell, string name, string check, Func<LogQueries, string?> failure, int[] faces,
-        SpellSetup setup)
+    static IEnumerable<TestGame> Repeated36Games(Tabletop.GameServer.Properties.PropertySet set)
+    {
+        // Decimate: single-model Tough(8) targets at Defense 2+, casters 1-3 at target 1, 4-5 at 2, 6 at 3. Units 1 and 2's first blocks at target 1 are
+        // two failures each (4 wounds: at half), and unit 3 passes its cast there, so blocks are rolled both over half and at or under it.
+        const string plague = "Plague Disciples";
+        yield return Repeated36(set, "jlray7cwf8mvw5sn", "Rapid Putrefaction", DecimateName36, [Exact(DecimateCheck36, ["Rapid Putrefaction"], RapidPutrefaction)],
+            [Passes(plague, 1), Passes(plague, 2), Passes(plague, 3), Blocks(plague, 1, 1, 1), Blocks(plague, 2, 1, 1)],
+            new SpellSetup(TargetModels: 1, TargetTough: 8, Anchored: true, TargetDefense: 2, Targets: Aimed("Rapid Putrefaction", 1, 1, 1, 2, 2, 3)));
+        // Destructive: unit 1's first block at target 1 is six failures (2 of 8 wounds left), and units 2 and 3 pass their casts there.
+        const string jesters = "Elven Jesters";
+        yield return Repeated36(set, "nyh41t82jugcdq8m", "Light Fragments", DestructiveName36, [Exact(DestructiveCheck36, ["Light Fragments"], LightFragments)],
+            [Passes(jesters, 1), Passes(jesters, 2), Passes(jesters, 3), Blocks(jesters, 1, 1, 1, 1, 1, 1, 1)],
+            new SpellSetup(TargetModels: 1, TargetTough: 8, Anchored: true));
+        // Smash (24", over 12"): casters 1 and 6 at target 2 (about 15" centre to centre), 2 at target 3 and 5 at target 1 (about 21"), so four casts a
+        // round over half; 3 and 4 at target 2 (about 4"), at or under. Tough(40) at Defense 2+ lasts the game; units 1 and 3 pass their first casts.
+        const string battle = "Battle Brothers";
+        yield return Repeated36(set, "78qp9l5alslt6yj8", "Cerebral Trauma", SmashName36, [Exact(SmashCheck36, ["Cerebral Trauma"], CerebralTrauma)],
+            [Passes(battle, 1), Passes(battle, 3)],
+            new SpellSetup(TargetModels: 1, TargetTough: 40, Anchored: true, TargetDefense: 2, Targets: Aimed("Cerebral Trauma", 2, 3, 2, 2, 1, 2)));
+        // Pierce (12", over 6"): casters 2 at target 2 and 4 at target 3 (about 9.5"), over half; 1, 3, 5 and 6 at their nearest target (about 4"), at or
+        // under. The targets' Sturdy with Enhanced Sturdy always gives +1 to Defense, a positive modifier for Pierce to ignore at any range.
+        const string orcs = "Orc Marauders";
+        yield return Repeated36(set, "1wj1ysgxpuuz9bc7", "Death Bolt", PierceName36, [Exact(PierceCheck36, ["Death Bolt"], DeathBolt)],
+            [Passes(orcs, 1), Passes(orcs, 2)],
+            new SpellSetup(TargetModels: 1, TargetTough: 40, Anchored: true, TargetDefense: 2, TargetRules: [new(0, "Sturdy"), new(0, "Enhanced Sturdy")],
+                Targets: Aimed("Death Bolt", 1, 2, 2, 3, 3, 3)));
+        // Scourge counted as shooting's toward p.10's test: target 1 is five single-wound models; unit 1 passes its first cast there and its blocks are one 1
+        // and three 6s: one wound leaves 4 of 5 (over half), the 1's 2 counted wounds leave 2 (half or less), so the unit tests. The others aim at 2 and 3.
+        const string dwarfs = "Dwarf Guilds";
+        yield return Repeated36(set, "fk1mkbp8apvltu0z", "Smiting Rune", ScourgeName36, [Exact(ScourgeCheck36, ["Smiting Rune"], SmitingRune)],
+            [Passes(dwarfs, 1), Blocks(dwarfs, 1, 1, 6, 6, 6)],
+            new SpellSetup(TargetModels: 5, TargetTough: 1, Anchored: true, Targets: Aimed("Smiting Rune", 1, 2, 2, 2, 3, 3)));
+    }
+
+    /// <summary>A book's spell game whose six units all cast one spell, the dice and setup given. Covers nothing: its checks report against the spell.</summary>
+    static TestGame Repeated36(Tabletop.GameServer.Properties.PropertySet set, string uid, string spell, string name, IReadOnlyList<GameCheck> checks,
+        IReadOnlyList<DiceFix> dice, SpellSetup setup)
     {
         var book = set.Books[uid] with { Spells = [.. Enumerable.Repeat(spell, 6)] };
-        string Unit(int k) => SpellGames.UnitName(book.Name, k);
-        IReadOnlyList<DiceFix> dice = [.. Enumerable.Range(1, 3).Select(k => new DiceFix("casting", 0, [6], new RollKey(Actor: Unit(k)))),
-            .. Enumerable.Range(1, faces.Length == 2 ? 2 : 1).Select(k => new DiceFix("defense", 0, faces, new RollKey(Actor: Unit(k))))];
-        var game = SpellGames.Game(book, seed: 1, set, setup, dice, [Exact(check, [spell], failure)]);
+        var game = SpellGames.Game(book, seed: 1, set, setup, dice, checks);
         return game with { Name = name, Scenario = game.Scenario with { Name = name }, Covers = [], Checks = [.. game.Checks.Where(c => c.Name != Checks.FiredAll().Name)] };
     }
 
@@ -86,7 +121,6 @@ public static partial class SuiteCatalog
             // Shifting Form first, at targets that are Caster(2): each target model holds 2 tokens from round 1.
             ["r6hr29338u4micfw"] = new(First: ["Shifting Form"], TargetRules: [new(0, "Caster", 2)]),
             // Death Bolt at targets whose Sturdy always gives +1 to Defense (Enhanced Sturdy), a positive modifier for Pierce to ignore.
-            ["1wj1ysgxpuuz9bc7"] = new(First: ["Death Bolt"], TargetRules: [new(0, "Sturdy"), new(0, "Enhanced Sturdy")]),
             // Every unit of the book's army has Rapid Blink, which Shadow Dance's grant boosts.
             ["nyh41t82jugcdq8m"] = new(Rules: [new(0, "Rapid Blink")]),
             ["yxjboa8oma9bbdck"] = new(Rules: [new(0, "Wolfborn")]),
@@ -119,9 +153,6 @@ public static partial class SuiteCatalog
             ["31xjrm9ivdimkjxp"] = [Exact(FatiguedCheck36, ["Terrifying Fury"], TerrifyingFury)],
             ["zz3kp5ry7ks6mxcx"] = [Exact(MoveCheck36, ["Deep Hypnosis"], DeepHypnosis)],
             ["r6hr29338u4micfw"] = [Exact(RemoveTokensCheck36, ["Shifting Form"], ShiftingForm)],
-            ["1wj1ysgxpuuz9bc7"] = [Exact(PierceCheck36, ["Death Bolt"], DeathBolt)],
-            ["78qp9l5alslt6yj8"] = [Exact(SmashCheck36, ["Cerebral Trauma"], CerebralTrauma)],
-            ["fk1mkbp8apvltu0z"] = [Exact(ScourgeCheck36, ["Smiting Rune"], SmitingRune)],
             ["nyh41t82jugcdq8m"] = [Exact(RapidBlinkCheck36, ["Shadow Dance"], q => BoostedMove(q, "Shadow Dance", "Rapid Blink"))],
             ["yxjboa8oma9bbdck"] = [Exact(WolfbornCheck36, ["Righteous Fury"], q => BoostedMove(q, "Righteous Fury", "Wolfborn"))],
             ["4k5amkxoybdiqotm"] = [Exact(IndirectCheck36, ["Triangulation Bots"], q => GrantWritten(q, "Triangulation Bots"))],

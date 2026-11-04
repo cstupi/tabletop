@@ -10,10 +10,10 @@ namespace Tabletop.Sim.Suite;
 public static partial class SuiteCatalog
 {
     public const string RemoveTokensCheck36 = "remove_spell_tokens (Shifting Form: \"Pick one enemy unit within 18\\\" in line of sight, which loses 2 spell tokens. Note that the target may not spend those spell tokens to prevent this effect.\")";
-    public const string PierceCheck36 = "grant_property Pierce (Death Bolt: \"which takes 4 hits with AP(1) and Pierce\"; Pierce: \"Ignores all positive Defense modifiers on the target\")";
-    public const string SmashCheck36 = "grant_property Smash (Cerebral Trauma: \"which takes 6 hits with AP(1) and Smash\"; Smash: \"When attacking units over half of this weapon's range away, the target must re-roll unmodified Defense results of 6.\")";
+    public const string PierceCheck36 = "grant_property Pierce (Death Bolt: \"Pick one enemy unit within 12\\\" in line of sight, which takes 4 hits with AP(1) and Pierce.\"; Pierce: \"Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon's range away, this weapon gets AP(+1).\")";
+    public const string SmashCheck36 = "grant_property Smash (Cerebral Trauma: \"Pick one enemy unit within 24\\\" in line of sight, which takes 6 hits with AP(1) and Smash.\"; Smash: \"When attacking units over half of this weapon's range away, the target must re-roll unmodified Defense results of 6.\")";
     public const string DecimateCheck36 = "grant_property Decimate (Rapid Putrefaction: \"which takes 2 hits with AP(1) and Decimate\"; Decimate: \"When attacking units with more than half of their total size or Tough value (for single-model units), the target must re-roll unmodified Defense results of 6.\")";
-    public const string ScourgeCheck36 = "grant_property Scourge (Smiting Rune: \"which takes 4 hits with Scourge\"; Scourge: \"For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds\")";
+    public const string ScourgeCheck36 = "grant_property Scourge (Smiting Rune: \"Pick one enemy unit within 12\\\" in line of sight, which takes 4 hits with Scourge.\"; Scourge: \"For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests.\"; 3.6.0 p.10: \"takes wounds that leave it with half or less\")";
     public const string DestructiveCheck36 = "grant_property Destructive (Light Fragments: \"which takes 6 hits with Destructive\"; Destructive: \"When attacking units with more than half of their total size or Tough value (for single-model units), those hits get AP(+1).\")";
     public const string WolfbornCheck36 = "grant_property Enhanced Wolfborn (Righteous Fury: \"Pick up to three friendly units within 18\\\", which get Enhanced Wolfborn once (next time the effect would apply).\"; Enhanced Wolfborn: \"If this model has Wolfborn, it may move by up to 2D3\\\" from Wolfborn (instead of only D3\\\").\")";
     public const string RapidBlinkCheck36 = "grant_property Enhanced Rapid Blink (Shadow Dance: \"Pick up to three friendly units within 18\\\", which get Enhanced Rapid Blink once (next time the effect would apply).\"; Enhanced Rapid Blink: \"If this model has Rapid Blink, it may move by up to 2D3\\\" from Rapid Blink (instead of only D3\\\").\")";
@@ -45,28 +45,57 @@ public static partial class SuiteCatalog
     }
 
     /// <summary>
-    /// Death Bolt at targets with Sturdy and Enhanced Sturdy ("they always get +1 to Defense rolls from Sturdy"): every block of its hits carries no positive
-    /// modifier and lists one ignored by Pierce, at the spell's AP(1).
+    /// Where a spell's hits were cast from, against half its range (owner ruling: the spell's printed range is "this weapon's range", measured from the
+    /// caster model to the target's nearest model, base to base). Read off the log's placements, centre to centre: with 1.26" bases base to base is
+    /// within 1.26" under the centres' distance, so over half when the centres are more than 1.3" past it, at or under when they are not past it, else
+    /// neither (null).
     /// </summary>
-    static string? DeathBolt(LogQueries q) => LogQueries.Each(SpellHits(q, "Death Bolt").SelectMany(h => h.Blocks), "Death Bolt block", r =>
+    static bool? OverHalfRange(LogQueries q, LoggedFrame hits, double range)
     {
-        var plus = r.Roll.Modifiers.Where(m => m.Amount > 0).ToList();
-        if (plus.Count > 0) return $"a block under {string.Join(", ", plus.Select(m => $"{m.Source} +{m.Amount}"))}";
-        if (!(r.Roll.Ignored ?? []).Any(i => i.By == "Pierce" && i.Amount > 0)) return "no positive Defense modifier ignored by Pierce";
-        return r.Roll.Modifiers.Where(m => m.Source == "AP").Select(m => m.Amount).SequenceEqual([-1]) ? null : $"blocks under AP [{string.Join(",", r.Roll.Modifiers.Where(m => m.Source == "AP").Select(m => m.Amount))}]";
-    });
+        var at = q.LocationsBefore(hits.Seq);
+        Tabletop.Geometry.Point2? Where(Guid m) => at.GetValueOrDefault(m) is OnTable t ? t.Placement.Position.Horizontal : null;
+        var caster = q.Final.Units[hits.Context.ActorUnitId!.Value].Definition.Models.Select(m => Where(m.Id)).OfType<Tabletop.Geometry.Point2>().Single();
+        var centres = q.Final.Units[hits.Context.TargetUnitIds[0]].Definition.Models.Select(m => Where(m.Id)).OfType<Tabletop.Geometry.Point2>()
+            .Select(p => p.DistanceTo(caster)).Min();
+        return centres - 1.3 > range / 2 ? true : centres <= range / 2 ? false : null;
+    }
 
     /// <summary>
-    /// Cerebral Trauma: its hits are a spell's, no weapon's, so "over half of this weapon's range away" has no range to read (the `weapon_range` predicate fails
-    /// a source with no weapon) and no 6 is re-rolled; every block is at the spell's AP(1); at least one block die showed a 6.
+    /// Death Bolt (12") at targets with Sturdy and Enhanced Sturdy ("they always get +1 to Defense rolls from Sturdy"): every block of its hits carries no
+    /// positive modifier and lists one ignored by Pierce, at any range; it is at AP(1) + AP(+1) when cast from over 6" and at the spell's AP(1) from 6" or
+    /// under; at least one block of each.
+    /// </summary>
+    static string? DeathBolt(LogQueries q)
+    {
+        var cases = SpellHits(q, "Death Bolt").SelectMany(h => h.Blocks.Select(r => (Block: r, Over: OverHalfRange(q, h.Hits, 12)))).Where(x => x.Over is not null).ToList();
+        if (!cases.Any(x => x.Over == true)) return "no Death Bolt block from over 6\"";
+        if (!cases.Any(x => x.Over == false)) return "no Death Bolt block from 6\" or under";
+        return LogQueries.Each(cases, "Death Bolt block", x =>
+        {
+            var plus = x.Block.Roll.Modifiers.Where(m => m.Amount > 0).ToList();
+            if (plus.Count > 0) return $"a block under {string.Join(", ", plus.Select(m => $"{m.Source} +{m.Amount}"))}";
+            if (!(x.Block.Roll.Ignored ?? []).Any(i => i.By == "Pierce" && i.Amount > 0)) return "no positive Defense modifier ignored by Pierce";
+            var ap = x.Block.Roll.Modifiers.Where(m => m.Source == "AP").Sum(m => m.Amount);
+            return ap == (x.Over == true ? -2 : -1) ? null : $"a block at AP({-ap}) from {(x.Over == true ? "over" : "at or under")} half the range";
+        });
+    }
+
+    /// <summary>
+    /// Cerebral Trauma (24"): a block of its hits cast from over 12" re-rolls exactly its unmodified 6s as rolled, one cast from 12" or under re-rolls none;
+    /// every block is at the spell's AP(1); at least one block from over 12" rolled a 6, and at least one from 12" or under was rolled.
     /// </summary>
     static string? CerebralTrauma(LogQueries q)
     {
-        var blocks = SpellHits(q, "Cerebral Trauma").SelectMany(h => h.Blocks).ToList();
-        if (!blocks.Any(r => r.Roll.Dice.Any(d => d.Raw == 6))) return "no Cerebral Trauma block rolled a 6";
-        return LogQueries.Each(blocks, "Cerebral Trauma block", r =>
-            r.Rerolls.Count > 0 ? $"re-rolled {LogQueries.Show(r)}"
-            : r.Roll.Modifiers.Where(m => m.Source == "AP").Select(m => m.Amount).SequenceEqual([-1]) ? null : "a block not at AP(1)");
+        var cases = SpellHits(q, "Cerebral Trauma").SelectMany(h => h.Blocks.Select(r => (Block: r, Over: OverHalfRange(q, h.Hits, 24)))).Where(x => x.Over is not null).ToList();
+        if (!cases.Any(x => x.Over == true && x.Block.Roll.Dice.Any(d => d.Raw == 6))) return "no block from over 12\" rolled a 6";
+        if (!cases.Any(x => x.Over == false)) return "no block from 12\" or under";
+        return LogQueries.Each(cases, "Cerebral Trauma block", x =>
+        {
+            var expected = x.Block.Roll.Dice.Select((d, i) => (d, i)).Where(p => x.Over == true && p.d.Raw == 6).Select(p => p.i).ToList();
+            var rerolled = x.Block.Rerolls.SelectMany(r => r.Replaced).Select(r => r.Index).Order().ToList();
+            return !expected.SequenceEqual(rerolled) ? $"re-rolled [{string.Join(",", rerolled)}] of [{string.Join(" ", x.Block.Roll.Dice.Select(d => d.Raw))}] from {(x.Over == true ? "over" : "at or under")} half the range"
+                : x.Block.Roll.Modifiers.Where(m => m.Source == "AP").Sum(m => m.Amount) == -1 ? null : "a block not at AP(1)";
+        });
     }
 
     /// <summary>
@@ -97,17 +126,33 @@ public static partial class SuiteCatalog
     }
 
     /// <summary>
-    /// Smiting Rune: every block step maps Scourge's count as 2 wounds for a die showing 1 and for no other face (`counted_&lt;roll&gt;_&lt;face&gt;_&lt;entry&gt;`; a
-    /// spell's hits are neither melee nor shooting, so neither reader the text names counts them), and its counted wounds as rolled are 2 per unmodified 1.
+    /// Smiting Rune: every block step maps Scourge's count as 2 wounds for a die showing 1 and for no other face (`counted_&lt;roll&gt;_&lt;face&gt;_&lt;entry&gt;`), and
+    /// its counted wounds as rolled are 2 per unmodified 1; a spell's hits count as shooting's toward 3.6.0 p.10's test (owner ruling). Target unit 1,
+    /// five single-wound models, takes unit 1's first cast with its blocks set to one 1 and three 6s: the one wound leaves it over half, the 1's 2 counted
+    /// wounds leave it at half or less, and a Morale Test on it follows the caster's activation, before the next one.
     /// </summary>
-    static string? SmitingRune(LogQueries q) => LogQueries.Each(SpellHits(q, "Smiting Rune").SelectMany(h => h.Blocks.Select(b => b.Step)).Distinct(), "Smiting Rune block", s =>
+    static string? SmitingRune(LogQueries q)
     {
-        var map = (s.Step.Values ?? new Dictionary<string, int>()).Where(kv => kv.Key.StartsWith("counted_", StringComparison.Ordinal) && kv.Key != "counted_wounds")
-            .Select(kv => $"{kv.Key}={kv.Value}").ToList();
-        if (!map.SequenceEqual(["counted_0_1_Scourge=2"])) return $"counts [{string.Join(", ", map)}], not 2 for a 1";
-        var ones = s.Step.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count(d => d.Raw == 1));
-        return s.Value("counted_wounds") == 2 * ones ? null : $"counted {s.Value("counted_wounds")} as rolled for {ones} 1s";
-    });
+        var hits = SpellHits(q, "Smiting Rune");
+        var fixedHits = hits.FirstOrDefault(h => h.Blocks.Any(r => r.Edited && r.Raw(1) == 1 && r.Raw(6) == 3));
+        if (fixedHits.Hits is null) return "the fixed block of one 1 and three 6s is not a Smiting Rune block";
+        var target = fixedHits.Hits.Context.TargetUnitIds[0];
+        var root = fixedHits.Hits.Ancestors.Last();
+        var living = q.Living(target, fixedHits.Hits.Steps[^1].Seq + 1);
+        if (living != 4) return $"the fixed block left {living} of 5 models, not 4";
+        // p.10's test follows the activation: the first frame of the log's top level after the caster's activation, before the next activation.
+        var next = q.Frames.FirstOrDefault(f => f.Parent is null && f.Seq > root.Seq && RootActions.Contains(f.Sequence))?.Seq ?? long.MaxValue;
+        if (!q.FramesOf("morale-test").Any(f => f.Seq > fixedHits.Hits.Seq && f.Seq < next && f.Context.ActorUnitId == target))
+            return "no Morale Test on the target before the next activation";
+        return LogQueries.Each(hits.SelectMany(h => h.Blocks.Select(b => b.Step)).Distinct(), "Smiting Rune block", s =>
+        {
+            var map = (s.Step.Values ?? new Dictionary<string, int>()).Where(kv => kv.Key.StartsWith("counted_", StringComparison.Ordinal) && kv.Key != "counted_wounds")
+                .Select(kv => $"{kv.Key}={kv.Value}").ToList();
+            if (!map.SequenceEqual(["counted_0_1_Scourge=2"])) return $"counts [{string.Join(", ", map)}], not 2 for a 1";
+            var ones = s.Step.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count(d => d.Raw == 1));
+            return s.Value("counted_wounds") == 2 * ones ? null : $"counted {s.Value("counted_wounds")} as rolled for {ones} 1s";
+        });
+    }
 
     /// <summary>
     /// Light Fragments from six casters at single-model Tough(8) targets: every block at a target over half is at AP(1), at one at or under half (target

@@ -11,8 +11,8 @@ namespace Tabletop.Sim.Suite;
 /// names its casts pick, given the caster's unit name (default: SpellGames.Friends for a friendly spell; for an enemy one the target
 /// units in order starting from unit r in round r, so a grant no attack uses up, which no recast can stack (p.13), still meets a fresh unit). BlueAction: the action each target unit takes, by unit number (default Rush, which never attacks).
 /// Rules, TargetRules: further rules on every model of the book's army or of the target army, beside their Caster and Tough.
-/// TargetModels, TargetTough, TargetDefense: each target unit's model count, Tough value and Defense (default 4+). Anchored: every unit's first model deploys on its lane's point, so the
-/// first round's casts reach the targets they reach later.
+/// TargetModels, TargetTough, TargetDefense: each target unit's model count, Tough value and Defense (default 4+). Anchored: every unit's first model deploys on its lane's point (a target
+/// unit's row of models centred on it), so the first round's casts reach the targets they reach later.
 /// </summary>
 public sealed record SpellSetup(
     IReadOnlyList<string>? First = null,
@@ -75,7 +75,7 @@ public static class SpellGames
             .Army(TargetArmy, 3, setup?.TargetModels ?? 3, modelRules: [.. Enumerable.Range(1, 3).SelectMany(u => (setup?.TargetRules ?? []).Select(r => r with { Unit = u })
                 .Prepend(new ScenarioRule(u, "Tough", setup?.TargetTough ?? 6)))], weapons: [ApRifle, HandWeapon],
                 unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = $"{setup?.TargetDefense ?? 4}+" },
-                anchors: setup?.Anchored == true ? Enumerable.Range(1, 3).ToDictionary(j => j, j => new Point2(12.0 * j - 6, 10)) : null)
+                anchors: setup?.Anchored == true ? Enumerable.Range(1, 3).ToDictionary(j => j, j => new Point2(12.0 * j - 6 - 0.88 * ((setup.TargetModels) - 1), 10)) : null)
             .Seeking((model, view) => Lane(book.Name, order.Count, view.Projection, model))
             .Scripted(Script(book.Name, order, set, setup))
             .Build();
