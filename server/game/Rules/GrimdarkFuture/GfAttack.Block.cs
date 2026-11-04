@@ -83,7 +83,7 @@ public static partial class GfAttack
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(live, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
             values["wounds"] = wounds; values["extra_wounds"] = extraWounds;
-            return new Complete(Consumed(live), values);
+            return new Complete(ctx.Consume(live), values);
         }
     }
 }

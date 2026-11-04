@@ -42,7 +42,7 @@ public static partial class GfAttack
             if (ix.Faces is null || !ix.Faces.TryGetValue(Side.Attacker, out var faces) || faces.Count == 0) continue;
             var live = ctx.Settle(ix with { Point = null });
             foreach (var p in live.On(Side.Attacker).Where(p => p.GrantId is not null && faces.ContainsKey(p.Entry.Name))) live.Read(p);
-            spent.AddRange(RollEffects.Consume(live));
+            spent.AddRange(ctx.Consume(live));
         }
         return spent.Distinct().ToList();
     }

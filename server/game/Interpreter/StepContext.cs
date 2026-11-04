@@ -33,6 +33,31 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
     /// <summary>The catalog entries that acted in this run, for StepCompleted.Applied. Live sets settled through Settle record into it; a ruleset hook adds the rule it names.</summary>
     public AppliedEntries Applied { get; } = new();
 
+    /// <summary>`held_&lt;unit&gt;_&lt;grant&gt;` for each grant this run read and held; the interpreter writes them into StepCompleted.Values.</summary>
+    public IReadOnlyDictionary<string, int> Held => _held;
+    private readonly Dictionary<string, int> _held = new();
+    public const string HeldPrefix = "held_";
+
+    /// <summary>
+    /// The grants the live set read, spent: at once outside a sequence the ruleset holds once grants under (RollEffects.Consume), and under one
+    /// (this frame or an ancestor) nothing now, each read grant held as `held_&lt;unit&gt;_&lt;grant&gt;` for the step that closes that sequence to release.
+    /// </summary>
+    public IReadOnlyList<StateChange> Consume(LiveSet live)
+    {
+        if (!UnderHoldingSequence) return RollEffects.Consume(live);
+        foreach (var (unit, grant) in live.GrantsRead) _held[$"{HeldPrefix}{unit:N}_{grant:N}"] = 1;
+        return [];
+    }
+
+    bool UnderHoldingSequence
+    {
+        get
+        {
+            for (var f = Frame; f is not null; f = f.Parent) if (Rules.HoldsOnceGrants(f.Frame.Sequence)) return true;
+            return false;
+        }
+    }
+
     /// <summary>The two passes for this step: the live set records what its consumers apply into Applied.</summary>
     public LiveSet Settle(Interaction interaction) => LiveProperties.Settle(interaction, Applied);
 

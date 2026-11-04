@@ -74,6 +74,10 @@ public interface IGameRules
     /// <summary>Changes written as one round_ended event when a player has ended <paramref name="round"/>, before the next round_started (OPR: objectives seized). Empty: no event.</summary>
     IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
 
+    /// <summary>A sequence under which a once grant a step reads is held rather than spent, to the step that closes it (OPR: the attack is "next time the
+    /// effect would apply"; StepContext.Consume). None by default. Wrapping rulesets must forward it.</summary>
+    bool HoldsOnceGrants(string sequence) => false;
+
     // Facts the client is told rather than reading a rule name.
     /// <summary>Wounds the model takes before it is killed (OPR: Tough(X), else 1). Wrapping rulesets must forward it.</summary>
     int MaxWounds(GameState state, Guid modelId) => 1;

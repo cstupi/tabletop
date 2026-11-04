@@ -138,7 +138,7 @@ public class DiceEditTests
     }
 
     [Fact]
-    public void A_spell_granting_a_modifier_and_a_per_die_rule_keeps_the_per_die_grant_for_score_hits_then_spends_both()
+    public void A_spell_granting_a_modifier_and_a_per_die_rule_keeps_the_per_die_grant_for_score_hits_and_spends_both_at_the_attacks_end()
     {
         var shooter = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
         var target = Unit("B", "4+", "6+", [], 5, []);
@@ -151,6 +151,14 @@ public class DiceEditTests
         Assert.Equal(2, sim.Unit(shooter.Id).Grants.Count);                                     // left for score-hits, which reads the Surge row
         Pass(sim);
         Assert.Equal(1, sim.Steps("score-hits").Single().Values!["extra_hits"]);
+        Assert.Equal(2, sim.Unit(shooter.Id).Grants.Count);                                     // held: the attack is not over
+        while (sim.Steps("attack-end").Count == 0)
+        {
+            if (sim.State.Projection.OpenAsks.Values.SingleOrDefault(a => a.Ask.Legal is Allocation)?.Ask is { } wounds)
+                sim.Answer(wounds.Teams[0], new Allocated(new Dictionary<Guid, int> { [target.Models[0].Id] = 1, [target.Models[1].Id] = 1 }));
+            else Pass(sim);
+        }
+        Assert.Equal(2, sim.Steps("attack-end").Single().Changes.OfType<GrantRemoved>().Count());
         Assert.Empty(sim.Unit(shooter.Id).Grants);
     }
 

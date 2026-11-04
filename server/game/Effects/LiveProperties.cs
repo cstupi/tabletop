@@ -23,7 +23,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 {
     private readonly HashSet<(Guid UnitId, Guid GrantId)> _read = read ?? [];
     private readonly PassOneActs _acts = acts ?? new();
-    /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set emits RollEffects.Consume.</summary>
+    /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set spends them through StepContext.Consume.</summary>
     public IReadOnlyCollection<(Guid UnitId, Guid GrantId)> GrantsRead => _read;
 
     /// <summary>A source whose row applied here: it is spent (Spend) and its entry recorded as having acted (Record).</summary>

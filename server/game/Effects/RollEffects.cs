@@ -152,10 +152,13 @@ public static class RollEffects
 
     /// <summary>A GrantRemoved for every grant the live set read, and for every other grant on that unit the same spell left (spell library → the grants
     /// a spell left on a unit are consumed together). A grant already gone, or on a unit no longer in play, removes nothing.</summary>
-    public static IReadOnlyList<StateChange> Consume(LiveSet live)
+    public static IReadOnlyList<StateChange> Consume(LiveSet live) => Release(live.Interaction.State, live.GrantsRead);
+
+    /// <summary>Consume's rule for grants read earlier and held (StepContext.Consume): each one still on its unit goes with every other grant of its entry on that unit.</summary>
+    public static IReadOnlyList<StateChange> Release(Rules.GameState state, IEnumerable<(Guid UnitId, Guid GrantId)> read)
     {
-        var units = live.Interaction.State.Projection.Units;
-        return live.GrantsRead
+        var units = state.Projection.Units;
+        return read
             .Where(r => units.ContainsKey(r.UnitId))
             .SelectMany(r => units[r.UnitId].Grants.FirstOrDefault(g => g.Id == r.GrantId) is { } read
                 ? units[r.UnitId].Grants.Where(g => g.EntryName == read.EntryName).Select(g => (r.UnitId, g.Id)) : [])

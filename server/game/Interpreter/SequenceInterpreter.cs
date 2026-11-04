@@ -94,6 +94,12 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
     static void Completed(List<EventPayload> events, StepContext ctx, IStep step, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values, bool finished)
     {
         var answer = ctx.History.ClosedExceptConfirm.LastOrDefault()?.Single;
+        if (ctx.Held.Count > 0)
+        {
+            var merged = values is null ? new Dictionary<string, int>() : new Dictionary<string, int>(values);
+            foreach (var (k, v) in ctx.Held) merged[k] = v;
+            values = merged;
+        }
         events.Add(new StepCompleted(ctx.Frame.Id, step.Name, answer, ctx.Rolls, changes, ctx.Applied.Names) { Values = values is { Count: > 0 } ? values : null, Ignored = ctx.Applied.Ignored });
         events.AddRange(ctx.ForcedRerolls);
         if (finished) events.Add(new SequenceFinished(ctx.Frame.Id));
