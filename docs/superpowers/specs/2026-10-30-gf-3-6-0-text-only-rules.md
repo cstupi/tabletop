@@ -105,9 +105,12 @@ Pass two, per die: an `add_hit`-shaped row with a `roll_result` condition on the
 
 - `GfMelee.WoundsTaken` adds to a unit's wounds the `counted_wounds` of every `resolve-hits` frame under this melee whose
   defender is that unit (3.6.0 p.10 *"compare the number of wounds each unit took during this activation"*).
-- The general morale test (`GfActivationEnd`, 3.6.0 p.10 *"takes wounds that leave it with half or less"*): a unit tests
-  when `WoundsThisActivation + counted > 0` and `GfHooks.AtHalfOrLess(state, props, unit, extraWounds: counted)` holds,
-  where the counted wounds are laid on the unit as `deal-wounds` would lay them (Tough order) before the half test.
+- The general morale test (`GfActivationEnd`, 3.6.0 p.10 *"takes wounds that leave it with half or less"*): the counted
+  wounds of the shooting attack-sequences and of the spells' hits (`spell-hits`) on a unit since the activation began; a
+  spell's hits count as shooting's do (owner ruling). A unit tests when `WoundsThisActivation + counted > 0` and
+  `GfHooks.AtHalfOrLess(state, props, unit, extraWounds: counted)` holds, where the counted wounds are laid on the unit as
+  `deal-wounds` would lay them (Tough order) before the half test. Dwarf Guilds' Smiting Rune (4 hits with Scourge) on a
+  five-model unit: one unmodified 1 that wounds leaves 4 models, less 2 counted is 2, and the unit tests.
 
 Scourge writes `count_wounds 2` on an unmodified defense 1 (*"For each unmodified result of 1 to block hits, enemies count as
 having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests"*). The counted
@@ -228,7 +231,8 @@ the spell as translated rather than text-only.
 - A spell's printed range is "this weapon's range": Smash and Pierce on a spell's hits test the caster's distance to the target,
   measured as the spell's range is, against half of it.
 - Destructive, Decimate and p.10's half read one `RemainingSize`; a single-model unit's size is its Tough.
-- Scourge's counted wounds never wound a model; they count only for the melee result and the shooting morale trigger.
+- Scourge's counted wounds never wound a model; they count only for the melee result and the morale trigger of shooting
+  wounds, and a spell's hits count as shooting's do.
 - Mind Control's "once per round" is per unit moved, across every user of the rule; a passed test leaves the unit eligible.
   Its 6" move is the spell-test forced move (any direction, as Deep Hypnosis's); "in a straight line" is not enforced.
 - The Tags spend their token automatically; Predator asks. A modifier is never a choice; whether to roll more dice is one.

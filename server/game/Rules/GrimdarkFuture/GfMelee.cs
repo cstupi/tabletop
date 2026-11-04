@@ -154,7 +154,7 @@ public static class GfMelee
     public static IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> CountedInMelee(StepContext ctx)
     {
         var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
-        return GfAttack.CountedWounds(log, log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id), shootingOnly: false);
+        return GfAttack.CountedWounds(log, log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id), shootingAndSpells: false);
     }
 
     /// <summary>
