@@ -73,10 +73,10 @@ public static partial class SuiteCatalog
                 carriers: Carriers("Increased Shooting Range Aura", 2), units: 2, gunRange: 12), 25, 10), 2, new(27, 5)).In36(),
             Overreach(AnchoredH(Pick(Books36.SoulSnatcherCults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
                 [RangeBonus("Increased Shooting Range Buff", Granted("Increased Shooting Range Buff"), 12, 6, BuffText + "+6\" range on its weapons when shooting once\"")],
-                gunRange: 12, length: 30, enemyUnits: 2), 19, 4), 2, new(26, 1)).In36(),
+                gunRange: 12, length: 30, enemyUnits: 2), 19, 4), 2, new(26, 4.1)).In36(),
             Overreach(AnchoredH(Pick(Books36.EternalDynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
                 [RangeBonus("Increased Shooting Range Mark", Granted("Increased Shooting Range Mark", onTarget: true), 12, 6, MarkText + " +6\" range on their weapons when shooting against once\"")],
-                gunRange: 12, length: 30, enemyUnits: 2), 19, 4), 2, new(26, 1)).In36(),
+                gunRange: 12, length: 30, enemyUnits: 2), 19, 4), 2, new(26, 4.1)).In36(),
 
             Game(Books36.DarkElfRaiders, "dark-elf-raiders-lacerate", Play.Shoots, ["Lacerate"], [], [],
                 [Rerolls("Lacerate", With("Lacerate"), [6], successOnly: false, "\"When attacking, the target must re-roll unmodified Defense results of 6.\"")], weapon: [R(0, "Lacerate")], units: 2).In36(),

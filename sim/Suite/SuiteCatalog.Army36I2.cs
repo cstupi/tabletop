@@ -35,8 +35,9 @@ public static partial class SuiteCatalog
                 var entry = "Enhanced " + baseRule;
                 var quote = $"\"enemy units shooting/charging it get -8\"/-4\" range to a min. of 6\" from {baseRule} (instead of only -4\"/-2\")\"";
                 yield return Game(book, Name(book, entry), Play.Charged, [entry], Both(3, baseRule), [], [ChargeAt(entry, 8, quote + " (charging)")], enemyUnits: 4).In36();
-                yield return Game(book, Name(book, entry) + "-shot", Play.Shot, [entry], Both(2, baseRule), [], [ShotWithin(entry, 16, quote + " (shooting, 24\" guns)")],
-                    units: 2, enemyRange: 24, length: 26, anchors: Apart, enemyAnchors: ApartEnemy).In36();
+                // Unit 2 stands 16.7" (edge to edge) from opponent unit 2, just past 16", and the opponents shoot it first whenever it is a legal target.
+                yield return Aiming(Game(book, Name(book, entry) + "-shot", Play.Shot, [entry], Both(2, baseRule), [], [ShotWithin(entry, 16, quote + " (shooting, 24\" guns)")],
+                    units: 2, enemyRange: 24, length: 26, anchors: Apart, enemyAnchors: ApartEnemy), 1, $"{book.Army} unit 2").In36();
             }
 
             /// <summary>An extra hit on an unmodified 6, shooting from 4.5" (inside the base's bound), once (the base's would be a second).</summary>

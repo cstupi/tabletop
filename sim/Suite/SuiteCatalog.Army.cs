@@ -292,6 +292,20 @@ public static partial class SuiteCatalog
         static TestGame Overreach(TestGame game, int unit, Point2 at) =>
             Aiming(AnchorAt(game, 1, unit, at), 0, $"{game.Scenario.Armies[1].Name} unit {unit}");
 
+        /// <summary>
+        /// A shrouding game laid out across a table of the given length: the rule's unit 1 at (4, length − 11) and opponent unit 1 at (4, 11), 8" or more
+        /// apart; the rule's unit 2 at x 30 inside its zone and opponent unit 2 straight below it, `edge` inches edge to edge (32mm bases), both over 24" from
+    /// the other side's unit 1;
+        /// the opponents shoot unit 2 first whenever it is a legal target, so a reach read past the rule's limit shoots it from inside the band.
+        /// </summary>
+        static TestGame Banded(TestGame game, double length, double edge)
+        {
+            var army = game.Scenario.Armies[0].Name;
+            var y = Math.Max(length - 11, 1 + edge + 1.26);
+            var laid = AnchorAt(AnchorAt(AnchorAt(AnchorAt(game, 0, 1, new(4, length - 11)), 0, 2, new(30, y)), 1, 1, new(4, 11)), 1, 2, new(30, y - edge - 1.26));
+            return Aiming(laid, 1, $"{army} unit 2");
+        }
+
         static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules, int range = 60) =>
             new("Rifle", new Dictionary<string, string> { ["Range"] = $"{range}\"", ["Attacks"] = $"{attacks}" }, rules);
         static ScenarioWeapon Blade(int attacks, IReadOnlyList<ScenarioRule>? rules = null) =>

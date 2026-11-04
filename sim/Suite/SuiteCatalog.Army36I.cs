@@ -55,12 +55,13 @@ public static partial class SuiteCatalog
                     units: 2, carriers: Most("Changebound", 2)).In36(),
                 Game(Books36.DarkBrothers, "dark-brothers-darkborn", Play.Charged, ["Darkborn"], Lasting(3), [],
                     [ChargeAt("Darkborn", 10, Shrouded + " (charging)")], enemyUnits: 4, carriers: Most("Darkborn", 3)).In36(),
-                Game(Books36.DarkBrothers, "dark-brothers-darkborn-shot", Play.Shot, ["Darkborn"], Lasting(2), [],
-                    [ShotWithin("Darkborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Darkborn", 2)).In36(),
+                // Unit 2 stands 21" (edge to edge) from opponent unit 2, past the shrouded 20" (Banded).
+                Banded(Game(Books36.DarkBrothers, "dark-brothers-darkborn-shot", Play.Shot, ["Darkborn"], Lasting(2), [],
+                    [ShotWithin("Darkborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Darkborn", 2)), 36, 21).In36(),
                 Game(Books36.VoidspaceStalkers, "voidspace-stalkers-shadowborn", Play.Charged, ["Shadowborn"], Lasting(3), [],
                     [ChargeAt("Shadowborn", 10, Shrouded + " (charging)")], enemyUnits: 4, carriers: Most("Shadowborn", 3)).In36(),
-                Game(Books36.VoidspaceStalkers, "voidspace-stalkers-shadowborn-shot", Play.Shot, ["Shadowborn"], Lasting(2), [],
-                    [ShotWithin("Shadowborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Shadowborn", 2)).In36(),
+                Banded(Game(Books36.VoidspaceStalkers, "voidspace-stalkers-shadowborn-shot", Play.Shot, ["Shadowborn"], Lasting(2), [],
+                    [ShotWithin("Shadowborn", 20, Shrouded + " (shooting, 24\" guns)")], units: 2, enemyRange: 24, carriers: Most("Shadowborn", 2)), 36, 21).In36(),
                 Game(Books36.HavocBrothers, "havoc-brothers-havocbound", Play.Shoots, ["Havocbound"], Each(2, "Havocbound"), [],
                     [ApGrant("Havocbound", By("Havocbound", when: When.Shooting), 1, "\"When this model shoots/charges enemies over 9\"/6\" away, its weapons get AP(+1)\" (shooting)")]).In36(),
                 // It charges from 4.5": no AP(+1).
