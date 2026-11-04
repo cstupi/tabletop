@@ -4,8 +4,9 @@ using Tabletop.GameServer.Properties;
 
 namespace Tabletop.ArmyBooks;
 
-/// <summary>Generated: the count of wrappers written. Groups: the spec's table (The gap), in its order. NoDescription: names no book describes.</summary>
-public sealed record RuleReport(int Generated, IReadOnlyList<(string Group, int Count)> Groups, IReadOnlyList<string> NoDescription);
+/// <summary>Generated: the count of wrappers written. Groups: the spec's table (The gap), in its order. NoDescription: names neither a book nor the common rules describe.
+/// DescribedByCommonRules: names no book describes that the common-rules file does.</summary>
+public sealed record RuleReport(int Generated, IReadOnlyList<(string Group, int Count)> Groups, IReadOnlyList<string> NoDescription, IReadOnlyList<string> DescribedByCommonRules);
 
 /// <summary>The army-book rules part (army-book rules spec → Generator): a wrapper per template name whose base the catalog holds, a text-only
 /// entry per other name in scope that core and the hand-authored part leave undefined.</summary>
@@ -45,7 +46,7 @@ public static class RuleWriter
         return names;
     }
 
-    public static (PropertySetDocument? Part, RuleReport? Report, IReadOnlyList<string> Problems) Build(IReadOnlyList<AfBook> books, PropertySetDocument core, PropertySetDocument hand, string rulesId)
+    public static (PropertySetDocument? Part, RuleReport? Report, IReadOnlyList<string> Problems) Build(IReadOnlyList<AfBook> books, PropertySetDocument core, PropertySetDocument hand, string rulesId, IReadOnlyDictionary<string, string>? common = null)
     {
         var ordered = books.OrderBy(b => b.Name, StringComparer.Ordinal).ToList();
         var descriptions = new Dictionary<string, (string Text, string Book)>(StringComparer.Ordinal);
@@ -67,10 +68,13 @@ public static class RuleWriter
         var entries = new List<EntryDocument>();
         var counts = GroupOrder.ToDictionary(g => g, _ => 0);
         var noDescription = new List<string>();
+        var describedByCommon = new List<string>();
         foreach (var name in scope.Keys.Where(n => !defined.Contains(n)).Order(StringComparer.Ordinal))
         {
-            if (!descriptions.TryGetValue(name, out var d)) noDescription.Add(name);
-            var text = d.Text ?? "";
+            var text = "";
+            if (descriptions.TryGetValue(name, out var d)) text = d.Text;
+            else if (common is not null && common.TryGetValue(name, out var c)) { text = c; describedByCommon.Add(name); }
+            else noDescription.Add(name);
             var pattern = RuleTemplates.PatternOf(name);
             var x = pattern is { } p && p != RulePattern.Debuff ? RuleTemplates.Base(p, name, text) : null;
             if (x is not null && defined.Contains(x) && !unplayed.Contains(x))
@@ -92,7 +96,7 @@ public static class RuleWriter
         }
         var part = new PropertySetDocument("Grimdark Future army-book rules (generated)", rulesId, [], [], [], entries);
         var generated = GroupOrder.Where(g => g.EndsWith("base in catalog")).Sum(g => counts[g]);
-        return (part, new RuleReport(generated, GroupOrder.Select(g => (g, counts[g])).ToList(), noDescription), []);
+        return (part, new RuleReport(generated, GroupOrder.Select(g => (g, counts[g])).ToList(), noDescription, describedByCommon), []);
     }
 
     public static string Serialize(PropertySetDocument part) =>

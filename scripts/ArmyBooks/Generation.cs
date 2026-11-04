@@ -10,6 +10,13 @@ public static class Generation
     /// <summary>The generate pipeline over one edition's dump folder (index.json and books/): everything it would write, in memory.</summary>
     public static Generated Run(string dumpDir, PropertySetDocument core, PropertySetDocument hand, string rulesId)
     {
+        var commonPath = Path.Combine(dumpDir, "common-rules.json");
+        return Run(dumpDir, core, hand, rulesId, File.Exists(commonPath) ? ArmyForgeJson.ReadCommonRules(File.ReadAllText(commonPath)) : null);
+    }
+
+    /// <summary>As above with the common rules, the description of a name no book describes.</summary>
+    public static Generated Run(string dumpDir, PropertySetDocument core, PropertySetDocument hand, string rulesId, IReadOnlyDictionary<string, string>? common)
+    {
         var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dumpDir, "index.json")));
         var raw = index.Select(e => (Uid: e.Uid, Name: e.Name, Json: File.ReadAllText(Path.Combine(dumpDir, "books", e.Uid + ".json")))).ToList();
         var books = index.Zip(raw).Select(p => ArmyForgeJson.ReadBook(p.Second.Json) with { Name = p.First.Name, VersionString = p.First.VersionString }).ToList();
@@ -22,7 +29,8 @@ public static class Generation
         var notes = new List<string>();
         foreach (var b in books) foreach (var sp in b.Spells)
             if (SpellTranslator.RangeCorrection(sp) is { } rc) notes.Add($"range from text: {b.Name} {sp.Name.Trim()} {rc.Generation} → {rc.Printed}");
-        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand, rulesId);
+        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand, rulesId, common);
+        if (report is { DescribedByCommonRules.Count: > 0 }) notes.Add($"described by the common rules: {string.Join(", ", report.DescribedByCommonRules)}");
         problems.AddRange(ruleProblems);
         var (reserveUnits, reserveProblems) = ReserveUnits.Build(raw);
         problems.AddRange(reserveProblems);

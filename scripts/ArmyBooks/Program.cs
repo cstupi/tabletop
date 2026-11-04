@@ -34,11 +34,14 @@ switch (args.FirstOrDefault())
             var held = ArmyForgeJson.EditionOf(ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dir, "index.json"))));
             if (held != edition) { Console.Error.WriteLine($"refusing: {dir} holds edition {held}, Army Forge serves {edition}"); return 1; }
         }
+        var rulesOnly = args.Contains("--rules-only");     // leaves the index and books as they are
         Directory.CreateDirectory(Path.Combine(dir, "books"));
-        await File.WriteAllTextAsync(Path.Combine(dir, "index.json"), indexJson);
-        foreach (var e in index)
+        if (!rulesOnly) await File.WriteAllTextAsync(Path.Combine(dir, "index.json"), indexJson);
+        foreach (var e in rulesOnly ? [] : index)
             await File.WriteAllTextAsync(Path.Combine(dir, "books", e.Uid + ".json"), await http.GetStringAsync($"/api/army-books/{e.Uid}?gameSystem=2"));
-        Console.WriteLine($"fetched {index.Count} books into {dir}");
+        // Grimdark Future is game system 2: the common rules describe Brace and Parry, which no book does.
+        await File.WriteAllTextAsync(Path.Combine(dir, "common-rules.json"), await http.GetStringAsync("/api/rules/common/2"));
+        Console.WriteLine(rulesOnly ? $"fetched the common rules into {dir}" : $"fetched {index.Count} books and the common rules into {dir}");
         return 0;
     }
     case "generate":
@@ -73,6 +76,6 @@ switch (args.FirstOrDefault())
         return 0;
     }
     default:
-        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--edition 3.5|3.6] [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
+        Console.Error.WriteLine("usage: army-books fetch [--to DIR] [--rules-only] | generate [--edition 3.5|3.6] [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
         return 2;
 }
