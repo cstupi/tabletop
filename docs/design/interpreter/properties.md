@@ -58,6 +58,8 @@ erDiagram
         bool played
         bool target_line_of_sight
         text target_requires
+        bool targeting_once_per_round
+        bool targeting_count_from_parameter
     }
     EFFECT {
         uuid id PK
@@ -81,6 +83,7 @@ erDiagram
         text target_terrain
         text target_condition
         text amount_dice
+        bool optional
     }
     EFFECT_CONDITION {
         uuid id PK
@@ -104,9 +107,9 @@ erDiagram
     }
 ```
 
-`effect` is one table for eighteen kinds. Six columns serve a single kind each: `threshold`,
-`cap_kind`, `replacement`, `target_terrain` (`count_as_terrain`), `target_condition` (`set_condition`) and
-`amount_dice` (`place`, `move`, `remove_wounds`). The self-reference carries nesting. `condition_value` exists
+`effect` is one table for twenty kinds. Seven columns serve a single kind each: `threshold`,
+`cap_kind`, `replacement`, `target_terrain` (`count_as_terrain`), `target_condition` (`set_condition`),
+`amount_dice` (`place`, `move`, `remove_wounds`) and `optional` (`add_hit` on `attacks`). The self-reference carries nesting. `condition_value` exists
 because one predicate can name a set: `Fast` applies to *Rush/Charge*. The `properties_hash`
 column that every child table carries as part of its key is elided for width, as are the
 `entry_name` and `condition_id` foreign keys and the `position` columns. [`schema-diagram.md`](../../schema-diagram.md) has them in full.
@@ -169,10 +172,10 @@ Consequences:
 `aggregation` is set exactly when `kind` is `model`; `cost` and `targeting` exactly when `kind`
 is `spell`, except that a `model` pick entry carries `targeting` too; `threshold` only on `roll`, `cap_kind` only on
 `multiply`, `replacement` only on `replace_stat`, `target_terrain` exactly on `count_as_terrain`, `target_condition`
-exactly on `set_condition`, `amount_dice` (`d3`, `d3+1`) only on `place`, `move` and `remove_wounds`; a `roll` effect has at least one child; an `add_hit`
-of `wounds` or `attacks` carries a `roll_result` condition; `range`, `round_number`, `usage_count` and `at_point` take
-no subject, while `holds_property` and `most_models` need one and name exactly one value; a text-only entry
-(`played = false`) has no effects; a `spell` entry's top-level effect is `add_hit`, `take_test`, or carries
+exactly on `set_condition`, `amount_dice` (`d3`, `d3+1`) only on `place`, `move` and `remove_wounds`, `optional` only on an `add_hit` of `attacks`; a `roll` effect has at least one child; an `add_hit`
+of `wounds` or `attacks` carries a `roll_result` condition; `count_wounds` carries one too and has subject `opponent`; `remove_spell_tokens` has an `amount` of 1 or more and names no target; `range`, `round_number`, `usage_count`, `at_point` and `weapon_range` take
+no subject, while `holds_property`, `most_models` and `remaining_size` need one and name exactly one value, and `weapon_range` and `remaining_size` need a `number`; a `one_marker` row belongs to an entry with `targeting`; a text-only entry
+(`played = false`) has no effects; a `spell` entry's top-level effect is `add_hit`, `take_test`, `remove_spell_tokens`, or carries
 `duration = once`; a book's uids are unique, every name a book lists is a `spell` entry listed once in that book,
 and every `spell` entry is listed by some book.
 

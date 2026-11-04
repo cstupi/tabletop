@@ -311,6 +311,8 @@ hole rather than a runtime one.
 | `TokenSpend` | `TokensSpent` | one `Chooser.Next(max + 1)` per entry of `MaxByModel`, in the server's order |
 | `Confirmation` | `Confirmed` | always |
 
+Two `Options` questions of 3.6.0 reach the policy like any other: `extra_attacks` (Predator's *"may"*, asked of the attacker's team with Yes and No, pass allowed) and `choose_effect` asked of the defender's team (Versatile Defense, one option per effect, pass allowed). A suite game scripts either with `Match(question, ...)`.
+
 A token spend draws per model rather than once against a total. Grimdark Future p.13 lets each
 model spend any number of the tokens it holds, so `TokenSpend` carries a maximum per model and
 the bound under test is that maximum. A single draw against the sum could never produce "one from
@@ -777,7 +779,7 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   game twice, the 3.6.0 run named `<name>@3.6` and the 3.5.1 run keeping the bare name; core and special games whose checks quote
   no rule that 3.6.0 changes run both. A rule 3.6.0 changes or adds has a 3.6.0-only game declared `.In36()`, its checks quoting
   `3.6.0 p.N` (`SuiteCatalog.Core36.cs`, `Special36*.cs`: 4 `special` games run under 3.6.0 alone, 2 under 3.5.1 alone). Army and spell games are
-  single-edition: their books' uids differ per edition (`army:3.6:<uid>` 236 games, `spells:3.6:<uid>` 48, in `Army36*.cs` and `Spells36.cs`).
+  single-edition: their books' uids differ per edition (`army:3.6:<uid>` 285 games, `spells:3.6:<uid>` 53, in `Army36*.cs` and `Spells36.cs`).
   Coverage is per shipped set: each set's every entry is checked against the games of its edition, so an entry a 3.6.0 game
   does not cover fails a full run. The viewer's Tests page shows the edition column and filters by it.
 - **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own
