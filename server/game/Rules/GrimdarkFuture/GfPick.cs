@@ -174,7 +174,7 @@ public static class GfPick
         {
             if (Use(ctx) is not var (entry, _)) return new Complete([]);
             var actor = ctx.Frame.Context.ActorUnitId!.Value;
-            var targets = Picked(ctx);
+            var targets = PickedTargets(ctx.State, ctx.Frame);
             var index = ctx.Frame.Value("effect_index");
             if (index >= targets.Count || !entry.Effects.Any(e => e.Duration != EffectDuration.Once)) return new Complete([]);
             var target = targets[index];
@@ -209,14 +209,15 @@ public static class GfPick
             return new Complete(changes, values, Repeat: more);
         }
 
-        /// <summary>Every target the rule-target runs picked, in order, each read against the Ask it answered (a repeat's own Ask).</summary>
-        static IReadOnlyList<Guid> Picked(StepContext ctx)
-        {
-            var asks = EventApplier.EffectiveLog(ctx.State.Applier.Log).Select(e => e.Payload).OfType<AskOpened>()
-                .Where(o => o.Ask.FrameId == ctx.Frame.Id && o.Ask.Question == GfNames.RuleTarget).Select(o => o.Ask).ToList();
-            var answers = ctx.Frame.Frame.Steps.Where(s => s.Step == GfNames.RuleTargetStep && s.Answer is not null).Select(s => s.Answer).ToList();
-            return answers.Select((a, i) => GfAnswers.Pieces(a, i < asks.Count ? asks[i] : null)).Where(p => p.Count > 0).Select(p => p[0])
-                .Where(t => ctx.Projection.Units.ContainsKey(t) || ctx.Projection.Models.ContainsKey(t)).ToList();
-        }
+    }
+
+    /// <summary>Every target a pick-rule frame's rule-target runs picked, in order, each read against the Ask it answered (a repeat's own Ask).</summary>
+    internal static IReadOnlyList<Guid> PickedTargets(GameState state, FrameView frame)
+    {
+        var asks = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).OfType<AskOpened>()
+            .Where(o => o.Ask.FrameId == frame.Id && o.Ask.Question == GfNames.RuleTarget).Select(o => o.Ask).ToList();
+        var answers = frame.Frame.Steps.Where(s => s.Step == GfNames.RuleTargetStep && s.Answer is not null).Select(s => s.Answer).ToList();
+        return answers.Select((a, i) => GfAnswers.Pieces(a, i < asks.Count ? asks[i] : null)).Where(p => p.Count > 0).Select(p => p[0])
+            .Where(t => state.Projection.Units.ContainsKey(t) || state.Projection.Models.ContainsKey(t)).ToList();
     }
 }

@@ -82,8 +82,8 @@ public static class PropertiesJson
             if (e.Played == false && e.Effects.Count > 0) problems.Add($"{e.Name}: a text-only entry (played false) has no effects");
             // Spell effects (09-04) read forty-eight real spells as N hits or a grant that is "always with one duration: once".
             // Anything else on a spell would be applied nowhere, so it is an authoring error rather than a silent no-op.
-            if (spell) foreach (var f in e.Effects.Where(f => f.Kind is not EffectKind.AddHit and not EffectKind.TakeTest && f.Duration != EffectDuration.Once))
-                problems.Add($"{e.Name}: a spell's effect is add_hit, take_test or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
+            if (spell) foreach (var f in e.Effects.Where(f => f.Kind is not EffectKind.AddHit and not EffectKind.TakeTest and not EffectKind.RemoveSpellTokens && f.Duration != EffectDuration.Once))
+                problems.Add($"{e.Name}: a spell's effect is add_hit, take_test, remove_spell_tokens or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
             if (spell && e.Targeting?.LineOfSight == false) problems.Add($"{e.Name}: a spell's target is in line of sight (p.13)");
             // A pick entry (army-book rules spec → the pick): a model entry whose once rows are granted to the unit it picks before attacking.
             if (!spell && e.Targeting is { } pick)
@@ -154,6 +154,10 @@ public static class PropertiesJson
         foreach (var c in f.Conditions)
             if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount or ConditionKind.AtPoint or ConditionKind.WeaponRange && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
         if (f.Optional && f.Kind != EffectKind.AddHit) problems.Add(At("optional is add_hit only"));
+        if (f.Kind == EffectKind.RemoveSpellTokens && f.Amount is not >= 1) problems.Add(At("remove_spell_tokens needs an amount of 1 or more"));
+        if (f.Kind == EffectKind.RemoveSpellTokens && (f.TargetRoll ?? f.TargetEntry ?? f.TargetAction ?? f.TargetCondition) is not null
+            || f.Kind == EffectKind.RemoveSpellTokens && (f.TargetStat, f.TargetQuantity, f.TargetResult, f.TargetModifier, f.TargetTerrain) != default)
+            problems.Add(At("remove_spell_tokens names no target"));
         foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.WeaponRange or ConditionKind.RemainingSize && c.Number is null))
             problems.Add(At($"{(c.Kind == ConditionKind.WeaponRange ? "weapon_range" : "remaining_size")} needs a number"));
         foreach (var c in f.Conditions)
