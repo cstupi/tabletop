@@ -5,7 +5,7 @@ The game is built end to end: a Grimdark Future game, under either edition (v3.5
 roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot
 client or the browser (`/viewer/`). The two editions are two rule sets, `grimdark-future` (3.5.1) and `grimdark-future-3.6`
 (3.6.0); an army carries its edition (`army.edition`, `'3.5'` or `'3.6'`) and picks only into a game of that edition. The
-3.6.0 work is on branch `gf-3-6-0`, not yet merged to `main` or tagged. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.31 is the latest tag. What each
+3.6.0 work, with every rule and spell playing, is on branch `gf-3-6-0`, not yet merged to `main` or tagged. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.31 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -56,10 +56,9 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today, on `gf-3-6-0` in process: `FAILED: 684 of 685 games passed, 1 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated` (the one is D17, Rules-suite gaps):
+On `gf-3-6-0`, in process: `PASSED: 685 of 685 games passed, 0 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated`, in about 220 s (default seed 222 s; seeds 1-5 each 217-228 s and each 685 of 685):
 308 games under 3.5.1 and 377 under 3.6.0; coverage 3.5 545 of 545 (88 by pattern), 3.6 577 of 577 (90 by pattern), 0 not automated in either.
-Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game on seed N instead of its own (the replay line carries it);
-on seeds 1–5 the suite reads 684 of 685 (seeds 1, 2, 3, 5: `special-cast-mid-move` on its pinned defect D17, Rules-suite gaps) or 685 of 685 (seed 4).
+Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game on seed N instead of its own (the replay line carries it).
 `--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
@@ -95,18 +94,11 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 In order:
 
-1. **Finish the 3.6.0 text-only rules plan.** Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`, plan
-   `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md`. The ledger with every ruling and deferred minor is
-   `.superpowers/sdd/index-2026-10-30-gf-3-6-0-text-only/progress.md`; resume with superpowers:subagent-driven-development from it.
-   Merged on `gf-3-6-0`: every engine task (0.1, 1.1–1.13), content 2.1–2.5, the suite tasks 3.1–3.3, and two follow-ups (Predator's
-   twice-completed `roll-to-hit` read by the suite and both combat logs; the `GfCasting` split). Every 3.6.0 rule and spell plays (0 text-only).
-   Left:
-   - **3.4** on branch `wt/t3-4` (worktree `.worktrees/t3-4`, not reviewed): `sim suite --seed N`, and the games that failed on seeds 1–5
-     rebuilt to hold by construction (two remain, Rules-suite gaps); report in the workspace's `task-3.4-report.md`.
-   - **4.1, 4.2** not started. 4.1 also covers `docs/design/interpreter/resolution.md`.
-2. **Merge `gf-3-6-0` to `main`.** After item 1: the full E2E suite and the socket-driver rules suite (lifecycle already
-   passes 8 of 8 on the branch; rerun it after item 1). The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
+1. **Merge `gf-3-6-0` to `main`.** Still to run on the branch: the full E2E suite, the socket-driver rules suite, then lifecycle. The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
    owner's edition ruling.
+2. **A GameServer test fails intermittently,** about once in five full runs. Its name was never captured;
+   `ZonesInPlayTests.A_third_team_created_in_setup_moves_default_zones_to_the_corners_and_leaves_chosen_zones` failed once.
+3. **The ISR Mark games cannot catch a small over-reach.** That needs a second shooter 18-20" from the marked unit.
 
 ### 2026-10-26, v0.1.29
 
@@ -344,13 +336,8 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 
 ## Rules-suite gaps
 
-What the suite does not check or report today. D1-D16 are fixed; D17 is open (below); the other 684 games pass with no pin on their own seeds.
+What the suite does not check or report today. D1-D17 are fixed; no game is pinned.
 
-- **D17: Shock Speed's bonus is lost after a part-way stop.** 3.5.1 Shock Speed: "moves +2" when using Advance actions and +4" when using
-  Rush/Charge actions once (next time the effect would apply)". Cast at a stop before moving on the unit making the Advance, it lifts the
-  rest of that Advance from 4" (Slow) to 6"; a 1" stop then leaves 3" where the bonus should leave 5": the once grant is spent by the first
-  segment and the remaining distance is read again without it. `special-cast-mid-move` is pinned to D17 (it shows on the default seed and
-  seeds 1, 2, 3 and 5; seed 4's 1" stop is not clear and the policy moves instead).
 - **Scourge's morale test lists nothing.** The shooting or spell morale test Scourge triggers does not list Scourge as applied (the
   activation-end hook records nothing); `change-disciples-scourge-morale@3.6` checks it through an `Evidence` predicate.
 
@@ -397,7 +384,11 @@ Postgres refuses a spell entry with `played: false` (`catalog_entry_played_check
 ask (`extra_attacks`) once 2.5 merges, until then they always roll; Versatile Defense is chosen by the defender's team per
 attack-sequence, before the hit roll; Brace is "-X total", one per weapon type, none when the defender is Fatigued or Shaken;
 Parry's ignored hits are those with the most per-die grants, no Ask; once grants last the attack they first apply in and go at
-`attack-end`; Mind Control's once-per-round is per unit moved. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
+`attack-end`; Mind Control's once-per-round is per unit moved. Owner's rulings of 2026-11-04: Smash and Pierce on a spell's hits read
+the spell's printed range, measured from the caster model to the target's nearest model; Scourge on a spell's hits counts toward the
+end-of-activation Morale Test, as shooting's does; a once grant on a move action (Shock Speed) lasts the whole action across a stop and
+is spent at the move's end; Deadly reassigns a wound its model no longer needs and multiplies it on the new model; under 3.5.1 Fortified,
+Fortified Growth, Guardian and Primeborn floor AP at 0, as printed. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
 carries or grants it. Enhanced Watchborn is Watchborn without the range band. Counter in Melee is read as Counter, and its strike is
 not listed in the applied-rules log; only weapons named Counter add "Counter". When Pierce drops cover, the roll's expanded
 details (`RollEntry.Details`, viewer `rollEntry.ts`) still read "In cover" with no Pierce line; the worked lines show it.

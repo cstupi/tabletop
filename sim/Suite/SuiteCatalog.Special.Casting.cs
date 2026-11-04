@@ -82,10 +82,7 @@ static partial class SpecialGames
                         return Math.Abs(Allowance(next) - expected) < 0.05 ? null : $"allowance {Allowance(s.Ask)} with {expected} left, then {Allowance(next)}";
                     });
                 }),
-            ], dice: [new("roll-off", 0, [6, 1]), new("casting", 0, [6], new RollKey(Actor: "Red unit 1"))])
-            // D17: Shock Speed's once grant is spent by the first segment of the Advance it boosts, and the rest of the move is re-read without it
-            // (allowance 6, a 1" stop, then 3 left rather than 5).
-            .Pinned("D17", "p.13 Caster(X): \"At any point before attacking\": a stop part-way, then a pass, leaves what is left of the move", "with 5 left, then 3");
+            ], dice: [new("roll-off", 0, [6, 1]), new("casting", 0, [6], new RollKey(Actor: "Red unit 1"))]);
     }
 
     /// <summary>The model moved 1" straight toward the line y = <paramref name="middle"/>, facing as it faces.</summary>
