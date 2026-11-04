@@ -259,7 +259,7 @@ now, taking the die when one is given, and orders by `Ordinal`. Every reader is 
 ruleset has one: `StepContext.Plan` takes an optional `threshold` that overrides
 `RollSpec.Threshold`, which is how a target number read off a model's slot rather than the unit's
 reaches a plan without putting a model on `RollSpec` and therefore on `IGameRules`. Every `ModifyRoll` on this roll is
-then appended, and three suppressions are applied by removal:
+then appended, and four suppressions are applied by removal:
 
 - `TargetModifier.Cover` suppressed removes modifiers whose `Source` is the literal `"cover"`.
 - `TargetModifier.ToHitPenalties` suppressed removes every negative modifier, **but only when the
@@ -270,6 +270,9 @@ then appended, and three suppressions are applied by removal:
   special rules"*). A modifier is the roller's own when `LiveSet.OwnedBy` traces its `modify_roll`
   row's property, through pass one's grantor and a per-die grant's rule, to a property its side holds,
   and a granted row on it was placed by its own team. A base modifier has no property, so it goes.
+- `TargetModifier.PositiveDefense` suppressed removes every positive modifier, base (`cover`) and rule rows alike, **only on the
+  ruleset's defense roll** (the `defenseRollName` parameter, from `IGameRules.DefenseRoll`), each listed in `RollPlan.Ignored` by
+  its suppressor; negative modifiers (AP) stay (3.6.0 Pierce).
 
 Matching a base modifier by the string `"cover"` is the weakest join in the module. It couples a
 generic suppressor to a string the ruleset happens to use, and `Blast` silently stops ignoring cover

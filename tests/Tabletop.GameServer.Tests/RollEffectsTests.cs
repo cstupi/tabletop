@@ -25,17 +25,17 @@ public class RollEffectsTests
     public void Stealth_modifies_the_hit_roll_aircraft_cuts_range_and_unstoppable_ignores_the_penalties()
     {
         var (live, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)), Unit("T", "4+", "4+", [P("Aircraft")], 2, [P("Stealth")]), 12);
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, hitRollName: "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, hitRollName: "hit", defenseRollName: "defense");
         Assert.Equal(4, plan.Threshold); Assert.Equal(-1, plan.NetModifier);                                      // 3.5.1 Aircraft is -12" to range only, with no to-hit modifier (3.6.0 p.13 adds -1 to hit rolls)
         Assert.Equal(["Stealth"], plan.Modifiers.Select(m => m.Source));
         Assert.Equal(12.0, StatReader.WeaponRange(live, Side.Attacker, live.Interaction.Attacker.WeaponIds[0]));
         var (unstoppable, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Beam", "24\"", 1, P("Unstoppable"))), Unit("T", "4+", "4+", [P("Aircraft")], 2, [P("Stealth")]), 12);
-        Assert.Equal(0, RollEffects.Plan(unstoppable, Side.Attacker, "hit", 4, [], D6, null, "hit").NetModifier);
+        Assert.Equal(0, RollEffects.Plan(unstoppable, Side.Attacker, "hit", 4, [], D6, null, "hit", "defense").NetModifier);
         Assert.Equal(24.0, StatReader.WeaponRange(unstoppable, Side.Attacker, unstoppable.Interaction.Attacker.WeaponIds[0]));   // -12" range penalty ignored
-        var covered = RollEffects.Plan(unstoppable, Side.Defender, "defense", 4, [new RollModifier("cover", 1)], D6, null, "hit");
+        var covered = RollEffects.Plan(unstoppable, Side.Defender, "defense", 4, [new RollModifier("cover", 1)], D6, null, "hit", "defense");
         Assert.Equal(1, covered.NetModifier);                                                                     // p.15 Unstoppable ignores modifiers to its own weapon (3.6.0 p.15 keeps the penalties from the model's own special rules), not the target's cover
         var (blast, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Bomb", "24\"", 1, P("Blast", 3))), Unit("T", "4+", "4+", [], 2, []), 12);
-        Assert.Empty(RollEffects.Plan(blast, Side.Defender, "defense", 4, [new RollModifier("cover", 1)], D6, null, "hit").Modifiers);   // p.13 Blast ignores cover
+        Assert.Empty(RollEffects.Plan(blast, Side.Defender, "defense", 4, [new RollModifier("cover", 1)], D6, null, "hit", "defense").Modifiers);   // p.13 Blast ignores cover
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class RollEffectsTests
     {
         var (live, _, _) = Shooting(Unit("S", "5+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Reliable"), P("AP", 2), P("Bane"))), Unit("T", "4+", "3+", [], 2, [P("Regeneration")]), 6);
         Assert.Equal(2, StatReader.TargetNumber(live, Side.Attacker, Quality).Value);
-        var defense = RollEffects.Plan(live, Side.Defender, "defense", StatReader.TargetNumber(live, Side.Defender, Defense).Value, [], D6, null, "hit");
+        var defense = RollEffects.Plan(live, Side.Defender, "defense", StatReader.TargetNumber(live, Side.Defender, Defense).Value, [], D6, null, "hit", "defense");
         Assert.Equal((3, -2), (defense.Threshold, defense.NetModifier));
         Assert.Equal([6], defense.RerollRaw);
         Assert.Empty(RollEffects.OwnRolls(live, Side.Defender, c => c.Kind == EffectKind.OverrideResult && c.TargetResult == TargetResult.Wound));   // Regeneration suppressed
