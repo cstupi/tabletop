@@ -40,8 +40,20 @@ public static partial class SuiteCatalog
                 let killed = s.Step.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Select(m => m.ModelId).ToList()
                 let melee = s.Frame
                 let pushed = log.Steps.Where(p => p.Frame.Sequence == "rule-hits" && p.Step.Step == "hit" && p.Ancestors.FirstOrDefault()?.FrameId == melee.FrameId && Dealt(p.Frame) is { Rule: "Self-Destruct" }).ToList()
+                // "the enemy unit takes X hits": none when that unit is already destroyed.
+                let due = killed.GroupBy(m => run.Final.Models[m].UnitId)
+                    .Sum(g => StandsAfter(run, log, g.Key == melee.Context.ActorUnitId ? melee.Context.TargetUnitIds[0] : melee.Context.ActorUnitId!.Value, s.Index) ? g.Count() * x : 0)
                 select !killed.All(m => run.Final.Models[m].Slot.Properties.Any(p => p.Name == "Self-Destruct")) ? "removed a model without Self-Destruct"
-                    : pushed.Sum(p => p.Value("hits")) != killed.Count * x ? $"{pushed.Sum(p => p.Value("hits"))} hits for {killed.Count} carriers" : null);
+                    : pushed.Sum(p => p.Value("hits")) != due ? $"{pushed.Sum(p => p.Value("hits"))} hits for {killed.Count} carriers, {due} due" : null);
+
+        /// <summary>Whether any model of the unit stands after the step at that index: none removed to the shelf by a step up to it.</summary>
+        static bool StandsAfter(SuiteGameRun run, ArmyLog log, Guid unit, int index)
+        {
+            var removed = new HashSet<Guid>();
+            foreach (var mv in log.Steps.TakeWhile(s => s.Index <= index).SelectMany(s => s.Step.Changes.OfType<ModelsMoved>()).SelectMany(m => m.Moves))
+                if (mv.To is OnShelf) removed.Add(mv.ModelId); else removed.Remove(mv.ModelId);
+            return run.Final.Models.Values.Any(m => m.UnitId == unit && !removed.Contains(m.Id));
+        }
 
         /// <summary>Dice of wounds ("roll X dice. For each 6+ the target takes one wound"): each rule-wounds frame of the entry rolls X per carrier, judges 6+, and its
         /// deal-wounds assigns that many wounds.</summary>
