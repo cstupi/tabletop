@@ -131,10 +131,15 @@ static partial class SpecialGames
     static TestGame TakedownPicksOne()
     {
         const string name = "special-takedown-picks-one";
-        return Game(name, new ScenarioBuilder(name, 1).RoundCap(4).Table(24, 30).Scripted(PickTheHero)
-                .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Seeker Launcher", 24, 2, Rule("Blast", 3), Rule("Takedown")), Gun("Frag Launcher", 24, 1, Rule("Blast", 3))], unitStats: Stats(4, 4))
+        // Both sides Hold 14" apart (anchors), inside the 24" guns; Red's first Seeker Launcher die is fixed to hit and the picked Hero's block of it to fail.
+        var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
+            ("takedown_target", (ask, p) => ask.Legal is PieceSelection s && s.Eligible.FirstOrDefault(id => p.Models[id].Slot.Properties.Any(r => r.Name == "Hero")) is var h && h != Guid.Empty
+                ? new SelectedPieces([h]) : null));
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(4).Table(24, 30).Scripted(script)
+                .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Seeker Launcher", 24, 2, Rule("Blast", 3), Rule("Takedown")), Gun("Frag Launcher", 24, 1, Rule("Blast", 3))], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(18, 15) })
                 .Army("Blue", 1, 5, weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5),
-                    models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(3, 2))])
+                    models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(3, 2))], anchors: new Dictionary<int, Point2> { [1] = new(1, 15) })
                 .Build(),
             ["Takedown", "Blast", "Tough", "Hero"],
             [
@@ -152,7 +157,8 @@ static partial class SpecialGames
                         .SelectMany(a => a.Block!.Rolls.Where(r => r.Roll == "defense")), "a defense roll by the picked Hero", r =>
                         r.Threshold == 2 ? null : $"defense {Show(r)} is not at the Hero's own 2+");
                 }),
-            ]);
+            ],
+            dice: [new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Seeker Launcher")), new("defense", 0, [1], new RollKey(Actor: "Red unit 1", Weapon: "Seeker Launcher"))]);
     }
 
     /// <summary>ShootAndStrike, and a takedown pick names Blue's Hero whenever it is offered.</summary>
