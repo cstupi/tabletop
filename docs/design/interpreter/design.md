@@ -179,7 +179,7 @@ p.50 (the token economy's edges and the free-for-all roll-off).
 
 **Sibling documents in this folder.**
 
-- [The effect grammar](effect-grammar.md): eighteen kinds, eleven predicates, the two passes in
+- [The effect grammar](effect-grammar.md): eighteen kinds, thirteen predicates, the two passes in
   detail, the grants store, and the worked rows.
 - [Grimdark Future's sequences](opr-sequences.md): the thirty sequences, the shared attack
   chain, the move step's phase machine, casting, and containment.

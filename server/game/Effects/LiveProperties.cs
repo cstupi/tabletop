@@ -77,7 +77,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     /// hold now: what would have applied, and the property that removed it (detailed-log spec). Pure.</summary>
     public IEnumerable<(LiveProperty Removed, Effect Effect, LiveProperty By)> RemovedRows(Side actedOn, EffectKind kind, Func<Effect, bool>? filter = null) =>
         _acts.Removed.SelectMany(x => x.Removed.Effects
-            .Where(e => e.Kind == kind && x.Removed.ActedOn(e) == actedOn && (filter?.Invoke(e) ?? true) && Conditions.Hold(Interaction, x.Removed.Holder, e, x.Removed, null))
+            .Where(e => e.Kind == kind && x.Removed.ActedOn(e) == actedOn && (filter?.Invoke(e) ?? true) && Conditions.Hold(Interaction, x.Removed.Holder, e, x.Removed, null, this))
             .Select(e => (x.Removed, e, x.Source)))
             .OrderBy(x => x.e.Ordinal);
     public Interaction Interaction { get; } = interaction;
@@ -116,14 +116,14 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 
     /// <summary>Effects of one kind acting on a side, in ordinal order, whose conditions hold now (a per-die condition is judged with the die).</summary>
     public IEnumerable<(LiveProperty Source, Effect Effect)> Effects(Side actedOn, EffectKind kind, DieContext? die = null) =>
-        Live.SelectMany(p => p.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die)).Select(e => (p, e)))
+        Live.SelectMany(p => p.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die, this)).Select(e => (p, e)))
             .OrderBy(x => x.e.Ordinal).Select(x => (x.p, x.e));
 
     /// <summary>The rows acting on a side that are offered at a point: an at_point row naming it, whose other conditions hold now. The live set's
     /// interaction must carry that Point, or no at_point condition holds.</summary>
     public IEnumerable<(LiveProperty Source, Effect Effect)> AtPoint(Side side, string point) =>
         Live.SelectMany(p => p.Effects.Where(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values.Contains(point))
-                && Conditions.Hold(Interaction, p.Holder, e, p, null)).Select(e => (p, e)));
+                && Conditions.Hold(Interaction, p.Holder, e, p, null, this)).Select(e => (p, e)));
 
     /// <summary>The live set with one per-die grant added (a block group's hits, keyed by score-hits). The added instance's Via is the
     /// live rule whose per-die grant_property row names that entry and amount, which is what the dice set off.</summary>

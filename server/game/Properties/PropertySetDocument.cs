@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Tabletop.Content;
 
 namespace Tabletop.GameServer.Properties;
@@ -18,7 +19,8 @@ public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesPara
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier, int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind,
     string? Replacement, EffectDuration Duration, IReadOnlyList<ConditionDocument> Conditions, IReadOnlyList<EffectDocument> Children,
-    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null, int? Floor = null);
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null, int? Floor = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Optional = false);
 public sealed record ConditionDocument(ConditionKind Kind, EffectSubject? Subject, Comparison Comparison, int? Number, IReadOnlyList<string> Values);
 
 public static class PropertiesJson
@@ -96,6 +98,7 @@ public static class PropertiesJson
             if (e.Targeting?.Requires is { } required && !names.Contains(required)) problems.Add($"{e.Name}: targeting requires no entry '{required}'");
             if (e.Effects.Any(f => f.Kind == EffectKind.RemoveWounds) && e.Targeting is null) problems.Add($"{e.Name}: remove_wounds belongs to a pick entry");
             if (!spell && e.Targeting is null && e.Effects.Any(f => f.Duration == EffectDuration.Once)) problems.Add($"{e.Name}: a once row belongs to a spell or a pick entry");
+            if (e.Targeting is null && e.Effects.Any(HasOneMarker)) problems.Add($"{e.Name}: a one_marker row belongs to an entry with targeting");
             foreach (var f in e.Effects) ValidateEffect(d, names, e.Name, f, problems);
         }
         var books = d.Books ?? [];
@@ -126,6 +129,7 @@ public static class PropertiesJson
         EffectKind.AddHit => f.TargetQuantity is null or TargetQuantity.Hits && f.Conditions.All(c => c.Kind != ConditionKind.RollResult),
         _ => false,
     };
+    static bool HasOneMarker(EffectDocument f) => f.Duration == EffectDuration.OneMarker || f.Children.Any(HasOneMarker);
     static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start", "activation-end", "after-deploy"];
 
     static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)
@@ -148,7 +152,10 @@ public static class PropertiesJson
         if (f.Kind == EffectKind.SetCondition && f.TargetCondition is null) problems.Add(At("set_condition needs target_condition"));
         if (f.Kind == EffectKind.Roll && f.Children.Count == 0) problems.Add(At("a roll needs a per-success child"));
         foreach (var c in f.Conditions)
-            if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount or ConditionKind.AtPoint && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
+            if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount or ConditionKind.AtPoint or ConditionKind.WeaponRange && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
+        if (f.Optional && f.Kind != EffectKind.AddHit) problems.Add(At("optional is add_hit only"));
+        foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.WeaponRange or ConditionKind.RemainingSize && c.Number is null))
+            problems.Add(At($"{(c.Kind == ConditionKind.WeaponRange ? "weapon_range" : "remaining_size")} needs a number"));
         foreach (var c in f.Conditions)
         {
             if (c.Kind == ConditionKind.RollResult)
@@ -165,7 +172,7 @@ public static class PropertiesJson
                 }
             }
         }
-        foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.HoldsProperty or ConditionKind.MostModels))
+        foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.HoldsProperty or ConditionKind.MostModels or ConditionKind.RemainingSize))
         {
             if (c.Subject is null) problems.Add(At($"{c.Kind} needs a subject"));
             if (c.Values.Count != 1) problems.Add(At($"{c.Kind} names exactly one value"));
@@ -190,7 +197,7 @@ public static class PropertiesJson
         Effect Build(EffectDocument f) => new(newId(), f.Subject, f.Ordinal, f.Kind, f.TargetRoll, f.TargetStat, f.TargetEntry, f.TargetAction, f.TargetQuantity, f.TargetResult,
             f.TargetModifier, f.Amount, f.AmountFromParameter, f.Threshold, f.CapKind, f.Replacement, f.Duration,
             f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList(),
-            f.TargetTerrain, f.TargetCondition, f.AmountDice, f.Floor);
+            f.TargetTerrain, f.TargetCondition, f.AmountDice, f.Floor, f.Optional);
         return new PropertySet(Hash(d), d.Name, d.GameRules, d.Stats, d.Actions, d.Rolls.Select(r => new RollDefinition(r)).ToList(),
             d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList(), e.Played != false)).ToList(),
             d.Books ?? []);

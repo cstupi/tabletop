@@ -60,7 +60,7 @@ public static class RollEffects
             foreach (var e in p.Effects.Where(e => e.Kind == EffectKind.ForceReroll && e.TargetRoll == roll && p.ActedOn(e) == roller))
             {
                 var face = e.Conditions.FirstOrDefault(c => c.Kind == ConditionKind.RollResult && c.Values.Count is 2 or 3 && c.Values[0] == roll && c.Values[1] == "raw");
-                if (face?.Number is not { } n || !e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))) continue;
+                if (face?.Number is not { } n || !e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null, live))) continue;
                 var successOnly = face.Values.Count == 3;
                 (successOnly ? successful : reroll).Add(n); rerolls.Add((n, successOnly, p)); live.Spend(p);
             }
@@ -146,7 +146,7 @@ public static class RollEffects
     {
         foreach (var p in live.Live.Where(p => p.GrantId is not null))
             if (p.Effects.Any(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult && c.Values.Count >= 2 && c.Values[0] == roll)
-                    && e.Conditions.Where(c => c.Kind != ConditionKind.RollResult).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))))
+                    && e.Conditions.Where(c => c.Kind != ConditionKind.RollResult).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null, live))))
                 live.Spend(p);
     }
 

@@ -77,6 +77,25 @@ public static class StatReader
         return Math.Max(0, range);
     }
 
+    /// <summary>The weapon's range as the live set leaves it, with nothing spent or recorded: what a weapon_range condition compares against.
+    /// The range rows' own conditions are judged without the live set, so a range row conditioned on weapon_range reads the printed range.</summary>
+    public static double? PeekWeaponRange(LiveSet live, Side side, Guid weaponId)
+    {
+        var weapon = live.Interaction.State.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => w.Id == weaponId);
+        if (weapon is null || !weapon.Stats.TryGetValue("Range", out var text)) return null;
+        var range = StatValue.Read(StatKind.Distance, text).Inches;
+        var rangeRef = new StatRef(StatLevel.Weapon, "Range");
+        var rows = live.Live.SelectMany(p => p.Effects.Where(e => e.Kind == EffectKind.ModifyStat && e.TargetStat == rangeRef && p.ActedOn(e) == side
+            && Conditions.Hold(live.Interaction, p.Holder, e, p, null)).Select(e => (p, e))).OrderBy(x => x.e.Ordinal);
+        foreach (var (src, e) in rows)
+        {
+            var amount = e.EffectiveAmount(src.Parameter);
+            if (amount < 0 && live.SuppressedModifiers.Contains(TargetModifier.RangePenalties)) continue;
+            range = Floored(range, amount, e.Floor);
+        }
+        return Math.Max(0, range);
+    }
+
     /// <summary>A change "to a min. of N": it takes the stat no lower than N, or than the stat itself when that is already lower.</summary>
     static double Floored(double value, int amount, int? floor) => floor is { } f ? Math.Max(value + amount, Math.Min(value, f)) : value + amount;
 

@@ -91,11 +91,30 @@ public static partial class GfAttack
     /// without it "is removed last", so while models without Tough remain they are the pool; among Tough models alone the most-wounded one
     /// keeps taking wounds until it is killed. The in-play reading, so a unit inside a wrecked transport can be wounded before it is placed (Task 19).
     /// </summary>
-    public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit)
+    public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit) =>
+        EligibleForNextWound(state, unit, m => state.Projection.Models[m].Wounds);
+
+    /// <summary>The models wounds would kill, laid one at a time on a copy of the unit's wounds in p.15's order (EligibleForNextWound, the first
+    /// eligible model when several are): what a unit counts as having lost to wounds it only counts as having taken.</summary>
+    public static int LaidCasualties(GameState state, PropertySet props, Guid unit, int wounds)
+    {
+        var laid = Lookup.AliveModels(state, unit).ToDictionary(m => m, m => state.Projection.Models[m].Wounds);
+        var killed = 0;
+        for (var i = 0; i < wounds; i++)
+        {
+            if (EligibleForNextWound(state, unit, m => laid.GetValueOrDefault(m)) is not [var next, ..]) break;
+            if (++laid[next] >= Size(state, next)) killed++;
+        }
+        return killed;
+    }
+
+    static int Size(GameState state, Guid modelId) => Lookup.ModelParameter(state, modelId, GfNames.Tough) ?? 1;
+
+    static IReadOnlyList<Guid> EligibleForNextWound(GameState state, Guid unit, Func<Guid, int> wounds)
     {
         // A destroyed container still on the table (Task 19) has taken all it can. Among Tough models the most-wounded is offered first,
         // so without this a carried wound would be handed to the wreck, which cannot take it.
-        var living = Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m)).ToList();
+        var living = Lookup.AliveModels(state, unit).Where(m => wounds(m) < Size(state, m)).ToList();
         // Heroes are deferred before the Tough ordering is read, not after it. p.15 writes "heroes must be assigned wounds last,
         // even if already wounded" as a parenthetical inside the continuation clause, so it is an exception to that clause: a
         // wounded Tough hero waits for every other model rather than soaking the next wound.
@@ -103,7 +122,7 @@ public static partial class GfAttack
         var pool = notHeroes.Count > 0 ? notHeroes : living;
         var plain = pool.Where(m => !IsTough(state, m)).ToList();
         if (plain.Count > 0) return plain;
-        var woundedTough = pool.Where(m => state.Projection.Models[m].Wounds > 0).OrderByDescending(m => state.Projection.Models[m].Wounds).ToList();
+        var woundedTough = pool.Where(m => wounds(m) > 0).OrderByDescending(wounds).ToList();
         return woundedTough.Count > 0 ? [woundedTough[0]] : pool;
     }
 

@@ -38,7 +38,7 @@ tables. These are those tables, with `book` and `book_spell` for the army books 
 
 A content-addressed document was the alternative, and it is what `blob` already does for asset
 bytes. It was rejected for the reason this section opens with: the effect grammar is **closed**
-— eighteen effect kinds, eleven predicate kinds, four stat kinds — so it is exactly the structure
+— twenty effect kinds, thirteen predicate kinds, four stat kinds — so it is exactly the structure
 a database can enforce, and putting it in `jsonb` would be the magic-string move at the one
 place the enforcement is cheapest.
 
@@ -117,7 +117,7 @@ different spells is qualified with the alphabetically first book holding it, in 
 
 ### One `effect` table for every kind
 
-The eighteen kinds share most of their shape — a subject, an ordering, a thing being acted on,
+The twenty kinds share most of their shape — a subject, an ordering, a thing being acted on,
 and usually one number. `entry_name` is the catalog entry it belongs to. `amount` carries the number, and
 `amount_from_parameter` says the number is the entry's own `X`, which is what makes `Impact(X)`
 and `Blast(X)` one row rather than one row per value of X.
@@ -135,11 +135,11 @@ could not check it and nothing said what it may contain:
 | `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |
 | `target_quantity` | `hits \| wounds \| attacks` | Multiply (`hits \| wounds`), Add a hit (`wounds`, `attacks`; null is `hits`) |
 | `target_result` | `wound \| morale_test` | Override a result |
-| `target_modifier` | `cover \| to_hit_penalties \| range_penalties \| foreign_to_hit_penalties` (024) | Suppress modifiers |
+| `target_modifier` | `cover \| to_hit_penalties \| range_penalties \| foreign_to_hit_penalties` (024) `\| positive_defense` (027) | Suppress modifiers |
 | `target_terrain` | `difficult \| dangerous` | Count as terrain |
 | `target_condition` | a condition name (`fatigued` in the corpus); no check | Set a condition |
 
-`Roll`, `Move`, `Place` and `Remove wounds` act on nothing named and leave all nine null; `Remove wounds` acts on the model a pick entry picked.
+`Roll`, `Move`, `Place`, `Remove wounds`, `Count wounds` and `Remove spell tokens` act on nothing named and leave all nine null; `Remove wounds` acts on the model a pick entry picked.
 
 The three foreign keys are the point. `Bane` suppresses `Regeneration`, and it must not be able
 to name a rule that does not exist in the set it belongs to; `Reliable` replaces `Quality`, which
@@ -150,7 +150,7 @@ must be a stat that set declares. As a string, neither could be checked.
 and differ only in direction. So `amount` holds `-1` or `+1` when
 `amount_from_parameter` is set, and the effective value is that sign applied to `X`.
 
-Four columns exist for one kind each, beside `target_terrain` and `target_condition` above, which is the honest price of collapsing eighteen kinds into one table:
+Five columns exist for one kind each, beside `target_terrain` and `target_condition` above, which is the honest price of collapsing twenty kinds into one table:
 
 - **`threshold`** — `Roll` only. `Impact(X)` is *X dice at 2+*, so it needs a count and a
   score, and the count is `amount`.
@@ -161,6 +161,7 @@ Four columns exist for one kind each, beside `target_terrain` and `target_condit
   change like every other closed set here.
 - **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*. A `Replace a stat` with no replacement takes the parameter (Armor: *"Counts as having Defense X+"*).
 - **`floor`** — `Modify a stat` and `Modify a parameter`: *"to a min. of N"*, the stat or parameter no lower than N, or than itself when already lower (Ranged Shrouding, Melee Shrouding, Darkborn; 3.6.0 Fortified, Guardian, Primeborn at AP(0)).
+- **`optional`** — `Add a hit` only, `boolean not null default false`, checked `effect_optional_check (optional = false or kind = 'add_hit')`: extra attacks the roller's team may decline (*"may"*).
 - **`amount_dice`** — `Place`, `Move` and `Remove wounds` only, checked to `d3` or `d3+1`: a placement or a move whose distance is a die roll (*"within D3+1""*, *"by up to D3""*: a D3 plus one), a heal of *"D3 wounds"*.
 
 Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` honest: a `Multiply` row with a
@@ -171,14 +172,14 @@ Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` hone
 with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
 self-referencing and nullable; one level covers the whole rulebook and nothing forbids deeper.
 
-**`duration` is `interaction | once | marker | spent_marker`**, default `interaction`. Per
+**`duration` is `interaction | once | marker | spent_marker | one_marker`**, default `interaction`. Per
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): a `once` effect, when it
 applies, writes a grant onto its target — a fourth in-play store on the unit, rebuilt from the
 log and never a row — consumed the first time that grant's effect applies. Every core rule is
-`interaction`. A `marker` or `spent_marker` row is one marker a rule places on a unit: one grant per marker, stacking; a `marker` grant stays for the game, a `spent_marker` grant is consumed with its fellows the first time one applies (army-book rules spec, batch 6).
+`interaction`. A `marker` or `spent_marker` row is one marker a rule places on a unit: one grant per marker, stacking; a `marker` grant stays for the game, a `spent_marker` grant is consumed with its fellows the first time one applies (army-book rules spec, batch 6). A `one_marker` row is one token: its grants stack, and one is spent alone when it applies (*"may remove one token"*); it belongs to an entry with a target.
 
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
-first"*, `Blast` applies *"after resolving other special rules"* — and four of the eighteen kinds
+first"*, `Blast` applies *"after resolving other special rules"* — and four of the twenty kinds
 act on other properties rather than on game state, which does not commute.
 
 ### Ordered child rows record their position
@@ -217,6 +218,12 @@ A `roll_result` condition has two or three `condition_value` rows: the roll it r
 `defense`), either `raw` or `modified`, and optionally `success` or `fail`, which the die's
 success must match. `effect_condition.number` is the face compared. No roll may be named `raw`,
 `modified`, `success` or `fail`.
+
+`weapon_range` takes no subject, and `number` is a percentage of the source weapon's range (*"over half of this weapon's
+range away"* is `gt 50`). `remaining_size` takes a subject, a `number` that is a percentage of starting size, and one
+`condition_value`: the rule whose parameter is a single model's size (`Tough`). Management's `027_text_only_rules_grammar.sql`
+adds both to `effect_condition_kind_check`, with the kinds, `positive_defense`, `one_marker`, `effect.optional` and the two
+`catalog_entry` targeting flags above.
 
 Conditions hang off the effect, never off the property. `Indirect` is why: its three effects
 have different conditions, one of them conditional and two unconditional.
@@ -368,7 +375,7 @@ unit, model slot or weapon, which is 3.6.
 
 `cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
 on a spell and on a pick entry (a `model` entry an army-book Buff, Mark, Debuff or before-attacking active writes); `target_line_of_sight` is null
-(in sight) or false (range alone, a Buff), and set only with a target; `target_requires` names the rule the target must hold (*"with Caster"*), set only with a target; `aggregation` only when `kind = model`;
+(in sight) or false (range alone, a Buff), and set only with a target; `target_requires` names the rule the target must hold (*"with Caster"*), set only with a target; `targeting_once_per_round` (a unit a use moved this round is no target) and `targeting_count_from_parameter` (the pick takes 1 to X units), both `boolean not null default false`, are true only with a target (`catalog_entry_targeting_flags_check`); `aggregation` only when `kind = model`;
 `takes_parameter` is false for a spell. `PropertiesJson.Validate` holds a pick entry to count one and rows at `before-attacking` that are `once` or a use (`take_test`, `roll` of hits, `add_hit`, `remove_wounds`).
 
 ### A game records its creator

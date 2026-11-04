@@ -64,18 +64,14 @@ public static class GfHooks
 
     public static int StartingSize(GameState state, Guid unitId) => state.Projection.Units[unitId].Definition.Models.Count;
 
-    /// <summary>Half or less of starting size, or of the Tough value for a single-model unit (p.10). Counted over the models still in play: a unit inside a transport has not lost a model by being carried.</summary>
-    public static bool AtHalfOrLess(GameState state, PropertySet props, Guid unitId)
+    /// <summary>Half or less of starting size, or of the Tough value for a single-model unit (p.10), as Lookup.RemainingSize counts them. Counted over the models
+    /// still in play: a unit inside a transport has not lost a model by being carried. Extra wounds are laid first as deal-wounds lays them (GfAttack.LaidCasualties),
+    /// on a copy: wounds a rule makes the unit count as having taken.</summary>
+    public static bool AtHalfOrLess(GameState state, PropertySet props, Guid unitId, int extraWounds = 0)
     {
-        var start = StartingSize(state, unitId);
-        if (start == 1)
-        {
-            var model = state.Projection.Units[unitId].Definition.Models[0];
-            var tough = Lookup.ModelParameter(state, model.Id, GfNames.Tough) ?? 1;
-            var remaining = state.Projection.Models[model.Id].Location is not OnShelf ? tough - state.Projection.Models[model.Id].Wounds : 0;
-            return remaining * 2 <= tough;
-        }
-        return Lookup.AliveModels(state, unitId).Count * 2 <= start;
+        var (remaining, starting) = Lookup.RemainingSize(state, unitId, GfNames.Tough);
+        if (extraWounds > 0) remaining = StartingSize(state, unitId) == 1 ? Math.Max(0, remaining - extraWounds) : remaining - GfAttack.LaidCasualties(state, props, unitId, extraWounds);
+        return remaining * 2 <= starting;
     }
 
     /// <summary>A melee sequence started since the actor's activation began, with this unit as charger or target. No activation frame in the log means no melee this activation — never a scan of the whole log, which would report a melee from an earlier round.</summary>
