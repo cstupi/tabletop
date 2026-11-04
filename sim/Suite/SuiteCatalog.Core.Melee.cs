@@ -13,17 +13,29 @@ internal static partial class CoreGames
 
     /// <summary>
     /// p.9–10 melee: armies with only hand weapons close in and charge. The first hit roll of the game (a charge's) is fixed to test the Quality threshold.
-    /// Round 4's end is under warn, and both players continue at the game_over Ask.
+    /// Round 4's end is under warn, and both players continue at the game_over Ask. Red wins the roll-off (fixed); Red's units charge whenever they may and
+    /// Blue's Hold, every defender strikes back. Red 1 and Red 2 deploy within charge range of Blue 1 and both charge it in round 1, so Blue 1 strikes back
+    /// twice in the round. Red 1's charge (the game's first hit roll) scores one hit, which Blue 1 blocks; Blue 1's strike back hits and wounds, so Red 1
+    /// lost the melee and tests morale. Red's Defense 2+ keeps Red 1 standing to test; Blue 1's five models outlast Red 2's charge, so it strikes back again.
     /// </summary>
     public static TestGame ChargeAndStrikeBack()
     {
         const string name = "core-charge-and-strike-back";
+        var script = AnswerScript.Build()
+            .Match(AskQuestions.GameOver, (ask, _) => AskPicks.Labeled(ask, "Continue"))
+            .Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, 4).Select(k => AskPicks.Activate(ask, $"Red unit {k}", "Charge")).FirstOrDefault(a => a is not null)
+                ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal)))
+            .Match("charge_target", (ask, p) => p.Scheduler.Round == 1 ? AskPicks.Pieces(ask, p, "Blue unit 1") : null)
+            .Match("strike_back", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "strike") ? new Chosen("strike") : null)
+            .Build();
         var scenario = new ScenarioBuilder(name, seed: 1)
             .Enforcing(Enforcement.Warn).RoundCap(5).Table(36, 30)
-            .Army("Red", 4, 3, weapons: [HandWeapon(2)])
-            .Army("Blue", 4, 3, weapons: [HandWeapon(2)])
+            .Army("Red", 4, 3, weapons: [HandWeapon(2)], unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "2+" },
+                anchors: new Dictionary<int, Point2> { [1] = new(6, 19), [2] = new(16, 19), [3] = new(23, 29), [4] = new(30, 29) })
+            .Army("Blue", 4, 3, weapons: [HandWeapon(2)], sizes: new Dictionary<int, int> { [1] = 5 },
+                anchors: new Dictionary<int, Point2> { [1] = new(8, 11), [2] = new(14, 1), [3] = new(22, 1), [4] = new(30, 1) })
             .Seeking(NearestEnemy)
-            .Scripted(AnswerScript.Build().Match(AskQuestions.GameOver, (ask, _) => AskPicks.Labeled(ask, "Continue")).Build())
+            .Scripted(script)
             .Build();
         return Game(name, scenario,
         [
@@ -81,7 +93,11 @@ internal static partial class CoreGames
                 })),
             MeleeMorale(),
             FinalRound(Enforcement.Warn),
-        ], dice: [new DiceFix("hit", 0, [4, 3])]);
+        ], dice:
+        [
+            new DiceFix("roll-off", 0, [6, 1]), new DiceFix("hit", 0, [4, 3, 1, 1, 1, 1]), new DiceFix("defense", 0, [6]),
+            new DiceFix("hit", 0, [6], new RollKey(Actor: "Blue unit 1")), new DiceFix("defense", 0, [1], new RollKey(Actor: "Blue unit 1")),
+        ]);
     }
 
     /// <summary>p.10 melee morale: passed, nothing; failed over half its starting size, Shaken; failed at half or less, Routs. The logged roll decides.</summary>

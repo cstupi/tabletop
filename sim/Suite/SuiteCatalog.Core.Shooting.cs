@@ -13,16 +13,34 @@ internal static partial class CoreGames
 
     /// <summary>
     /// p.8 shooting: Red's squad carries two weapon types, so it may split its fire between two targets. The first hit roll is fixed to test
-    /// the Quality threshold and the automatic 6 and 1; the first defense roll to test the Defense threshold.
+    /// the Quality threshold and the automatic 6 and 1; the first defense roll to test the Defense threshold. Every unit Holds on its anchor and shoots.
+    /// Blue wins the roll-off (fixed) and Blue 1 shoots first, all six dice of its whole squad at Red 1: the game's first hit roll; Red's squads put their
+    /// Rifles at Blue 1 and their Heavy Rifles at Blue 2.
     /// </summary>
     public static TestGame FiringLine()
     {
         const string name = "core-firing-line";
+        var script = AnswerScript.Build()
+            .Match(AskQuestions.Activate, (ask, _) => AskPicks.Activate(ask, "Blue unit 1", "Hold") ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold")))
+            .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
+            .Match("declare_targets", (ask, p) =>
+            {
+                if (ask.Legal is not Assignment a || p.Stack.LastOrDefault(f => f.Sequence == "shooting")?.Context.ActorUnitId is not { } shooter) return null;
+                var name = AskPicks.UnitNameOf(p, shooter);
+                if (name == "Blue unit 1") return AllAt(ask, p, "Red unit 1");
+                Guid Named(string unit) => a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit);
+                var (first, second) = (Named("Blue unit 1"), Named("Blue unit 2"));
+                if (name?.StartsWith("Red ", StringComparison.Ordinal) != true || first == Guid.Empty || second == Guid.Empty || a.MaxDistinctTargets < 2) return null;
+                var targets = a.Items.ToDictionary(i => i.Id, i => i.Label.Contains("Heavy Rifle", StringComparison.Ordinal) ? second : first);
+                return targets.All(kv => a.TargetsOf(kv.Key).Contains(kv.Value)) ? new Assigned(targets) : null;
+            })
+            .Build();
         var scenario = new ScenarioBuilder(name, seed: 1)
             .RoundCap(5).Table(48, 36)
-            .Army("Red", 2, 5, weapons: [Rifle(2), Rifle(2, "Heavy Rifle"), HandWeapon()])
-            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])
+            .Army("Red", 2, 5, weapons: [Rifle(2), Rifle(2, "Heavy Rifle"), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(6, 25), [2] = new(26, 25) })
+            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(6, 11), [2] = new(18, 11), [3] = new(34, 11) })
             .Seeking(NearestEnemy)
+            .Scripted(script)
             .Build();
         return Game(name, scenario,
         [
@@ -47,7 +65,7 @@ internal static partial class CoreGames
                     ? null : "no unit split its fire between two targets";
             }),
             FinalRound(Enforcement.Strict),
-        ], dice: [new DiceFix("hit", 0, [6, 1, 4, 3, 2, 2]), new DiceFix("defense", 0, [4, 3])]);
+        ], dice: [new DiceFix("roll-off", 0, [1, 6]), new DiceFix("hit", 0, [6, 1, 4, 3, 2, 2]), new DiceFix("defense", 0, [4, 3])]);
     }
 
     /// <summary>
