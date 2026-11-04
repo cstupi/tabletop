@@ -141,7 +141,7 @@ public static partial class GfAttack
             var ids = key[StepContext.HeldPrefix.Length..].Split('_');
             if (ids.Length == 2 && Guid.TryParseExact(ids[0], "N", out var unit) && Guid.TryParseExact(ids[1], "N", out var grant)) held.Add((unit, grant));
         }
-        return RollEffects.Release(ctx.State, held);
+        return RollEffects.Release(ctx.State, ctx.Properties, held);
     }
 
     /// <summary>Closes `attack-sequence`, `spell-hits` and `rule-hits`: the attack's held once grants go (ReleaseHeld). A frame that finishes early releases them in the finishing step.</summary>
