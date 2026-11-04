@@ -131,23 +131,46 @@ internal static partial class CoreGames
 
     static bool IsTransport(ModelSlot slot) => slot.Properties.Any(p => p.Name == "Transport");
 
-    /// <summary>p.15 Transport(X): Red's two single-model infantry units ride a Tough(3) transport that Blue's squads shoot at.</summary>
+    /// <summary>
+    /// p.15 Transport(X): Red's two single-model infantry units ride a Tough(3) transport that Blue's squads shoot at. A set piece on anchors: in round 1
+    /// Red 2 and Red 3 Advance into the transport beside them (p.15 "units may enter/exit by using any move action"); in round 2 Red 2 Advances out, 3"
+    /// toward Blue, and Red 3 stays in; Red never shoots and Blue holds fire until round 3, when Blue 1's whole first volley (six dice) is fixed to hit and
+    /// three of the transport's blocks to fail, destroying it with Red 3 inside.
+    /// </summary>
     public static TestGame TransportRun()
     {
         const string name = "core-transport-run";
+        string? Named(Projection p, Guid unit) => AskPicks.UnitNameOf(p, unit);
+        var script = AnswerScript.Build()
+            .Match(AskQuestions.Activate, (ask, p) => (p.Scheduler.Round == 1 ? AskPicks.Activate(ask, "Red unit 2", "Advance") ?? AskPicks.Activate(ask, "Red unit 3", "Advance")
+                    : p.Scheduler.Round == 2 ? AskPicks.Activate(ask, "Red unit 2", "Advance") : null)
+                ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)))
+            .Match("shoot_or_not", (ask, p) => ask.Legal is Options o && p.Stack.LastOrDefault()?.Context.ActorUnitId is { } unit
+                ? p.Scheduler.Round >= 3 && Named(p, unit)?.StartsWith("Blue ", StringComparison.Ordinal) == true
+                    ? o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null
+                    : o.Choices.FirstOrDefault(c => c.Id != "shoot") is { } no ? new Chosen(no.Id) : null
+                : null)
+            .Match("declare_targets", (ask, p) => AllAt(ask, p, "Red unit 1"))
+            .Match("move", (ask, p) =>
+            {
+                if (ask.Legal is not MoveRegion m) return null;
+                if (m.Containment is { Enterable: [var transport, ..] })
+                    return new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(transport)))]);
+                if (m.Containment is { ExitingId: { } at } && p.Models[at].Location is OnTable { Placement: var c })
+                    return Named(p, p.Models[m.ModelIds[0]].UnitId) == "Red unit 2"
+                        ? new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(new Point3(c.Position.X - 3, c.Position.Y, 0), new Yaw(0)))))])
+                        : new Destinations([]);
+                return null;
+            })
+            .Build();
         var scenario = new ScenarioBuilder(name, seed: 31)
             .RoundCap(4).Table(24, 36)
             .Army("Red", 3, 1, modelRules: [new ScenarioRule(1, "Transport", 6), new ScenarioRule(1, "Tough", 3)], weapons: [Rifle(), HandWeapon()],
-                unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "5+" })
-            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])
+                unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "5+" },
+                anchors: new Dictionary<int, Point2> { [1] = new(18, 18), [2] = new(16, 15), [3] = new(16, 21) })
+            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(4, 10), [2] = new(4, 18), [3] = new(4, 26) })
             .Seeking(ToTheTransport)
-            // Blue Advances and shoots rather than charging (a charge into base contact, p.9, would end the infantry before it rides).
-            // and Red's infantry boards the transport whenever a move reaches it (p.15 "units may enter/exit by using any move action").
-            .Scripted(AnswerScript.Build()
-                .Match(AskQuestions.Activate, (ask, _) => AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Advance", StringComparison.Ordinal)))
-                .Match("move", (ask, p) => ask.Legal is MoveRegion { Containment.Enterable: [var transport, ..] } m
-                    ? new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(transport)))]) : null)
-                .Build())
+            .Scripted(script)
             .Build();
         return Game(name, scenario,
         [
@@ -192,6 +215,7 @@ internal static partial class CoreGames
                     var removed = log.Moves.FirstOrDefault(m => m.Seq >= place.Seq && IsTransport(log.Run.Final.Models[m.Move.ModelId].Slot) && m.Move.To is OnShelf);
                     return removed.Move is null ? "the wreck was never removed" : null;
                 }), "Transport"),
-        ], covers: ["Transport"]);
+        ], covers: ["Transport"], dice: [new DiceFix("roll-off", 0, [6, 1]), new DiceFix("hit", 0, [6, 6, 6, 6, 6, 6], new RollKey(Actor: "Blue unit 1")),
+            new DiceFix("defense", 0, [1, 1, 1], new RollKey(Actor: "Blue unit 1"))]);
     }
 }
