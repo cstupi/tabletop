@@ -202,8 +202,8 @@ pick and the wound are two steps of one frame and the only wounds dealt in betwe
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
 ordinal 0, with no carry-over past the model's capacity. A model keeps only the `Deadly` wounds it
 needs to die, ⌈room ÷ X⌉; each further wound allocated to it is a wound of its own (p.8 *"For each wound
-that the unit has taken, the defending player must remove one model"*), so it goes to the next segment
-unmultiplied and unrolled. `Regeneration` live on the target unit, which 3.5.1 needs
+that the unit has taken, the defending player must remove one model"*), so it goes to the next segment,
+where it is multiplied by X on the model it is assigned to; its excess there is lost too. `Regeneration` live on the target unit, which 3.5.1 needs
 every model to carry, rolls one die at the effect row's threshold, recorded as a `RollRecord` named `Regeneration`, and a
 success ignores the wound. A segment that rolls takes two runs of `assign`: the first rolls each model's dice and records the
 segment as `Values["ignore_wounds"]` and `Values["allocated_<i>_<model>"]` (Repeat), the second reads those dice as they then
