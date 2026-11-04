@@ -10,8 +10,9 @@ public static partial class GfAttack
     public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new GfReserves.SplitStep(), new DisgorgeStep(), new GfSpellSupport.TransferStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
-        AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
-            actor is { } a && kind == AttackKind.Spell && weapons.Count == 0 ? GfCasting.WeaponRules(ctx, a, target) : null);
+        actor is { } a && kind == AttackKind.Spell && weapons.Count == 0
+            ? AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action, GfCasting.WeaponRules(ctx, a, target)) with { SpellReach = GfCasting.Reach(ctx, target) }
+            : AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action);
 
     /// <summary>
     /// The attack's interaction from state, properties and, inside a running sequence, its frame: the frame gives a charge's recorded range and the

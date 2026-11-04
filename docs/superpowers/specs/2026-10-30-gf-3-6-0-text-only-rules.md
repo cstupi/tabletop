@@ -65,9 +65,19 @@ planned, so the migration is reviewed and its `MigrationTests` assertion written
 Relational, no subject, `comparison` and `number` a percentage of the source weapon's printed range: holds when
 `ix.RangeInches × 100 cmp number × range`, where `range` is the `Range` of the weapon the source instance carries
 (`LiveProperty.WeaponId`; `StatReader.WeaponRange` of the live set, so a granted or suppressed range reads as it plays).
-A source with no weapon, or an interaction with no range, fails it. The range compared is the one the attack measured
-(`determine-attacks`, `range_hundredths`, p.5 base to base, never rounded), which is the unit-to-unit distance, so "units
-over half of this weapon's range away" reads the distance to the target unit. Pierce and Smash write `gt 50`.
+The range compared is the one the attack measured (`determine-attacks`, `range_hundredths`, p.5 base to base, never
+rounded), which is the unit-to-unit distance, so "units over half of this weapon's range away" reads the distance to the
+target unit. Pierce and Smash write `gt 50`.
+
+A spell's printed range is "this weapon's range" (owner ruling): a source with no weapon reads `Interaction.SpellReach`,
+holding when `Distance × 100 cmp number × Range`. `GfAttack.AttackInteraction` sets it on a spell's hit interaction
+(`AttackKind.Spell`, no weapons) from `GfCasting.Reach`: `Range` is the entry's `targeting.range` (the number after
+"within" in its text) and `Distance` the distance from where the cast is measured (the conduit origin or the caster model;
+a pick entry's carrying model) to the target's nearest living model, or the model a model-grain pick named, base to base
+and never rounded, as `GfCasting.Targets` measures a spell's range. Cerebral Trauma (24", AP(1) and Smash) re-rolls
+unmodified Defense 6s on a target over 12" from the caster; Mind Wound (18", AP(1) and Pierce) gets AP(+1) over 9";
+Pierce's positive-Defense half acts at any range. A source with no weapon outside a spell's hits, or an interaction with
+no range, fails it.
 
 ### `remaining_size` (predicate)
 
@@ -215,6 +225,8 @@ the spell as translated rather than text-only.
 ## Rulings taken here
 
 - The range Pierce and Smash test is the attack's measured unit-to-unit range (p.5), not a per-model distance.
+- A spell's printed range is "this weapon's range": Smash and Pierce on a spell's hits test the caster's distance to the target,
+  measured as the spell's range is, against half of it.
 - Destructive, Decimate and p.10's half read one `RemainingSize`; a single-model unit's size is its Tough.
 - Scourge's counted wounds never wound a model; they count only for the melee result and the shooting morale trigger.
 - Mind Control's "once per round" is per unit moved, across every user of the rule; a passed test leaves the unit eligible.
