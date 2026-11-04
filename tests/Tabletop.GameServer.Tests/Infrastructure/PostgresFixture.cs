@@ -150,8 +150,11 @@ public sealed class PostgresFixture : IAsyncLifetime, IRowSeeder
             await Run("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                 t.Id, layout.Id, t.Mesh.Builtin, t.Mesh.AssetId, t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale);
             foreach (var v in t.Volumes)
-                await Run($"insert into management.terrain_volume (id, terrain_placement_id, {RowMapping.VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 17).Select(i => "$" + i))})",
-                    [v.Id, t.Id, .. RowMapping.VolumeValues(v.Volume)]);
+            {
+                var values = RowMapping.VolumeValues(v.Volume);
+                await Run($"insert into management.terrain_volume (id, terrain_placement_id, {RowMapping.VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, values.Length).Select(i => "$" + i))})",
+                    [v.Id, t.Id, .. values]);
+            }
         }
         foreach (var m in layout.Markers)
             await Run("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
