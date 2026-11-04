@@ -10,7 +10,8 @@ static partial class SpecialGames
 {
 
     /// <summary>One weapon group's attack: its attack-sequence frame and steps, the resolve-hits block and the deal-wounds assign steps. `Hit` is the
-    /// roll-to-hit step with score-hits' Values and Applied folded in, since score-hits settles what those dice decide.</summary>
+    /// frame's roll-to-hit completions (a second holds the extra attacks an optional row offered and the roller took) folded into one, with score-hits'
+    /// Values and Applied folded in, since score-hits settles what those dice decide.</summary>
     /// <param name="At">Its log position.</param><param name="Volley">Which shooting or melee frame it was made in, counted in log order.</param>
     sealed record Attack(SequenceStarted Seq, string Weapon, string Actor, string Target, string? Action, long At, int Volley)
     {
@@ -147,14 +148,8 @@ static partial class SpecialGames
                     {
                         case "determine-attacks": owner.Determine = step; break;
                         case "pick-target-model": owner.Pick = step; break;
-                        case "roll-to-hit": owner.Hit = step; break;
-                        case "score-hits" when owner.Hit is { } rolled:
-                            owner.Hit = rolled with
-                            {
-                                Values = (rolled.Values ?? new Dictionary<string, int>()).Concat(step.Values ?? new Dictionary<string, int>()).GroupBy(kv => kv.Key).ToDictionary(g => g.Key, g => g.Last().Value),
-                                Applied = (rolled.Applied ?? []).Union(step.Applied ?? []).ToList() is { Count: > 0 } applied ? applied : null,
-                            };
-                            break;
+                        case "roll-to-hit": owner.Hit = owner.Hit is { } first ? Folded(first, step) with { Rolls = [.. first.Rolls, .. step.Rolls], Changes = [.. first.Changes, .. step.Changes] } : step; break;
+                        case "score-hits" when owner.Hit is { } rolled: owner.Hit = Folded(rolled, step); break;
                         case "roll-to-block": owner.Block = step; break;
                         case "assign": owner.Assigns.Add(step); break;
                     }
@@ -167,6 +162,13 @@ static partial class SpecialGames
         }
         return (attacks, melees);
     }
+
+    /// <summary>The step with the later step's Values (a key both carry takes the later's) and Applied folded in.</summary>
+    static StepCompleted Folded(StepCompleted step, StepCompleted later) => step with
+    {
+        Values = (step.Values ?? new Dictionary<string, int>()).Concat(later.Values ?? new Dictionary<string, int>()).GroupBy(kv => kv.Key).ToDictionary(g => g.Key, g => g.Last().Value),
+        Applied = (step.Applied ?? []).Union(later.Applied ?? []).ToList() is { Count: > 0 } applied ? applied : null,
+    };
 
     static RollRecord? HitRoll(Attack a) => a.Hit?.Rolls.FirstOrDefault(r => r.Roll == "hit");
 

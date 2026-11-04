@@ -122,6 +122,9 @@ public class ArmyGamesTests
         readonly CompiledScenario _compiled = ScenarioCompiler.Compile(Army.Single(g => g.Name == game).Scenario);
 
         public Guid Unit(string name) => _compiled.Board.Armies.SelectMany(a => a.Snapshot.Units).Single(u => u.Name == name).Id;
+        public Guid Model(string unit, int index) => _compiled.Board.Armies.SelectMany(a => a.Snapshot.Units).Single(u => u.Name == unit).Models[index].Id;
+        public Guid WeaponWith(string unit, string entry) =>
+            _compiled.Board.Armies.SelectMany(a => a.Snapshot.Units).Single(u => u.Name == unit).Models[0].Weapons.First(w => w.Properties.Any(p => p.Name == entry)).Id;
         public Guid Weapon(string unit, string weapon) =>
             _compiled.Board.Armies.SelectMany(a => a.Snapshot.Units).Single(u => u.Name == unit).Models[0].Weapons.Single(w => w.Name == weapon).Id;
 
@@ -132,10 +135,11 @@ public class ArmyGamesTests
     }
 
     /// <summary>
-    /// One attack of a hand-built log: a shooting frame when shooting, the attack-sequence, its roll-to-hit step, and one resolve-hits frame
-    /// with its roll-to-block step when a defense roll is given; every frame finishes.
+    /// One attack of a hand-built log: a shooting frame when shooting, the attack-sequence, its roll-to-hit step, what `after` adds in the
+    /// attack frame, and one resolve-hits frame with its roll-to-block step when a defense roll is given; every frame finishes.
     /// </summary>
-    static EventPayload[] Attack(Guid attacker, Guid target, IReadOnlyList<Guid> weapons, bool shooting, StepCompleted? hit, Func<Guid, EventPayload[]>? block = null)
+    static EventPayload[] Attack(Guid attacker, Guid target, IReadOnlyList<Guid> weapons, bool shooting, StepCompleted? hit, Func<Guid, EventPayload[]>? block = null,
+        Func<Guid, EventPayload[]>? after = null)
     {
         var log = new List<EventPayload>();
         var shoot = Guid.CreateVersion7();
@@ -144,6 +148,7 @@ public class ArmyGamesTests
         if (shooting) log.Add(new SequenceStarted(shoot, "shooting", new SequenceContext(attacker, [target], [], "Hold")));
         log.Add(new SequenceStarted(attack, "attack-sequence", new SequenceContext(attacker, [target], weapons, shooting ? "Hold" : null)));
         if (hit is not null) log.Add(hit with { FrameId = attack });
+        if (after is not null) log.AddRange(after(attack));
         if (block is not null)
         {
             log.Add(new SequenceStarted(resolve, "resolve-hits", new SequenceContext(attacker, [target], [], null)));
@@ -183,6 +188,69 @@ public class ArmyGamesTests
         Assert.Equal("no occasion in the log", board.Judge("Primal", Attack(holder, target, [], shooting: true, hit: null)));
         Assert.Equal("no occasion in the log", board.Judge("Primal",                           // the opponents' attacks are not the rule's
             Attack(target, holder, [], shooting: true, Step(Guid.Empty, "roll-to-hit", [], null, Pool()))));
+    }
+
+    /// <summary>
+    /// An optional extra-attacks row: roll-to-hit completes with the pool and an `extra_attacks` Ask, and on Yes again with the added dice
+    /// alone. The check folds both completions; No (or a pass) adds no dice.
+    /// </summary>
+    [Fact]
+    public void Optional_extra_attacks_are_read_over_both_roll_to_hit_completions_and_the_answer()
+    {
+        var board = new Board("saurian-starhost-primal");
+        var (holder, target) = (board.Unit("Saurian Starhost unit 1"), board.Unit("Opponents unit 1"));
+        RollRecord Pool() => Roll("hit", 4, [], (6, true), (2, false), (6, true));
+        var offer = new Dictionary<string, int> { ["offer_0_q4"] = 2, ["$repeat"] = 1 };
+        Func<Guid, EventPayload[]> Asked(AskAnswer answer, params RollRecord[] added) => frame =>
+        {
+            var ask = new Ask(Guid.CreateVersion7(), "extra_attacks", "Primal: roll 2 extra attacks?", [Guid.CreateVersion7()],
+                new Options([new AskOption("yes", "Yes", [holder]), new AskOption("no", "No", [])]), true, false, null, frame);
+            EventPayload[] asked = [new AskOpened(ask), new AskClosed(ask.Id, [new TeamAnswer(ask.Teams[0], answer)])];
+            return [.. asked, Step(frame, "roll-to-hit", answer is Chosen { OptionId: "yes" } ? ["Primal"] : [], null, added)];
+        };
+        string? With(AskAnswer answer, params RollRecord[] added) =>
+            board.Judge("Primal", Attack(holder, target, [], shooting: true, Step(Guid.Empty, "roll-to-hit", [], offer, Pool()), after: Asked(answer, added)));
+
+        Assert.Null(With(new Chosen("yes"), Roll("hit", 4, [], (3, false), (4, true))));
+        Assert.Null(With(new Chosen("no")));
+        Assert.Null(With(new Passed()));
+        Assert.Contains("0 added attacks", With(new Chosen("yes")));
+        Assert.Contains("2 added attacks", With(new Chosen("no"), Roll("hit", 4, [], (3, false), (4, true))));
+        Assert.Contains("3 hit rolls", With(new Chosen("yes"), Roll("hit", 4, [], (6, true)), Roll("hit", 4, [], (6, true))));
+    }
+
+    /// <summary>The dice an attack's checks read are every roll-to-hit completion's: the added dice of a Yes count toward the extra hits.</summary>
+    [Fact]
+    public void Extra_hits_read_the_hit_dice_of_every_roll_to_hit_completion()
+    {
+        var board = new Board("human-inquisition-brutal-fighter");
+        var (holder, target) = (board.Unit("Human Inquisition unit 1"), board.Unit("Opponents unit 1"));
+        var melee = Guid.CreateVersion7();
+        EventPayload[] Charge(int extraHits) =>
+        [
+            new SequenceStarted(melee, "melee", new SequenceContext(holder, [target], [], "Charge")),
+            .. Attack(holder, target, [], shooting: false, Step(Guid.Empty, "roll-to-hit", [], null, Roll("hit", 4, [], (6, true), (2, false))),
+                after: f => [Step(f, "roll-to-hit", [], null, Roll("hit", 4, [], (6, true))), Step(f, "score-hits", [], new() { ["extra_hits"] = extraHits })]),
+            new SequenceFinished(melee),
+        ];
+        Assert.Null(board.Judge("Brutal Fighter", Charge(2)));
+        Assert.Contains("1 extra hits from [6 2 6], expected 2", board.Judge("Brutal Fighter", Charge(1)));
+    }
+
+    /// <summary>3.6 Hazardous on the roller: the 1s of every roll-to-hit completion count, each record named by its own completion's `hit_model_` key.</summary>
+    [Fact]
+    public void Hazard_on_the_roller_reads_the_ones_of_every_roll_to_hit_completion()
+    {
+        var board = new Board("ratmen-clans-hazardous-blast@3.6");
+        var (holder, target) = (board.Unit("Ratmen Clans unit 1"), board.Unit("Opponents unit 1"));
+        var (first, second) = (board.Model("Ratmen Clans unit 1", 0), board.Model("Ratmen Clans unit 1", 1));
+        string? With(int selfWounds) => board.Judge("Hazardous", Attack(holder, target, [board.WeaponWith("Ratmen Clans unit 1", "Hazardous")], shooting: true,
+            Step(Guid.Empty, "roll-to-hit", [], new() { [$"hit_model_0_{first:N}"] = 1 }, Roll("hit", 4, [], (1, false), (6, true))),
+            after: f => [Step(f, "roll-to-hit", [], new() { [$"hit_model_0_{second:N}"] = 1 }, Roll("hit", 4, [], (1, false))),
+                Step(f, "score-hits", [], new() { ["self_wounds"] = selfWounds })]));
+
+        Assert.Null(With(6));
+        Assert.Contains("3 self wounds for 2 ones, expected 6", With(3));
     }
 
     /// <summary>

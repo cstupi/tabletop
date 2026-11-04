@@ -41,6 +41,9 @@ const dropped = (p: EventPayload): boolean =>
   p.kind === 'ask_opened' || p.kind === 'ask_answered' || p.kind === 'ask_closed' || p.kind === 'turn_started' || p.kind === 'turn_ended'
   || (p.kind === 'step_completed' && p.rolls.length === 0 && p.changes.length === 0);
 
+/** Adds the key; whether it was not there yet (C#'s HashSet.Add). */
+const firstOf = (set: Set<string>, key: string): boolean => (set.has(key) ? false : (set.add(key), true));
+
 export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
   const live = new Set(effectiveLog(log).map((e) => e.seq));
   const isDead = (e: GameEvent) => !live.has(e.seq) && e.payload.kind !== 'undone';
@@ -64,6 +67,8 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
   let round = 0;
   const started: { seq: number; header: string }[] = [];
   const undos: { seq: number; toSeq: number }[] = [];
+  // The frames whose attack is already read, live and undone apart: roll-to-hit completes twice in a frame when extra attacks are taken on an Ask.
+  const attacked = new Set<string>();
   const into = (): LogEntry[] => (drafts.length > 0 ? drafts[drafts.length - 1]!.entries : top);
   /** Every open block started at or after seq, innermost first. */
   const closeFrom = (seq: number): void => {
@@ -108,7 +113,7 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
         const base = rollEntryOf(e, dead, p, roll, context, frameStart?.sequence ?? null, (amendments.get(roll.id) ?? []).map((x) => ({ event: x.event, undone: x.dead })), n);
         const entry: RollEntry = {
           ...base, consequence: after.consequence(roll.id), dieLabels: after.labels.get(roll.id) ?? null,
-          attack: first && roll.roll === 'hit' ? attackLines(context, n) : null, stepIgnored: first ? ignored : null,
+          attack: first && roll.roll === 'hit' && firstOf(attacked, `${p.frameId}|${dead}`) ? attackLines(context, n) : null, stepIgnored: first ? ignored : null,
         };
         here.push(entry);
         chain(rollChain(entry));

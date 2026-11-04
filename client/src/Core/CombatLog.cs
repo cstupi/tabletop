@@ -42,6 +42,8 @@ public static partial class CombatLog
 
         var top = new List<LogEntry>(); var drafts = new List<Draft>(); var open = new Dictionary<Guid, GameEvent>(); var round = 0;
         var started = new List<(long Seq, string Header)>(); var undos = new List<(long Seq, long ToSeq)>();
+        // The frames whose attack is already read, live and undone apart: roll-to-hit completes twice in a frame when extra attacks are taken on an Ask.
+        var attacked = new HashSet<(Guid Frame, bool Dead)>();
         List<LogEntry> Into() => drafts.Count > 0 ? drafts[^1].Entries : top;
         void CloseFrom(long seq)   // every open block started at or after seq, innermost first
         {
@@ -89,7 +91,7 @@ public static partial class CombatLog
                             with
                             {
                                 Consequence = after.Consequence(roll.Id), DieLabels = after.Labels.GetValueOrDefault(roll.Id),
-                                Attack = first && roll.Roll == "hit" ? WorkedLines.Attack(context, n) : null, StepIgnored = first ? ignored : null,
+                                Attack = first && roll.Roll == "hit" && attacked.Add((step.FrameId, dead)) ? WorkedLines.Attack(context, n) : null, StepIgnored = first ? ignored : null,
                             };
                         into.Add(entry); Chain(entry.Chain);
                     }
