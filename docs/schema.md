@@ -219,8 +219,8 @@ A `roll_result` condition has two or three `condition_value` rows: the roll it r
 success must match. `effect_condition.number` is the face compared. No roll may be named `raw`,
 `modified`, `success` or `fail`.
 
-`weapon_range` takes no subject, and `number` is a percentage of the source weapon's range (*"over half of this weapon's
-range away"* is `gt 50`). `remaining_size` takes a subject, a `number` that is a percentage of starting size, and one
+`weapon_range` takes no subject, and `number` is a percentage of the source weapon's range, or a spell's printed range for
+its hits (*"over half of this weapon's range away"* is `gt 50`). `remaining_size` takes a subject, a `number` that is a percentage of starting size, and one
 `condition_value`: the rule whose parameter is a single model's size (`Tough`). Management's `027_text_only_rules_grammar.sql`
 adds both to `effect_condition_kind_check`, with the kinds, `positive_defense`, `one_marker`, `effect.optional` and the two
 `catalog_entry` targeting flags above.

@@ -61,7 +61,7 @@ public static class GfHooks
     public static IReadOnlyList<Guid> UnitsToTestAtEndOfActivation(GameState state, PropertySet props, Guid? actor)
     {
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
-        var counted = GfActivationEnd.CountedShootingWounds(log, actor);
+        var counted = GfActivationEnd.CountedMoraleWounds(log, actor);
         return state.Projection.Units.Values.Where(u => counted.GetValueOrDefault(u.Id).Count is var extra && u.WoundsThisActivation + extra > 0
                 && Lookup.AliveModels(state, u.Id).Count > 0 && AtHalfOrLess(state, props, u.Id, extraWounds: extra) && !FoughtMeleeThisActivation(log, actor, u.Id))
             .Select(u => u.Id).ToList();
