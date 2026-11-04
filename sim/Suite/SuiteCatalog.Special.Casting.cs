@@ -24,8 +24,11 @@ static partial class SpecialGames
         for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
         // Red's casters always move: unit 1 Advances (Slow), unit 2 Rushes (Fast).
         script.Match("activate", (ask, _) => AskPicks.Activate(ask, "Red unit 1", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Rush"));
-        // Never Shock Speed: its +2" on the caster's own unit would change the allowance a stop carries over.
-        script.Match("cast", (ask, _) => AskPicks.Option(ask, c => !c.Label.StartsWith("Shock Speed", StringComparison.Ordinal)));
+        // Red unit 1 casts Shock Speed on its own unit at the stop before moving (its casting die fixed to 6): "moves +2" when using Advance actions …
+        // once (next time the effect would apply)", and the next time is the rest of the Advance it is making. Red unit 2 (two tokens) casts what it can.
+        script.Match("cast", (ask, p) => AskPicks.Spell(ask, p, "Shock Speed", "Red unit 1"));
+        script.Match("spell_targets", (ask, p) => p.Stack.LastOrDefault(f => f.Sequence == "casting")?.Context.ActorUnitId is { } caster
+            && AskPicks.UnitNameOf(p, caster) == "Red unit 1" ? AskPicks.Pieces(ask, p, "Red unit 1") : null);
         // After the stop before moving, cast; after the part-way stop, pass, so only the stop carries the move on.
         script.Match("react", (ask, _) => ask.Prompt != "Before attacking" || ask.FrameId is not { } frame ? null
             : asked.GetValueOrDefault(frame) == 1 ? (ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : null)
@@ -50,7 +53,7 @@ static partial class SpecialGames
                 .Build(),
             ["Caster", "Fast", "Slow"],
             [
-                Exact("p.13 Caster(X): \"At any point before attacking\": a stop before moving opens the window, moves nothing and keeps the whole move", ["Caster"], run =>
+                Exact("p.13 Caster(X): \"At any point before attacking\": a stop before moving opens the window, moves nothing and keeps the whole move; Shock Speed cast there on the moving unit adds its \"moves +2\" when using Advance actions and +4\" when using Rush/Charge actions\" to the rest of it", ["Caster"], run =>
                 {
                     var log = LogQueries.Of(run);
                     return LogQueries.Each(Stops(log).Where(s => s.Ask.Answer is Destinations { Moves.Count: 0 }), "a stop before moving", s =>
@@ -58,8 +61,10 @@ static partial class SpecialGames
                         if (s.Window?.Ask.Prompt != "Before attacking") return $"no window titled Before attacking after the stop (got {s.Window?.Ask.Prompt ?? "none"})";
                         if (s.Step?.Step.Changes.OfType<ModelsMoved>().Any() == true) return "the stop moved models";
                         if (s.Step?.Step.Changes.OfType<ConditionSet>().Any(c => c.Condition == "moved" && c.Present) == true) return "the stop set moved";
-                        return s.Next is not { } next ? "the move never asked again" : Allowance(next) == Allowance(s.Ask) ? null : $"allowance {Allowance(s.Ask)} then {Allowance(next)}";
-                    });
+                        if (s.Next is not { } next) return "the move never asked again";
+                        var expected = Allowance(s.Ask) + ShockSpeedOn(log, s);
+                        return Math.Abs(Allowance(next) - expected) < 0.05 ? null : $"allowance {Allowance(s.Ask)} then {Allowance(next)}, expected {expected}";
+                    }) ?? (Stops(log).Any(s => s.Ask.Answer is Destinations { Moves.Count: 0 } && ShockSpeedOn(log, s) > 0) ? null : "no Shock Speed on the moving unit at a stop before moving");
                 }),
                 Exact("p.13 Caster(X): \"At any point before attacking\": a cast inside a stopped move, then the move goes on", ["Caster"], run =>
                 {
@@ -77,7 +82,10 @@ static partial class SpecialGames
                         return Math.Abs(Allowance(next) - expected) < 0.05 ? null : $"allowance {Allowance(s.Ask)} with {expected} left, then {Allowance(next)}";
                     });
                 }),
-            ], dice: [new("roll-off", 0, [6, 1])]);
+            ], dice: [new("roll-off", 0, [6, 1]), new("casting", 0, [6], new RollKey(Actor: "Red unit 1"))])
+            // D17: Shock Speed's once grant is spent by the first segment of the Advance it boosts, and the rest of the move is re-read without it
+            // (allowance 6, a 1" stop, then 3 left rather than 5).
+            .Pinned("D17", "p.13 Caster(X): \"At any point before attacking\": a stop part-way, then a pass, leaves what is left of the move", "with 5 left, then 3");
     }
 
     /// <summary>The model moved 1" straight toward the line y = <paramref name="middle"/>, facing as it faces.</summary>
@@ -112,6 +120,16 @@ static partial class SpecialGames
         });
 
     static double Allowance(LoggedAsk ask) => ((MoveRegion)ask.Ask.Legal).Allowance;
+
+    /// <summary>Shock Speed's literal bonus for the move a stop interrupts, when a cast of it in the stop's window granted it to the moving unit: +2" on an
+    /// Advance, +4" on a Rush or Charge; 0 otherwise.</summary>
+    static double ShockSpeedOn(LogQueries log, Stop s)
+    {
+        if (s.Next is not { } next || s.Ask.Frame is not { } frame || frame.Context.ActorUnitId is not { } unit) return 0;
+        var granted = SpellGames.Casts(log, "Shock Speed").Any(c => c.Passed && c.Frame.Parent == frame && c.Frame.Seq > s.Ask.Seq && c.Frame.Seq < next.Seq
+            && c.Grants.Any(g => g.UnitId == unit));
+        return !granted ? 0 : frame.Sequence == "advance" ? 2 : 4;
+    }
 
     /// <summary>The move's distance used before this step: the last earlier move step of the frame that recorded it.</summary>
     static int Before(LogQueries log, LoggedStep step) =>
