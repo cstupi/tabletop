@@ -64,8 +64,8 @@ Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 70, ArmyBooks 56, TerrainMeshes 114, TableTextures 29,
-  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1795, Management 330, Sim 334.
+  defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 71, ArmyBooks 60, TerrainMeshes 114, TableTextures 29,
+  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1829, Management 330, Sim 342.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the eight lifecycle shapes
   against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
