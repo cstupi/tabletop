@@ -293,7 +293,10 @@ at dispatch (`IGameRules.AnswerBreach`, rule `difficult_cap`), which reads the r
 `Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. That is the reason an
 action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 `Movement.Check(...).Distance` over the moved models, in tenths of an inch, because `Values` is a
-map of integers. A `Passed` answer is a zero move.
+map of integers. A `Passed` answer is a zero move. A once grant the allowance reads (Shock Speed's +2"/+4") holds for
+every segment of the action's move: a segment that moves writes `Values["move_held_<unit>_<grant>"]` instead of removing
+it, and the run that ends the step removes each one still on its unit with its entry's other grants (p.7, 3.6.0 p.7:
+one Advance, Rush or Charge, which a stop does not end).
 
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
 unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
