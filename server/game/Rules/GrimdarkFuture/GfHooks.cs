@@ -125,16 +125,17 @@ public static class GfHooks
                     GfAmbush.AmbushRedeploySeq, new SequenceContext(unit, [], [], GfAmbush.AmbushReDeployment)));
             // A set_condition row at a point is one effect of a rule's choice ("pick one effect"): the rule offers one choose-effect use, which asks which.
             foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place or EffectKind.SetCondition).DistinctBy(x => x.Source.Entry.Name))
-                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row),
+                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source, row),
                     row.Kind == EffectKind.SetCondition ? GfNames.ChooseEffectSeq : GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
         }
         return reactions;
     }
 
     static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
-    static string Label(string entry, Effect row) => row.Kind == EffectKind.Place
-        ? $"{entry}: place within {Amount(row)}\""
-        : row.Kind == EffectKind.SetCondition ? $"{entry}: pick an effect"
-        : $"{entry}: move up to {Amount(row)}\"";
-    static string? Amount(Effect row) => row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + (row.AmountDice == "d3+1" ? "D3+1" : "D3");
+    static string Label(LiveProperty source, Effect row) => row.Kind == EffectKind.Place
+        ? $"{source.Entry.Name}: place within {Amount(source, row)}\""
+        : row.Kind == EffectKind.SetCondition ? $"{source.Entry.Name}: pick an effect"
+        : $"{source.Entry.Name}: move up to {Amount(source, row)}\"";
+    static string? Amount(LiveProperty source, Effect row) => row.AmountDice is null ? row.Amount?.ToString()
+        : (GfMoves.RepositionStep.DiceCount(source, row) is var n && n == 1 ? "" : n.ToString()) + (row.AmountDice == "d3+1" ? "D3+1" : "D3");
 }
