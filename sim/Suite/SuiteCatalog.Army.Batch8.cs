@@ -58,7 +58,7 @@ public static partial class SuiteCatalog
             Exact("Quick Readjustment", quote, (run, log) =>
                 from a in log.Attacks
                 where a.Shooting && a.Hit is not null && Holds(run, a.Attacker, "Quick Readjustment") && a.Hit.Nearest("advance") is not null
-                from r in a.Hit!.Rolls("hit")
+                from r in a.HitRolls("hit")
                 select r.Modifiers.Any(m => m.Source == "Indirect") ? "a hit roll under Indirect's -1" : null);
 
         public static IReadOnlyList<TestGame> Batch8 =>
