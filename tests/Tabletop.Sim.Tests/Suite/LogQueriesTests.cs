@@ -58,6 +58,28 @@ public class LogQueriesTests
     }
 
     [Fact]
+    public void A_frame_is_under_itself_and_its_ancestors_and_steps_under_it_include_its_children()
+    {
+        var q = new LogQueries(Log(), Final);
+        var (attack, deal) = (q.FramesOf("attack-sequence").Single(), q.FramesOf("deal-wounds").Single());
+        Assert.True(attack.Under(attack));
+        Assert.True(deal.Under(attack));
+        Assert.False(attack.Under(deal));
+        Assert.Equal(["roll-to-hit", "assign", "remove"], q.StepsUnder(attack).Select(s => s.Name));
+        Assert.Equal(["assign", "remove"], q.StepsUnder(deal).Select(s => s.Name));
+    }
+
+    [Fact]
+    public void Tokens_before_a_seq_are_the_last_set_on_the_model()
+    {
+        var model = Red.Models[0].Id;
+        var q = new LogQueries(Log(E(16, new SpellTokensSet(model, 3)), E(17, new SpellTokensSet(Blue.Models[0].Id, 1)), E(18, new SpellTokensSet(model, 1))), Final);
+        Assert.Equal(0, q.TokensBefore(model, 16));
+        Assert.Equal(3, q.TokensBefore(model, 18));
+        Assert.Equal(1, q.TokensBefore(model, 19));
+    }
+
+    [Fact]
     public void Rolls_of_a_kind_have_their_dice_as_they_stand()
     {
         var roll = new LogQueries(Log(), Final).Rolls("hit").Single();

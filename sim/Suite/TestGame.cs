@@ -92,7 +92,7 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
 }
 
 /// <summary>
-/// An engine defect a game is pinned to: Id names it (docs/handoff.md → Defects the rules suite found). A failure line is the defect's
+/// An engine defect a game is pinned to: Id names it (docs/handoff.md → Rules-suite gaps). A failure line is the defect's
 /// when it starts with Check (a check's name, or a base failure such as "invariants" or "stuck") and contains Reason, text the defect
 /// itself produces, so the same check failing for another reason stays unexpected. Driver, when set, limits the pin to runs on that
 /// driver. The game keeps its failing check; the report files that failure under the defect instead of as unexpected.

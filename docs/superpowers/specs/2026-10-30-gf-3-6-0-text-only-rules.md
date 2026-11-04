@@ -8,7 +8,7 @@ Predator's "may". The plan is `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-o
 
 Printed text is the authority. Every quote below is the 3.6 Army Forge dump's (`.superpowers/armyforge/3.6/`) or the
 3.6.0 rulebook's (`3.6.0 p.N`). The 3.5.1 content stays byte-identical, except where it departs from its printed text (the AP rows that print "to a
-min. of AP(0)" carry `floor: 0`), and its suite stays 545 of 545 with no pin; an engine or content change that reaches a 3.5.1
+min. of AP(0)", and Guardian Boost's, which counts as Guardian's, carry `floor: 0`), and its suite stays 545 of 545 with no pin; an engine or content change that reaches a 3.5.1
 game is a rule fix, which moves every game of the edition.
 
 ## Brace and Parry have text
@@ -247,7 +247,9 @@ the spell as translated rather than text-only.
 
 ## Suite
 
-One `army:3.6:<uid>` game per rule in `sim/Suite/SuiteCatalog.Army36M.cs` with `Checks/Army36M.cs`, each check quoting the
-3.6 text; the 24 spells and the three authored by hand get rows in `SpellTables36` so `spells:3.6` casts them; the Auras
+One `army:3.6:<uid>` game per rule in `sim/Suite/SuiteCatalog.Army36M.cs` (Pierce, Smash, Destructive, Decimate,
+Scourge, Brace and Parry), `SuiteCatalog.Army36N.cs` (the picks, choices, moves and Auras) and `SuiteCatalog.Army36P.cs` (once grants and
+Predator's Ask inside one attack), with their checks in `Checks/Army36M.cs`, `Checks/Army36N.cs` and `Checks/Army36P.cs`,
+each check quoting the 3.6 text; the 24 spells and the three authored by hand get rows in `SpellTables36` so `spells:3.6` casts them; the Auras
 are covered by pattern once their bases fire. The full run must read `PASSED`, 3.5 `545 of 545 … 0 not automated`, 3.6
 `N of N … 0 not automated`.

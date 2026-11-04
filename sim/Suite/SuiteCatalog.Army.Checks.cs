@@ -185,6 +185,11 @@ public static partial class SuiteCatalog
             (run, a) => a.Attacker is { } id && run.Final.Units.TryGetValue(id, out var unit)
                 && unit.Definition.Models.SelectMany(m => m.Weapons).Any(w => a.Weapons.Contains(w.Id) && w.Properties.Any(p => p.Name == entry));
 
+        /// <summary>The occasion's attacks whose weapon group fires a weapon of that name.</summary>
+        static Occasion Firing(Occasion occasion, string weapon) =>
+            (run, a) => occasion(run, a) && a.Attacker is { } id && run.Final.Units.TryGetValue(id, out var unit)
+                && unit.Definition.Models.SelectMany(m => m.Weapons).Any(w => a.Weapons.Contains(w.Id) && w.Name == weapon);
+
         static IEnumerable<LoggedAttack> Of(SuiteGameRun run, ArmyLog log, Occasion occasion) => log.Attacks.Where(a => occasion(run, a));
 
         static string Faces(IEnumerable<Die> dice) => $"[{string.Join(" ", dice.Select(d => d.Raw))}]";

@@ -57,7 +57,7 @@ static partial class SpecialGames
                         if (casts.Count == 0) return "it cast nothing";
                         var moved = log.Steps.FirstOrDefault(s => s.Frame == f && s.Name == "move" && s.Seq > casts[0].Seq && s.Step.Changes.OfType<ModelsMoved>().Any());
                         if (moved is null) return "it never moved after its cast";
-                        var reopened = log.AsksOf("react").FirstOrDefault(a => a.Seq > moved.Seq && a.Frame is { } at && (at == f || at.Ancestors.Contains(f)) && a.Ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast"));
+                        var reopened = log.AsksOf("react").FirstOrDefault(a => a.Seq > moved.Seq && a.Frame is { } at && at.Under(f) && a.Ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast"));
                         return reopened is null ? null : $"a cast was offered again at seq {reopened.Seq}, after the move";
                     });
                 }),

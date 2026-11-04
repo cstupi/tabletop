@@ -1,4 +1,4 @@
-# Handoff — 2026-11-03
+# Handoff — 2026-11-04
 
 The game is built end to end: a Grimdark Future game, under either edition (v3.5.1 or v3.6.0, chosen per game in the lobby;
 3.6.0 is the default for new games, existing and unfinished games stay on 3.5.1), runs from lobby and setup through the
@@ -64,10 +64,10 @@ Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 70, ArmyBooks 56, TerrainMeshes 114, TableTextures 29,
-  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1795, Management 330, Sim 334.
+  defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 71, ArmyBooks 60, TerrainMeshes 114, TableTextures 29,
+  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1829, Management 330, Sim 342.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
-  tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
+  tests run against fake and real), migrations, the suite games in process and over the socket, and the eight lifecycle shapes
   against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
   On `gf-3-6-0` against the stack: migrations 023–028 apply; `MigrationTests` passes (it asserts `effect_floor_check` is the
   only floor check and admits `modify_parameter`). Not yet run on the branch: the whole E2E suite and the socket-driver rules
@@ -381,14 +381,16 @@ Printed text is the authority. Brace and Parry are described by no book and no r
 Postgres refuses a spell entry with `played: false` (`catalog_entry_played_check`), and the game server then fails at startup.
 
 **3.6.0 standing rulings** (spec → Rulings taken here): the Tags spend one token per attack automatically; Predator and Primal
-ask (`extra_attacks`) once 2.5 merges, until then they always roll; Versatile Defense is chosen by the defender's team per
+ask (`extra_attacks`); Versatile Defense is chosen by the defender's team per
 attack-sequence, before the hit roll; Brace is "-X total", one per weapon type, none when the defender is Fatigued or Shaken;
 Parry's ignored hits are those with the most per-die grants, no Ask; once grants last the attack they first apply in and go at
 `attack-end`; Mind Control's once-per-round is per unit moved. Owner's rulings of 2026-11-04: Smash and Pierce on a spell's hits read
 the spell's printed range, measured from the caster model to the target's nearest model; Scourge on a spell's hits counts toward the
 end-of-activation Morale Test, as shooting's does. Rule fixes to the printed text: a once grant on a move action (Shock Speed) lasts the
-whole action across a stop and is spent at the move's end (p.7); Deadly reassigns a wound its model no longer needs and multiplies it on the new model; under 3.5.1 Fortified,
-Fortified Growth, Guardian and Primeborn floor AP at 0, as printed. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
+whole action across a stop and is spent at the move's end (p.7); Deadly reassigns a wound its model no longer needs and multiplies it on the new model; AP floors at 0, as printed
+("to a min. of AP(0)"): 3.5.1 Fortified, Fortified Growth, Guardian, Guardian Boost and Primeborn; 3.6.0 Fortified, Fortified Growth,
+Guardian, Primeborn and Enhanced Guardian. Guardian Boost and Enhanced Guardian count their AP "from Guardian" and keep its floor; 3.6.0
+Enhanced Fortified ("AP(-2) from Fortified") is in neither part: no 3.6.0 book unit carries it. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
 carries or grants it. Enhanced Watchborn is Watchborn without the range band. Counter in Melee is read as Counter, and its strike is
 not listed in the applied-rules log; only weapons named Counter add "Counter". When Pierce drops cover, the roll's expanded
 details (`RollEntry.Details`, viewer `rollEntry.ts`) still read "In cover" with no Pierce line; the worked lines show it.
