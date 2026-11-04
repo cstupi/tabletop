@@ -86,10 +86,14 @@ public static partial class SuiteCatalog
             Game(Custodians, "custodian-brothers-tear", Play.Shoots, ["Tear"], [], [],
                 [ApGrant("Tear", With("Tear"), 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
                 weapon: [R(0, "Tear")], enemy: [R(1, "Tough", 9), R(2, "Tough", 9)], enemyModels: 1, units: 2),
-            Game(Custodians, "custodian-brothers-guardian", Play.Shot, ["Guardian"], [R(1, "Guardian")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Guardian", On("Guardian", "Guardian Boost", When.Shooting), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
-            Game(Custodians, "custodian-brothers-guardian-boost", Play.Shot, ["Guardian Boost"], [R(1, "Guardian"), R(1, "Guardian Boost")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Guardian Boost", On("Guardian Boost"), 0, "\"enemy hits always count as having AP(-1)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
+            Game(Custodians, "custodian-brothers-guardian", Play.Shot, ["Guardian"], [R(1, "Guardian")], FloorDice,
+                [ApGrant("Guardian", Firing(On("Guardian", "Guardian Boost", When.Shooting), "Rifle"), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))"),
+                 ApGrant("Guardian", Firing(On("Guardian", "Guardian Boost", When.Shooting), "Carbine"), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(0))")],
+                enemyWeapon: [R(0, "AP", 1)], enemyCarriers: CarbineUnit(2, 0)),
+            Game(Custodians, "custodian-brothers-guardian-boost", Play.Shot, ["Guardian Boost"], [R(1, "Guardian"), R(1, "Guardian Boost")], FloorDice,
+                [ApGrant("Guardian Boost", Firing(On("Guardian Boost"), "Rifle"), 0, "\"enemy hits always count as having AP(-1) from Guardian\" (against AP(1))"),
+                 ApGrant("Guardian Boost", Firing(On("Guardian Boost"), "Carbine"), 0, "\"enemy hits always count as having AP(-1) from Guardian\", Guardian's \"to a min. of AP(0)\" (against AP(0))")],
+                enemyWeapon: [R(0, "AP", 1)], enemyCarriers: CarbineUnit(2, 0)),
             Game(DarkElves, "dark-elf-raiders-harassing", Play.Shoots, ["Harassing", "Harassing Boost"], [R(1, "Harassing"), R(2, "Harassing"), R(2, "Harassing Boost")], [],
                 [Reposition("Harassing", 3, "\"may move by up to 3\" after shooting or being in melee\""), Reposition("Harassing Boost", 6, "\"they may move by up to 6\" from Harassing\"")]),
             Game(DarkElves, "dark-elf-raiders-lacerate", Play.Shoots, ["Lacerate", "Piercing Hunter"], [R(1, "Piercing Hunter"), R(2, "Piercing Hunter")], [],
@@ -308,6 +312,21 @@ public static partial class SuiteCatalog
 
         static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules, int range = 60) =>
             new("Rifle", new Dictionary<string, string> { ["Range"] = $"{range}\"", ["Attacks"] = $"{attacks}" }, rules);
+        /// <summary>A second gun of 2 attacks, apart from the Rifle by name, with AP(ap).</summary>
+        static ScenarioWeapon Carbine(int ap) =>
+            new("Carbine", new Dictionary<string, string> { ["Range"] = "60\"", ["Attacks"] = "2" }, [R(0, "AP", ap)]);
+
+        /// <summary>The opponents' unit armed with a Carbine of AP(ap) in place of the Rifle, three models.</summary>
+        static IReadOnlyList<ScenarioModel> CarbineUnit(int unit, int ap) =>
+            [.. Enumerable.Range(1, 3).Select(m => new ScenarioModel(unit, m, Weapons: [Carbine(ap), Blade(1)]))];
+
+        /// <summary>
+        /// An AP-floor game: the Rifle's and the Carbine's first hits and blocks are fixed at 6, so each shooting unit fires at the floored
+        /// unit and it stands for the other (p.5: a 6 always succeeds).
+        /// </summary>
+        static IReadOnlyList<DiceFix> FloorDice =>
+            [new("hit", 0, [6, 6, 6], new RollKey(Weapon: "Rifle")), new("defense", 0, [6, 6, 6], new RollKey(Weapon: "Rifle")),
+             new("hit", 0, [6, 6, 6], new RollKey(Weapon: "Carbine")), new("defense", 0, [6, 6, 6], new RollKey(Weapon: "Carbine"))];
         static ScenarioWeapon Blade(int attacks, IReadOnlyList<ScenarioRule>? rules = null) =>
             new("Blade", new Dictionary<string, string> { ["Attacks"] = $"{attacks}" }, rules ?? []);
         static ScenarioRule R(int unit, string name, int? parameter = null) => new(unit, name, parameter);

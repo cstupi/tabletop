@@ -123,8 +123,10 @@ public static partial class SuiteCatalog
                 [HitsPerSuccess("Storm of Plague", 3, 2, 3, "\"roll 3 dice. For each 2+ one enemy unit within 12\" takes 3 hits with Bane\"")], grants: false),
             Pick(WarDaemons, "wormhole-daemons-of-war-storm-of-war", Play.Charges, "Storm of War",
                 [HitsPerSuccess("Storm of War", 3, 2, 3, "\"roll 3 dice. For each 2+ one enemy unit within 12\" takes 3 hits with AP(1)\"", ap: 1)], grants: false),
-            Game(BloodPrime, "blood-prime-brothers-primeborn", Play.Shot, ["Primeborn"], [R(1, "Primeborn")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Primeborn", On("Primeborn", when: When.Shooting), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
+            Game(BloodPrime, "blood-prime-brothers-primeborn", Play.Shot, ["Primeborn"], [R(1, "Primeborn")], FloorDice,
+                [ApGrant("Primeborn", Firing(On("Primeborn", when: When.Shooting), "Rifle"), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))"),
+                 ApGrant("Primeborn", Firing(On("Primeborn", when: When.Shooting), "Carbine"), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(0))")],
+                enemyWeapon: [R(0, "AP", 1)], enemyCarriers: CarbineUnit(2, 0)),
         ];
 
         /// <summary>The entry's rule_target Ask answered with its most wounded eligible model (read off the projection the Ask came with).</summary>

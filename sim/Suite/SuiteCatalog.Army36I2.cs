@@ -79,9 +79,14 @@ public static partial class SuiteCatalog
                 Rerolled(Books36.GoblinReclaimers, "Mischievous"), Rerolled(Books36.Jackals, "Scrapper"),
                 Faster(Books36.LustDisciples, "Lustbound"), Faster(Books36.RatmenClans, "Scurry"),
                 Steady(Books36.AlienHives, "Hive Bond"), Steady(Books36.HumanDefenseForce, "Hold the Line"),
-                Game(Books36.CustodianBrothers, "custodian-brothers-enhanced-guardian", Play.Shot, ["Enhanced Guardian"], [R(1, "Guardian"), R(1, "Enhanced Guardian")], [Fix("hit", 6, 6, 6)],
-                    [ApGrant("Enhanced Guardian", On("Enhanced Guardian"), 1, "\"hits they take count as having AP(-2) from Guardian (instead of only AP(-1))\" (against AP(3))")],
-                    enemyWeapon: [R(0, "AP", 3)]).In36(),
+                // Opponents unit 1 fires an AP(3) Rifle, unit 2 an AP(1) Carbine. Against AP(1) Guardian's "to a min. of AP(0)" holds: AP(-1)
+                // would be +1 to the defense roll.
+                Game(Books36.CustodianBrothers, "custodian-brothers-enhanced-guardian", Play.Shot, ["Enhanced Guardian"], [R(1, "Guardian"), R(1, "Enhanced Guardian")],
+                    FloorDice,
+                    [ApGrant("Enhanced Guardian", Firing(On("Enhanced Guardian"), "Rifle"), 1, "\"hits they take count as having AP(-2) from Guardian (instead of only AP(-1))\" (against AP(3))"),
+                     ApGrant("Enhanced Guardian", Firing(On("Enhanced Guardian"), "Carbine"), 0, "\"hits they take count as having AP(-2) from Guardian (instead of only AP(-1))\", Guardian's \"to a min. of AP(0)\" (against AP(1))")],
+                    enemyWeapon: [R(0, "AP", 3)],
+                    enemyCarriers: CarbineUnit(2, 1)).In36(),
                 Game(Books36.DarkElfRaiders, "dark-elf-raiders-enhanced-harassing", Play.Shoots, ["Enhanced Harassing"], Both(2, "Harassing"), [],
                     [Reposition("Enhanced Harassing", 6, "\"they may move by up to 6\" from Harassing (instead of only 3\")\"")]).In36(),
                 Game(Books36.HavocBrothers, "havoc-brothers-enhanced-havocbound", Play.Shoots, ["Enhanced Havocbound"], Both(2, "Havocbound"), [],
