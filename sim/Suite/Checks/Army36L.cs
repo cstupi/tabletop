@@ -82,7 +82,7 @@ public static partial class SuiteCatalog
             Exact(entry, $"{quote}: no {entry} modifier", (run, log) =>
                 from a in Of(run, log, occasion)
                 where a.Hit is not null
-                from r in a.Hit!.Rolls("hit")
+                from r in a.HitRolls("hit")
                 select r.Modifiers.Any(m => m.Source == entry) ? $"a hit roll under {entry}" : null);
     }
 }

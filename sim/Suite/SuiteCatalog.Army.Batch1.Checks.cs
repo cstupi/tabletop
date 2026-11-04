@@ -23,7 +23,7 @@ public static partial class SuiteCatalog
             Exact(entry, $"{quote}: no negative modifier to hit", (run, log) =>
                 from a in Of(run, log, occasion)
                 where a.Hit is not null
-                from r in a.Hit!.Rolls("hit")
+                from r in a.HitRolls("hit")
                 where !(r.Threshold == 6 && r.Modifiers.Count == 0)
                 select r.Modifiers.Where(m => m.Amount < 0).Select(m => $"{m.Source} {m.Amount}").ToList() is { Count: > 0 } bad ? $"a hit roll under {string.Join(", ", bad)}" : null);
 
@@ -63,7 +63,7 @@ public static partial class SuiteCatalog
             Exact(entry, $"{quote}: {source} {roll} {amount:+0;-0}", (run, log) =>
                 from a in Of(run, log, occasion)
                 where a.Hit is not null
-                from r in a.Hit!.Rolls(roll)
+                from r in a.HitRolls(roll)
                 where !(r.Threshold == 6 && r.Modifiers.Count == 0)
                 select r.Modifiers.Any(m => m.Source == source && m.Amount == amount) ? null : $"a {roll} roll without {source} {amount:+0;-0}");
 

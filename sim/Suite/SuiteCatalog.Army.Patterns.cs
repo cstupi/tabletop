@@ -24,7 +24,7 @@ public static partial class SuiteCatalog
             // The one rule unit is the only friendly unit within 12": it buffs itself, then the first opponent's shooting spends Stealth.
             Game(Hives, "pattern-buff-stealth", Play.Shot, ["Stealth Buff"], [], [],
                 [PickWithin("Stealth Buff", 12, friendly: true, BuffQuote),
-                 Once("Stealth Buff", $"{BuffQuote}: Stealth -1 to hit", a => a.Hit?.Rolls("hit").ToList() is { Count: > 0 } rolls
+                 Once("Stealth Buff", $"{BuffQuote}: Stealth -1 to hit", a => a.HitRolls("hit").ToList() is { Count: > 0 } rolls
                      ? rolls.Any(r => r.Modifiers.Any(m => m.Source == "Stealth" && m.Amount == -1)) : null)],
                 carriers: [Carrier("Stealth Buff")]) with { Pattern = "Buff" },
             // Unit 1 marks the one enemy unit and shoots it with four fixed 6s; unit 2's shooting after it is unmarked.

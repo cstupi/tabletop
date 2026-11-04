@@ -125,7 +125,7 @@ public static partial class SuiteCatalog
 
         /// <summary>
         /// Each attack with the rule that rolled a 1 to hit: the attack's self wounds are X per unmodified 1, and the deal-wounds under it asks no allocation and
-        /// wounds only the models whose own hit dice (the roll-to-hit record that names them) showed a 1.
+        /// wounds only the models whose own hit dice (the roll-to-hit record that names them, in any of the frame's roll-to-hit completions) showed a 1.
         /// </summary>
         static GameCheck HazardOnTheRoller(string entry, int x, string quote) =>
             Exact(entry, quote, (run, _) =>
@@ -135,17 +135,20 @@ public static partial class SuiteCatalog
                 var verdicts = new List<string?>();
                 foreach (var attack in log.FramesOf(GfNames.AttackSequence).Where(f => f.Context.WeaponIds.Any(weapons.Contains)))
                 {
-                    if (attack.Steps.FirstOrDefault(s => s.Name == "roll-to-hit") is not { } hit || attack.Steps.FirstOrDefault(s => s.Name == "score-hits") is not { } score) continue;
+                    // Every roll-to-hit completion: the extra attacks an optional row offered, when taken, are a second one, its records numbered from 0 in its own Values.
+                    var hits = attack.Steps.Where(s => s.Name == "roll-to-hit").ToList();
+                    if (hits.Count == 0 || attack.Steps.FirstOrDefault(s => s.Name == "score-hits") is not { } score) continue;
                     var ones = new Dictionary<Guid, int>();
-                    for (var i = 0; i < hit.AllRolls.Count; i++)
-                    {
-                        var key = hit.Step.Values?.Keys.FirstOrDefault(k => k.StartsWith($"hit_model_{i}_", StringComparison.Ordinal));
-                        var rolled = hit.AllRolls[i].Raw(1);
-                        if (rolled == 0) continue;
-                        if (key is null) { verdicts.Add("a 1 on a hit record that names no model"); continue; }
-                        var model = Guid.ParseExact(key[$"hit_model_{i}_".Length..], "N");
-                        ones[model] = ones.GetValueOrDefault(model) + rolled;
-                    }
+                    foreach (var hit in hits)
+                        for (var i = 0; i < hit.AllRolls.Count; i++)
+                        {
+                            var key = hit.Step.Values?.Keys.FirstOrDefault(k => k.StartsWith($"hit_model_{i}_", StringComparison.Ordinal));
+                            var rolled = hit.AllRolls[i].Raw(1);
+                            if (rolled == 0) continue;
+                            if (key is null) { verdicts.Add("a 1 on a hit record that names no model"); continue; }
+                            var model = Guid.ParseExact(key[$"hit_model_{i}_".Length..], "N");
+                            ones[model] = ones.GetValueOrDefault(model) + rolled;
+                        }
                     if (ones.Count == 0) continue;
                     var total = ones.Values.Sum();
                     verdicts.Add(score.Value("self_wounds") == x * total ? null : $"{score.Value("self_wounds")} self wounds for {total} ones, expected {x * total}");

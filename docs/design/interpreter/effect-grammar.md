@@ -287,8 +287,9 @@ condition names the *face*, every other condition must hold now, and the face go
 `"fail"` on a `force_reroll`.
 
 **`RollEffects.PerDie`** returns `DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int?
-Parameter)> Grants, int ExtraAttacks)` for one die. It keeps only effects that carry a `RollResult` condition, so a
-spell's unconditional *takes 4 hits* is not counted once per die. A defense die's extra wounds are wounds of the hit
+Parameter)> Grants)` for one die. It keeps only effects that carry a `RollResult` condition, so a
+spell's unconditional *takes 4 hits* is not counted once per die. The dice an `add_hit` on attacks adds are
+`roll-to-hit`'s to draw, which reads those rows itself. A defense die's extra wounds are wounds of the hit
 whose block failed, so `GfAttack.WoundsToDeal` adds them to the failures and `Deadly` multiplies them; a hit die's
 subject-`self` wounds go to the attacker's own unit after the attack, through `self-wounds`.
 

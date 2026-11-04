@@ -155,6 +155,16 @@ describe('CombatLog', () => {
     expect(ls.some((l) => l.startsWith('Clay set ') && l.endsWith(' to 1 wound · by hand'))).toBe(true);
   });
 
+  it('a second roll-to-hit in the frame (extra attacks taken on an Ask) reads the attack once, on the pool', () => {
+    const nested = newId();
+    const { entries } = buildSample(Round1, started(Frame, 'hold', ctx(Unit, [Enemy], [Rifle], 'Hold')), started(nested, 'attack-sequence', ctx(Unit, [Enemy], [Rifle], 'Hold')),
+      step(nested, 'roll-to-hit', [hit()]), step(nested, 'roll-to-hit', [hitWith(newId())]), finished(nested), finished(Frame));
+    const rs = rolls(flatten(entries));
+    expect(rs).toHaveLength(2);
+    expect(rs[0]!.attack?.[0]).toMatch(/^Attack: /);
+    expect(rs[1]!.attack).toBeNull();
+  });
+
   it('an action frame groups its entries under one header with a chain summary', () => {
     const nested = newId();
     const { entries } = buildSample({ kind: 'round_started', round: 2, order: [TEAM1, TEAM2], changes: [] },
