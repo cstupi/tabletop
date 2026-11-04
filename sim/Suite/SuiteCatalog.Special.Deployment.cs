@@ -168,9 +168,12 @@ static partial class SpecialGames
     static TestGame Aircraft()
     {
         const string name = "special-aircraft-overhead";
+        // On anchors; Red wins the roll-off (fixed). Red 1 and Red 2 stand beyond charge range of every enemy; Red 3 (Fast, a 16" charge) stands about 13"
+        // from Blue 2 and from the Aircraft and charges Blue 2 in round 1, before the Aircraft moves: a charge offered within reach of the Aircraft.
         return Game(name, new ScenarioBuilder(name, 2).RoundCap(3).Table(36, 36).Scripted(ChargeTheAircraft).Seeking(NearestEnemy)
-                .Army("Red", 3, 3, modelRules: [new(3, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4))
-                .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4))
+                .Army("Red", 3, 3, modelRules: [new(3, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(2, 35), [2] = new(30, 35), [3] = new(16, 25) })
+                .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(24, 11), [2] = new(14, 11) })
                 .Build(),
             ["Aircraft", "Fast", "Slow"],
             [
@@ -211,7 +214,7 @@ static partial class SpecialGames
                     return inReach == 0 ? "no charger ever stood within its charge distance of the Aircraft" : null;
                 }),
             ],
-            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") });
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") }, [new("roll-off", 0, [6, 1])]);
     }
 
     /// <summary>ShootAndStrike, and every weapon group fires at Red unit 3, the Hero's unit, whenever it is a legal target of every group.</summary>
@@ -241,7 +244,8 @@ static partial class SpecialGames
             for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
             return script
                 .Match(AskQuestions.Activate, (ask, _) => new[] { "Red unit 3", "Red unit 1", "Red unit 2" }
-                    .Select(unit => AskPicks.Activate(ask, unit, "Charge")).FirstOrDefault(a => a is not null))
+                    .Select(unit => AskPicks.Activate(ask, unit, "Charge")).FirstOrDefault(a => a is not null)
+                    ?? AskPicks.Activate(ask, "Red unit 3", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Advance"))
                 .Match("charge_target", (ask, p) => AskPicks.Pieces(ask, p, "Blue unit 1"))
                 .Build();
         }
