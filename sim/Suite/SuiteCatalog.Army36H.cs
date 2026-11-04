@@ -64,18 +64,19 @@ public static partial class SuiteCatalog
             Game(Books36.InfectedColonies, "infected-colonies-hit-and-run-shooter", Play.Shoots, ["Hit & Run Shooter"], Both("Hit & Run Shooter"), [],
                 [Reposition("Hit & Run Shooter", 3, "\"Once per round, this model may move by up to 3\" after shooting.\"")]).In36(),
 
-            // Increased Shooting Range: a 12" rifle, so every shot that lands beyond 12" is one the +6" reached.
-            AnchoredH(Game(Books36.BlessedSisters, "blessed-sisters-increased-shooting-range", Play.Shoots, ["Increased Shooting Range"], Each(2, "Increased Shooting Range"), [],
-                [RangeBonus("Increased Shooting Range", By("Increased Shooting Range", when: When.Shooting), 12, 6, "\"This model gets +6\" range on its weapons when shooting.\"")], gunRange: 12), 25, 10).In36(),
-            AnchoredH(Game(Books36.AlienHives, "alien-hives-increased-shooting-range-aura", Play.Shoots, ["Increased Shooting Range Aura"], [], [],
+            // Increased Shooting Range: a 12" rifle, so every shot that lands beyond 12" is one the +6" reached; an opponent unit stands beyond 18" and the rule
+            // side shoots it first whenever it is legal (Overreach).
+            Overreach(AnchoredH(Game(Books36.BlessedSisters, "blessed-sisters-increased-shooting-range", Play.Shoots, ["Increased Shooting Range"], Each(2, "Increased Shooting Range"), [],
+                [RangeBonus("Increased Shooting Range", By("Increased Shooting Range", when: When.Shooting), 12, 6, "\"This model gets +6\" range on its weapons when shooting.\"")], gunRange: 12), 25, 10), 2, new(27, 5)).In36(),
+            Overreach(AnchoredH(Game(Books36.AlienHives, "alien-hives-increased-shooting-range-aura", Play.Shoots, ["Increased Shooting Range Aura"], [], [],
                 [RangeBonus("Increased Shooting Range Aura", Carrying("Increased Shooting Range Aura", When.Shooting), 12, 6, "\"This model and its unit get +6\" range on its weapons when shooting.\"")],
-                carriers: Carriers("Increased Shooting Range Aura", 2), units: 2, gunRange: 12), 25, 10).In36(),
-            AnchoredH(Pick(Books36.SoulSnatcherCults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
+                carriers: Carriers("Increased Shooting Range Aura", 2), units: 2, gunRange: 12), 25, 10), 2, new(27, 5)).In36(),
+            Overreach(AnchoredH(Pick(Books36.SoulSnatcherCults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
                 [RangeBonus("Increased Shooting Range Buff", Granted("Increased Shooting Range Buff"), 12, 6, BuffText + "+6\" range on its weapons when shooting once\"")],
-                gunRange: 12, length: 30), 19, 4).In36(),
-            AnchoredH(Pick(Books36.EternalDynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
+                gunRange: 12, length: 30, enemyUnits: 2), 19, 4), 2, new(26, 1)).In36(),
+            Overreach(AnchoredH(Pick(Books36.EternalDynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
                 [RangeBonus("Increased Shooting Range Mark", Granted("Increased Shooting Range Mark", onTarget: true), 12, 6, MarkText + " +6\" range on their weapons when shooting against once\"")],
-                gunRange: 12, length: 30), 19, 4).In36(),
+                gunRange: 12, length: 30, enemyUnits: 2), 19, 4), 2, new(26, 1)).In36(),
 
             Game(Books36.DarkElfRaiders, "dark-elf-raiders-lacerate", Play.Shoots, ["Lacerate"], [], [],
                 [Rerolls("Lacerate", With("Lacerate"), [6], successOnly: false, "\"When attacking, the target must re-roll unmodified Defense results of 6.\"")], weapon: [R(0, "Lacerate")], units: 2).In36(),

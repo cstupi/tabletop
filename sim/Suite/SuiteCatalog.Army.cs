@@ -268,6 +268,30 @@ public static partial class SuiteCatalog
             return script.Build();
         }
 
+        /// <summary>The game with army's unit anchored at the point (the anchor added or replaced).</summary>
+        static TestGame AnchorAt(TestGame game, int army, int unit, Point2 at) => game with
+        {
+            Scenario = game.Scenario with
+            {
+                Armies = [.. game.Scenario.Armies.Select((a, i) => i == army ? a with { Anchors = new Dictionary<int, Point2>(a.Anchors) { [unit] = at } } : a)],
+            },
+        };
+
+        /// <summary>The game with every shooter of the shooting army firing all its groups at the target unit first, whenever the target is legal.</summary>
+        static TestGame Aiming(TestGame game, int shootingArmy, string target)
+        {
+            var prefix = game.Scenario.Armies[shootingArmy].Name + " unit ";
+            var aim = new ScriptMatch("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p)?.StartsWith(prefix, StringComparison.Ordinal) == true ? AskPicks.AllAt(ask, p, target) : null);
+            return game with { Scenario = game.Scenario with { Script = game.Scenario.Script with { Matches = [aim, .. game.Scenario.Script.Matches] } } };
+        }
+
+        /// <summary>
+        /// The game with the opponents' unit anchored at the point, beyond the reach the rule gives, and the rule side shooting it first whenever it is a
+        /// legal target: a rule read with a longer reach offers it or shoots it, and the rule's check sees that.
+        /// </summary>
+        static TestGame Overreach(TestGame game, int unit, Point2 at) =>
+            Aiming(AnchorAt(game, 1, unit, at), 0, $"{game.Scenario.Armies[1].Name} unit {unit}");
+
         static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules, int range = 60) =>
             new("Rifle", new Dictionary<string, string> { ["Range"] = $"{range}\"", ["Attacks"] = $"{attacks}" }, rules);
         static ScenarioWeapon Blade(int attacks, IReadOnlyList<ScenarioRule>? rules = null) =>

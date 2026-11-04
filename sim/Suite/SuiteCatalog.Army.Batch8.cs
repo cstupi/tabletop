@@ -68,10 +68,11 @@ public static partial class SuiteCatalog
                 [ChargeAt("Darkborn", 10, "\"-2\" movement to a min. of 6\" when trying to charge units where all models have this rule\"")], enemyUnits: 4),
             Game(BattleBrothers, "battle-brothers-melee-shrouding", Play.Charged, ["Melee Shrouding"], [R(1, "Melee Shrouding"), R(2, "Melee Shrouding"), R(3, "Melee Shrouding")], [],
                 [ChargeAt("Melee Shrouding", 9, "\"Enemies get -3\" movement to a min. of 6\" when trying to charge units where all models have this rule\"")], enemyUnits: 4),
-            // The armies stand 14" apart (AnchoredH), inside the shrouded guns' 18".
-            AnchoredH(Game(Orcs, "orc-marauders-ranged-shrouding", Play.Shot, ["Ranged Shrouding"], [R(1, "Ranged Shrouding"), R(2, "Ranged Shrouding")], [],
+            // Unit 1 stands 14" from the opponents (AnchoredH), inside the shrouded guns' 18"; unit 2 about 22" from opponent unit 2, inside the 24" guns
+            // and beyond 18", and the opponents shoot it first whenever it is a legal target.
+            Aiming(AnchorAt(AnchoredH(Game(Orcs, "orc-marauders-ranged-shrouding", Play.Shot, ["Ranged Shrouding"], [R(1, "Ranged Shrouding"), R(2, "Ranged Shrouding")], [],
                 [ShotWithin("Ranged Shrouding", 18, "\"Enemies get -6\" range to a min. of 6\" when trying to shoot units where all models have this rule\" (24\" guns)")],
-                units: 2, enemyRange: 24), 25, 11),
+                units: 2, enemyRange: 24), 25, 11), 0, 2, new(30, 33)), 1, $"{Orcs.Army} unit 2"),
             Game(Hdf, "human-defense-force-entrenched", Play.Shot, ["Entrenched"], [R(1, "Entrenched"), R(2, "Entrenched")], [],
                 [Modifier("Entrenched", "hit", -2, "\"As long as a unit where all models have this rule hasn't moved during the round, enemy units shooting at it from over 9\" away get -2 to hit rolls\"")], units: 2),
             Game(Robots, "robot-legions-mobile-artillery", Play.Shoots, ["Mobile Artillery"], [R(1, "Mobile Artillery"), R(2, "Mobile Artillery")], [],
