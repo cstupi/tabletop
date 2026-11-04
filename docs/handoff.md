@@ -386,8 +386,8 @@ attack-sequence, before the hit roll; Brace is "-X total", one per weapon type, 
 Parry's ignored hits are those with the most per-die grants, no Ask; once grants last the attack they first apply in and go at
 `attack-end`; Mind Control's once-per-round is per unit moved. Owner's rulings of 2026-11-04: Smash and Pierce on a spell's hits read
 the spell's printed range, measured from the caster model to the target's nearest model; Scourge on a spell's hits counts toward the
-end-of-activation Morale Test, as shooting's does; a once grant on a move action (Shock Speed) lasts the whole action across a stop and
-is spent at the move's end; Deadly reassigns a wound its model no longer needs and multiplies it on the new model; under 3.5.1 Fortified,
+end-of-activation Morale Test, as shooting's does. Rule fixes to the printed text: a once grant on a move action (Shock Speed) lasts the
+whole action across a stop and is spent at the move's end (p.7); Deadly reassigns a wound its model no longer needs and multiplies it on the new model; under 3.5.1 Fortified,
 Fortified Growth, Guardian and Primeborn floor AP at 0, as printed. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
 carries or grants it. Enhanced Watchborn is Watchborn without the range band. Counter in Melee is read as Counter, and its strike is
 not listed in the applied-rules log; only weapons named Counter add "Counter". When Pierce drops cover, the roll's expanded
