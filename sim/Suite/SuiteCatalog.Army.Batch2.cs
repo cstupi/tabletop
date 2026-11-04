@@ -16,9 +16,10 @@ public static partial class SuiteCatalog
             IReadOnlyList<DiceFix>? dice = null, IReadOnlyList<ScenarioRule>? enemy = null, int enemyUnits = 1, int? enemyModels = null, int enemyAttacks = 2,
             IReadOnlyList<ScenarioRule>? enemyWeapon = null, IReadOnlyList<ScenarioRule>? carrier = null, IReadOnlyList<ScenarioRule>? rules = null,
             int gunRange = 60, Action<ScriptBuilder>? more = null, string? enemyBook = null, int? rounds = null, ulong seed = 1, int units = 1, int buffUnit = 1, bool grants = true,
-            double? gap = null)
+            double? gap = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null)
         {
-            var (anchors, enemyAnchors) = Facing(play, length, gap);
+            var facing = Facing(play, length, gap);
+            (anchors, enemyAnchors) = (anchors ?? facing.Item1, enemyAnchors ?? facing.Item2);
             return Game(book, name, play, [entry], rules ?? [], dice ?? [], grants ? [.. checks, Spent(entry, $"\"{entry}\"")] : checks, carriers: [new ScenarioModel(1, 1, [R(1, entry), .. carrier ?? []])],
                 units: units, enemyUnits: enemyUnits, enemyModels: enemyModels, enemyAttacks: enemyAttacks, enemy: enemy, enemyWeapon: enemyWeapon, length: length,
                 gunRange: gunRange, enemyBook: enemyBook, rounds: rounds, seed: seed, anchors: anchors, enemyAnchors: enemyAnchors,
@@ -66,9 +67,11 @@ public static partial class SuiteCatalog
                 [Modifier("Courage Buff", "morale", 1, BuffText + "+1 to morale test rolls once\"")],
                 dice: [Fix("hit", 6, 6, 1), Fix("defense", 1, 1)], enemyModels: 1, enemyAttacks: 3, rounds: 2, length: null),
             // One unit of two models: the fixed hits and blocks of the first shooting kill one, leaving it at half (p.10), and it tests morale.
+            // The units deploy 15" apart: within the pick's 18", beyond the 12" a charge needs, so unit 1 Advances and shoots.
             Pick(Jackals, "jackals-morale-debuff", Play.Moves, "Morale Debuff",
                 [Modifier("Morale Debuff", "morale", -1, DebuffText + "gets -1 to morale test rolls once\"")], enemyModels: 2,
-                dice: [Fix("hit", 6, 6, 6), Fix("defense", 1, 6, 6)]),
+                dice: [Fix("hit", 6, 6, 6), Fix("defense", 1, 6, 6)],
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, 20) }, enemyAnchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, 5) }),
             // The carrier is a caster of its own book: it Buffs itself, then the script casts.
             Pick(Robots, "robot-legions-casting-buff", Play.Shoots, "Casting Buff",
                 [Modifier("Casting Buff", "casting", 1, "\"pick one friendly model within 12\" with Caster, which gets +1 to casting rolls once\"")],

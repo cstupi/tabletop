@@ -140,7 +140,10 @@ public static partial class SuiteCatalog
         /// across a 30" table (Flying, p.13: "may move through units"), each model making for a point 4" beyond the nearest enemy model, so its path
         /// crosses that model's unit; every crossing_target Ask picks the first enemy offered.
         /// </summary>
-        static TestGame Through(TestGame game) => (game with { Scenario = game.Scenario with { Goal = Beyond } }).In36();
+        static TestGame Through(TestGame game) => Through351(game).In36();
+
+        /// <summary>Through under the game's own edition (the 3.5.1 crossing games).</summary>
+        static TestGame Through351(TestGame game) => game with { Scenario = game.Scenario with { Goal = Beyond } };
 
         static void RushesThrough(ScriptBuilder s, string army, int units) => s
             .Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, units).Select(k => AskPicks.Activate(ask, $"{army} unit {k}", "Rush")).FirstOrDefault(a => a is not null))

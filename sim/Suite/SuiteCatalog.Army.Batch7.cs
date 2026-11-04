@@ -75,6 +75,8 @@ public static partial class SuiteCatalog
                     where apart > 12
                     select !Holds(run, unit, "Extended Buff Range") ? "offered a unit beyond 12\" without the rule" : apart > 24 + 2 ? $"offered a unit {apart:0.##}\" away" : null)],
                 carriers: [new ScenarioModel(1, 1, [R(1, "Extended Buff Range"), R(1, "Hero"), R(1, buff)])], units: 3,
+                // Unit 3 deploys 20" from the Hero's unit (its nearest model about 16.5" away), beyond 12" and within 24", so the extended pick has a case.
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(4, 30), [2] = new(12, 30), [3] = new(24, 30) },
                 more: s => s.Match(AskQuestions.React, (ask, _) => AskPicks.Option(ask, c => c.Id.StartsWith(buff + "|", StringComparison.Ordinal)))
                     .Match("rule_target", (ask, p) => ask.Legal is PieceSelection sel ? new SelectedPieces([sel.Eligible[^1]]) : null));
     }

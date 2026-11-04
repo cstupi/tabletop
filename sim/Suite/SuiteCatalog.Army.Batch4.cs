@@ -49,7 +49,9 @@ public static partial class SuiteCatalog
                 [Reposition("Hit & Run", 3, "\"may move by up to 3\" after shooting or being in melee\"")]),
             Game(Hdf, "human-defense-force-coordinate", Play.Moves, ["Coordinate"], [R(1, "Coordinate")], [],
                 [CoordinateActivates("\"another friendly unit within 12\" that hasn't activated yet may be activated immediately\"")], units: 3,
-                more: s => s.Match("coordinate", (ask, _) => AskPicks.Option(ask, _ => true))),
+                more: s => s.Match("coordinate", (ask, _) => AskPicks.Option(ask, _ => true)),
+                // The three units deploy 8" apart on one line, so unit 2 stands within 12" of the Coordinate unit when it activates first.
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(10, 30), [2] = new(18, 30), [3] = new(26, 30) }),
             Game(TitanLords, "titan-lords-delayed-action", Play.Shoots, ["Delayed Action"], [R(1, "Delayed Action")], [],
                 [Delays("\"Once per round, if your opponent has more units left to activate than you, then this model's unit may pass its turn instead of activating\"")],
                 units: 1, enemyUnits: 3, more: Activates(c => c.Id.EndsWith("/Delay", StringComparison.Ordinal)))
