@@ -76,7 +76,7 @@ and what else it touches.
 | 40k's `GameRules`. The core rules were read to falsify the interface, not to build it | action sequences → Deliberately not decided; `architecture.md` → Where data stops |
 | Generalising `GameRules` itself. Turn structure, action definitions, step order, scheduler policy and dice conventions stay C# | `architecture.md` → Where data stops, for now |
 | Advanced Casting's spell books, psychic pool and living spells (p.32–33) | action sequences → Deliberately not decided |
-| Action Boosting, which needs percentages. An eighteenth effect kind, or a flavour on kind 1 | effect grammar → Still open |
+| Action Boosting, which needs percentages. A twenty-first effect kind, or a flavour on kind 1 | effect grammar → Still open |
 | The two further durations the optional extra actions need (*until its next activation*, *this round*) | spell effects → Duration |
 | Buildings as targets: terrain carrying stats and becoming event-driven state on the setup snapshot | game flow → Inside a container |
 | Conflicts between two abilities reading the same result: whether both apply or one wins | resolution → Deliberately not decided |

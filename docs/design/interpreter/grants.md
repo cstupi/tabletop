@@ -1,7 +1,8 @@
 # The grants store
 
-How a once row, a marker or a pick entry writes a grant, what reads it and when it is released. Part of [the effect grammar](effect-grammar.md); everything here lives in `server/game/Effects/` and the ruleset steps that read it.
-
+How a once row, a marker or a pick entry writes a grant, what reads it and when it is released.
+Part of [the effect grammar](effect-grammar.md); everything here lives in `server/game/Effects/`
+and the ruleset steps that read it.
 
 ```mermaid
 flowchart LR

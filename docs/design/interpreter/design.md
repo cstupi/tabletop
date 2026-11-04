@@ -182,7 +182,8 @@ p.50 (the token economy's edges and the free-for-all roll-off).
 
 - [The effect grammar](effect-grammar.md): twenty kinds, thirteen predicates, the two passes in
   detail, and the worked rows.
-- [The grants store](grants.md): once, marker, `spent_marker` and `one_marker` grants, release at an attack's end, pick targeting.
+- [The grants store](grants.md): once, marker, `spent_marker` and `one_marker` grants, release at an
+  attack's end, pick targeting.
 - [Grimdark Future's sequences](opr-sequences.md): the thirty sequences, the shared attack
   chain, the move step's phase machine, casting, and containment.
 

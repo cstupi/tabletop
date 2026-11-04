@@ -1,7 +1,8 @@
 # The effect grammar
 
 What each of the twenty effect kinds does in code, what each of the thirteen predicates reads, which
-pass a kind belongs to, and the worked rows; [grants.md](grants.md) covers how a grant is written, held and released. [design.md](design.md) states
+pass a kind belongs to, and the worked rows; [grants.md](grants.md) covers how a grant is written,
+held and released. [design.md](design.md) states
 the two-pass decision and its motivation. Everything here lives in `server/game/Effects/` and may
 not name an OPR rule.
 
@@ -330,7 +331,7 @@ declaration at each level and every catalog row names the unit-level ref; that i
 | `Thrust` | **two** effects. `modify_roll` on `hit`, `amount = 1`; and `grant_property` with `target_entry = AP` and `amount = 1`. Both conditioned on the action taken being `Charge` and the attack kind melee. The grant is not per-die, so unlike `Rending`'s it settles in pass one |
 | `Blast(X)` | `kind = multiply`, `target_quantity = hits`, `amount_from_parameter`, `cap_kind = models_in_target_unit`, at a high `ordinal` because the book says *after resolving other special rules* |
 | `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. 3.6.0 p.15 adds *"which are not from this model's special rules"*: the 3.6 row is `foreign_to_hit_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` is what suppresses that |
-| `Pierce` | *"Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon's range away, this weapon gets AP(+1)"*: **two** effects. `suppress_modifiers` with `target_modifier = positive_defense` on the opponent, unconditional; and `grant_property` of `AP` amount 1 on self, conditioned on `weapon_range gt 50`, which reads the attack's measured unit-to-unit range against the weapon's range, or, on a spell's hits, the caster's distance to the target against the spell's printed range |
+| `Pierce` | *"Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon's range away, this weapon gets AP(+1)"*: **two** effects. `suppress_modifiers` with `target_modifier = positive_defense` on the opponent, unconditional; and `grant_property` of `AP` amount 1 on self, conditioned on `weapon_range gt 50`, which reads the attack's measured unit-to-unit range against the weapon's range, or, on a spell's hits, the caster's distance to the target's nearest model against the spell's printed range |
 | `Scourge` | `count_wounds`, `amount = 2`, subject `opponent`, conditioned on a raw `defense` result of 1. The wounds change no model; they count for the melee result and for the morale trigger of shooting wounds and a spell's hits |
 
 `Bane` shows why conditions belong to the effect and not to the entry. One of its two effects
