@@ -1,4 +1,4 @@
-# Handoff — 2026-10-30
+# Handoff — 2026-11-03
 
 The game is built end to end: a Grimdark Future game, under either edition (v3.5.1 or v3.6.0, chosen per game in the lobby;
 3.6.0 is the default for new games, existing and unfinished games stay on 3.5.1), runs from lobby and setup through the
@@ -45,7 +45,7 @@ path (spec `2026-10-20-lifecycle-suite-design.md`, `sim/AGENTS.md` → The lifec
 first set of `GET /v1/properties`, join, army import through the dev-mode `POST /v1/dev/armies/import`, statuses, leave,
 delete) and the socket (lobby and setup edits, waiting for players, play to the rules' end, replay on `/ws?watch=1`), on
 `lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. `two-players-3.6` plays `two-players`
-on the 3.6.0 set with 3.6 armies. The seven 3.5.1 shapes passed 7 of 7 at v0.1.31 (about 3 min); the eighth has not run.
+on the 3.6.0 set with 3.6 armies. On `gf-3-6-0` (2026-11-03) all 8 of 8 pass (about 3 min).
 
 **The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 2.5 min);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
@@ -56,23 +56,22 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today, on `gf-3-6-0` in process with no pin: `PASSED: 652 of 652 games passed, 0 failing on known defects, 0 unexpected; 1079 of 1079 entries covered, 43 not automated`.
-Each shared game's 3.6.0 run is named `<name>@3.6`. Coverage per set: 3.5 545 of 545 (88 by pattern, 0 not automated); 3.6 534 of 534
-(87 by pattern, 43 not automated: the text-only entries in Known rule gaps).
+Today, on `gf-3-6-0` in process with no pin: `FAILED: 652 of 652 games passed, 0 failing on known defects, 0 unexpected; 1103 of 1122 entries covered, 0 not automated`.
+The verdict fails on coverage only: the 3.6.0 entries made playable on 2026-11-03 have no suite game yet (Next, item 1).
+Each shared game's 3.6.0 run is named `<name>@3.6`. 3.5 coverage stays 545 of 545 with 0 not automated.
 `--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
   defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 70, ArmyBooks 56, TerrainMeshes 114, TableTextures 29,
-  Protocol 65, Sounds 65, Viewer 16, Client 944, GameServer 1695, Management 329, Sim 329.
+  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1795, Management 330, Sim 333 (3 red, Next item 1).
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
   against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
-  Not run on branch `gf-3-6-0` (Docker was down): this suite, `sim -- lifecycle` (with `two-players-3.6`), the socket-driver
-  rules suite, and migrations `023_army_edition.sql`, `024_foreign_to_hit_penalties.sql`, `025_steep_terrain.sql` and
-  `026_parameter_floor.sql` against Postgres. `MigrationTests` (Management, E2E) asserts `effect_floor_check` admits
-  `modify_parameter`; run it first once the stack is up.
+  On `gf-3-6-0` against the stack: migrations 023–028 apply; `MigrationTests` passes (it asserts `effect_floor_check` is the
+  only floor check and admits `modify_parameter`). Not yet run on the branch: the whole E2E suite and the socket-driver rules
+  suite.
 
 `cd viewer && npm run check && npm test` passes 1,676 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
@@ -95,33 +94,26 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 In order:
 
-1. **Merge `gf-3-6-0`.** The main checkout is on it (232+ commits over `main`; local only, unpushed). Start Docker Desktop, then
-   `docker compose up -d` and run what Checks lists as not run on this branch: E2E (`MigrationTests` first; migrations 023–026),
-   `sim -- lifecycle` (8 shapes incl. `two-players-3.6`), the socket-driver rules suite. Fix what fails, then merge to `main`.
-   The build ledger with every ruling is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the owner's edition ruling.
-2. **The 3.6.0 text-only rules played** (the 43 not automated). Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`,
-   plan `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks). Nothing built.
-   Brace and Parry's text comes from Army Forge's `GET /api/rules/common/2`. Owner asked for the plan only; build when told.
-
-### Miniatures: the zombie army (outside the repo)
-
-Generated miniatures (GLB) live under `/mnt/c/Users/clays/Downloads/`, never in this repo. The look rulings are the memory
-note `miniatures-look-painted`; the coordinator steps are the user skill `army-miniatures`, which points at the kit.
-Blender runs on the CPU only, at Idle priority, `-t 4`, at most 2 processes. Ask the owner before any `--gpu` run: a GPU
-bake stuttered their game.
-
-- `minis-kit/`: the Blender 5.2 kit (`README.md`; `kit/build <army> <names|--all> [--gpu]`; templates `humanoid`,
-  `armoured`, `brute`, `flyer`; `bar/`). `infected-zombie-a` rebuilds through it with no visible loss (`mixed-zombies/final/port-check.png`).
-  Not done: a shareable zip of the kit (Pyromania's `miniatures-kit.zip` is the Python-era one).
-- `mixed-zombies/` (Army Forge `cyQHIIkOQQcb`; specs in `src/specs/`; the approved 2.92 build kept in `baseline-2026-10-28/`).
-  Built in `final/` with `hq/`, close-ups, compare and `contact-sheet.png`: `infected-zombie-a` (approved), variants
-  `b`–`g`, and the first models of the other types: `infected-leader`, `plague-brother-a`, `plague-destroyer-a`, `plague-drone`.
-  **Waiting on the owner** (renders sent 2026-10-30). Claude's review: zombie variants good; leader close (pistol a plain
-  block, energy fist a grey box); brother and destroyer below the bar (smooth rounded "balloon" armour, block feet, box
-  helmet with goggles, no spikes, chain mail, cables or growths; destroyer head tiny, gauntlet a slab); drone toy-like
-  (strawberry eyes, flat opaque wings, smooth worm tendrils). Recommended: accept the variants, polish the leader, redo
-  brother, destroyer and drone before their variants. Still to build after approval: 13 more zombie variants (20 in all),
-  plague-brother variants plus the Plague Sprayer brother (weapon not in the kit yet), two more destroyers.
+1. **Finish the 3.6.0 text-only rules plan.** Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`, plan
+   `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md`. The ledger with every ruling and deferred minor is
+   `.superpowers/sdd/index-2026-10-30-gf-3-6-0-text-only/progress.md`; resume with superpowers:subagent-driven-development from it.
+   Merged on `gf-3-6-0`: every engine task (0.1, 1.1–1.13), content 2.1–2.4, and two follow-ups (Predator's twice-completed
+   `roll-to-hit` read by the suite and both combat logs; the `GfCasting` split). Every 3.6.0 rule and spell plays (0 text-only).
+   Left:
+   - **2.5** on branch `wt/t2-5` (worktree `.worktrees/t2-5`, commit `ff55c35a`, not reviewed): Predator, Predator Shooter and
+     Primal rows `optional: true`, and `SpellsPlayedTests` (no spell entry ships `played: false`). It breaks
+     `saurian-starhosts-enhanced-primal@3.6` ("Enhanced Primal fired exact 0/1"): fix the game or check, review, merge.
+   - **3.1** on branch `wt/t3-1` (worktree `.worktrees/t3-1`, commit `03858b18`, not reviewed): ten weapon-rule games in
+     `sim/Suite/SuiteCatalog.Army36M.cs`, passing on seed 1; run seeds 2–5 (Smash, Decimate, Pierce lean on many dice), review, merge.
+     The shooting morale test Scourge triggers does not list Scourge as applied (the activation-end hook records nothing);
+     the game checks it through an `Evidence` predicate.
+   - **3.2** not started: put its games in `SuiteCatalog.Army36N.cs` / `Checks/Army36N.cs` (the catalogs join in
+     `SuiteCatalog.Army.cs`); resume notes in the workspace's `task-3.2-report.md`.
+   - **3.3, 3.4, 4.1, 4.2** not started. 3.3 turns the three red Sim tests green (the `remove_spell_tokens` spell check, the
+     text-only-spell test, the 3.6 army-games coverage test). 4.1 also covers `docs/design/interpreter/resolution.md`.
+2. **Merge `gf-3-6-0` to `main`.** After item 1: the full E2E suite and the socket-driver rules suite (lifecycle already
+   passes 8 of 8 on the branch; rerun it after item 1). The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
+   owner's edition ruling.
 
 ### 2026-10-26, v0.1.29
 
@@ -391,43 +383,22 @@ are built. A
 Limited weapon with no eligible target is not marked used; the book is silent. `SetDice` (suite only) carries no
 actor check.
 
-**3.6.0 army books (generated).** `generate --edition 3.6` writes 49 books, 196 spells and
-`army-book-rules.part.json` (87 generated, 8 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.3.5.json`. The
-printed spell range replaces Army Forge's `inRange` in 96 spells (the dump's value is 6" short of the text; each prints as
-`range from text`). Printed text is the authority. A text-only spell (`effects: []`, `played: false`, not offered to cast) is one
-whose effect the grammar cannot express or whose grant is not played: Burn the Heretic (Blessed Sisters) and Shifting Form (Change
-Disciples, Daemons of Change, Titan Lords Change Disciples) for "loses N spell tokens"; Triangulation Bots (Robot Legions) for its
-empty attack type; and 24 spells granting a text-only rule (Pierce 7, Smash 6, Decimate 4, Scourge 2, Destructive 2, Enhanced
-Wolfborn 2, Enhanced Rapid Blink 1). Brace and Parry are described by no book and no rulebook page; Army Forge's common-rules endpoint
-(`GET https://army-forge.onepagerules.com/api/rules/common/2`) has both texts: `fetch` saves it as `common-rules.json` beside the books and `generate` reads a name's description from it when no book describes the name. The plan above makes every entry of this section played.
+**3.6.0 army books (generated).** `generate --edition 3.6` writes 49 books, 196 spells and `army-book-rules.part.json`
+(90 generated, 0 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.3.5.json`. The printed spell range
+replaces Army Forge's `inRange` in 96 spells (the dump's value is 6" short of the text; each prints as `range from text`).
+Printed text is the authority. Brace and Parry are described by no book and no rulebook page; Army Forge's common-rules endpoint
+(`GET https://army-forge.onepagerules.com/api/rules/common/2`) has both: `fetch` (or `fetch --rules-only`) saves it as
+`common-rules.json` beside the books and `generate` reads a name's description from it when no book describes the name.
+Postgres refuses a spell entry with `played: false` (`catalog_entry_played_check`), and the game server then fails at startup.
 
-**3.6.0 rules that are text-only** (`played: false` in `grimdark-future-3.6/army-rules.part.json`; the card shows them as not
-automated, a game plays nothing for them):
-- Pierce: "Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon's range away, this
-  weapon gets AP(+1)." No positive-Defense-modifier class, no range test against the weapon's own range.
-- Smash: "When attacking units over half of this weapon's range away, the target must re-roll unmodified Defense results of 6." The same
-  range gap.
-- Destructive: "When attacking units with more than half of their total size or Tough value (for single-model units), those hits get
-  AP(+1)." Decimate has the same condition. No predicate reads a unit's remaining size against its starting size.
-- Scourge: "For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds when checking who won melee, or
-  if shooting wounds would trigger Morale Tests." No kind adds to the melee or morale count.
-- Mind Control: "Units may only be moved once per round in this way." No per-target usage count across users of a rule.
-- Piercing Tag, Precision Tag: place X tokens on one enemy unit, or one token on X enemy units, and spend one for AP(+1) or +1 to hit.
-  No per-use target shape, no pick count above 1, no spending one marker of several.
-- Versatile Defense: when shot or charged from over 9" or 6", pick one effect, a different one each attack. A defender's choice per
-  attack is no grammar point.
-- Enhanced Wolfborn, Enhanced Rapid Blink: "If this model has Wolfborn/Rapid Blink, it may move by up to 2D3"." The dice move applies to
-  "this model"; the base rule's dice move is built.
-- Brace, Parry: no description to author from.
-Their generated wrappers (Enhanced Rapid Blink Aura, Enhanced Wolfborn Aura, Versatile Defense Aura) are text-only with them. The other
-generated text-only entries: Ravage Aura ("get Ravage(+1)": Ravage's dice are read from each model's own rule value, never from a
-grant), Quick Throw ("may always target enemies not in line of sight when shooting with Indirect weapons": 3.6.0 Indirect works only on a
-Hold and no effect lifts that), Spell Drain ("loses 2 spell tokens": no effect kind removes spell tokens). Every other generated 3.6.0 name has a hand entry in
-`grimdark-future-3.6/army-rules.part.json`. Enhanced Versatile Warrior is in neither part: no unit, upgrade or spell of any 3.6.0 book carries or grants it. A `once` grant read at one step
-consumes every grant of that entry on the unit, so Thrust in Melee Buff plays its +1 to hit and not its AP(+1) (Bane Mark and
-Unstoppable Mark may lose their Regeneration half the same way); Predator's "may" is played as always-on, as Primal's is. Enhanced Watchborn is Watchborn
-without the range band. Counter in Melee is read as Counter.
-A Counter in Melee strike is not listed in the applied-rules log; only weapons named Counter add "Counter".
+**3.6.0 standing rulings** (spec → Rulings taken here): the Tags spend one token per attack automatically; Predator and Primal
+ask (`extra_attacks`) once 2.5 merges, until then they always roll; Versatile Defense is chosen by the defender's team per
+attack-sequence, before the hit roll; Brace is "-X total", one per weapon type, none when the defender is Fatigued or Shaken;
+Parry's ignored hits are those with the most per-die grants, no Ask; once grants last the attack they first apply in and go at
+`attack-end`; Mind Control's once-per-round is per unit moved. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
+carries or grants it. Enhanced Watchborn is Watchborn without the range band. Counter in Melee is read as Counter, and its strike is
+not listed in the applied-rules log; only weapons named Counter add "Counter". When Pierce drops cover, the roll's expanded
+details (`RollEntry.Details`, viewer `rollEntry.ts`) still read "In cover" with no Pierce line; the worked lines show it.
 
 **Steep terrain.** The Steep declaration makes hills and dunes Difficult when moving up in 3.5.1 games too (3.5.1 p.12 "Hills — Cover
 + Difficult when moving up"; a rule fix moves every game). Layouts and drafts saved before migration 025 keep `steep = false` on their
