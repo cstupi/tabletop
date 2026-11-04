@@ -13,12 +13,16 @@ static partial class SpecialGames
     /// deploy 4.5" from Blue's and charge whenever they may, Blue's Hold. Five lancers a unit outlast the three spears' strikes and Tough(6) spearmen
     /// outlast the Impact hits, so each charge rolls the
     /// Lance dice of a model in reach: Red 1's first two are fixed to 3 and 2 (with Thrust's +1, at the threshold and one below it), Red 2's first to a 6.
+    /// In round 2 everyone Holds but Blue 1, which charges the lancers beside it, so Red also fights a melee as the defender (Fear has no charging
+    /// condition); Red charges again in rounds 3 and 4.
     /// </summary>
     static TestGame Charge()
     {
         const string name = "special-charge-into-spears";
-        var script = Plays((ask, _) => AskPicks.Activate(ask, "Red unit 1", "Charge") ?? AskPicks.Activate(ask, "Red unit 2", "Charge")
-            ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal)));
+        var script = Plays((ask, p) => p.Scheduler.Round != 2
+            ? AskPicks.Activate(ask, "Red unit 1", "Charge") ?? AskPicks.Activate(ask, "Red unit 2", "Charge")
+                ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal))
+            : AskPicks.Activate(ask, "Blue unit 1", "Charge") ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)));
         return Game(name, new ScenarioBuilder(name, 3).RoundCap(4).Table(24, 30).Scripted(script)
                 .Army("Red", 2, 5, modelRules: [new(1, "Furious"), new(1, "Impact", 2), new(1, "Fear", 2), new(2, "Furious"), new(2, "Impact", 2), new(2, "Fear", 2)],
                     weapons: [Blade("Lance", 2, Rule("Thrust"))], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(13, 6), [2] = new(13, 20) })
@@ -174,11 +178,11 @@ static partial class SpecialGames
         script.Match("react", (ask, p) => ask.Prompt == "Before attacking" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : null);
         script.Match("move", (ask, p) => ask.Legal is MoveRegion { Containment.Enterable: [var transport, ..] } m && m.ModelIds.All(id => AskPicks.UnitNameOf(p, id) == "Red unit 1")
             ? new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(transport)))]) : null);
-        script.Match("declare_targets", (ask, p) => ShooterOf(ask, p) switch
+        script.Match("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) switch
         {
-            "Red unit 2" => AllAt(ask, p, "Blue unit 2"),
-            "Blue unit 1" => AllAt(ask, p, "Red unit 3") ?? AllAt(ask, p, "Red unit 2"),
-            "Blue unit 2" => AllAt(ask, p, "Red unit 2"),
+            "Red unit 2" => AskPicks.AllAt(ask, p, "Blue unit 2"),
+            "Blue unit 1" => AskPicks.AllAt(ask, p, "Red unit 3") ?? AskPicks.AllAt(ask, p, "Red unit 2"),
+            "Blue unit 2" => AskPicks.AllAt(ask, p, "Red unit 2"),
             _ => null,
         });
         return Game(name, new ScenarioBuilder(name, 115).RoundCap(4).Table(24, 30).Scripted(script.Build())

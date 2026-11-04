@@ -25,9 +25,8 @@ internal static partial class CoreGames
             .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
             .Match("declare_targets", (ask, p) =>
             {
-                if (ask.Legal is not Assignment a || p.Stack.LastOrDefault(f => f.Sequence == "shooting")?.Context.ActorUnitId is not { } shooter) return null;
-                var name = AskPicks.UnitNameOf(p, shooter);
-                if (name == "Blue unit 1") return AllAt(ask, p, "Red unit 1");
+                if (ask.Legal is not Assignment a || AskPicks.ShooterOf(ask, p) is not { } name) return null;
+                if (name == "Blue unit 1") return AskPicks.AllAt(ask, p, "Red unit 1");
                 Guid Named(string unit) => a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit);
                 var (first, second) = (Named("Blue unit 1"), Named("Blue unit 2"));
                 if (name?.StartsWith("Red ", StringComparison.Ordinal) != true || first == Guid.Empty || second == Guid.Empty || a.MaxDistinctTargets < 2) return null;
@@ -146,8 +145,7 @@ internal static partial class CoreGames
                     ? o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null
                     : o.Choices.FirstOrDefault(c => c.Id != "shoot") is { } no ? new Chosen(no.Id) : null
                 : null)
-            .Match("declare_targets", (ask, p) => p.Stack.LastOrDefault(f => f.Sequence == "shooting")?.Context.ActorUnitId is { } shooter
-                && AskPicks.UnitNameOf(p, shooter) is { } who && aims.TryGetValue(who, out var target) ? AllAt(ask, p, target) : null)
+            .Match("declare_targets", (ask, p) => AskPicks.Aimed(ask, p, aims.GetValueOrDefault))
             .Build();
         var scenario = new ScenarioBuilder(name, seed: 119)
             .RoundCap(4).Table(48, 36)

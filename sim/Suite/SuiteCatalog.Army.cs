@@ -139,13 +139,15 @@ public static partial class SuiteCatalog
                 [Rerolls("Scrapper", By("Scrapper", "Scrapper Boost"), [6], successOnly: false, SixesRerolled),
                  ApGrant("Shatter", With("Shatter"), 2, "\"Against units where most models have Tough(3) or higher, this weapon gets AP(+2)\"")],
                 weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
-            // The rule re-rolls only "successful unmodified defense results of 5-6": Shatter's AP(+2) acts against the Tough unit only. Unit k shoots
-            // Opponents unit k, so unit 2's volleys meet the unit without Tough every round; Defense 2+ keeps it on the table, and every unmodified 5 there
-            // blocks and is re-rolled. (The re-roll is decided inside roll-to-block, before a DiceFix could set the 5.)
+            // The rule re-rolls only "successful unmodified defense results of 5-6": Shatter's AP(+2) acts against the Tough unit only, so at its 4+ an
+            // unmodified 5 fails to block and must not be re-rolled. Unit 1 shoots the Tough(3) unit; unit 2 shoots Opponents unit 2, then unit 3, whose
+            // Tough(2) models (under Shatter's Tough(3)) last several of its twenty-die volleys, where every unmodified 5 blocks and is re-rolled. (The re-roll
+            // is decided inside roll-to-block, before a DiceFix could set the 5.)
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)], enemyStats: Stats(4, 2), seed: 3,
-                more: s => s.Match("declare_targets", (ask, p) => p.Stack.LastOrDefault(f => f.Sequence == "shooting")?.Context.ActorUnitId is { } shooter
-                    && AskPicks.UnitNameOf(p, shooter) is { } name ? AllAt(ask, p, name.Replace(Jackals.Army, "Opponents")) : null)),
+                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)], seed: 3, models: 5, enemyUnits: 3,
+                enemyCarriers: [.. new[] { 2, 3 }.SelectMany(u => Enumerable.Range(1, 5).Select(m => new ScenarioModel(u, m, [R(0, "Tough", 2)])))],
+                more: s => s.Match("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == $"{Jackals.Army} unit 1" ? AskPicks.AllAt(ask, p, "Opponents unit 1")
+                    : AskPicks.AllAt(ask, p, "Opponents unit 2") ?? AskPicks.AllAt(ask, p, "Opponents unit 3"))),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],
@@ -199,7 +201,8 @@ public static partial class SuiteCatalog
             IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null, string? enemyBook = null,
             IReadOnlyList<(int Unit, string Condition)>? conditions = null, int enemyRange = 60, IReadOnlyList<int>? setAside = null,
             IReadOnlyList<int>? enemySetAside = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null,
-            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null, int enemyBlade = 1)
+            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null, int enemyBlade = 1,
+            IReadOnlyList<ScenarioModel>? enemyCarriers = null)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
             var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged or Play.Exchange, play is not Play.Charged);
@@ -216,7 +219,8 @@ public static partial class SuiteCatalog
                     weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers, conditions: conditions,
                     setAside: setAside, anchors: anchors, reserves: reserves, sizes: sizes)
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
-                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(enemyBlade)], setAside: enemySetAside, anchors: enemyAnchors);
+                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(enemyBlade)], setAside: enemySetAside, anchors: enemyAnchors,
+                    models: enemyCarriers);
             return new TestGame(name, ArmyGroup(RuleSets.Gf351, book.Uid), (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
         }
 
@@ -263,11 +267,6 @@ public static partial class SuiteCatalog
             more?.Invoke(script);
             return script.Build();
         }
-
-        /// <summary>A declare_targets answer with every weapon group at the named unit, when every group may take it; else null, for the policy.</summary>
-        static AskAnswer? AllAt(Ask ask, Projection p, string unit) =>
-            ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit) is var t && t != Guid.Empty
-                && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null;
 
         static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules, int range = 60) =>
             new("Rifle", new Dictionary<string, string> { ["Range"] = $"{range}\"", ["Attacks"] = $"{attacks}" }, rules);

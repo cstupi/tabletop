@@ -72,7 +72,7 @@ static partial class SpecialGames
         // Everyone Holds on anchors and shoots; Red wins the roll-off (fixed) and puts all three weapons at the one-wound squad (Blue unit 2). Each Red
         // weapon's first die hits, the Lascannon's and the Sniper Rifle's blocks fail; Blue unit 1's first die hits Red's Tough(3) models and the block fails.
         var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) == "Red unit 1" ? AllAt(ask, p, "Blue unit 2") : null));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == "Red unit 1" ? AskPicks.AllAt(ask, p, "Blue unit 2") : null));
         return Game(name, new ScenarioBuilder(name, 11).RoundCap(4).Table(24, 30).Scripted(script)
                 .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)],
                     weapons: [Gun("Frag Launcher", 24, 1, Rule("Blast", 3)), Gun("Lascannon", 24, 1, Rule("Deadly", 3)), Gun("Sniper Rifle", 24, 1, Rule("Takedown"))],
@@ -258,11 +258,11 @@ static partial class SpecialGames
             ? new Destinations([.. region.ModelIds.Where(id => p.Models[id].Location is OnTable).Select(id => (Id: id, At: ((OnTable)p.Models[id].Location).Placement))
                 .Select(m => new ModelRelocation(m.Id, p.Models[m.Id].Location, new OnTable(m.At with { Position = m.At.Position with { Y = m.At.Position.Y + 1 } })))])
             : null);
-        script.Match("declare_targets", (ask, p) => ShooterOf(ask, p) switch
+        script.Match("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) switch
         {
-            "Red unit 1" or "Red unit 2" => AllAt(ask, p, "Blue unit 3") ?? AllAt(ask, p, "Blue unit 2"),
-            "Blue unit 2" => AllAt(ask, p, "Red unit 2"),
-            "Blue unit 1" => AllAt(ask, p, "Red unit 1"),
+            "Red unit 1" or "Red unit 2" => AskPicks.AllAt(ask, p, "Blue unit 3") ?? AskPicks.AllAt(ask, p, "Blue unit 2"),
+            "Blue unit 2" => AskPicks.AllAt(ask, p, "Red unit 2"),
+            "Blue unit 1" => AskPicks.AllAt(ask, p, "Red unit 1"),
             _ => null,
         });
         return Game(name, new ScenarioBuilder(name, 122).RoundCap(4).Table(24, 48).Scripted(script.Build())
@@ -354,12 +354,4 @@ static partial class SpecialGames
         new("hit", 0, [5, 4], new RollKey(Actor: "Blue unit 2", Weapon: "Mortar", Action: "Advance")),
     ];
 
-    /// <summary>The unit whose shooting a declare_targets Ask is for: the actor of the frame that asks.</summary>
-    static string? ShooterOf(Ask ask, Projection p) =>
-        ask.FrameId is { } frame && p.Stack.FirstOrDefault(f => f.Id == frame)?.Context.ActorUnitId is { } actor ? AskPicks.UnitNameOf(p, actor) : null;
-
-    /// <summary>Every weapon group at the named unit, when every group may take it; else null, for the policy.</summary>
-    static AskAnswer? AllAt(Ask ask, Projection p, string unit) =>
-        ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit) is var t && t != Guid.Empty
-            && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null;
 }

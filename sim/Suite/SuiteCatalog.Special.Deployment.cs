@@ -226,8 +226,7 @@ static partial class SpecialGames
             for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
             return script
                 .Match(AskQuestions.Activate, (ask, _) => AskPicks.Activate(ask, "Blue unit 1", "Hold"))
-                .Match("declare_targets", (ask, p) => ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == "Red unit 3") is var t && t != Guid.Empty
-                    && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null)
+                .Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, "Red unit 3"))
                 .Build();
         }
     }

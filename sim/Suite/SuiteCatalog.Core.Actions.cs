@@ -150,7 +150,7 @@ internal static partial class CoreGames
                     ? o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null
                     : o.Choices.FirstOrDefault(c => c.Id != "shoot") is { } no ? new Chosen(no.Id) : null
                 : null)
-            .Match("declare_targets", (ask, p) => AllAt(ask, p, "Red unit 1"))
+            .Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, "Red unit 1"))
             .Match("move", (ask, p) =>
             {
                 if (ask.Legal is not MoveRegion m) return null;

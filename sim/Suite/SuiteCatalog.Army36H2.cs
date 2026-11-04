@@ -57,8 +57,7 @@ public static partial class SuiteCatalog
                     : AskPicks.Activate(ask, red, "Advance") ?? AskPicks.Activate(ask, blue, "Hold"))
                 .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
                 .Match("move", (ask, p) => ask.Legal is MoveRegion region && Scripts36.UnitOf(p, region) == red ? new Destinations([]) : null)
-                .Match("declare_targets", (ask, p) => ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == blue) is var t && t != Guid.Empty
-                    && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null)
+                .Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, blue))
                 .Build();
             var scenario = new ScenarioBuilder(name, 1).RoundCap(2).Table(36, 24).Scripted(script)
                 .Army("Daemons of Change", 1, 1, modelRules: [R(1, entry)], armyBook: "04z57ua0bwth37zh",

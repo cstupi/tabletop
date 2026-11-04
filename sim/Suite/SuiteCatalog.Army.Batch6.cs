@@ -90,7 +90,7 @@ public static partial class SuiteCatalog
                 anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(16, 15), [2] = new(4, 15) }, enemyAnchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(16, 1) },
                 // The opponent shoots unit 1, the unit the script charges with.
                 more: s => s.Match(AskQuestions.Activate, (ask, _) => AskPicks.Activate(ask, $"{DarkElves.Army} unit 1", "Charge") ?? AskPicks.Activate(ask, $"{DarkElves.Army} unit 1", "Advance"))
-                    .Match("declare_targets", (ask, p) => AllAt(ask, p, $"{DarkElves.Army} unit 1"))),
+                    .Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, $"{DarkElves.Army} unit 1"))),
         ];
     }
 }

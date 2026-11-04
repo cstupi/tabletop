@@ -44,4 +44,17 @@ public static class AskPicks
         : projection.Models.TryGetValue(id, out var m) && projection.Units.TryGetValue(m.UnitId, out var owner) ? owner.Definition.Name : null;
 
     static string? ModelNameOf(Projection projection, Guid id) => projection.Models.TryGetValue(id, out var m) ? m.Slot.Name : null;
+
+    /// <summary>The unit whose shooting a declare_targets Ask is for: the actor of the frame that asks.</summary>
+    public static string? ShooterOf(Ask ask, Projection projection) =>
+        ask.FrameId is { } frame && projection.Stack.FirstOrDefault(f => f.Id == frame)?.Context.ActorUnitId is { } actor ? UnitNameOf(projection, actor) : null;
+
+    /// <summary>A declare_targets answer with every weapon group at the named unit, when every group may take it; else null.</summary>
+    public static AskAnswer? AllAt(Ask ask, Projection projection, string unit) =>
+        ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => UnitNameOf(projection, t) == unit) is var t && t != Guid.Empty
+            && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null;
+
+    /// <summary>Every weapon group of the shooter at the unit targetOf names for it (AllAt); null when it names none.</summary>
+    public static AskAnswer? Aimed(Ask ask, Projection projection, Func<string, string?> targetOf) =>
+        ShooterOf(ask, projection) is { } shooter && targetOf(shooter) is { } target ? AllAt(ask, projection, target) : null;
 }

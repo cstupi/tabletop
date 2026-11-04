@@ -24,7 +24,7 @@ static partial class SpecialGames
                 && into.FirstOrDefault(id => AskPicks.UnitNameOf(p, id) == "Blue unit 3") is var ground && ground != Guid.Empty
                 ? new Destinations([.. region.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(ground)))])
                 : ask.Legal is MoveRegion aircraft && Scripts36.UnitOf(p, aircraft) == "Blue unit 1" ? new Destinations([Scripts36.MoveTo(p, aircraft.ModelIds[0], new(33, 21))]) : null),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) == "Red unit 1" ? AllAt(ask, p, "Blue unit 1") : null));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == "Red unit 1" ? AskPicks.AllAt(ask, p, "Blue unit 1") : null));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
                 .Army("Red", 1, 3, weapons: [Gun("Rifle", 36, 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(12, 20) })
                 .Army("Blue", 3, 1, unitRules: [new(1, "Aircraft")], modelRules: [new(1, "Transport", 6), new(1, "Tough", 6), new(3, "Transport", 6), new(3, "Tough", 6)],

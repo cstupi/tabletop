@@ -23,7 +23,7 @@ static partial class SpecialGames
         var script = Plays((ask, _) => AskPicks.Activate(ask, "Red unit 1", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Activate(ask, "Red unit 3", "Advance")
                 ?? AskPicks.Activate(ask, "Blue unit 1", "Hold"),
             ("react", (ask, p) => ask.Prompt != "Before attacking" ? null
-                : ShooterOf(ask, p) == "Red unit 1" && ask.FrameId is { } f && asked.GetValueOrDefault(f) == 1 && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : new Passed()),
+                : AskPicks.ShooterOf(ask, p) == "Red unit 1" && ask.FrameId is { } f && asked.GetValueOrDefault(f) == 1 && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : new Passed()),
             ("cast", (ask, p) => AskPicks.Spell(ask, p, "Shock Speed", "Red unit 1")),
             ("spell_targets", (ask, p) => AskPicks.Pieces(ask, p, "Red unit 2")),
             (AskQuestions.SpendTokens, (_, _) => new TokensSpent(new Dictionary<Guid, int>())),
@@ -91,11 +91,11 @@ static partial class SpecialGames
         var cast = new HashSet<Guid>();   // the activation frames that have cast: one Shock Speed, every later window passed
         var script = Plays((ask, _) => AskPicks.Activate(ask, "Red unit 1", "Hold") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Activate(ask, "Blue unit 1", "Hold"),
             ("react", (ask, p) => ask.Prompt != "Before attacking" ? null
-                : ShooterOf(ask, p) == "Red unit 2" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") && !cast.Contains(ask.FrameId ?? Guid.Empty) ? new Chosen("cast") : new Passed()),
+                : AskPicks.ShooterOf(ask, p) == "Red unit 2" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") && !cast.Contains(ask.FrameId ?? Guid.Empty) ? new Chosen("cast") : new Passed()),
             ("cast", (ask, p) => { if (p.Stack.FirstOrDefault(x => x.Id == ask.FrameId) is { } f && p.Stack.LastOrDefault(x => x.Sequence == "hold") is { } hold) cast.Add(hold.Id); return AskPicks.Spell(ask, p, "Shock Speed", "Red unit 2"); }),
             ("spell_targets", (ask, p) => AskPicks.Pieces(ask, p, "Red unit 2")),
             (AskQuestions.SpendTokens, (_, _) => new TokensSpent(new Dictionary<Guid, int>())),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) == "Red unit 1" ? AllAt(ask, p, "Blue unit 1") : null));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == "Red unit 1" ? AskPicks.AllAt(ask, p, "Blue unit 1") : null));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
                 .Army("Red", 2, 3, weapons: [Gun("Shred Rifle", 24, 1, Rule("Shred"))], unitStats: Stats(4, 4), armyBook: "z65fgu0l29i4lnlu", sizes: new Dictionary<int, int> { [2] = 1 },
                     models: [new ScenarioModel(2, 1, [new(0, "Caster", 2), new(0, "Spell Amplifier")], Weapons: [Blade("Staff", 1)])],
