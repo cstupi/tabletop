@@ -303,10 +303,23 @@ public static class GfMelee
             var impacts = RollEffects.OwnRolls(live, Side.Attacker, c => c.Kind == EffectKind.AddHit);   // Impact's conditions (charging, not fatigued) were judged in pass one's read
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
             var counterModels = !edition.CounterReducesImpact ? 0 : Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
-            var dice = Math.Max(0, impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter)) - counterModels);
+            var brace = edition.ImpactBeforeCounter ? Brace(ctx, charger, defender) : 0;
+            var total = impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter));
+            var dice = Math.Max(0, total - counterModels - brace);
             if (counterModels > 0) ctx.Applied.Add("Counter");
+            if (brace > 0 && total > 0) ctx.Applied.Add(GfNames.Brace);
             var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
             return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: dice > 0);
+        }
+
+        /// <summary>Brace: "Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued." X read off the defender's melee weapons, one
+        /// instance per weapon type; a Shaken unit counts as Fatigued (3.6.0 p.10).</summary>
+        static int Brace(StepContext ctx, Guid charger, Guid defender)
+        {
+            if (ctx.Projection.Units[defender].Conditions is var c && (c.Contains(GfNames.Fatigued) || c.Contains(GfNames.Shaken))) return 0;
+            var ix = GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge)
+                with { Defender = Party.Of(ctx.State, defender, Lookup.LivingModels(ctx.State, defender), MeleeWeapons(ctx.State, defender)) };
+            return Math.Max(0, LiveProperties.Settle(ix).Parameter(Side.Defender, GfNames.Brace) ?? 0);
         }
     }
 
