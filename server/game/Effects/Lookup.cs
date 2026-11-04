@@ -101,6 +101,21 @@ public static class Lookup
         return model.Count == 0 ? null : ParameterSum.Of(model);
     }
 
+    /// <summary>
+    /// The unit's remaining size against its starting size: for a unit that started with more than one model, its models still in play
+    /// against its definition's model count; for a single model, the named rule's parameter (1 without it, sizeRule being the rule whose
+    /// parameter is one model's size) less the model's wounds, 0 on the shelf, against that parameter (3.6.0 p.10: "starting size is
+    /// counted at the beginning of the game").
+    /// </summary>
+    public static (int Remaining, int Starting) RemainingSize(GameState state, Guid unitId, string sizeRule)
+    {
+        var definition = state.Projection.Units[unitId].Definition.Models;
+        if (definition.Count != 1) return (AliveModels(state, unitId).Count, definition.Count);
+        var model = state.Projection.Models[definition[0].Id];
+        var size = ModelParameter(state, model.Id, sizeRule) ?? 1;
+        return (model.Location is OnShelf ? 0 : Math.Max(0, size - model.Wounds), size);
+    }
+
     public static int? ModelParameter(GameState state, Guid modelId, string entry) =>
         state.Projection.Models[modelId].Slot.Properties.FirstOrDefault(p => p.Name == entry)?.Parameter;
 }

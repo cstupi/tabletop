@@ -9,7 +9,7 @@ namespace Tabletop.Management.Games;
 /// (army-book rules spec → Played flag). Dapper maps by constructor parameter name.</summary>
 public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText, bool Played);
 
-/// <summary>An effect row a grant can carry (`duration` once, marker or spent_marker; top-level rows only): what the client's menu offers
+/// <summary>An effect row a grant can carry (`duration` once, marker, spent_marker or one_marker; top-level rows only): what the client's menu offers
 /// as Add grant, the entry's name and the effect's id an AddGrant names.</summary>
 public sealed record GrantableEffect(string EntryName, Guid EffectId, string Duration);
 

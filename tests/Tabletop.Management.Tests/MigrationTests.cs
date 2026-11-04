@@ -125,5 +125,23 @@ public class MigrationTests : IClassFixture<TestDatabase>
     }
 
     [Fact]
+    public async Task The_text_only_rules_grammar_is_admitted_by_the_checks()
+    {
+        await using var c = new NpgsqlConnection(_db.ConnectionString);
+        async Task<string> Def(string name) => await c.ExecuteScalarAsync<string>("select pg_get_constraintdef(oid) from pg_constraint where conname = @name", new { name }) ?? "";
+        Assert.Contains("count_wounds", await Def("effect_kind_check"));
+        Assert.Contains("remove_spell_tokens", await Def("effect_kind_check"));
+        Assert.Contains("weapon_range", await Def("effect_condition_kind_check"));
+        Assert.Contains("remaining_size", await Def("effect_condition_kind_check"));
+        Assert.Contains("positive_defense", await Def("effect_target_modifier_check"));
+        Assert.Contains("one_marker", await Def("effect_duration_check"));
+        Assert.Contains("add_hit", await Def("effect_optional_check"));
+        Assert.Contains("optional", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='effect'"));
+        var entryColumns = (await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='catalog_entry'")).ToList();
+        Assert.Contains("targeting_once_per_round", entryColumns);
+        Assert.Contains("targeting_count_from_parameter", entryColumns);
+    }
+
+    [Fact]
     public void Running_the_migrator_twice_is_a_no_op() => Persistence.Migrator.Run(_db.ConnectionString);
 }

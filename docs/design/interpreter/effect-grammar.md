@@ -1,6 +1,6 @@
 # The effect grammar
 
-What each of the eighteen effect kinds does in code, what each of the eleven predicates reads, which
+What each of the eighteen effect kinds does in code, what each of the thirteen predicates reads, which
 pass a kind belongs to, and how a grant is written and consumed. [design.md](design.md) states
 the two-pass decision and its motivation. Everything here lives in `server/game/Effects/` and may
 not name an OPR rule.
@@ -62,7 +62,7 @@ charged*. Under 3.5.1 `Artillery` needs no movement condition because it *may on
 (p.13) it may move: its opponent row carries `actor_state` with subject **self** `neq moved this round`, the condition's
 subject read relative to the holder, so the -1 acted on the shooter tests the Artillery unit's own state; its self row's `action_taken eq Hold` reads the shooter's action.
 
-## The eleven predicates
+## The thirteen predicates
 
 The set is closed. An effect carries a flat list of them and all must hold. Grimdark Future's
 properties contain no *or* and no *not*. `Rush/Charge` looks like an *or* and is set membership
@@ -82,13 +82,16 @@ because a single predicate still has to test a state's absence. `actor_state` is
 | `HoldsProperty` | `Lookup.UnitHas` on the named side | yes | the side holds the one named entry under its own aggregation, granted instances included; a suppression does not unhold, so a Boost still sees its base |
 | `MostModels` | the named side's living models | yes | more than half meet `Compare` on the one named value: a declared stat's target number (`Defense lte 3`), or a rule's parameter, which a model without the rule fails (`Tough gte 3`) |
 | `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`, `activation-end`, `after-deploy`); always true on a granted row, since the grant is that use |
+| `WeaponRange` | `Interaction.RangeInches` and the source instance's `WeaponId` | **no** | `RangeInches × 100` compared with `number × range`, the weapon's range as the live set leaves it (`StatReader.PeekWeaponRange`; printed in pass one, where there is no live set); false with no weapon on the source, no range on the weapon or no range in the interaction |
+| `RemainingSize` | `Lookup.RemainingSize` on the named side | yes | `remaining × 100` compared with `number × starting`: models still in play against the definition's count, or for a single model the named rule's parameter (1 without it) less its wounds, 0 on the shelf, against that parameter |
 
-`Validate` refuses a subject on the four relational predicates, `Range`, `RoundNumber`, `UsageCount` and
-`AtPoint`, and requires one, with exactly one value, on `HoldsProperty` and `MostModels`. A range test is about
+`Validate` refuses a subject on the five relational predicates, `Range`, `RoundNumber`, `UsageCount`,
+`AtPoint` and `WeaponRange`, and requires one, with exactly one value, on `HoldsProperty`, `MostModels` and `RemainingSize`;
+`WeaponRange` and `RemainingSize` need a number. A range test is about
 both parties, so a subject would have no meaning.
 
 `Range` compares the distance as measured (p.5, base to base), so a condition written `gt 9` is
-false at exactly 9.0 and true at 9.41. `ActorState`, `HoldsProperty` and `MostModels` on the
+false at exactly 9.0 and true at 9.41. `ActorState`, `HoldsProperty`, `MostModels` and `RemainingSize` on the
 defender are false when the interaction has none (a charge's reach, a move, a lone roll), as
 `PositionTerrain` reads the lone party. `UsageCount` scanning `SequenceContext.WeaponIds`
 counts sequences the weapon was in, not shots fired. That is the right reading for *once per

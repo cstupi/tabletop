@@ -448,7 +448,7 @@ public static partial class GfMoves
         internal static (LiveProperty Source, Effect Row)? Offered(LiveSet live, string entry) =>
             live.On(Side.Attacker).Where(p => p.Entry.Name == entry)
                 .SelectMany(p => p.Effects.Where(e => e.Kind is EffectKind.Move or EffectKind.Place).Select(e => (p, e)))
-                .Where(x => x.e.Conditions.Where(c => c.Kind is not ConditionKind.AtPoint and not ConditionKind.UsageCount).All(c => Conditions.Holds(live.Interaction, x.p.Holder, c, x.p, null)))
+                .Where(x => x.e.Conditions.Where(c => c.Kind is not ConditionKind.AtPoint and not ConditionKind.UsageCount).All(c => Conditions.Holds(live.Interaction, x.p.Holder, c, x.p, null, live)))
                 .Select(x => ((LiveProperty, Effect)?)(x.p, x.e)).FirstOrDefault();
 
         /// <summary>The action of the activation this frame is inside: its nearest ancestor action sequence's context.</summary>
