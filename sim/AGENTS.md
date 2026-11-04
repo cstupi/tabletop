@@ -82,7 +82,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `core-melee-no-separation` (`SuiteCatalog.Core.Options.cs`) play the optional rules.
 - `ScriptBuilder.Match(question, pick)` answers every Ask of that question the pick answers; a keyed answer for the same ordinal wins,
   a null pick falls through to the policy. `AskPicks` picks by label or name, never by id: `Activate(ask, "Red unit 1", "Charge")`,
-  `Labeled`, `Spell(ask, projection, "Zap!")`, `Pieces(ask, projection, "Blue unit 1")`. Ids are minted at compile time, so a
+  `Labeled`, `Spell(ask, projection, "Zap!")`, `Pieces(ask, projection, "Blue unit 1")`, and for `declare_targets` `ShooterOf`, `AllAt(ask, projection,
+  "Blue unit 2")` (every weapon group at one unit) and `Aimed(ask, projection, shooter => target)`. Ids are minted at compile time, so a
   script cannot name them.
 
 ## The rules suite
@@ -115,7 +116,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   another reason is unexpected; `driver` limits a pin to one driver. The report marks matched failures `known defect <id>: `, counts
   the game as failing on a known defect when every failure matched, and lists each pin no failure matched
   (`(pinned Dn did not fail: <check>)`), pass or fail. The defect ids are listed in
-  `docs/handoff.md` → Defects the rules suite found.
+  `docs/handoff.md` → Rules-suite gaps.
 - A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
   name the rule it shows.
 - A `TestGame` runs under `Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names one with `.Rules(id)`): the

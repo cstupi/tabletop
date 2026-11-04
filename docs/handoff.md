@@ -47,7 +47,7 @@ delete) and the socket (lobby and setup edits, waiting for players, play to the 
 `lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. `two-players-3.6` plays `two-players`
 on the 3.6.0 set with 3.6 armies. On `gf-3-6-0` (2026-11-03) all 8 of 8 pass (about 3 min).
 
-**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 3.5 min; the dice fixes most games now carry turn the step gate on);
+**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 3.7 min, up from 2.5 because a game with a dice fix plays with the step gate on, and most games fix dice);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts (`sim-player-0..8`).
 `--only core,special,army:<edition>:<book uid>,spells:<edition>:<book uid>,<game name>` selects (`army:3.5:<uid>`, `army:3.6:<uid>`; a 3.6.0 run is `<game name>@3.6`); `--keep` keeps recordings (and a socket run's
@@ -56,11 +56,11 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today, on `gf-3-6-0` in process with no pin: `PASSED: 685 of 685 games passed, 0 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated`:
+Today, on `gf-3-6-0` in process: `FAILED: 684 of 685 games passed, 1 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated` (the one is D17, Rules-suite gaps):
 308 games under 3.5.1 and 377 under 3.6.0; coverage 3.5 545 of 545 (88 by pattern), 3.6 577 of 577 (90 by pattern), 0 not automated in either.
 Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game on seed N instead of its own (the replay line carries it);
-on seeds 1–5 the suite reads 683 of 685, failing `special-regrowth-under-rending-fire` and, on seeds 2–5, `wormhole-daemons-of-plague-fortified-growth`
-(Rules-suite gaps).
+on seeds 1–5 the suite reads 683–684 of 685: `special-cast-mid-move` fails on its pinned defect D17 (default seed and seeds 1, 2, 3, 5) and
+`wormhole-daemons-of-plague-fortified-growth` on seeds 2–5 (Rules-suite gaps).
 `--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
@@ -345,21 +345,25 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 
 ## Rules-suite gaps
 
-What the suite does not check or report today. D1-D16 are fixed; the 685 games pass with no pin on their own seeds.
+What the suite does not check or report today. D1-D16 are fixed; D17 is open (below); the other 684 games pass with no pin on their own seeds.
 
-- **Two games fail on other seeds.** `wormhole-daemons-of-plague-fortified-growth` (seeds 2–5): the 3.5.1 Fortified Growth rows carry no
+- **D17: Shock Speed's bonus is lost after a part-way stop.** 3.5.1 Shock Speed: "moves +2" when using Advance actions and +4" when using
+  Rush/Charge actions once (next time the effect would apply)". Cast at a stop before moving on the unit making the Advance, it lifts the
+  rest of that Advance from 4" (Slow) to 6"; a 1" stop then leaves 3" where the bonus should leave 5": the once grant is spent by the first
+  segment and the remaining distance is read again without it. `special-cast-mid-move` is pinned to D17 (it shows on the default seed and
+  seeds 1, 2, 3 and 5; seed 4's 1" stop is not clear and the policy moves instead).
+- **One game fails on other seeds.** `wormhole-daemons-of-plague-fortified-growth` (seeds 2–5): the 3.5.1 Fortified Growth rows carry no
   `floor` (its 3.6 rows do), so a unit holding four markers blocks AP(1) hits at AP(-1), +1 to Defense, against the printed "to a min. of
   AP(0)"; seed 1 never blocks with four markers. Fortified, Guardian and Primeborn lack the same floor in 3.5.1. The 3.5.1 content hash is
-  pinned, so the fix is a content change the owner rules on. `special-regrowth-under-rending-fire` (seeds 1–5): under 3.5.1 Bane's re-roll
-  and the Regeneration die are decided inside their steps, before a `DiceFix` lands, so its Bane-6 and Regeneration-4-and-5 cases rest on
-  the seed; holding it needs those rolls in steps of their own (as 3.6.0's Regeneration is) or a game whose volume makes them certain.
+  pinned, so the fix is a content change the owner rules on.
 - **Scourge's morale test lists nothing.** The shooting or spell morale test Scourge triggers does not list Scourge as applied (the
   activation-end hook records nothing); `change-disciples-scourge-morale@3.6` checks it through an `Evidence` predicate.
 
 - **A refused placement cannot be shown by a suite game:** the run loop reads a refusal as Stuck, so Scout's 9" and clearance refusals
   under 3.6.0 are proven by `GfScout36Tests`, not by `core-deployment@3.6`.
 - **Decided on faces as rolled:** Bane re-rolls inside roll-to-block and Shred's Applied are read before a `DiceFix` can land, so the
-  fix cannot steer them (the 3.5.1 regrowth case is the same).
+  fix cannot steer them; nor can the 3.5.1 Regeneration die (decided in `assign`). The games that need those faces roll them in volume
+  (`special-regrowth-under-rending-fire`, `jackals-scrapper-boost`, `dark-elf-raiders-regenerative-strength`).
 - **Charge-side bands not proven by a game:** the 6" bands of Guarded, Sturdy, Machine-Fog and Screened, and the charge side of Devout,
   Ferocious and Infected. Takedown X and Piercing/Precision Target X>1 are exact only at X=1. `SecondActivationClears` requires the unit Fatigued at its
   second activation, so each game builds a first-activation charge that leaves it Fatigued.
