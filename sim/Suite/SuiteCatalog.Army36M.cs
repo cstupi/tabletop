@@ -80,7 +80,9 @@ public static partial class SuiteCatalog
                 [RerollsSeen("Decimate", SizedM(With("Decimate"), overHalf: true), DecimateText + " (Tough(6) at 0 wounds)"),
                  NoReroll("Decimate", SizedM(With("Decimate"), overHalf: false), DecimateText + " (Tough(6) at 3 wounds)")],
                 weapon: [R(0, "Decimate")], units: 2, models: 10, enemyUnits: 1, enemyModels: 1, enemy: [R(1, "Tough", 6)], rounds: 1,
-                more: InOrderM(Books36.DaemonsOfPlague.Army, 2)).In36(),
+                more: InOrderM(Books36.DaemonsOfPlague.Army, 2),
+                // Anchored so neither unit's models stand across another's line to the target: all forty dice of each volley are rolled whatever the seed.
+                anchors: new Dictionary<int, Point2> { [1] = new(4, 31), [2] = new(22, 26) }, enemyAnchors: new Dictionary<int, Point2> { [1] = new(10, 8) }).In36(),
 
             // The charge: one hit of three dice, its defense die a 1 (1 wound, 2 counted); the strike back: two hits, both defense dice 1s (2 wounds). The
             // charger took 2, the defender 1 and 2 counted: the defender loses on the counted wounds alone. Tough(3) on both, so nobody falls.
