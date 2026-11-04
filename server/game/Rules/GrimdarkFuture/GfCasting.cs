@@ -145,12 +145,14 @@ public static class GfCasting
     /// says so (a Buff: "pick one friendly unit within 12""). A model-grain targeting offers those models. Spells and pick entries share it.
     /// A spell's target under 3.6.0 p.13 ("Pick a target and roll one die", GfEdition.CasterTargetNeedsSight false) needs sight only when the
     /// spell's own targeting says LineOfSight true; a pick entry's null is its "in line of sight" in both editions.
+    /// OncePerRound (Mind Control: "Units may only be moved once per round in this way"): a unit a use of the entry moved this round is none (MovedByThisRound).
     /// </summary>
-    public static IReadOnlyList<Guid> Targets(GameState state, Guid casterModel, SpellTargeting t, bool spell = false)
+    public static IReadOnlyList<Guid> Targets(GameState state, Guid casterModel, SpellTargeting t, bool spell = false, string? entry = null)
     {
         var needsSight = t.LineOfSight ?? (!spell || GfEdition.Of(state).CasterTargetNeedsSight);
         var casterUnit = state.Projection.Models[casterModel].UnitId; var team = Teams.Of(state, casterUnit);
-        var candidates = state.Projection.Units.Values.Where(u => (Teams.Of(state, u.Id) == team) == (t.Side == TargetSide.Friendly)).Select(u => u.Id).ToList();
+        var moved = t.OncePerRound && entry is not null ? MovedByThisRound(state, entry) : [];
+        var candidates = state.Projection.Units.Values.Where(u => (Teams.Of(state, u.Id) == team) == (t.Side == TargetSide.Friendly) && !moved.Contains(u.Id)).Select(u => u.Id).ToList();
         var result = new List<Guid>();
         var sight = new Lazy<Sight>(() => Sight.From(state, casterUnit));                                            // built once for every candidate model
         foreach (var unit in candidates)
@@ -175,6 +177,30 @@ public static class GfCasting
         if (t is { Side: TargetSide.Friendly, Grain: TargetGrain.Unit, LineOfSight: false, Requires: null } && Holds(state, casterModel, GfNames.Hero) && Extends(state, casterUnit))
             result.AddRange(candidates.Where(u => u != casterUnit && !result.Contains(u) && Extends(state, u) && Battlefield.UnitDistance(state, casterUnit, u) is { } d && d <= ExtendedReach));
         return result;
+    }
+
+    /// <summary>
+    /// The units a use of the entry moved since the round began, by any carrying model of any unit: a ModelsMoved in a step completed while a pick-rule
+    /// frame of the entry was open (its own steps and its spell-test's forced move). A unit picked whose test passed was not moved.
+    /// </summary>
+    static HashSet<Guid> MovedByThisRound(GameState state, string entry)
+    {
+        var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
+        var from = log.FindLastIndex(p => p is RoundStarted) + 1;
+        var open = new List<(Guid Frame, bool Use)>();
+        var moved = new HashSet<Guid>();
+        foreach (var p in log.Skip(from))
+            switch (p)
+            {
+                case SequenceStarted s: open.Add((s.FrameId, s.Sequence == GfNames.PickRuleSeq && GfPick.Parse(s.Context.Action) is var (name, _) && name == entry)); break;
+                case SequenceFinished f: open.RemoveAll(x => x.Frame == f.FrameId); break;
+                case SequenceAbandoned a: open.RemoveAll(x => x.Frame == a.FrameId); break;
+                case StepCompleted c when open.Any(x => x.Use):
+                    foreach (var m in c.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves))
+                        if (state.Projection.Models.TryGetValue(m.ModelId, out var model)) moved.Add(model.UnitId);
+                    break;
+            }
+        return moved;
     }
 
     static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule || rule == GfNames.Hero && GfNames.IsHero(p.Name));

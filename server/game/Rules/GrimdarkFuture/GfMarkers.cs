@@ -26,9 +26,9 @@ public static class GfMarkers
     /// <summary>"If a unit where all models have this rule is Shaken at the beginning of the round, roll one die. On a 4+, it stops being Shaken."</summary>
     public static readonly string[] RoundStartRallies = ["Steadfast", "Battleborn", "Honor Code"];
 
-    /// <summary>The rule's marker rows, the dice row's children included ("roll one die, on a 4+ place a marker").</summary>
+    /// <summary>The rule's marker and token rows, the dice row's children included ("roll one die, on a 4+ place a marker").</summary>
     public static IReadOnlyList<Effect> Rows(CatalogEntry entry) =>
-        entry.Effects.SelectMany(e => e.Kind == EffectKind.Roll ? e.Children : [e]).Where(e => e.Duration is EffectDuration.Marker or EffectDuration.SpentMarker).ToList();
+        entry.Effects.SelectMany(e => e.Kind == EffectKind.Roll ? e.Children : [e]).Where(e => e.Duration is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker).ToList();
 
     /// <summary>n more markers of the rule on the unit, up to the cap; the marker rows cycle from the count already held.</summary>
     public static IReadOnlyList<StateChange> Place(CatalogEntry entry, UnitInPlay unit, Guid caster, int n, int? cap = null)

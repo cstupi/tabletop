@@ -151,14 +151,17 @@ public static class RollEffects
     }
 
     /// <summary>A GrantRemoved for every grant the live set read, and for every other grant on that unit the same spell left (spell library → the grants
-    /// a spell left on a unit are consumed together). A grant already gone, or on a unit no longer in play, removes nothing.</summary>
+    /// a spell left on a unit are consumed together), except that a one_marker token goes alone ("remove one token"). A grant already gone, or on a
+    /// unit no longer in play, removes nothing.</summary>
     public static IReadOnlyList<StateChange> Consume(LiveSet live)
     {
         var units = live.Interaction.State.Projection.Units;
+        var props = live.Interaction.Properties;
         return live.GrantsRead
             .Where(r => units.ContainsKey(r.UnitId))
             .SelectMany(r => units[r.UnitId].Grants.FirstOrDefault(g => g.Id == r.GrantId) is { } read
-                ? units[r.UnitId].Grants.Where(g => g.EntryName == read.EntryName).Select(g => (r.UnitId, g.Id)) : [])
+                ? props.EffectById(read.EffectId)?.Duration == EffectDuration.OneMarker ? [(r.UnitId, read.Id)]
+                    : units[r.UnitId].Grants.Where(g => g.EntryName == read.EntryName).Select(g => (r.UnitId, g.Id)) : [])
             .Distinct()
             .Select(x => (StateChange)new GrantRemoved(x.UnitId, x.Item2)).ToList();
     }

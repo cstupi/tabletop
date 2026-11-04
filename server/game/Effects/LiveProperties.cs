@@ -11,8 +11,9 @@ public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Paramete
 {
     public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Carried(Entry));
     /// <summary>A carried entry's rows, less its marker rows, which act only through the grants a marker is.</summary>
-    static IReadOnlyList<Effect> Carried(CatalogEntry entry) => CarriedRows.GetValue(entry, e => e.Effects.Any(f => f.Duration is EffectDuration.Marker or EffectDuration.SpentMarker)
-        ? e.Effects.Where(f => f.Duration is not (EffectDuration.Marker or EffectDuration.SpentMarker)).ToList() : e.Effects);
+    static IReadOnlyList<Effect> Carried(CatalogEntry entry) => CarriedRows.GetValue(entry, e => e.Effects.Any(f => IsMarker(f.Duration))
+        ? e.Effects.Where(f => !IsMarker(f.Duration)).ToList() : e.Effects);
+    static bool IsMarker(EffectDuration d) => d is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker;
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CatalogEntry, IReadOnlyList<Effect>> CarriedRows = new();
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
@@ -34,7 +35,8 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     }
 
     /// <summary>Records a granted source as used, under the unit that holds the grant (a derived instance's Holder is the side it acts on, which an opponent-subject grant makes the other unit),
-    /// without saying it changed anything: "next time the effect would apply" spends a grant whatever the dice then show.
+    /// without saying it changed anything: "next time the effect would apply" spends a grant whatever the dice then show. It marks that grant alone;
+    /// RollEffects.Consume takes its fellows with it unless it is a one_marker token.
     /// Spending a property also spends the granted pass-one effects that changed its parameter.</summary>
     public void Spend(LiveProperty source)
     {
@@ -254,14 +256,17 @@ public static class LiveProperties
         // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
         // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant. A grant its holder's own side
         // placed (a marker a unit's own rule puts on it: "enemies attacking this unit get AP(-1)") reaches every opponent.
+        // A one_marker token is one: of an entry's tokens on the unit, the first that reaches this interaction acts ("may remove one token … to get").
         var holderTeam = Interpreter.Teams.Of(state, unit.Id);
+        var tokens = new HashSet<string>();
         foreach (var g in unit.Grants)
         {
             if (ix.Properties.Entry(g.EntryName) is not { } spell || ix.Properties.EffectById(g.EffectId) is not { } row) continue;
             var casterTeam = Interpreter.Teams.Of(state, g.CasterUnitId);
-            var ownMarker = casterTeam == holderTeam && row.Duration is EffectDuration.Marker or EffectDuration.SpentMarker;
+            var ownMarker = casterTeam == holderTeam && row.Duration is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker;
             if (row.Subject == EffectSubject.Opponent && ix.Defender is not null && !ownMarker
                 && Interpreter.Teams.Of(state, ix.Of(Interaction.Other(side)).UnitId) != casterTeam) continue;
+            if (row.Duration == EffectDuration.OneMarker && !tokens.Add(g.EntryName)) continue;
             result.Add(new LiveProperty(side, spell, null, null, null, g.Id, row));
         }
         // A unit-kind entry on a model slot is the unit's rule, not a per-model one, and aggregation is not declared for the kind. Import produces the

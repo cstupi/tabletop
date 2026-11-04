@@ -65,7 +65,7 @@ public static class GfPick
             .SelectMany(m => Carried(state, props, m).Select(e => (Entry: e, Model: m)))
             .Where(x => Uses(state, unit, Key(x.Entry.Name, x.Model)) == 0 && (!OncePerGame(x.Entry) || GameUses(state, Key(x.Entry.Name, x.Model)) == 0)
                 && (!OneTarget(x.Entry) || (Activations(state, unit) <= 1 && UnitUses(state, unit, x.Entry.Name) == 0))
-                && GfCasting.Targets(state, x.Model, x.Entry.Targeting!).Count > 0)
+                && GfCasting.Targets(state, x.Model, x.Entry.Targeting!, entry: x.Entry.Name).Count > 0)
             .ToList();
         // A one-target rule is the unit's: one use, by its first carrying model.
         return offers.Where((x, i) => !OneTarget(x.Entry) || offers.FindIndex(y => y.Entry.Name == x.Entry.Name) == i).ToList();
@@ -143,26 +143,37 @@ public static class GfPick
             var count = OneTarget(entry) ? Math.Min(dice ?? 1, 1) : dice ?? 1;
             var index = ctx.Frame.Value("pick_index");
             if (count == 0) return new Finish([]);
+            var x = Lookup.ModelParameter(ctx.State, model, entry.Name);
             if (ctx.History.LastClosed() is { } closed)
             {
-                if (GfAnswers.Pieces(closed.Single, closed.Ask) is not [var target, ..]) return dice is null ? new Finish([]) : new Complete([]);
-                var targetUnit = ctx.Projection.Units.ContainsKey(target) ? target : ctx.Projection.Models[target].UnitId;
-                // p.13: "Effects from multiple instances of the same special rule or spell don't stack".
-                var already = ctx.Projection.Units[targetUnit].Grants.Any(g => g.EntryName == entry.Name);
-                // Markers stack: "place a marker on it" places one, "place X markers on it" the carrier's X.
-                IReadOnlyList<StateChange> grants = GfMarkers.Rows(entry).Count > 0
-                    ? GfMarkers.Place(entry, ctx.Projection.Units[targetUnit], unit, entry.TakesParameter ? Lookup.ModelParameter(ctx.State, model, entry.Name) ?? 1 : 1)
-                    : already ? []
-                    : entry.Effects.Where(e => e.Duration == EffectDuration.Once).Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, entry.Name, unit, 1))).ToList();
+                var targets = GfAnswers.Pieces(closed.Single, closed.Ask).Distinct().ToList();
+                if (targets.Count == 0) return dice is null ? new Finish([]) : new Complete([]);
+                if (!entry.Targeting!.CountFromParameter) targets = [targets[0]];
+                var grants = new List<StateChange>();
+                foreach (var target in targets)
+                {
+                    var targetUnit = ctx.Projection.Units.ContainsKey(target) ? target : ctx.Projection.Models[target].UnitId;
+                    // p.13: "Effects from multiple instances of the same special rule or spell don't stack".
+                    var already = ctx.Projection.Units[targetUnit].Grants.Any(g => g.EntryName == entry.Name);
+                    // Markers stack: "place a marker on it" places one, "place X markers on it" the carrier's X; a pick of 1 to X units ("place X tokens on
+                    // one enemy unit …, or one token on X enemy units") places X on one unit picked and one on each of several.
+                    var markers = entry.Targeting.CountFromParameter ? targets.Count == 1 ? x ?? 1 : 1 : entry.TakesParameter ? x ?? 1 : 1;
+                    grants.AddRange(GfMarkers.Rows(entry).Count > 0
+                        ? GfMarkers.Place(entry, ctx.Projection.Units[targetUnit], unit, markers)
+                        : already ? []
+                        : entry.Effects.Where(e => e.Duration == EffectDuration.Once).Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, entry.Name, unit, 1))));
+                    // A unit picked beyond the pick's range was reached through Extended Buff Range (GfCasting.Targets).
+                    if (Battlefield.UnitDistance(ctx.State, unit, targetUnit) is { } apart && apart > entry.Targeting.Range) ctx.Applied.Add(GfCasting.ExtendedBuffRange);
+                }
                 ctx.Applied.Add(entry.Name);
-                // A unit picked beyond the pick's range was reached through Extended Buff Range (GfCasting.Targets).
-                if (Battlefield.UnitDistance(ctx.State, unit, targetUnit) is { } apart && apart > entry.Targeting!.Range) ctx.Applied.Add(GfCasting.ExtendedBuffRange);
                 return new Complete(grants, new Dictionary<string, int> { ["picked"] = 1, ["pick_index"] = index + 1 }, Repeat: index + 1 < count);
             }
-            var eligible = GfCasting.Targets(ctx.State, model, entry.Targeting!);
+            var eligible = GfCasting.Targets(ctx.State, model, entry.Targeting!, entry: entry.Name);
             if (eligible.Count == 0) return dice is null ? new Finish([]) : new Complete([]);
-            var prompt = dice is null ? $"{entry.Name}: pick a target" : $"{entry.Name}: pick a target ({index + 1} of {count})";
-            return new OpenAsks([ctx.Ask(GfNames.RuleTarget, prompt, ctx.ActorTeam!.Value, new PieceSelection(eligible, 1, 1), allowPass: true)]);
+            // countFromParameter: 1 to X units, `count` when the carrier has no X.
+            var most = entry.Targeting!.CountFromParameter ? Math.Clamp(x ?? entry.Targeting.Count, 1, eligible.Count) : 1;
+            var prompt = most > 1 ? $"{entry.Name}: pick up to {most} targets" : dice is null ? $"{entry.Name}: pick a target" : $"{entry.Name}: pick a target ({index + 1} of {count})";
+            return new OpenAsks([ctx.Ask(GfNames.RuleTarget, prompt, ctx.ActorTeam!.Value, new PieceSelection(eligible, 1, most), allowPass: true)]);
         }
     }
 
@@ -217,7 +228,7 @@ public static class GfPick
         var asks = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).OfType<AskOpened>()
             .Where(o => o.Ask.FrameId == frame.Id && o.Ask.Question == GfNames.RuleTarget).Select(o => o.Ask).ToList();
         var answers = frame.Frame.Steps.Where(s => s.Step == GfNames.RuleTargetStep && s.Answer is not null).Select(s => s.Answer).ToList();
-        return answers.Select((a, i) => GfAnswers.Pieces(a, i < asks.Count ? asks[i] : null)).Where(p => p.Count > 0).Select(p => p[0])
+        return answers.SelectMany((a, i) => GfAnswers.Pieces(a, i < asks.Count ? asks[i] : null).Distinct())
             .Where(t => state.Projection.Units.ContainsKey(t) || state.Projection.Models.ContainsKey(t)).ToList();
     }
 }

@@ -125,7 +125,7 @@ public static class PropertiesJson
         EffectKind.TakeTest or EffectKind.RemoveWounds or EffectKind.Move => true,
         // "Roll one die, on a 4+ place a marker on it": the dice row's children may be the markers a success places.
         EffectKind.Roll => f.Children.Count > 0 && (f.Children.All(c => c.Kind == EffectKind.AddHit && c.TargetQuantity is null or TargetQuantity.Hits)
-            || f.Children.All(c => c.Duration is EffectDuration.Marker or EffectDuration.SpentMarker)),
+            || f.Children.All(c => c.Duration is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker)),
         EffectKind.AddHit => f.TargetQuantity is null or TargetQuantity.Hits && f.Conditions.All(c => c.Kind != ConditionKind.RollResult),
         _ => false,
     };
