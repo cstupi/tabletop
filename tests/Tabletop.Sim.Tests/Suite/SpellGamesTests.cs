@@ -52,15 +52,16 @@ public class SpellGamesTests
         Assert.Equal(spells, Spells.Where(g => g.Edition == rules).SelectMany(g => g.Covers).Distinct().Order().ToList());
     }
 
+    /// <summary>No spell is text-only (SpellsPlayedTests): Shifting Form, translated to remove_spell_tokens, is played and cast in its book's game.</summary>
     [Fact]
-    public void A_text_only_3_6_spell_is_not_cast()
+    public void Shifting_Form_is_played_and_cast_in_its_books_3_6_game()
     {
         var set = SetOf(RuleSets.Gf360);
         var book = set.Books["04z57ua0bwth37zh"];
-        Assert.False(set.Entry("Shifting Form")!.Played);
+        Assert.True(set.Entry("Shifting Form")!.Played);
         Assert.Contains("Shifting Form", book.Spells);
         var game = BookGamesOf(RuleSets.Gf360).Single(g => g.Group == SuiteCatalog.SpellsGroup(RuleSets.Gf360, book.Uid));
-        Assert.DoesNotContain("Shifting Form", game.Covers);
+        Assert.Contains("Shifting Form", game.Covers);
         Assert.Equal(game.Covers.Count, game.Scenario.Armies[0].Units);
         Assert.Equal($"{SpellGames.NamePrefix}daemons-of-change@3.6", game.Name);
     }

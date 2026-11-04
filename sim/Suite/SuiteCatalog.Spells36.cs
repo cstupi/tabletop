@@ -54,6 +54,16 @@ public static partial class SuiteCatalog
             ["rl7ympklz4r0ls38"] = new(First: ["Psychic Terror"]),
             // Every spare token on the roll, so an unmodified 1 is lifted to 4+ and the natural casting die check has a case.
             ["z65fgu0l29i4lnlu"] = new(Bonus: 6),
+            // Shifting Form first, at targets that are Caster(2): each target model holds 2 tokens from round 1.
+            ["r6hr29338u4micfw"] = new(First: ["Shifting Form"], TargetRules: [new(0, "Caster", 2)]),
+            // Death Bolt at targets whose Sturdy always gives +1 to Defense (Enhanced Sturdy), a positive modifier for Pierce to ignore.
+            ["1wj1ysgxpuuz9bc7"] = new(First: ["Death Bolt"], TargetRules: [new(0, "Sturdy"), new(0, "Enhanced Sturdy")]),
+            ["jlray7cwf8mvw5sn"] = new(First: ["Rapid Putrefaction"]),
+            // Smiting Rune first, so its caster is unit 1, whose first block roll is fixed.
+            ["fk1mkbp8apvltu0z"] = new(First: ["Smiting Rune"]),
+            // Light Fragments first, at a fresh unit; every unit of the book's army has Rapid Blink, which Shadow Dance's grant boosts.
+            ["nyh41t82jugcdq8m"] = new(First: ["Light Fragments"], Rules: [new(0, "Rapid Blink")]),
+            ["yxjboa8oma9bbdck"] = new(Rules: [new(0, "Wolfborn")]),
         };
 
         // Declared before Dice: static initializers run in textual order.
@@ -68,6 +78,8 @@ public static partial class SuiteCatalog
             // A spell's morale tests (GfCasting.SpellTest: action "spell"): the first fails and the second passes, so both outcomes are checked.
             ["31xjrm9ivdimkjxp"] = SpellMorale,
             ["zz3kp5ry7ks6mxcx"] = SpellMorale,
+            // Smiting Rune's caster's first block roll: two unmodified 1s and two 6s.
+            ["fk1mkbp8apvltu0z"] = [new DiceFix("defense", 0, [1, 1, 6, 6], new RollKey(Actor: "Dwarf Guilds unit 1"))],
         };
 
         public static readonly Dictionary<string, IReadOnlyList<GameCheck>> Checks = new(StringComparer.Ordinal)
@@ -82,6 +94,15 @@ public static partial class SuiteCatalog
             ["7o6om21wxlvvy3hq"] = [Exact(TerrainCheck36, ["Cursed Stride"], CursedStride36)],
             ["31xjrm9ivdimkjxp"] = [Exact(FatiguedCheck36, ["Terrifying Fury"], TerrifyingFury)],
             ["zz3kp5ry7ks6mxcx"] = [Exact(MoveCheck36, ["Deep Hypnosis"], DeepHypnosis)],
+            ["r6hr29338u4micfw"] = [Exact(RemoveTokensCheck36, ["Shifting Form"], ShiftingForm)],
+            ["1wj1ysgxpuuz9bc7"] = [Exact(PierceCheck36, ["Death Bolt"], DeathBolt)],
+            ["78qp9l5alslt6yj8"] = [Exact(SmashCheck36, ["Cerebral Trauma"], CerebralTrauma)],
+            ["jlray7cwf8mvw5sn"] = [Exact(DecimateCheck36, ["Rapid Putrefaction"], RapidPutrefaction)],
+            ["fk1mkbp8apvltu0z"] = [Exact(ScourgeCheck36, ["Smiting Rune"], SmitingRune)],
+            ["nyh41t82jugcdq8m"] = [Exact(DestructiveCheck36, ["Light Fragments"], LightFragments),
+                Exact(RapidBlinkCheck36, ["Shadow Dance"], q => BoostedMove(q, "Shadow Dance", "Rapid Blink"))],
+            ["yxjboa8oma9bbdck"] = [Exact(WolfbornCheck36, ["Righteous Fury"], q => BoostedMove(q, "Righteous Fury", "Wolfborn"))],
+            ["4k5amkxoybdiqotm"] = [Exact(IndirectCheck36, ["Triangulation Bots"], q => GrantWritten(q, "Triangulation Bots"))],
         };
     }
 
