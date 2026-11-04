@@ -175,14 +175,18 @@ static partial class SpecialGames
         }
     }
 
-    /// <summary>Relentless, Surge, Reliable, Stealth: a long-range gunline across a 48" table at a squad that is hard to see.</summary>
+    /// <summary>
+    /// Relentless, Surge, Reliable, Stealth: a long-range gunline across a 48" table at a squad that is hard to see. Both units Hold on anchors about 37"
+    /// apart and shoot. Red's first Reliable Gun roll is fixed to 3, 2, 6 (2 and 1 after Stealth, at 2+, and a 6 Relentless adds to) and its first
+    /// Surge Gun roll to a 6; Red's Tough(3) models stand to roll every die of that first volley.
+    /// </summary>
     static TestGame Gunline()
     {
         const string name = "special-long-range-gunline";
-        return Game(name, new ScenarioBuilder(name, 42).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 42).RoundCap(4).Table(24, 48).Scripted(Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal))))
                 .Army("Red", 1, 3, modelRules: [new(1, "Relentless"), new(1, "Tough", 3)],
-                    weapons: [Gun("Surge Gun", 48, 2, Rule("Surge")), Gun("Reliable Gun", 48, 2, Rule("Reliable"))], unitStats: Stats(5, 4))
-                .Army("Blue", 1, 5, modelRules: [new(1, "Stealth")], weapons: [Gun("Rifle", 48, 1)], unitStats: Stats(4, 5))
+                    weapons: [Gun("Surge Gun", 48, 2, Rule("Surge")), Gun("Reliable Gun", 48, 2, Rule("Reliable"))], unitStats: Stats(5, 4), anchors: new Dictionary<int, Point2> { [1] = new(18, 40) })
+                .Army("Blue", 1, 5, modelRules: [new(1, "Stealth")], weapons: [Gun("Rifle", 48, 1)], unitStats: Stats(4, 5), anchors: new Dictionary<int, Point2> { [1] = new(3, 5) })
                 .Build(),
             ["Relentless", "Surge", "Reliable", "Stealth"],
             [
@@ -215,11 +219,8 @@ static partial class SpecialGames
                     }, need: 2);
                 }),
             ],
-            dice: [new DiceFix("hit", GunlineReliableHit, [3, 2])]);
+            dice: [new DiceFix("hit", 0, [3, 2, 6], new RollKey(Actor: "Red unit 1", Weapon: "Reliable Gun")), new DiceFix("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Surge Gun"))]);
     }
-
-    /// <summary>In the gunline's seed: the first Reliable Gun hit roll (log order, every hit roll counted), set to a raw 3 and a raw 2 (2 and 1 after Stealth, at 2+).</summary>
-    const int GunlineReliableHit = 1;
 
     /// <summary>
     /// Artillery, Immobile, Indirect, Limited, Unstoppable: an emplaced gun line that can only hold, against a mobile mortar squad. Red
