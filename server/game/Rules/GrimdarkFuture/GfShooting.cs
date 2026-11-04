@@ -53,7 +53,7 @@ public static class GfShooting
     {
         var live = ctx.Settle(GfAttack.AttackInteraction(ctx, unit, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
         foreach (var p in live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.QuickShot)) live.Read(p);
-        return RollEffects.Consume(live);
+        return ctx.Consume(live);
     }
 
     /// <summary>The declare-targets answer cut to what the Ask offered: only a group it listed, aimed at a unit it offered that group (p.8). Null when nothing was answered with an Assigned.</summary>

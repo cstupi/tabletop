@@ -36,7 +36,7 @@ public static partial class GfAttack
             if (kind == AttackKind.Shooting)
                 foreach (var (shooter, target, point) in Aims(ctx.State, live, ix.Attacker.UnitId, ix.Defender.UnitId, eligible, ctx.Frame.Context.WeaponIds))
                     values[$"aim_{shooter}_{target}"] = point;
-            return values["attacks"] == 0 ? new Finish(Consumed(live), values) : new Complete(Consumed(live), values);
+            return values["attacks"] == 0 ? new Finish([.. ctx.Consume(live), .. ReleaseHeld(ctx)], values) : new Complete(ctx.Consume(live), values);
         }
 
     }
@@ -133,7 +133,7 @@ public static partial class GfAttack
                     if (added > 0) { ctx.Roll(plan, added, d => HazardLabels(ctx, RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false), model)); MarkRoller(ctx, values, model); }
                 }
             }
-            return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
+            return new Complete(GfDeferred.Leave(ctx.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
         }
 
         /// <summary>The attacks a successful die's extra-attacks rows add, recorded as having acted; nothing else a face decides is read here.</summary>
@@ -173,9 +173,9 @@ public static partial class GfAttack
             }
             if (rolls.Count > 0) RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
             values["wounds"] = values["self_wounds"];
-            var spent = Consumed(live);
+            var spent = ctx.Consume(live);
             var scored = ctx.Frame.Value("hits") + rolls.Sum(Dice.RollOutcome.Successes);
-            return finishWithoutHits && scored == 0 ? new Finish(spent, values) : new Complete(spent, values);
+            return finishWithoutHits && scored == 0 ? new Finish([.. spent, .. ReleaseHeld(ctx)], values) : new Complete(spent, values);
         }
     }
 }

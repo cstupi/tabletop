@@ -203,7 +203,7 @@ public static partial class GfMoves
             if (standing.Count == 0) return new Complete([]);
             var values = new Dictionary<string, int> { ["dangerous_dice"] = OwedDice(ctx.State, unit, standing) };   // 3.6.0 p.12: the whole unit's wounds
             MarkTested(ctx.State, unit, values, standing);
-            return new Complete(RollEffects.Consume(live), values, Repeat: true);
+            return new Complete(ctx.Consume(live), values, Repeat: true);
         }
     }
 
@@ -412,7 +412,7 @@ public static partial class GfMoves
             var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
             if (changes.Count == 0) return new Complete([]);
             live.Read(source);
-            changes.AddRange(RollEffects.Consume(live));
+            changes.AddRange(ctx.Consume(live));
             return new Complete(changes);
         }
 

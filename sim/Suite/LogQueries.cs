@@ -201,6 +201,12 @@ public sealed class LogQueries
     /// <summary>Every step of every frame running that sequence, optionally only the steps of that name, in log order.</summary>
     public IEnumerable<LoggedStep> StepsOf(string sequence, string? step = null) =>
         _steps.Where(s => s.Frame.Sequence == sequence && (step is null || s.Name == step));
+    /// <summary>The changes that spend what the step read: under an attack (`attack-sequence`, `spell-hits`, `rule-hits`) a once grant is held to that
+    /// frame's `attack-end`, so the step's and every later step's of that attack; elsewhere the step's own.</summary>
+    public IEnumerable<StateChange> SpentBy(LoggedStep step) =>
+        step.Frame.Nearest("attack-sequence", "spell-hits", "rule-hits") is { } attack
+            ? _steps.Where(s => s.Seq >= step.Seq && (s.Frame == attack || s.Frame.Ancestors.Contains(attack))).SelectMany(s => s.Step.Changes)
+            : step.Step.Changes;
     /// <summary>Every step whose Applied names the entry.</summary>
     public IEnumerable<LoggedStep> Listing(string entry) => _steps.Where(s => s.Lists(entry));
 

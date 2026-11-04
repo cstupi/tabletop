@@ -55,6 +55,16 @@ public static partial class SuiteCatalog
             /// <summary>Every attack-sequence that completed a step or had a block under it, in log order, read from its frame and its ancestors.</summary>
             public IReadOnlyList<LoggedAttack> Attacks { get; } = AttacksOf(Steps);
 
+            /// <summary>The changes that spend what the step read: under an attack (`attack-sequence`, `spell-hits`, `rule-hits`) a once grant is held to
+            /// that frame's `attack-end`, so the step's and every later step's of that attack; elsewhere the step's own.</summary>
+            public IEnumerable<StateChange> SpentBy(StepCompleted step)
+            {
+                var at = Steps.First(s => ReferenceEquals(s.Step, step));
+                return at.Nearest(AttackSequence, "spell-hits", "rule-hits") is { } attack
+                    ? Steps.Where(s => s.Index >= at.Index && (s.Frame.FrameId == attack.FrameId || s.Ancestors.Any(a => a.FrameId == attack.FrameId))).SelectMany(s => s.Step.Changes)
+                    : step.Changes;
+            }
+
             static IReadOnlyList<LoggedAttack> AttacksOf(IReadOnlyList<LoggedStep> steps)
             {
                 var frames = new List<(SequenceStarted Frame, IReadOnlyList<SequenceStarted> Ancestors)>();

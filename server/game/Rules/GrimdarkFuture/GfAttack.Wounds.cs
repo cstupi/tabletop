@@ -204,7 +204,7 @@ public static partial class GfAttack
             if (moves.Count > 0 && !Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m)) && GfReserves.KeepsLastModel(ctx.State, target))
                 moves.RemoveAt(moves.Count - 1);
             if (moves.Count > 0) changes.Add(new ModelsMoved(moves));
-            changes.AddRange(Consumed(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
+            changes.AddRange(ctx.Consume(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = !fixedModels ? wounds - allocation.Sum(a => a.Count) + spilled : 0;
@@ -255,5 +255,4 @@ public static partial class GfAttack
     }
 
     /// <summary>The grants this step used (spell library → consumption): every granted source it read, with the rest of its spell's grants on that unit.</summary>
-    static IReadOnlyList<StateChange> Consumed(LiveSet live) => RollEffects.Consume(live);
 }

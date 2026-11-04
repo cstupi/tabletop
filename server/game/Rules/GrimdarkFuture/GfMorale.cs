@@ -121,7 +121,7 @@ public static class GfMorale
             var live = ctx.Settle(Ix(ctx, ctx.Frame.Context.ActorUnitId!.Value));
             foreach (var (source, roll) in OverrideRolls(live))
                 ctx.Roll(new Dice.RollPlan(source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Morale).Convention, null, new HashSet<int>()), roll.EffectiveAmount(source.Parameter));
-            return new Complete([.. RollEffects.Consume(live).Union(Held(ctx))]);
+            return new Complete([.. ctx.Consume(live).Union(Held(ctx))]);
         }
 
         /// <summary>The grants `test` read and held back, still on their unit: spent here whether or not the override rolls.</summary>
@@ -179,7 +179,7 @@ public static class GfMorale
             var toDestroy = Lookup.AliveModels(ctx.State, unit).Sum(m => Math.Max(0, (Lookup.ModelParameter(ctx.State, m, GfNames.Tough) ?? 1) - ctx.Projection.Models[m].Wounds));
             var record = ctx.Roll(new Dice.RollPlan(GfNames.NoRetreat, null, [], ctx.Rules.RollSpec(GfNames.Morale).Convention, null, new HashSet<int>()), Math.Min(toDestroy, GfRuleHits.MaxDealt));
             var wounds = record.Dice.Count(d => d.Raw <= 3);
-            return new Complete(RollEffects.Consume(live), new Dictionary<string, int>(held) { ["wounds"] = wounds }, Repeat: true);
+            return new Complete(ctx.Consume(live), new Dictionary<string, int>(held) { ["wounds"] = wounds }, Repeat: true);
         }
     }
 }

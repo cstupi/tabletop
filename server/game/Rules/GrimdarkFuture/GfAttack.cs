@@ -36,7 +36,7 @@ public static partial class GfAttack
         return null;
     }
 
-    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
+    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep(), new AttackEndStep()]);
 
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
@@ -121,6 +121,34 @@ public static partial class GfAttack
         var hitRolls = parent.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
         if (hitRolls.Count == 0) return (GfMelee.ImpactHits(parent) ?? parent.Value("hits")) * Math.Max(1, parent.Value("hit_multiplier", 1));
         return (hitRolls.Sum(Dice.RollOutcome.Successes) + parent.Value("extra_hits")) * Math.Max(1, parent.Value("hit_multiplier", 1));
+    }
+
+    /// <summary>The sequences an attack's once grants are held under (StepContext.Consume) and released at the end of.</summary>
+    public static bool IsAttackRoot(string sequence) => sequence is GfNames.AttackSequence or GfNames.SpellHitsSeq or GfNames.RuleHitsSeq;
+
+    /// <summary>
+    /// "Next time the effect would apply" is the attack: every grant a step of this frame or of a frame it pushed read and held (`held_&lt;unit&gt;_&lt;grant&gt;`),
+    /// with this run's own, released by Consume's rule (RollEffects.Release), so every row of a once entry applies across the attack and the entry goes once.
+    /// </summary>
+    public static IReadOnlyList<StateChange> ReleaseHeld(StepContext ctx)
+    {
+        var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
+        var start = log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id);
+        var keys = log.Skip(Math.Max(0, start)).Select(e => e.Payload).OfType<StepCompleted>().SelectMany(s => s.Values?.Keys ?? []).Concat(ctx.Held.Keys);
+        var held = new List<(Guid, Guid)>();
+        foreach (var key in keys.Where(k => k.StartsWith(StepContext.HeldPrefix, StringComparison.Ordinal)).Distinct())
+        {
+            var ids = key[StepContext.HeldPrefix.Length..].Split('_');
+            if (ids.Length == 2 && Guid.TryParseExact(ids[0], "N", out var unit) && Guid.TryParseExact(ids[1], "N", out var grant)) held.Add((unit, grant));
+        }
+        return RollEffects.Release(ctx.State, held);
+    }
+
+    /// <summary>Closes `attack-sequence`, `spell-hits` and `rule-hits`: the attack's held once grants go (ReleaseHeld). A frame that finishes early releases them in the finishing step.</summary>
+    public sealed class AttackEndStep : IStep
+    {
+        public string Name => "attack-end";
+        public StepOutcome Run(StepContext ctx) => new Complete(ReleaseHeld(ctx));
     }
 
     /// <summary>Pushes a child once and completes when it has finished. Values pass through the frame stack, not through this step.</summary>

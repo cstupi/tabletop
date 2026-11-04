@@ -240,7 +240,7 @@ public class GfCastingTests
     }
 
     [Fact]
-    public void A_granted_rule_on_the_shooter_is_spent_once_by_the_block_step_however_many_pools_it_modified()
+    public void A_granted_rule_on_the_shooter_is_spent_once_at_the_attacks_end_however_many_pools_it_modified()
     {
         var sharpen = new EntryDocument("Sharpen", CatalogKind.Spell, false, null, 1, "Test Book", "Target friendly unit gets AP(1) once.",
             new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12), [Fx(EffectKind.GrantProperty, "AP", 1, EffectDuration.Once)]);
@@ -253,7 +253,8 @@ public class GfCastingTests
         sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
         var block = sim.Steps("roll-to-block").Single();
         Assert.Equal(2, block.Rolls.Count);                                                                // the Rending group and the plain hit: two pools, both AP(1)-modified
-        Assert.Equal([grantId], block.Changes.OfType<GrantRemoved>().Select(c => c.GrantId));              // one removal for the one instance (R-N7)
+        Assert.Empty(block.Changes.OfType<GrantRemoved>());
+        Assert.Equal([grantId], sim.Steps("attack-end").Single().Changes.OfType<GrantRemoved>().Select(c => c.GrantId));   // one removal for the one instance (R-N7)
         Assert.Empty(sim.Unit(shooter.Id).Grants);
     }
     [Fact]

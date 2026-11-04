@@ -190,7 +190,7 @@ public class GrantRowTests
         sim.Append([new GrantAdded(unit, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry(spell)!.Effects[0].Id, spell, caster, 1))]);
 
     [Fact]
-    public void A_granted_cover_suppression_still_removes_cover_at_roll_to_block_and_is_spent_there()
+    public void A_granted_cover_suppression_still_removes_cover_at_roll_to_block_and_is_spent_by_that_attack()
     {
         var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var t = Unit("T", "4+", "6+", [], 1, []);
         var wood = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wood"), new Point3(5, -17.75, 0), new Yaw(0), 1,
@@ -205,7 +205,7 @@ public class GrantRowTests
     }
 
     [Fact]
-    public void A_granted_regeneration_suppression_still_applies_at_assign_and_is_spent_there()
+    public void A_granted_regeneration_suppression_still_applies_at_assign_and_is_spent_by_that_attack()
     {
         var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var troll = Unit("Troll", "4+", "6+", [], 1, [P("Regeneration"), P("Tough", 6)]);
         var sim = new Sim(State([a], [troll], x1: -6, x2: 6), GrimdarkFutureRules.Instance, PassOneProps, new ScriptedDice(5, 2));

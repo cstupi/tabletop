@@ -283,7 +283,7 @@ public static class GfMelee
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
             if (live.On(Side.Attacker).Any(p => p.Entry.Name == GfNames.CounterInMelee && p.ModelId is null)) values[CounterInMeleeKey] = 1;   // granted to the unit
             live.Use(Side.Attacker, GfNames.CounterInMelee);
-            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
+            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, ctx.Consume(live), values);
         }
     }
 
@@ -337,7 +337,7 @@ public static class GfMelee
             var live = ChargerLive(ctx);
             live.Use(Side.Attacker, GfNames.Unwieldy);
             if (weapons.Count > 0 && !Recorded(ctx, Name)) ctx.Applied.Add(GfNames.Unwieldy);
-            var spent = RollEffects.Consume(live);
+            var spent = ctx.Consume(live);
             if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete(spent);
             // The charger's other weapons may have destroyed the defender: nothing is struck, but the fatigue charger-attacks deferred is still owed.
             if (!Recorded(ctx, Name) && Lookup.LivingModels(ctx.State, Defender(ctx)).Count == 0) return new Complete([.. spent, .. Fatigue(Charger(ctx))]);

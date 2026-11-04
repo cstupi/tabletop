@@ -56,6 +56,8 @@ public sealed partial class GrimdarkFutureRules
     };
     public RollSpec RollSpec(string roll) => GfRolls.Spec(roll);
     public string HitRoll => GfNames.Hit;
+    /// <summary>The attack is "next time the effect would apply": a once grant read under an attack root is held to its `attack-end` (GfAttack.AttackEndStep).</summary>
+    public bool HoldsOnceGrants(string sequence) => GfAttack.IsAttackRoot(sequence);
     public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => GfHooks.ReactionsAt(state, properties, point, frame);
     public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => GfActivationEnd.Sequences(state, properties, turn.Activation);
     public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => round == 0 ? [] : GfHooks.OnRoundStarted(state, properties);

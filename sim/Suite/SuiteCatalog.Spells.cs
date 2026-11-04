@@ -224,7 +224,7 @@ public static partial class SuiteCatalog
         q.Steps.SelectMany(s => s.Step.Changes.OfType<GrantAdded>().Where(g => g.Grant.EntryName == spell && (where?.Invoke(g) ?? true)).Select(g => (s, g)))
             .Cast<(LoggedStep, GrantAdded)?>().FirstOrDefault();
 
-    /// <summary>Tech-Sickness: the target's next block roll is at -1, and that step spends the grant.</summary>
+    /// <summary>Tech-Sickness: the target's next block roll is at -1, and that attack spends the grant.</summary>
     static string? TechSickness(LogQueries q)
     {
         if (FirstGrant(q, "Tech-Sickness") is not var (at, grant)) return "Tech-Sickness never granted";
@@ -232,7 +232,7 @@ public static partial class SuiteCatalog
         if (block is null) return "the target never rolled to block after the grant";
         var mods = block.Rolls("defense").SelectMany(r => r.Roll.Modifiers).Where(m => m.Source == "Tech-Sickness").ToList();
         if (mods.Count == 0 || mods.Any(m => m.Amount != -1)) return $"the next block's Tech-Sickness modifiers: [{string.Join(", ", mods.Select(m => m.Amount))}]";
-        return block.Step.Changes.OfType<GrantRemoved>().Any(r => r.GrantId == grant.Grant.Id) ? null : "the block that used the grant did not remove it";
+        return q.SpentBy(block).OfType<GrantRemoved>().Any(r => r.GrantId == grant.Grant.Id) ? null : "the attack that used the grant did not remove it";
     }
 
     /// <summary>Shock Speed on another unit of the caster's army: that unit's next action move, an Advance, allows 6 + 2 = 8".</summary>

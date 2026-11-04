@@ -12,7 +12,7 @@ public static class GfCasting
     /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
     public static Sequence SpellTest() => new(GfNames.SpellTestSeq,
         [new GfAttack.PushStep("test", GfNames.MoraleTest, ctx => new SequenceContext(ctx.Frame.Context.TargetUnitIds[0], [], [], "spell")), new ConsequenceStep()]);
-    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
+    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep(), new GfAttack.AttackEndStep()]);
 
     /// <summary>
     /// The in-play reading, matching GfHooks.ReactionsAt: a caster inside a container may still cast at what is inside with it (p.15),
@@ -299,7 +299,7 @@ public static class GfCasting
             var casterUnit = ctx.Projection.Models[caster].UnitId;
             var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
             ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens"), conduit: Origin(ctx.State, ctx.Frame) is not null), 1);
-            return new Complete(RollEffects.Consume(live));
+            return new Complete(ctx.Consume(live));
         }
     }
 
@@ -418,7 +418,7 @@ public static class GfCasting
             }
             values["hit_multiplier"] = multiplier;
             // A granted multiplier on the caster is used up by these hits; a per-die rule is left for score-hits, which reads it.
-            var spent = rolled ? GfDeferred.Leave(RollEffects.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)) : RollEffects.Consume(live);
+            var spent = rolled ? GfDeferred.Leave(ctx.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)) : ctx.Consume(live);
             return new Complete(spent, values);
         }
     }

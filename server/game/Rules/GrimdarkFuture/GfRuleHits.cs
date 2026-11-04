@@ -15,7 +15,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfRuleHits
 {
     /// <summary>`rule-hits`: n hits that land with no roll to hit (a hit the holder's unit deals), then blocks and wounds.</summary>
-    public static Sequence RuleHits() => new(GfNames.RuleHitsSeq, [new HitsStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits)]);
+    public static Sequence RuleHits() => new(GfNames.RuleHitsSeq, [new HitsStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.AttackEndStep()]);
     /// <summary>`rule-wounds`: n dice, each 6+ (3.6 Regenerative Strength: 4+) one wound on the target with no block.</summary>
     public static Sequence RuleWounds() => new(GfNames.RuleWoundsSeq, [new WoundDiceStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.TargetUnitIds[0]], [], null))]);
 

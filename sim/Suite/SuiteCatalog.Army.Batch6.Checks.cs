@@ -52,13 +52,14 @@ public static partial class SuiteCatalog
                 where expected != 0 && !(r.Threshold == 6 && r.Modifiers.Count == 0)
                 select actual == expected ? null : $"{actual:+0;-0} with {held} markers, expected {expected:+0;-0}");
 
-        /// <summary>Markers spent on use ("may remove markers … to get"): no roll carries the entry after the markers it read are gone, and a step that read them removes them all.</summary>
+        /// <summary>Markers spent on use ("may remove markers … to get"): no roll carries the entry after the markers it read are gone, and the attack
+        /// whose step read them removes them all (LogQueries.SpentBy).</summary>
         static GameCheck SpentTogether(string entry, string quote) =>
-            Exact(entry, quote, (run, _) =>
+            Exact(entry, quote, (run, log) =>
                 from x in Marked(run, entry)
                 where x.Step.Rolls.Any(r => r.Modifiers.Any(m => m.Source == entry || m.Via == entry))
                 let unit = x.Frame.Context.TargetUnitIds.FirstOrDefault()
-                let removed = x.Step.Changes.OfType<GrantRemoved>().Count()
+                let removed = log.SpentBy(x.Step).OfType<GrantRemoved>().Count()
                 select removed >= x.Held.GetValueOrDefault(unit) && x.Held.GetValueOrDefault(unit) > 0 ? null : $"{removed} removed of {x.Held.GetValueOrDefault(unit)} markers");
 
         /// <summary>Round-start rallies: each rally die is one die at 4+, rolled for a Shaken unit, and the unit stops being Shaken exactly when it scores.</summary>
