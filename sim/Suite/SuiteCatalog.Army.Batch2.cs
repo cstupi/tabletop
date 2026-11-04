@@ -15,11 +15,28 @@ public static partial class SuiteCatalog
         static TestGame Pick((string Uid, string Army) book, string name, Play play, string entry, IReadOnlyList<GameCheck> checks, double? length = 26,
             IReadOnlyList<DiceFix>? dice = null, IReadOnlyList<ScenarioRule>? enemy = null, int enemyUnits = 1, int? enemyModels = null, int enemyAttacks = 2,
             IReadOnlyList<ScenarioRule>? enemyWeapon = null, IReadOnlyList<ScenarioRule>? carrier = null, IReadOnlyList<ScenarioRule>? rules = null,
-            int gunRange = 60, Action<ScriptBuilder>? more = null, string? enemyBook = null, int? rounds = null, ulong seed = 1, int units = 1, int buffUnit = 1, bool grants = true) =>
-            Game(book, name, play, [entry], rules ?? [], dice ?? [], grants ? [.. checks, Spent(entry, $"\"{entry}\"")] : checks, carriers: [new ScenarioModel(1, 1, [R(1, entry), .. carrier ?? []])],
+            int gunRange = 60, Action<ScriptBuilder>? more = null, string? enemyBook = null, int? rounds = null, ulong seed = 1, int units = 1, int buffUnit = 1, bool grants = true,
+            double? gap = null)
+        {
+            var (anchors, enemyAnchors) = Facing(play, length, gap);
+            return Game(book, name, play, [entry], rules ?? [], dice ?? [], grants ? [.. checks, Spent(entry, $"\"{entry}\"")] : checks, carriers: [new ScenarioModel(1, 1, [R(1, entry), .. carrier ?? []])],
                 units: units, enemyUnits: enemyUnits, enemyModels: enemyModels, enemyAttacks: enemyAttacks, enemy: enemy, enemyWeapon: enemyWeapon, length: length,
-                gunRange: gunRange, enemyBook: enemyBook, rounds: rounds, seed: seed,
+                gunRange: gunRange, enemyBook: enemyBook, rounds: rounds, seed: seed, anchors: anchors, enemyAnchors: enemyAnchors,
                 more: s => { UsePicks(book.Army, buffUnit, entry)(s); more?.Invoke(s); });
+        }
+
+        /// <summary>
+        /// Where a Shoots or Shot game's units 1 deploy (anchors): face to face across the table's middle, gap inches apart (default the length
+        /// less 20", 6" on the 26" table), so a pick "within 18"" reaches the enemy whatever the seed's placement. Other plays deploy where
+        /// the policy puts them.
+        /// </summary>
+        static (IReadOnlyDictionary<int, Tabletop.Geometry.Point2>?, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>?) Facing(Play play, double? length, double? gap)
+        {
+            if (play is not (Play.Shoots or Play.Shot)) return (null, null);
+            var l = length ?? 36;
+            var half = Math.Min(gap ?? l - 20, l - 2) / 2;
+            return (new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, l / 2 + half) }, new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, l / 2 - half) });
+        }
 
         /// <summary>The attacks made by (or, with onTarget, at) a unit that held a grant of the entry as the attack began.</summary>
         static Occasion Granted(string entry, bool onTarget = false) => (run, a) =>
@@ -62,10 +79,10 @@ public static partial class SuiteCatalog
             // A 12" gun from 12"-deep zones on a 30" table: a target beyond 12" is in range only under the +6".
             Pick(Cults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
                 [RangeBonus("Increased Shooting Range Buff", Granted("Increased Shooting Range Buff"), 12, 6, BuffText + "+6\" range when shooting once\"")],
-                gunRange: 12, length: 30),
+                gunRange: 12, length: 30, gap: 16),
             Pick(Dynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
                 [RangeBonus("Increased Shooting Range Mark", Granted("Increased Shooting Range Mark", onTarget: true), 12, 6, MarkText + " +6\" range when shooting against once\"")],
-                gunRange: 12, length: 30),
+                gunRange: 12, length: 30, gap: 16),
             Pick(Cults, "soul-snatcher-cults-speed-buff", Play.Moves, "Speed Buff",
                 [GrantedAllowance("Speed Buff", BuffText + "moves +2\" when using Advance actions and +4\" when using Rush/Charge actions once\"", ("advance", 8), ("rush", 16), ("charge", 16))],
                 units: 2, buffUnit: 2),

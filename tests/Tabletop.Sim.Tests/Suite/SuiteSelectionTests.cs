@@ -90,11 +90,15 @@ public class SuiteSelectionTests
     {
         var plain = SuiteArguments.Parse([]);
         Assert.Empty(plain.Only);
-        Assert.Equal((DriverKind.InProcess, false, false, (string?)null), (plain.Driver, plain.Keep, plain.List, plain.Out));
+        Assert.Equal((DriverKind.InProcess, false, false, (string?)null, (ulong?)null), (plain.Driver, plain.Keep, plain.List, plain.Out, plain.Seed));
 
         var full = SuiteArguments.Parse(["--only", "core, spells:orc", "--only", "volley", "--driver", "socket", "--keep", "--out", "/tmp/s", "--list"]);
         Assert.Equal(["core", "spells:orc", "volley"], full.Only);
         Assert.Equal((DriverKind.Socket, true, true, "/tmp/s"), (full.Driver, full.Keep, full.List, full.Out));
+        Assert.Equal(4UL, SuiteArguments.Parse(["--seed", "4"]).Seed);
+
+        Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--seed", "four"]));
+        Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--seed"]));
 
         Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--driver", "carrier-pigeon"]));
         Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--only"]));
@@ -109,6 +113,7 @@ public class SuiteSelectionTests
             SuiteRunner.ReplayOf(SuiteFixtures.Game(name: "two words"), DriverKind.Socket));
         Assert.Equal("dotnet run --project sim -- suite --only 'it'\\''s $HOME' --keep",          // single quotes: the shell expands nothing
             SuiteRunner.ReplayOf(SuiteFixtures.Game(name: "it's $HOME"), DriverKind.InProcess));
+        Assert.Equal("dotnet run --project sim -- suite --only volley --keep --seed 4", SuiteRunner.ReplayOf(Games[1], DriverKind.InProcess, 4));
     }
 
     /// <summary>Guards for the four group files: what --only, the replay line and coverage rely on.</summary>
