@@ -11,8 +11,9 @@ namespace Tabletop.Sim.Suite;
 /// names its casts pick, given the caster's unit name (default: SpellGames.Friends for a friendly spell; for an enemy one the target
 /// units in order starting from unit r in round r, so a grant no attack uses up, which no recast can stack (p.13), still meets a fresh unit). BlueAction: the action each target unit takes, by unit number (default Rush, which never attacks).
 /// Rules, TargetRules: further rules on every model of the book's army or of the target army, beside their Caster and Tough.
-/// TargetModels, TargetTough, TargetDefense: each target unit's model count, Tough value and Defense (default 4+). Anchored: every unit's first model deploys on its lane's point (a target
-/// unit's row of models centred on it), so the first round's casts reach the targets they reach later.
+/// TargetModels, TargetTough, TargetDefense: each target unit's model count, Tough value and Defense (default 4+). Anchored (default on): every unit's first
+/// model deploys on its lane's point (a target unit's row of models centred on it), so every caster stands about 4" from a target unit from round 1 and
+/// a spell "within 6"" reaches one whatever the seed's hand placement; off, the units deploy where the seed puts them and walk to their lanes.
 /// </summary>
 public sealed record SpellSetup(
     IReadOnlyList<string>? First = null,
@@ -23,7 +24,7 @@ public sealed record SpellSetup(
     IReadOnlyList<ScenarioRule>? TargetRules = null,
     int TargetModels = 3,
     int TargetTough = 6,
-    bool Anchored = false,
+    bool Anchored = true,
     int TargetDefense = 4);
 
 /// <summary>
@@ -71,11 +72,11 @@ public static class SpellGames
                 modelRules: [.. units.SelectMany(u => new[] { new ScenarioRule(u, "Caster", 6), new ScenarioRule(u, "Tough", 6) }
                     .Concat((setup?.Rules ?? []).Select(r => r with { Unit = u })))],
                 weapons: [HandWeapon], armyBook: book.Uid,
-                anchors: setup?.Anchored == true ? units.ToDictionary(k => k, k => new Point2(36.0 * (k - 0.5) / order.Count, 13)) : null)
+                anchors: setup?.Anchored ?? true ? units.ToDictionary(k => k, k => new Point2(36.0 * (k - 0.5) / order.Count, 13)) : null)
             .Army(TargetArmy, 3, setup?.TargetModels ?? 3, modelRules: [.. Enumerable.Range(1, 3).SelectMany(u => (setup?.TargetRules ?? []).Select(r => r with { Unit = u })
                 .Prepend(new ScenarioRule(u, "Tough", setup?.TargetTough ?? 6)))], weapons: [ApRifle, HandWeapon],
                 unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = $"{setup?.TargetDefense ?? 4}+" },
-                anchors: setup?.Anchored == true ? Enumerable.Range(1, 3).ToDictionary(j => j, j => new Point2(12.0 * j - 6 - 0.88 * ((setup.TargetModels) - 1), 10)) : null)
+                anchors: setup?.Anchored ?? true ? Enumerable.Range(1, 3).ToDictionary(j => j, j => new Point2(12.0 * j - 6 - 0.88 * ((setup?.TargetModels ?? 3) - 1), 10)) : null)
             .Seeking((model, view) => Lane(book.Name, order.Count, view.Projection, model))
             .Scripted(Script(book.Name, order, set, setup))
             .Build();
@@ -138,10 +139,22 @@ public static class SpellGames
             .Build();
     }
 
+    /// <summary>
+    /// A book's spell game. FirstCastsPass: every unit's first casting die is set to a 6 (a keyed DiceFix per caster, unless the given dice
+    /// already key that unit's first cast), so each spell resolves at least once however the seed rolls: a raw 1 always fails (p.5), and a
+    /// caster rolling four of them in four rounds is about one game in two per seed across the group.
+    /// </summary>
     public static TestGame Game(BookRecord book, ulong seed, PropertySet set, SpellSetup? setup = null, IReadOnlyList<DiceFix>? dice = null,
-        IReadOnlyList<GameCheck>? checks = null) =>
-        new(NameOf(book), SuiteCatalog.SpellsGroup(set.GameRules, book.Uid), Scenario(book, seed, set, setup), book.Spells, dice ?? [],
+        IReadOnlyList<GameCheck>? checks = null, bool firstCastsPass = true) =>
+        new(NameOf(book), SuiteCatalog.SpellsGroup(set.GameRules, book.Uid), Scenario(book, seed, set, setup), book.Spells,
+            [.. firstCastsPass ? FirstCasts(book, setup, dice ?? []) : [], .. dice ?? []],
             [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells, ResolvedCheckOf(set.GameRules)), .. checks ?? []]);
+
+    /// <summary>A casting die of 6 on each caster's first cast, but for a caster whose first cast the game's own dice already key.</summary>
+    static IEnumerable<DiceFix> FirstCasts(BookRecord book, SpellSetup? setup, IReadOnlyList<DiceFix> dice) =>
+        Enumerable.Range(1, CastingOrder(book, setup).Count).Select(k => UnitName(book.Name, k))
+            .Where(unit => !dice.Any(d => d is { Roll: "casting", Ordinal: 0 } && d.Key?.Actor == unit))
+            .Select(unit => new DiceFix("casting", 0, [6], new RollKey(Actor: unit)));
 
     public const string ResolvedCheck = "resolved on a legal cast (p.13: \"Roll one die, on 4+ resolve the effect\"; p.5: \"a roll of 1 always counts as a fail\")";
     public const string ResolvedCheck36 = "resolved on a legal cast (3.6.0 p.13: \"Pick a target and roll one die, and on 4+ resolve the spell's effect\"; 3.6.0 p.5: \"a roll of 1 always counts as a fail\")";

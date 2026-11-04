@@ -46,31 +46,31 @@ public static partial class SuiteCatalog
         const string plague = "Plague Disciples";
         yield return Repeated36(set, "jlray7cwf8mvw5sn", "Rapid Putrefaction", DecimateName36, [Exact(DecimateCheck36, ["Rapid Putrefaction"], RapidPutrefaction)],
             [Passes(plague, 1), Passes(plague, 2), Passes(plague, 3), Blocks(plague, 1, 1, 1), Blocks(plague, 2, 1, 1)],
-            new SpellSetup(TargetModels: 1, TargetTough: 8, Anchored: true, TargetDefense: 2, Targets: Aimed("Rapid Putrefaction", 1, 1, 1, 2, 2, 3)));
+            new SpellSetup(TargetModels: 1, TargetTough: 8, TargetDefense: 2, Targets: Aimed("Rapid Putrefaction", 1, 1, 1, 2, 2, 3)));
         // Destructive: unit 1's first block at target 1 is six failures (2 of 8 wounds left), and units 2 and 3 pass their casts there.
         const string jesters = "Elven Jesters";
         yield return Repeated36(set, "nyh41t82jugcdq8m", "Light Fragments", DestructiveName36, [Exact(DestructiveCheck36, ["Light Fragments"], LightFragments)],
             [Passes(jesters, 1), Passes(jesters, 2), Passes(jesters, 3), Blocks(jesters, 1, 1, 1, 1, 1, 1, 1)],
-            new SpellSetup(TargetModels: 1, TargetTough: 8, Anchored: true));
+            new SpellSetup(TargetModels: 1, TargetTough: 8));
         // Smash (24", over 12"): casters 1 and 6 at target 2 (about 15" centre to centre), 2 at target 3 and 5 at target 1 (about 21"), so four casts a
         // round over half; 3 and 4 at target 2 (about 4"), at or under. Tough(40) at Defense 2+ lasts the game; units 1 and 3 pass their first casts.
         const string battle = "Battle Brothers";
         yield return Repeated36(set, "78qp9l5alslt6yj8", "Cerebral Trauma", SmashName36, [Exact(SmashCheck36, ["Cerebral Trauma"], CerebralTrauma)],
             [Passes(battle, 1), Passes(battle, 3)],
-            new SpellSetup(TargetModels: 1, TargetTough: 40, Anchored: true, TargetDefense: 2, Targets: Aimed("Cerebral Trauma", 2, 3, 2, 2, 1, 2)));
+            new SpellSetup(TargetModels: 1, TargetTough: 40, TargetDefense: 2, Targets: Aimed("Cerebral Trauma", 2, 3, 2, 2, 1, 2)));
         // Pierce (12", over 6"): casters 2 at target 2 and 4 at target 3 (about 9.5"), over half; 1, 3, 5 and 6 at their nearest target (about 4"), at or
         // under. The targets' Sturdy with Enhanced Sturdy always gives +1 to Defense, a positive modifier for Pierce to ignore at any range.
         const string orcs = "Orc Marauders";
         yield return Repeated36(set, "1wj1ysgxpuuz9bc7", "Death Bolt", PierceName36, [Exact(PierceCheck36, ["Death Bolt"], DeathBolt)],
             [Passes(orcs, 1), Passes(orcs, 2)],
-            new SpellSetup(TargetModels: 1, TargetTough: 40, Anchored: true, TargetDefense: 2, TargetRules: [new(0, "Sturdy"), new(0, "Enhanced Sturdy")],
+            new SpellSetup(TargetModels: 1, TargetTough: 40, TargetDefense: 2, TargetRules: [new(0, "Sturdy"), new(0, "Enhanced Sturdy")],
                 Targets: Aimed("Death Bolt", 1, 2, 2, 3, 3, 3)));
         // Scourge counted as shooting's toward p.10's test: target 1 is five single-wound models; unit 1 passes its first cast there and its blocks are one 1
         // and three 6s: one wound leaves 4 of 5 (over half), the 1's 2 counted wounds leave 2 (half or less), so the unit tests. The others aim at 2 and 3.
         const string dwarfs = "Dwarf Guilds";
         yield return Repeated36(set, "fk1mkbp8apvltu0z", "Smiting Rune", ScourgeName36, [Exact(ScourgeCheck36, ["Smiting Rune"], SmitingRune)],
             [Passes(dwarfs, 1), Blocks(dwarfs, 1, 1, 6, 6, 6)],
-            new SpellSetup(TargetModels: 5, TargetTough: 1, Anchored: true, Targets: Aimed("Smiting Rune", 1, 2, 2, 2, 3, 3)));
+            new SpellSetup(TargetModels: 5, TargetTough: 1, Targets: Aimed("Smiting Rune", 1, 2, 2, 2, 3, 3)));
     }
 
     /// <summary>A book's spell game whose six units all cast one spell, the dice and setup given. Covers nothing: its checks report against the spell.</summary>
@@ -78,7 +78,7 @@ public static partial class SuiteCatalog
         IReadOnlyList<DiceFix> dice, SpellSetup setup)
     {
         var book = set.Books[uid] with { Spells = [.. Enumerable.Repeat(spell, 6)] };
-        var game = SpellGames.Game(book, seed: 1, set, setup, dice, checks);
+        var game = SpellGames.Game(book, seed: 1, set, setup, dice, checks, firstCastsPass: false);
         return game with { Name = name, Scenario = game.Scenario with { Name = name }, Covers = [], Checks = [.. game.Checks.Where(c => c.Name != Checks.FiredAll().Name)] };
     }
 
@@ -136,8 +136,12 @@ public static partial class SuiteCatalog
             // 6 against Defense 4+.
             ["04z57ua0bwth37zh"] = [new DiceFix("casting", 0, [6], new RollKey(Actor: "Daemons of Change unit 1")), new DiceFix("defense", 0, [1, 1, 6])],
             // A spell's morale tests (GfCasting.SpellTest: action "spell"): the first fails and the second passes, so both outcomes are checked.
-            ["31xjrm9ivdimkjxp"] = SpellMorale,
+            // Terrifying Fury's caster (unit 1) passes its second cast too, so round 2's test meets target unit 2, not the unit round 1's failure left Shaken.
+            ["31xjrm9ivdimkjxp"] = [.. SpellMorale, new DiceFix("casting", 1, [6], new RollKey(Actor: "War Disciples unit 1"))],
             ["zz3kp5ry7ks6mxcx"] = SpellMorale,
+            ["z65fgu0l29i4lnlu"] = SpellTables.NaturalCastingFixes,
+            // Bio-Horror's caster (unit 6 of the book's order) rolls a natural 6 on its first hit die, which Surge turns into an extra hit.
+            ["dnthspt7c0klhmt8"] = [new DiceFix("hit", 0, [6], new RollKey(Actor: "Infected Colonies unit 6"))],
         };
 
         public static readonly Dictionary<string, IReadOnlyList<GameCheck>> Checks = new(StringComparer.Ordinal)
