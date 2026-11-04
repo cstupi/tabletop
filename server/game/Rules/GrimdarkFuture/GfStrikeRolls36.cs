@@ -26,7 +26,7 @@ public static class GfStrikeRolls36
     {
         if (Lookup.LivingModels(ctx.State, striker).Count == 0 || Lookup.LivingModels(ctx.State, target).Count == 0) return null;
         if (ctx.Projection.Units[striker].Conditions is var c && (c.Contains(GfNames.Fatigued) || c.Contains(GfNames.Shaken))) return null;
-        return Rules.Any(r => Dice(ctx, striker, r) > 0) ? new Push(GfNames.StrikeRollsSeq, new SequenceContext(striker, [target], [], null)) : null;
+        return Rules.Any(r => Dice(ctx, striker, target, r) > 0) ? new Push(GfNames.StrikeRollsSeq, new SequenceContext(striker, [target], [], null)) : null;
     }
 
     /// <summary>A melee step pushing the strike rolls before a side's strikes: the charger's when it has weapons, the defender's when `strike-choice` recorded
@@ -54,26 +54,42 @@ public static class GfStrikeRolls36
             if (ctx.History.Children is [.., var last])
             {
                 if (!(last.Finished || last.Abandoned)) return new OpenAsks([]);
-                var done = Array.IndexOf(Rules, GfRuleHits.Parse(last.Context.Action)?.Rule) + 1;
+                var rolled = GfRuleHits.Parse(last.Context.Action)?.Rule;
+                if (rolled == GfNames.Ravage) RavageDice(ctx, striker, target, record: true);   // the applied list names the instances' rules once the roll is in
+                var done = Array.IndexOf(Rules, rolled) + 1;
                 return new Complete([], new Dictionary<string, int> { [Next] = done }, Repeat: done < Rules.Length);
             }
             if (Lookup.LivingModels(ctx.State, striker).Count == 0 || Lookup.LivingModels(ctx.State, target).Count == 0) return new Complete([]);
             for (var i = ctx.Frame.Value(Next); i < Rules.Length; i++)
-                if (Dice(ctx, striker, Rules[i]) is > 0 and var n)
+                if (Dice(ctx, striker, target, Rules[i]) is > 0 and var n)
                     return new Push(GfNames.RuleWoundsSeq, new SequenceContext(striker, [target], [], GfRuleHits.Key(Rules[i], n)));
             return new Complete([]);
         }
     }
 
-    /// <summary>The rule's dice for the striking unit: Ravage's X, or Regenerative Strength's tokens, summed over its living holders; none when the entry
-    /// is text-only or the unit rolled it already this round.</summary>
-    static int Dice(StepContext ctx, Guid striker, string rule)
+    /// <summary>The rule's dice for the striking unit: Ravage's (RavageDice), or Regenerative Strength's tokens summed over its living holders; none when
+    /// the entry is text-only or the unit rolled it already this round.</summary>
+    static int Dice(StepContext ctx, Guid striker, Guid target, string rule)
     {
         if (ctx.Properties.Entry(rule) is not { Played: true } || RolledThisRound(ctx.State, striker, rule)) return 0;
-        var holders = Lookup.LivingModels(ctx.State, striker);
-        return rule == GfNames.Ravage
-            ? holders.Sum(m => Lookup.ModelParameter(ctx.State, m, GfNames.Ravage) ?? 0)
-            : holders.Sum(m => GfMarkers.RegenerativeStrength(ctx.State, m));
+        return rule == GfNames.Ravage ? RavageDice(ctx, striker, target, record: false) : Lookup.LivingModels(ctx.State, striker).Sum(m => GfMarkers.RegenerativeStrength(ctx.State, m));
+    }
+
+    /// <summary>Ravage summed over the strike's live instances: each model's own X, and a granted Ravage(+X) once per living model when it names no model
+    /// (Ravage Aura's "This model and its unit get Ravage(+1)"), once when it names one. `record` names the instances, and the rules that granted them,
+    /// in the step's applied list.</summary>
+    static int RavageDice(StepContext ctx, Guid striker, Guid target, bool record)
+    {
+        var ix = GfAttack.AttackInteraction(ctx, striker, target, [], AttackKind.Melee, null);
+        var live = record ? ctx.Settle(ix) : LiveProperties.Settle(ix);
+        var living = Lookup.LivingModels(ctx.State, striker).Count;
+        var dice = 0L;
+        foreach (var p in live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.Ravage && (p.Parameter ?? 0) > 0))
+        {
+            dice += (long)p.Parameter!.Value * (p.ModelId is null ? living : 1);
+            live.Record(p);
+        }
+        return (int)Math.Min(dice, GfRuleHits.MaxDealt);
     }
 
     /// <summary>"Once per round": a `rule-wounds` frame of the rule by the unit since the round began.</summary>

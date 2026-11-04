@@ -30,6 +30,8 @@ public static class GfNames
     /// <summary>3.6.0 book rules the C# half reads by name. Crossing Strike (3.5 Strafing) and Unique Hero ("Counts as having Hero") are read beside the 3.5 name
     /// under either edition, as no 3.5 book carries the 3.6 one; Counter in Melee gives a model's weapons Counter (GfMelee.StrikesFirst).</summary>
     public const string CrossingStrike = "Crossing Strike", CounterInMelee = "Counter in Melee", UniqueHero = "Unique Hero";
+    /// <summary>Brace (Army Forge's common rules): "Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued." (GfMelee.ImpactStep).</summary>
+    public const string Brace = "Brace";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
     /// <summary>3.6.0 p.12: the unit's Dangerous Terrain Test (GfMoves.DangerousTerrain36), beside 3.5.1 p.11's per-model one.</summary>

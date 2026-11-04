@@ -378,7 +378,7 @@ public static partial class GfMoves
             var live = Lone(ctx, unit, ActionOf(ctx.Frame));
             if (Offered(live, entry) is not var (source, row)) return new Finish([]);
             if (row.Kind == EffectKind.Place) return Place(ctx, unit, entry, live, source, row);
-            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, row);
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, source, row);
             // "move all models with this rule in it by up to D3"": a rolled move takes the holding models (the whole unit when the rule is granted).
             var allowance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
             var movers = row.AmountDice is null ? Lookup.AliveModels(ctx.State, unit) : Holders(ctx, unit, entry);
@@ -403,7 +403,7 @@ public static partial class GfMoves
         /// A declined offer or a landing refused everywhere consumes nothing: a grant is spent only by the placement it makes (the dice are rolled once chosen, never at the offer).</summary>
         static StepOutcome Place(StepContext ctx, Guid unit, string entry, LiveSet live, LiveProperty source, Effect row)
         {
-            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, row);
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, source, row);
             var distance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
             var models = Holders(ctx, unit, entry);
             if (ctx.History.LastClosed("move") is not { } placed)
@@ -416,13 +416,17 @@ public static partial class GfMoves
             return new Complete(changes);
         }
 
-        /// <summary>The roll of a rolled distance, recorded in tenths on the frame, then the step repeats to ask.</summary>
-        static StepOutcome RollDistance(StepContext ctx, string entry, Effect row)
+        /// <summary>The roll of a rolled distance, recorded in tenths on the frame, then the step repeats to ask. The count is the row's plus the instance's
+        /// parameter: Enhanced Wolfborn's `modify_parameter Wolfborn +1` rolls 2D3.</summary>
+        static StepOutcome RollDistance(StepContext ctx, string entry, LiveProperty source, Effect row)
         {
             // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
-            var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
+            var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), DiceCount(source, row));
             return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (int)Math.Round(Inches(record, row) * 10) }, Repeat: true);
         }
+
+        /// <summary>A rolled distance's dice: the row's count plus the instance's parameter.</summary>
+        internal static int DiceCount(LiveProperty source, Effect row) => row.EffectiveAmount(null) + (source.Parameter ?? 0);
 
         /// <summary>The unit's models carrying the rule, or the whole unit when none does (the rule held by a grant).</summary>
         static IReadOnlyList<Guid> Holders(StepContext ctx, Guid unit, string entry)
