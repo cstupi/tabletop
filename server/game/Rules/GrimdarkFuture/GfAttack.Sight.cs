@@ -36,15 +36,25 @@ public static partial class GfAttack
         if (indirect && kind == AttackKind.Shooting && eligible.Count > 0)
         {
             var seen = Sight.From(state, attacker);
-            if (eligible.Any(m => !Reaches(m, seen))) live.Record(Side.Attacker, GfNames.Indirect);
+            if (eligible.Any(m => !Reaches(m, seen))) RecordIndirect(live);
         }
         return eligible;
     }
 
     /// <summary>p.14 Indirect's sight and cover halves: 3.5.1 whenever the weapon has it; 3.6.0 p.14 "When using Hold actions and shooting" only, the action
-    /// read off the interaction (the activation frame's `action_taken`; none, before an activation names its action, is not holding).</summary>
+    /// read off the interaction (the activation frame's `action_taken`; none, before an activation names its action, is not holding), or on any action
+    /// when an attacking model holds Quick Throw ("may always target enemies that are not in line of sight when shooting with Indirect weapons").</summary>
     internal static bool IndirectApplies(LiveSet live) =>
-        live.Has(Side.Attacker, GfNames.Indirect) && (!GfEdition.Of(live.Interaction.State).IndirectNeedsHold || live.Interaction.ActionTaken == GfNames.Hold);
+        live.Has(Side.Attacker, GfNames.Indirect) && (!NeedsHold(live) || live.Interaction.ActionTaken == GfNames.Hold || live.Has(Side.Attacker, GfNames.QuickThrow));
+
+    static bool NeedsHold(LiveSet live) => GfEdition.Of(live.Interaction.State).IndirectNeedsHold;
+
+    /// <summary>Indirect acted; off a Hold under 3.6, Quick Throw is what let it.</summary>
+    static void RecordIndirect(LiveSet live)
+    {
+        live.Record(Side.Attacker, GfNames.Indirect);
+        if (NeedsHold(live) && live.Interaction.ActionTaken != GfNames.Hold) live.Record(Side.Attacker, GfNames.QuickThrow);
+    }
 
     /// <summary>
     /// Where each eligible shooting model aims, for the clients' shot beams: the nearest target model in its range that it sees, and the index into
@@ -81,7 +91,7 @@ public static partial class GfAttack
         var count = GfRolls.Cover(state, target, eligible, indirect, takedown);
         if (indirect && !count.Majority && GfRolls.Cover(state, target, eligible, ignoresSightObstructions: false, takedown) is { Majority: true } full)
         {
-            live.Record(Side.Attacker, GfNames.Indirect);
+            RecordIndirect(live);
             return new CoverVerdict(true, full.Models, full.Of, GfNames.Indirect);
         }
         return new CoverVerdict(count.Majority, count.Models, count.Of);

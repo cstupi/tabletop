@@ -110,6 +110,8 @@ public static class GfNames
     public const string Cumbersome = "Cumbersome";                                                                      // 3.6.0 p.14: "May only use Hold or Advance actions, but can’t shoot when moving." (GfEdition.HasCumbersome)
     public const string Assault = "Assault";                                                                            // 3.6.0 p.13: "Counts as both a ranged weapon and a melee weapon." (GfEdition.HasAssault; GfMelee.IsMelee)
     public const string Transport = "Transport";                                                                        // p.15; its (X) is read for a passenger put in before deployment (GfRules.Facts Fits); embarking in play does not check it
+    /// <summary>Quick Throw (3.6.0): "This model may always target enemies that are not in line of sight when shooting with Indirect weapons (instead of only when using Hold actions)." (GfAttack.IndirectApplies)</summary>
+    public const string QuickThrow = "Quick Throw";
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover
     public const string Hazardous = "Hazardous";                                                                        // a weapon property; 3.6 GfAttack.HazardRollers
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup
