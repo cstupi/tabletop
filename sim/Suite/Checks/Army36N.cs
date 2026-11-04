@@ -14,8 +14,6 @@ public static partial class SuiteCatalog
 
         static Guid? TeamOfN(LogQueries log, Guid unit) => log.Deployments.FirstOrDefault(d => d.Unit == unit)?.Team;
 
-        static bool Under(LoggedFrame frame, LoggedFrame root) => frame == root || frame.Ancestors.Contains(root);
-
         /// <summary>"you may move it": every move Ask of a use's spell-test is asked of the user's team and moves the tested unit's models.</summary>
         static GameCheck ForcedMoveByCaster(string entry, string quote) =>
             GameCheck.Each($"{entry}: {quote}", run =>
@@ -26,7 +24,7 @@ public static partial class SuiteCatalog
                 {
                     var tested = log.Descendants(use).FirstOrDefault(f => f.Sequence == "morale-test")?.Context.ActorUnitId;
                     var team = use.Context.ActorUnitId is { } u ? TeamOfN(log, u) : null;
-                    foreach (var a in log.Asks.Where(a => a.Ask.Question == "move" && a.Frame is { Sequence: "spell-test" } f && Under(f, use)))
+                    foreach (var a in log.Asks.Where(a => a.Ask.Question == "move" && a.Frame is { Sequence: "spell-test" } f && f.Under(use)))
                         verdicts.Add(a.Ask.Teams is not [var t] || t != team ? "the move asked of another team"
                             : a.Ask.Legal is not MoveRegion m || m.ModelIds.Any(id => log.UnitOf(id) != tested) ? "the move is not the tested unit's" : null);
                 }
@@ -41,7 +39,7 @@ public static partial class SuiteCatalog
                 var log = LogQueries.Of(run);
                 var uses = UseFrames(log, entry).ToList();
                 var moved = (from s in log.Steps
-                             where s.Frame.Sequence == "spell-test" && uses.Any(u => Under(s.Frame, u))
+                             where s.Frame.Sequence == "spell-test" && uses.Any(s.Frame.Under)
                              from mv in s.Step.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves)
                              where mv.To is OnTable
                              select (s.Seq, s.Frame.Round, Unit: log.UnitOf(mv.ModelId))).Distinct().ToList();
@@ -76,7 +74,7 @@ public static partial class SuiteCatalog
                 foreach (var attack in log.FramesOf(AttackSequence).Where(f => f.Context.TargetUnitIds.Count > 0))
                 {
                     var held = GrantsBeforeH(log, entry, attack.Context.TargetUnitIds[0], attack.Seq);
-                    var steps = log.Steps.Where(s => Under(s.Frame, attack)).ToList();
+                    var steps = log.StepsUnder(attack).ToList();
                     var rolls = steps.SelectMany(s => s.Rolls(kind)).Where(r => !(r.Roll.Threshold == 6 && r.Roll.Modifiers.Count == 0)).ToList();
                     int Granted(LoggedRoll r) => r.Roll.Modifiers.Where(m => ap ? m.Source == "AP" && m.Via == entry : m.Source == entry).Sum(m => m.Amount);
                     var removed = steps.SelectMany(s => s.Step.Changes).OfType<GrantRemoved>().Count(r => grants.Contains(r.GrantId));
@@ -110,7 +108,7 @@ public static partial class SuiteCatalog
                     if (asks is not [var ask]) { verdicts.Add($"{asks.Count} choose_effect Asks in one attack"); continue; }
                     if (ask.Ask.Teams is not [var team] || team != TeamOfN(log, defender)) { verdicts.Add("asked of a team other than the defender's"); continue; }
                     var picked = (ask.Answer as Tabletop.Protocol.Chosen)?.OptionId;
-                    var rolls = log.Steps.Where(s => Under(s.Frame, attack)).SelectMany(s => s.AllRolls).ToList();
+                    var rolls = log.StepsUnder(attack).SelectMany(s => s.AllRolls).ToList();
                     string? bad = null;
                     foreach (var (condition, roll, amount) in effects)
                         foreach (var r in rolls.Where(r => r.Kind == roll))
@@ -211,12 +209,11 @@ public static partial class SuiteCatalog
                 foreach (var use in UseFrames(log, entry))
                 {
                     var test = log.Descendants(use).FirstOrDefault(f => f.Sequence == "morale-test")?.Steps.FirstOrDefault(s => s.Name == "consequence");
-                    var target = log.Asks.FirstOrDefault(a => a.Ask.Question == "rule_target" && a.Frame is { } f && Under(f, use))?.Answer as SelectedPieces;
+                    var target = log.Asks.FirstOrDefault(a => a.Ask.Question == "rule_target" && a.Frame is { } f && f.Under(use))?.Answer as SelectedPieces;
                     if (test is null || target?.PieceIds is not [var model]) continue;
-                    var before = log.Events.TakeWhile(e => e.Seq < use.Seq).SelectMany(e => LogQueries.ChangesOf(e.Payload)).OfType<SpellTokensSet>()
-                        .Where(t => t.ModelId == model).Select(t => t.Tokens).LastOrDefault();
-                    var all = log.Steps.Where(s => Under(s.Frame, use)).SelectMany(s => s.Step.Changes).OfType<SpellTokensSet>().ToList();
-                    var set = log.Steps.Where(s => s.Frame.Sequence == "spell-test" && Under(s.Frame, use)).SelectMany(s => s.Step.Changes).OfType<SpellTokensSet>().ToList();
+                    var before = log.TokensBefore(model, use.Seq);
+                    var all = log.StepsUnder(use).SelectMany(s => s.Step.Changes).OfType<SpellTokensSet>().ToList();
+                    var set = log.StepsUnder(use).Where(s => s.Frame.Sequence == "spell-test").SelectMany(s => s.Step.Changes).OfType<SpellTokensSet>().ToList();
                     var failed = test.Value("passed") == 0;
                     if (failed && before >= n) full = true;
                     verdicts.Add(all.Any(t => t.ModelId != model) ? "another model's tokens changed"

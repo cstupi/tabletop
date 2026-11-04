@@ -6,9 +6,9 @@ public static partial class SuiteCatalog
 {
     private static partial class ArmyGames
     {
-        /// <summary>The steps under an attack-sequence frame (its own and its descendants'), in log order.</summary>
-        static IEnumerable<LoggedStep> UnderP(ArmyLog log, LoggedAttack a) =>
-            log.Steps.Where(s => s.Frame.FrameId == a.Frame.FrameId || s.Ancestors.Any(f => f.FrameId == a.Frame.FrameId));
+        /// <summary>Whether a step under the attack-sequence frame (its own or its descendants') rolled Regeneration.</summary>
+        static bool RegenerationUnderP(SuiteGameRun run, LoggedAttack a) =>
+            QueryM(run) is var q && q.Frame(a.Frame.FrameId) is { } frame && q.StepsUnder(frame).Any(s => s.Rolls("Regeneration").Any());
 
         /// <summary>Whether a block of the attack failed a die as its dice now stand: a wound to roll Regeneration for.</summary>
         static bool FailedBlockP(LoggedAttack a) => a.Blocks.Any(b => b.Rolls("defense").Any(r => b.Now(r).Any(d => !d.Success)));
@@ -46,7 +46,7 @@ public static partial class SuiteCatalog
             {
                 var marked = Granted(entry, onTarget: true);
                 var cases = Of(run, log, On("Regeneration")).Where(FailedBlockP)
-                    .Select(a => (Marked: marked(run, a), Rolled: UnderP(log, a).Any(s => s.Rolls("Regeneration").Any()))).ToList();
+                    .Select(a => (Marked: marked(run, a), Rolled: RegenerationUnderP(run, a))).ToList();
                 if (!cases.Any(c => c.Marked)) return ["no marked attack failed a block"];
                 if (!cases.Any(c => !c.Marked)) return ["no unmarked attack failed a block"];
                 return cases.Select(c => c.Marked == c.Rolled ? c.Marked ? "Regeneration rolled on a marked attack" : "no Regeneration roll on an unmarked attack" : null);
@@ -70,8 +70,8 @@ public static partial class SuiteCatalog
                     var hits = a.HitRolls("hit").Where(r => !(r.Threshold == 6 && r.Modifiers.Count == 0)).ToList();
                     return hits.Any(r => r.Modifiers.Any(m => m.Amount < 0)) ? "a hit roll under a negative modifier"
                         : hits.Any(r => !(r.Ignored ?? []).Any(i => i.Source == "Melee Evasion" && i.Amount < 0)) ? "a hit roll with no Melee Evasion -1 ignored"
-                        : FailedBlockP(a) && UnderP(log, a).Any(s => s.Rolls("Regeneration").Any()) ? "Regeneration rolled on the marked attack" : null;
-                }).Concat(unmarked.Select(a => UnderP(log, a).Any(s => s.Rolls("Regeneration").Any()) ? null : "no Regeneration roll on an unmarked charge"));
+                        : FailedBlockP(a) && RegenerationUnderP(run, a) ? "Regeneration rolled on the marked attack" : null;
+                }).Concat(unmarked.Select(a => RegenerationUnderP(run, a) ? null : "no Regeneration roll on an unmarked charge"));
             });
 
         /// <summary>

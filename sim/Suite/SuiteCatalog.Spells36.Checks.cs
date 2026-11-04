@@ -19,10 +19,6 @@ public static partial class SuiteCatalog
     public const string RapidBlinkCheck36 = "grant_property Enhanced Rapid Blink (Shadow Dance: \"Pick up to three friendly units within 18\\\", which get Enhanced Rapid Blink once (next time the effect would apply).\"; Enhanced Rapid Blink: \"If this model has Rapid Blink, it may move by up to 2D3\\\" from Rapid Blink (instead of only D3\\\").\")";
     public const string IndirectCheck36 = "grant_property Indirect (Triangulation Bots: \"Pick one enemy unit within 18\\\" in line of sight, which friendly units gets Indirect on their weapons against once (next time the effect would apply).\")";
 
-    /// <summary>The spell tokens a model held before a seq: the last SpellTokensSet on it, 0 before any.</summary>
-    static int TokensBefore(LogQueries q, Guid model, long seq) =>
-        q.Events.TakeWhile(e => e.Seq < seq).SelectMany(e => LogQueries.ChangesOf(e.Payload)).OfType<SpellTokensSet>().LastOrDefault(t => t.ModelId == model)?.Tokens ?? 0;
-
     /// <summary>
     /// Shifting Form at a target army of Caster(2) models: each resolved cast's effects step takes 2 tokens off its target unit, or every token it holds
     /// when it holds fewer, and touches no model of another unit; at least one target held 2 or more.
@@ -31,15 +27,15 @@ public static partial class SuiteCatalog
     {
         var cases = SpellGames.Casts(q, "Shifting Form").Where(c => c.Passed).SelectMany(c => c.Frame.Steps.Where(s => s.Name == "effects")
             .SelectMany(s => c.Targets.Select(t => (Step: s, Target: t)))).ToList();
-        if (!cases.Any(c => q.Final.Units[c.Target].Definition.Models.Sum(m => TokensBefore(q, m.Id, c.Step.Seq)) >= 2))
+        if (!cases.Any(c => q.Final.Units[c.Target].Definition.Models.Sum(m => q.TokensBefore(m.Id, c.Step.Seq)) >= 2))
             return "no Shifting Form target held 2 spell tokens";
         return LogQueries.Each(cases, "Shifting Form target", c =>
         {
             var models = q.Final.Units[c.Target].Definition.Models.Select(m => m.Id).ToHashSet();
             var sets = c.Step.Step.Changes.OfType<SpellTokensSet>().ToList();
             if (sets.Any(t => !models.Contains(t.ModelId))) return "tokens set on a model outside the target unit";
-            var before = models.Sum(m => TokensBefore(q, m, c.Step.Seq));
-            var after = models.Sum(m => sets.LastOrDefault(t => t.ModelId == m)?.Tokens ?? TokensBefore(q, m, c.Step.Seq));
+            var before = models.Sum(m => q.TokensBefore(m, c.Step.Seq));
+            var after = models.Sum(m => sets.LastOrDefault(t => t.ModelId == m)?.Tokens ?? q.TokensBefore(m, c.Step.Seq));
             return before - after == Math.Min(2, before) ? null : $"the target held {before} tokens and lost {before - after}";
         });
     }
