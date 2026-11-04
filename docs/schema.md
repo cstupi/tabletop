@@ -101,7 +101,7 @@ returns it so the unit card tags the rule *not automated* while showing its text
 `property_definition`. A property is attached to something and travels with an army; a spell is
 cast, is listed by an army book, and is picked at the moment of casting.
 
-A spell's effect is an `add_hit`, a `take_test`, or a row with `duration = once`. What it has that no
+A spell's effect is an `add_hit`, a `take_test`, a `remove_spell_tokens`, or a row with `duration = once`. What it has that no
 property has is a **cost**, which is why `cost` is on the entry — `Caster(X)` grants X spell tokens a
 round and casting spends as many tokens as the spell's value, which the generator writes from Army
 Forge's `threshold`. Spell entries also carry **`target_side`, `target_grain`, `target_count`,

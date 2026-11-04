@@ -414,10 +414,6 @@ hills.
 **3.6.0 army import and melee.** An import classifies rule levels against the 3.6 catalog (a solo Unique Hero is a Hero on its model),
 and the 3.6 melee result counts the defender's Fear whether or not it struck.
 
-**3.5.1 latent: AP floor rows.** `grimdark-future-3.5.1/army-rules.part.json` carries no `floor` on the AP rows of Fortified (:54),
-Fortified Growth (:55, both rows), Guardian (:61) and Primeborn (:149), whose text reads "to a min. of AP(0)". The file is pinned by
-a content hash and stays; the 3.6.0 rows carry `floor: 0` (`LiveProperties.Settle` holds a `modify_parameter` sum at the floor).
-
 ## How to work here
 
 - **Read the documents in this order from cold:** this file, `docs/design/README.md`, `docs/architecture.md`, then the

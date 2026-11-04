@@ -9,8 +9,8 @@ public class ContentFoldersTests
     const string Prefix360 = "Tabletop.GameServer.Content.grimdark-future-3.6.";
 
     [Fact]
-    public void The_3_5_1_set_hashes_as_before_the_folder_move() =>
-        Assert.Equal("sha256:3b718cc34da769ab907072ee1e841c820e0e8e52f35b50d8840f5a67cc78512b",
+    public void The_3_5_1_set_hash_is_pinned() =>
+        Assert.Equal("sha256:fe7104147bbd10911737638cc0de6fdfb5fd737973eb2f7f3b902ec6962b9f85",
             PropertiesJson.Hash(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == RuleSets.Gf351)));
 
     [Fact]

@@ -203,6 +203,40 @@ public class GfDealWoundsTests
         Assert.Single(sim.Steps("assign"));                                                                            // no second segment: the multiplied wounds are not carried
     }
 
+    /// <summary>3.5.1 p.13 and 3.6.0 p.14 Deadly(X): "Assign each wound to one model, and multiply it by X ... these wounds don't carry over to other
+    /// models if the original target is killed." p.8: "For each wound that the unit has taken, the defending player must remove one model". Two
+    /// Deadly wounds both assigned to one one-wound model: the first kills it and loses its excess; the second is a wound of its own, which no
+    /// removed model can take, so it is assigned again among the survivors.</summary>
+    [Fact]
+    public void A_second_deadly_wound_assigned_to_a_model_the_first_killed_is_assigned_again()
+    {
+        var gun = Gun("Cannon", "24\"", 1, P("Deadly", 3));
+        var a = Unit("A", "4+", "4+", [], 1, [], gun);
+        var t = Unit("T", "4+", "4+", [], 3, []);
+        var sim = Start(a, t, 2, [1], null, a.Models[0].Weapons.Select(w => w.Id).ToArray());
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [t.Models[0].Id] = 2 }));
+        var again = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);
+        Assert.Equal((1, 2), (again.Amount, again.Targets.Count));
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [t.Models[1].Id] = 1 }));
+        Assert.Equal(1, sim.Alive(t.Id));
+        Assert.Equal(2, sim.Unit(t.Id).WoundsThisActivation);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    /// <summary>Deadly(3) against Tough(6): three wounds on one model, of which two fill it; the third is assigned again.</summary>
+    [Fact]
+    public void Deadly_wounds_past_the_two_a_tough_six_model_needs_are_assigned_again()
+    {
+        var gun = Gun("Cannon", "24\"", 1, P("Deadly", 3));
+        var a = Unit("A", "4+", "4+", [], 1, [], gun);
+        var t = Unit("T", "4+", "4+", [], 2, [P("Tough", 6)]);
+        var sim = Start(a, t, 3, [1], null, a.Models[0].Weapons.Select(w => w.Id).ToArray());
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [t.Models[0].Id] = 3 }));
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                    // the third goes to the one model left, nothing to choose
+        Assert.Equal((1, 3), (sim.Alive(t.Id), sim.Model(t.Models[1].Id).Wounds));
+        Assert.Equal(9, sim.Unit(t.Id).WoundsThisActivation);
+    }
+
     [Fact]
     public void Wounds_beyond_the_units_last_model_are_lost_and_the_sequence_finishes()
     {

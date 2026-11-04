@@ -7,8 +7,9 @@ three half-plays found with them: Thrust in Melee Buff's AP(+1), the Marks' seco
 Predator's "may". The plan is `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md`.
 
 Printed text is the authority. Every quote below is the 3.6 Army Forge dump's (`.superpowers/armyforge/3.6/`) or the
-3.6.0 rulebook's (`3.6.0 p.N`). The 3.5.1 content stays byte-identical and its suite stays 545 of 545 with no pin; an
-engine change that reaches a 3.5.1 game is a rule fix, which moves every game of the edition.
+3.6.0 rulebook's (`3.6.0 p.N`). The 3.5.1 content stays byte-identical, except where it departs from its printed text (the AP rows that print "to a
+min. of AP(0)" carry `floor: 0`), and its suite stays 545 of 545 with no pin; an engine or content change that reaches a 3.5.1
+game is a rule fix, which moves every game of the edition.
 
 ## Brace and Parry have text
 

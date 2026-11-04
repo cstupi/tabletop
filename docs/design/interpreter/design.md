@@ -146,7 +146,8 @@ as a three-line decision procedure.
 | [Decisions and rulings](decisions.md) | contested decisions, decisions taken where a spec was silent, the fourteen rulings, what is deferred |
 | [Interfaces and sequences](interfaces.md) | types produced and consumed, and the cross-module sequence diagrams |
 | [State, failure modes and testing](operations.md) | persisted and in-memory state, failure modes, accepted gaps, the test suites |
-| [The effect grammar](effect-grammar.md) | the kinds, the predicates, both passes in code, the grants store, worked rows |
+| [The effect grammar](effect-grammar.md) | the kinds, the predicates, both passes in code, worked rows |
+| [The grants store](grants.md) | how a once row, a marker or a pick entry writes a grant, and when it is released |
 | [Grimdark Future's sequences](opr-sequences.md) | every sequence, its steps and their rulebook pages |
 
 ## References
@@ -179,8 +180,10 @@ p.50 (the token economy's edges and the free-for-all roll-off).
 
 **Sibling documents in this folder.**
 
-- [The effect grammar](effect-grammar.md): eighteen kinds, thirteen predicates, the two passes in
-  detail, the grants store, and the worked rows.
+- [The effect grammar](effect-grammar.md): twenty kinds, thirteen predicates, the two passes in
+  detail, and the worked rows.
+- [The grants store](grants.md): once, marker, `spent_marker` and `one_marker` grants, release at an
+  attack's end, pick targeting.
 - [Grimdark Future's sequences](opr-sequences.md): the thirty sequences, the shared attack
   chain, the move step's phase machine, casting, and containment.
 
