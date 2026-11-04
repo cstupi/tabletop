@@ -115,11 +115,13 @@ public static partial class GfAttack
             // weapons simultaneously, so the cap is fixed at the same moment as the attack counts: this reads the defender's model
             // count that determine-attacks carried down from the pushing frame.
             if (kind == AttackKind.Shooting && IndirectApplies(live)) live.Spend(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here; it is recorded where it acts (EligibleModels, InCover, its to-hit row)
+            if (OfferRecording(ctx) is { } recording) return Offered(ctx, ix, live, kind, recording);
             // p.14 Takedown: the picked model is "resolved as if it was a unit of [1]", so a Takedown group's cap is that one model.
             var living = Lookup.LivingModels(ctx.State, ix.Defender!.UnitId);
             var cap = TakedownModel(ctx.Frame) is { } picked && living.Contains(picked) ? 1 : ctx.Frame.Value("defender_models", living.Count);
             var values = new Dictionary<string, int> { ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
             var rollers = HazardRollers(ctx, live, ix, kind);
+            var offered = 0;
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
@@ -127,24 +129,76 @@ public static partial class GfAttack
                 foreach (var (model, dice) in Shares(rollers, quality, attacks))
                 {
                     var rolled = ctx.Roll(plan, dice, d => HazardLabels(ctx, Triggers(d), model));
+                    var pool = ctx.Rolls.Count - 1;
                     MarkRoller(ctx, values, model);
-                    var added = rolled.HitsTriggerNothing == true ? 0 : rolled.Dice.Sum(d => AddedAttacks(live, d));
+                    if (rolled.HitsTriggerNothing == true) continue;
+                    var added = rolled.Dice.Sum(d => AddedAttacks(live, d));
+                    // "may roll +1 attack": an optional row's dice wait for the roller's answer, on this step's repeat.
+                    if (rolled.Dice.Sum(d => OptionalAttacks(live, d).Sum(x => x.Amount)) is > 0 and var optional) { values[$"{OfferPrefix}{pool}_q{quality}"] = optional; offered += optional; }
                     // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
                     if (added > 0) { ctx.Roll(plan, added, d => HazardLabels(ctx, RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false), model)); MarkRoller(ctx, values, model); }
                 }
             }
+            var spent = GfDeferred.Leave(ctx.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit));
+            return offered > 0 ? new Complete(spent, values, Repeat: true) : new Complete(spent, values);
+        }
+
+        /// <summary>`offer_&lt;pool&gt;_q&lt;quality&gt;`: the extra attacks the optional rows set off on that pool record of the rolling run, waiting for the answer.</summary>
+        const string OfferPrefix = "offer_";
+
+        /// <summary>This step's rolling run, when it recorded optional extra attacks and this run is its repeat.</summary>
+        static CompletedStep? OfferRecording(StepContext ctx) =>
+            ctx.Frame.Frame.Steps is [.., var last] && last.Step == "roll-to-hit" && last.Values is { } v && v.ContainsKey(StepRepeat.Key)
+                && v.Keys.Any(k => k.StartsWith(OfferPrefix, StringComparison.Ordinal)) ? last : null;
+
+        /// <summary>
+        /// The repeat: the pools stand as the rolling run recorded them, so nothing is rolled again. Asks the roller's team `extra_attacks`, Options
+        /// Yes and No, pass is No; Yes rolls each pool's added dice at its Quality, labelled with no extra-attacks row of their own, and records the
+        /// optional rows as applied.
+        /// </summary>
+        static StepOutcome Offered(StepContext ctx, Interaction ix, LiveSet live, AttackKind kind, CompletedStep recording)
+        {
+            var pools = recording.Values!.Where(kv => kv.Key.StartsWith(OfferPrefix, StringComparison.Ordinal))
+                .Select(kv => (Key: kv.Key[OfferPrefix.Length..].Split("_q"), Dice: kv.Value))
+                .Select(x => (Pool: int.Parse(x.Key[0]), Quality: int.Parse(x.Key[1]), x.Dice)).OrderBy(p => p.Pool).ToList();
+            var sources = pools.SelectMany(p => recording.Rolls[p.Pool].Dice.SelectMany(d => OptionalAttacks(live, d))).Select(x => x.Source).Distinct().ToList();
+            var total = pools.Sum(p => p.Dice);
+            if (ctx.History.LastClosed(GfNames.ExtraAttacks) is not { } closed)
+            {
+                var names = string.Join(", ", sources.Select(s => s.Entry.Name).Distinct());
+                return new OpenAsks([ctx.Ask(GfNames.ExtraAttacks, $"{names}: roll {total} extra {(total == 1 ? "attack" : "attacks")}?", ctx.TeamOf(ix.Attacker.UnitId)!.Value,
+                    new Options([new AskOption("yes", "Yes", [ix.Attacker.UnitId]), new AskOption("no", "No", [])]), allowPass: true)]);
+            }
+            var values = new Dictionary<string, int>();
+            if (closed.Single is Chosen { OptionId: "yes" })
+            {
+                foreach (var (pool, quality, dice) in pools)
+                {
+                    var plan = GfRolls.HitPlan(ctx, live, kind, quality);
+                    var model = Roller(recording.Values, pool);
+                    ctx.Roll(plan, dice, d => HazardLabels(ctx, RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false), model));
+                    MarkRoller(ctx, values, model);
+                }
+                foreach (var s in sources) live.Record(s);
+            }
             return new Complete(GfDeferred.Leave(ctx.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
         }
 
-        /// <summary>The attacks a successful die's extra-attacks rows add, recorded as having acted; nothing else a face decides is read here.</summary>
+        /// <summary>The attacks a successful die's mandatory extra-attacks rows add, recorded as having acted; nothing else a face decides is read here.</summary>
         static int AddedAttacks(LiveSet live, Die die)
         {
-            if (!die.Success) return 0;
-            var adds = live.Effects(Side.Attacker, EffectKind.AddHit, new DieContext(GfNames.Hit, die.Raw, die.Modified, die.Success))
-                .Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).ToList();
+            var adds = ExtraAttackRows(live, die).Where(x => !x.Effect.Optional).ToList();
             foreach (var x in adds) live.Record(x.Source);
             return adds.Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
         }
+
+        /// <summary>The optional extra-attacks rows a successful die set off, with their amounts; nothing is recorded, as the roller has not answered.</summary>
+        static IEnumerable<(LiveProperty Source, int Amount)> OptionalAttacks(LiveSet live, Die die) =>
+            ExtraAttackRows(live, die).Where(x => x.Effect.Optional).Select(x => (x.Source, x.Effect.EffectiveAmount(x.Source.Parameter)));
+
+        static IEnumerable<(LiveProperty Source, Effect Effect)> ExtraAttackRows(LiveSet live, Die die) => !die.Success ? []
+            : live.Effects(Side.Attacker, EffectKind.AddHit, new DieContext(GfNames.Hit, die.Raw, die.Modified, die.Success))
+                .Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult));
     }
 
     /// <summary>

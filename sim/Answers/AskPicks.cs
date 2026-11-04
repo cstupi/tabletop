@@ -15,6 +15,9 @@ public static class AskPicks
     /// <summary>The option with exactly that label.</summary>
     public static AskAnswer? Labeled(Ask ask, string label) => Option(ask, c => c.Label == label);
 
+    /// <summary>The Yes of a Yes/No Ask (the extra attacks an optional row offers).</summary>
+    public static AskAnswer? Yes(Ask ask) => Labeled(ask, "Yes");
+
     /// <summary>An activate option, labelled "&lt;unit&gt;: &lt;action&gt;".</summary>
     public static AskAnswer? Activate(Ask ask, string unit, string action) => Labeled(ask, $"{unit}: {action}");
 
