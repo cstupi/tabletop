@@ -112,4 +112,29 @@ public class RuleWriterTests
         var swift35 = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future").Part!.Entries.Single(e => e.Name == "Swift Buff");
         Assert.Equal("Swift", swift35.Effects.Single().TargetEntry);                // 3.5 output unchanged
     }
+
+    // Brace and Parry are carried by weapons and described by no book: the common-rules file (Army Forge's /api/rules/common) has the text.
+    static IReadOnlyDictionary<string, string> Common() =>
+        ArmyForgeJson.ReadCommonRules(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "rules", "common-rules.json")));
+
+    [Fact]
+    public void A_name_no_book_describes_is_written_with_the_common_rules_text_and_listed()
+    {
+        var books = Books().Append(Read("books/rules-d.json")).ToList();
+        var (part, report, _) = RuleWriter.Build(books, Core, Hand, "grimdark-future-3.6", Common());
+        Assert.Equal("Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued.", part!.Entries.Single(e => e.Name == "Brace").RuleText);
+        Assert.StartsWith("When this unit takes hits in melee, roll X dice", part.Entries.Single(e => e.Name == "Parry").RuleText);
+        Assert.Equal(["Brace", "Parry"], report!.DescribedByCommonRules);
+        Assert.Equal(["Banner"], report.NoDescription);
+        var without = RuleWriter.Build(books, Core, Hand, "grimdark-future-3.6").Report!;
+        Assert.Equal(["Banner", "Brace", "Parry"], without.NoDescription);
+        Assert.Empty(without.DescribedByCommonRules);
+    }
+
+    [Fact]
+    public void A_book_description_beats_the_common_rules_text()
+    {
+        var common = new Dictionary<string, string> { ["Precise"] = "Other." };
+        Assert.Equal("Gets +1 to hit when attacking.", RuleWriter.Build(Books(), Core, Hand, "grimdark-future-3.6", common).Part!.Entries.Single(e => e.Name == "Precise").RuleText);
+    }
 }

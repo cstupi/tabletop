@@ -47,7 +47,7 @@
       "name": "Brace",
       "kind": "weapon",
       "takesParameter": false,
-      "ruleText": "",
+      "ruleText": "Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued.",
       "effects": [],
       "played": false
     },
@@ -1104,7 +1104,7 @@
       "name": "Parry",
       "kind": "weapon",
       "takesParameter": false,
-      "ruleText": "",
+      "ruleText": "When this unit takes hits in melee, roll X dice per model with this rule in it, up to as many dice as hits taken. For each 6\u002B one hit is ignored (defender picks which).",
       "effects": [],
       "played": false
     },

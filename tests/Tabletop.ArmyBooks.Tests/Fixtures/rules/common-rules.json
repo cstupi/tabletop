@@ -1,0 +1,4 @@
+{"rules":[
+  {"id":"0bcGY4Xr4NE0","name":"Brace","description":"Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued.","enabledGameSystems":[],"coreType":1,"displayCoreRuleForSystem":false},
+  {"id":"_T07iXWo4VwJ","name":"Parry","description":"When this unit takes hits in melee, roll X dice per model with this rule in it, up to as many dice as hits taken. For each 6+ one hit is ignored (defender picks which).","enabledGameSystems":[],"coreType":1,"displayCoreRuleForSystem":false}
+]}

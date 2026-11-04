@@ -399,7 +399,7 @@ whose effect the grammar cannot express or whose grant is not played: Burn the H
 Disciples, Daemons of Change, Titan Lords Change Disciples) for "loses N spell tokens"; Triangulation Bots (Robot Legions) for its
 empty attack type; and 24 spells granting a text-only rule (Pierce 7, Smash 6, Decimate 4, Scourge 2, Destructive 2, Enhanced
 Wolfborn 2, Enhanced Rapid Blink 1). Brace and Parry are described by no book and no rulebook page; Army Forge's common-rules endpoint
-(`GET https://army-forge.onepagerules.com/api/rules/common/2`) has both texts. The plan above makes every entry of this section played.
+(`GET https://army-forge.onepagerules.com/api/rules/common/2`) has both texts: `fetch` saves it as `common-rules.json` beside the books and `generate` reads a name's description from it when no book describes the name. The plan above makes every entry of this section played.
 
 **3.6.0 rules that are text-only** (`played: false` in `grimdark-future-3.6/army-rules.part.json`; the card shows them as not
 automated, a game plays nothing for them):
