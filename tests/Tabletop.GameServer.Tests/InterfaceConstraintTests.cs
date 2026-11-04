@@ -47,7 +47,7 @@ public class InterfaceConstraintTests
     {
         var generic = string.Join("\n", GenericSources().Select(File.ReadAllText));
         Assert.DoesNotContain("Tough", generic);
-        Assert.Contains("ModelParameter(ctx.State, modelId, \"Tough\") ?? 1", File.ReadAllText(Path.Combine(RepoRoot, "server/game/Rules/GrimdarkFuture/GfAttack.cs")));
+        Assert.Contains("ModelParameter(ctx.State, modelId, \"Tough\") ?? 1", File.ReadAllText(Path.Combine(RepoRoot, "server/game/Rules/GrimdarkFuture/GfAttack.Wounds.cs")));
     }
 
     [Fact]
