@@ -179,6 +179,46 @@ public class LivePropertiesTests
         }
     }
 
+    /// <summary>
+    /// A rule that changes what AP a unit gets "from Guardian" or "from Fortified" (3.6.0 Enhanced Guardian, 3.5.1 Guardian Boost) suppresses
+    /// that rule and adds its own AP rows, which keep its "to a min. of AP(0)".
+    /// </summary>
+    [Fact]
+    public void The_rows_that_count_as_from_guardian_or_fortified_carry_a_floor_of_zero()
+    {
+        foreach (var (document, expected) in new[] { (TestProperties.CoreDocument, "Guardian Boost"), (TestProperties.CoreDocument36, "Enhanced Guardian") })
+        {
+            var entries = document.Entries.Where(e => e.RuleText is { } t && (t.Contains("from Guardian") || t.Contains("from Fortified"))).ToList();
+            Assert.Equal([expected], entries.Select(e => e.Name));
+            foreach (var entry in entries)
+            {
+                var rows = entry.Effects.Where(e => e.Kind == EffectKind.ModifyParameter && e.TargetEntry == "AP").ToList();
+                Assert.NotEmpty(rows);
+                Assert.All(rows, e => Assert.Equal(0, e.Floor));
+            }
+        }
+    }
+
+    // 3.6.0 Enhanced Guardian: "hits they take count as having AP(-2) from Guardian (instead of only AP(-1))", and Guardian's "to a min. of AP(0)".
+    // 3.5.1 Guardian Boost: "enemy hits always count as having AP(-1) from Guardian", the same floor.
+    [Theory]
+    [InlineData(false, "Enhanced Guardian", 1, 0)]
+    [InlineData(false, "Enhanced Guardian", 0, 0)]
+    [InlineData(false, "Enhanced Guardian", 3, 1)]
+    [InlineData(true, "Guardian Boost", 1, 0)]
+    [InlineData(true, "Guardian Boost", 0, 0)]
+    [InlineData(true, "Guardian Boost", 2, 1)]
+    public void A_rule_counting_as_guardian_holds_ap_at_zero(bool gf351, string rule, int weaponAp, int expected)
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("AP", weaponAp)));
+        var b = Unit("B", "4+", "4+", [], 1, [P("Guardian"), P(rule)]);
+        var s = State([a], [b]);
+        var weapons = s.Projection.Units[a.Id].Definition.Models.SelectMany(m => m.Weapons.Select(w => w.Id));
+        var props = gf351 ? TestProperties.Core : TestProperties.Core36;
+        var live = LiveProperties.Settle(new Interaction(s, props, Party.Of(s, a.Id, a.Models.Select(m => m.Id), weapons), Party.Whole(s, b.Id), AttackKind.Shooting, "Hold", 12, []));
+        Assert.Equal(expected, live.Parameter(Side.Attacker, "AP"));
+    }
+
     [Fact]
     public void The_36_min_ap0_rows_carry_a_floor_of_zero()
     {
