@@ -69,11 +69,16 @@ static partial class SpecialGames
     static TestGame BlastDeadly()
     {
         const string name = "special-blast-deadly-takedown";
-        return Game(name, new ScenarioBuilder(name, 11).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
+        // Everyone Holds on anchors and shoots; Red wins the roll-off (fixed) and puts all three weapons at the one-wound squad (Blue unit 2). Each Red
+        // weapon's first die hits, the Lascannon's and the Sniper Rifle's blocks fail; Blue unit 1's first die hits Red's Tough(3) models and the block fails.
+        var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
+            ("declare_targets", (ask, p) => ShooterOf(ask, p) == "Red unit 1" ? AllAt(ask, p, "Blue unit 2") : null));
+        return Game(name, new ScenarioBuilder(name, 11).RoundCap(4).Table(24, 30).Scripted(script)
                 .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)],
                     weapons: [Gun("Frag Launcher", 24, 1, Rule("Blast", 3)), Gun("Lascannon", 24, 1, Rule("Deadly", 3)), Gun("Sniper Rifle", 24, 1, Rule("Takedown"))],
-                    unitStats: Stats(4, 5))
-                .Army("Blue", 2, 5, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5))
+                    unitStats: Stats(4, 5), anchors: new Dictionary<int, Point2> { [1] = new(16, 15) })
+                .Army("Blue", 2, 5, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5),
+                    anchors: new Dictionary<int, Point2> { [1] = new(2, 6), [2] = new(2, 22) })
                 .Build(),
             ["Blast", "Deadly", "Tough", "Takedown"],
             [
@@ -120,6 +125,13 @@ static partial class SpecialGames
                         var order = v.Select(a => a.Weapon switch { "Sniper Rifle" => 0, "Lascannon" => 1, _ => 2 }).ToList();
                         return order.SequenceEqual(order.Order()) ? null : $"resolved in the order {string.Join(", ", v.Select(a => a.Weapon))}";
                     })),
+            ],
+            dice:
+            [
+                new("roll-off", 0, [6, 1]), new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Frag Launcher")),
+                new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Lascannon")), new("defense", 0, [1], new RollKey(Actor: "Red unit 1", Weapon: "Lascannon")),
+                new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Sniper Rifle")), new("defense", 0, [1], new RollKey(Actor: "Red unit 1", Weapon: "Sniper Rifle")),
+                new("hit", 0, [6], new RollKey(Actor: "Blue unit 1")), new("defense", 0, [1], new RollKey(Actor: "Blue unit 1")),
             ]);
     }
 
