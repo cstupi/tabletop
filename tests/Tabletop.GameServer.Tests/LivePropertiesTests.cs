@@ -165,6 +165,20 @@ public class LivePropertiesTests
         Assert.Equal(-1, Ap("Open Dampen"));
     }
 
+    /// <summary>Every 3.5.1 entry printing "to a min. of AP(0)" (Fortified, Fortified Growth, Guardian, Primeborn) floors each of its AP rows at zero.</summary>
+    [Fact]
+    public void The_351_min_ap0_rows_carry_a_floor_of_zero()
+    {
+        var entries = TestProperties.CoreDocument.Entries.Where(e => e.RuleText?.Contains("to a min. of AP(0)") == true).ToList();
+        Assert.Equal(["Fortified", "Fortified Growth", "Guardian", "Primeborn"], entries.Select(e => e.Name).Order(StringComparer.Ordinal));
+        foreach (var entry in entries)
+        {
+            var rows = entry.Effects.Where(e => e.Kind == EffectKind.ModifyParameter && e.TargetEntry == "AP").ToList();
+            Assert.NotEmpty(rows);
+            Assert.All(rows, e => Assert.Equal(0, e.Floor));
+        }
+    }
+
     [Fact]
     public void The_36_min_ap0_rows_carry_a_floor_of_zero()
     {

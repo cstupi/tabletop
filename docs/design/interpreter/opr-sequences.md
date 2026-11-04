@@ -193,13 +193,17 @@ hero last. Nothing after the
 assignment changes: `Deadly` multiplies, `Regeneration` rolls, the `Tough` capacity read shelves the
 model, and `WoundsThisActivation` rises by what landed. `Tough` therefore splits in two: it is not
 consulted as an *ordering* rule, so a takedown may name a fresh model while a wounded `Tough` model
-stands, and it is still read as a *capacity*. Wounds past that capacity are lost, exactly as they
-are when a defender allocates more to one model than it can take. A name that is not a living model
+stands, and it is still read as a *capacity*. Wounds past that capacity are lost: the takedown is
+resolved as a unit of one. A defender's allocation of more to one model than it can take carries the
+rest to the next segment instead. A name that is not a living model
 of the target is ignored and the ordinary Ask opens; only a menu edit can produce one, because the
 pick and the wound are two steps of one frame and the only wounds dealt in between are this group's.
 
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
-ordinal 0, with no carry-over past the model's capacity. `Regeneration` live on the target unit, which 3.5.1 needs
+ordinal 0, with no carry-over past the model's capacity. A model keeps only the `Deadly` wounds it
+needs to die, ⌈room ÷ X⌉; each further wound allocated to it is a wound of its own (p.8 *"For each wound
+that the unit has taken, the defending player must remove one model"*), so it goes to the next segment,
+where it is multiplied by X on the model it is assigned to; its excess there is lost too. `Regeneration` live on the target unit, which 3.5.1 needs
 every model to carry, rolls one die at the effect row's threshold, recorded as a `RollRecord` named `Regeneration`, and a
 success ignores the wound. A segment that rolls takes two runs of `assign`: the first rolls each model's dice and records the
 segment as `Values["ignore_wounds"]` and `Values["allocated_<i>_<model>"]` (Repeat), the second reads those dice as they then

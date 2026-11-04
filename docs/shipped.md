@@ -26,7 +26,8 @@ rules and changing what differs; each game chooses one; existing and unfinished 
   - A spell whose effect is a token loss, whose attack type is empty, or whose grant is undefined or text-only is text-only in 3.6.
   - Counter in Melee is read as Counter, not as a Counter-Attack rename.
   - Enhanced Watchborn is Watchborn without the range band.
-  - 3.5.1 content is byte-identical, so 3.5.1 keeps its latent AP-floor rows.
+  - 3.5.1's AP rows that print "to a min. of AP(0)" (Fortified, Fortified Growth, Guardian, Primeborn) carry `floor: 0`, a rule fix
+    that moves every 3.5.1 game; the rest of the 3.5.1 content is byte-identical.
 
 ## 2026-10-24, v0.1.24
 

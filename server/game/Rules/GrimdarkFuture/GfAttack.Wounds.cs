@@ -169,6 +169,16 @@ public static partial class GfAttack
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
+            // Deadly(X): "Assign each wound to one model, and multiply it by X ... these wounds don't carry over to other models if the original
+            // target is killed" (3.5.1 p.13, 3.6.0 p.14). A model keeps only the wounds it needs to die; each wound past those is a wound of its own,
+            // assigned to no removed model (p.8: one model for each wound), so it goes to the next segment,
+            // where it is multiplied by X on the model it is assigned to; its excess there is lost too.
+            if (multiplier > 1 && !fixedModels)
+                allocation = allocation.Select(a =>
+                {
+                    var room = Size(ctx.State, a.Model) - ctx.Projection.Models[a.Model].Wounds;
+                    return (a.Model, Count: Math.Min(a.Count, Math.Max(1, (room + multiplier - 1) / multiplier)));
+                }).ToList();
             // Regeneration is aggregation all under 3.5.1 ("a unit where all models have this rule") and majority under 3.6.0 (3.6.0 p.14: "most models"), so LiveProperties.Gather settles it
             // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
             // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
