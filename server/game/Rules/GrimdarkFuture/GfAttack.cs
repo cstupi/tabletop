@@ -36,7 +36,8 @@ public static partial class GfAttack
         return null;
     }
 
-    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep(), new AttackEndStep()]);
+    /// <summary>p.8's steps; under GfEdition.DefenderChoice the defender's `attacked` choice follows determine-attacks (GfChoice.DefenderChoiceStep).</summary>
+    public static Sequence AttackSequence(GfEdition e) => new(GfNames.AttackSequence, [new DetermineAttacksStep(), .. e.DefenderChoice ? [new GfChoice.DefenderChoiceStep()] : (IStep[])[], new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep(), new AttackEndStep()]);
 
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
@@ -144,11 +145,16 @@ public static partial class GfAttack
         return RollEffects.Release(ctx.State, ctx.Properties, held);
     }
 
-    /// <summary>Closes `attack-sequence`, `spell-hits` and `rule-hits`: the attack's held once grants go (ReleaseHeld). A frame that finishes early releases them in the finishing step.</summary>
+    /// <summary>What an attack's close writes: its held once grants go (ReleaseHeld), and the defender's `attacked` choice is cleared (GfChoice.ClearedAtPoint),
+    /// so the next attack at it is asked again.</summary>
+    public static IReadOnlyList<StateChange> Closing(StepContext ctx) =>
+        [.. ReleaseHeld(ctx), .. ctx.Frame.Context.TargetUnitIds is [var defender, ..] && ctx.Projection.Units.ContainsKey(defender) ? GfChoice.ClearedAtPoint(ctx.State, ctx.Properties, defender, GfNames.Attacked) : []];
+
+    /// <summary>Closes `attack-sequence`, `spell-hits` and `rule-hits` (Closing). A frame that finishes early closes in the finishing step.</summary>
     public sealed class AttackEndStep : IStep
     {
         public string Name => "attack-end";
-        public StepOutcome Run(StepContext ctx) => new Complete(ReleaseHeld(ctx));
+        public StepOutcome Run(StepContext ctx) => new Complete(Closing(ctx));
     }
 
     /// <summary>Pushes a child once and completes when it has finished. Values pass through the frame stack, not through this step.</summary>

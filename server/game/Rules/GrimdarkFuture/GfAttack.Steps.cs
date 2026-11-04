@@ -36,7 +36,7 @@ public static partial class GfAttack
             if (kind == AttackKind.Shooting)
                 foreach (var (shooter, target, point) in Aims(ctx.State, live, ix.Attacker.UnitId, ix.Defender.UnitId, eligible, ctx.Frame.Context.WeaponIds))
                     values[$"aim_{shooter}_{target}"] = point;
-            return values["attacks"] == 0 ? new Finish([.. ctx.Consume(live), .. ReleaseHeld(ctx)], values) : new Complete(ctx.Consume(live), values);
+            return values["attacks"] == 0 ? new Finish([.. ctx.Consume(live), .. Closing(ctx)], values) : new Complete(ctx.Consume(live), values);
         }
 
     }
@@ -175,7 +175,7 @@ public static partial class GfAttack
             values["wounds"] = values["self_wounds"];
             var spent = ctx.Consume(live);
             var scored = ctx.Frame.Value("hits") + rolls.Sum(Dice.RollOutcome.Successes);
-            return finishWithoutHits && scored == 0 ? new Finish([.. spent, .. ReleaseHeld(ctx)], values) : new Complete(spent, values);
+            return finishWithoutHits && scored == 0 ? new Finish([.. spent, .. Closing(ctx)], values) : new Complete(spent, values);
         }
     }
 }

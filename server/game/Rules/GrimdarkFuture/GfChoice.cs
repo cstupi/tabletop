@@ -1,3 +1,4 @@
+using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
 using Tabletop.Protocol;
@@ -26,6 +27,54 @@ public static class GfChoice
         if (held.Count == 0) return [];
         var chosen = props.Entries.SelectMany(e => e.Effects).Where(IsChoice).Select(e => e.TargetCondition!).ToHashSet();
         return held.Where(chosen.Contains).Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, unit), c, false)).ToList();
+    }
+
+    /// <summary>The unit's conditions that a choice at the point sets, each cleared: what an attack's close writes for `attacked`.</summary>
+    public static IReadOnlyList<StateChange> ClearedAtPoint(GameState state, PropertySet props, Guid unit, string point)
+    {
+        var held = state.Projection.Units[unit].Conditions;
+        if (held.Count == 0) return [];
+        var chosen = props.Entries.SelectMany(e => e.Effects).Where(e => IsChoice(e) && AtPoint(e, point)).Select(e => e.TargetCondition!).ToHashSet();
+        return held.Where(chosen.Contains).Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, unit), c, false)).ToList();
+    }
+
+    static bool AtPoint(Effect e, string point) => e.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values.Contains(point));
+
+    /// <summary>
+    /// The defender's choice per attack (spec → `attacked`): the attack's interaction at Point `attacked`; for each entry whose set_condition rows there act on
+    /// the Defender with their other conditions holding, the defender's team is asked `choose_effect` in turn, one option per condition, pass allowed.
+    /// The answers set each chosen condition on the defending unit and clear the entry's others; `attack-end` clears them all (GfAttack.Closing).
+    /// </summary>
+    public sealed class DefenderChoiceStep : IStep
+    {
+        public string Name => "defender-choice";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var c = ctx.Frame.Context;
+            if (c.TargetUnitIds is not [var defender, ..] || Teams.Of(ctx.State, defender) is not { } team) return new Complete([]);
+            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, c.ActorUnitId, defender, c.WeaponIds, GfAttack.KindOf(ctx), c.Action) with { Point = GfNames.Attacked });
+            var offers = live.AtPoint(Side.Defender, GfNames.Attacked).Where(x => IsChoice(x.Effect)).GroupBy(x => x.Source.Entry.Name)
+                .Select(g => (Entry: g.First().Source.Entry, Choices: g.Select(x => x.Effect.TargetCondition!).Distinct().ToList())).ToList();
+            if (offers.Count == 0) return new Complete([]);
+            var answers = ctx.History.ClosedExceptConfirm.Where(a => a.Ask.Question == "choose_effect").ToList();
+            if (answers.Count < offers.Count)
+            {
+                var (entry, choices) = offers[answers.Count];
+                return new OpenAsks([ctx.Ask("choose_effect", $"{entry.Name}: pick one effect", team,
+                    new Options(choices.Select(o => new AskOption(o, o, [defender])).ToList()), allowPass: true)]);
+            }
+            var subject = new Subject(SubjectKind.Unit, defender);
+            var held = ctx.Projection.Units[defender].Conditions;
+            var changes = new List<StateChange>();
+            foreach (var ((entry, choices), answer) in offers.Zip(answers))
+            {
+                if (GfAnswers.Option(answer) is not { } option || !choices.Contains(option.Id)) continue;
+                var others = entry.Effects.Where(e => IsChoice(e) && AtPoint(e, GfNames.Attacked)).Select(e => e.TargetCondition!).Where(o => o != option.Id && held.Contains(o)).Distinct();
+                changes.AddRange([.. others.Select(o => new ConditionSet(subject, o, false)), new ConditionSet(subject, option.Id, true)]);
+                ctx.Applied.Add(entry.Name);
+            }
+            return new Complete(changes);
+        }
     }
 
     /// <summary>Ask which effect; the answer sets its condition and clears the rule's others. A pass chooses nothing.</summary>
