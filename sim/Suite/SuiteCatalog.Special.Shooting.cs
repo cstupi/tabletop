@@ -301,8 +301,7 @@ static partial class SpecialGames
     }
 
     /// <summary>
-    /// Stealth at 9-10": two thirty-model units that only Hold, in frontline zones 9.1" apart on a 33.1" table, so each unit's six rows
-    /// leave under 2" of play and the seed puts the closest bases between 9" and 10" apart. p.5: "When measuring the distance between two
+    /// Stealth at 9-10": two one-model units that only Hold, anchored with their bases 9.6" apart. p.5: "When measuring the distance between two
     /// units you always measure from/to the closest model in each unit", base to base; 9.6" is over 9", measured unrounded. A
     /// defect exhibit: it covers nothing (special-long-range-gunline covers Stealth), and its check reports against Stealth.
     /// </summary>
@@ -310,8 +309,9 @@ static partial class SpecialGames
     {
         const string name = "special-stealth-at-nine-and-a-half";
         return Game(name, new ScenarioBuilder(name, StealthSeed).RoundCap(1).Table(10, 33.1).Scripted(ShootAndStrike)
-                .Army("Red", 1, 30, modelRules: [new(1, "Immobile")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4))
-                .Army("Blue", 1, 30, modelRules: [new(1, "Stealth"), new(1, "Immobile")], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4))
+                .Army("Red", 1, 1, modelRules: [new(1, "Immobile")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(5, 4) })
+                .Army("Blue", 1, 1, modelRules: [new(1, "Stealth"), new(1, "Immobile")], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(5, 4 + 9.6 + 1.26) })
                 .Build(),
             [],
             [
@@ -328,7 +328,6 @@ static partial class SpecialGames
             ]);
     }
 
-    /// <summary>The seed whose placements put the two units' closest bases between 9" and 10" apart.</summary>
     const ulong StealthSeed = 14;
 
     /// <summary>
