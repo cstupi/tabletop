@@ -139,12 +139,16 @@ public static class GfMelee
 
     /// <summary>3.6.0 p.10: the wounds the unit took during this activation (its WoundsThisActivation, every deal-wounds frame on it since the activation
     /// began, the charge move's dangerous-terrain test included), plus 3.6.0 p.14 Fear(X) over the enemy's models ("enemies count as having taken +X
-    /// wounds when checking who won"), whether or not the enemy attacked.</summary>
+    /// wounds when checking who won"), whether or not the enemy attacked, plus the wounds a count_wounds row made it count as having taken in this melee's
+    /// resolve-hits frames on it (3.6 Scourge: "enemies count as having taken 2 extra wounds when checking who won melee"). Run from the melee frame.</summary>
     public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy)
     {
         var fear = Lookup.LivingModels(ctx.State, enemy).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0);
         if (fear > 0) ctx.Applied.Add("Fear");
-        return ctx.Projection.Units[unit].WoundsThisActivation + fear;
+        var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
+        var (counted, rules) = GfAttack.CountedWounds(ctx.State, ctx.Properties, log, log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id), unit, shootingOnly: false);
+        foreach (var rule in rules) ctx.Applied.Add(rule);
+        return ctx.Projection.Units[unit].WoundsThisActivation + fear + counted;
     }
 
     /// <summary>

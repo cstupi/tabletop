@@ -37,6 +37,15 @@ public static class GfActivationEnd
         return list;
     }
 
+    /// <summary>3.6 Scourge: "enemies count as having taken 2 extra wounds … if shooting wounds would trigger Morale Tests": the wounds count_wounds rows made
+    /// the unit count as having taken in the shooting attack-sequences on it since the actor's activation began (GfAttack.CountedWounds), which p.10's
+    /// test reads with its wounds this activation (GfHooks.UnitsToTestAtEndOfActivation). None without an activation in the log.</summary>
+    public static int CountedShootingWounds(GameState state, PropertySet props, Guid? actor, Guid unit)
+    {
+        var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
+        return GfAttack.CountedWounds(state, props, log, GfHooks.ActivationStart(log, actor), unit, shootingOnly: true).Count;
+    }
+
     /// <summary>Whether the unit holds a move or place row at the point now: the window opens only then, so an activation without one logs nothing.</summary>
     public static bool HasRows(GameState state, PropertySet props, Guid unit, string point, string? action)
     {

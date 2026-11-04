@@ -91,6 +91,16 @@ public static class RollEffects
             .Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
 
+    /// <summary>The wounds a die showing this face makes the side count as having taken without taking them: the count_wounds rows with a roll_result
+    /// condition on the roll, summed. Pure, mapped per face as ExtraWounds is.</summary>
+    public static int CountedWounds(LiveSet live, Side side, Die die, string roll) =>
+        CountedRows(live, side, die, roll).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+
+    /// <summary>The count_wounds rows a die showing this face sets off, for the caller to record.</summary>
+    public static IEnumerable<(LiveProperty Source, Effect Effect)> CountedRows(LiveSet live, Side side, Die die, string roll) =>
+        live.Effects(side, EffectKind.CountWounds, new DieContext(roll, die.Raw, die.Modified, die.Success))
+            .Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult));
+
     /// <summary>
     /// What one die set off, for the log (combat-log spec → Die.Triggered): each roll-result add_hit row as `Rule +N hit(s)` (or attack(s),
     /// or wound(s), which act on any die), and each roll-result grant_property row as the granting rule's name. Pure: it records and spends

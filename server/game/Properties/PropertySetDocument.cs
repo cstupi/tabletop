@@ -154,6 +154,8 @@ public static class PropertiesJson
         foreach (var c in f.Conditions)
             if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount or ConditionKind.AtPoint or ConditionKind.WeaponRange && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
         if (f.Optional && f.Kind != EffectKind.AddHit) problems.Add(At("optional is add_hit only"));
+        if (f.Kind == EffectKind.CountWounds && (f.Subject != EffectSubject.Opponent || !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult)))
+            problems.Add(At("count_wounds is per die on the opponent's roll: it needs a roll_result condition and subject opponent"));
         foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.WeaponRange or ConditionKind.RemainingSize && c.Number is null))
             problems.Add(At($"{(c.Kind == ConditionKind.WeaponRange ? "weapon_range" : "remaining_size")} needs a number"));
         foreach (var c in f.Conditions)

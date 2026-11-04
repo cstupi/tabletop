@@ -59,7 +59,8 @@ public static class GfHooks
         UnitsToTestAtEndOfActivation(state, props, actor).Select(u => new SequenceStart(GfNames.MoraleTest, new SequenceContext(u, [], [], "wounds"))).ToList();
 
     public static IReadOnlyList<Guid> UnitsToTestAtEndOfActivation(GameState state, PropertySet props, Guid? actor) =>
-        state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0 && AtHalfOrLess(state, props, u.Id) && !FoughtMeleeThisActivation(state, actor, u.Id) && Lookup.AliveModels(state, u.Id).Count > 0)
+        state.Projection.Units.Values.Where(u => GfActivationEnd.CountedShootingWounds(state, props, actor, u.Id) is var counted && u.WoundsThisActivation + counted > 0
+                && AtHalfOrLess(state, props, u.Id, extraWounds: counted) && !FoughtMeleeThisActivation(state, actor, u.Id) && Lookup.AliveModels(state, u.Id).Count > 0)
             .Select(u => u.Id).ToList();
 
     public static int StartingSize(GameState state, Guid unitId) => state.Projection.Units[unitId].Definition.Models.Count;
@@ -78,9 +79,7 @@ public static class GfHooks
     public static bool FoughtMeleeThisActivation(GameState state, Guid? actor, Guid unitId)
     {
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
-        // Anchored on the four root sequences, which only the scheduler starts: nested frames inherit the action name in their context (R-N3).
-        var activation = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s
-            && (actor is null || s.Context.ActorUnitId == actor));
+        var activation = ActivationStart(log, actor);
         if (activation < 0) return false;
         return log.Skip(activation).Any(e => e.Payload is SequenceStarted { Sequence: GfNames.Melee } m && (m.Context.ActorUnitId == unitId || m.Context.TargetUnitIds.Contains(unitId)));
     }
@@ -125,6 +124,15 @@ public static class GfHooks
                     row.Kind == EffectKind.SetCondition ? GfNames.ChooseEffectSeq : GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
         }
         return reactions;
+    }
+
+    /// <summary>The effective log's index of the actor's activation: its last root sequence, which only the scheduler starts (nested frames inherit the
+    /// action name in their context, R-N3). -1 when there is none.</summary>
+    public static int ActivationStart(IReadOnlyList<GameEvent> log, Guid? actor)
+    {
+        for (var i = log.Count - 1; i >= 0; i--)
+            if (log[i].Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s && (actor is null || s.Context.ActorUnitId == actor)) return i;
+        return -1;
     }
 
     static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
