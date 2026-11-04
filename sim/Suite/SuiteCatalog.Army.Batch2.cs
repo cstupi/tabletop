@@ -15,11 +15,29 @@ public static partial class SuiteCatalog
         static TestGame Pick((string Uid, string Army) book, string name, Play play, string entry, IReadOnlyList<GameCheck> checks, double? length = 26,
             IReadOnlyList<DiceFix>? dice = null, IReadOnlyList<ScenarioRule>? enemy = null, int enemyUnits = 1, int? enemyModels = null, int enemyAttacks = 2,
             IReadOnlyList<ScenarioRule>? enemyWeapon = null, IReadOnlyList<ScenarioRule>? carrier = null, IReadOnlyList<ScenarioRule>? rules = null,
-            int gunRange = 60, Action<ScriptBuilder>? more = null, string? enemyBook = null, int? rounds = null, ulong seed = 1, int units = 1, int buffUnit = 1, bool grants = true) =>
-            Game(book, name, play, [entry], rules ?? [], dice ?? [], grants ? [.. checks, Spent(entry, $"\"{entry}\"")] : checks, carriers: [new ScenarioModel(1, 1, [R(1, entry), .. carrier ?? []])],
+            int gunRange = 60, Action<ScriptBuilder>? more = null, string? enemyBook = null, int? rounds = null, ulong seed = 1, int units = 1, int buffUnit = 1, bool grants = true,
+            double? gap = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null)
+        {
+            var facing = Facing(play, length, gap);
+            (anchors, enemyAnchors) = (anchors ?? facing.Item1, enemyAnchors ?? facing.Item2);
+            return Game(book, name, play, [entry], rules ?? [], dice ?? [], grants ? [.. checks, Spent(entry, $"\"{entry}\"")] : checks, carriers: [new ScenarioModel(1, 1, [R(1, entry), .. carrier ?? []])],
                 units: units, enemyUnits: enemyUnits, enemyModels: enemyModels, enemyAttacks: enemyAttacks, enemy: enemy, enemyWeapon: enemyWeapon, length: length,
-                gunRange: gunRange, enemyBook: enemyBook, rounds: rounds, seed: seed,
+                gunRange: gunRange, enemyBook: enemyBook, rounds: rounds, seed: seed, anchors: anchors, enemyAnchors: enemyAnchors,
                 more: s => { UsePicks(book.Army, buffUnit, entry)(s); more?.Invoke(s); });
+        }
+
+        /// <summary>
+        /// Where a Shoots or Shot game's units 1 deploy (anchors): face to face across the table's middle, gap inches apart (default the length
+        /// less 20", 6" on the 26" table), so a pick "within 18"" reaches the enemy whatever the seed's placement. Other plays deploy where
+        /// the policy puts them.
+        /// </summary>
+        static (IReadOnlyDictionary<int, Tabletop.Geometry.Point2>?, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>?) Facing(Play play, double? length, double? gap)
+        {
+            if (play is not (Play.Shoots or Play.Shot)) return (null, null);
+            var l = length ?? 36;
+            var half = Math.Min(gap ?? l - 20, l - 2) / 2;
+            return (new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, l / 2 + half) }, new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, l / 2 - half) });
+        }
 
         /// <summary>The attacks made by (or, with onTarget, at) a unit that held a grant of the entry as the attack began.</summary>
         static Occasion Granted(string entry, bool onTarget = false) => (run, a) =>
@@ -49,9 +67,11 @@ public static partial class SuiteCatalog
                 [Modifier("Courage Buff", "morale", 1, BuffText + "+1 to morale test rolls once\"")],
                 dice: [Fix("hit", 6, 6, 1), Fix("defense", 1, 1)], enemyModels: 1, enemyAttacks: 3, rounds: 2, length: null),
             // One unit of two models: the fixed hits and blocks of the first shooting kill one, leaving it at half (p.10), and it tests morale.
+            // The units deploy 15" apart: within the pick's 18", beyond the 12" a charge needs, so unit 1 Advances and shoots.
             Pick(Jackals, "jackals-morale-debuff", Play.Moves, "Morale Debuff",
                 [Modifier("Morale Debuff", "morale", -1, DebuffText + "gets -1 to morale test rolls once\"")], enemyModels: 2,
-                dice: [Fix("hit", 6, 6, 6), Fix("defense", 1, 6, 6)]),
+                dice: [Fix("hit", 6, 6, 6), Fix("defense", 1, 6, 6)],
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, 20) }, enemyAnchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(18, 5) }),
             // The carrier is a caster of its own book: it Buffs itself, then the script casts.
             Pick(Robots, "robot-legions-casting-buff", Play.Shoots, "Casting Buff",
                 [Modifier("Casting Buff", "casting", 1, "\"pick one friendly model within 12\" with Caster, which gets +1 to casting rolls once\"")],
@@ -60,12 +80,12 @@ public static partial class SuiteCatalog
                 [Modifier("Casting Debuff", "casting", -1, DebuffText.Replace("which ", "with Caster, which ") + "gets -1 to casting rolls once\"")],
                 enemy: [R(1, "Caster", 2)], enemyBook: ChangeDaemons.Uid, more: Casts),
             // A 12" gun from 12"-deep zones on a 30" table: a target beyond 12" is in range only under the +6".
-            Pick(Cults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
+            Overreach(Pick(Cults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
                 [RangeBonus("Increased Shooting Range Buff", Granted("Increased Shooting Range Buff"), 12, 6, BuffText + "+6\" range when shooting once\"")],
-                gunRange: 12, length: 30),
-            Pick(Dynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
+                gunRange: 12, length: 30, gap: 16, enemyUnits: 2), 2, new(2, 4.25)),
+            Overreach(Pick(Dynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
                 [RangeBonus("Increased Shooting Range Mark", Granted("Increased Shooting Range Mark", onTarget: true), 12, 6, MarkText + " +6\" range when shooting against once\"")],
-                gunRange: 12, length: 30),
+                gunRange: 12, length: 30, gap: 16, enemyUnits: 2), 2, new(2, 4.25)),
             Pick(Cults, "soul-snatcher-cults-speed-buff", Play.Moves, "Speed Buff",
                 [GrantedAllowance("Speed Buff", BuffText + "moves +2\" when using Advance actions and +4\" when using Rush/Charge actions once\"", ("advance", 8), ("rush", 16), ("charge", 16))],
                 units: 2, buffUnit: 2),

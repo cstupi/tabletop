@@ -22,9 +22,13 @@ public static partial class SuiteCatalog
         static string Slug(string s) => s.ToLowerInvariant().Replace(' ', '-');
 
         /// <summary>A pick entry with an X on model 1 of unit 1, every use taken.</summary>
-        static TestGame Marking((string Uid, string Army) book, string entry, int x, IReadOnlyList<GameCheck> checks, double length = 26) =>
-            Game(book, $"{Slug(book.Army)}-{Slug(entry)}", Play.Shoots, [entry], [], [], checks, carriers: [new ScenarioModel(1, 1, [R(1, entry, x)])], units: 2,
-                enemyUnits: 1, length: length, more: UsePicks(book.Army, 1, entry));
+        /// <summary>
+        /// A marker pick on unit 1's first model, both sides holding, the units deployed 4" across the zones' edges (AnchoredH: the rule's at y length - 11,
+        /// the opponents' at 11), so the pick's range reaches whatever the seed's placement. A Spotter's own die (dice) is set where its 4+ decides.
+        /// </summary>
+        static TestGame Marking((string Uid, string Army) book, string entry, int x, IReadOnlyList<GameCheck> checks, double length = 26, IReadOnlyList<DiceFix>? dice = null) =>
+            AnchoredH(Game(book, $"{Slug(book.Army)}-{Slug(entry)}", Play.Shoots, [entry], [], dice ?? [], checks, carriers: [new ScenarioModel(1, 1, [R(1, entry, x)])], units: 2,
+                enemyUnits: 1, length: length, more: UsePicks(book.Army, 1, entry)), length - 11, 11);
 
         /// <summary>Fortified Growth: "For every two markers, enemies attacking this unit get AP(-1) to a min. of AP(0)": against AP(1), blocks of a unit with two or
         /// more markers roll under no AP, with fewer under AP(1).</summary>
@@ -42,7 +46,9 @@ public static partial class SuiteCatalog
             Rallying(War, "Steadfast"),
             Rallying(BattleBrothers, "Battleborn"),
             Rallying(TitanLords, "Honor Code"),
-            Game(WarDaemons, "wormhole-daemons-of-war-defensive-frenzy", Play.Moves, ["Defensive Frenzy"], [R(1, "Defensive Frenzy"), R(2, "Defensive Frenzy")], [],
+            // Both sides hold and shoot; the first hit roll (the rule side's, which acts first) is fixed to three 6s and the one-model target's block to 1s,
+            // so the shooting unit destroys a unit at once and the enemy's later shots meet its marker.
+            Game(WarDaemons, "wormhole-daemons-of-war-defensive-frenzy", Play.Exchange, ["Defensive Frenzy"], [R(1, "Defensive Frenzy"), R(2, "Defensive Frenzy")], [Fix("hit", 6, 6, 6), Fix("defense", 1, 1, 1)],
                 [PerMarker("Defensive Frenzy", "defense", 1, onTarget: true, "\"If all models in this unit have this rule, place one marker on this unit when it fully destroys an enemy unit … For each marker this unit gets +1 to Defense rolls\"")],
                 enemyUnits: 4, enemyModels: 1, seed: 12),
             Game(DarkElves, "dark-elf-raiders-piercing-frenzy", Play.Moves, ["Piercing Frenzy"], [R(1, "Piercing Frenzy"), R(2, "Piercing Frenzy")], [],
@@ -59,9 +65,9 @@ public static partial class SuiteCatalog
             Game(Infected, "infected-colonies-precision-growth", Play.Shoots, ["Precision Growth"], [R(1, "Precision Growth"), R(2, "Precision Growth")], [],
                 [PerMarker("Precision Growth", "hit", 1, onTarget: false, GrowthText + ", models with this rule in this unit get +1 to hit rolls\"", perTwo: true)]),
             Marking(HighElves, "Piercing Spotter", 0, [PerMarker("Piercing Spotter", "defense", -1, onTarget: true, SpotterText + ". When attacking, friendly units may remove markers … to get +AP(X)\"", ap: true),
-                SpentTogether("Piercing Spotter", SpotterText + "\": the markers removed when used")], length: 30),
+                SpentTogether("Piercing Spotter", SpotterText + "\": the markers removed when used")], length: 30, dice: [Fix("Piercing Spotter", 6)]),
             Marking(Dao, "Precision Spotter", 0, [PerMarker("Precision Spotter", "hit", 1, onTarget: true, SpotterText + ". Friendly units may remove markers … to get +X to hit rolls\""),
-                SpentTogether("Precision Spotter", SpotterText + "\": the markers removed when used")], length: 30),
+                SpentTogether("Precision Spotter", SpotterText + "\": the markers removed when used")], length: 30, dice: [Fix("Precision Spotter", 6)]),
             Marking(Guerrillas, "Piercing Tag", 2, [PerMarker("Piercing Tag", "defense", -1, onTarget: true, "\"place X markers on it. When attacking, friendly units may remove markers … to get +AP(Y)\" (X 2)", ap: true),
                 SpentTogether("Piercing Tag", "\"may remove markers from their target before rolling to block\"")]),
             Marking(Jackals, "Precision Tag", 2, [PerMarker("Precision Tag", "hit", 1, onTarget: true, "\"place X markers on it. When attacking, friendly units may remove markers … to get +Y to hit rolls\" (X 2)"),
@@ -71,9 +77,20 @@ public static partial class SuiteCatalog
             Game(Dynasty, "eternal-dynasty-vengeance", Play.Exchange, ["Vengeance"], [R(1, "Vengeance"), R(2, "Vengeance"), R(3, "Vengeance")], [],
                 [PerMarker("Vengeance", "hit", 1, onTarget: true, "\"place as many Vengeance markers on the unit that destroyed it as models with this rule … Friendly units get +X to hit rolls when attacking that unit\"")],
                 models: 1, enemyAttacks: 4, enemyUnits: 1, units: 3),
+            // Under 3.5.1 the Regeneration die is judged inside the assign step, before a DiceFix can land, so its 5+ cannot be set. Instead unit 1 is one
+            // Tough(40) model (always all of its unit in melee, as the check's occasion needs), deployed 14" from the one opponent model, beyond charge range in
+            // round 1; it Advances then and charges after. That model's seventeen-shot rifle hits and wounds it with every die in its first shooting: seventeen
+            // Regeneration dice before unit 1 can charge, all of which miss 5+ about once in 1,000 games; the model stands to the end.
             Game(DarkElves, "dark-elf-raiders-regenerative-strength", Play.ShotWhileMoving, ["Regenerative Strength"],
-                [R(1, "Regenerative Strength"), R(1, "Regeneration"), R(1, "Tough", 3), R(2, "Regenerative Strength"), R(2, "Regeneration"), R(2, "Tough", 3)], [],
-                [StrengthAttacks("\"Place one marker on this model when it ignores a wound. When in melee, pick one of its weapons to get +X attacks\"")], enemyAttacks: 4, length: 26, more: Activates(c => c.Label.EndsWith(": Charge", StringComparison.Ordinal))),
+                [R(1, "Regenerative Strength"), R(1, "Regeneration"), R(1, "Tough", 40), R(2, "Regenerative Strength"), R(2, "Regeneration"), R(2, "Tough", 12)],
+                [new DiceFix("hit", 0, [.. Enumerable.Repeat(6, 17)], new RollKey(Actor: "Opponents unit 1")),
+                 new DiceFix("defense", 0, [.. Enumerable.Repeat(1, 17)], new RollKey(Actor: "Opponents unit 1"))],
+                [StrengthAttacks("\"Place one marker on this model when it ignores a wound. When in melee, pick one of its weapons to get +X attacks\"")],
+                enemy: [R(1, "Tough", 12)], enemyUnits: 1, enemyModels: 1, enemyAttacks: 17, length: 26, sizes: new Dictionary<int, int> { [1] = 1 },
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(16, 15), [2] = new(4, 15) }, enemyAnchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(16, 1) },
+                // The opponent shoots unit 1, the unit the script charges with.
+                more: s => s.Match(AskQuestions.Activate, (ask, _) => AskPicks.Activate(ask, $"{DarkElves.Army} unit 1", "Charge") ?? AskPicks.Activate(ask, $"{DarkElves.Army} unit 1", "Advance"))
+                    .Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, $"{DarkElves.Army} unit 1"))),
         ];
     }
 }

@@ -8,14 +8,26 @@ namespace Tabletop.Sim.Suite;
 /// <summary>The special group's melee, movement and command games (pp.13–15).</summary>
 static partial class SpecialGames
 {
-    /// <summary>Furious, Impact, Fear, Thrust, Counter: lancers who charge home against a spear wall that strikes first.</summary>
+    /// <summary>
+    /// Furious, Impact, Fear, Thrust, Counter: lancers who charge home against a spear wall that strikes first. Red wins the roll-off (fixed); its units
+    /// deploy 4.5" from Blue's and charge whenever they may, Blue's Hold. Five lancers a unit outlast the three spears' strikes and Tough(6) spearmen
+    /// outlast the Impact hits, so each charge rolls the
+    /// Lance dice of a model in reach: Red 1's first two are fixed to 3 and 2 (with Thrust's +1, at the threshold and one below it), Red 2's first to a 6.
+    /// In round 2 everyone Holds but Blue 1, which charges the lancers beside it, so Red also fights a melee as the defender (Fear has no charging
+    /// condition); Red charges again in rounds 3 and 4.
+    /// </summary>
     static TestGame Charge()
     {
         const string name = "special-charge-into-spears";
-        return Game(name, new ScenarioBuilder(name, 3).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
-                .Army("Red", 2, 3, modelRules: [new(1, "Furious"), new(1, "Impact", 2), new(1, "Fear", 2), new(2, "Furious"), new(2, "Impact", 2), new(2, "Fear", 2)],
-                    weapons: [Blade("Lance", 2, Rule("Thrust"))], unitStats: Stats(4, 4))
-                .Army("Blue", 2, 3, weapons: [Blade("Spear", 1, Rule("Counter"))], unitStats: Stats(4, 4))
+        var script = Plays((ask, p) => p.Scheduler.Round != 2
+            ? AskPicks.Activate(ask, "Red unit 1", "Charge") ?? AskPicks.Activate(ask, "Red unit 2", "Charge")
+                ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal))
+            : AskPicks.Activate(ask, "Blue unit 1", "Charge") ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)));
+        return Game(name, new ScenarioBuilder(name, 3).RoundCap(4).Table(24, 30).Scripted(script)
+                .Army("Red", 2, 5, modelRules: [new(1, "Furious"), new(1, "Impact", 2), new(1, "Fear", 2), new(2, "Furious"), new(2, "Impact", 2), new(2, "Fear", 2)],
+                    weapons: [Blade("Lance", 2, Rule("Thrust"))], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(13, 6), [2] = new(13, 20) })
+                .Army("Blue", 2, 3, modelRules: [new(1, "Tough", 6), new(2, "Tough", 6)], weapons: [Blade("Spear", 1, Rule("Counter"))], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(5, 6), [2] = new(5, 20) })
                 .Seeking(NearestEnemy)
                 .Build(),
             ["Furious", "Impact", "Fear", "Thrust", "Counter"],
@@ -67,16 +79,22 @@ static partial class SpecialGames
             dice: [.. ChargeFixes]);
     }
 
-    /// <summary>In the charge's seed: the first Lance hit roll on a charge, not fatigued (a raw 3 and a raw 2).</summary>
-    static DiceFix[] ChargeFixes => [new("hit", 1, [3, 2])];
+    /// <summary>Red 1's first Lance hit roll on a charge, not fatigued: a raw 3 and a raw 2; Red 2's first: a raw 6.</summary>
+    static DiceFix[] ChargeFixes => [new("roll-off", 0, [6, 1]), new("hit", 0, [3, 2], new RollKey(Actor: "Red unit 1", Weapon: "Lance", Action: "Charge")),
+        new("hit", 0, [6], new RollKey(Actor: "Red unit 2", Weapon: "Lance", Action: "Charge"))];
 
-    /// <summary>Fast, Slow, Strider, Flying: four squads crossing a swamp that is difficult and dangerous.</summary>
+    /// <summary>
+    /// Fast, Slow, Strider, Flying: four squads crossing a swamp that is difficult and dangerous. Each squad deploys on its anchor across the swamp from an
+    /// enemy and Rushes at it in round 1 (the script), so all four move into the swamp before anyone shoots.
+    /// </summary>
     static TestGame Swift()
     {
         const string name = "special-swift-and-slow";
-        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(36, 30).Scripted(ShootAndStrike).Seeking(NearestEnemy)
-                .Army("Red", 2, 2, modelRules: [new(1, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4))
-                .Army("Blue", 2, 2, modelRules: [new(1, "Strider"), new(2, "Flying")], unitStats: Stats(4, 4))
+        var script = Plays((ask, p) => p.Scheduler.Round == 1
+            ? new[] { "Red unit 1", "Red unit 2", "Blue unit 1", "Blue unit 2" }.Select(u => AskPicks.Activate(ask, u, "Rush")).FirstOrDefault(a => a is not null) : null);
+        return Game(name, new ScenarioBuilder(name, 5).RoundCap(4).Table(36, 30).Scripted(script).Seeking(NearestEnemy)
+                .Army("Red", 2, 2, modelRules: [new(1, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 25), [2] = new(26, 25) })
+                .Army("Blue", 2, 2, modelRules: [new(1, "Strider"), new(2, "Flying")], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 5), [2] = new(26, 5) })
                 .Terrain("swamp", new Point3(18, 15, 0), volumes:
                     [new Volume(VolumeKind.Area, Footprint.Rect(36, 14), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Difficult | TerrainDeclarations.Dangerous, null)])
                 .Build(),
@@ -160,11 +178,11 @@ static partial class SpecialGames
         script.Match("react", (ask, p) => ask.Prompt == "Before attacking" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : null);
         script.Match("move", (ask, p) => ask.Legal is MoveRegion { Containment.Enterable: [var transport, ..] } m && m.ModelIds.All(id => AskPicks.UnitNameOf(p, id) == "Red unit 1")
             ? new Destinations([.. m.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(transport)))]) : null);
-        script.Match("declare_targets", (ask, p) => ShooterOf(ask, p) switch
+        script.Match("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) switch
         {
-            "Red unit 2" => AllAt(ask, p, "Blue unit 2"),
-            "Blue unit 1" => AllAt(ask, p, "Red unit 3") ?? AllAt(ask, p, "Red unit 2"),
-            "Blue unit 2" => AllAt(ask, p, "Red unit 2"),
+            "Red unit 2" => AskPicks.AllAt(ask, p, "Blue unit 2"),
+            "Blue unit 1" => AskPicks.AllAt(ask, p, "Red unit 3") ?? AskPicks.AllAt(ask, p, "Red unit 2"),
+            "Blue unit 2" => AskPicks.AllAt(ask, p, "Red unit 2"),
             _ => null,
         });
         return Game(name, new ScenarioBuilder(name, 115).RoundCap(4).Table(24, 30).Scripted(script.Build())

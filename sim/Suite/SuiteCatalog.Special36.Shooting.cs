@@ -171,7 +171,7 @@ static partial class SpecialGames
                 ?? AskPicks.Activate(ask, "Blue unit 1", "Hold"),
             ("move", (ask, p) => ask.Legal is MoveRegion { ContactWith: null, Containment: null } region && Scripts36.UnitOf(p, region) == "Red unit 1"
                 ? new Destinations([.. region.ModelIds.Select(id => Scripts36.MoveBy(p, id, 0, 1))]) : null),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) is { } shooter ? AllAt(ask, p, shooter.StartsWith("Red", StringComparison.Ordinal) ? "Blue unit 1" : "Red unit 1") : null));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) is { } shooter ? AskPicks.AllAt(ask, p, shooter.StartsWith("Red", StringComparison.Ordinal) ? "Blue unit 1" : "Red unit 1") : null));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(2).Table(36, 24).Scripted(script)
                 .Army("Red", 2, 2, modelRules: [new(1, "Artillery"), new(1, "Tough", 6), new(2, "Immobile"), new(2, "Tough", 6)],
                     weapons: [Gun("Missile Pod", 48, 2, Rule("Limited")), Gun("Autocannon", 48, 1)], unitStats: Stats(4, 4),
@@ -247,7 +247,7 @@ static partial class SpecialGames
                 ? AskPicks.Activate(ask, "Red unit 1", "Hold") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal))
                 : AskPicks.Activate(ask, "Red unit 1", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Advance") ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
             ("move", (ask, p) => ask.Legal is MoveRegion region && Scripts36.UnitOf(p, region) is "Red unit 1" or "Red unit 2" ? new Destinations([]) : null),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) switch { "Red unit 1" => AllAt(ask, p, "Blue unit 1"), "Red unit 2" => AllAt(ask, p, "Blue unit 2"), _ => null }));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) switch { "Red unit 1" => AskPicks.AllAt(ask, p, "Blue unit 1"), "Red unit 2" => AskPicks.AllAt(ask, p, "Blue unit 2"), _ => null }));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(2).Table(36, 24).Scripted(script)
                 .Army("Red", 2, 1, weapons: [Gun("Mortar", 36, 1, Rule("Indirect"))], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 22), [2] = new(24, 22) })
                 .Army("Blue", 3, 1, modelRules: [new(1, "Tough", 6), new(2, "Tough", 6), new(3, "Tough", 6)], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 6),
@@ -305,7 +305,7 @@ static partial class SpecialGames
             ("move", (ask, p) => Scripts36.Charging(new Dictionary<string, Point2> { ["Red unit 1"] = new(10, 6 + Scripts36.Touch) })(ask, p)
                 ?? (ask.Legal is MoveRegion { ContactWith: null, Containment: null } region && Scripts36.UnitOf(p, region) == "Red unit 3"
                     ? new Destinations([.. region.ModelIds.Select(id => Scripts36.MoveBy(p, id, 0, 2))]) : null)),
-            ("declare_targets", (ask, p) => AllAt(ask, p, "Blue unit 1")));
+            ("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, "Blue unit 1")));
         var pistol = Gun("Assault Pistol", 12, 1, Rule("Assault"));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
                 .Army("Red", 4, 1, modelRules: [new(1, "Tough", 6), new(2, "Tough", 6), new(3, "Cumbersome"), new(4, "Cumbersome")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4),

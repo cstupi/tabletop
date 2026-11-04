@@ -28,15 +28,16 @@ public static partial class SuiteCatalog
                      ? rolls.Any(r => r.Modifiers.Any(m => m.Source == "Stealth" && m.Amount == -1)) : null)],
                 carriers: [Carrier("Stealth Buff")]) with { Pattern = "Buff" },
             // Unit 1 marks the one enemy unit and shoots it with four fixed 6s; unit 2's shooting after it is unmarked.
-            Game(Orcs, "pattern-mark-rending", Play.Shoots, ["Rending Mark"], [], [Fix("hit", 6, 6, 6, 6)],
+            // Opponent unit 2 stands about 21" from the carrier, beyond the pick's 18", and never shot: every shooting is at unit 1, the one in reach.
+            Aiming(AnchorAt(AnchoredH(Game(Orcs, "pattern-mark-rending", Play.Shoots, ["Rending Mark"], [], [Fix("hit", 6, 6, 6, 6)],
                 [PickWithin("Rending Mark", 18, friendly: false, MarkQuote),
                  Once("Rending Mark", $"{MarkQuote}: p.13 Rending, AP(+4) on unmodified 6s to hit", a => a.Hit is null || Count(a.HitDice, [6]) == 0 ? null : a.Scored("granted_AP_4") > 0)],
-                carriers: [Carrier("Rending Mark")], units: 2, enemyUnits: 1, length: 26, more: UnitOneFirst(Orcs.Army)) with { Pattern = "Mark" },
-            Game(Ratmen, "pattern-debuff-defense", Play.Shoots, ["Defense Debuff"], [], [],
+                carriers: [Carrier("Rending Mark")], units: 2, enemyUnits: 2, length: 26, more: UnitOneFirst(Orcs.Army)), 15, 11), 1, 2, new(28, 1)), 0, "Opponents unit 1") with { Pattern = "Mark" },
+            Aiming(AnchorAt(AnchoredH(Game(Ratmen, "pattern-debuff-defense", Play.Shoots, ["Defense Debuff"], [], [],
                 [PickWithin("Defense Debuff", 18, friendly: false, DebuffQuote),
                  Once("Defense Debuff", $"{DebuffQuote}: defense -1", a => a.Blocks.SelectMany(b => b.Rolls("defense")).ToList() is { Count: > 0 } rolls
                      ? rolls.Any(r => r.Modifiers.Any(m => m.Source == "Defense Debuff" && m.Amount == -1)) : null)],
-                carriers: [Carrier("Defense Debuff")], units: 2, enemyUnits: 1, length: 26, more: UnitOneFirst(Ratmen.Army)) with { Pattern = "Debuff" },
+                carriers: [Carrier("Defense Debuff")], units: 2, enemyUnits: 2, length: 26, more: UnitOneFirst(Ratmen.Army)), 15, 11), 1, 2, new(28, 1)), 0, "Opponents unit 1") with { Pattern = "Debuff" },
             // Moves: unit 1 Advances, unit 2 (the carrier's) Rushes 12" toward the one enemy unit, which puts it within 18", is offered the Mark
             // before attacking, and may then shoot the marked unit after its Rush; the script answers every shoot_or_not "shoot".
             Game(LustDaemons, "pattern-mark-quick-shot", Play.Moves, ["Quick Shot Mark"], [], [],

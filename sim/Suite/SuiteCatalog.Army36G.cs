@@ -1,3 +1,4 @@
+using Tabletop.Sim.Answers;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -35,7 +36,9 @@ public static partial class SuiteCatalog
                  new DiceFix("Regeneration", 0, [6], new RollKey(Actor: "Opponents unit 1"))],
                 [StrengthDice("\"roll as many dice as tokens on it before attacking ... For each 4+ the target takes one wound\""),
                  OncePerRound("Regenerative Strength", "\"Once per round, when it’s this model’s turn to strike in melee\"")],
-                enemy: [R(1, "Tough", 6)], enemyUnits: 1, enemyModels: 1, enemyAttacks: 1, length: 26, more: Activates(c => c.Label.EndsWith(": Charge", StringComparison.Ordinal))).In36(),
+                enemy: [R(1, "Tough", 6)], enemyUnits: 1, enemyModels: 1, enemyAttacks: 1, length: 26,
+                // The opponent shoots unit 1, the unit the script charges with.
+                more: s => { Activates(c => c.Label == $"{Books36.DarkElfRaiders.Army} unit 1: Charge")(s); s.Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, $"{Books36.DarkElfRaiders.Army} unit 1")); }).In36(),
             Batch3Game(Books36.SoulSnatcherCults, "soul-snatcher-cults-fanatic", Play.Moves, "Fanatic", [R(1, "Fanatic")], PlacedClear("Fanatic", Books36.SoulSnatcherCults.Army),
                 units: 1, more: UsePicks(Books36.SoulSnatcherCults.Army, 1, "Fanatic")).In36(),
             Batch3Game(Books36.RatmenClans, "ratmen-clans-vanguard", Play.Moves, "Vanguard", [R(1, "Vanguard")], PlacedClear("Vanguard", Books36.RatmenClans.Army),

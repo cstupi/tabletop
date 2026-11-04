@@ -104,12 +104,12 @@ static partial class SpecialGames
         var script = Plays((ask, _) => AskPicks.Activate(ask, "Red unit 1", "Hold") ?? AskPicks.Activate(ask, "Red unit 2", "Hold") ?? AskPicks.Activate(ask, "Red unit 3", "Hold")
                 ?? AskPicks.Activate(ask, "Red unit 4", "Hold") ?? AskPicks.Activate(ask, "Blue unit 1", "Hold"),
             ("react", (ask, p) => ask.Prompt != "Before attacking" ? null
-                : ShooterOf(ask, p) == "Red unit 1" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : new Passed()),
+                : AskPicks.ShooterOf(ask, p) == "Red unit 1" && ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : new Passed()),
             ("cast", (ask, p) => AskPicks.Spell(ask, p, "Shock Speed", "Red unit 1")),
             ("spell_targets", (ask, p) => AskPicks.Pieces(ask, p, "Red unit 1")),
             (AskQuestions.SpendTokens, (ask, p) => new TokensSpent(ask.Legal is TokenSpend t && t.MaxByModel.ContainsKey(ModelOf(p, "Red unit 2"))
                 ? new Dictionary<Guid, int> { [ModelOf(p, "Red unit 2")] = 1 } : new Dictionary<Guid, int>())),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) == "Blue unit 1" ? AllAt(ask, p, "Red unit 4") : null));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == "Blue unit 1" ? AskPicks.AllAt(ask, p, "Red unit 4") : null));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
                 .Army("Red", 4, 1, modelRules: [new(2, "Caster", 1), new(3, "Caster", 1)], weapons: [Blade("Bayonet", 1)], unitStats: Stats(4, 4), armyBook: "z65fgu0l29i4lnlu",
                     sizes: new Dictionary<int, int> { [1] = 5, [4] = 6 },
@@ -177,7 +177,7 @@ static partial class SpecialGames
         const string name = "special-hero-aura";
         var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label is "Red unit 1: Hold" or "Red unit 2: Hold" or "Red unit 3: Hold")
                 ?? AskPicks.Activate(ask, "Blue unit 1", "Hold") ?? AskPicks.Activate(ask, "Blue unit 2", "Hold") ?? AskPicks.Option(ask, c => c.Label.StartsWith("Red unit 4", StringComparison.Ordinal)),
-            ("declare_targets", (ask, p) => ShooterOf(ask, p) switch { "Blue unit 1" => AllAt(ask, p, "Red unit 2"), "Blue unit 2" => AllAt(ask, p, "Red unit 3"), _ => null }));
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) switch { "Blue unit 1" => AskPicks.AllAt(ask, p, "Red unit 2"), "Blue unit 2" => AskPicks.AllAt(ask, p, "Red unit 3"), _ => null }));
         ScenarioModel Hero(int unit) => new(unit, 1, [new(0, "Hero"), new(0, "Tough", 9)], Stats(2, 4));
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(1).Table(36, 24).Scripted(script)
                 .Army("Red", 4, 3, weapons: [Blade("Blade", 1)], unitStats: Stats(5, 5), sizes: new Dictionary<int, int> { [1] = 1, [4] = 1 },

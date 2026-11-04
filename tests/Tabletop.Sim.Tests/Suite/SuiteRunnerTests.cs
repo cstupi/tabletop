@@ -29,6 +29,16 @@ public class SuiteRunnerTests
         Assert.Equal([Name], ap.Games);
     }
 
+    [Fact]
+    public async Task A_run_seed_replaces_every_games_own_and_its_replay_names_it()
+    {
+        var report = await RunAsync(Game(), Options(only: Name) with { Seed = 9 });
+        Assert.True(report.Passed, Why(report));
+        var result = Assert.Single(report.Games);
+        Assert.Equal(9UL, result.Seed);
+        Assert.Equal(SuiteRunner.ReplayOf(Game(), DriverKind.InProcess, 9), result.Replay);
+    }
+
     [Theory]
     [InlineData(6, 1)]      // p.8: "a 6 is always a success"; the hit leads to one defense die
     [InlineData(1, 0)]      // p.8: "a 1 is always a failure"; no hit, so no defense roll

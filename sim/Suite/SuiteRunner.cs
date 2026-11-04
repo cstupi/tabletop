@@ -15,9 +15,10 @@ public enum DriverKind { InProcess, Socket }
 
 /// <summary>
 /// Only: game names and groups, none for every game (a full run). OutDir: where a kept game's recording goes. RunId: the caller's id for
-/// the run (its report files, a served run); a fresh one when null.
+/// the run (its report files, a served run); a fresh one when null. Seed: the seed every game plays on instead of its scenario's own;
+/// null keeps each game's.
 /// </summary>
-public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver, bool Keep, string OutDir, Guid? RunId = null);
+public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver, bool Keep, string OutDir, Guid? RunId = null, ulong? Seed = null);
 
 /// <summary>
 /// Plays the selected games one after another on one driver, judges each, and computes coverage. Every game is judged by Ended,
@@ -87,16 +88,20 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         finally { if (sock != socket) await sock.DisposeAsync(); }
     }
 
-    /// <summary>The command line that reruns one game alone and keeps it.</summary>
-    public static string ReplayOf(TestGame game, DriverKind driver) =>
-        $"dotnet run --project sim -- suite --only {Quote(game.Name)} --keep{(driver == DriverKind.Socket ? " --driver socket" : "")}";
+    /// <summary>The command line that reruns one game alone and keeps it, on the run's seed when it named one.</summary>
+    public static string ReplayOf(TestGame game, DriverKind driver, ulong? seed = null) =>
+        $"dotnet run --project sim -- suite --only {Quote(game.Name)} --keep{(driver == DriverKind.Socket ? " --driver socket" : "")}{(seed is { } s ? $" --seed {s}" : "")}";
 
     private static async Task<(SuiteGameResult, SuiteGameRun)> PlayAsync(
         TestGame game, SuiteOptions options, Guid runId, SuiteSocket? sock, CancellationToken ct)
     {
         // The step gate keeps a completed step's rolls on the stack, which is where SetDice reaches them.
         // The game's edition is the rules its scenario compiles under.
-        var scenario = game.Scenario with { Rules = game.Edition, WaitsBetweenSteps = game.Scenario.WaitsBetweenSteps || game.Dice.Count > 0 };
+        var scenario = game.Scenario with
+        {
+            Rules = game.Edition, Seed = options.Seed ?? game.Scenario.Seed,
+            WaitsBetweenSteps = game.Scenario.WaitsBetweenSteps || game.Dice.Count > 0,
+        };
         var compiled = ScenarioCompiler.Compile(scenario);
         if (sock is not null)
             compiled = compiled with { Info = compiled.Info with { Name = SuiteRows.GameName(runId, game.Name, options.Keep) } };
@@ -163,7 +168,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         var pins = game.KnownOn(options.Driver);
         var (lines, known, stale) = SuiteGameResult.Attribute(failures, pins);
         var result = new SuiteGameResult(game.Name, game.Group, failures.Count == 0, lines, scenario.Seed,
-            ReplayOf(game, options.Driver), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator, known,
+            ReplayOf(game, options.Driver, options.Seed), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator, known,
             pins.Count == 0 ? null : pins.Select(k => k.Id).Distinct().ToList(), stale, Math.Round(clock.Elapsed.TotalSeconds, 3)) { Edition = game.Edition };
         return (result, run);
     }

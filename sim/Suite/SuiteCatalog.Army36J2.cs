@@ -31,10 +31,11 @@ public static partial class SuiteCatalog
                 [IgnoreWounds("Protection Feat", 5, "\"when this unit takes wounds and most of its models have this rule, you may use this rule and roll one die per wound, and on a 5+ it is ignored\""),
                  OncePerGame("Protection Feat", "\"Once per game, when this unit takes wounds\"")],
                 enemyUnits: 1, enemyAttacks: 4, units: 1, carriers: Most(1, "Protection Feat")).In36(),
-            // 24" guns less 4"; a 30" table puts the zones 6" apart, so the shrouded guns reach.
-            Game(Books36.OrcMarauders, "orc-marauders-ranged-shrouding", Play.Shot, ["Ranged Shrouding"], [R(1, "Tough", 12), R(2, "Tough", 12)], [],
+            // 24" guns less 4". Unit 1 stands 8" from opponent unit 1; unit 2 20.5" (edge to edge) from opponent unit 2, just past 20" and inside the 24" guns,
+            // and over 24" from opponent unit 1; the opponents shoot unit 2 first whenever it is a legal target (Banded).
+            Banded(Game(Books36.OrcMarauders, "orc-marauders-ranged-shrouding", Play.Shot, ["Ranged Shrouding"], [R(1, "Tough", 12), R(2, "Tough", 12)], [],
                 [ShotWithin("Ranged Shrouding", 20, "\"When a unit where most models have this rule is targeted by an enemy unit for shooting, that enemy unit gets -4\" range to a min. of 6\"\" (24\" guns)")],
-                units: 2, carriers: Most(2, "Ranged Shrouding"), enemyRange: 24, length: 30).In36(),
+                units: 2, carriers: Most(2, "Ranged Shrouding"), enemyRange: 24, length: 30), 30, 20.5).In36(),
             Game(Books36.ChangeDisciples, "change-disciples-screened", Play.Shot, ["Screened"], [], [],
                 [Modifier("Screened", "hit", -1, "\"If most models in this unit have this rule, enemy units shooting/charging them from over 9\"/6\" away get -1 to hit rolls\"")],
                 units: 2, carriers: Most(2, "Screened")).In36(),
