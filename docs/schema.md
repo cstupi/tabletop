@@ -160,7 +160,7 @@ Five columns exist for one kind each, beside `target_terrain` and `target_condit
   `models_in_target_unit`; a second ruleset needing another adds a value, which is a code
   change like every other closed set here.
 - **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*. A `Replace a stat` with no replacement takes the parameter (Armor: *"Counts as having Defense X+"*).
-- **`floor`** — `Modify a stat` and `Modify a parameter`: *"to a min. of N"*, the stat or parameter no lower than N, or than itself when already lower (Ranged Shrouding, Melee Shrouding, Darkborn; 3.6.0 Fortified, Guardian, Primeborn at AP(0)).
+- **`floor`** — `Modify a stat` and `Modify a parameter`: *"to a min. of N"*, the stat or parameter no lower than N, or than itself when already lower (Ranged Shrouding, Melee Shrouding, Darkborn; 3.6.0 Fortified, Guardian, Primeborn at AP(0)). Checked by `effect_floor_check (floor is null or kind in ('modify_stat', 'modify_parameter'))`, the only check that names `floor`.
 - **`optional`** — `Add a hit` only, `boolean not null default false`, checked `effect_optional_check (optional = false or kind = 'add_hit')`: extra attacks the roller's team may decline (*"may"*).
 - **`amount_dice`** — `Place`, `Move` and `Remove wounds` only, checked to `d3` or `d3+1`: a placement or a move whose distance is a die roll (*"within D3+1""*, *"by up to D3""*: a D3 plus one), a heal of *"D3 wounds"*.
 
