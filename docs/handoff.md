@@ -47,7 +47,7 @@ delete) and the socket (lobby and setup edits, waiting for players, play to the 
 `lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. `two-players-3.6` plays `two-players`
 on the 3.6.0 set with 3.6 armies. On `gf-3-6-0` (2026-11-03) all 8 of 8 pass (about 3 min).
 
-**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 2.5 min);
+**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 3.5 min; the dice fixes most games now carry turn the step gate on);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts (`sim-player-0..8`).
 `--only core,special,army:<edition>:<book uid>,spells:<edition>:<book uid>,<game name>` selects (`army:3.5:<uid>`, `army:3.6:<uid>`; a 3.6.0 run is `<game name>@3.6`); `--keep` keeps recordings (and a socket run's
@@ -56,16 +56,18 @@ games, with `sim-spectator` as a participant for the live feed); `--list` lists 
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today, on `gf-3-6-0` in process with no pin: `FAILED: 652 of 652 games passed, 0 failing on known defects, 0 unexpected; 1103 of 1122 entries covered, 0 not automated`.
-The verdict fails on coverage only: the 3.6.0 entries made playable on 2026-11-03 have no suite game yet (Next, item 1).
-Each shared game's 3.6.0 run is named `<name>@3.6`. 3.5 coverage stays 545 of 545 with 0 not automated.
+Today, on `gf-3-6-0` in process with no pin: `PASSED: 685 of 685 games passed, 0 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated`:
+308 games under 3.5.1 and 377 under 3.6.0; coverage 3.5 545 of 545 (88 by pattern), 3.6 577 of 577 (90 by pattern), 0 not automated in either.
+Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game on seed N instead of its own (the replay line carries it);
+on seeds 1–5 the suite reads 683 of 685, failing `special-regrowth-under-rending-fire` and, on seeds 2–5, `wormhole-daemons-of-plague-fortified-growth`
+(Rules-suite gaps).
 `--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
   defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 70, ArmyBooks 56, TerrainMeshes 114, TableTextures 29,
-  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1795, Management 330, Sim 333 (3 red, Next item 1).
+  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1795, Management 330, Sim 334.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
   against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
@@ -97,20 +99,12 @@ In order:
 1. **Finish the 3.6.0 text-only rules plan.** Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`, plan
    `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md`. The ledger with every ruling and deferred minor is
    `.superpowers/sdd/index-2026-10-30-gf-3-6-0-text-only/progress.md`; resume with superpowers:subagent-driven-development from it.
-   Merged on `gf-3-6-0`: every engine task (0.1, 1.1–1.13), content 2.1–2.4, and two follow-ups (Predator's twice-completed
-   `roll-to-hit` read by the suite and both combat logs; the `GfCasting` split). Every 3.6.0 rule and spell plays (0 text-only).
+   Merged on `gf-3-6-0`: every engine task (0.1, 1.1–1.13), content 2.1–2.5, the suite tasks 3.1–3.3, and two follow-ups (Predator's
+   twice-completed `roll-to-hit` read by the suite and both combat logs; the `GfCasting` split). Every 3.6.0 rule and spell plays (0 text-only).
    Left:
-   - **2.5** on branch `wt/t2-5` (worktree `.worktrees/t2-5`, commit `ff55c35a`, not reviewed): Predator, Predator Shooter and
-     Primal rows `optional: true`, and `SpellsPlayedTests` (no spell entry ships `played: false`). It breaks
-     `saurian-starhosts-enhanced-primal@3.6` ("Enhanced Primal fired exact 0/1"): fix the game or check, review, merge.
-   - **3.1** on branch `wt/t3-1` (worktree `.worktrees/t3-1`, commit `03858b18`, not reviewed): ten weapon-rule games in
-     `sim/Suite/SuiteCatalog.Army36M.cs`, passing on seed 1; run seeds 2–5 (Smash, Decimate, Pierce lean on many dice), review, merge.
-     The shooting or spell morale test Scourge triggers does not list Scourge as applied (the activation-end hook records nothing);
-     the game checks it through an `Evidence` predicate.
-   - **3.2** not started: put its games in `SuiteCatalog.Army36N.cs` / `Checks/Army36N.cs` (the catalogs join in
-     `SuiteCatalog.Army.cs`); resume notes in the workspace's `task-3.2-report.md`.
-   - **3.3, 3.4, 4.1, 4.2** not started. 3.3 turns the three red Sim tests green (the `remove_spell_tokens` spell check, the
-     text-only-spell test, the 3.6 army-games coverage test). 4.1 also covers `docs/design/interpreter/resolution.md`.
+   - **3.4** on branch `wt/t3-4` (worktree `.worktrees/t3-4`, not reviewed): `sim suite --seed N`, and the games that failed on seeds 1–5
+     rebuilt to hold by construction (two remain, Rules-suite gaps); report in the workspace's `task-3.4-report.md`.
+   - **4.1, 4.2** not started. 4.1 also covers `docs/design/interpreter/resolution.md`.
 2. **Merge `gf-3-6-0` to `main`.** After item 1: the full E2E suite and the socket-driver rules suite (lifecycle already
    passes 8 of 8 on the branch; rerun it after item 1). The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
    owner's edition ruling.
@@ -351,7 +345,16 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 
 ## Rules-suite gaps
 
-What the suite does not check or report today. D1-D16 are fixed; the 631 games pass with no pin.
+What the suite does not check or report today. D1-D16 are fixed; the 685 games pass with no pin on their own seeds.
+
+- **Two games fail on other seeds.** `wormhole-daemons-of-plague-fortified-growth` (seeds 2–5): the 3.5.1 Fortified Growth rows carry no
+  `floor` (its 3.6 rows do), so a unit holding four markers blocks AP(1) hits at AP(-1), +1 to Defense, against the printed "to a min. of
+  AP(0)"; seed 1 never blocks with four markers. Fortified, Guardian and Primeborn lack the same floor in 3.5.1. The 3.5.1 content hash is
+  pinned, so the fix is a content change the owner rules on. `special-regrowth-under-rending-fire` (seeds 1–5): under 3.5.1 Bane's re-roll
+  and the Regeneration die are decided inside their steps, before a `DiceFix` lands, so its Bane-6 and Regeneration-4-and-5 cases rest on
+  the seed; holding it needs those rolls in steps of their own (as 3.6.0's Regeneration is) or a game whose volume makes them certain.
+- **Scourge's morale test lists nothing.** The shooting or spell morale test Scourge triggers does not list Scourge as applied (the
+  activation-end hook records nothing); `change-disciples-scourge-morale@3.6` checks it through an `Evidence` predicate.
 
 - **A refused placement cannot be shown by a suite game:** the run loop reads a refusal as Stuck, so Scout's 9" and clearance refusals
   under 3.6.0 are proven by `GfScout36Tests`, not by `core-deployment@3.6`.

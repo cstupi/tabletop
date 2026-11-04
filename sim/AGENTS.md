@@ -122,6 +122,11 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   scenario compiles against that edition's core set and its armies' snapshots carry the edition. `Editions: [Gf351, Gf360]` runs it
   twice (`SuiteCatalog.Expand`), the 3.6 run named `<name>@3.6`, the 3.5.1 one keeping the bare name; a game under 3.6 alone is
   `<name>@3.6` too. Groups `army:<edition>:<uid>` and `spells:<edition>:<uid>` (`SuiteCatalog.ArmyGroup`, `SpellsGroup`); `--only <name>` selects the 3.5.1 run, `--only <name>@3.6` the 3.6 one, a group both. Core and special games whose checks quote no rule the 3.6 set changes run both (`.BothEditions()` in their catalog list); the rest are 3.5.1-only. Army and spell games are single-edition (`Expand` throws on more than one: the books' uids differ per edition), and `BookOf` takes the three-part group only.
+- `--seed N` plays every selected game on seed N instead of its scenario's own (`SuiteOptions.Seed`; the policy, the hand placement and the
+  server's dice all follow it), and each failing game's replay line carries it. Without it every game keeps its own seed. A full run on
+  seeds 1–5 (`suite --seed 1` … `--seed 5`, about 4.5 min with all five in parallel, each with its own `--out`) is the robustness check.
+- Spell games deploy every unit on its lane (`SpellSetup.Anchored`, on by default) and set each caster's first casting die to 6
+  (`SpellGames.Game`'s `firstCastsPass`; off for the repeated-spell and edited-casting-die games), so every spell resolves at least once.
 - `spells:3.6:<uid>`: `SpellGames.Books(set)` over the 3.6 set, one game per book with a played spell; a text-only spell (`played: false`) is
   neither cast nor covered. The tables are per edition (`SpellTables` 3.5.1, `SpellTables36` in `SuiteCatalog.Spells36.cs`), each check quoting
   its edition's text. A `SpellSetup`'s `Rules` and `TargetRules` add rules to every model of the book's army or the targets (Caster for a spell that takes tokens, Wolfborn for one that boosts it). `TargetModels`, `TargetTough`, `TargetDefense` and `Anchored` shape the targets and deploy every unit on its lane. `SuiteCatalog.RepeatedSpellGames36` (Decimate, Destructive, Smash, Pierce, Scourge) are no book's game: six units on fixed lanes cast one spell, each aimed at a set target (`Aimed`) so casts land on both sides of the rule's line (half the target's size, half the spell's range), with fixed casts and blocks (`Passes`, `Blocks`) where the check needs one; they cover nothing. `army:3.6:<uid>` (`SuiteCatalog.Army36.cs`): a 3.5.1 game whose rule 3.6 keeps word for word (quote and case changes included; `Requote36` gives its check names the 3.6 text) plays again on the 3.6 book
@@ -172,8 +177,7 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 3. Pin only the dice the check reads (`DiceFix`), and only where the roll is reached by steps 1–2, keyed to the roll with a `RollKey`
    (actor, target, weapon, action) so its ordinal counts that unit's rolls alone: `new DiceFix("morale", 0, [1], new RollKey(Actor: "Red unit 3"))`.
    `special-artillery-emplacement` and `special-command-squad` are worked examples.
-4. Check the game on several seeds: the suite command ignores `--seeds`, so change the game's seed in its source and run `--only <game>`
-   for seeds 1–5 and a few others, then restore it. It is done when every seed passes.
+4. Check the game on several seeds: `suite --only <game> --seed N` for seeds 1–5 and a few others. It is done when every seed passes.
 5. Never fix a broken game by changing its seed.
 
 ## The lifecycle suite
@@ -210,6 +214,7 @@ dotnet run --project sim -- skirmish --seed 7 --rounds 2 --no-recording
 dotnet run --project sim -- skirmish --driver socket           # needs the stack below
 dotnet run --project sim -- suite                              # every suite game, in-process
 dotnet run --project sim -- suite --only core,special --driver socket --keep
+dotnet run --project sim -- suite --seed 3                     # every game on seed 3 (robustness)
 dotnet run --project sim -- suite --list
 dotnet run --project sim -- lifecycle                          # every lifecycle shape against the stack (about 2 min)
 dotnet run --project sim -- lifecycle --only late-joiner,ambusher
@@ -218,7 +223,7 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
 ```
 
 - Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (the report and kept
-  recordings), `--verbose`, `--list`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
+  recordings), `--verbose`, `--list`, `--seed N`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
 
 - Lifecycle options: `--only A,B` (shape names), `--list`. Environment: `TABLETOP_SIM_MANAGEMENT` and `TABLETOP_SIM_WS` (defaults as
   below); no database connection.
