@@ -32,6 +32,9 @@ public static class GfNames
     public const string CrossingStrike = "Crossing Strike", CounterInMelee = "Counter in Melee", UniqueHero = "Unique Hero";
     /// <summary>Brace (Army Forge's common rules): "Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued." (GfMelee.ImpactStep).</summary>
     public const string Brace = "Brace";
+    /// <summary>Parry (Army Forge's common rules): "When this unit takes hits in melee, roll X dice per model with this rule in it, up to as many dice as hits
+    /// taken. For each 6+ one hit is ignored (defender picks which)." (GfParry.ParryStep).</summary>
+    public const string Parry = "Parry";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
     /// <summary>3.6.0 p.12: the unit's Dangerous Terrain Test (GfMoves.DangerousTerrain36), beside 3.5.1 p.11's per-model one.</summary>

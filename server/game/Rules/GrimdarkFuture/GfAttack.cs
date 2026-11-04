@@ -38,7 +38,8 @@ public static partial class GfAttack
 
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep(), new AttackEndStep()]);
 
-    public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
+    /// <summary>The block and the wounds; under GfEdition.HasParry the Parry roll opens it (GfParry.ParryStep).</summary>
+    public static Sequence ResolveHits(GfEdition e) => new(GfNames.ResolveHits, [.. e.HasParry ? [new GfParry.ParryStep()] : (IStep[])[], new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
     /// <summary>The Limited weapons an attack-sequence used before the given frame started (the whole log without one): p.14 "may only be used once per game".</summary>
     public static HashSet<Guid> FiredLimited(GameState state, Guid? before)

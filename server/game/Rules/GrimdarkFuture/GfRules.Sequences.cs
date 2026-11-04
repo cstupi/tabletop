@@ -19,7 +19,7 @@ public sealed partial class GrimdarkFutureRules
         GfRolls.RollOffSequence(),
         GfAttack.DealWounds(),
         GfAttack.AttackSequence(),
-        GfAttack.ResolveHits(),
+        GfAttack.ResolveHits(Edition),
         GfShooting.Shooting(),
         GfMoves.Hold(),
         GfMoves.Advance(),

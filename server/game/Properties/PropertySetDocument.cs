@@ -158,6 +158,8 @@ public static class PropertiesJson
         if (f.Kind == EffectKind.RemoveSpellTokens && (f.TargetRoll ?? f.TargetEntry ?? f.TargetAction ?? f.TargetCondition) is not null
             || f.Kind == EffectKind.RemoveSpellTokens && (f.TargetStat, f.TargetQuantity, f.TargetResult, f.TargetModifier, f.TargetTerrain) != default)
             problems.Add(At("remove_spell_tokens names no target"));
+        if (f.Kind == EffectKind.CountWounds && (f.Subject != EffectSubject.Opponent || !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult)))
+            problems.Add(At("count_wounds is per die on the opponent's roll: it needs a roll_result condition and subject opponent"));
         foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.WeaponRange or ConditionKind.RemainingSize && c.Number is null))
             problems.Add(At($"{(c.Kind == ConditionKind.WeaponRange ? "weapon_range" : "remaining_size")} needs a number"));
         foreach (var c in f.Conditions)

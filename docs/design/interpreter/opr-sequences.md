@@ -22,7 +22,7 @@ or, where a step's logic differs, by a per-edition copy (`dangerous-terrain-36`,
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
 | `melee` | `melee-start`, `counter`, `impact` (3.6.0: `impact`, `counter`), `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage` (3.6.0: `charger-strike-rolls`, `charger-attacks`, `strike-choice`, `defender-strike-rolls`, `strike-back`), `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
 | `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
-| `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
+| `resolve-hits` | `parry` (3.6, `GfParry`), `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
 | `deal-wounds` | `assign`, `disgorge`, `caster-group`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfSpellSupport`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
 | `morale-test` | `test`, `override`, `consequence` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
