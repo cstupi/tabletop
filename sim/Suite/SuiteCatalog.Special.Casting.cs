@@ -13,7 +13,8 @@ static partial class SpecialGames
     /// p.13 Caster(X): "At any point before attacking" — Red's casters stop their moves (casting during a move spec), one unit Fast and one
     /// Slow, so the allowance a stop carries over is a modified one. The first move Ask of an
     /// activation is answered with a stop before moving and the window with a cast; the next with a 1" stop toward the middle and the window
-    /// with a pass; the rest go to the policy.
+    /// with a pass; the rest go to the policy. Red wins the roll-off (fixed) and every unit deploys on its anchor, 20" from the enemy, so each caster
+    /// makes its move before anything can shoot it.
     /// </summary>
     static TestGame CastMidMove()
     {
@@ -23,6 +24,8 @@ static partial class SpecialGames
         for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
         // Red's casters always move: unit 1 Advances (Slow), unit 2 Rushes (Fast).
         script.Match("activate", (ask, _) => AskPicks.Activate(ask, "Red unit 1", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Rush"));
+        // Never Shock Speed: its +2" on the caster's own unit would change the allowance a stop carries over.
+        script.Match("cast", (ask, _) => AskPicks.Option(ask, c => !c.Label.StartsWith("Shock Speed", StringComparison.Ordinal)));
         // After the stop before moving, cast; after the part-way stop, pass, so only the stop carries the move on.
         script.Match("react", (ask, _) => ask.Prompt != "Before attacking" || ask.FrameId is not { } frame ? null
             : asked.GetValueOrDefault(frame) == 1 ? (ask.Legal is Options o && o.Choices.Any(c => c.Id == "cast") ? new Chosen("cast") : null)
@@ -41,8 +44,8 @@ static partial class SpecialGames
         });
         return Game(name, new ScenarioBuilder(name, 216).RoundCap(3).Table(36, MidMoveTableY).Scripted(script.Build())
                 .Army("Red", 2, 2, modelRules: [new(1, "Caster", 3), new(1, "Slow"), new(2, "Caster", 2), new(2, "Fast")], weapons: [Gun("Rifle", 24, 1), Blade("Bayonet", 1)], unitStats: Stats(4, 4),
-                    armyBook: "z65fgu0l29i4lnlu")
-                .Army("Blue", 2, 3, weapons: [Gun("Rifle", 24, 1), Blade("Bayonet", 1)], unitStats: Stats(4, 4))
+                    armyBook: "z65fgu0l29i4lnlu", anchors: new Dictionary<int, Point2> { [1] = new(6, 25), [2] = new(24, 25) })
+                .Army("Blue", 2, 3, weapons: [Gun("Rifle", 24, 1), Blade("Bayonet", 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(6, 5), [2] = new(24, 5) })
                 .Seeking(NearestEnemy)
                 .Build(),
             ["Caster", "Fast", "Slow"],
@@ -74,7 +77,7 @@ static partial class SpecialGames
                         return Math.Abs(Allowance(next) - expected) < 0.05 ? null : $"allowance {Allowance(s.Ask)} with {expected} left, then {Allowance(next)}";
                     });
                 }),
-            ]);
+            ], dice: [new("roll-off", 0, [6, 1])]);
     }
 
     /// <summary>The model moved 1" straight toward the line y = <paramref name="middle"/>, facing as it faces.</summary>
