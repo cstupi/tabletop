@@ -47,7 +47,7 @@ delete) and the socket (lobby and setup edits, waiting for players, play to the 
 `lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. `two-players-3.6` plays `two-players`
 on the 3.6.0 set with 3.6 armies. On `gf-3-6-0` (2026-11-03) all 8 of 8 pass (about 3 min).
 
-**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 3.7 min, up from 2.5 because a game with a dice fix plays with the step gate on, and most games fix dice);
+**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 3.7 min; a game with a dice fix plays with the step gate on);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts (`sim-player-0..8`).
 `--only core,special,army:<edition>:<book uid>,spells:<edition>:<book uid>,<game name>` selects (`army:3.5:<uid>`, `army:3.6:<uid>`; a 3.6.0 run is `<game name>@3.6`); `--keep` keeps recordings (and a socket run's
@@ -59,8 +59,7 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today, on `gf-3-6-0` in process: `FAILED: 684 of 685 games passed, 1 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated` (the one is D17, Rules-suite gaps):
 308 games under 3.5.1 and 377 under 3.6.0; coverage 3.5 545 of 545 (88 by pattern), 3.6 577 of 577 (90 by pattern), 0 not automated in either.
 Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game on seed N instead of its own (the replay line carries it);
-on seeds 1–5 the suite reads 683–684 of 685: `special-cast-mid-move` fails on its pinned defect D17 (default seed and seeds 1, 2, 3, 5) and
-`wormhole-daemons-of-plague-fortified-growth` on seeds 2–5 (Rules-suite gaps).
+on seeds 1–5 the suite reads 684 of 685 (seeds 1, 2, 3, 5: `special-cast-mid-move` on its pinned defect D17, Rules-suite gaps) or 685 of 685 (seed 4).
 `--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
@@ -352,10 +351,6 @@ What the suite does not check or report today. D1-D16 are fixed; D17 is open (be
   rest of that Advance from 4" (Slow) to 6"; a 1" stop then leaves 3" where the bonus should leave 5": the once grant is spent by the first
   segment and the remaining distance is read again without it. `special-cast-mid-move` is pinned to D17 (it shows on the default seed and
   seeds 1, 2, 3 and 5; seed 4's 1" stop is not clear and the policy moves instead).
-- **One game fails on other seeds.** `wormhole-daemons-of-plague-fortified-growth` (seeds 2–5): the 3.5.1 Fortified Growth rows carry no
-  `floor` (its 3.6 rows do), so a unit holding four markers blocks AP(1) hits at AP(-1), +1 to Defense, against the printed "to a min. of
-  AP(0)"; seed 1 never blocks with four markers. Fortified, Guardian and Primeborn lack the same floor in 3.5.1. The 3.5.1 content hash is
-  pinned, so the fix is a content change the owner rules on.
 - **Scourge's morale test lists nothing.** The shooting or spell morale test Scourge triggers does not list Scourge as applied (the
   activation-end hook records nothing); `change-disciples-scourge-morale@3.6` checks it through an `Evidence` predicate.
 
