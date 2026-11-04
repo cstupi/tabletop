@@ -1,5 +1,6 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -107,5 +108,22 @@ public class GfOnceGrants36Tests
         Assert.Equal([grant], Removed(sim, "attack-end"));
         Assert.Single(sim.Steps("attack-end"), s => s.Changes.OfType<GrantRemoved>().Any());
         Assert.Empty(sim.Unit(shooter.Id).Grants);
+    }
+
+    /// <summary>ReleaseHeld reads the held keys of the frame's steps from its SequenceStarted on; a frame the log never started releases nothing.</summary>
+    [Fact]
+    public void Release_held_reads_from_the_frames_start_and_a_frame_the_log_never_started_releases_nothing()
+    {
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var target = Unit("T", "4+", "4+", [], 1, []);
+        var sim = Game(RuleSets.Gf360, State([shooter], [target], x1: -4, x2: 4), 3);
+        var grants = Grant(sim, shooter.Id, "Test Aim", shooter.Id);
+        var context = new SequenceContext(shooter.Id, [target.Id], [], GfNames.Hold);
+        var started = Guid.CreateVersion7();
+        sim.Append([new SequenceStarted(started, GfNames.AttackSequence, context),
+            new StepCompleted(started, "roll-to-hit", null, [], []) { Values = new Dictionary<string, int> { [$"{StepContext.HeldPrefix}{shooter.Id:N}_{grants[0]:N}"] = 1 } }]);
+        StepContext Ctx(Guid frame) => new(sim.State, Props, GrimdarkFutureRules.V360,
+            new FrameView(new Frame(frame, GfNames.AttackSequence, context), 0, new Dictionary<string, int>(), StepHistory.Empty, null), new Roller(new ScriptedDice(1), sim.State.RngSeed, 0));
+        Assert.Equal(grants, GfAttack.ReleaseHeld(Ctx(started)).OfType<GrantRemoved>().Select(g => g.GrantId));
+        Assert.Empty(GfAttack.ReleaseHeld(Ctx(Guid.CreateVersion7())));
     }
 }

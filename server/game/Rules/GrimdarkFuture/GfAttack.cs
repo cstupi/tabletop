@@ -132,12 +132,14 @@ public static partial class GfAttack
     /// <summary>
     /// "Next time the effect would apply" is the attack: every grant a step of this frame or of a frame it pushed read and held (`held_&lt;unit&gt;_&lt;grant&gt;`),
     /// with this run's own, released by Consume's rule (RollEffects.Release), so every row of a once entry applies across the attack and the entry goes once.
+    /// A frame the log never started releases nothing.
     /// </summary>
     public static IReadOnlyList<StateChange> ReleaseHeld(StepContext ctx)
     {
         var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
         var start = log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id);
-        var keys = log.Skip(Math.Max(0, start)).Select(e => e.Payload).OfType<StepCompleted>().SelectMany(s => s.Values?.Keys ?? []).Concat(ctx.Held.Keys);
+        if (start < 0) return [];   // FrameReader reads every frame off the log, so a running frame's start is always there
+        var keys = log.Skip(start).Select(e => e.Payload).OfType<StepCompleted>().SelectMany(s => s.Values?.Keys ?? []).Concat(ctx.Held.Keys);
         var held = new List<(Guid, Guid)>();
         foreach (var key in keys.Where(k => k.StartsWith(StepContext.HeldPrefix, StringComparison.Ordinal)).Distinct())
         {
