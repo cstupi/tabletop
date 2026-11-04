@@ -212,8 +212,10 @@ stand and applies the wounds. The model's `Wounds` rises. At
 `WoundsThisActivation` on the target rises by the wounds that landed. It is a per-unit counter in
 game state, because the morale threshold needs it to outlive the frame that wrote it.
 
-**Constraint 6 lives in that one expression.** `deal-wounds` reads a *capacity*. The only place
-the string `Tough` appears is `GfAttack.cs`, and `InterfaceConstraintTests` asserts both halves.
+**Constraint 6 lives in that one expression.** `deal-wounds` reads a *capacity*,
+`Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1` in `GfAttack.Wounds.cs`. `Tough` is named only in the ruleset
+(`Rules/GrimdarkFuture/`), never in the generic half (`Interpreter`, `Effects`, `Dice`, `Engine`, `Properties`), and
+`InterfaceConstraintTests` asserts both halves.
 
 `disgorge` is covered under §Containment (Task 19).
 

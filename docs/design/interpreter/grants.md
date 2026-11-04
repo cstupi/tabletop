@@ -12,14 +12,19 @@ flowchart LR
     store["UnitInPlay.Grants, rebuilt from the log"]
     gather["LiveProperties.Gather adds it as a LiveProperty with GrantId set"]
     namecheck["Lookup.UnitHas: GameRules name checks"]
-    consume["LiveSet.GrantsRead, then RollEffects.Consume at the step that applied it"]
-    gr["GrantRemoved for every grant of that entry on the unit"]
+    consume["LiveSet.GrantsRead, then StepContext.Consume at the step that applied it"]
+    held["held_unit_grant in the step's Values (under an attack root) or move_held_unit_grant (a move segment)"]
+    release["RollEffects.Release at attack-end (GfAttack.ReleaseHeld) or at the move step's end"]
+    gr["GrantRemoved for every grant of that entry on the unit; a one_marker grant alone"]
     menu["the menu: add or remove like any property, logged with an actor"]
 
     spell --> step1 --> ga --> store
     store --> gather
     store --> namecheck
-    gather --> consume --> gr --> store
+    gather --> consume
+    consume -- "outside an attack root or a move" --> gr
+    consume -- "under an attack root or a move" --> held --> release --> gr
+    gr --> store
     menu --> store
 ```
 
