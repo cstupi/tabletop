@@ -17,8 +17,18 @@
         "range": 18,
         "lineOfSight": true
       },
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Indirect",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Gauss Bots",

@@ -18,6 +18,8 @@ public static partial class TextCheck
         if (a.Text("inLoS") is { Length: > 0 } sight && !text.Contains(sight, StringComparison.Ordinal)) problems.Add($"{where}: generation says '{sight}'; the text does not");
         if (entry.Effects.FirstOrDefault(f => f.Kind == EffectKind.AddHit) is { } hits && !(Hits().Match(text) is { Success: true } m && m.Groups[1].Value == hits.Amount.ToString()))
             problems.Add($"{where}: generation says {hits.Amount} hits; the text does not");
+        if (entry.Effects.FirstOrDefault(f => f.Kind == EffectKind.RemoveSpellTokens) is { } loss && !text.Contains($"loses {loss.Amount} spell tokens", StringComparison.Ordinal))
+            problems.Add($"{where}: generation says {loss.Amount} spell tokens; the text does not");
         foreach (var key in new[] { "weaponRule1", "weaponRule2", "weaponRule", "unitRule" })
             if (e.Rule(key) is { } r && !text.Contains(r.Rating is { } n ? $"{r.Name}({n})" : r.Name, StringComparison.Ordinal))
                 problems.Add($"{where}: generation names {r.Name}{(r.Rating is { } k ? $"({k})" : "")}; the text does not");

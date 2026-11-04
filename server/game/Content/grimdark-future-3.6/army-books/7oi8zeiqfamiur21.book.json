@@ -17,8 +17,18 @@
         "range": 18,
         "lineOfSight": true
       },
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "remove_spell_tokens",
+          "amount": 2,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Eternal Flame",

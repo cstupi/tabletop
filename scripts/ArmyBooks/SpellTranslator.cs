@@ -13,7 +13,7 @@ public static partial class SpellTranslator
     [GeneratedRegex(@"(-?\+?\d+)")] private static partial Regex Number();
     [GeneratedRegex("^Pick [^\"]*? within (\\d+)\"")] private static partial Regex PrintedRangeRx();
 
-    /// <summary>The effect id Army Forge uses for "loses N spell tokens", which the effect grammar has no kind for: the spell is written text-only.</summary>
+    /// <summary>The effect id Army Forge uses for "loses N spell tokens": a `remove_spell_tokens` row.</summary>
     const string TokenLossEffect = "Urj6dU6Tua8B";
 
     /// <summary>The range the printed text states ("Pick one enemy unit within 18" …"), or null when it states none.</summary>
@@ -26,11 +26,15 @@ public static partial class SpellTranslator
         return PrintedRange(spell) is { } printed && printed != generation ? (generation, printed) : null;
     }
 
-    /// <summary>True when the translation falls back to a text-only spell: an effect the grammar has no kind for, or an attack type the structured field leaves empty or unknown.</summary>
+    /// <summary>The effect id of a weapon-rule grant to the picked unit; its attack type may be empty (the grant then carries no attack condition).</summary>
+    const string WeaponRuleGrantEffect = "54xO9EKTj-ix";
+
+    /// <summary>True when the translation falls back to a text-only spell: an attack type the structured field leaves unknown, or empty on an effect that needs one.</summary>
     public static bool IsTextOnly(AfSpell spell)
     {
         var e = spell.Generation.Effect;
-        return e.Id == TokenLossEffect || (e.Parameters.Any(p => p.Name == "attackType") && e.Text("attackType") is not ("when shooting" or "in melee" or "when attacking"));
+        return e.Parameters.Any(p => p.Name == "attackType") && e.Text("attackType") is not ("when shooting" or "in melee" or "when attacking")
+            && !(e.Id == WeaponRuleGrantEffect && e.Text("attackType") is "");
     }
 
     public static EntryDocument Translate(AfBook book, AfSpell spell)
@@ -50,7 +54,8 @@ public static partial class SpellTranslator
             "QFjxWsOHTCSi" => [Damage(spell, e, where)],
             "RWnJrrMKAUbg" => [Grant(e.Rule("unitRule"), EffectSubject.Self, [], where)],
             "1yTPcanTyckX" => [Grant(e.Rule("unitRule"), EffectSubject.Opponent, [], where)],
-            "54xO9EKTj-ix" => [Grant(e.Rule("weaponRule"), EffectSubject.Opponent, Attack(e.Text("attackType"), where), where)],
+            WeaponRuleGrantEffect => [Grant(e.Rule("weaponRule"), EffectSubject.Opponent, e.Text("attackType") is "" ? [] : Attack(e.Text("attackType"), where), where)],
+            TokenLossEffect => [Row(EffectKind.RemoveSpellTokens, EffectSubject.Self, EffectDuration.Interaction) with { Amount = Int(e.Text("numberDigit"), where) }],
             "i1BVqztsr1V6" => [e.Text("gets/loses/ignores") switch
                 {
                     "loses" => Loses(e.Rule("weaponRule"), Attack(e.Text("attackType"), where), where),
