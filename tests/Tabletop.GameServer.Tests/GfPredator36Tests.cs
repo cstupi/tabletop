@@ -91,6 +91,58 @@ public class GfPredator36Tests
         Assert.Single(sim.Steps("roll-to-hit"));
     }
 
+    /// <summary>
+    /// The shipped Primal and Enhanced Primal (Saurian Starhosts, 3.6.0): "this model may roll +1 attack"; Enhanced Primal "gets extra attacks on
+    /// successful unmodified hit results of 5-6 from Primal (instead of only on 6)". Its attacks are Primal's, so Primal's "may" covers them: one
+    /// `extra_attacks` Ask for the 5s and the 6s, and each rule is recorded only when its dice are taken.
+    /// </summary>
+    static Sim ShootPrimal(params int[] dice)
+    {
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [P("Primal"), P("Enhanced Primal")], Gun("Rifle", "24\"", 2));
+        var target = Unit("T", "4+", "6+", [], 1, [P(GfNames.Tough, 20)]);
+        var sim = new Sim(State([shooter], [target], x1: -4, x2: 4).Under(RuleSets.Gf360), GrimdarkFutureRules.V360, TestProperties.Core36, new ScriptedDice(dice));
+        sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
+        return sim;
+    }
+
+    [Fact]
+    public void Enhanced_primal_five_and_primal_six_are_one_ask_and_taken_record_both()
+    {
+        var sim = ShootPrimal(5, 6, 1, 1, 1, 1, 1, 1);
+        var ask = sim.AskFor(Samples.Team1);
+        Assert.Equal((GfNames.ExtraAttacks, "Enhanced Primal, Primal: roll 2 extra attacks?"), (ask.Question, ask.Prompt));
+        Assert.Equal([2], HitRolls(sim).Select(r => r.Dice.Count));                                        // the 5's die is not rolled before the answer
+        sim.Answer(Samples.Team1, new Chosen("yes"));
+        Assert.Equal([2, 2], HitRolls(sim).Select(r => r.Dice.Count));
+        Assert.Null(sim.AskForOrNull(Samples.Team1));
+        var applied = sim.Steps("roll-to-hit").SelectMany(s => s.Applied ?? []).ToList();
+        Assert.Contains("Enhanced Primal", applied);
+        Assert.Contains("Primal", applied);
+    }
+
+    [Fact]
+    public void A_taken_enhanced_primal_five_records_enhanced_primal()
+    {
+        var sim = ShootPrimal(5, 1, 1, 1, 1, 1);
+        Assert.Equal("Enhanced Primal: roll 1 extra attack?", sim.AskFor(Samples.Team1).Prompt);
+        sim.Answer(Samples.Team1, new Chosen("yes"));
+        Assert.Equal([2, 1], HitRolls(sim).Select(r => r.Dice.Count));
+        Assert.Contains("Enhanced Primal", sim.Steps("roll-to-hit").Last().Applied ?? []);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_declined_enhanced_primal_five_records_neither(bool pass)
+    {
+        var sim = ShootPrimal(5, 1, 1, 1, 1, 1);
+        sim.Answer(Samples.Team1, pass ? new Passed() : new Chosen("no"));
+        Assert.Equal([2], HitRolls(sim).Select(r => r.Dice.Count));
+        var applied = sim.Steps("roll-to-hit").Concat(sim.Steps("score-hits")).SelectMany(s => s.Applied ?? []).ToList();
+        Assert.DoesNotContain("Enhanced Primal", applied);
+        Assert.DoesNotContain("Primal", applied);
+    }
+
     /// <summary>3.6.0 p.9: a fatigued hit is no roll of 6 for special rules, so nothing is offered.</summary>
     [Fact]
     public void A_fatigued_six_in_melee_asks_nothing()
