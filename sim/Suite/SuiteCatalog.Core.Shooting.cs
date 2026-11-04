@@ -128,14 +128,32 @@ internal static partial class CoreGames
     static readonly Point2 WoodCentre = new(8, 6);
     const double WoodRadius = 6;
 
-    /// <summary>p.11 blocking and cover terrain: Red shoots across the middle, past a wall, at Blue units that may stand in a wood.</summary>
+    /// <summary>
+    /// p.11 blocking and cover terrain: Red shoots across the middle, past a wall, at Blue units that may stand in a wood. Every unit Holds on its anchor;
+    /// Red wins the roll-off (fixed), activates 1, 2, 3 and shoots, and Blue never shoots. Blue 1 stands in the wood, Red 1 and Red 3 shoot it; Blue 2 stands
+    /// wholly behind the wall from Red 2, which shoots Blue 3 instead. So the game's defense rolls 0 and 2 are Blue 1's in cover and roll 1 is Blue 3's;
+    /// Red 3's first volley (its whole squad's six dice) is fixed to two hits, the two blocks roll 2 reads.
+    /// </summary>
     public static TestGame CoverAndSight()
     {
         const string name = "core-cover-and-sight";
+        var aims = new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1", ["Red unit 2"] = "Blue unit 3", ["Red unit 3"] = "Blue unit 1" };
+        var script = AnswerScript.Build()
+            .Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, 3).Select(k => AskPicks.Activate(ask, $"Red unit {k}", "Hold")).FirstOrDefault(a => a is not null)
+                ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)))
+            .Match("shoot_or_not", (ask, p) => ask.Legal is Options o && p.Stack.LastOrDefault()?.Context.ActorUnitId is { } unit
+                ? AskPicks.UnitNameOf(p, unit)?.StartsWith("Red ", StringComparison.Ordinal) == true
+                    ? o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null
+                    : o.Choices.FirstOrDefault(c => c.Id != "shoot") is { } no ? new Chosen(no.Id) : null
+                : null)
+            .Match("declare_targets", (ask, p) => p.Stack.LastOrDefault(f => f.Sequence == "shooting")?.Context.ActorUnitId is { } shooter
+                && AskPicks.UnitNameOf(p, shooter) is { } who && aims.TryGetValue(who, out var target) ? AllAt(ask, p, target) : null)
+            .Build();
         var scenario = new ScenarioBuilder(name, seed: 119)
             .RoundCap(4).Table(48, 36)
-            .Army("Red", 3, 3, weapons: [Rifle(2), HandWeapon()])
-            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])
+            .Army("Red", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(4, 25), [2] = new(22, 25), [3] = new(12, 25) })
+            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(5, 6), [2] = new(34, 8), [3] = new(12, 11) })
+            .Scripted(script)
             .Terrain("wall", new Point3((WallWest + WallEast) / 2, (WallSouth + WallNorth) / 2, 0), volumes:
                 [new Volume(VolumeKind.Solid, Footprint.Rect(WallEast - WallWest, WallNorth - WallSouth), new Point2(0, 0), new Yaw(0), 0, 4,
                     TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight, null)])
@@ -185,7 +203,7 @@ internal static partial class CoreGames
                 "defense", 2, "3+,2-", (log, r) =>
                     !r.Roll.Modifiers.Any(m => m is { Source: "cover", Amount: 1 }) ? "defense #2 had no cover"
                     : log.CasualtiesUnder(r.Frame) is 1 ? null : $"defense #2 removed {log.CasualtiesUnder(r.Frame)} models, expected 1"),
-        ], dice: [new DiceFix("defense", 2, [3, 2])]);
+        ], dice: [new DiceFix("roll-off", 0, [6, 1]), new DiceFix("hit", 0, [6, 6, 1, 1, 1, 1], new RollKey(Actor: "Red unit 3")), new DiceFix("defense", 2, [3, 2])]);
     }
 
     // ---- core-fence-cover ------------------------------------------------------------------------------------------------------------
