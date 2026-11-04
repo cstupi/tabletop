@@ -17,7 +17,8 @@ internal static partial class CoreGames
     /// Blue's Hold, every defender strikes back. Red 1 and Red 2 deploy within charge range of Blue 1 and both charge it in round 1, so Blue 1 strikes back
     /// twice in the round. Red 1's charge (the game's first hit roll) scores one hit, which Blue 1 blocks; Blue 1's strike back hits and wounds, so Red 1
     /// lost the melee and tests morale. Red's Defense 2+ keeps Red 1 standing to test; Blue 1's five models outlast Red 2's charge, so it strikes back again.
-    /// Red 3 stands 8" from Blue 2 and charges it in round 1 too; Blue 2 declines to strike back (p.9: "but doesn't have to"), Blue 1 always strikes.
+    /// Red 3 stands 8" from Blue 2 (five models, so it outlasts the charge) and charges it in round 1 too; Blue 2 declines to strike back (p.9: "but
+    /// doesn't have to"), Blue 1 always strikes.
     /// </summary>
     public static TestGame ChargeAndStrikeBack()
     {
@@ -27,7 +28,8 @@ internal static partial class CoreGames
             .Match(AskQuestions.Activate, (ask, p) => Enumerable.Range(1, 4).Select(k => AskPicks.Activate(ask, $"Red unit {k}", "Charge")).FirstOrDefault(a => a is not null)
                 ?? AskPicks.Activate(ask, "Red unit 4", p.Scheduler.Round == 1 ? "Advance" : "Rush")
                 ?? AskPicks.Option(ask, c => c.Label.StartsWith("Blue ", StringComparison.Ordinal) && c.Label.EndsWith(": Hold", StringComparison.Ordinal)))
-            .Match("charge_target", (ask, p) => p.Scheduler.Round == 1 ? AskPicks.Pieces(ask, p, "Blue unit 1") : null)
+            .Match("charge_target", (ask, p) => p.Scheduler.Round != 1 ? null
+                : AskPicks.Pieces(ask, p, ask.FrameId is { } f && p.Stack.FirstOrDefault(x => x.Id == f)?.Context.ActorUnitId is { } c && AskPicks.UnitNameOf(p, c) == "Red unit 3" ? "Blue unit 2" : "Blue unit 1"))
             .Match("strike_back", (ask, p) => ask.Legal is Options o && o.Choices.FirstOrDefault(c => c.Id == "strike") is { } strike
                 ? new Chosen(strike.Pieces is [var defender] && AskPicks.UnitNameOf(p, defender) == "Blue unit 2" ? "pass" : "strike") : null)
             .Build();
@@ -35,7 +37,7 @@ internal static partial class CoreGames
             .Enforcing(Enforcement.Warn).RoundCap(5).Table(36, 30)
             .Army("Red", 4, 3, weapons: [HandWeapon(2)], unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "2+" },
                 anchors: new Dictionary<int, Point2> { [1] = new(6, 19), [2] = new(16, 19), [3] = new(25, 19), [4] = new(31, 29) })
-            .Army("Blue", 4, 3, weapons: [HandWeapon(2)], sizes: new Dictionary<int, int> { [1] = 5 },
+            .Army("Blue", 4, 3, weapons: [HandWeapon(2)], sizes: new Dictionary<int, int> { [1] = 5, [2] = 5 },
                 anchors: new Dictionary<int, Point2> { [1] = new(8, 11), [2] = new(26, 11), [3] = new(14, 1), [4] = new(30, 1) })
             .Seeking(NearestEnemy)
             .Scripted(script)
