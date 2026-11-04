@@ -33,8 +33,8 @@ public static partial class SuiteCatalog
                 return Reasons(verdicts);
             }, [entry]);
 
-        /// <summary>"Units may only be moved once per round in this way": no use's target Ask offers a unit a use of the entry moved earlier that round, and the
-        /// game has a target Ask after such a move.</summary>
+        /// <summary>"Units may only be moved once per round in this way": no use's target Ask offers a unit a use of the entry moved earlier that round, the
+        /// game has a target Ask after such a move, and a later round's target Ask offers a unit moved in an earlier round.</summary>
         static GameCheck MovedOncePerRound(string entry, string quote) =>
             GameCheck.Each($"{entry}: {quote}", run =>
             {
@@ -52,7 +52,12 @@ public static partial class SuiteCatalog
                     if (before.Count == 0) continue;
                     verdicts.Add(a.Ask.Legal is PieceSelection p && p.Eligible.Any(before.Contains) ? "offered a unit moved this round" : null);
                 }
-                return verdicts.Count == 0 ? ["no target offered after a unit was moved that round"] : Reasons(verdicts);
+                // Per round, not per game: a later round's target Ask offers a unit moved in an earlier round and not since.
+                var again = log.Asks.Any(a => a.Ask.Question == "rule_target" && a.Ask.Prompt.StartsWith(entry + ":", StringComparison.Ordinal) && a.Frame is { } f
+                    && a.Ask.Legal is PieceSelection p && p.Eligible.Any(u => moved.Any(m => m.Unit == u && m.Round < f.Round) && !moved.Any(m => m.Unit == u && m.Round == f.Round && m.Seq < a.Seq)));
+                var reasons = verdicts.Count == 0 ? ["no target offered after a unit was moved that round"] : Reasons(verdicts).ToList();
+                if (!again) reasons.Add("no later round offered a unit moved in an earlier round");
+                return reasons;
             }, [entry]);
 
         /// <summary>
@@ -195,8 +200,8 @@ public static partial class SuiteCatalog
                 return Reasons(verdicts);
             }, ["Ravage Aura"]);
 
-        /// <summary>"If failed, it loses N spell tokens": after each use's failed test the picked model's tokens are N fewer (to none), after a passed one unchanged;
-        /// the game shows a failed test on a model holding at least N.</summary>
+        /// <summary>"If failed, it loses N spell tokens": after each use's failed test the picked model's tokens are N fewer (to none), after a passed one unchanged,
+        /// and no other model's tokens change in the use; the game shows a failed test on a model holding at least N.</summary>
         static GameCheck TokensLost(string entry, int n, string quote) =>
             GameCheck.Each($"{entry}: {quote}: {n} tokens lost", run =>
             {
@@ -210,10 +215,12 @@ public static partial class SuiteCatalog
                     if (test is null || target?.PieceIds is not [var model]) continue;
                     var before = log.Events.TakeWhile(e => e.Seq < use.Seq).SelectMany(e => LogQueries.ChangesOf(e.Payload)).OfType<SpellTokensSet>()
                         .Where(t => t.ModelId == model).Select(t => t.Tokens).LastOrDefault();
+                    var all = log.Steps.Where(s => Under(s.Frame, use)).SelectMany(s => s.Step.Changes).OfType<SpellTokensSet>().ToList();
                     var set = log.Steps.Where(s => s.Frame.Sequence == "spell-test" && Under(s.Frame, use)).SelectMany(s => s.Step.Changes).OfType<SpellTokensSet>().ToList();
                     var failed = test.Value("passed") == 0;
                     if (failed && before >= n) full = true;
-                    verdicts.Add(!failed ? (set.Count == 0 ? null : "tokens lost after a passed test")
+                    verdicts.Add(all.Any(t => t.ModelId != model) ? "another model's tokens changed"
+                        : !failed ? (set.Count == 0 ? null : "tokens lost after a passed test")
                         : set is not [var s] || s.ModelId != model ? $"{set.Count} token changes after a failed test"
                         : s.Tokens != Math.Max(0, before - n) ? $"{before} tokens became {s.Tokens}" : null);
                 }

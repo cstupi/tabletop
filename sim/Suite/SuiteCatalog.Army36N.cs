@@ -99,8 +99,9 @@ public static partial class SuiteCatalog
         }
 
         /// <summary>
-        /// Human Inquisition unit 1 (model 1 carrying Spell Drain) holds at y 15; the one opponent unit at y 11 has a Caster(3) model 1 with Tough(6), which
-        /// holds 3 tokens from round one's start. The use picks the caster, whose unit's test is fixed to fail.
+        /// Human Inquisition unit 1 (model 1 carrying Spell Drain) holds at y 15; the one opponent unit at y 11 has two Tough(6) casters, Caster(3) model 1 and
+        /// Caster(4) model 2, holding 3 and 4 tokens from round one's start. Each use picks the eligible caster holding fewer tokens, so its loss cannot be
+        /// read as the unit's (taken from the model with the most); the first test is fixed to fail.
         /// </summary>
         static TestGame SpellDrainN()
         {
@@ -110,11 +111,11 @@ public static partial class SuiteCatalog
                 carriers: [new ScenarioModel(1, 1, [R(1, entry)])], units: 1, enemyUnits: 1, length: 26, enemy: [R(1, "Tough", 3)],
                 more: s => s.Match(AskQuestions.React, (ask, _) => AskPicks.Option(ask, c => c.Id.StartsWith(entry + "|", StringComparison.Ordinal)))
                     .Match("rule_target", (ask, p) => ask.Prompt.StartsWith(entry + ":", StringComparison.Ordinal) && ask.Legal is PieceSelection sel
-                        && sel.Eligible.FirstOrDefault(id => p.Models.TryGetValue(id, out var m) && m.Slot.Properties.Any(x => x.Name == "Caster")) is { } caster && caster != Guid.Empty
-                        ? new SelectedPieces([caster]) : null));
+                        && sel.Eligible.Where(id => p.Models.TryGetValue(id, out var m) && m.Slot.Properties.Any(x => x.Name == "Caster")).ToList() is { Count: > 0 } casters
+                        ? new SelectedPieces([casters.MinBy(id => p.Models[id].SpellTokens)]) : null));
             game = AnchoredH(game, 15, 11);
             var armies = game.Scenario.Armies;
-            var opponents = armies[1] with { Models = [new ScenarioModel(1, 1, [R(1, "Caster", 3), R(1, "Tough", 6)])] };
+            var opponents = armies[1] with { Models = [new ScenarioModel(1, 1, [R(1, "Caster", 3), R(1, "Tough", 6)]), new ScenarioModel(1, 2, [R(1, "Caster", 4), R(1, "Tough", 6)])] };
             return (game with { Scenario = game.Scenario with { Armies = [armies[0], opponents] } }).In36();
         }
 
