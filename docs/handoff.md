@@ -100,7 +100,7 @@ In order:
    `sim -- lifecycle` (8 shapes incl. `two-players-3.6`), the socket-driver rules suite. Fix what fails, then merge to `main`.
    The build ledger with every ruling is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the owner's edition ruling.
 2. **The 3.6.0 text-only rules played** (the 43 not automated). Spec `docs/superpowers/specs/2026-10-30-gf-3-6-0-text-only-rules.md`,
-   plan `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks; `GfAttack.cs` split first). Nothing built.
+   plan `docs/superpowers/plans/2026-10-30-gf-3-6-0-text-only/index.md` (25 tasks). Nothing built.
    Brace and Parry's text comes from Army Forge's `GET /api/rules/common/2`. Owner asked for the plan only; build when told.
 
 ### Miniatures: the zombie army (outside the repo)
@@ -434,8 +434,7 @@ A Counter in Melee strike is not listed in the applied-rules log; only weapons n
 hills.
 
 **3.6.0 army import and melee.** An import classifies rule levels against the 3.6 catalog (a solo Unique Hero is a Hero on its model),
-and the 3.6 melee result counts the defender's Fear whether or not it struck. `server/game/Rules/GrimdarkFuture/GfAttack.cs` is 818 lines, over
-the 500-line limit; the plan's Task 0.1 splits it.
+and the 3.6 melee result counts the defender's Fear whether or not it struck.
 
 **3.5.1 latent: AP floor rows.** `grimdark-future-3.5.1/army-rules.part.json` carries no `floor` on the AP rows of Fortified (:54),
 Fortified Growth (:55, both rows), Guardian (:61) and Primeborn (:149), whose text reads "to a min. of AP(0)". The file is pinned by
