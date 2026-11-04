@@ -14,6 +14,8 @@ public static class GfNames
     public const string PickRuleSeq = "pick-rule", RuleTarget = "rule_target", RuleRollStep = "rule-roll", RuleTargetStep = "rule-target", RuleEffectsStep = "rule-effects";
     public const string QuickShot = "Quick Shot";   // army-rule hooks: a name check on the rush sequence's shooting
     public const string ActivationStart = "activation-start", AfterShooting = "after-shooting", AfterMelee = "after-melee", AttackStart = "attack-start", RepositionSeq = "reposition";
+    /// <summary>The point of a defender's choice per attack (3.6 Versatile Defense: "you may pick a different effect each time the unit is attacked"): GfChoice.DefenderChoiceStep.</summary>
+    public const string Attacked = "attacked";
     /// <summary>Army-book rules spec, batch 4: the end of an activation (Dash, Coordinate), the sequences it opens, and a rule's choice of effect at a point.</summary>
     public const string ActivationEnd = "activation-end", ActivationEndSeq = "activation-end", CoordinateSeq = "coordinate", ChooseEffectSeq = "choose-effect", Delay = "Delay";
     /// <summary>Army-book rules spec, batch 3: the point after a unit is deployed (Fanatic, Vanguard) and its window.</summary>

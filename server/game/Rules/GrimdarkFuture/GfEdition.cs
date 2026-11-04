@@ -22,6 +22,7 @@ public sealed record GfEdition(
     bool CasterTargetNeedsSight, bool SpendersNeedSight, bool SpendersMeasuredToCasterModel, bool OneCastWindow, // S4
     bool ImpactBeforeCounter, bool CounterReducesImpact, bool CounterOptional, bool CounterLostWhenFatigued, // S5, S11
     bool HasCumbersome,                                           // S6
+    bool DefenderChoice,                                          // attack-sequence asks the defender's `attacked` choice (Versatile Defense) before the roll to hit
     int? HeroAuraTough,                                           // S10
     bool IndirectNeedsHold,                                       // S12
     double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
@@ -57,6 +58,7 @@ public sealed record GfEdition(
         CasterTargetNeedsSight: true, SpendersNeedSight: true, SpendersMeasuredToCasterModel: false, OneCastWindow: false,
         ImpactBeforeCounter: false, CounterReducesImpact: true, CounterOptional: false, CounterLostWhenFatigued: false,
         HasCumbersome: false,
+        DefenderChoice: false,
         HeroAuraTough: null,
         IndirectNeedsHold: false,
         ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
@@ -92,6 +94,7 @@ public sealed record GfEdition(
         CasterTargetNeedsSight: false, SpendersNeedSight: false, SpendersMeasuredToCasterModel: true, OneCastWindow: true,
         ImpactBeforeCounter: true, CounterReducesImpact: false, CounterOptional: true, CounterLostWhenFatigued: true,
         HasCumbersome: true,
+        DefenderChoice: true,
         HeroAuraTough: 9,
         IndirectNeedsHold: true,
         ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",

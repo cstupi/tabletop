@@ -130,7 +130,7 @@ public static class PropertiesJson
         _ => false,
     };
     static bool HasOneMarker(EffectDocument f) => f.Duration == EffectDuration.OneMarker || f.Children.Any(HasOneMarker);
-    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start", "activation-end", "after-deploy"];
+    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start", "activation-end", "after-deploy", "attacked"];
 
     static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)
     {
