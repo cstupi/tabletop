@@ -16,7 +16,8 @@ static class Books36
         HavocBrothers = ("7o6om21wxlvvy3hq", "Havoc Brothers"), HighElfFleets = ("7i7blhft75q9zfdc", "High Elf Fleets"),
         HumanDefenseForce = ("z65fgu0l29i4lnlu", "Human Defense Force"), HumanInquisition = ("jpc0kyil0juwy602", "Human Inquisition"),
         InfectedColonies = ("dnthspt7c0klhmt8", "Infected Colonies"), Jackals = ("BKi_hJaJflN8ZorH", "Jackals"),
-        KnightBrothers = ("w70ha3o85pa7nigq", "Knight Brothers"), LustDisciples = ("drqw1iswxmuugp3d", "Lust Disciples"),
+        KnightBrothers = ("w70ha3o85pa7nigq", "Knight Brothers"),
+        KnightPrimeBrothers = ("wopr4xvwa51xh3mc", "Knight Prime Brothers"), LustDisciples = ("drqw1iswxmuugp3d", "Lust Disciples"),
         MachineCults = ("7el7k3hgy5pb9o9i", "Machine Cults"), OrcMarauders = ("1wj1ysgxpuuz9bc7", "Orc Marauders"),
         PlagueDisciples = ("jlray7cwf8mvw5sn", "Plague Disciples"), RatmenClans = ("hk70l4d471plza00", "Ratmen Clans"),
         RebelGuerrillas = ("5wbcv465hacdwvkb", "Rebel Guerrillas"), RobotLegions = ("4k5amkxoybdiqotm", "Robot Legions"),
@@ -30,7 +31,7 @@ static class Books36
     {
         AlienHives, BattleBrothers, BlessedSisters, BloodBrothers, BloodPrimeBrothers, ChangeDisciples, CustodianBrothers, DaemonsOfChange,
         DaemonsOfLust, DaemonsOfPlague, DaemonsOfWar, DaoUnion, DarkBrothers, DarkElfRaiders, DwarfGuilds, ElvenJesters, EternalDynasty,
-        GoblinReclaimers, HavocBrothers, HighElfFleets, HumanDefenseForce, HumanInquisition, InfectedColonies, Jackals, KnightBrothers,
+        GoblinReclaimers, HavocBrothers, HighElfFleets, HumanDefenseForce, HumanInquisition, InfectedColonies, Jackals, KnightBrothers, KnightPrimeBrothers,
         LustDisciples, MachineCults, OrcMarauders, PlagueDisciples, RatmenClans, RebelGuerrillas, RobotLegions, SaurianStarhosts,
         SoulSnatcherCults, TitanLords, VoidspaceStalkers, WarDisciples, WatchBrothers, WolfBrothers,
     }.ToDictionary(b => b.Uid, StringComparer.Ordinal);

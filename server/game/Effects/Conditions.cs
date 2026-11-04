@@ -24,10 +24,12 @@ public static class Conditions
             case ConditionKind.AttackKind: return ix.Attack is { } k && Membership(c, k switch { AttackKind.Shooting => "shooting", AttackKind.Melee => "melee", _ => "spell" });
             // p.5 measures base to base: the measured distance is compared as it is, never rounded ("over 9\"" holds at 9.41").
             case ConditionKind.Range: return ix.RangeInches is { } r && c.Compare(r);
-            // "Over half of this weapon's range away": the measured range against a percentage of the source weapon's range.
+            // "Over half of this weapon's range away": the measured range against a percentage of the source weapon's range. A source with no weapon
+            // reads a spell's hits' reach (its printed range, the caster's distance), and fails outside one.
             case ConditionKind.WeaponRange:
-                return ix.RangeInches is { } measured && c.Number is { } percent && source.WeaponId is { } weapon && WeaponRange(ix, source.Holder, weapon, live) is { } range
-                    && Compare(c.Comparison, measured * 100, percent * range);
+                if (c.Number is not { } percent) return false;
+                if (source.WeaponId is not { } weapon) return ix.SpellReach is { } reach && Compare(c.Comparison, reach.Distance * 100, percent * reach.Range);
+                return ix.RangeInches is { } measured && WeaponRange(ix, source.Holder, weapon, live) is { } range && Compare(c.Comparison, measured * 100, percent * range);
             case ConditionKind.RollResult:
                 if (die is null || c.Values.Count is not (2 or 3) || die.Roll != c.Values[0]) return false;
                 if (c.Values.Count == 3 && die.Success != (c.Values[2] == Success)) return false;

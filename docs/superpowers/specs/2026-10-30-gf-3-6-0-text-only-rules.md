@@ -65,9 +65,19 @@ planned, so the migration is reviewed and its `MigrationTests` assertion written
 Relational, no subject, `comparison` and `number` a percentage of the source weapon's printed range: holds when
 `ix.RangeInches × 100 cmp number × range`, where `range` is the `Range` of the weapon the source instance carries
 (`LiveProperty.WeaponId`; `StatReader.WeaponRange` of the live set, so a granted or suppressed range reads as it plays).
-A source with no weapon, or an interaction with no range, fails it. The range compared is the one the attack measured
-(`determine-attacks`, `range_hundredths`, p.5 base to base, never rounded), which is the unit-to-unit distance, so "units
-over half of this weapon's range away" reads the distance to the target unit. Pierce and Smash write `gt 50`.
+The range compared is the one the attack measured (`determine-attacks`, `range_hundredths`, p.5 base to base, never
+rounded), which is the unit-to-unit distance, so "units over half of this weapon's range away" reads the distance to the
+target unit. Pierce and Smash write `gt 50`.
+
+A spell's printed range is "this weapon's range" (owner ruling): a source with no weapon reads `Interaction.SpellReach`,
+holding when `Distance × 100 cmp number × Range`. `GfAttack.AttackInteraction` sets it on a spell's hit interaction
+(`AttackKind.Spell`, no weapons) from `GfCasting.Reach`: `Range` is the entry's `targeting.range` (the number after
+"within" in its text) and `Distance` the distance from where the cast is measured (the conduit origin or the caster model;
+a pick entry's carrying model) to the target's nearest living model, or the model a model-grain pick named, base to base
+and never rounded, as `GfCasting.Targets` measures a spell's range. Cerebral Trauma (24", AP(1) and Smash) re-rolls
+unmodified Defense 6s on a target over 12" from the caster; Mind Wound (18", AP(1) and Pierce) gets AP(+1) over 9";
+Pierce's positive-Defense half acts at any range. A source with no weapon outside a spell's hits, or an interaction with
+no range, fails it.
 
 ### `remaining_size` (predicate)
 
@@ -95,9 +105,12 @@ Pass two, per die: an `add_hit`-shaped row with a `roll_result` condition on the
 
 - `GfMelee.WoundsTaken` adds to a unit's wounds the `counted_wounds` of every `resolve-hits` frame under this melee whose
   defender is that unit (3.6.0 p.10 *"compare the number of wounds each unit took during this activation"*).
-- The general morale test (`GfActivationEnd`, 3.6.0 p.10 *"takes wounds that leave it with half or less"*): a unit tests
-  when `WoundsThisActivation + counted > 0` and `GfHooks.AtHalfOrLess(state, props, unit, extraWounds: counted)` holds,
-  where the counted wounds are laid on the unit as `deal-wounds` would lay them (Tough order) before the half test.
+- The general morale test (`GfActivationEnd`, 3.6.0 p.10 *"takes wounds that leave it with half or less"*): the counted
+  wounds of the shooting attack-sequences and of the spells' hits (`spell-hits`) on a unit since the activation began; a
+  spell's hits count as shooting's do (owner ruling). A unit tests when `WoundsThisActivation + counted > 0` and
+  `GfHooks.AtHalfOrLess(state, props, unit, extraWounds: counted)` holds, where the counted wounds are laid on the unit as
+  `deal-wounds` would lay them (Tough order) before the half test. Dwarf Guilds' Smiting Rune (4 hits with Scourge) on a
+  five-model unit: one unmodified 1 that wounds leaves 4 models, less 2 counted is 2, and the unit tests.
 
 Scourge writes `count_wounds 2` on an unmodified defense 1 (*"For each unmodified result of 1 to block hits, enemies count as
 having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests"*). The counted
@@ -214,9 +227,13 @@ the spell as translated rather than text-only.
 
 ## Rulings taken here
 
-- The range Pierce and Smash test is the attack's measured unit-to-unit range (p.5), not a per-model distance.
+- On a weapon's attack, the range Pierce and Smash test is the attack's measured unit-to-unit range (p.5), not a per-model
+  distance.
+- A spell's printed range is "this weapon's range": Smash and Pierce on a spell's hits test the caster's distance to the target,
+  measured as the spell's range is, against half of it.
 - Destructive, Decimate and p.10's half read one `RemainingSize`; a single-model unit's size is its Tough.
-- Scourge's counted wounds never wound a model; they count only for the melee result and the shooting morale trigger.
+- Scourge's counted wounds never wound a model; they count only for the melee result and the morale trigger of shooting
+  wounds, and a spell's hits count as shooting's do.
 - Mind Control's "once per round" is per unit moved, across every user of the rule; a passed test leaves the unit eligible.
   Its 6" move is the spell-test forced move (any direction, as Deep Hypnosis's); "in a straight line" is not enforced.
 - The Tags spend their token automatically; Predator asks. A modifier is never a choice; whether to roll more dice is one.

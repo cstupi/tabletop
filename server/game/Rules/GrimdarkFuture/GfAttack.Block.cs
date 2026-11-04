@@ -21,9 +21,10 @@ public static partial class GfAttack
     /// <summary>
     /// The wounds each unit counts as having taken (count_wounds) from the resolve-hits frames on it started at or after the effective log's index `from`,
     /// each read off its defense dice as they now stand (a forced reroll or an edit counts) through its `counted_&lt;roll&gt;_&lt;face&gt;_&lt;entry&gt;` map,
-    /// with the rules that counted them. `shootingOnly` keeps the frames of an attack-sequence no melee pushed. Empty when `from` is negative.
+    /// with the rules that counted them. `shootingAndSpells` keeps the frames of an attack-sequence no melee pushed and of a spell's hits (owner ruling: Scourge on a
+    /// spell's hits counts as shooting's does). Empty when `from` is negative.
     /// </summary>
-    public static IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> CountedWounds(IReadOnlyList<GameEvent> log, int from, bool shootingOnly)
+    public static IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> CountedWounds(IReadOnlyList<GameEvent> log, int from, bool shootingAndSpells)
     {
         var result = new Dictionary<Guid, (int Count, IReadOnlyList<string> Rules)>();
         if (from < 0) return result;
@@ -34,8 +35,10 @@ public static partial class GfAttack
             {
                 case SequenceStarted s:
                     // Shooting: an attack-sequence on top whose own pusher is not a melee; an attack-sequence started before `from` has no pusher here.
+                    // A spell's hits: a spell-hits frame on top.
                     if (s.Sequence == GfNames.ResolveHits && s.Context.TargetUnitIds.Count > 0
-                        && (!shootingOnly || (open is [.., var parent] && parent.Sequence == GfNames.AttackSequence && (open.Count < 2 || open[^2].Sequence != GfNames.Melee))))
+                        && (!shootingAndSpells || (open is [.., var parent] && (parent.Sequence == GfNames.SpellHitsSeq
+                            || parent.Sequence == GfNames.AttackSequence && (open.Count < 2 || open[^2].Sequence != GfNames.Melee)))))
                         frames[s.FrameId] = s.Context.TargetUnitIds[0];
                     open.Add((s.FrameId, s.Sequence)); break;
                 case SequenceFinished f: open.RemoveAll(x => x.Id == f.FrameId); break;

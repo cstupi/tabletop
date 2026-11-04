@@ -301,6 +301,23 @@ public static partial class GfCasting
         return [];
     }
 
+    /// <summary>The reach of the hits the nearest casting or pick-rule frame deals (Interaction.SpellReach): its entry's printed range, and the distance from
+    /// where its range is measured (a cast's origin or caster model, a pick's carrying model) to the target, its nearest living model or the model a
+    /// model-grain pick named, base to base as Targets measures it. Null outside such a frame, for an entry with no targeting, and once a model is gone.</summary>
+    internal static SpellReach? Reach(StepContext ctx, Guid target)
+    {
+        for (var f = ctx.Frame; f is not null; f = f.Parent)
+        {
+            if (f.Frame.Sequence is not (GfNames.CastingSeq or GfNames.PickRuleSeq)) continue;
+            if (SourceEntry(ctx, f)?.Targeting is not { } targeting) return null;
+            Guid? from = f.Frame.Sequence == GfNames.CastingSeq ? Origin(ctx.State, f) ?? CasterModel(f) : GfPick.Parse(f.Context.Action)?.Model;
+            if (from is not { } origin || !ctx.Projection.Models.ContainsKey(origin)) return null;
+            var models = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m) ? [m] : Lookup.LivingModels(ctx.State, target);
+            return models.Count == 0 ? null : new SpellReach(targeting.Range, models.Min(t => Battlefield.Distance(ctx.State, origin, t)));
+        }
+        return null;
+    }
+
     /// <summary>A hit roll that cannot fail: one die per hit on threshold 1 with RequiredRaw 1 (no test, so p.5's natural 1 does not fail it, and an
     /// edit judges it the same way), so "on rolls of 6" rules read a real die. What the dice decide is `score-hits`' (opr-sequences → Dice edits).</summary>
     sealed class HitStep : IStep

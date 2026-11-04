@@ -15,7 +15,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8, .. ArmyGames.Batch9, .. ArmyGames.Army36B, .. ArmyGames.Army36A, .. ArmyGames.Army36C, .. ArmyGames.Army36F, .. ArmyGames.Army36, .. ArmyGames.Army36G, .. ArmyGames.Army36I, .. ArmyGames.Army36H, .. ArmyGames.Army36H2, .. ArmyGames.Army36J, .. ArmyGames.Army36K, .. ArmyGames.Army36L, .. ArmyGames.Army36P];
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8, .. ArmyGames.Batch9, .. ArmyGames.Army36B, .. ArmyGames.Army36A, .. ArmyGames.Army36C, .. ArmyGames.Army36F, .. ArmyGames.Army36, .. ArmyGames.Army36G, .. ArmyGames.Army36I, .. ArmyGames.Army36H, .. ArmyGames.Army36H2, .. ArmyGames.Army36J, .. ArmyGames.Army36K, .. ArmyGames.Army36L, .. ArmyGames.Army36M, .. ArmyGames.Army36N, .. ArmyGames.Army36P];
 
     private static partial class ArmyGames
     {
@@ -196,7 +196,7 @@ public static partial class SuiteCatalog
             IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null, string? enemyBook = null,
             IReadOnlyList<(int Unit, string Condition)>? conditions = null, int enemyRange = 60, IReadOnlyList<int>? setAside = null,
             IReadOnlyList<int>? enemySetAside = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null,
-            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null)
+            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null, int enemyBlade = 1)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
             var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged or Play.Exchange, play is not Play.Charged);
@@ -213,7 +213,7 @@ public static partial class SuiteCatalog
                     weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers, conditions: conditions,
                     setAside: setAside, anchors: anchors, reserves: reserves, sizes: sizes)
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
-                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(1)], setAside: enemySetAside, anchors: enemyAnchors);
+                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(enemyBlade)], setAside: enemySetAside, anchors: enemyAnchors);
             return new TestGame(name, ArmyGroup(RuleSets.Gf351, book.Uid), (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
         }
 
