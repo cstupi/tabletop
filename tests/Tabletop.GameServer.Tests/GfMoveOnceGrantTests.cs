@@ -145,5 +145,8 @@ public class GfMoveOnceGrantTests
         Stop(sim, Shifted(sim, a.Models[0].Id, 1));
         Assert.Equal(15.0, Allowance(sim));
         Assert.Equal(3, sim.Unit(a.Id).Grants.Count);
+        sim.Answer(Samples.Team1, new Destinations([Shifted(sim, a.Models[0].Id, 15 - 1 - 1.26)]));   // into base contact: 14" past 12"
+        Assert.Contains(sim.State.Applier.Log.Select(e => e.Payload).OfType<StepCompleted>(), s => s.Step == "move" && (s.Applied?.Contains(ShockSpeed) ?? false));
+        Assert.Empty(sim.Unit(a.Id).Grants);
     }
 }

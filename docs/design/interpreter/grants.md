@@ -52,7 +52,8 @@ too, or a granted hook-name rule would never fire.
   moves writes `move_held_<unit>_<grant>` (`GfNames.MoveHeldPrefix`) for the grants it read and removes nothing; the
   run that ends the step releases them by Consume's rule. Shock Speed cast at a stop of a Slow unit's Advance makes the
   allowance 6", and after a 1" stop 5" remain; the next move action reads no grant. A segment that moved nothing holds
-  nothing, so a move that stands still keeps the grant.
+  nothing, so a move that stands still keeps the grant. A move abandoned mid-move (`SequenceAbandoned`) leaves the
+  grant on the unit, as an abandoned attack does.
 - **A granted `Flying` lasts the activation** in which it first applied; the turn-end hook removes it
   (`GfMoves.ConsumeKeepingFlying`). A spell's forced move flies with it but neither spends nor holds it.
 - **A model-grain target's grant lands on the model's unit**, because the store is the unit's.
