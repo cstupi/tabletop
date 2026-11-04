@@ -70,58 +70,77 @@ public static partial class SuiteCatalog
     }
 
     /// <summary>
-    /// Rapid Putrefaction at three-model units: a block at a unit with more than half its models alive (2 or 3 of 3) re-rolls exactly its unmodified 6s,
-    /// a block at one with 1 left re-rolls none.
+    /// "More than half of their total size or Tough value (for single-model units)" at a single-model Tough(8) target: more than 4 of its 8 wounds left
+    /// as the block is rolled.
     /// </summary>
-    static string? RapidPutrefaction(LogQueries q) => LogQueries.Each(SpellHits(q, "Rapid Putrefaction").SelectMany(h => h.Blocks.Select(b => (h.Hits, Block: b))), "Rapid Putrefaction block", x =>
+    static bool OverHalf8(LogQueries q, LoggedFrame hits, LoggedRoll block)
     {
-        var over = q.Living(x.Hits.Context.TargetUnitIds[0], x.Block.Step.Seq) * 100 > 50 * 3;
-        var expected = x.Block.Roll.Dice.Select((d, i) => (d, i)).Where(p => over && p.d.Raw == 6).Select(p => p.i).ToList();
-        var rerolled = x.Block.Rerolls.SelectMany(r => r.Replaced).Select(r => r.Index).Order().ToList();
-        return expected.SequenceEqual(rerolled) ? null : $"re-rolled [{string.Join(",", rerolled)}] of [{string.Join(" ", x.Block.Roll.Dice.Select(d => d.Raw))}] at {(over ? "over" : "at or under")} half";
-    });
+        var model = q.Final.Units[hits.Context.TargetUnitIds[0]].Definition.Models.Single().Id;
+        return (8 - q.WoundsOn(model, block.Step.Seq)) * 100 > 50 * 8;
+    }
 
     /// <summary>
-    /// Smiting Rune: every block step maps Scourge's count as 2 wounds for a die showing 1 and for no other face (`counted_&lt;roll&gt;_&lt;face&gt;_&lt;entry&gt;`, which
-    /// the melee result and the morale trigger read off the dice as they stand), and its counted wounds as rolled are 2 per unmodified 1 as rolled; the
-    /// first block, fixed to two 1s and two 6s after its roll, shows two 1s for the readers to count.
+    /// Rapid Putrefaction from six casters at single-model Tough(8) targets: a block at a target over half re-rolls exactly its unmodified 6s as rolled,
+    /// one at or under half (target unit 1 after the two fixed blocks' four wounds) re-rolls none; at least one block of each, and one over half with a 6.
     /// </summary>
-    static string? SmitingRune(LogQueries q)
+    static string? RapidPutrefaction(LogQueries q)
     {
-        var steps = SpellHits(q, "Smiting Rune").SelectMany(h => h.Blocks.Select(b => b.Step)).Distinct().ToList();
-        if (!steps.Any(s => s.Rolls("defense").Any(r => r.Edited && r.Raw(1) == 2))) return "the fixed block of two 1s is not a Smiting Rune block";
-        return LogQueries.Each(steps, "Smiting Rune block", s =>
+        var cases = SpellHits(q, "Rapid Putrefaction").SelectMany(h => h.Blocks.Select(b => (Block: b, Over: OverHalf8(q, h.Hits, b)))).ToList();
+        if (!cases.Any(x => x.Over && x.Block.Roll.Dice.Any(d => d.Raw == 6))) return "no block over half rolled a 6";
+        if (!cases.Any(x => !x.Over)) return "no block at a target at or under half";
+        return LogQueries.Each(cases, "Rapid Putrefaction block", x =>
         {
-            var map = (s.Step.Values ?? new Dictionary<string, int>()).Where(kv => kv.Key.StartsWith("counted_", StringComparison.Ordinal) && kv.Key != "counted_wounds")
-                .Select(kv => $"{kv.Key}={kv.Value}").ToList();
-            if (!map.SequenceEqual(["counted_0_1_Scourge=2"])) return $"counts [{string.Join(", ", map)}], not 2 for a 1";
-            var ones = s.Step.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count(d => d.Raw == 1));
-            return s.Value("counted_wounds") == 2 * ones ? null : $"counted {s.Value("counted_wounds")} as rolled for {ones} 1s";
+            var expected = x.Block.Roll.Dice.Select((d, i) => (d, i)).Where(p => x.Over && p.d.Raw == 6).Select(p => p.i).ToList();
+            var rerolled = x.Block.Rerolls.SelectMany(r => r.Replaced).Select(r => r.Index).Order().ToList();
+            return expected.SequenceEqual(rerolled) ? null : $"re-rolled [{string.Join(",", rerolled)}] of [{string.Join(" ", x.Block.Roll.Dice.Select(d => d.Raw))}] at {(x.Over ? "over" : "at or under")} half";
         });
     }
 
-    /// <summary>Light Fragments at three-model units: every block at a unit with more than half its models alive is at AP(1), at one with 1 left at no AP.</summary>
+    /// <summary>
+    /// Smiting Rune: every block step maps Scourge's count as 2 wounds for a die showing 1 and for no other face (`counted_&lt;roll&gt;_&lt;face&gt;_&lt;entry&gt;`; a
+    /// spell's hits are neither melee nor shooting, so neither reader the text names counts them), and its counted wounds as rolled are 2 per unmodified 1.
+    /// </summary>
+    static string? SmitingRune(LogQueries q) => LogQueries.Each(SpellHits(q, "Smiting Rune").SelectMany(h => h.Blocks.Select(b => b.Step)).Distinct(), "Smiting Rune block", s =>
+    {
+        var map = (s.Step.Values ?? new Dictionary<string, int>()).Where(kv => kv.Key.StartsWith("counted_", StringComparison.Ordinal) && kv.Key != "counted_wounds")
+            .Select(kv => $"{kv.Key}={kv.Value}").ToList();
+        if (!map.SequenceEqual(["counted_0_1_Scourge=2"])) return $"counts [{string.Join(", ", map)}], not 2 for a 1";
+        var ones = s.Step.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count(d => d.Raw == 1));
+        return s.Value("counted_wounds") == 2 * ones ? null : $"counted {s.Value("counted_wounds")} as rolled for {ones} 1s";
+    });
+
+    /// <summary>
+    /// Light Fragments from six casters at single-model Tough(8) targets: every block at a target over half is at AP(1), at one at or under half (target
+    /// unit 1 after the fixed block's six wounds) at no AP; at least one of each.
+    /// </summary>
     static string? LightFragments(LogQueries q)
     {
-        var cases = SpellHits(q, "Light Fragments").SelectMany(h => h.Blocks.Select(b => (h.Hits, Block: b))).ToList();
-        if (!cases.Any(x => q.Living(x.Hits.Context.TargetUnitIds[0], x.Block.Step.Seq) >= 2)) return "no Light Fragments block at a unit over half";
+        var cases = SpellHits(q, "Light Fragments").SelectMany(h => h.Blocks.Select(b => (Block: b, Over: OverHalf8(q, h.Hits, b)))).ToList();
+        if (!cases.Any(x => x.Over)) return "no block at a target over half";
+        if (!cases.Any(x => !x.Over)) return "no block at a target at or under half";
         return LogQueries.Each(cases, "Light Fragments block", x =>
         {
-            var over = q.Living(x.Hits.Context.TargetUnitIds[0], x.Block.Step.Seq) * 100 > 50 * 3;
             var ap = x.Block.Roll.Modifiers.Where(m => m.Source == "AP" && m.Amount != 0).Select(m => m.Amount).ToList();
-            return ap.SequenceEqual(over ? [-1] : []) ? null : $"AP [{string.Join(",", ap)}] at {(over ? "over" : "at or under")} half";
+            return ap.SequenceEqual(x.Over ? [-1] : []) ? null : $"AP [{string.Join(",", ap)}] at {(x.Over ? "over" : "at or under")} half";
         });
     }
 
     /// <summary>
     /// A spell granting a "+D3" boost to a rolled move every unit of the book's army carries: each of the move's rolls is 2 dice while the unit holds the
-    /// spell's grant and 1 die otherwise, and at least one roll was made holding it.
+    /// spell's grant and 1 die otherwise; a boosted move that moved a model spends the grant ("once"), so the unit holds none after it; at least one
+    /// boosted move that moved and one unboosted move.
     /// </summary>
-    static string? BoostedMove(LogQueries q, string spell, string move) =>
-        q.FramesOf("reposition").Where(f => f.Context.Action == move).Select(f => (Frame: f, Held: Held(q, f.Context.ActorUnitId!.Value, spell, f.Seq),
-            Dice: f.Steps.SelectMany(s => s.Rolls(move)).Sum(r => r.Dice.Count))).ToList() is var moves && !moves.Any(m => m.Held)
-            ? $"no {move} move while holding {spell}"
-            : LogQueries.Each(moves, $"{move} move", m => m.Dice == (m.Held ? 2 : 1) ? null : $"{m.Dice} dice {(m.Held ? "holding" : "not holding")} {spell}");
+    static string? BoostedMove(LogQueries q, string spell, string move)
+    {
+        var moves = q.FramesOf("reposition").Where(f => f.Context.Action == move && f.Steps.Count > 0).Select(f => (Frame: f, Unit: f.Context.ActorUnitId!.Value,
+            Held: Held(q, f.Context.ActorUnitId!.Value, spell, f.Seq), Dice: f.Steps.SelectMany(s => s.Rolls(move)).Sum(r => r.Dice.Count),
+            Moved: f.Steps.Any(s => s.Step.Changes.OfType<ModelsMoved>().Any()), After: f.Steps[^1].Seq + 1)).ToList();
+        if (!moves.Any(m => m.Held && m.Moved)) return $"no {move} move made while holding {spell}";
+        if (!moves.Any(m => !m.Held)) return $"no {move} move made without {spell}";
+        return LogQueries.Each(moves, $"{move} move", m =>
+            m.Dice != (m.Held ? 2 : 1) ? $"{m.Dice} dice {(m.Held ? "holding" : "not holding")} {spell}"
+            : m.Held && m.Moved && Held(q, m.Unit, spell, m.After) ? $"{spell} still held after the boosted move" : null);
+    }
 
     /// <summary>A once-grant spell: each resolved cast writes one grant of the spell on each target not already holding one, and none on a target that does.</summary>
     static string? GrantWritten(LogQueries q, string spell) => LogQueries.Each(

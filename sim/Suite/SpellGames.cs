@@ -11,6 +11,8 @@ namespace Tabletop.Sim.Suite;
 /// names its casts pick, given the caster's unit name (default: SpellGames.Friends for a friendly spell; for an enemy one the target
 /// units in order starting from unit r in round r, so a grant no attack uses up, which no recast can stack (p.13), still meets a fresh unit). BlueAction: the action each target unit takes, by unit number (default Rush, which never attacks).
 /// Rules, TargetRules: further rules on every model of the book's army or of the target army, beside their Caster and Tough.
+/// TargetModels, TargetTough, TargetDefense: each target unit's model count, Tough value and Defense (default 4+). Anchored: every unit's first model deploys on its lane's point, so the
+/// first round's casts reach the targets they reach later.
 /// </summary>
 public sealed record SpellSetup(
     IReadOnlyList<string>? First = null,
@@ -18,7 +20,11 @@ public sealed record SpellSetup(
     Func<int, string>? BlueAction = null,
     int Bonus = 2,
     IReadOnlyList<ScenarioRule>? Rules = null,
-    IReadOnlyList<ScenarioRule>? TargetRules = null);
+    IReadOnlyList<ScenarioRule>? TargetRules = null,
+    int TargetModels = 3,
+    int TargetTough = 6,
+    bool Anchored = false,
+    int TargetDefense = 4);
 
 /// <summary>
 /// The spell games, generated from the pinned set's books: one game per book that lists spells. The book's army is one single-model
@@ -64,9 +70,12 @@ public static class SpellGames
             .Army(book.Name, order.Count, 1,
                 modelRules: [.. units.SelectMany(u => new[] { new ScenarioRule(u, "Caster", 6), new ScenarioRule(u, "Tough", 6) }
                     .Concat((setup?.Rules ?? []).Select(r => r with { Unit = u })))],
-                weapons: [HandWeapon], armyBook: book.Uid)
-            .Army(TargetArmy, 3, 3, modelRules: [.. Enumerable.Range(1, 3).SelectMany(u => (setup?.TargetRules ?? []).Select(r => r with { Unit = u })
-                .Prepend(new ScenarioRule(u, "Tough", 6)))], weapons: [ApRifle, HandWeapon])
+                weapons: [HandWeapon], armyBook: book.Uid,
+                anchors: setup?.Anchored == true ? units.ToDictionary(k => k, k => new Point2(36.0 * (k - 0.5) / order.Count, 13)) : null)
+            .Army(TargetArmy, 3, setup?.TargetModels ?? 3, modelRules: [.. Enumerable.Range(1, 3).SelectMany(u => (setup?.TargetRules ?? []).Select(r => r with { Unit = u })
+                .Prepend(new ScenarioRule(u, "Tough", setup?.TargetTough ?? 6)))], weapons: [ApRifle, HandWeapon],
+                unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = $"{setup?.TargetDefense ?? 4}+" },
+                anchors: setup?.Anchored == true ? Enumerable.Range(1, 3).ToDictionary(j => j, j => new Point2(12.0 * j - 6, 10)) : null)
             .Seeking((model, view) => Lane(book.Name, order.Count, view.Projection, model))
             .Scripted(Script(book.Name, order, set, setup))
             .Build();

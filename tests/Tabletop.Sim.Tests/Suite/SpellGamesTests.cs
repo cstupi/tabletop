@@ -17,8 +17,10 @@ public class SpellGamesTests
     static PropertySet Set => ScenarioCompiler.CoreProperties;
     static IReadOnlyList<TestGame> Spells => SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.SpellsPrefix, StringComparison.Ordinal)).ToList();
 
-    /// <summary>The per-book games: the group less its edited-casting-die game (SuiteCatalog.EditedCastingDieName).</summary>
-    static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName).ToList();
+    /// <summary>The per-book games: the group less its edited-casting-die game (SuiteCatalog.EditedCastingDieName) and the 3.6 games that cast one spell
+    /// from every unit (SuiteCatalog.RepeatedSpellGames36).</summary>
+    static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName
+        && !SuiteCatalog.RepeatedSpellGames36.Any(n => g.Name == n + "@3.6")).ToList();
 
     public static TheoryData<string> GameNames() => [.. Spells.Select(g => g.Name)];
 

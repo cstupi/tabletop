@@ -54,7 +54,8 @@ public static partial class SuiteCatalog
 
         /// <summary>
         /// Unstoppable from the Mark's grant: every attack at the marked unit holding the grant has no negative modifier to hit and lists Melee Evasion's -1
-        /// as ignored, and when a block failed no step under it rolls Regeneration; at least one such attack failed a block.
+        /// as ignored, and when a block failed no step under it rolls Regeneration; every unmarked charge at the Regeneration unit that failed a block rolls
+        /// Regeneration; at least one of each failed a block.
         /// </summary>
         static GameCheck UnstoppableBothP(string quote) =>
             Exact("Unstoppable Mark", $"{quote}: Melee Evasion's -1 dropped and no Regeneration roll in one attack", (run, log) =>
@@ -62,13 +63,15 @@ public static partial class SuiteCatalog
                 var marked = Granted("Unstoppable Mark", onTarget: true);
                 var attacks = Of(run, log, marked).Where(a => a.Hit is not null).ToList();
                 if (!attacks.Any(FailedBlockP)) return ["no marked attack failed a block"];
+                var unmarked = Of(run, log, On("Regeneration", when: When.Charging)).Where(a => !marked(run, a) && FailedBlockP(a)).ToList();
+                if (unmarked.Count == 0) return ["no unmarked charge failed a block"];
                 return attacks.Select(a =>
                 {
                     var hits = a.HitRolls("hit").Where(r => !(r.Threshold == 6 && r.Modifiers.Count == 0)).ToList();
                     return hits.Any(r => r.Modifiers.Any(m => m.Amount < 0)) ? "a hit roll under a negative modifier"
                         : hits.Any(r => !(r.Ignored ?? []).Any(i => i.Source == "Melee Evasion" && i.Amount < 0)) ? "a hit roll with no Melee Evasion -1 ignored"
                         : FailedBlockP(a) && UnderP(log, a).Any(s => s.Rolls("Regeneration").Any()) ? "Regeneration rolled on the marked attack" : null;
-                });
+                }).Concat(unmarked.Select(a => UnderP(log, a).Any(s => s.Rolls("Regeneration").Any()) ? null : "no Regeneration roll on an unmarked charge"));
             });
 
         /// <summary>
