@@ -70,7 +70,7 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
     {
         var spec = Rules.RollSpec(roll);
         var read = threshold ?? spec.Threshold(live, roller);
-        var (attributed, rerolls) = RollEffects.Attributed(live, roller, roll, read?.Value, baseModifiers, spec.Convention, requiredRaw, Rules.HitRoll);
+        var (attributed, rerolls) = RollEffects.Attributed(live, roller, roll, read?.Value, baseModifiers, spec.Convention, requiredRaw, Rules.HitRoll, Rules.DefenseRoll);
         var plan = attributed with { Basis = read?.Basis, Cover = cover };   // before keying _rerolls, which compares by reference
         if (rerolls.Count > 0) _rerolls[plan] = (live, rerolls);
         return plan;

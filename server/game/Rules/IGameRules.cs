@@ -35,6 +35,7 @@ public interface IGameRules
     // Per roll: the dice convention and the threshold derivation, a function (action sequences → constraints 2–4).
     RollSpec RollSpec(string roll);
     string HitRoll { get; }
+    string DefenseRoll { get; }
     // Windows: who can react at a named point, and with what (action sequences → Windows).
     IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame);
     // Hooks the scheduler calls (scheduler → The line), each once per turn or round, with the scheduler's TurnContext.

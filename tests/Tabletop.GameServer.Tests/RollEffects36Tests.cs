@@ -28,7 +28,7 @@ public class RollEffects36Tests
         var weapons = shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id));
         var live = LiveProperties.Settle(new Interaction(state, properties, Party.Of(state, shooter.Id, shooter.Models.Select(m => m.Id), weapons),
             Party.Whole(state, target.Id), AttackKind.Shooting, action, 12, []));
-        return RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit");
+        return RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit", "defense");
     }
 
     [Theory]
@@ -62,7 +62,7 @@ public class RollEffects36Tests
         var state = State([shooter], [target]);
         var live = LiveProperties.Settle(new Interaction(state, properties, Party.Of(state, shooter.Id, shooter.Models.Select(m => m.Id), shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id))),
             Party.Whole(state, target.Id), AttackKind.Shooting, "Hold", 12, []));
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit", "defense");
         Assert.Equal(expected, plan.NetModifier);
         Assert.Contains(new IgnoredEffect("Stealth", "Unstoppable", -1), plan.Ignored!);
         Assert.Equal(expected == 0, plan.Ignored!.Any(i => i.Source == "Clumsy Barrel"));
@@ -84,7 +84,7 @@ public class RollEffects36Tests
             state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null, new GrantAdded(a.Id, new Grant(Guid.CreateVersion7(), row.Id, "Precision Debuff", enemyCaster ? b.Id : a.Id, 1)), null));
         var live = LiveProperties.Settle(new Interaction(state, properties, Party.Of(state, a.Id, a.Models.Select(m => m.Id), a.Models.SelectMany(m => m.Weapons.Select(w => w.Id))), Party.Whole(state, b.Id), AttackKind.Shooting, "Hold", 12, []));
         Assert.Equal(-1, live.Effects(Side.Attacker, EffectKind.ModifyRoll).Where(x => x.Effect.TargetRoll == "hit").Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter)));   // the debuff acts
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit", "defense");
         Assert.Equal(expected, plan.NetModifier);
         Assert.Equal(expected == 0, plan.Ignored?.Contains(new IgnoredEffect("Precision Debuff", "Unstoppable", -1)) ?? false);
     }

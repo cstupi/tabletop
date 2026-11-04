@@ -29,7 +29,7 @@ public class GfDetailedLogTests
     public void Unstoppable_records_the_stealth_penalty_it_took_away()
     {
         var live = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Beam", "24\"", 1, P("Unstoppable"))), Unit("T", "4+", "4+", [], 2, [P("Stealth")]), 12);
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit", "defense");
         Assert.Empty(plan.Modifiers);
         Assert.Equal([new IgnoredEffect("Stealth", "Unstoppable", -1)], plan.Ignored!);
     }
@@ -38,7 +38,7 @@ public class GfDetailedLogTests
     public void A_plan_nothing_took_anything_from_records_no_ignored_list()
     {
         var live = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)), Unit("T", "4+", "4+", [], 2, [P("Stealth")]), 12);
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit", "defense");
         Assert.Equal(["Stealth"], plan.Modifiers.Select(m => m.Source));
         Assert.Null(plan.Ignored);
     }
@@ -47,12 +47,12 @@ public class GfDetailedLogTests
     public void Quick_readjustment_is_recorded_as_taking_away_indirects_penalty_after_an_advance()
     {
         var live = Shooting(Unit("A", "4+", "4+", [], 1, [P("Quick Readjustment")], Gun("Mortar", "36\"", 1, P("Indirect"))), Unit("B", "4+", "4+", [], 1, []), 12, GfNames.Advance);
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", 4, [], D6, null, "hit", "defense");
         Assert.Empty(plan.Modifiers);
         Assert.Equal([new IgnoredEffect("Indirect", "Quick Readjustment", -1)], plan.Ignored!);
 
         var held = Shooting(Unit("A", "4+", "4+", [], 1, [P("Quick Readjustment")], Gun("Mortar", "36\"", 1, P("Indirect"))), Unit("B", "4+", "4+", [], 1, []), 12);
-        Assert.Null(RollEffects.Plan(held, Side.Attacker, "hit", 4, [], D6, null, "hit").Ignored);   // Indirect's -1 needs an advance: nothing would have applied
+        Assert.Null(RollEffects.Plan(held, Side.Attacker, "hit", 4, [], D6, null, "hit", "defense").Ignored);   // Indirect's -1 needs an advance: nothing would have applied
     }
 
     static EffectDocument Row(EffectKind kind, int? amount = null, string? entry = null, StatRef? stat = null, string? replacement = null) =>

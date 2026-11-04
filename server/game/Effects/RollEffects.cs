@@ -10,8 +10,8 @@ public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(s
 public static class RollEffects
 {
     /// <summary>The roll as the live set leaves it. Summing is generic; the convention clamps. Suppressed modifier classes are removed before summing.</summary>
-    public static RollPlan Plan(LiveSet live, Side roller, string roll, int? threshold, IEnumerable<RollModifier> baseModifiers, RollConvention convention, int? requiredRaw, string hitRollName) =>
-        Attributed(live, roller, roll, threshold, baseModifiers, convention, requiredRaw, hitRollName).Plan;
+    public static RollPlan Plan(LiveSet live, Side roller, string roll, int? threshold, IEnumerable<RollModifier> baseModifiers, RollConvention convention, int? requiredRaw, string hitRollName, string defenseRollName) =>
+        Attributed(live, roller, roll, threshold, baseModifiers, convention, requiredRaw, hitRollName, defenseRollName).Plan;
 
     /// <summary>
     /// Plan, with the sources behind its forced rerolls by the face each rerolls. A modifier that survives the suppressions is recorded as applied; one a
@@ -19,7 +19,7 @@ public static class RollEffects
     /// so the caller records its source when the roller rerolled that face (StepContext.Roll).
     /// </summary>
     public static (RollPlan Plan, IReadOnlyList<(int Face, bool SuccessOnly, LiveProperty Source)> Rerolls) Attributed(LiveSet live, Side roller, string roll, int? threshold, IEnumerable<RollModifier> baseModifiers,
-        RollConvention convention, int? requiredRaw, string hitRollName)
+        RollConvention convention, int? requiredRaw, string hitRollName, string defenseRollName)
     {
         var modifiers = baseModifiers.ToList();
         var added = new List<(RollModifier Modifier, LiveProperty Source)>();
@@ -30,7 +30,8 @@ public static class RollEffects
             added.Add((modifier, src));
         }
         // What a suppression took away, for the log (detailed-log spec): the modify_roll rows of removed properties that would have applied, and the
-        // negative hit modifiers a to_hit_penalties or foreign_to_hit_penalties suppression drops. Cover's is the CoverVerdict's to say.
+        // negative hit modifiers a to_hit_penalties or foreign_to_hit_penalties suppression drops, and the positive defense modifiers a positive_defense
+        // suppression drops (cover's among them). Cover's under a cover suppression is the CoverVerdict's to say.
         var ignored = live.RemovedRows(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll)
             .Select(x => new IgnoredEffect(x.Removed.Entry.Name, x.By.Entry.Name, x.Effect.EffectiveAmount(x.Removed.Parameter))).ToList();
         live.ReadRemoved(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll);
@@ -50,6 +51,13 @@ public static class RollEffects
                 ignored.AddRange(modifiers.Where(Drops).Select(m => new IgnoredEffect(m.Via is { } via && m.Source == "AP" ? $"{via} {m.Source}" : m.Source, by, m.Amount)));
                 if (modifiers.RemoveAll(Drops) > 0) live.ReadSuppressedModifier(kind);
             }
+        }
+        if (roll == defenseRollName && live.SuppressedModifiers.Contains(TargetModifier.PositiveDefense))
+        {
+            // PositiveDefense drops every positive modifier of the defense roll, base and rule rows alike; negative ones stay.
+            var by = string.Join(", ", live.Suppressors(TargetModifier.PositiveDefense));
+            ignored.AddRange(modifiers.Where(m => m.Amount > 0).Select(m => new IgnoredEffect(m.Source, by, m.Amount)));
+            if (modifiers.RemoveAll(m => m.Amount > 0) > 0) live.ReadSuppressedModifier(TargetModifier.PositiveDefense);
         }
         foreach (var (modifier, src) in added)
             if (modifiers.Any(m => ReferenceEquals(m, modifier))) live.Read(src); else live.Spend(src);

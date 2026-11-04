@@ -12,6 +12,7 @@ public sealed class StubRules(params Sequence[] sequences) : IGameRules
 {
     public string Id => "stub";
     public string HitRoll => "hit";
+    public string DefenseRoll => "defense";
     public Sequence Sequence(string name) => sequences.FirstOrDefault(s => s.Name == name) ?? throw new UnknownSequenceException(name);
     public string? ActionSequence(string actionName) => actionName.ToLowerInvariant();
     public RollSpec RollSpec(string roll) => new(roll, new RollConvention(6, null), (_, _) => new TargetRead(4, null));
@@ -47,6 +48,7 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
         new(name, steps.Select(s => (IStep)new LambdaStep(s, _ => throw new InvalidOperationException($"{name}: a parked parent never runs"))).ToList());
     public string Id => inner.Id;
     public string HitRoll => inner.HitRoll;
+    public string DefenseRoll => inner.DefenseRoll;
     public Sequence Sequence(string name) => extra.FirstOrDefault(s => s.Name == name) ?? inner.Sequence(name);
     public string? ActionSequence(string actionName) => inner.ActionSequence(actionName);
     public RollSpec RollSpec(string roll) => inner.RollSpec(roll);
