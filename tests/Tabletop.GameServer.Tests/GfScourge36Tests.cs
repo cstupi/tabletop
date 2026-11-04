@@ -23,10 +23,16 @@ public class GfScourge36Tests
         [new EffectDocument(EffectSubject.Opponent, 10, EffectKind.CountWounds, null, null, null, null, null, null, null, 2, false, null, null, null,
             EffectDuration.Interaction, [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 1, [GfNames.DefenseRoll, "raw"])], [])]);
 
+    /// <summary>A weapon rule making the target re-roll unmodified Defense results of 3, as Bane's row does for 6.</summary>
+    const string RerollThrees = "Test Reroll Threes";
+    static readonly EntryDocument Threes = new(RerollThrees, CatalogKind.Weapon, false, null, null, null, "test", null,
+        [new EffectDocument(EffectSubject.Opponent, 20, EffectKind.ForceReroll, GfNames.DefenseRoll, null, null, null, null, null, null, null, false, null, null, null,
+            EffectDuration.Interaction, [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 3, [GfNames.DefenseRoll, "raw"])], [])]);
+
     static PropertySet PropsFor(string rules)
     {
         var doc = rules == RuleSets.Gf360 ? TestProperties.CoreDocument36 : TestProperties.CoreDocument;
-        return PropertiesJson.ToSet(doc with { Entries = [.. doc.Entries, Entry] }, Guid.CreateVersion7);
+        return PropertiesJson.ToSet(doc with { Entries = [.. doc.Entries, Entry, Threes] }, Guid.CreateVersion7);
     }
 
     static Sim SimFor(string rules, GameState state, params int[] dice) => rules == RuleSets.Gf360
@@ -72,6 +78,45 @@ public class GfScourge36Tests
         Assert.Equal(rules == RuleSets.Gf360, compare.Applied?.Contains(Scourge) ?? false);
         Assert.Equal(0, sim.Model(defender.Models[0].Id).Wounds);
         Assert.Equal(0, sim.Unit(defender.Id).WoundsThisActivation);
+    }
+
+    /// <summary>One hit with Scourge on a Tough(3) defender that does not strike back; its block shows 3 as rolled. A forced reroll (to 1) or an edit (to 1)
+    /// after the roll counts on the face the die then shows: 1 real wound and 2 counted, and the compare names Scourge.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_block_rerolled_or_edited_to_a_one_counts(bool rerolled)
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [P("Tough", 3)], Melee("Lash", 1, rerolled ? [P(Scourge), P(RerollThrees)] : [P(Scourge)]));
+        var defender = Unit("Defender", "4+", "4+", [], 1, [P("Tough", 3)], Melee("Fist", 1));
+        var state = State([charger], [defender], x1: -3, x2: 0, waits: !rerolled).Under(RuleSets.Gf360);
+        var sim = new Sim(state, GrimdarkFutureRules.V360, PropsFor(RuleSets.Gf360), new ScriptedDice([4, 3, 1, 6, 6, 6]));
+        sim.Start(GfNames.Melee, new SequenceContext(charger.Id, [defender.Id], Weapons(charger), GfNames.Charge));
+        var edited = false;
+        for (var i = 0; i < 60 && sim.Steps("compare").Count == 0; i++)
+        {
+            if (!rerolled && !edited && sim.Steps("roll-to-block").Count > 0)
+            {
+                var record = sim.Steps("roll-to-block").Single().Rolls.Single();
+                var frame = sim.State.Projection.Stack.Single(f => f.Steps.Any(s => s.Rolls.Any(r => r.Id == record.Id))).Id;
+                Assert.IsType<Dispatch.Applied>(sim.Dispatch(new SetDice(frame, record.Id, [new DieValue(0, 1)]), Samples.P1, Samples.Team1));
+                edited = true;
+            }
+            var open = sim.State.Projection.OpenAsks.Values.FirstOrDefault(a => a.Answers.Count == 0)?.Ask;
+            if (open is null) break;
+            sim.Answer(open.Teams[0], open.Question switch
+            {
+                AskQuestions.Confirm => new Confirmed(),
+                "move" => new Passed(),
+                _ => new Chosen("pass"),
+            });
+        }
+        var block = sim.Steps("roll-to-block").Single();
+        Assert.Equal(3, block.Rolls.Single().Dice.Single().Raw);
+        var compare = sim.Steps("compare").First();
+        Assert.Equal((0, 3, 2), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));
+        Assert.Contains(Scourge, compare.Applied ?? []);
+        Assert.Equal(1, sim.Model(defender.Models[0].Id).Wounds);
     }
 
     /// <summary>A Hold that shoots: two 1s on the block, both wounds regenerated. The 5-model unit counts 4 wounds (1 left of 5: half or less) and tests;

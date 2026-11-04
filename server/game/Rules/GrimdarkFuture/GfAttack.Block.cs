@@ -10,59 +10,68 @@ public static partial class GfAttack
     /// <summary>The wounds a die showing `face` adds on the frame's `roll`-th defense roll, mapped when the roll is made and read when the wounds are dealt.</summary>
     static string ExtraWoundsKey(int roll, int face) => $"extra_wounds_{roll}_{face}";
 
-    /// <summary>The wounds a die showing `face` makes the defender count as having taken on the frame's `roll`-th defense roll (count_wounds), mapped
-    /// as ExtraWoundsKey is.</summary>
-    static string CountedKey(int roll, int face) => $"counted_{roll}_{face}";
+    /// <summary>The wounds a die showing `face` makes the defender count as having taken on the frame's `roll`-th defense roll through one count_wounds
+    /// rule (`entry`), mapped as ExtraWoundsKey is, so the reader names the rule of the face a die shows.</summary>
+    static string CountedKey(int roll, int face, string entry) => $"{CountedPrefix}{roll}_{face}_{entry}";
+    const string CountedPrefix = "counted_";
 
-    /// <summary>The roll-to-block value holding the counted wounds as rolled; CountedWounds reads the faces as they stand.</summary>
+    /// <summary>The roll-to-block value holding the counted wounds as rolled (its forced rerolls applied); CountedWounds reads the faces as they stand.</summary>
     public const string CountedWoundsKey = "counted_wounds";
 
     /// <summary>
-    /// The wounds a unit counts as having taken (count_wounds) from the resolve-hits frames on it started at or after the effective log's index `from`,
-    /// each read off its defense dice as they now stand (a reroll or an edit counts) through its `counted_&lt;roll&gt;_&lt;face&gt;` map; with the rules that
-    /// counted them. `shootingOnly` keeps the frames of an attack-sequence no melee pushed.
+    /// The wounds each unit counts as having taken (count_wounds) from the resolve-hits frames on it started at or after the effective log's index `from`,
+    /// each read off its defense dice as they now stand (a forced reroll or an edit counts) through its `counted_&lt;roll&gt;_&lt;face&gt;_&lt;entry&gt;` map,
+    /// with the rules that counted them. `shootingOnly` keeps the frames of an attack-sequence no melee pushed. Empty when `from` is negative.
     /// </summary>
-    public static (int Count, IReadOnlyList<string> Rules) CountedWounds(GameState state, PropertySet props, IReadOnlyList<GameEvent> log, int from, Guid unit, bool shootingOnly)
+    public static IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> CountedWounds(IReadOnlyList<GameEvent> log, int from, bool shootingOnly)
     {
-        if (from < 0) return (0, []);
+        var result = new Dictionary<Guid, (int Count, IReadOnlyList<string> Rules)>();
+        if (from < 0) return result;
         var open = new List<(Guid Id, string Sequence)>();
-        var frames = new List<Guid>();
+        var frames = new Dictionary<Guid, Guid>();   // resolve-hits frame -> its target unit
         for (var i = from; i < log.Count; i++)
             switch (log[i].Payload)
             {
                 case SequenceStarted s:
-                    if (s.Sequence == GfNames.ResolveHits && s.Context.TargetUnitIds.FirstOrDefault() == unit
-                        && (!shootingOnly || (open.Count > 0 && open[^1].Sequence == GfNames.AttackSequence && !StartedInMelee(state, open[^1].Id))))
-                        frames.Add(s.FrameId);
+                    // Shooting: an attack-sequence on top whose own pusher is not a melee; an attack-sequence started before `from` has no pusher here.
+                    if (s.Sequence == GfNames.ResolveHits && s.Context.TargetUnitIds.Count > 0
+                        && (!shootingOnly || (open is [.., var parent] && parent.Sequence == GfNames.AttackSequence && (open.Count < 2 || open[^2].Sequence != GfNames.Melee))))
+                        frames[s.FrameId] = s.Context.TargetUnitIds[0];
                     open.Add((s.FrameId, s.Sequence)); break;
                 case SequenceFinished f: open.RemoveAll(x => x.Id == f.FrameId); break;
                 case SequenceAbandoned a when open.FindIndex(x => x.Id == a.FrameId) is var k and >= 0: open.RemoveRange(k, open.Count - k); break;
             }
-        var count = 0; var rules = new List<string>();
-        foreach (var frame in frames)
-        {
-            var steps = log.Select(e => e.Payload).OfType<StepCompleted>().Where(s => s.FrameId == frame).ToList();
-            var values = steps.SelectMany(s => s.Values ?? new Dictionary<string, int>()).GroupBy(kv => kv.Key).ToDictionary(g => g.Key, g => g.Last().Value);
-            if (!values.ContainsKey(CountedWoundsKey)) continue;
-            var rolls = steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.DefenseRoll).ToList();
-            var dice = rolls.ToDictionary(r => r.Id, r => r.Dice.ToList());
-            foreach (var e in log.Select(e => e.Payload))
+        if (frames.Count == 0) return result;
+        var steps = new Dictionary<Guid, List<StepCompleted>>();
+        var replacements = new List<(Guid Frame, Guid Roll, IReadOnlyList<DieReplacement> Replaced)>();
+        for (var i = from; i < log.Count; i++)
+            switch (log[i].Payload)
             {
-                var (owner, rollId, replaced) = e switch
-                {
-                    DiceRerolled d => (d.FrameId, d.RollId, d.Replaced),
-                    DiceEdited d => (d.FrameId, d.RollId, d.Replaced),
-                    _ => (Guid.Empty, Guid.Empty, (IReadOnlyList<DieReplacement>?)null),
-                };
-                if (replaced is null || owner != frame || !dice.TryGetValue(rollId, out var faces)) continue;
-                foreach (var r in replaced) faces[r.Index] = r.New;
+                case StepCompleted c when frames.ContainsKey(c.FrameId): (steps.TryGetValue(c.FrameId, out var list) ? list : steps[c.FrameId] = []).Add(c); break;
+                case DiceRerolled d when frames.ContainsKey(d.FrameId): replacements.Add((d.FrameId, d.RollId, d.Replaced)); break;
+                case DiceEdited d when frames.ContainsKey(d.FrameId): replacements.Add((d.FrameId, d.RollId, d.Replaced)); break;
             }
-            var counted = rolls.Select((r, i) => dice[r.Id].Sum(d => values.GetValueOrDefault(CountedKey(i, d.Raw)))).Sum();
-            if (counted == 0) continue;
-            count += counted;
-            rules.AddRange(steps.SelectMany(s => s.Applied ?? []).Where(n => props.Entry(n)?.Effects.Any(x => x.Kind == EffectKind.CountWounds) == true));
+        foreach (var (frame, unit) in frames)
+        {
+            if (!steps.TryGetValue(frame, out var done)) continue;
+            // counted_<roll>_<face>_<entry>: the entry may hold underscores, the roll and face never do.
+            var map = done.SelectMany(s => s.Values ?? new Dictionary<string, int>()).Where(kv => kv.Key.StartsWith(CountedPrefix, StringComparison.Ordinal) && kv.Key != CountedWoundsKey)
+                .Select(kv => (Parts: kv.Key[CountedPrefix.Length..].Split('_', 3), kv.Value)).Where(x => x.Parts.Length == 3 && int.TryParse(x.Parts[0], out _) && int.TryParse(x.Parts[1], out _))
+                .Select(x => (Roll: int.Parse(x.Parts[0]), Face: int.Parse(x.Parts[1]), Entry: x.Parts[2], Amount: x.Value)).ToList();
+            if (map.Count == 0) continue;
+            var rolls = done.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.DefenseRoll).ToList();
+            var dice = rolls.ToDictionary(r => r.Id, r => r.Dice.ToList());
+            foreach (var (_, roll, replaced) in replacements.Where(r => r.Frame == frame))
+                if (dice.TryGetValue(roll, out var faces)) foreach (var r in replaced) faces[r.Index] = r.New;
+            var count = 0; var rules = new List<string>();
+            for (var i = 0; i < rolls.Count; i++)
+                foreach (var d in dice[rolls[i].Id])
+                    foreach (var m in map.Where(m => m.Roll == i && m.Face == d.Raw)) { count += m.Amount; rules.Add(m.Entry); }
+            if (count == 0) continue;
+            var (had, hadRules) = result.GetValueOrDefault(unit, (0, []));
+            result[unit] = (had + count, [.. hadRules.Concat(rules).Distinct()]);
         }
-        return (count, rules.Distinct().ToList());
+        return result;
     }
 
     static (Interaction Ix, LiveSet Live, AttackKind Kind) Settle(StepContext ctx)
@@ -131,14 +140,18 @@ public static partial class GfAttack
                 foreach (var face in ctx.Faces(plan))
                 {
                     if (RollEffects.ExtraWounds(set, Side.Defender, face, GfNames.DefenseRoll) is > 0 and var n) values[ExtraWoundsKey(roll, face.Raw)] = n;
-                    if (RollEffects.CountedWounds(set, Side.Defender, face, GfNames.DefenseRoll) is > 0 and var k) values[CountedKey(roll, face.Raw)] = k;
+                    foreach (var rule in RollEffects.CountedRows(set, Side.Defender, face, GfNames.DefenseRoll).GroupBy(x => x.Source.Entry.Name))
+                        if (rule.Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter)) is > 0 and var k) values[CountedKey(roll, face.Raw, rule.Key)] = k;
                 }
             }
             // count_wounds: wounds the defender counts as having taken, never dealt (GfMelee.WoundsTaken, the general morale test).
+            // Read on the faces the dice show once the roll's forced rerolls are made.
             int Counted(LiveSet set, RollRecord record)
             {
                 var sum = 0;
-                foreach (var d in record.Dice)
+                var dice = record.Dice.ToList();
+                foreach (var r in ctx.ForcedRerolls.Where(f => f.RollId == record.Id).SelectMany(f => f.Replaced)) dice[r.Index] = r.New;
+                foreach (var d in dice)
                     foreach (var (src, e) in RollEffects.CountedRows(set, Side.Defender, d, GfNames.DefenseRoll).ToList()) { sum += e.EffectiveAmount(src.Parameter); set.Read(src); }
                 return sum;
             }

@@ -140,15 +140,21 @@ public static class GfMelee
     /// <summary>3.6.0 p.10: the wounds the unit took during this activation (its WoundsThisActivation, every deal-wounds frame on it since the activation
     /// began, the charge move's dangerous-terrain test included), plus 3.6.0 p.14 Fear(X) over the enemy's models ("enemies count as having taken +X
     /// wounds when checking who won"), whether or not the enemy attacked, plus the wounds a count_wounds row made it count as having taken in this melee's
-    /// resolve-hits frames on it (3.6 Scourge: "enemies count as having taken 2 extra wounds when checking who won melee"). Run from the melee frame.</summary>
-    public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy)
+    /// resolve-hits frames on it (3.6 Scourge: "enemies count as having taken 2 extra wounds when checking who won melee"), from CountedInMelee.</summary>
+    public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy, IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> counted)
     {
         var fear = Lookup.LivingModels(ctx.State, enemy).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0);
         if (fear > 0) ctx.Applied.Add("Fear");
-        var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
-        var (counted, rules) = GfAttack.CountedWounds(ctx.State, ctx.Properties, log, log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id), unit, shootingOnly: false);
+        var (count, rules) = counted.GetValueOrDefault(unit, (0, []));
         foreach (var rule in rules) ctx.Applied.Add(rule);
-        return ctx.Projection.Units[unit].WoundsThisActivation + fear + counted;
+        return ctx.Projection.Units[unit].WoundsThisActivation + fear + count;
+    }
+
+    /// <summary>The count_wounds wounds each unit took in this melee's resolve-hits frames (GfAttack.CountedWounds). Run from the melee frame.</summary>
+    public static IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> CountedInMelee(StepContext ctx)
+    {
+        var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
+        return GfAttack.CountedWounds(log, log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id), shootingOnly: false);
     }
 
     /// <summary>
@@ -427,8 +433,9 @@ public static class GfMelee
             }
             var struck = ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && s.Answer is Chosen { OptionId: "strike" }) || CounterStruck(ctx);
             var byTaken = GfEdition.Of(ctx.State).MeleeLossByWoundsTaken;
-            var chargerWounds = byTaken ? WoundsTaken(ctx, charger, defender) : WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
-            var defenderWounds = byTaken ? WoundsTaken(ctx, defender, charger) : WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
+            var counted = byTaken ? CountedInMelee(ctx) : new Dictionary<Guid, (int, IReadOnlyList<string>)>();
+            var chargerWounds = byTaken ? WoundsTaken(ctx, charger, defender, counted) : WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
+            var defenderWounds = byTaken ? WoundsTaken(ctx, defender, charger, counted) : WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
             var chargerDead = Lookup.LivingModels(ctx.State, charger).Count == 0; var defenderDead = Lookup.LivingModels(ctx.State, defender).Count == 0;
             var (chargerLosing, defenderLosing) = byTaken ? (chargerWounds > defenderWounds, defenderWounds > chargerWounds) : (defenderWounds > chargerWounds, chargerWounds > defenderWounds);
             var loser = defenderDead ? 2 : chargerDead ? 1 : defenderLosing ? 2 : chargerLosing ? 1 : 0;
