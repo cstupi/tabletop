@@ -463,8 +463,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Rapid Blink.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Rapid Blink",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Enhanced Scrapper Aura",
@@ -673,8 +683,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Enhanced Wolfborn.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Wolfborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Entrenched Buff",
@@ -1259,15 +1279,6 @@
       ]
     },
     {
-      "name": "Quick Throw",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model may always target enemies that are not in line of sight when shooting with Indirect weapons (instead of only when using Hold actions).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Ranged Shrouding Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1410,15 +1421,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Ravage Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get Ravage(\u002B1).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Reanimation Aura",
@@ -1652,15 +1654,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Spell Drain",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy model within 18\u0022 in line of sight, which must take a Morale Test. If failed, it loses 2 spell tokens.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Spell Resistance Aura",
@@ -1954,8 +1947,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Versatile Defense.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Versatile Defense",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Versatile Reach Aura",
