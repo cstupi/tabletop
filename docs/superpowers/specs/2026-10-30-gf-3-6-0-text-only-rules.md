@@ -227,7 +227,8 @@ the spell as translated rather than text-only.
 
 ## Rulings taken here
 
-- The range Pierce and Smash test is the attack's measured unit-to-unit range (p.5), not a per-model distance.
+- On a weapon's attack, the range Pierce and Smash test is the attack's measured unit-to-unit range (p.5), not a per-model
+  distance.
 - A spell's printed range is "this weapon's range": Smash and Pierce on a spell's hits test the caster's distance to the target,
   measured as the spell's range is, against half of it.
 - Destructive, Decimate and p.10's half read one `RemainingSize`; a single-model unit's size is its Tough.

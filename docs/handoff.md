@@ -105,7 +105,7 @@ In order:
      `saurian-starhosts-enhanced-primal@3.6` ("Enhanced Primal fired exact 0/1"): fix the game or check, review, merge.
    - **3.1** on branch `wt/t3-1` (worktree `.worktrees/t3-1`, commit `03858b18`, not reviewed): ten weapon-rule games in
      `sim/Suite/SuiteCatalog.Army36M.cs`, passing on seed 1; run seeds 2–5 (Smash, Decimate, Pierce lean on many dice), review, merge.
-     The shooting morale test Scourge triggers does not list Scourge as applied (the activation-end hook records nothing);
+     The shooting or spell morale test Scourge triggers does not list Scourge as applied (the activation-end hook records nothing);
      the game checks it through an `Evidence` predicate.
    - **3.2** not started: put its games in `SuiteCatalog.Army36N.cs` / `Checks/Army36N.cs` (the catalogs join in
      `SuiteCatalog.Army.cs`); resume notes in the workspace's `task-3.2-report.md`.
