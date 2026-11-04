@@ -8,14 +8,20 @@ namespace Tabletop.Sim.Suite;
 /// <summary>The special group's shooting games (pp.13–15).</summary>
 static partial class SpecialGames
 {
-    /// <summary>AP, Bane, Rending, Regeneration: two Regeneration squads, one shooting Bane and Rending rifles (both ignore Regeneration).</summary>
+    /// <summary>
+    /// AP, Bane, Rending, Regeneration: two Regeneration squads, one shooting Bane and Rending rifles (both ignore Regeneration). Both Hold and shoot
+    /// every round; Blue wins the roll-off (fixed). Blue's first AP Rifle die hits and Red's block of it is a raw 5; Red's first Rending Rifle die is
+    /// a 6. Under 3.5.1 Bane's re-roll and the Regeneration die are decided inside their steps, before a fix can land, so both are left as rolled, in
+    /// volume: forty one-wound Red models take Blue's twenty AP Rifle dice a round and stay over half their size to shoot each round, and Blue's ten
+    /// Tough(12) models stand all game under Red's forty Bane and forty Rending dice a round.
+    /// </summary>
     static TestGame Regrowth()
     {
         const string name = "special-regrowth-under-rending-fire";
-        return Game(name, new ScenarioBuilder(name, 64).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
-                .Army("Red", 1, 5, modelRules: [new(1, "Regeneration")],
-                    weapons: [Gun("Bane Rifle", 24, 1, Rule("Bane")), Gun("Rending Rifle", 24, 1, Rule("Rending"))], unitStats: Stats(4, 4))
-                .Army("Blue", 1, 5, modelRules: [new(1, "Regeneration")], weapons: [Gun("AP Rifle", 24, 1, Rule("AP", 2))], unitStats: Stats(4, 4))
+        return Game(name, new ScenarioBuilder(name, 64).RoundCap(4).Table(24, 30).Scripted(Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal))))
+                .Army("Red", 1, 40, modelRules: [new(1, "Regeneration")],
+                    weapons: [Gun("Bane Rifle", 36, 1, Rule("Bane")), Gun("Rending Rifle", 36, 1, Rule("Rending"))], unitStats: Stats(4, 4))
+                .Army("Blue", 1, 10, modelRules: [new(1, "Regeneration"), new(1, "Tough", 12)], weapons: [Gun("AP Rifle", 36, 2, Rule("AP", 2))], unitStats: Stats(4, 4))
                 .Build(),
             ["AP", "Bane", "Rending", "Regeneration"],
             [
@@ -48,9 +54,11 @@ static partial class SpecialGames
                         if (regen.Any(r => r.Threshold != 5)) return $"Regeneration rolls {string.Join(" ", regen.Select(Show))} are not at 5+";
                         var dice = regen.Sum(r => r.Dice.Count);
                         var ignored = regen.Sum(r => r.Dice.Count(d => d.Raw >= 5));
-                        var taken = WoundsSet(a.Assigns).Sum(w => w.Wounds);   // one-wound models: each wound that stands sets 1
-                        return dice == Unblocked(a) && taken == dice - ignored ? null
-                            : $"{Unblocked(a)} wounds, {dice} Regeneration dice, {ignored} of 5+, but {taken} taken";
+                        // One-wound models: each wound that stands removes a model, until none is left (p.8: "remove one model").
+                        var taken = a.Assigns.SelectMany(s => s.Changes.OfType<ModelsMoved>()).SelectMany(m => m.Moves).Count(m => m.To is OnShelf);
+                        var due = Math.Min(dice - ignored, Living(run, a.Target, a.At));
+                        return dice == Unblocked(a) && taken == due ? null
+                            : $"{Unblocked(a)} wounds, {dice} Regeneration dice, {ignored} of 5+, {due} standing, but {taken} models removed";
                     }) ?? Judged(hit.SelectMany(a => a.Assigns).SelectMany(s => s.Rolls).Where(r => r.Roll == "Regeneration"), "a Regeneration roll", 0, -1);
                 }),
                 Exact("p.13 Bane, p.14 Rending: \"Ignores Regeneration\"", ["Bane", "Rending", "Regeneration"], run =>
@@ -62,8 +70,12 @@ static partial class SpecialGames
             dice: [.. RegrowthFixes]);
     }
 
-    /// <summary>In the regrowth's seed: an AP Rifle defense roll with a raw 5 (3 after AP(2), one below 4+).</summary>
-    static DiceFix[] RegrowthFixes => [new("defense", 0, [5])];
+    /// <summary>An AP Rifle hit and its block, a raw 5 (3 after AP(2), one below 4+); a Rending Rifle 6 to hit.</summary>
+    static DiceFix[] RegrowthFixes =>
+    [
+        new("roll-off", 0, [1, 6]), new("hit", 0, [6], new RollKey(Actor: "Blue unit 1", Weapon: "AP Rifle")), new("defense", 0, [5], new RollKey(Actor: "Blue unit 1", Weapon: "AP Rifle")),
+        new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Rending Rifle")),
+    ];
 
     /// <summary>Blast, Deadly, Tough, Takedown: a heavy-weapons team into a squad of Tough(3) models and a squad of one-wound models.</summary>
     static TestGame BlastDeadly()
