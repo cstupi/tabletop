@@ -65,13 +65,11 @@ Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game 
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
   defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 71, ArmyBooks 60, TerrainMeshes 114, TableTextures 29,
-  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1829, Management 330, Sim 342.
+  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1829, Management 330, Sim 345.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
   tests run against fake and real), migrations, the suite games in process and over the socket, and the eight lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
-  On `gf-3-6-0` against the stack: migrations 023–028 apply; `MigrationTests` passes (it asserts `effect_floor_check` is the
-  only floor check and admits `modify_parameter`). Not yet run on the branch: the whole E2E suite and the socket-driver rules
-  suite.
+  against the compose stack (`LifecycleTests`, about 3 min). On `gf-3-6-0`: Management 66, GameServer 42, Sim 743, about 15 min
+  (the socket army games take 11). The socket-driver rules suite passes 685 of 685 and lifecycle 8 of 8.
 
 `cd viewer && npm run check && npm test` passes 1,676 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
@@ -94,7 +92,7 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 In order:
 
-1. **Merge `gf-3-6-0` to `main`.** Still to run on the branch: the full E2E suite, the socket-driver rules suite, then lifecycle. The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
+1. **Merge `gf-3-6-0` to `main`** once the owner says so. Unit, E2E, socket-driver rules suite and lifecycle pass on the branch. The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
    owner's edition ruling.
 2. **A GameServer test fails intermittently,** about once in five full runs. Its name was never captured;
    `ZonesInPlayTests.A_third_team_created_in_setup_moves_default_zones_to_the_corners_and_leaves_chosen_zones` failed once.
