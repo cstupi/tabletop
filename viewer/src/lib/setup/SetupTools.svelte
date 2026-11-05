@@ -34,7 +34,7 @@
   const sizeChanged = $derived(width !== draft.size.width || length !== draft.size.length);
 
   let query = $state('');
-  const groups = $derived(terrainGroups(catalog, query));
+  const groups = $derived(terrainGroups(catalog, query, snap.terrainWords));
   let style = $state(ZONE_STYLES[0]!);
   const teams = $derived([...(snap.game?.teams ?? [])].sort((a, b) => a.ordinal - b.ordinal).map((t) => t.ordinal));
   let teamA = $state(1), teamB = $state(2);
@@ -109,7 +109,7 @@
             <ul>
               {#each group.entries as entry (entry.id)}
                 <li>
-                  <button class="row" disabled={addTerrain !== null} title={`Add ${entry.label} beside the table: ${terrainSummary(entry)}`}
+                  <button class="row" disabled={addTerrain !== null} title={`Add ${entry.label} beside the table: ${terrainSummary(entry, snap.terrainWords)}`}
                     onclick={() => addBuiltin(entry)}>
                     <span class="label">{entry.label}</span><Icon name="plus" size="1em" />
                   </button>

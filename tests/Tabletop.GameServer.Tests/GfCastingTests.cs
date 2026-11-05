@@ -240,7 +240,7 @@ public class GfCastingTests
     }
 
     [Fact]
-    public void A_granted_rule_on_the_shooter_is_spent_once_by_the_block_step_however_many_pools_it_modified()
+    public void A_granted_rule_on_the_shooter_is_spent_once_at_the_attacks_end_however_many_pools_it_modified()
     {
         var sharpen = new EntryDocument("Sharpen", CatalogKind.Spell, false, null, 1, "Test Book", "Target friendly unit gets AP(1) once.",
             new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12), [Fx(EffectKind.GrantProperty, "AP", 1, EffectDuration.Once)]);
@@ -253,7 +253,8 @@ public class GfCastingTests
         sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
         var block = sim.Steps("roll-to-block").Single();
         Assert.Equal(2, block.Rolls.Count);                                                                // the Rending group and the plain hit: two pools, both AP(1)-modified
-        Assert.Equal([grantId], block.Changes.OfType<GrantRemoved>().Select(c => c.GrantId));              // one removal for the one instance (R-N7)
+        Assert.Empty(block.Changes.OfType<GrantRemoved>());
+        Assert.Equal([grantId], sim.Steps("attack-end").Single().Changes.OfType<GrantRemoved>().Select(c => c.GrantId));   // one removal for the one instance (R-N7)
         Assert.Empty(sim.Unit(shooter.Id).Grants);
     }
     [Fact]
@@ -283,6 +284,23 @@ public class GfCastingTests
             Entries = [.. TestProperties.CoreDocument.Entries, Fireball, other],
             Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("book-a", "Book A", "1", ["Fireball"]), new BookRecord("book-b", "Book B", "1", ["Other Fireball"])],
         }, Guid.CreateVersion7);
+        var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+        Assert.Equal([$"Fireball|{wizard.Models[0].Id}"], GfCasting.SpellOptions(state, props, wizard.Id).Select(o => o.Id));
+    }
+
+    [Fact]
+    public void A_text_only_spell_is_neither_listed_nor_offered()
+    {
+        var inert = Fireball with { Name = "Inert", Effects = [], Played = false };
+        var props = PropertiesJson.ToSet(TestProperties.CoreDocument with
+        {
+            Name = "text-only spell",
+            Entries = [.. TestProperties.CoreDocument.Entries, Fireball, inert],
+            Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("book-a", "Book A", "1", ["Inert", "Fireball"])],
+        }, Guid.CreateVersion7);
+        Assert.Equal(["Fireball"], props.SpellsOf("book-a").Select(e => e.Name));
         var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
         var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
         state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));

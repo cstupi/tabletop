@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 dist/
 vite.config.ts.timestamp-*
-public/geometry/
+public/geometry

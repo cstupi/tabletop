@@ -71,7 +71,7 @@ public sealed record ScenarioReserve(int Unit, string Property, int OfUnit, int?
 /// </summary>
 /// <param name="RoundCap">
 /// The maximum number of *whole* rounds. A cap of n ends the run on round n's boundary Ask; round n + 1 never
-/// starts. Task 6 → Termination, exactly.
+/// starts.
 /// </param>
 public sealed record Scenario(
     string Name,
@@ -89,6 +89,9 @@ public sealed record Scenario(
     IReadOnlyList<Expectation> Expectations)
 {
     public Scenario WithSeed(ulong seed) => this with { Seed = seed };
+
+    /// <summary>The game-rules id the run plays under (RuleSets): its core set, GameInfo.GameRules and the armies' edition.</summary>
+    public string Rules { get; init; } = RuleSets.Gf351;
 
     /// <summary>The move goal the scenario's policy ranks legal destinations by; null for the uniform policy.</summary>
     public MoveGoal? Goal { get; init; }

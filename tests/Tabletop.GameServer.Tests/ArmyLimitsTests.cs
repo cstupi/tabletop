@@ -51,4 +51,18 @@ public class ArmyLimitsTests
         Assert.Equal(RefusalReason.Illegal, refused.Reason);
         Assert.Contains("height", refused.Detail);
     }
+
+    [Fact]
+    public void An_army_of_the_games_edition_has_no_edition_breach()
+    {
+        Assert.Null(ArmyLimits.EditionBreach(ArmyEditions.V35, RuleSets.Gf351));
+        Assert.Null(ArmyLimits.EditionBreach(ArmyEditions.V36, RuleSets.Gf360));
+    }
+
+    [Fact]
+    public void An_edition_breach_names_both_editions()
+    {
+        Assert.Equal("this army is a 3.5 list; the game plays Grimdark Future 3.6", ArmyLimits.EditionBreach(ArmyEditions.V35, RuleSets.Gf360));
+        Assert.Equal("this army is a 3.6 list; the game plays Grimdark Future 3.5", ArmyLimits.EditionBreach(ArmyEditions.V36, RuleSets.Gf351));
+    }
 }

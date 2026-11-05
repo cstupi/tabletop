@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
@@ -65,13 +66,13 @@ public class PatternCoverageTests
         var table = new SuiteReport(Guid.CreateVersion7(), [], coverage, true).Table();
         Assert.Contains("  rule   Stealth Aura  covered by pattern  (aura)", table);
         Assert.Contains("not automated (1): Banner", table);
-        Assert.Contains("coverage (2/2 covered, 1 by pattern, 0 covered but not fired; 1 not automated)", table);
+        Assert.Contains("coverage 3.5 (2/2 covered, 1 by pattern, 0 covered but not fired; 1 not automated)", table);
     }
 
     [Fact]
     public void The_generated_part_is_read_from_the_server_assembly()
     {
-        Assert.Null(PropertiesSeeder.EmbeddedPart("no-such.part.json"));
-        Assert.NotNull(PropertiesSeeder.EmbeddedPart("grimdark-future-army-rules.part.json"));
+        Assert.Null(PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, "no-such.part.json"));
+        Assert.NotNull(PropertiesSeeder.EmbeddedPart(GfEdition.V351.ContentFolder, "army-rules.part.json"));
     }
 }

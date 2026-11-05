@@ -1,0 +1,100 @@
+{
+  "name": "Grimdark Future v3.6.0", "gameRules": "grimdark-future-3.6",
+  "stats": [
+    { "level": "unit", "name": "Quality", "kind": "target_number" }, { "level": "unit", "name": "Defense", "kind": "target_number" },
+    { "level": "model", "name": "Quality", "kind": "target_number" }, { "level": "model", "name": "Defense", "kind": "target_number" },
+    { "level": "weapon", "name": "Range", "kind": "distance" }, { "level": "weapon", "name": "Attacks", "kind": "count" } ],
+  "actions": [ { "name": "Hold", "distance": 0 }, { "name": "Advance", "distance": 6 }, { "name": "Rush", "distance": 12 }, { "name": "Charge", "distance": 12 } ],
+  "rolls": [ "hit", "defense", "morale", "casting" ],
+  "entries": [
+    { "name": "Aircraft", "kind": "unit", "ruleText": "May only use Advance actions, moving in a straight line, and adding 30\" to its total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping, can't seize or contest objectives, can't be moved in contact with or charged, and units targeting them get -12\" range and -1 to hit rolls.\nNote that since Aircraft are flying high above the ground, only the actual model counts (base doesn't block movement or line of sight, and units may move and shoot under it). Aircraft can't move into the table edges to move less than 30\", and their mandatory move doesn't break the staying idle requirement to stop being Shaken.",
+      "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_stat", "targetStat": { "level": "weapon", "name": "Range" }, "amount": -12 },
+        { "subject": "opponent", "ordinal": 20, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [ { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] } ] } ] },
+    { "name": "Ambush", "kind": "unit", "ruleText": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambush units, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.", "effects": [] },
+    { "name": "AP", "kind": "weapon", "takesParameter": true, "ruleText": "Targets get -X to Defense rolls when blocking hits from weapons with this special rule.",
+      "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "defense", "amount": -1, "amountFromParameter": true } ] },
+    { "name": "Artillery", "kind": "model", "aggregation": "majority", "ruleText": "When this model uses Hold actions and shoots at enemies over 12\" away, it gets +1 to hit rolls. If most models in this unit have this rule, as long as they haven't moved during this round, enemy units shooting at them from over 12\" away get -1 to hit rolls.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": 1, "conditions": [
+          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 12 },
+          { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Hold" ] } ] },
+        { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
+          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 12 },
+          { "kind": "actor_state", "subject": "self", "comparison": "neq", "values": [ "moved this round" ] } ] } ] },
+    { "name": "Assault", "kind": "weapon", "ruleText": "Counts as both a ranged weapon and a melee weapon.", "effects": [] },
+    { "name": "Bane", "kind": "weapon", "ruleText": "Ignores Regeneration, and when attacking, the target must re-roll unmodified Defense results of 6.\nNote that a die roll may only be re-rolled once, so if another 6 is rolled after re-rolling Defense, then the hit is blocked.",
+      "effects": [
+        { "subject": "opponent", "ordinal": 20, "kind": "force_reroll", "targetRoll": "defense", "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "defense", "raw" ] } ] },
+        { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" } ] },
+    { "name": "Blast", "kind": "weapon", "takesParameter": true, "ruleText": "Ignores cover, and after resolving other special rules, each hit is multiplied by X, where X is up to as many hits as models in the target unit.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "suppress_modifiers", "targetModifier": "cover" },
+        { "subject": "self", "ordinal": 90, "kind": "multiply", "targetQuantity": "hits", "amount": 1, "amountFromParameter": true, "capKind": "models_in_target_unit" } ] },
+    { "name": "Caster", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "Gets X spell tokens at the start of each round, but can't have more than 6 at once. Once per activation, before attacking, spend as many tokens as the spell's value to try casting one or more spells (only one try per spell). Pick a target and roll one die, and on 4+ resolve the spell's effect. Models within 18\" of the Caster may spend any number of spell tokens at the same time before rolling to give the Caster +1/-1 to the roll per token.\nNote that Casters get spell tokens each round even if they are not on the table (waiting to Ambush for example), and that the Caster's spells must be picked from their own faction.", "effects": [] },
+    { "name": "Counter", "kind": "weapon", "ruleText": "May strike first with this weapon when charged, unless this unit is Fatigued.", "effects": [] },
+    { "name": "Cumbersome", "kind": "model", "aggregation": "any", "ruleText": "May only use Hold or Advance actions, but can’t shoot when moving.", "effects": [] },
+    { "name": "Deadly", "kind": "weapon", "takesParameter": true, "ruleText": "Assign each wound to one model, and multiply it by X. Hits from Deadly must be resolved first, and these wounds don't carry over to other models if the original target is killed.",
+      "effects": [ { "subject": "self", "ordinal": 0, "kind": "multiply", "targetQuantity": "wounds", "amount": 1, "amountFromParameter": true } ] },
+    { "name": "Fast", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule move +2\" when using Advance and +4\" when using Rush/Charge.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": 2 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": 4 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": 4 } ] },
+    { "name": "Fear", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "When in melee with this model, enemies count as having taken +X wounds when checking who won.", "effects": [] },
+    { "name": "Fearless", "kind": "model", "aggregation": "majority", "ruleText": "When a unit where most models have this rule fails a Morale Test, roll one die. On a 4+ it counts as passed instead.",
+      "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 4, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "morale_test" } ] } ] },
+    { "name": "Flying", "kind": "model", "aggregation": "all", "ruleText": "May move through units and terrain, and ignores the effects of Difficult and Dangerous terrain.", "effects": [] },
+    { "name": "Furious", "kind": "model", "aggregation": "all", "ruleText": "When charging, unmodified result of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
+      "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
+        { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] },
+        { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Hero", "kind": "model", "aggregation": "none", "ruleText": "Heroes with up to Tough(6) may deploy as part of one multi-model unit without another Hero, but must use the unit's Defense until all other models have been killed. The Hero's unit, and units within 6\" of friendly Heroes with Tough(9) or higher, may use the Hero's Quality for Morale Tests as long as the Hero isn't Shaken.\nNote that when a Hero joins a unit, they count as part of that unit, so the unit's size is increased by 1, and even if the Hero is the last model remaining, it takes Morale Tests as the unit. This also means that a Hero may never leave its unit or join another one.", "effects": [] },
+    { "name": "Immobile", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may only use Hold actions.", "effects": [] },
+    { "name": "Impact", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "When charging, before either unit attacks, roll X dice, unless this unit is Fatigued. For each 2+ the target takes 1 hit.",
+      "effects": [ { "subject": "self", "ordinal": 20, "kind": "roll", "amount": 1, "amountFromParameter": true, "threshold": 2,
+        "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "actor_state", "subject": "self", "comparison": "neq", "values": [ "fatigued" ] } ],
+        "children": [ { "subject": "self", "ordinal": 0, "kind": "add_hit", "amount": 1 } ] } ] },
+    { "name": "Indirect", "kind": "weapon", "ruleText": "When using Hold actions and shooting, may target enemies that are not in line of sight as if in line of sight, and ignores cover from Sight Blockers.", "effects": [] },
+    { "name": "Limited", "kind": "weapon", "ruleText": "Weapons with this rule may only be used once per game.", "effects": [] },
+    { "name": "Regeneration", "kind": "model", "aggregation": "majority", "ruleText": "When a unit where most models have this rule takes wounds, roll one die for each. On a 5+ it is ignored.",
+      "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 5, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "wound" } ] } ] },
+    { "name": "Relentless", "kind": "model", "aggregation": "all", "ruleText": "When this model shoots at enemies over 9\" away, unmodified result of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).\nNote: See examples from the Furious special rule for clarifications.",
+      "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
+        { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 },
+        { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Reliable", "kind": "weapon", "ruleText": "Models attacks at Quality 2+ with this weapon.\nNote that Reliable only changes the Quality value, so the roll can still be modified, Fatigue still applies, etc.",
+      "effects": [ { "subject": "self", "ordinal": 1, "kind": "replace_stat", "targetStat": { "level": "unit", "name": "Quality" }, "replacement": "2+" } ] },
+    { "name": "Rending", "kind": "weapon", "ruleText": "Ignores Regeneration, and on unmodified results of 6 to hit, those hits get AP(+4).",
+      "effects": [
+        { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" },
+        { "subject": "self", "ordinal": 30, "kind": "grant_property", "targetEntry": "AP", "amount": 4, "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Scout", "kind": "unit", "ruleText": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 9\" of their deployment zone, over 9\" away from non-Scout enemy units. Players alternate in placing Scout units, starting with the player that activates next.", "effects": [] },
+    {"name": "Shred", "kind": "weapon", "ruleText": "For each unmodified result of 1 to block hits, this weapon deals 1 extra wound.", "effects": [{"subject": "opponent", "ordinal": 30, "kind": "add_hit", "targetQuantity": "wounds", "amount": 1, "conditions": [{"kind": "roll_result", "comparison": "eq", "number": 1, "values": ["defense", "raw"]}]}]},
+    { "name": "Slow", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule move -2\" when using Advance, and -4\" when using Rush/Charge.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": -2 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": -4 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": -4 } ] },
+    {"name": "Spell Amplifier", "kind": "model", "aggregation": "none", "ruleText": "Gets +1 to casting rolls.", "effects": [{"subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "casting", "amount": 1}]},
+    { "name": "Stealth", "kind": "model", "aggregation": "majority", "ruleText": "When units where most models have this rule are shot from over 9\" away, enemy units get -1 to hit rolls.",
+      "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
+        { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] } ] },
+    { "name": "Strider", "kind": "model", "aggregation": "all", "ruleText": "May ignore the effects of Difficult terrain.", "effects": [] },
+    { "name": "Surge", "kind": "weapon", "ruleText": "For each unmodified result of 6 to hit, this weapon deals 1 extra hit (only the original hit counts as a 6 for special rules).\nNote: See examples from the Furious special rule for clarifications.",
+      "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
+        { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Takedown", "kind": "weapon", "ruleText": "This model may pick any model in the target unit as its individual target for this weapon's attacks, which is resolved as if it was a unit of [1]. Takedown attacks must be resolved before other weapons.\nNote that other models in the target's unit don't block line of sight or provide cover to the target model in the unit.",
+      "effects": [] },
+    { "name": "Thrust", "kind": "weapon", "ruleText": "When charging, gets +1 to hit rolls and AP(+1) in melee.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": 1, "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] } ] },
+        { "subject": "self", "ordinal": 5, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] } ] } ] },
+    { "name": "Tough", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "This model must take X wounds before being killed. If a model with Tough joins a unit without it, then it is removed last when the unit takes wounds. You must continue to put wounds on the Tough model with most wounds in the unit until it is killed, before starting to put them on the next Tough model (Heroes must be assigned wounds last, even if already wounded).", "effects": [] },
+    { "name": "Transport", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "May transport up to X friendly models or Heroes with up to Tough(6), and non-Heroes with up to Tough(3) which occupy 3 spaces each. Transports may deploy with units inside, and units may enter/exit by using any move action, getting in contact to enter, and staying fully within 6\" when exiting. Units inside/outside transports may not target other units that are outside/inside, but may target the transport itself. When a transport is destroyed, units inside must take a Dangerous Terrain Test, are Shaken, and must be placed fully within 6\" of the transport before it's removed.\nNote that units inside Transports are deployed at the same time as the Transport, and units can't both embark/disembark as part of the same activation. Units may use Charge actions to disembark, and they ignore the 1\" move restriction when embarking (only one model needs to reach the Transport for everyone to embark). If the Transport is unreachable (for example because it's flying), then units can't embark in it.", "effects": [] },
+    { "name": "Unstoppable", "kind": "weapon", "ruleText": "Ignores Regeneration, and ignores all negative modifiers to this weapon which are not from this model's special rules.",
+      "effects": [
+        { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" },
+        { "subject": "self", "ordinal": 5, "kind": "suppress_modifiers", "targetModifier": "foreign_to_hit_penalties" },
+        { "subject": "self", "ordinal": 5, "kind": "suppress_modifiers", "targetModifier": "range_penalties" } ] }
+  ]
+}

@@ -47,6 +47,19 @@ public class ContactsTests
     }
 
     [Fact]
+    public void A_steep_volume_entered_caps_the_way_round_a_model()
+    {
+        // Round the line of five is about 7.2", within 8" but over the 6" cap that going onto the hill brings (Movement.SteepEntering).
+        var mover = Body(UnitA, 10, 10);
+        ContactBody[] line = [Body(UnitB, 12, 8), Body(UnitB, 12, 9), Body(UnitB, 12, 10), Body(UnitB, 12, 11), Body(UnitB, 12, 12)];
+        var hill = Fx.Cylinder(14, 10, 1.5, 0, 0.1, VolumeKind.Area, TerrainDeclarations.Steep);
+        var open = Contacts.Of([mover, .. line], To((mover, At(14, 10))), [hill], Terms(passes: false, move: new ContactMove(8, [], [], 6)));
+        Assert.Empty(open);
+        var steep = Contacts.Of([mover, .. line], To((mover, At(14, 10))), [hill], Terms(passes: false, move: new ContactMove(8, [], [], 6, [hill.Id])));
+        Assert.Equal(new Contact(ContactKind.Crosses, null), steep[mover.Id]);
+    }
+
+    [Fact]
     public void Within_separation_of_another_unit_is_TooClose()
     {
         var mover = Body(UnitA, 10, 10); var other = Body(UnitB, 30, 30);

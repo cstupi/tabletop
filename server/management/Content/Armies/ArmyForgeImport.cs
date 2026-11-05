@@ -29,15 +29,15 @@ public static class ArmyForgeImport
     /// 1.5" for a 25.4 mm circle, 3.54" for a 60x35 mm oval. The player corrects it per slot.</summary>
     public static double HeightFromBase(Base b) => HeightScale * Math.Max(b.A, b.B);
 
-    public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog)
+    public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, string edition = ArmyEditions.Served)
     {
         if (!GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem ?? "");
         Validate(list, source);
         var merged = Merge(list.Units);
         if (merged.Count > ArmyLimits.MaxUnits) throw new InvalidArmyException($"The list has {merged.Count} units; at most {ArmyLimits.MaxUnits} import.");
         var units = merged.Select((m, i) => Unit(m, i + 1, catalog)).ToList();
-        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog));
-        return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units);
+        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog), edition);
+        return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units) { Edition = edition };
     }
 
     /// <summary>Every entry against ArmyLimits, before anything is built. A name is checked before a message quotes it.</summary>

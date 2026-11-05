@@ -7,7 +7,7 @@ import type { Geometry, PlacedModel, Placement, Point3 } from '../../src/lib/geo
 import type { DecisionBox } from '../../src/lib/play/decisionBox';
 import type { UndoPrediction } from '../../src/lib/play/undo';
 import type { Violations } from '../../src/lib/play/violations';
-import type { TableState } from '../../src/lib/protocol/wire.generated';
+import type { TableState, ZoneLegs } from '../../src/lib/protocol/wire.generated';
 
 export interface Seat {
   readonly name: string; readonly conn: GameConnection; readonly api: Api; readonly box: DecisionBox; readonly undo: UndoPrediction;
@@ -17,9 +17,9 @@ export interface Seat {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The first polygon of the team's zone, by its centroid (area weighted). */
-export function zoneCentre(g: Geometry, table: TableState, ordinal: number): Point3 {
+export function zoneCentre(g: Geometry, table: TableState, ordinal: number, legs?: ZoneLegs): Point3 {
   const zone = table.zones.find((z) => z.teamOrdinal === ordinal)!;
-  const poly = g.zonePolygons(zone.shape, table.size)[0]!;
+  const poly = g.zonePolygons(zone.shape, table.size, legs)[0]!;
   let a = 0, cx = 0, cy = 0;
   for (let i = 0; i < poly.length; i++) {
     const p = poly[i]!, q = poly[(i + 1) % poly.length]!;
@@ -42,12 +42,13 @@ async function placeUnit(seat: Seat, g: Geometry): Promise<void> {
   const team = game.teams.find((t) => box.deployUnit !== null && game.participants.some((x) => x.teamId === t.id && x.id === p.units.get(box.deployUnit!)?.participantId))!;
   const table = p.board.table;
   const zone = table.zones.find((z) => z.teamOrdinal === team.ordinal)!;
-  const centre = zoneCentre(g, table, team.ordinal);
+  const legs = conn.state.zones ?? undefined;
+  const centre = zoneCentre(g, table, team.ordinal, legs);
   const spots: { x: number; y: number }[] = [{ x: centre.x, y: centre.y }];
-  for (let x = 3; x < table.size.width; x += 3) for (let y = 3; y < table.size.length; y += 3) if (g.zoneContains(zone.shape, table.size, { x, y })) spots.push({ x, y });
+  for (let x = 3; x < table.size.width; x += 3) for (let y = 3; y < table.size.length; y += 3) if (g.zoneContains(zone.shape, table.size, { x, y }, legs)) spots.push({ x, y });
   spots.splice(1, spots.length - 1, ...spots.slice(1).sort((s, t) => Math.hypot(s.x - centre.x, s.y - centre.y) - Math.hypot(t.x - centre.x, t.y - centre.y)));
   const bodyOf = (id: string): PlacedModel['body'] => { const m = p.models.get(id)!; return { base: m.slot.base, height: m.slot.height }; };
-  const whole = (ghosts: ReadonlyMap<string, Placement>) => [...ghosts].every(([id, placement]) => g.zoneHoldsBase(zone.shape, table.size, { body: bodyOf(id), placement }));
+  const whole = (ghosts: ReadonlyMap<string, Placement>) => [...ghosts].every(([id, placement]) => g.zoneHoldsBase(zone.shape, table.size, { body: bodyOf(id), placement }, legs));
   let fallback: { x: number; y: number } | null = null;
   let chosen = false;
   for (const spot of spots) {

@@ -18,6 +18,17 @@ public class CameraFocusTests
         Near(new(12, 12, 0), CameraFocus.TeamSide(applier.Projection, game, Tabletop.Protocol.Tests.Samples.Team1)!.Value);
     }
 
+    /// <summary>The zone's middle under the legs the server sent: side-battle/1 is (0,0), (48,0), (0,36) under 3.6.0 p.21, (0,0), (54,0), (0,30) by default.</summary>
+    [Fact]
+    public void A_teams_side_in_side_battle_follows_the_welcomes_legs()
+    {
+        var game = Tabletop.Protocol.Tests.Samples.Game; var board = Tabletop.Protocol.Tests.Samples.Board;
+        board = board with { Table = board.Table with { Zones = board.Table.Zones.Select(z => z with { Shape = $"side-battle/{z.TeamOrdinal}" }).ToList() } };
+        var p = new EventApplier(board, game).Projection;
+        Near(new(18, 10, 0), CameraFocus.TeamSide(p, game, Tabletop.Protocol.Tests.Samples.Team1)!.Value);
+        Near(new(16, 12, 0), CameraFocus.TeamSide(p, game, Tabletop.Protocol.Tests.Samples.Team1, new ZoneLegs(2.0 / 3, 0.75))!.Value);
+    }
+
     [Fact]
     public void Pan_moves_along_and_across_the_heading_at_a_speed_set_by_distance_and_stops_12_inches_past_the_table()
     {

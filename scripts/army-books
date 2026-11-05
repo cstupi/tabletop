@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the official Grimdark Future army books from Army Forge, or generate server/game/Content/army-books/ from a fetched copy.
+# Fetch the official Grimdark Future army books from Army Forge, or generate server/game/Content/<edition folder>/army-books/ from a fetched copy.
 # Spell library spec → The generator. `fetch` is the only command that calls Army Forge.
 set -euo pipefail
 cd "$(dirname "$0")/.."

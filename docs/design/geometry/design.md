@@ -106,7 +106,7 @@ is the one type that never crosses the wire. A deployment zone travels as a shap
 (`"frontline/1"`), and both ends call `ZoneStyles.Resolve` to get the polygons back.
 
 **Geometry to the game server.** The server owns which volumes count. `MoveRegion` carries
-`ImpassableVolumeIds`, `DifficultVolumeIds` and the `DifficultCap` that `GameRules` computed.
+`ImpassableVolumeIds`, `DifficultVolumeIds`, `SteepVolumeIds` and the `DifficultCap` that `GameRules` computed.
 `Movement.Region` takes those as plain parameters, so the library never references the protocol
 record. `GameRules` supplies every OPR constant at the call site: coherency `(1, 9)`, the 1"
 separation, the 6" cap, melee reach `EdgeToEdge <= 2 && Vertical <= 4`, objectives
@@ -654,9 +654,9 @@ The two are never both set: *a unit may not embark and disembark in one activati
 transport embarks the whole unit, so the answer is a `Destinations` whose `To` is
 `Inside(container)` for every model.
 
-### 14. The seven declarations, read geometrically
+### 14. The eight declarations, read geometrically
 
-Seven flags, and they are OPR's own terrain types, read from the Grimdark Future and Age of
+Eight flags, and they are OPR's own terrain types, read from the Grimdark Future and Age of
 Fantasy advanced rulebooks whose terrain sections are word-for-word identical. **No effects are
 stored.** A flag says *this is difficult*. The ruleset says what that costs. How each flag is
 read here:
@@ -669,10 +669,17 @@ read here:
 | `Cover` | `Cover.InsideCoverVolumes` | whole base inside the footprint and vertical range |
 | `Difficult` | `Movement.Region`/`Check`, `VolumesOnPath` | *in or through* along the path taken, which goes round when that fits the allowance |
 | `Dangerous` | `Movement.Check`, `VolumesOnPath` | the same, over the dangerous list; a path goes round when that fits |
-| `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only |
+| `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only; under 3.6.0 p.12 Unstable, for a model whose own path is over 6" |
+| `Steep` | `Movement.Check` (`steep`), `Movement.SteepEntering` | 3.6.0 p.12 *"Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain"* (3.5.1 p.12 Hills *"Difficult when moving up"*): difficult for a move whose base centre starts outside the footprint, open for one that starts inside |
+
+The declarations are shared by both editions; the same Ruins, deep Rivers and Hills carry them under 3.5.1 and 3.6.0. What a
+flag is called follows the game's edition (`GfEdition.TerrainWords`): `BlocksLineOfSight` is Blocking (3.5.1) or Sight Blocking
+(3.6.0 p.12), `SeeInAndOut` is the forest's *see into and out of* or Dense, `DangerousOnRushCharge` is Dangerous for a Rush or
+Charge or Unstable, and `Steep` is Hills' *Difficult when moving up* or Steep. `Steep` is the one direction-dependent flag, so
+the Ask lists its volumes apart from plain difficult ones and `Movement.Check` reads them on server and both clients alike.
 
 Which classes read a flag at all: `LineOfSight` and `Cover` filter on declarations themselves.
-`Movement` does **not**. It is handed two pre-filtered lists, because the server already
+`Movement` does **not**. It is handed pre-filtered lists (the steep list is narrowed per start by `SteepEntering`), because the server already
 decided which volumes count for this move. `Containment`, `Overlap`, `Collision` (but for the walls its caller names) and `Distance`
 read no declaration at all; they read `VolumeKind` (Solid or Area) or nothing. `Impassable` is
 orthogonal to Solid-versus-Area, so all four combinations are real: a climbable hill, an
@@ -702,7 +709,7 @@ Three facts the rulebook settles, all from geometry values → Deployment shapes
 Every argument about absolute versus proportional insets is an argument about small tables, and
 the 30×22 skirmish table is not a target. That scope is what makes the split between one
 proportional style and six anchored ones acceptable rather than merely tolerated. Side Battle's
-fractions are chosen to reproduce the p.22 diagram's 54" and 30" legs on 72×48, so at 72×48 the
+fractions are chosen to reproduce the edition's diagram legs on 72×48, so at 72×48 the
 two conventions are the same polygon, and they part company in proportion to the table's
 departure from it. The tables where the divergence is large are the tables that are out of
 scope. What the absolute insets do below their own size is an accepted limit, listed under
@@ -715,7 +722,8 @@ them as read from the six diagram images on a 72×48 table, every figure a label
 diagram. One diagram is internally
 inconsistent. Side Battle's 54" and 30" legs put the perpendicular gap between the two
 hypotenuses at 24.5", not the 24" its arrow says. The legs are the shape and the band is
-illustration (the plan's ruling 6).
+illustration (the plan's ruling 6). Grimdark Future 3.6.0 p.21 draws Side Battle's legs 48"
+along the long edge and 36" up the short, which leave exactly the 24" band.
 
 A shape id is `"<style>/<n>"`, `n` the team ordinal the setup phase assigns in order.
 `ShapesOf(style)` is the list `SetZoneStyle.Shapes` carries. The server's `DraftEditor` writes
@@ -739,8 +747,14 @@ flowchart TD
     end
 ```
 
-Side Battle **scales with the table**: its legs are `0.75` of the long edge and `0.625` of the
-short, which is the diagram's 54" and 30" on 72×48 and 45" and 27.5" on a 60×44 table. It is the
+Side Battle **scales with the table**, and its legs differ by edition. `ZoneLegs(SideBattleLong,
+SideBattleShort)` holds them as fractions of the long and short edge: 3.5.1 p.22 is `0.75` and
+`0.625` (`ZoneLegs.Default`), the diagram's 54" and 30" on 72×48 and 45" and 27.5" on a 60×44
+table; 3.6.0 p.21 is `2/3` and `0.75`, 48" and 36" on 72×48 (`GfEdition.SideBattleLong`/`Short`).
+`IGameRules.Zones` gives the game's legs; the game server judges deployment with them and sends
+them in `Welcome.Zones`, and the clients and the sim resolve every zone shape with what they
+received (`RecordingMeta.Zones` in a recording). Every `ZoneStyles` entry point takes an optional
+`ZoneLegs`, absent meaning `Default`. The diagram above is 3.5.1's. It is the
 one exception to fact 3 above, and geometry values → Deployment shapes names it as such. An
 anchored reading, `Leg(edge) = max(0, edge - 18)`, has to invent a constant no page states, and
 degenerates to a zero-area triangle at 18"; a fraction of a positive edge is always positive.
@@ -751,7 +765,7 @@ The seven styles as implemented:
 | --- | --- | --- |
 | `frontline` | 1 | 12" bands along both long edges. Also p.6's core deployment, *"fully within 12" of their table edge"* |
 | `ground-war` | 1 | 24" bands along both short edges |
-| `side-battle` | 1 | a triangle in each of two opposite corners, legs `0.75a` and `0.625b`. The only proportional style |
+| `side-battle` | 1 | a triangle in each of two opposite corners, legs `ZoneLegs`' fractions of `a` and `b` (3.5.1: `0.75a`, `0.625b`; 3.6.0: `2a/3`, `0.75b`). The only proportional style |
 | `disordered` | 2 | a diamond through the four edge midpoints; each team keeps the two triangles on its long edge |
 | `spearhead` | 1 | a triangle on each short edge, apex 24" in at the edge's centre |
 | `opposing-forces` | 1 | a 24"×24" square in two diagonally opposite corners |
@@ -818,7 +832,7 @@ Decisions the plan took because **no spec said anything**:
 | A move is measured along its **shortest path** (p.5), found over the base's configuration space | p.5 measures what the base travels; p.9 "charge moves don't have to be in a straight line"; a model must be able to go round a wall or a wood | Straight-line reach (a model could not reach behind a wall, and a Rush past a wood was capped) | `movement.md` |
 | Ovals are convex 64-gons | Error under 0.2% of the radius, inside the tolerance the architecture allows | Exact ellipse-ellipse distance: no closed form, needs an iterative solver on both sides | The plan's ruling 7; Task 3 |
 | Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.50 gives no orientation | The other way round, a two-number change per corner | The plan's ruling 5; Task 13 |
-| Side Battle legs are `0.75` of the long edge and `0.625` of the short | The style is proportional to the table; those fractions are the p.22 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which overrun any table shorter than 54" or narrower than 30" | The plan's ruling 6; Task 13; geometry values → Deployment shapes |
+| Side Battle legs are `0.75` of the long edge and `0.625` of the short under 3.5.1, `2/3` and `0.75` under 3.6.0 | The style is proportional to the table; those fractions are the 3.5.1 p.22 diagram's 54" and 30" and the 3.6.0 p.21 diagram's 48" and 36" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which overrun any table shorter than 54" or narrower than 30" | The plan's ruling 6; Task 13; geometry values → Deployment shapes |
 | The drawn area is a quadtree of cells down to 0.25", cut by marching squares | Exact crossings (bisected at obstacles), few triangles in open ground, built once per model per Ask | 180 rays from the start (cannot show reach round a corner) | `movement.md` |
 | `RimSamples = 8`, `OvalVertices = 64` | On a circular base, eight rim points subtend 2.8° at 10", so the sliver between adjacent rays is under 0.24" at mid-range; a 64-gon oval samples every eighth vertex by index, even in parametric angle rather than arc length, so the figure holds only for the circle; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
 | `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand, and releases them the same way | A `WorldVolume` overload: five lines and one test, declined | The plan's ruling 8; Task 6 |
@@ -852,7 +866,7 @@ plan.
 | `sealed record MovePath(IRL<Point2> Points, double Distance, bool EntersDifficult)` *added* | |
 | `sealed class MoveReach` *added* | `static MoveReach Build(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MovePath Route(Point2 to, bool shortest = false)`; `Point2 Clamp(Point2 target, double? cap = null)`; `IRL<Point2> Triangles(Func<Point2, double>? least = null)`; `Origin`, `Allowance`, `CappedByDifficultTerrain` |
 | `static class Movement` *added* | `const int Rays = 180` (the disembark region's rays), `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null, Func<Point2, double>? least = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null, IRL<WorldVolume>? dangerous = null)`; `double? ContactDistance(PlacedModel start, PlacedModel target, double limit, IRL<WorldVolume> impassable, TableSize? table)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)`; `IRL<Guid> VolumesOnPath(PlacedModel start, IRL<Point2> path, IRL<WorldVolume>)`; `FarthestOnTable`, `RoomAlong` |
-| `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches)` |
+| `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize, ZoneLegs? = null)`; `bool Contains(string shapeId, TableSize, Point2, ZoneLegs? = null)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, ZoneLegs? = null)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches, ZoneLegs? = null)`; `sealed record ZoneLegs(double SideBattleLong, double SideBattleShort)` with `Default` (0.75, 0.625) |
 
 Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 `CircleOutline`, `PolygonOutline`, `Polygon.OnSegment`, `Bodies.BaseOutline`, `Bodies.Place`,
@@ -873,7 +887,7 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 
 | Module | Obligation |
 | --- | --- |
-| Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
+| Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null, …, IReadOnlyList<Guid>? SteepVolumeIds = null)` (the other optional members are the move Ask's, see contracts) and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five and the steep list as plain parameters, so the library does not reference the record |
 | Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer on its open surface nearest the client's `To.Z` (`Collision.RestNear`, `Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a move that fits only through models with `Movement.Check`'s `CrossesModels`; owe a dangerous-terrain test from `Movement.VolumesOnPath` along the move's path, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` or `CoverTerrainBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
 | Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `MoveReach.Triangles`; hold a drag with `MoveReach.Clamp`; show `MoveReach.Route` as the ruler, its length as the readout; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
 
@@ -1005,7 +1019,7 @@ model to move.
 **The library holds no state.** Every class is `static` and every method is a pure function of
 its arguments. There is no cache, no spatial index and no mutable field. `Tolerance.Distance`,
 `Bodies.OvalVertices`, `LineOfSight.RimSamples`, `Movement.Rays`, `Movement.Step` and `Collision.Step` are the
-only public constants; `ZoneStyles`' two Side Battle fractions are private, and `ZoneStyles.All`
+only public constants; Side Battle's fractions come in as `ZoneLegs`, and `ZoneStyles.All`
 is the only static collection. The event log rebuilds the
 *placements* that this library then measures.
 
@@ -1045,6 +1059,7 @@ erDiagram
         bool difficult
         bool dangerous
         bool dangerous_rush_charge
+        bool steep
     }
     DEPLOYMENT_ZONE {
         text shape
@@ -1172,7 +1187,7 @@ the answer differs.
 | 3 | What does *mostly inside* mean for a single model? | **The base centre inside the volume.** A centre test is exact and needs no new primitive; the unit threshold is *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the sight half is `Check` with `SightBlockersBetween` per model |
 | 4 | Is straight-line reach enough? | **No** (owner: a 12" Rush must be able to go round difficult terrain). A move is measured along its shortest path (p.5), and the client draws the area reachable round difficult terrain within the allowance or through it within the cap | `movement.md` |
 | 5 | Free-for-all's *2'x1'*, which way round? | **24" along the long edge, 12" along the short.** p.50 gives no orientation | Nothing |
-| 6 | Side Battle's anchoring | **Proportional to the table.** Legs are `0.75` of the long edge and `0.625` of the short, the p.22 diagram's 54" and 30" on 72×48; a diagonal has no table feature to anchor to. The diagram's own three labels are inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Anchored legs, `Leg(edge) = edge - 18`, invent a constant no page states and degenerate at 18". The other six styles stay anchored |
+| 6 | Side Battle's anchoring | **Proportional to the table.** Legs are `0.75` of the long edge and `0.625` of the short under 3.5.1, the p.22 diagram's 54" and 30" on 72×48 (3.6.0 p.21: `2/3` and `0.75`, 48" and 36"); a diagonal has no table feature to anchor to. The diagram's own three labels are inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Anchored legs, `Leg(edge) = edge - 18`, invent a constant no page states and degenerate at 18". The other six styles stay anchored |
 | 6a | Should every style scale with the table, so the split is not inconsistent? | **No:** *"We don't need to support skirmish at all."* One proportional style and six anchored ones is the shipped set. The two conventions agree exactly at 72×48, because Side Battle's fractions are chosen to reproduce that diagram, and diverge only as the table leaves the standard size | Nothing about the split. The ruling is about scope: the small-table behaviour the split would hurt is an accepted limit under Failure modes, and the built-in styles assume a table near 72×48 (`architecture.md` → Table and layout) |
 | 7 | Ovals as 64-gons? | **Accepted:** error under 0.2% of the radius, inside the tolerance `architecture.md` allows | Exact ellipse-ellipse distance has no closed form and needs an iterative solver on both client and server |
 | 8 | Is a terrain container needed as well as a model container? | **No**, and the overload is not written. Most terrain buildings are open, so there is no region to derive; garrisonable buildings are rare enough in play that the players agree how they work at the table. A building holds models by hand through the client's menu, so it releases them by hand | Nothing. `BaseFullyWithin` keeps its `PlacedModel` container and `MoveContainment.ExitingId` names a model. Buildings stay whole inside the deferred-by-design bucket they share with buildings as shootable targets |
@@ -1241,10 +1256,10 @@ bases move further than the total movement distance*), p.8 (in range, line of si
 friendly models of one's own unit), p.9–10 (charge; within 2" horizontally and 4" vertically),
 p.11 (the terrain types: impassable, cover, difficult, dangerous, sight blockers; *fully inside*
 versus *mostly inside*; *moves in or through*), p.12 (forests: see into and out of, not
-through), p.13–15 (`Transport(X)`), p.21 (solid buildings), p.22 (the six basic deployment
+through; Hills: *Difficult when moving up*), p.13–15 (`Transport(X)`), p.21 (solid buildings), p.22 (the six basic deployment
 styles, dimensions from the page's diagrams), p.50 (free-for-all's corner areas). The Age of
 Fantasy advanced rulebook's terrain section is word-for-word identical and is not a second
-example.
+example. Grimdark Future 3.6.0: p.12 (Sight Blocking, Dense, Unstable, Steep), p.21 (Side Battle's 48" and 36" legs).
 
 **Sibling design documents**, in `docs/design/`: contracts, game server, scheduler,
 interpreter and effects, client shell, management API, web app.

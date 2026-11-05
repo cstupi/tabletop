@@ -49,7 +49,7 @@
   const report = (text: string | null) => { problem = text; };
 
   const scene = $derived(draft !== null && geometry !== null && catalog !== null
-    ? sceneOfTable(draft, geometry.zonePolygons, (p) => nameOf(p, catalog!)) : null);
+    ? sceneOfTable(draft, geometry.zonePolygons, (p) => nameOf(p, catalog!), snap.zones ?? undefined) : null);
   const extent = $derived(scene === null ? undefined : extentOf(scene));
 
   // A piece or marker another player removed leaves my selection and any drag of it.
@@ -163,7 +163,7 @@
   </div>
   {#if carded && draft !== null && catalog !== null && geometry !== null}
     <aside class="card-col" aria-label="Selected piece">
-      <TerrainCard {draft} {catalog} {geometry} {api} {selected} {send} {report} onClose={() => (selected = null)} />
+      <TerrainCard {draft} {catalog} {geometry} {api} {selected} terrainWords={snap.terrainWords} {send} {report} onClose={() => (selected = null)} />
     </aside>
   {/if}
 </div>

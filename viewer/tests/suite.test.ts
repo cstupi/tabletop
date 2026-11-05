@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { fetchSuite, recordingUrl, runEvents, spectate, startRun, SuiteError, type RunEvent, type SuiteGameResult } from '../src/lib/suite/client';
-import { applyEvent, canRun, counts, coverageCell, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup } from '../src/lib/suite/model';
+import { applyEvent, canRun, counts, coverageCell, editionsOf, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleEdition, toggleGame, toggleGroup } from '../src/lib/suite/model';
 
 const games = [
-  { name: 'core-a', group: 'core', covers: ['Rending'] },
-  { name: 'core-b', group: 'core', covers: [] },
-  { name: 'spell-a', group: 'spells', covers: ['Fireball'] },
+  { name: 'core-a', group: 'core', covers: ['Rending'], edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' },
+  { name: 'core-b', group: 'core', covers: [], edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' },
+  { name: 'core-a@3.6', group: 'core', covers: ['Rending'], edition: 'grimdark-future-3.6', ruleSet: 'Grimdark Future 3.6.0' },
+  { name: 'spell-a', group: 'spells', covers: ['Fireball'], edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' },
 ];
 const result = (name: string, passed = true): SuiteGameResult =>
-  ({ name, group: 'core', passed, failures: passed ? [] : ['no'], seed: 1, replay: 'r', recordingPath: 'p', gameId: null, spectator: null });
-const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [], state: 'own' as const }], passed: true };
+  ({ name, group: 'core', passed, edition: 'grimdark-future', failures: passed ? [] : ['no'], seed: 1, replay: 'r', recordingPath: 'p', gameId: null, spectator: null });
+const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [], state: 'own' as const, edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' }], passed: true };
 
 const stream = (chunks: string[]) => new Response(new ReadableStream({
   start(c) { for (const s of chunks) c.enqueue(new TextEncoder().encode(s)); c.close(); },
@@ -63,7 +64,7 @@ describe('spectate', () => {
 
 describe('page model', () => {
   it('groups games in catalog order', () => {
-    expect(groupsOf(games).map((g) => [g.name, g.games.length])).toEqual([['core', 2], ['spells', 1]]);
+    expect(groupsOf(games).map((g) => [g.name, g.games.length])).toEqual([['core', 3], ['spells', 1]]);
   });
   it('selects everything and sends an empty only for the full run', () => {
     expect(requestOf(initial(games))).toEqual({ only: [], driver: 'in-process', keep: false });
@@ -71,7 +72,7 @@ describe('page model', () => {
   it('tracks selection, driver and keep', () => {
     let p = toggleGame(initial(games), 'core-b');
     p = setKeep(setDriver(p, 'socket'), true);
-    expect(requestOf(p)).toEqual({ only: ['core-a', 'spell-a'], driver: 'socket', keep: true });
+    expect(requestOf(p)).toEqual({ only: ['core-a', 'core-a@3.6', 'spell-a'], driver: 'socket', keep: true });
     p = toggleGroup(p, 'core');   // a partly selected group selects fully
     expect(requestOf(p).only).toEqual([]);
     p = toggleGroup(p, 'core');   // a fully selected group clears
@@ -100,7 +101,7 @@ describe('page model', () => {
 });
 
 describe('coverage cell', () => {
-  const entry = (state: 'own' | 'pattern' | 'not_automated', fired: boolean) => ({ name: 'X', kind: 'rule', games: [], fired, exact: [], state });
+  const entry = (state: 'own' | 'pattern' | 'not_automated', fired: boolean) => ({ name: 'X', kind: 'rule', games: [], fired, exact: [], state, edition: 'grimdark-future', ruleSet: 'Grimdark Future 3.5.1' });
   it('shows a text-only entry as muted, not as a failure', () => {
     expect(coverageCell(entry('not_automated', false))).toEqual({ text: 'not automated', tone: 'muted' });
   });
@@ -110,5 +111,23 @@ describe('coverage cell', () => {
   it('shows an own entry by whether it fired', () => {
     expect(coverageCell(entry('own', false))).toEqual({ text: 'no', tone: 'error' });
     expect(coverageCell(entry('own', true))).toEqual({ text: 'yes', tone: 'ok' });
+  });
+});
+
+describe('editions', () => {
+  it('lists the editions in catalog order with the set name', () => {
+    expect(editionsOf(games)).toEqual([
+      { edition: 'grimdark-future', name: 'Grimdark Future 3.5.1' },
+      { edition: 'grimdark-future-3.6', name: 'Grimdark Future 3.6.0' },
+    ]);
+  });
+  it('toggles every game of an edition', () => {
+    let p = toggleEdition(initial(games), 'grimdark-future-3.6');
+    expect([...p.selected].sort()).toEqual(['core-a', 'core-b', 'spell-a']);
+    expect(requestOf(p).only).toEqual(['core-a', 'core-b', 'spell-a']);
+    p = toggleEdition(p, 'grimdark-future-3.6');
+    expect(p.selected.has('core-a@3.6')).toBe(true);
+    p = toggleEdition(p, 'grimdark-future');
+    expect([...p.selected]).toEqual(['core-a@3.6']);
   });
 });

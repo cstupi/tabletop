@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Sim.Scenarios;
 using Tabletop.Sim.Suite;
 
@@ -10,9 +11,9 @@ public class SuiteSelectionTests
         SuiteFixtures.Game(name: "melee-brawl", group: "core"),
         SuiteFixtures.Game(name: "volley", group: "core"),
         SuiteFixtures.Game(name: "furious-counter", group: "special"),
-        SuiteFixtures.Game(name: "orc-rules", group: "army:orc"),
-        SuiteFixtures.Game(name: "orc-spells", group: "spells:orc"),
-        SuiteFixtures.Game(name: "elf-spells", group: "spells:elf"),
+        SuiteFixtures.Game(name: "orc-rules", group: "army:3.5:orc"),
+        SuiteFixtures.Game(name: "orc-spells", group: "spells:3.5:orc"),
+        SuiteFixtures.Game(name: "elf-spells", group: "spells:3.5:elf"),
     ];
 
     static IEnumerable<string> Names(params string[] only) => SuiteCatalog.Select(Games, only).Select(g => g.Name);
@@ -23,10 +24,58 @@ public class SuiteSelectionTests
         Assert.Equal(Games.Select(g => g.Name), Names());
         Assert.Equal(["melee-brawl", "volley"], Names("core"));
         Assert.Equal(["furious-counter"], Names("special"));
-        Assert.Equal(["orc-rules"], Names("army:orc"));
-        Assert.Equal(["orc-spells"], Names("spells:orc"));
-        Assert.Equal(["volley", "orc-rules", "elf-spells"], Names("elf-spells", "volley", "army:orc"));   // the games' own order
+        Assert.Equal(["orc-rules"], Names("army:3.5:orc"));
+        Assert.Equal(["orc-spells"], Names("spells:3.5:orc"));
+        Assert.Equal(["volley", "orc-rules", "elf-spells"], Names("elf-spells", "volley", "army:3.5:orc"));   // the games' own order
         Assert.Equal(["volley"], Names("volley", "volley"));
+    }
+
+    [Fact]
+    public void A_two_edition_game_expands_to_a_bare_and_an_at_3_6_name_and_only_selects_either()
+    {
+        var games = SuiteCatalog.Expand(
+        [
+            SuiteFixtures.Game(name: "volley", group: "core") with { Editions = [RuleSets.Gf351, RuleSets.Gf360] },
+            SuiteFixtures.Game(name: "brawl", group: "core"),
+            SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf351, "orc")),
+            SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf360, "orc")) with { Edition = RuleSets.Gf360 },
+        ]);
+
+        Assert.Equal(["volley", "volley@3.6", "brawl", "orc-rules", "orc-rules@3.6"], games.Select(g => g.Name));
+        Assert.Equal([RuleSets.Gf351, RuleSets.Gf360, RuleSets.Gf351, RuleSets.Gf351, RuleSets.Gf360], games.Select(g => g.Edition));
+        Assert.All(games, g => Assert.Equal(g.Edition, g.Scenario.Rules));                  // the run compiles against its edition
+        Assert.Equal(["core", "core", "core", "army:3.5:orc", "army:3.6:orc"], games.Select(g => g.Group));
+        Assert.Equal("orc", SuiteCatalog.BookOf(games[4].Group));
+
+        IEnumerable<string> Picked(params string[] only) => SuiteCatalog.Select(games, only).Select(g => g.Name);
+        Assert.Equal(["volley"], Picked("volley"));
+        Assert.Equal(["volley@3.6"], Picked("volley@3.6"));
+        Assert.Equal(["volley", "volley@3.6", "brawl"], Picked("core"));
+        Assert.Equal(["orc-rules@3.6"], Picked("army:3.6:orc"));
+    }
+
+    [Fact]
+    public void An_army_or_spell_game_with_more_than_one_edition_is_refused()
+    {
+        var both = new[] { RuleSets.Gf351, RuleSets.Gf360 };
+        var army = Assert.Throws<InvalidOperationException>(() => SuiteCatalog.Expand([SuiteFixtures.Game(name: "orc-rules", group: SuiteCatalog.ArmyGroup(RuleSets.Gf351, "orc")) with { Editions = both }]));
+        Assert.Contains("orc-rules", army.Message);
+        Assert.Throws<InvalidOperationException>(() => SuiteCatalog.Expand([SuiteFixtures.Game(name: "orc-spells", group: SuiteCatalog.SpellsGroup(RuleSets.Gf351, "orc")) with { Editions = both }]));
+    }
+
+    [Fact]
+    public void BookOf_takes_a_three_part_group_only()
+    {
+        Assert.Equal("orc", SuiteCatalog.BookOf("army:3.5:orc"));
+        Assert.Throws<ArgumentException>(() => SuiteCatalog.BookOf("army:orc"));
+        Assert.Throws<ArgumentException>(() => SuiteCatalog.BookOf("core"));
+    }
+
+    [Fact]
+    public void A_game_under_3_6_alone_is_named_at_3_6()
+    {
+        var game = Assert.Single(SuiteCatalog.Expand([SuiteFixtures.Game(name: "c1", group: "core") with { Edition = RuleSets.Gf360 }]));
+        Assert.Equal(("c1@3.6", RuleSets.Gf360, RuleSets.Gf360), (game.Name, game.Edition, game.Scenario.Rules));
     }
 
     [Fact]
@@ -41,11 +90,15 @@ public class SuiteSelectionTests
     {
         var plain = SuiteArguments.Parse([]);
         Assert.Empty(plain.Only);
-        Assert.Equal((DriverKind.InProcess, false, false, (string?)null), (plain.Driver, plain.Keep, plain.List, plain.Out));
+        Assert.Equal((DriverKind.InProcess, false, false, (string?)null, (ulong?)null), (plain.Driver, plain.Keep, plain.List, plain.Out, plain.Seed));
 
         var full = SuiteArguments.Parse(["--only", "core, spells:orc", "--only", "volley", "--driver", "socket", "--keep", "--out", "/tmp/s", "--list"]);
         Assert.Equal(["core", "spells:orc", "volley"], full.Only);
         Assert.Equal((DriverKind.Socket, true, true, "/tmp/s"), (full.Driver, full.Keep, full.List, full.Out));
+        Assert.Equal(4UL, SuiteArguments.Parse(["--seed", "4"]).Seed);
+
+        Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--seed", "four"]));
+        Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--seed"]));
 
         Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--driver", "carrier-pigeon"]));
         Assert.Throws<UsageException>(() => SuiteArguments.Parse(["--only"]));
@@ -60,6 +113,7 @@ public class SuiteSelectionTests
             SuiteRunner.ReplayOf(SuiteFixtures.Game(name: "two words"), DriverKind.Socket));
         Assert.Equal("dotnet run --project sim -- suite --only 'it'\\''s $HOME' --keep",          // single quotes: the shell expands nothing
             SuiteRunner.ReplayOf(SuiteFixtures.Game(name: "it's $HOME"), DriverKind.InProcess));
+        Assert.Equal("dotnet run --project sim -- suite --only volley --keep --seed 4", SuiteRunner.ReplayOf(Games[1], DriverKind.InProcess, 4));
     }
 
     /// <summary>Guards for the four group files: what --only, the replay line and coverage rely on.</summary>
@@ -72,7 +126,8 @@ public class SuiteSelectionTests
         Assert.All(all, g => Assert.True(g.Name.Length <= 56, $"{g.Name}: a socket run mints sim-<name>-<n>, and management takes 64 characters"));
         Assert.All(all, g => Assert.True(g.Group is SuiteCatalog.CoreGroup or SuiteCatalog.SpecialGroup
             || g.Group.StartsWith(SuiteCatalog.ArmyPrefix) || g.Group.StartsWith(SuiteCatalog.SpellsPrefix), $"{g.Name}: group '{g.Group}'"));
-        Assert.All(all, g => Assert.Empty(g.Covers.Where(c => ScenarioCompiler.CoreProperties.Entry(c) is null)));
+        Assert.All(all, g => Assert.Empty(g.Covers.Where(c => ScenarioCompiler.CorePropertiesOf(g.Edition).Entry(c) is null)));
+        Assert.All(all, g => Assert.Equal(g.Edition, g.Scenario.Rules));
         Assert.All(all, g => Assert.DoesNotContain(all, other => other.Name == g.Group));    // a name never shadows a group
     }
 }

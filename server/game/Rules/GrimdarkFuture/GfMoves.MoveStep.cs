@@ -13,7 +13,8 @@ public static partial class GfMoves
     /// 2 the casting checkpoint: react-or-pass to the actor's own team; a cast, or a stop (Destinations.Continues), with budget left goes back to phase 0
     /// (Repeat), otherwise the step completes. p.13 Caster(X) is "at any point before attacking", so a stop with the models where they stand is how a
     /// unit casts before it moves; it is not a move. An Aircraft moves in one segment (IsAircraft) and gets the checkpoint before it as well, in
-    /// Values["before_move"].
+    /// Values["before_move"]. Under 3.6.0 p.13 ("Once per activation") the checkpoint marks the one cast window used once a cast ran
+    /// (GfCasting.MarkWindow), and a pass or a segment moved after that cast closes it (GfCasting.MarkMovedOn), so no later checkpoint offers a cast.
     /// </summary>
     public sealed class MoveStep(string action, bool ignoreSeparation) : IStep
     {
@@ -30,8 +31,8 @@ public static partial class GfMoves
             var allowance = (target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
                 ? StatReader.ActionDistance(ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Party.Whole(ctx.State, target), AttackKind.Melee, GfNames.Charge, null, [])), Side.Attacker, action)
                 : own) + (aircraft ? GfNames.AircraftMove : 0);
-            // A once grant read here acts when the unit moves, where the segment spends it: listed as applied there, not on every run of the step
-            // (a window, a dangerous test, a segment that went nowhere and keeps it).
+            // A once grant read here acts when the unit moves: listed as applied on each segment that moved, not on every run of the step
+            // (a window, a dangerous test, a segment that went nowhere). The segment holds it and the move's end spends it.
             var granted = live.GrantsRead.Select(r => ctx.Projection.Units.GetValueOrDefault(r.UnitId)?.Grants.FirstOrDefault(g => g.Id == r.GrantId)?.EntryName)
                 .OfType<string>().Distinct().ToList();
             foreach (var name in granted) ctx.Applied.Remove(name);
@@ -49,13 +50,14 @@ public static partial class GfMoves
             {
                 if (Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) is { } before) return before;
                 // A cast reopens the window with a fresh history; a pass, or nothing offered, goes on to the move.
-                return ctx.History.Children.Count > 0 ? new Complete([], null, Repeat: true) : new Complete([], new Dictionary<string, int> { ["before_move"] = 1 }, Repeat: true);
+                return ctx.History.Children.Count > 0 ? new Complete([], GfCasting.MarkWindow(ctx), Repeat: true)
+                    : new Complete([], GfCasting.MarkWindow(ctx, new Dictionary<string, int> { ["before_move"] = 1 }), Repeat: true);
             }
             switch (ctx.Frame.Value("phase"))
             {
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
                     // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (TerrainFor); PathBreach still judges where Flying ends.
-                    var (impassable, difficult) = RegionVolumes(ctx.State, rules);
+                    var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
                     var containment = Containers(ctx, unit, action, remaining, rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
                         : ignoreSeparation ? "Charge: move into contact" : aircraft ? AircraftPrompt(ctx, unit, remaining) : $"Move up to {remaining:0.#}\"";
@@ -66,30 +68,33 @@ public static partial class GfMoves
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
                             ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
-                            contact, contact is null ? null : GfNames.ChargeContactGrace), allowPass: !aircraft)]);
+                            contact, contact is null ? null : GfNames.ChargeContactGrace, steep), allowPass: !aircraft)]);
                 case 0:
                 {
                     var answered = ctx.History.LastClosed("move")!;
                     var continues = !aircraft && answered.Single is Destinations { Continues: true };
                     var proposed = GfAnswers.Moves(ctx.State, answered);
                     if (continues) proposed = proposed.Where(m => !Unmoved(ctx, m)).ToList();
-                    var (changes, segment, dangerousDice, entered, tested) = ApplyMove(ctx, unit, live, allowance, proposed, action, remaining);
+                    var (changes, segment, dangerousDice, entered, tested) = ApplyMove(ctx, unit, live, allowance, proposed, action, remaining, used);
                     var values = new Dictionary<string, int>
                     {
                         ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2,
                         [GfNames.EnteredDifficultKey] = entered || ctx.Frame.Value(GfNames.EnteredDifficultKey) > 0 ? 1 : 0, ["continues"] = continues ? 1 : 0,
                     };
-                    MarkTested(values, tested);
+                    MarkTested(ctx.State, unit, values, tested);
                     if (segment > 0)
                     {
+                        GfCasting.MarkMovedOn(ctx, values);
+                        // p.7 / 3.6.0 p.7: one Advance, Rush or Charge, which a stop does not end. A once grant a segment used is held for the rest of
+                        // the action's move and spent once, when the move step ends (ReleaseHeld); a Flying a spell granted is kept to the activation's end.
                         var (spent, held) = ConsumeKeepingFlying(live);
-                        changes.AddRange(spent);
+                        foreach (var r in spent.OfType<GrantRemoved>()) values[$"{GfNames.MoveHeldPrefix}{r.UnitId:N}_{r.GrantId:N}"] = 1;
                         foreach (var name in granted) ctx.Applied.Add(name);
                         foreach (var (key, value) in held) values[key] = value;
                     }
                     return new Complete(changes, values, Repeat: true);
                 }
-                case 1 when ctx.History.Children.Count == 0: return new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], action));
+                case 1 when ctx.History.Children.Count == 0: return new Push(DangerousSeq(ctx.State), new SequenceContext(unit, [], [], action));
                 case 1: return new Complete([], new Dictionary<string, int> { ["phase"] = 2 }, Repeat: true);
                 default:
                     if (Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) is { } window) return window;
@@ -99,8 +104,22 @@ public static partial class GfMoves
                     var reacted = ctx.History.Children.Count > 0;
                     var resumes = remaining > 0 && !aircraft;
                     var stopped = resumes && ctx.Frame.Value("continues") > 0;
-                    return new Complete([], new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }, Repeat: reacted || stopped);
+                    var goesOn = reacted || stopped;
+                    return new Complete(goesOn ? [] : ReleaseHeld(ctx), GfCasting.MarkWindow(ctx, new Dictionary<string, int> { ["phase"] = resumes ? 0 : 2, ["continues"] = 0 }), Repeat: goesOn);
             }
+        }
+
+        /// <summary>The once grants the action's segments used (GfNames.MoveHeldPrefix keys on this frame), released by Consume's rule as the move ends: a grant
+        /// already gone, or on a unit no longer in play, removes nothing.</summary>
+        static IReadOnlyList<StateChange> ReleaseHeld(StepContext ctx)
+        {
+            var held = new List<(Guid, Guid)>();
+            foreach (var key in ctx.Frame.Values.Keys.Where(k => k.StartsWith(GfNames.MoveHeldPrefix, StringComparison.Ordinal)))
+            {
+                var ids = key[GfNames.MoveHeldPrefix.Length..].Split('_');
+                if (ids.Length == 2 && Guid.TryParseExact(ids[0], "N", out var unit) && Guid.TryParseExact(ids[1], "N", out var grant)) held.Add((unit, grant));
+            }
+            return RollEffects.Release(ctx.State, ctx.Properties, held);
         }
 
         /// <summary>p.9 Charge moves: the charge target's models on the table, which the charge reaches (GfMoves.ChargeLanding, ChargeContactBreach); null for every other move.</summary>

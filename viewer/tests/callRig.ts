@@ -70,7 +70,7 @@ const catalog = parseCatalog(packedCatalog);
 export function stateOf(c: CallCase, log: CallLogFiles): ConnectionState {
   const { welcome, board, events } = parsed(log);
   const common = {
-    participantId: c.participantId ?? null, options: welcome.options ?? { options: [], presets: [] }, catchingUp: false, closeReason: null,
+    participantId: c.participantId ?? null, options: welcome.options ?? { options: [], presets: [] }, zones: null, terrainWords: null, catchingUp: false, closeReason: null,
     maxWounds: new Map(Object.entries(c.maxWounds)), deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), phase: 'connected' as const,
   };
   if (c.status !== 'playing')
@@ -278,6 +278,12 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
       const chosen: Record<string, string> = {};
       for (const o of options.options.slice(0, 1)) chosen[o.key] = o.values[1]!.value;
       return configurationOf(game, x.name, x.shape, x.enforcement, options, chosen);
+    }
+    case 'configureHash': {
+      const options = st.options;
+      const chosen: Record<string, string> = {};
+      for (const o of options.options.slice(0, 1)) chosen[o.key] = o.values[1]!.value;
+      return configurationOf(game, x.name, x.shape, x.enforcement, options, chosen, x.propertiesHash);
     }
     case 'size': return tableSize(x.width, x.length);
     case 'texture': return texture(x.builtin);

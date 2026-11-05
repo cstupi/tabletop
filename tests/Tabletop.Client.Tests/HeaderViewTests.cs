@@ -20,6 +20,13 @@ public class HeaderViewTests
     static HeaderModel Of(Projection p) => HeaderView.Of(p, Game, new Names(Game, p));
 
     [Fact]
+    public void The_header_names_the_rule_set_and_falls_back_to_the_rules_id()
+    {
+        Assert.Equal("Grimdark Future v3.6.0", HeaderView.RuleSetLine(Game with { RuleSet = "Grimdark Future v3.6.0" }));
+        Assert.Equal(Game.GameRules, HeaderView.RuleSetLine(Game with { RuleSet = null }));
+    }
+
+    [Fact]
     public void Round_turn_and_every_team_s_score()
     {
         var h = Of(After(new RoundStarted(2, [Samples.Team1, Samples.Team2], []), new TurnStarted(Samples.Team1), new ScoreSet(Samples.Team1, 3)));

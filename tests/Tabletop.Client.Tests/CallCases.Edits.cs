@@ -131,6 +131,7 @@ public static partial class CallCases
                 }
                 yield return E("startSetup", Obj(), _ => LobbyEdits.StartSetup());
                 yield return E("configure", Obj(("name", "  Friday  "), ("shape", "player-turn"), ("enforcement", "strict")), s => Configure(s), "");
+                yield return E("configureHash", Obj(("name", "  Friday  "), ("shape", "player-turn"), ("enforcement", "strict"), ("propertiesHash", "other-hash")), s => Configure(s, "other-hash"), "");
             }
             if (status == GameStatus.Setup && creator) yield return E("endSetup", Obj(), _ => LobbyEdits.EndSetup());
             if (status == GameStatus.Lobby)
@@ -187,11 +188,11 @@ public static partial class CallCases
         return control == "waitingJoin" ? line.Select(l => l.Join).FirstOrDefault(j => j is not null)?.Edit : line.Select(l => l.Army).FirstOrDefault(a => a is not null)?.Pick(ArmyId);
     }
 
-    static Edit Configure(CallState s)
+    static Edit Configure(CallState s, string? propertiesHash = null)
     {
         var catalog = s.Log.Welcome.Options;
         var chosen = catalog.Options.Take(1).ToDictionary(o => o.Key, o => o.Values[1].Value);
-        return LobbyEdits.Configure(s.Game, "  Friday  ", SchedulerShape.PlayerTurn, Enforcement.Strict, catalog, chosen);
+        return LobbyEdits.Configure(s.Game, "  Friday  ", SchedulerShape.PlayerTurn, Enforcement.Strict, catalog, chosen, propertiesHash);
     }
 
     static IEnumerable<CallCase> SetupEdits_()

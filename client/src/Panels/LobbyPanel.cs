@@ -47,16 +47,28 @@ public partial class LobbyPanel : VBoxContainer
         {
             var list = (await s.Management.ListArmies(null)).Items;
             if (!IsInstanceValid(this)) return;
+            var options = LobbyView.ArmyOptions(game, list);
             foreach (var (seat, box) in pickers)
             {
-                foreach (var a in list) box.AddItem(a.Name);
-                if (seat.ArmyId is { } picked) { var at = list.ToList().FindIndex(a => a.Id == picked); if (at >= 0) box.Select(at + 1); }
-                box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : list[(int)i - 1].Id));
+                AddArmies(box, options);
+                if (seat.ArmyId is { } picked) { var at = options.ToList().FindIndex(o => o.Army.Id == picked); if (at >= 0) box.Select(at + 1); }
+                box.ItemSelected += i => Guarded.Send(s, seat.Pick(i == 0 ? null : options[(int)i - 1].Army.Id));
             }
         }, Problem);
         var config = settings.Body;
+        config.AddChild(Wrapping(HeaderView.RuleSetLine(game), Variation.Dim));
         if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
         var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(Named("Game name", name));
+        var ruleSet = new OptionButton(); config.AddChild(Named("Rule set", ruleSet));
+        IReadOnlyList<PropertiesSummary> sets = [];
+        Guarded.Run(async () =>
+        {
+            var list = await s.Management.ListProperties();
+            if (!IsInstanceValid(this)) return;
+            sets = list;
+            foreach (var x in list) ruleSet.AddItem(CreateDefaults.PackLabel(x));
+            var at = list.ToList().FindIndex(x => x.ContentHash == game.PropertiesHash); if (at >= 0) ruleSet.Select(at);
+        }, Problem);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(Named("Activation", shape));
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(Named("Enforcement", enforcement));
         var chosen = s.Options.Options.ToDictionary(o => o.Key, o => RulesOptions.ValueOf(o, game.OptionalRules));
@@ -66,7 +78,8 @@ public partial class LobbyPanel : VBoxContainer
             if (TextLimits.NameProblem(name.Text, "A game name") is { } problem) { Problem(problem); return; }
             Problem(null);
             Guarded.Send(s, LobbyEdits.Configure(game, name.Text,
-                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, s.Options, chosen));
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, s.Options, chosen,
+                ruleSet.Selected >= 0 && ruleSet.Selected < sets.Count ? sets[ruleSet.Selected].ContentHash : null));
         });
         config.AddChild(apply);
         // The server takes the configuration from the creator alone: everyone else sees it, read-only, with the reason.
@@ -103,6 +116,18 @@ public partial class LobbyPanel : VBoxContainer
 
     /// <summary>The warning line, shown only while it has something to say: an empty label still takes a row.</summary>
     void Problem(string? text) { if (!IsInstanceValid(_error)) return; _error.Text = text ?? ""; _error.Visible = text is { Length: > 0 }; }
+
+    /// <summary>The armies after a picker's first item: another edition's disabled, its reason in the text and the tooltip.</summary>
+    internal static void AddArmies(OptionButton box, IReadOnlyList<ArmyOption> options, Func<ArmyOption, string>? text = null)
+    {
+        foreach (var o in options)
+        {
+            box.AddItem(text?.Invoke(o) ?? o.Text);
+            var at = box.ItemCount - 1;
+            box.SetItemDisabled(at, !o.Enabled);
+            if (o.DisabledReason is { } why) box.SetItemTooltip(at, why);
+        }
+    }
 
     /// <summary>A field under its name.</summary>
     static Control Named(string label, Control field)

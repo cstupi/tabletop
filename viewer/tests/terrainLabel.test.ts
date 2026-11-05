@@ -28,6 +28,14 @@ describe('TerrainLabel', () => {
     expect(terrainLabelOf(ruins, catalog)).toBe('Ruins or Debris · Cover, Dangerous when rushing or charging · 0–4"');
   });
 
+  it('uses the words the server gave, and its own for a name not given', () => {
+    const words = { see_in_and_out: 'Dense', blocks_line_of_sight: 'Sight blocking', dangerous_on_rush_charge: 'Unstable', steep: 'Steep' };
+    const ruin = piece({ builtin: 'ruin' }, [v(0, 4, 'cover, dangerous_on_rush_charge, steep, see_in_and_out')]);
+    expect(terrainLabelOf(ruin, catalog, words)).toBe('Ruin · Cover, Unstable, Steep, Dense · 0–4"');
+    expect(terrainLabelOf(ruin, catalog, {})).toBe('Ruin · Cover, Dangerous when rushing or charging, Steep, See in and out · 0–4"');
+    expect(terrainCardOf(tableOf(ruin), 'playing', 'p1', catalog, words)!.volumes[0]!.declarations).toEqual(['Cover', 'Unstable', 'Steep', 'Dense']);
+  });
+
   it('scale and elevation raise the heights and each volume gets its own line', () => {
     const p = piece({ assetId: '0198-abcd' }, [v(0, 3, 'impassable'), v(3, 5, 'none')], 1, 0.5);
     expect(terrainLabelOf(p, catalog)).toBe('Terrain · Impassable · 1–2.5"\nTerrain · Open · 2.5–3.5"');

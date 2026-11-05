@@ -57,7 +57,7 @@ public class Batch6MarkersTests
         Apply(state, [.. GfMarkers.Place(Core.Entry("Precision Spotter")!, state.Projection.Units[b.Id], a.Id, 2)]);
         var shot = Attack(state, a.Id, b.Id);
         Assert.Equal(2, Mod(shot, Side.Attacker, "hit"));
-        RollEffects.Plan(shot, Side.Attacker, "hit", 4, [], new RollConvention(6, null), null, "hit");
+        RollEffects.Plan(shot, Side.Attacker, "hit", 4, [], new RollConvention(6, null), null, "hit", "defense");
         Assert.Equal(2, RollEffects.Consume(shot).Count);                                              // removed together
     }
 

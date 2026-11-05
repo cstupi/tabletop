@@ -15,6 +15,11 @@ public sealed record ArmyLimits(int Units = 150, int ModelsPerUnit = 50, int Mod
     public const double MinBase = 0.4, MaxBase = 12, MinHeight = 0.1, MaxHeight = 24;
     public const int MinScore = 2, MaxScore = 6, MinAttacks = 1, MaxAttacks = 100, MaxParameter = 100;
 
+    /// <summary>Why an army of another edition cannot be played in a game on <paramref name="gameRules"/>, naming both editions; null when the
+    /// editions match (rule-set versions spec → A 3.5 army in a 3.6 game, and the reverse).</summary>
+    public static string? EditionBreach(string armyEdition, string gameRules) =>
+        RuleSets.EditionOf(gameRules) == armyEdition ? null : $"this army is a {armyEdition} list; the game plays Grimdark Future {RuleSets.EditionOf(gameRules)}";
+
     /// <summary>The first thing over a bound, named for the player, or null.</summary>
     public string? Breach(IReadOnlyList<Unit> units)
     {

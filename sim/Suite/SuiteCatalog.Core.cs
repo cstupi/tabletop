@@ -8,10 +8,10 @@ namespace Tabletop.Sim.Suite;
 
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions(), CoreGames.FiringLine(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround(), CoreGames.Ruins(),
-        CoreGames.CoverAndSight(), CoreGames.FenceCover(), CoreGames.TransportRun(), CoreGames.TransportDeploy(),
-        CoreGames.Overkill(), CoreGames.HoldTheMarkers(), CoreGames.Deployment(), CoreGames.OverALowerModel(), CoreGames.RoundTheTerrain(),
-        CoreGames.PerimeterSight(), CoreGames.HybridSight(), CoreGames.MeleeNoSeparation(), CoreGames.SelfPlay(), CoreGames.TeamGame(), CoreGames.FourTeams()];
+    private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions().BothEditions(), CoreGames.FiringLine().BothEditions(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround(), CoreGames.Ruins(),
+        CoreGames.CoverAndSight().BothEditions(), CoreGames.FenceCover().BothEditions(), CoreGames.TransportRun().BothEditions(), CoreGames.TransportDeploy().BothEditions(),
+        CoreGames.Overkill().BothEditions(), CoreGames.HoldTheMarkers().BothEditions(), CoreGames.Deployment(), CoreGames.OverALowerModel().BothEditions(), CoreGames.RoundTheTerrain().BothEditions(),
+        CoreGames.PerimeterSight().BothEditions(), CoreGames.HybridSight().BothEditions(), CoreGames.MeleeNoSeparation().BothEditions(), CoreGames.SelfPlay().BothEditions(), CoreGames.TeamGame().BothEditions(), CoreGames.FourTeams().BothEditions(), .. CoreGames.All36()];
 }
 
 /// <summary>

@@ -102,6 +102,7 @@ erDiagram
         bool difficult
         bool dangerous
         bool dangerous_rush_charge
+        bool steep
         text notes
     }
     FOLDER {
@@ -214,6 +215,7 @@ erDiagram
         bool difficult
         bool dangerous
         bool dangerous_rush_charge
+        bool steep
         text notes
     }
     MARKER {
@@ -311,6 +313,8 @@ erDiagram
         bool played
         bool target_line_of_sight
         text target_requires
+        bool targeting_once_per_round
+        bool targeting_count_from_parameter
     }
     EFFECT {
         uuid id PK
@@ -337,6 +341,7 @@ erDiagram
         text target_terrain
         text target_condition
         text amount_dice
+        bool optional
         int position
     }
     EFFECT_CONDITION {

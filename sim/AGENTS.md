@@ -22,7 +22,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 
 - `ScenarioCatalog` holds `skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `final-round`, `final-round-warn`, `final-round-silent`, `casting`, `army-rules`, `objectives`. `--list` prints them.
 - A scenario has a seed, a round cap, a scheduler shape, an enforcement setting, armies, terrain, an optional `AnswerScript` and `Expectation`s.
-- `ScenarioCompiler` turns it into a `CompiledScenario`; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
+- `ScenarioCompiler` turns it into a `CompiledScenario`; `CorePropertiesOf(rulesId)` gives an edition's shipped set and `CoreProperties` is 3.5.1's; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
 - `RunLoop` asks the driver for open Asks, answers each, drains events, and ends in a `RunOutcome`: `Ended`, `RoundLimit`, `Stuck`, `Failed` or `Paused`.
 - `AnswerPolicy` picks uniformly over exactly the legal set the server sent, one case per `LegalSet` shape. It never narrows the set.
   The one Ask it does not draw is `game_over` (warn's End or Continue after round 4), which it answers End, so a `warn` run finishes.
@@ -73,19 +73,22 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `ScenarioArmy.Models` (builder `models:`) gives one model its own rules, stats or weapons (`ScenarioModel(unit, model, ...)`, 1-based):
   a Hero in a unit, a lone caster.
 - `ScenarioArmy.Reserves` (builder `reserves:`) marks a unit as an import's reserve unit (`ScenarioReserve`: the rule, and the unit or model
-  holding it); it stays on the shelf until its rule places it. `HandPlacement` places a Reinforcement copy within 12" of a table edge.
+  holding it); it stays on the shelf until its rule places it. `HandPlacement` places a Reinforcement copy within 12" of a table edge (3.6: 9", over 9" from enemy models; `GfEdition.ReinforcementEdgeReach`, `ReinforcementClearance`).
+- `HandPlacement` anchors an Ambusher over its distance from enemy models (`GfAmbush`), and under 3.6 a Scout in its zone over 9" from
+  models of non-Scout enemy units (`GfEdition.ScoutClearance`, read from `CompiledScenario.Info.GameRules`).
 - `Scenario.OptionalRules` (builder `Options`) is the game's optional-rules map, in `GameInfo` and the socket seeder's row.
   `ScenarioArmy.Sizes` (builder `sizes:`) gives a unit its own model count; `ScenarioArmy.Anchors` (builder `anchors:`) fixes where a unit's
   first model deploys, its row following as `HandPlacement` lays one. `core-perimeter-sight`, `core-hybrid-sight` and
   `core-melee-no-separation` (`SuiteCatalog.Core.Options.cs`) play the optional rules.
 - `ScriptBuilder.Match(question, pick)` answers every Ask of that question the pick answers; a keyed answer for the same ordinal wins,
   a null pick falls through to the policy. `AskPicks` picks by label or name, never by id: `Activate(ask, "Red unit 1", "Charge")`,
-  `Labeled`, `Spell(ask, projection, "Zap!")`, `Pieces(ask, projection, "Blue unit 1")`. Ids are minted at compile time, so a
+  `Labeled`, `Spell(ask, projection, "Zap!")`, `Pieces(ask, projection, "Blue unit 1")`, and for `declare_targets` `ShooterOf`, `AllAt(ask, projection,
+  "Blue unit 2")` (every weapon group at one unit) and `Aimed(ask, projection, shooter => target)`. Ids are minted at compile time, so a
   script cannot name them.
 
 ## The rules suite
 
-- A `TestGame` is a `Scenario` plus its group (`core`, `special`, `army:<book uid>`, `spells:<book uid>`), `Covers` (catalog entry
+- A `TestGame` is a `Scenario` plus its group (`core`, `special`, `army:<edition>:<book uid>`, `spells:<edition>:<book uid>`), `Covers` (catalog entry
   names), `Dice` (`DiceFix`) and `Checks`. `SuiteCatalog.All` holds every game, one partial file per group.
 - The runner judges every game by `Checks.Ended()`, `Checks.Invariants()` and `Checks.FiredAll()`, then its own checks. A check returns
   null or the reason; its name quotes the rule and page. A check with `Entries` is an exact check, reported against those entries'
@@ -113,20 +116,36 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   another reason is unexpected; `driver` limits a pin to one driver. The report marks matched failures `known defect <id>: `, counts
   the game as failing on a known defect when every failure matched, and lists each pin no failure matched
   (`(pinned Dn did not fail: <check>)`), pass or fail. The defect ids are listed in
-  `docs/handoff.md` → Defects the rules suite found.
+  `docs/handoff.md` → Rules-suite gaps.
 - A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
   name the rule it shows.
-- Coverage: every entry of the shipped set, with the games that cover it, whether it fired in all of them, and its exact checks. A
+- A `TestGame` runs under `Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names one with `.Rules(id)`): the
+  scenario compiles against that edition's core set and its armies' snapshots carry the edition. `Editions: [Gf351, Gf360]` runs it
+  twice (`SuiteCatalog.Expand`), the 3.6 run named `<name>@3.6`, the 3.5.1 one keeping the bare name; a game under 3.6 alone is
+  `<name>@3.6` too. Groups `army:<edition>:<uid>` and `spells:<edition>:<uid>` (`SuiteCatalog.ArmyGroup`, `SpellsGroup`); `--only <name>` selects the 3.5.1 run, `--only <name>@3.6` the 3.6 one, a group both. Core and special games whose checks quote no rule the 3.6 set changes run both (`.BothEditions()` in their catalog list); the rest are 3.5.1-only. Army and spell games are single-edition (`Expand` throws on more than one: the books' uids differ per edition), and `BookOf` takes the three-part group only.
+- `--seed N` plays every selected game on seed N instead of its scenario's own (`SuiteOptions.Seed`; the policy, the hand placement and the
+  server's dice all follow it), and each failing game's replay line carries it. Without it every game keeps its own seed. A full run on
+  seeds 1–5 (`suite --seed 1` … `--seed 5`, about 4.5 min with all five in parallel, each with its own `--out`) is the robustness check.
+- Spell games deploy every unit on its lane (`SpellSetup.Anchored`, on by default) and set each caster's first casting die to 6
+  (`SpellGames.Game`'s `firstCastsPass`; off for the repeated-spell and edited-casting-die games), so every spell resolves at least once.
+- `spells:3.6:<uid>`: `SpellGames.Books(set)` over the 3.6 set, one game per book with a played spell; a text-only spell (`played: false`) is
+  neither cast nor covered. The tables are per edition (`SpellTables` 3.5.1, `SpellTables36` in `SuiteCatalog.Spells36.cs`), each check quoting
+  its edition's text. A `SpellSetup`'s `Rules` and `TargetRules` add rules to every model of the book's army or the targets (Caster for a spell that takes tokens, Wolfborn for one that boosts it). `TargetModels`, `TargetTough`, `TargetDefense` and `Anchored` shape the targets and deploy every unit on its lane. `SuiteCatalog.RepeatedSpellGames36` (Decimate, Destructive, Smash, Pierce, Scourge) are no book's game: six units on fixed lanes cast one spell, each aimed at a set target (`Aimed`) so casts land on both sides of the rule's line (half the target's size, half the spell's range), with fixed casts and blocks (`Passes`, `Blocks`) where the check needs one; they cover nothing. `army:3.6:<uid>` (`SuiteCatalog.Army36.cs`): a 3.5.1 game whose rule 3.6 keeps word for word (quote and case changes included; `Requote36` gives its check names the 3.6 text) plays again on the 3.6 book
+  that prints it (`Kept36`, `Books36`), a renamed rule gets its game under the 3.6 name, and `SuiteCatalog.Army36<batch>.cs` cover
+  the rules 3.6 rewrites.
+- `SuiteCatalog.Core36.cs` and `SuiteCatalog.Special36*.cs` hold the 3.6-only games, one per rule whose 3.6.0 text changed or is new: a game declared `.In36()` (`Scripts36`, `Edition = RuleSets.Gf360`) runs under 3.6.0 alone as `<name>@3.6`, its checks quoting `3.6.0 p.N`; `core-side-battle` there runs both (`.BothEditions()`).
+- The 3.6.0 game files are `SuiteCatalog.Core36.cs`, `Special36*.cs`, `Spells36.cs`, `Army36.cs` and the army batches `Army36A.cs`, `Army36B.cs`, `Army36C.cs`, `Army36F.cs`, `Army36G.cs`, `Army36H.cs`/`Army36H2.cs`, `Army36I.cs`/`Army36I2.cs`, `Army36J.cs`/`Army36J2.cs`, `Army36K.cs`, `Army36L.cs`, `Army36M.cs`, `Army36N.cs`, `Army36P.cs` (a trailing `2` splits a batch; `Books36.cs` holds the 3.6 book table); `SuiteCatalog.All` reads them all. A `special` game carries three to five rules (rules-suite spec); the bound holds for 3.5.1 games only, a 3.6.0 game covers as many entries as its rule needs. A game cannot show a refused placement (the run loop reads a refusal as Stuck), so `GfScout36Tests` proves Scout's refusals. A `DiceFix` lands after the roll it names, so Bane's re-rolls inside roll-to-block and Shred's `Applied` are decided on faces as rolled.
+- Coverage: per shipped set (`SuiteRunner.CoverageOf`), every entry of each set with the games of its edition that cover it, whether it fired in all of them, and its exact checks. A
   run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does. A text-only
   entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
-  `grimdark-future-army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
+  `army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
   they passed and its base is covered and fired.
 - The report (`SuiteReportFiles`): every `suite` run, either driver, `--only` included, writes `suite-<run id>.json` and
   `suite-<run id>.md` to `--out` (default `./recordings`, git-ignored) and copies them to `suite-latest.json` and `suite-latest.md`.
   The JSON (`SuiteRunDocument`) holds the run id, driver, selection, start and end, `verdict` (`running`, `passed`, `failed`,
   `aborted`), the verdict line as `summary`, every `SuiteGameResult` (failure lines, known, pinned, stale, replay, seed,
-  `durationSeconds`) and the coverage table. The Markdown is the verdict line, a Failures section (each failing game's lines and replay
-  command), stale pins, a games table, then coverage. Both are rewritten after every game, so a run that throws or is cancelled
+  `durationSeconds`, `edition`) and the coverage table (each entry with its set's `edition`). The Markdown is the verdict line, a Failures section (each failing game's lines and replay
+  command), stale pins, a games table (with an Edition column), then coverage per set. Both are rewritten after every game, so a run that throws or is cancelled
   (Ctrl+C) keeps its games under `aborted`, with no coverage; a second Ctrl+C ends the process.
 - The console prints the run id and report path, a counter every 25 games, each failing game (and each stale pin) with its lines
   and replay command as it finishes, the coverage entries the run fails on, the verdict line and the report paths. `--verbose` adds
@@ -140,7 +159,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   pool outlives every run, and deleting one would cascade into the participants of games still running. A failed delete is that
   game's failure. `--keep` keeps the game (`suite <run id> <game>`), writes each recording, and adds `sim-spectator` as a participant
   (no team) for the live feed.
-- `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite`,
+- `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite` (each game's name, group, covers, `edition` and `ruleSet` name),
   `POST /runs {only, driver, keep}` (409 while one runs), `GET /runs/{id}/events` (server-sent `game` per result, then `done`),
   `GET /runs/{id}/recordings/{game}`, `POST /runs/{id}/games/{game}/spectate` (a fresh session for the kept game's spectator).
   The viewer's Tests page drives it. A kept run writes its report files and recordings to `<serve --out>/<run id>/`; an unkept
@@ -159,20 +178,22 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 3. Pin only the dice the check reads (`DiceFix`), and only where the roll is reached by steps 1–2, keyed to the roll with a `RollKey`
    (actor, target, weapon, action) so its ordinal counts that unit's rolls alone: `new DiceFix("morale", 0, [1], new RollKey(Actor: "Red unit 3"))`.
    `special-artillery-emplacement` and `special-command-squad` are worked examples.
-4. Check the game on several seeds: the suite command ignores `--seeds`, so change the game's seed in its source and run `--only <game>`
-   for seeds 1–5 and a few others, then restore it. It is done when every seed passes.
+4. Check the game on several seeds: `suite --only <game> --seed N` for seeds 1–5 and a few others. It is done when every seed passes.
 5. Never fix a broken game by changing its seed.
 
 ## The lifecycle suite
 
 - Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
   the game socket (`ClientSocket` outside play, `SocketDriver` in it); nothing is written to Postgres, so it needs no database connection.
-- Shapes (`LifecycleShapes.All`): `two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`.
+- Shapes (`LifecycleShapes.All`): `two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`, `two-players-3.6`.
   Account 0 creates; `lifecycle-player-0..7` take seats, `lifecycle-spectator` joins every played game and is the driver's recorder. Never deleted.
 - Armies come from `POST /v1/dev/armies/import` (dev mode only) with the body `LifecycleArmy.List(book)` builds: book 0 is management's
   Army Forge fixture (embedded from `tests/Tabletop.Management.Tests/Fixtures/`), cut to three units, and the `ambusher` shape adds Ambush
   to its Beast Riders; books 1..3 are `Lifecycle/Armies/<uid>.json`, three units each cut from Human Defense Force, Battle Brothers and Orc
   Marauders. A `Seat` names its book. Nothing calls Army Forge.
+- `LifecycleShape.Rules` (default `Gf351`) is the game-rules id the game is created on and `Edition` the army edition it takes; the import
+  body carries `edition`. `two-players-3.6` is `two-players` on `Gf360`: both seats bring book 3 from `Lifecycle/Armies/3.6/` (three units
+  cut from the 3.6 Army Forge dump), and the lobby step asserts the set is the default.
 - After play every shape is read by `FreeForAllChecks` (`Suite/`; p.50 and p.6): the roll-off ranks every team, deployment and each
   round's turns go round the order one unit a turn, every model stands in its team's zone at round one, round one follows the deployment
   order and later rounds who finished activating first, every team on the table takes turns, and `game_ended` names the teams holding the
@@ -194,6 +215,7 @@ dotnet run --project sim -- skirmish --seed 7 --rounds 2 --no-recording
 dotnet run --project sim -- skirmish --driver socket           # needs the stack below
 dotnet run --project sim -- suite                              # every suite game, in-process
 dotnet run --project sim -- suite --only core,special --driver socket --keep
+dotnet run --project sim -- suite --seed 3                     # every game on seed 3 (robustness)
 dotnet run --project sim -- suite --list
 dotnet run --project sim -- lifecycle                          # every lifecycle shape against the stack (about 2 min)
 dotnet run --project sim -- lifecycle --only late-joiner,ambusher
@@ -202,7 +224,7 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
 ```
 
 - Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (the report and kept
-  recordings), `--verbose`, `--list`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
+  recordings), `--verbose`, `--list`, `--seed N`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
 
 - Lifecycle options: `--only A,B` (shape names), `--list`. Environment: `TABLETOP_SIM_MANAGEMENT` and `TABLETOP_SIM_WS` (defaults as
   below); no database connection.

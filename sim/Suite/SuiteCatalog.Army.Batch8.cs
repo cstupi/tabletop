@@ -58,7 +58,7 @@ public static partial class SuiteCatalog
             Exact("Quick Readjustment", quote, (run, log) =>
                 from a in log.Attacks
                 where a.Shooting && a.Hit is not null && Holds(run, a.Attacker, "Quick Readjustment") && a.Hit.Nearest("advance") is not null
-                from r in a.Hit!.Rolls("hit")
+                from r in a.HitRolls("hit")
                 select r.Modifiers.Any(m => m.Source == "Indirect") ? "a hit roll under Indirect's -1" : null);
 
         public static IReadOnlyList<TestGame> Batch8 =>
@@ -68,9 +68,11 @@ public static partial class SuiteCatalog
                 [ChargeAt("Darkborn", 10, "\"-2\" movement to a min. of 6\" when trying to charge units where all models have this rule\"")], enemyUnits: 4),
             Game(BattleBrothers, "battle-brothers-melee-shrouding", Play.Charged, ["Melee Shrouding"], [R(1, "Melee Shrouding"), R(2, "Melee Shrouding"), R(3, "Melee Shrouding")], [],
                 [ChargeAt("Melee Shrouding", 9, "\"Enemies get -3\" movement to a min. of 6\" when trying to charge units where all models have this rule\"")], enemyUnits: 4),
-            Game(Orcs, "orc-marauders-ranged-shrouding", Play.Shot, ["Ranged Shrouding"], [R(1, "Ranged Shrouding"), R(2, "Ranged Shrouding")], [],
+            // Unit 1 stands 14" from the opponents (AnchoredH), inside the shrouded guns' 18"; unit 2 about 22" from opponent unit 2, inside the 24" guns
+            // and beyond 18", and the opponents shoot it first whenever it is a legal target.
+            Aiming(AnchorAt(AnchoredH(Game(Orcs, "orc-marauders-ranged-shrouding", Play.Shot, ["Ranged Shrouding"], [R(1, "Ranged Shrouding"), R(2, "Ranged Shrouding")], [],
                 [ShotWithin("Ranged Shrouding", 18, "\"Enemies get -6\" range to a min. of 6\" when trying to shoot units where all models have this rule\" (24\" guns)")],
-                units: 2, enemyRange: 24),
+                units: 2, enemyRange: 24), 25, 11), 0, 2, new(30, 33)), 1, $"{Orcs.Army} unit 2"),
             Game(Hdf, "human-defense-force-entrenched", Play.Shot, ["Entrenched"], [R(1, "Entrenched"), R(2, "Entrenched")], [],
                 [Modifier("Entrenched", "hit", -2, "\"As long as a unit where all models have this rule hasn't moved during the round, enemy units shooting at it from over 9\" away get -2 to hit rolls\"")], units: 2),
             Game(Robots, "robot-legions-mobile-artillery", Play.Shoots, ["Mobile Artillery"], [R(1, "Mobile Artillery"), R(2, "Mobile Artillery")], [],
@@ -79,9 +81,10 @@ public static partial class SuiteCatalog
                 [Modifier("Grounded Precision", "hit", 1, "\"If a unit where all models have this rule has most of them within 1\" of terrain, they get +1 to hit rolls when attacking\"")], board: Ruins),
             Game(Saurians, "saurian-starhost-heavy-impact", Play.Charges, ["Heavy Impact"], [R(1, "Heavy Impact", 2), R(2, "Heavy Impact", 2), R(3, "Heavy Impact", 2)], [],
                 [ImpactAp("\"Counts as having Impact(X) with hits that have AP(1)\"")], units: 3),
-            Game(Infected, "infected-colonies-no-retreat", Play.Shot, ["No Retreat"], [R(1, "No Retreat"), R(2, "No Retreat")], [],
+            // p.10: the first shooting's fixed hits and blocks kill two of three models, the unit tests morale at half, and the fixed 1 fails it.
+            Game(Infected, "infected-colonies-no-retreat", Play.Shot, ["No Retreat"], [R(1, "No Retreat"), R(2, "No Retreat")], [Fix("hit", 6, 6, 1), Fix("defense", 1, 1), Fix("morale", 1)],
                 [Holds("\"the test counts as passed instead. Then, roll as many dice as the number of wounds it would take to fully destroy it, and for each result of 1-3 the unit takes one wound, which can't be ignored\"")],
-                enemyAttacks: 4, units: 2),
+                enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, units: 2),
             Game(Ratmen, "ratmen-clans-quick-readjustment", Play.Moves, ["Quick Readjustment"], [R(1, "Quick Readjustment"), R(2, "Quick Readjustment")], [],
                 [NoMovedPenalty("\"This model ignores penalties from shooting after moving when using Indirect weapons\"")], weapon: [R(0, "Indirect")]),
         ];

@@ -49,7 +49,7 @@ public sealed class GfSight : ISightPolicy
     const double Elevation = 1e-6;
 
     GfSizeClass Class(Guid model) => models.TryGetValue(model, out var c) ? c
-        : models[model] = SizeClass(Lookup.ModelParameter(state, model, GfNames.Tough), state.Projection.Models[model].Slot.Properties.Any(p => p.Name == GfNames.Hero));
+        : models[model] = SizeClass(Lookup.ModelParameter(state, model, GfNames.Tough), state.Projection.Models[model].Slot.Properties.Any(p => GfNames.IsHero(p.Name)));
 
     /// <summary>A unit is of a class below the observer's only when every one of its models is: its largest on-table model's class.</summary>
     GfSizeClass UnitClass(Guid unit) => units.TryGetValue(unit, out var c) ? c

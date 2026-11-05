@@ -4,11 +4,12 @@ namespace Tabletop.Geometry;
 /// What one move may do, as the move rules judge each model's: its allowance along the path its base takes round the impassable volumes and the
 /// standing models (none when it passes models), the difficult volumes and their cap (held over the whole unit once one path enters, as p.11
 /// holds it), the table, a landing on no other base and in no landing volume, and the unit's coherency after it (a chain within `Chain`, or
-/// `Elevated` between models at different heights, every model within `Spread` of the rest).
+/// `Elevated` between models at different heights, every model within `Spread` of the rest). `Steep` volumes are difficult for a model whose move
+/// starts outside them (Movement.SteepEntering).
 /// </summary>
 public sealed record FormationTerms(double Allowance, IReadOnlyList<WorldVolume> Impassable, IReadOnlyList<WorldVolume> Difficult, double? DifficultCap,
     IReadOnlyList<WorldVolume> Landing, IReadOnlyList<WorldVolume> Volumes, TableSize Table, IReadOnlyList<PlacedModel> Standing, bool PassesModels,
-    double Chain, double Elevated, double Spread);
+    double Chain, double Elevated, double Spread, IReadOnlyList<WorldVolume>? Steep = null);
 
 /// <summary>
 /// A unit moved together: one model to a chosen landing and the rest formed up on it. Deterministic, so whoever asks gets the same answer: the
@@ -77,8 +78,8 @@ public static class UnitFormation
         if (!Coherency.Check([.. placed, .. members], t.Chain, t.Elevated, t.Spread).Coherent) return null;
         if (t.DifficultCap is { } cap && cap < t.Allowance)
         {
-            var paths = unit.Select(u => Path(u.Start, result[u.Id], t, t.Allowance, t.Difficult, cap)).ToList();
-            if (paths.Any(p => p.EntersDifficult) && unit.Any(u => Path(u.Start, result[u.Id], t, cap, [], null).Distance > cap + Tolerance.Distance)) return null;
+            var paths = unit.Select(u => Path(u.Start, result[u.Id], t, t.Allowance, t.Difficult, cap, t.Steep)).ToList();
+            if (paths.Any(p => p.EntersDifficult) && unit.Any(u => Path(u.Start, result[u.Id], t, cap, [], null, null).Distance > cap + Tolerance.Distance)) return null;
         }
         return result;
     }
@@ -89,8 +90,8 @@ public static class UnitFormation
         return there with { Placement = there.Placement with { Position = new Point3(at.X, at.Y, Collision.RestHeight(there, t.Volumes)) } };
     }
 
-    static MoveCheck Path(PlacedModel start, Point2 to, FormationTerms t, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap) =>
-        Movement.Check(start, to, allowance, t.Impassable, difficult, cap, t.Table, t.PassesModels ? null : t.Standing, t.Volumes);
+    static MoveCheck Path(PlacedModel start, Point2 to, FormationTerms t, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap, IReadOnlyList<WorldVolume>? steep) =>
+        Movement.Check(start, to, allowance, t.Impassable, difficult, cap, t.Table, t.PassesModels ? null : t.Standing, t.Volumes, steep: steep);
 
     /// <summary>One model's landing: on no standing or placed base, in no landing volume, on a path within the allowance (and cap) that goes round
     /// what it may not pass and stays on the table.</summary>
@@ -99,6 +100,6 @@ public static class UnitFormation
         var landed = Rest(start, at, t);
         if (t.Standing.Any(o => Overlap.Bases(landed, o)) || placed.Any(o => Overlap.Bases(landed, o))) return false;
         if (t.Landing.Count > 0 && Movement.Check(landed, at, 0, t.Landing, [], null, null).CrossesImpassable) return false;
-        return Path(start, at, t, t.Allowance, t.Difficult, t.DifficultCap) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false };
+        return Path(start, at, t, t.Allowance, t.Difficult, t.DifficultCap, t.Steep) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false, CrossesModels: false };
     }
 }

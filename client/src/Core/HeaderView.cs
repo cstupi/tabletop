@@ -26,6 +26,9 @@ public static class HeaderView
     /// <summary>A team's units in play not yet activated this round (HeaderView.NotActivated), shown from round 1 while playing.</summary>
     public static string NotActivatedText(int count) => count == 0 ? "all activated" : $"{count} not activated";
 
+    /// <summary>The rule set the game is played under, by its name; a game read from a source with no name shows its rules id.</summary>
+    public static string RuleSetLine(GameInfo game) => game.RuleSet ?? game.GameRules;
+
     public static HeaderModel Of(Projection p, GameInfo game, Names n)
     {
         var s = p.Scheduler;

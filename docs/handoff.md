@@ -1,8 +1,11 @@
-# Handoff — 2026-10-28
+# Handoff — 2026-11-04
 
-The game is built end to end: a Grimdark Future game runs from lobby and setup through the roll-off, deployment,
-activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot client or the browser
-(`/viewer/`). `sim/` plays whole games headless; `viewer/` also replays them. v0.1.31 is the latest tag. What each
+The game is built end to end: a Grimdark Future game, under either edition (v3.5.1 or v3.6.0, chosen per game in the lobby;
+3.6.0 is the default for new games, existing and unfinished games stay on 3.5.1), runs from lobby and setup through the
+roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot
+client or the browser (`/viewer/`). The two editions are two rule sets, `grimdark-future` (3.5.1) and `grimdark-future-3.6`
+(3.6.0); an army carries its edition (`army.edition`, `'3.5'` or `'3.6'`) and picks only into a game of that edition. The
+3.6.0 work, with every rule and spell playing, is on branch `gf-3-6-0`, not yet merged to `main` or tagged. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.31 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -37,36 +40,40 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 - The client's log is `/mnt/c/Users/clays/AppData/Roaming/Godot/app_userdata/Tabletop/logs/godot.log` (the latest run;
   older runs are the dated files beside it). A crash can cut its tail off.
 
-**The lifecycle suite.** `dotnet run --project sim -- lifecycle` plays seven shapes against the compose stack by the client's
+**The lifecycle suite.** `dotnet run --project sim -- lifecycle` plays eight shapes against the compose stack by the client's
 path (spec `2026-10-20-lifecycle-suite-design.md`, `sim/AGENTS.md` → The lifecycle suite): management over HTTP (create on the
 first set of `GET /v1/properties`, join, army import through the dev-mode `POST /v1/dev/armies/import`, statuses, leave,
 delete) and the socket (lobby and setup edits, waiting for players, play to the rules' end, replay on `/ws?watch=1`), on
-`lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. Today 7 of 7 pass (`four-teams`
-included), about 3 min.
+`lifecycle-player-0..7` and `lifecycle-spectator`; nothing written to Postgres directly. `two-players-3.6` plays `two-players`
+on the 3.6.0 set with 3.6 armies. On `gf-3-6-0` (2026-11-03) all 8 of 8 pass (about 3 min).
 
-**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 45 s);
+**The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 3.7 min; a game with a dice fix plays with the step gate on);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
 each game's rows, never the accounts (`sim-player-0..8`).
-`--only core,special,army:<book uid>,spells:<book uid>,<game name>` selects; `--keep` keeps recordings (and a socket run's
+`--only core,special,army:<edition>:<book uid>,spells:<edition>:<book uid>,<game name>` selects (`army:3.5:<uid>`, `army:3.6:<uid>`; a 3.6.0 run is `<game name>@3.6`); `--keep` keeps recordings (and a socket run's
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. Every run writes
 `recordings/suite-<run id>.md` and `.json` (copied to `suite-latest.md` and `.json`; rewritten after each game, so an aborted run
 keeps what it played): the verdict, each failure with its lines and replay command, every game, then coverage. The console prints
 a counter, each failure as it happens, the verdict line and the report paths; `--verbose` adds every game and the coverage table. The viewer's Tests page (`/viewer/#/tests`) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 307 of 307 games pass in process with no pin, 545 of 545 entries covered, 0 not automated. See `sim/AGENTS.md` → The rules suite.
+On `gf-3-6-0`, in process: `PASSED: 685 of 685 games passed, 0 failing on known defects, 0 unexpected; 1122 of 1122 entries covered, 0 not automated`, in about 220 s (default seed 222 s; seeds 1-5 each 217-228 s and each 685 of 685):
+308 games under 3.5.1 and 377 under 3.6.0; coverage 3.5 545 of 545 (88 by pattern), 3.6 577 of 577 (90 by pattern), 0 not automated in either.
+Each shared game's 3.6.0 run is named `<name>@3.6`. `--seed N` plays every game on seed N instead of its own (the replay line carries it).
+`--only army:3.6:<uid>` runs one 3.6.0 book's games. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (analyzer warnings in test files only). `./scripts/check-client` prints nothing.
 Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
 - **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
-  defect). About 4 min. Geometry 286, Geometry.Wasm 43, Content 64, ArmyBooks 40, TerrainMeshes 114, TableTextures 29,
-  Protocol 64, Sounds 19, Viewer 16, Client 851, GameServer 1452, Management 322, Sim 308.
+  defect). About 4 min. Geometry 303, Geometry.Wasm 44, Content 71, ArmyBooks 60, TerrainMeshes 114, TableTextures 29,
+  Protocol 65, Sounds 65, Viewer 16, Client 945, GameServer 1829, Management 330, Sim 345.
 - **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
-  tests run against fake and real), migrations, the suite games in process and over the socket, and the seven lifecycle shapes
-  against the compose stack (`LifecycleTests`, about 3 min). Management 61, GameServer 40, Sim 338; about 7 min.
+  tests run against fake and real), migrations, the suite games in process and over the socket, and the eight lifecycle shapes
+  against the compose stack (`LifecycleTests`, about 3 min). On `gf-3-6-0`: Management 66, GameServer 42, Sim 743, about 15 min
+  (the socket army games take 11). The socket-driver rules suite passes 685 of 685 and lifecycle 8 of 8.
 
-`cd viewer && npm run check && npm test` passes 1,662 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
+`cd viewer && npm run check && npm test` passes 1,676 (6 skipped) (needs `./scripts/geometry-wasm` once); `TABLETOP_E2E=1 npm run test:e2e`
 plays 4 stack tests (lobby to setup, deployment drags, a refused move, a whole round) and deletes what it creates;
-`cd web && npm test` passes 134 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
+`cd web && npm test` passes 136 (1 skipped). Screenshots of the viewer for review: a headless Chromium script signs in with a
 dev session (`POST /v1/dev/sessions`, roles admin) and stores it as `tabletop.session` on the website's origin.
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
@@ -83,39 +90,13 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 ## Next
 
-### Miniatures: resume the zombie army (outside the repo)
+In order:
 
-Generated unit miniatures (GLB) live under `C:\Users\clays\Downloads\` (WSL `/mnt/c/Users/clays/Downloads/`), never in this
-repo. The owner's look rulings are in the memory note `miniatures-look-painted`; the coordinator steps are the user skill
-`army-miniatures` (`~/.claude/skills/army-miniatures/SKILL.md`, its "Python only" line superseded by Blender).
-
-- `pyromania/`: the Battle Sisters army (Army Forge `sNkKzFUrB7IV`), 14 GLBs in `final/` (2000 px views in `final/hq/`),
-  built by the Python pipeline in `src/`. Done. `miniatures-kit.zip` is the shareable Python-era kit; replace it once
-  the Blender kit exists.
-- `mixed-zombies/`: the zombie army (Army Forge `cyQHIIkOQQcb`, list in `src/list.json`). Built in Blender 2.92
-  (`/mnt/c/Program Files/Blender Foundation/Blender 2.92/blender.exe`, headless from WSL; scripts in `src/blender/`,
-  wrappers `src/bl`, `src/build.sh`, notes in `src/README.txt`). `final/infected-zombie-a.glb` (7.4 MB, built
-  2026-10-28 21:37, with `hq/`, close-ups and compare PNGs) is the **owner-approved baseline**: "I think that zombie is
-  good enough". The hair and face stay as they are. The build agent was stopped at shutdown before its report.
-
-Next, in order (one Opus agent; the owner wants future armies to reach this level fast):
-1. Review the 21:37 renders, and fill `src/README.txt` (stats, shortfalls, Blender against the Python pipeline) if it is
-   incomplete.
-2. Build the reusable Blender kit at `Downloads/minis-kit/`:
-   - `kit/`: the shared toolkit, without the `t_*.py`, probe and debug files, and with the army folder passed in.
-   - `templates/humanoid/`: the zombie build, driven by a spec for each model (pose, body and rot, clothing, gear,
-     palette, head, base).
-   - One build command producing the GLB, the hq images and close-ups, and the checks (100k tris, 8 MB).
-   - `README.md`: the Army Forge fetch (`https://army-forge.onepagerules.com/api/tts?id=<ID>`), the process, the rulings,
-     and `bar/` (the approved zombie, plus Pyromania's `warrior-sister-a` as the armour reference).
-   - Proof: `infected-zombie-a` rebuilds from its spec with no visible loss, and one clearly different second spec builds.
-3. Point the `army-miniatures` skill and a new shareable zip at the kit.
-4. Only then the rest of the zombie army, each archetype's master shown to the owner before its variants:
-   - 20 Infected Zombies (variants of the master)
-   - Infected Leader
-   - 5 Plague Brothers (32 mm)
-   - 3 Plague Destroyers (40 mm)
-   - the flying Plague Drone (60 mm)
+1. **Merge `gf-3-6-0` to `main`** once the owner says so. Unit, E2E, socket-driver rules suite and lifecycle pass on the branch. The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
+   owner's edition ruling.
+2. **A GameServer test fails intermittently,** about once in five full runs. Its name was never captured;
+   `ZonesInPlayTests.A_third_team_created_in_setup_moves_default_zones_to_the_corners_and_leaves_chosen_zones` failed once.
+3. **The ISR Mark games cannot catch a small over-reach.** That needs a second shooter 18-20" from the marked unit.
 
 ### 2026-10-26, v0.1.29
 
@@ -134,13 +115,10 @@ Next, in order (one Opus agent; the owner wants future armies to reach this leve
 - Checked on `main` before the tag: unit (all projects), E2E (Management 61, GameServer 40, Sim 340 with the lifecycle shapes), rules suite
   307 of 307, viewer 1,692 and its 6 stack tests, web 134.
 
-### 2026-10-28, v0.1.31
+### 2026-10-28, v0.1.30 and v0.1.31
 
-The web app's upload and library preview draws a GLB's embedded textures: `connect-src` admits `blob:`, which three.js
-fetches them through. The README opens with the release command.
-
-### 2026-10-28, v0.1.30
-
+- **v0.1.31:** the web app's upload and library preview draws a GLB's embedded textures (`connect-src` admits `blob:`, which three.js
+  fetches them through); the README opens with the release command.
 - **Godot setup screen** (spec `2026-10-27-godot-setup-screen-design.md`): a fixed head holds Start setup / End setup; the setup
   body opens on Terrain (search, catalog grouped by what a piece does as the browser's, Random table, Add my terrain, Clear), then
   closed Objectives, Table, Deployment zones, Layouts, Game settings and Players with counts in their headings. The terrain card shows
@@ -191,11 +169,6 @@ public.
   stays when the sharer withdraws, deletes or leaves. An object is deleted only when no blob row names it.
 - Migration `021_share_offers.sql`: `share_offer`, `share_offer_asset`, `share_block`; drops `asset.shared_at` (assets
   shared under 020 are offered to no one). `/v1/shared-assets` and `/v1/assets/share|unshare` are gone; `/v1/offers` replaces them.
-- Validated over HTTP and the socket against the branch's own servers (management :5117, game :5217, database
-  `tabletop_shared_offers`, dropped after) with three dev accounts: A offers to B; C gets 404 on the offer, its preview, the
-  asset and every answer; B previews, accepts into a folder, puts the copy in an army, picks it in a lobby over the socket, and
-  A's game manifest serves it; A deletes the source and the copy still downloads and plays; a declined and a withdrawn offer
-  leave nothing. All accounts deleted after.
 
 ### 2026-10-25, v0.1.25
 
@@ -220,8 +193,6 @@ Released as v0.1.25.
   Logs already written keep the seizes they recorded.
 - **Objective names.** A marker with no label reads as its kind and place ("Objective 2"), never an id, in Godot's `Names` and
   the browser's.
-- **Clean dev data.** The viewer's e2e tests use fixed accounts (`viewer-e2e-*`) and delete their games and armies in `finally`;
-  the 154 games earlier test runs left in the dev database are deleted (the owner's 10 remain).
 - **Same calls from both clients** (spec `2026-10-25-same-calls-design.md`, plans `2026-10-25-same-calls-{1..5}*.md`), owner: *"we need
   to be sure the same calls would get made in godot and the web"*. Every message Godot sends is built in `client/src/Core/`
   (`AskAnswers`, `PiecePick`, `HandMoves`, `Menus`, `LobbyEdits`, `SetupEdits`, `DeployView.Place`, `GameOverView.Answer`,
@@ -361,13 +332,21 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
   spends the use; a granted Counter-Attack or Unwieldy on a unit with no melee weapon stays until next used.
 
-## Defects the rules suite found
-
-D1-D16 are fixed; the suite has 307 games and passes with no pin. What stays open is in *Next* 1.
-
 ## Rules-suite gaps
 
-What the suite does not check or report today.
+What the suite does not check or report today. D1-D17 are fixed; no game is pinned.
+
+- **Scourge's morale test lists nothing.** The shooting or spell morale test Scourge triggers does not list Scourge as applied (the
+  activation-end hook records nothing); `change-disciples-scourge-morale@3.6` checks it through an `Evidence` predicate.
+
+- **A refused placement cannot be shown by a suite game:** the run loop reads a refusal as Stuck, so Scout's 9" and clearance refusals
+  under 3.6.0 are proven by `GfScout36Tests`, not by `core-deployment@3.6`.
+- **Decided on faces as rolled:** Bane re-rolls inside roll-to-block and Shred's Applied are read before a `DiceFix` can land, so the
+  fix cannot steer them; nor can the 3.5.1 Regeneration die (decided in `assign`). The games that need those faces roll them in volume
+  (`special-regrowth-under-rending-fire`, `jackals-scrapper-boost`, `dark-elf-raiders-regenerative-strength`).
+- **Charge-side bands not proven by a game:** the 6" bands of Guarded, Sturdy, Machine-Fog and Screened, and the charge side of Devout,
+  Ferocious and Infected. Takedown X and Piercing/Precision Target X>1 are exact only at X=1. `SecondActivationClears` requires the unit Fatigued at its
+  second activation, so each game builds a first-activation charge that leaves it Fatigued.
 
 - **Fired is generous for suppressors.** `LiveProperties.ReadRemoved` (`server/game/Effects/LiveProperties.cs:59`) records a
   suppressor in `Applied` whenever a property it removed had an effect of the kind read, without checking that removed row's
@@ -390,6 +369,36 @@ checked against a zone. The Aircraft move and "can't be charged" are built; the 
 are built. A
 Limited weapon with no eligible target is not marked used; the book is silent. `SetDice` (suite only) carries no
 actor check.
+
+**3.6.0 army books (generated).** `generate --edition 3.6` writes 49 books, 196 spells and `army-book-rules.part.json`
+(90 generated, 0 text-only), plus `army-book-units.3.6.json`; 3.5.1 has `army-book-units.3.5.json`. The printed spell range
+replaces Army Forge's `inRange` in 96 spells (the dump's value is 6" short of the text; each prints as `range from text`).
+Printed text is the authority. Brace and Parry are described by no book and no rulebook page; Army Forge's common-rules endpoint
+(`GET https://army-forge.onepagerules.com/api/rules/common/2`) has both: `fetch` (or `fetch --rules-only`) saves it as
+`common-rules.json` beside the books and `generate` reads a name's description from it when no book describes the name.
+Postgres refuses a spell entry with `played: false` (`catalog_entry_played_check`), and the game server then fails at startup.
+
+**3.6.0 standing rulings** (spec → Rulings taken here): the Tags spend one token per attack automatically; Predator and Primal
+ask (`extra_attacks`); Versatile Defense is chosen by the defender's team per
+attack-sequence, before the hit roll; Brace is "-X total", one per weapon type, none when the defender is Fatigued or Shaken;
+Parry's ignored hits are those with the most per-die grants, no Ask; once grants last the attack they first apply in and go at
+`attack-end`; Mind Control's once-per-round is per unit moved. Owner's rulings of 2026-11-04: Smash and Pierce on a spell's hits read
+the spell's printed range, measured from the caster model to the target's nearest model; Scourge on a spell's hits counts toward the
+end-of-activation Morale Test, as shooting's does. Rule fixes to the printed text: a once grant on a move action (Shock Speed) lasts the
+whole action across a stop and is spent at the move's end (p.7); Deadly reassigns a wound its model no longer needs and multiplies it on the new model; AP floors at 0, as printed
+("to a min. of AP(0)"): 3.5.1 Fortified, Fortified Growth, Guardian, Guardian Boost and Primeborn; 3.6.0 Fortified, Fortified Growth,
+Guardian, Primeborn and Enhanced Guardian. Guardian Boost and Enhanced Guardian count their AP "from Guardian" and keep its floor; 3.6.0
+Enhanced Fortified ("AP(-2) from Fortified") is in neither part: no 3.6.0 book unit carries it. Enhanced Versatile Warrior is in neither part: no 3.6.0 book
+carries or grants it. Enhanced Watchborn is Watchborn without the range band. Counter in Melee is read as Counter, and its strike is
+not listed in the applied-rules log; only weapons named Counter add "Counter". When Pierce drops cover, the roll's expanded
+details (`RollEntry.Details`, viewer `rollEntry.ts`) still read "In cover" with no Pierce line; the worked lines show it.
+
+**Steep terrain.** The Steep declaration makes hills and dunes Difficult when moving up in 3.5.1 games too (3.5.1 p.12 "Hills — Cover
++ Difficult when moving up"; a rule fix moves every game). Layouts and drafts saved before migration 025 keep `steep = false` on their
+hills.
+
+**3.6.0 army import and melee.** An import classifies rule levels against the 3.6 catalog (a solo Unique Hero is a Hero on its model),
+and the 3.6 melee result counts the defender's Fear whether or not it struck.
 
 ## How to work here
 
@@ -428,9 +437,10 @@ id `admin` (it needs no permissions) and save the policy; then, under Users, ope
 role (or `PUT /v1/users/{user_id}` with `{"roles": ["admin"]}`). It reaches the session at the next login or
 refresh. `POST /v1/dev/sessions` with `"roles": ["admin"]` mints an admin without the dashboard.
 
-**The rulebooks.** The skill `grimdark-future-rules` (local plugin `licensed`, not committed) holds Grimdark Future
-v3.5.1 one file per printed page (`pages/p07.md` is p.7). The PDFs are in `/mnt/c/Users/clays/Downloads/`
-(`GF - Advanced_Rules_v3_5_1.pdf`, and Age of Fantasy v3.5.1 beside it); read nothing from older editions there.
+**The rulebooks.** The skill `grimdark-future-rules` (plugin `licensed`, tracked in `.claude/skills/licensed/`) holds Grimdark Future
+one file per printed page in two folders, `.claude/skills/licensed/skills/grimdark-future-rules/v3.5.1/` (`pages/p07.md` is p.7) and
+`.../v3.6.0/`. The PDFs are in `/mnt/c/Users/clays/Downloads/` (`GF - Advanced_Rules_v3_5_1.pdf`, `GF_-_Advanced_Rulebook_v3_6_0.pdf`);
+read nothing from older editions there. A bare `p.N` cites 3.5.1, `3.6.0 p.N` cites 3.6.0.
 Citations use printed page numbers; `pypdf`'s `r.pages[N]` is printed page `N + 1`. Useful pages: 4-5 core rules and
 line of sight, 6 objectives and the roll-off, 7 rounds, actions and coherency, 8-10 shooting, charging, melee and
 morale, 11-12 terrain, 13-15 special rules, 17-19 terrain placement and generators, 22-24 deployment, 25-29 missions.

@@ -17,6 +17,7 @@ namespace Tabletop.Sim.Drivers;
 /// <list type="bullet">
 /// <item>_knownHead is the high-water mark this driver has been told of. A submit's own AtRest is the first one
 /// above it, or the one after its Refused; an AtRest at or below it is stale and is never accepted.</item>
+/// <item>An accepted submit returns once the recorder has read to that command's AtRest, so the projection holds the command's events.</item>
 /// <item>_restExpected is the mark the recorder must reach before a step may return. The recorder's AtRest
 /// frames are recorded as they are read, wherever they are read (a drain included), so none is lost.</item>
 /// </list>
@@ -170,7 +171,13 @@ public sealed class SocketDriver : IGameDriver
 
         // An accepted command appended, so the recorder has a batch and the same rest frame coming.
         _knownHead = Math.Max(_knownHead, restSeq);
-        if (refusal is null) _restExpected = Math.Max(_restExpected, restSeq);
+        if (refusal is null)
+        {
+            _restExpected = Math.Max(_restExpected, restSeq);
+            // The projection is the recorder's, a separate socket that may not have read this batch yet. A caller reads the projection right
+            // after an answer (RunLoop.PlaceAsync places the unit an answer took off the table), so the submit returns once the recorder holds it.
+            while (_recorderRest < restSeq) Take(await ReadAsync(_recorder, deadline.Token, ct));
+        }
         Absorb();
         return refusal is null ? new SubmitResult.Accepted(warning) : new SubmitResult.Rejected(refusal.Reason, refusal.Detail);
     }

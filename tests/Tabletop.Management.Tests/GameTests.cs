@@ -20,13 +20,23 @@ public class GameTests : IClassFixture<ManagementFactory>
     static CreateGameRequest Friday() => new("Friday", Hash, SchedulerShape.AlternatingActivation, Enforcement.Warn, false);
 
     [Fact]
+    public async Task Properties_flags_only_the_default_rule_set()
+    {
+        _f.Rows.SeedProperties("sha256:test-351", "Default flag 3.5.1", "grimdark-future");
+        _f.Rows.SeedProperties("sha256:test-360", "Default flag 3.6.0", "grimdark-future-3.6");
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7(), "Clay");
+        var listed = (await c.GetJson<List<PropertiesSummary>>("/v1/properties")).Where(p => p.Name.StartsWith("Default flag")).ToList();
+        Assert.Equal([("Default flag 3.5.1", false), ("Default flag 3.6.0", true)], listed.Select(p => (p.Name, p.Default)).OrderBy(p => p.Name));
+    }
+
+    [Fact]
     public async Task Properties_lists_one_set_per_name_the_most_recently_seeded()
     {
         _f.Rows.SeedProperties("sha256:test-old", "GF listing", "grimdark-future", DateTimeOffset.UtcNow.AddDays(-1));
         _f.Rows.SeedProperties("sha256:test-new", "GF listing", "grimdark-future", DateTimeOffset.UtcNow);
         var c = await _f.AuthenticatedClient(Guid.CreateVersion7(), "Clay");
         var listed = (await c.GetJson<List<PropertiesSummary>>("/v1/properties")).Where(p => p.Name == "GF listing").ToList();
-        Assert.Equal([new PropertiesSummary("sha256:test-new", "GF listing", "grimdark-future")], listed);
+        Assert.Equal([new PropertiesSummary("sha256:test-new", "GF listing", "grimdark-future", false)], listed);
         var game = await c.PostJson<GameInfo>("/v1/games", Friday() with { PropertiesHash = "sha256:test-old" });    // an unlisted set still backs a game
         Assert.Equal("sha256:test-old", game.PropertiesHash);
     }
@@ -37,10 +47,13 @@ public class GameTests : IClassFixture<ManagementFactory>
         await Seed();
         var creator = Guid.CreateVersion7();
         var c = await _f.AuthenticatedClient(creator, "Clay");
-        Assert.Contains(await c.GetJson<List<PropertiesSummary>>("/v1/properties"), p => p == new PropertiesSummary(Hash, "Grimdark Future core", "grimdark-future"));
+        Assert.Contains(await c.GetJson<List<PropertiesSummary>>("/v1/properties"), p => p == new PropertiesSummary(Hash, "Grimdark Future core", "grimdark-future", false));
         var game = await c.PostJson<GameInfo>("/v1/games", Friday());
         Assert.Equal(("Friday", GameStatus.Lobby, creator, "grimdark-future", Hash, SchedulerShape.AlternatingActivation, Enforcement.Warn, false),
             (game.Name, game.Status, game.CreatedBy, game.GameRules, game.PropertiesHash, game.SchedulerShape, game.Enforcement, game.WaitsBetweenSteps));
+        Assert.Equal("Grimdark Future core", game.RuleSet);
+        Assert.Equal("Grimdark Future core", (await c.GetJson<GameInfo>($"/v1/games/{game.Id}")).RuleSet);
+        Assert.Contains((await c.GetJson<Page<GameSummary>>("/v1/games?limit=200")).Items, g => g.Id == game.Id && g.RuleSet == "Grimdark Future core");
         Assert.Empty(game.Teams);
         Assert.Equal([(creator, "Clay", (Guid?)null, (Guid?)null)], game.Participants.Select(p => (p.AccountId, p.Name, p.TeamId, p.ArmyId)));
         var stored = _f.Rows.Games[game.Id].RngSeed;

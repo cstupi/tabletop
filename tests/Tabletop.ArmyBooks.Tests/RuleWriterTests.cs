@@ -18,7 +18,13 @@ public class RuleWriterTests
     { "name": "hand", "gameRules": "grimdark-future", "entries": [ { "name": "Bane when Shooting", "kind": "model", "aggregation": "all", "ruleText": "This model gets Bane when shooting." } ] }
     """);
 
-    static PropertySetDocument Part() => RuleWriter.Build(Books(), Core, Hand).Part!;
+    static PropertySetDocument Part() => RuleWriter.Build(Books(), Core, Hand, "grimdark-future").Part!;
+    [Fact]
+    public void The_part_names_the_rules_id_it_was_built_for()
+    {
+        Assert.Equal("grimdark-future-3.6", RuleWriter.Build(Books(), Core, Hand, "grimdark-future-3.6").Part!.GameRules);
+    }
+
     static EntryDocument Entry(string name) => Part().Entries.Single(e => e.Name == name);
 
     [Fact]
@@ -58,7 +64,7 @@ public class RuleWriterTests
     [Fact]
     public void The_report_counts_the_groups_and_names_what_has_no_description()
     {
-        var report = RuleWriter.Build(Books(), Core, Hand).Report!;
+        var report = RuleWriter.Build(Books(), Core, Hand, "grimdark-future").Report!;
         Assert.Equal(3, report.Generated);
         var counts = report.Groups.ToDictionary(g => g.Group, g => g.Count);
         Assert.Equal(1, counts["Aura, template text, base in catalog"]);
@@ -76,7 +82,7 @@ public class RuleWriterTests
     [Fact]
     public void Two_descriptions_of_one_name_fail_and_nothing_is_built()
     {
-        var (part, report, problems) = RuleWriter.Build([.. Books(), Read("conflict/rules-c.json")], Core, Hand);
+        var (part, report, problems) = RuleWriter.Build([.. Books(), Read("conflict/rules-c.json")], Core, Hand, "grimdark-future");
         Assert.Null(part);
         Assert.Null(report);
         Assert.Equal(["'Precise' has two descriptions: Rules A and Rules C"], problems);
@@ -86,8 +92,49 @@ public class RuleWriterTests
     public void The_part_composes_validates_and_serializes_the_same_whatever_the_book_order()
     {
         Assert.Empty(BookWriter.Check([], Core, Hand, Part()));
-        var reversed = RuleWriter.Build(Books().Reverse().ToList(), Core, Hand).Part!;
+        var reversed = RuleWriter.Build(Books().Reverse().ToList(), Core, Hand, "grimdark-future").Part!;
         Assert.Equal(RuleWriter.Serialize(Part()), RuleWriter.Serialize(reversed));
         Assert.EndsWith("\n", RuleWriter.Serialize(Part()));
+    }
+
+    // A wrapper granting a text-only rule can never act: under 3.6 it is written text-only too, as a spell granting one is (DemoteUndefinedGrants).
+    static readonly PropertySetDocument HandTextOnlySwift = PropertiesJson.Parse("""
+    { "name": "hand", "gameRules": "grimdark-future", "entries": [ { "name": "Swift", "kind": "model", "aggregation": "none", "ruleText": "Sw.", "played": false } ] }
+    """);
+
+    [Fact]
+    public void Under_3_6_a_wrapper_whose_base_is_text_only_is_text_only()
+    {
+        var swift36 = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future-3.6").Part!.Entries.Single(e => e.Name == "Swift Buff");
+        Assert.Equal(((bool?)false, 0, (SpellTargeting?)null), (swift36.Played, swift36.Effects.Count, swift36.Targeting));
+        var report = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future-3.6").Report!;
+        Assert.Equal(1, report.Groups.Single(g => g.Group == "Buff, template text, base text-only").Count);
+        var swift35 = RuleWriter.Build(Books(), Core, HandTextOnlySwift, "grimdark-future").Part!.Entries.Single(e => e.Name == "Swift Buff");
+        Assert.Equal("Swift", swift35.Effects.Single().TargetEntry);                // 3.5 output unchanged
+    }
+
+    // Brace and Parry are carried by weapons and described by no book: the common-rules file (Army Forge's /api/rules/common) has the text.
+    static IReadOnlyDictionary<string, string> Common() =>
+        ArmyForgeJson.ReadCommonRules(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "rules", "common-rules.json")));
+
+    [Fact]
+    public void A_name_no_book_describes_is_written_with_the_common_rules_text_and_listed()
+    {
+        var books = Books().Append(Read("books/rules-d.json")).ToList();
+        var (part, report, _) = RuleWriter.Build(books, Core, Hand, "grimdark-future-3.6", Common());
+        Assert.Equal("Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued.", part!.Entries.Single(e => e.Name == "Brace").RuleText);
+        Assert.StartsWith("When this unit takes hits in melee, roll X dice", part.Entries.Single(e => e.Name == "Parry").RuleText);
+        Assert.Equal(["Brace", "Parry"], report!.DescribedByCommonRules);
+        Assert.Equal(["Banner"], report.NoDescription);
+        var without = RuleWriter.Build(books, Core, Hand, "grimdark-future-3.6").Report!;
+        Assert.Equal(["Banner", "Brace", "Parry"], without.NoDescription);
+        Assert.Empty(without.DescribedByCommonRules);
+    }
+
+    [Fact]
+    public void A_book_description_beats_the_common_rules_text()
+    {
+        var common = new Dictionary<string, string> { ["Precise"] = "Other." };
+        Assert.Equal("Gets +1 to hit when attacking.", RuleWriter.Build(Books(), Core, Hand, "grimdark-future-3.6", common).Part!.Entries.Single(e => e.Name == "Precise").RuleText);
     }
 }

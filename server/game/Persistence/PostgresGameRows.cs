@@ -11,11 +11,12 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
     public async Task<GameInfo?> ReadGameAsync(Guid gameId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        await using var game = new NpgsqlCommand("select name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, rng_seed, created_by, optional_rules::text from management.game where id = $1", conn) { Parameters = { new NpgsqlParameter { Value = gameId } } };
+        await using var game = new NpgsqlCommand("select name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, rng_seed, created_by, optional_rules::text, (select pr.name from management.properties pr where pr.content_hash = g.properties_hash) from management.game g where g.id = $1", conn) { Parameters = { new NpgsqlParameter { Value = gameId } } };
         await using var r = await game.ExecuteReaderAsync(ct);
         if (!await r.ReadAsync(ct)) return null;
         var (name, status, rules, hash, shape, enforcement, waits, rngSeed, createdBy, optional) =
             (r.GetString(0), EnumFrom<GameStatus>(r.GetString(1)), r.GetString(2), r.GetString(3), EnumFrom<SchedulerShape>(r.GetString(4)), EnumFrom<Enforcement>(r.GetString(5)), r.GetBoolean(6), r.GetInt64(7), r.GetGuid(8), OptionalRules(r.GetString(9)));
+        var ruleSet = r.IsDBNull(10) ? null : r.GetString(10);
         await r.CloseAsync();
 
         var teams = new List<Team>();
@@ -28,7 +29,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using (var pr = await cmd.ExecuteReaderAsync(ct))
             while (await pr.ReadAsync(ct)) participants.Add(new Participant(pr.GetGuid(0), pr.GetGuid(1), pr.GetString(2), NullableGuid(pr, 3), NullableGuid(pr, 4), pr.IsDBNull(5) ? null : pr.GetString(5)));
 
-        return new GameInfo(gameId, name, status, createdBy, rules, hash, shape, enforcement, waits, rngSeed, teams, participants) { OptionalRules = optional };
+        return new GameInfo(gameId, name, status, createdBy, rules, hash, shape, enforcement, waits, rngSeed, teams, participants) { OptionalRules = optional, RuleSet = ruleSet };
     }
 
     public async Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct)
@@ -54,6 +55,13 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using var cmd = db.CreateCommand("select exists (select 1 from management.properties where content_hash = $1)");
         cmd.Parameters.AddWithValue(hash);
         return (bool)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
+    public async Task<string?> PropertiesGameRulesAsync(string hash, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("select game_rules from management.properties where content_hash = $1");
+        cmd.Parameters.AddWithValue(hash);
+        return await cmd.ExecuteScalarAsync(ct) as string;
     }
 
     public async Task<TableState?> ReadDraftAsync(Guid gameId, CancellationToken ct)
@@ -110,12 +118,12 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
     public async Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        Guid owner; string name, system, source;
-        await using (var cmd = new NpgsqlCommand("select owner_id, name, game_system, source from management.army where id = $1", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        Guid owner; string name, system, source, edition;
+        await using (var cmd = new NpgsqlCommand("select owner_id, name, game_system, source, edition from management.army where id = $1", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
         {
             if (!await r.ReadAsync(ct)) return null;
-            (owner, name, system, source) = (r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3));
+            (owner, name, system, source, edition) = (r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4));
         }
         var stats = new Dictionary<Guid, Dictionary<string, string>>();
         var props = new Dictionary<Guid, List<PropertyInstance>>();
@@ -148,6 +156,6 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
             while (await r.ReadAsync(ct))
                 units.Add(new Unit(r.GetGuid(0), r.GetInt32(1), r.GetString(2), S(r.GetGuid(0)), P(r.GetGuid(0)), slots.TryGetValue(r.GetGuid(0), out var ss) ? ss : [],
                     NullableString(r, 3) is { } reserve && NullableGuid(r, 4) is { } of ? new UnitReserve(reserve, of) : null));
-        return new OwnedArmy(new Army(armyId, name, system, source, units), owner);
+        return new OwnedArmy(new Army(armyId, name, system, source, units) { Edition = edition }, owner);
     }
 }

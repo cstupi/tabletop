@@ -1,0 +1,157 @@
+using Tabletop.Content;
+using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Geometry;
+using Tabletop.Protocol;
+using Tabletop.Protocol.Tests;
+using static Tabletop.GameServer.Tests.Infrastructure.Armies;
+
+namespace Tabletop.GameServer.Tests;
+
+/// <summary>
+/// 3.6.0 p.12 Unstable: "If any model in a unit moves over 6” when moving into or through unstable terrain, then it counts as Dangerous terrain."
+/// 3.5.1 p.12 Ruins: "Dangerous when using rush/charge". Both are a DangerousOnRushCharge volume, read by the game's edition. 3.6.0 p.12 Steep:
+/// "Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain" (3.5.1 p.12 Hills:
+/// "Difficult when moving up"), the same in both editions. The words a client shows for them come from the server.
+/// </summary>
+public class GfTerrain36Tests
+{
+    /// <summary>A ruin centred on (x, -20), by default 4" wide and 30" long so no path goes round it.</summary>
+    static TerrainPlacement Ruin(double x, double width = 4, double length = 30) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), new Point3(x, -20, 0), new Yaw(0), 1,
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(width, length), new Point2(0, 0), new Yaw(0), 0, 4,
+            TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge, null))]);
+
+    /// <summary>A steep hill, 6" wide and 30" long, centred on (x, -20), so no path goes round it.</summary>
+    static TerrainPlacement Hill(double x) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("hill"), new Point3(x, -20, 0), new Yaw(0), 1,
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(6, 30), new Point2(0, 0), new Yaw(0), 0, 2,
+            TerrainDeclarations.Steep, null))]);
+
+    static Destinations By(Sim sim, Tabletop.Content.Unit u, double dx) => new(u.Models.Select(m => sim.Model(m.Id)).Select(m => new ModelRelocation(m.Id, m.Location,
+        new OnTable(new Placement(((OnTable)m.Location).Placement.Position with { X = ((OnTable)m.Location).Placement.Position.X + dx }, new Yaw(0))))).ToList());
+
+    static readonly int[] Fours = Enumerable.Repeat(4, 30).ToArray();
+
+    [Theory]
+    [InlineData(RuleSets.Gf351, 0, 1)]
+    [InlineData(RuleSets.Gf360, 1, 0)]
+    public void An_advance_with_fast_over_six_inches_through_ruins_tests_under_3_6_and_a_five_inch_charge_does_not(string rules, int advanceTests, int chargeTests)
+    {
+        // Fast: Advance 8". -12 → -4, through the ruin at x -10..-6.
+        var fast = Unit("A", "4+", "4+", [P("Fast")], 1, []);
+        var advance = Sim.Gf(rules, State([fast], [Unit("B", "4+", "4+", [], 1, [])], x1: -12, x2: 20, terrain: [Ruin(-8)]), Fours);
+        advance.Start(GfNames.AdvanceSeq, new SequenceContext(fast.Id, [], [], GfNames.Advance));
+        Assert.Empty(advance.Steps("test"));                                                       // activated outside it
+        advance.Answer(Samples.Team1, By(advance, fast, 8));
+        Assert.Equal(advanceTests, advance.Steps("test").Count);
+
+        // A 5" charge: -6.3 → -1.3, base to base, through the ruin at x -5.5..-1.5.
+        var charger = Unit("A", "4+", "4+", [], 1, [], Melee("CCW", 1));
+        var target = Unit("B", "4+", "4+", [], 1, [], Melee("CCW", 1));
+        var charge = Sim.Gf(rules, State([charger], [target], x1: -6.3, x2: 0, terrain: [Ruin(-3.5)]), Fours);
+        charge.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        charge.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        charge.Answer(Samples.Team1, By(charge, charger, 5));
+        Assert.Equal(chargeTests, charge.Steps("test").Count);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void A_rush_activated_in_unstable_ground_tests_only_under_3_5_1(string rules)
+    {
+        // 3.6.0 p.12 names a move over 6" into or through it; being activated in it is not one.
+        var unit = Unit("A", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(rules, State([unit], [Unit("B", "4+", "4+", [], 1, [])], x1: -12, x2: 20, terrain: [Ruin(-12)]), Fours);
+        sim.Start(GfNames.RushSeq, new SequenceContext(unit.Id, [], [], GfNames.Rush));
+        Assert.Equal(rules == RuleSets.Gf351 ? 1 : 0, sim.Steps("test").Count);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void A_rush_onto_a_steep_hill_is_capped_and_one_off_it_is_not(string rules)
+    {
+        // Onto it: -12 → -1 (11") across the hill at x -9..-3, over the 6" cap.
+        var onto = Unit("A", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(rules, State([onto], [Unit("B", "4+", "4+", [], 1, [])], x1: -12, x2: 20, terrain: [Hill(-6)]), Fours);
+        sim.Start(GfNames.RushSeq, new SequenceContext(onto.Id, [], [], GfNames.Rush));
+        var ask = sim.AskFor(Samples.Team1);
+        var region = ask.Legal as MoveRegion;
+        Assert.NotNull(region);
+        Assert.Single(region.SteepVolumeIds!);
+        Assert.Empty(region.DifficultVolumeIds);
+        Assert.NotNull(GfMoves.DifficultCapBreach(sim.State, ask, region, By(sim, onto, 11)));
+        Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, region, By(sim, onto, 5)));
+
+        // Off it: standing on the hill at -6, 11" east to 5, open ground.
+        var off = Unit("A", "4+", "4+", [], 1, []);
+        sim = Sim.Gf(rules, State([off], [Unit("B", "4+", "4+", [], 1, [])], x1: -6, x2: 20, terrain: [Hill(-6)]), Fours);
+        sim.Start(GfNames.RushSeq, new SequenceContext(off.Id, [], [], GfNames.Rush));
+        ask = sim.AskFor(Samples.Team1);
+        Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, (MoveRegion)ask.Legal, By(sim, off, 11)));
+    }
+
+    static readonly EntryDocument Ward = new("Ward", CatalogKind.Spell, false, null, 1, "Test Book", "Target up to two friendly units within 24\" get Regeneration once.",
+        new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 2, 24),
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, "Regeneration", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]);
+
+    [Theory]
+    [InlineData(RuleSets.Gf351, 0)]
+    [InlineData(RuleSets.Gf360, 1)]
+    public void Unstable_reads_the_whole_move_across_a_stop(string rules, int tests)
+    {
+        // A Fast caster's Advance (8") in two 4" segments round a stop: -20 → -16 → -12, into the ruin at x -16..-12 on the second.
+        // 3.6.0 p.12 "moves over 6”" is the movement, 8", not either segment.
+        var wizard = Unit("Wizard", "4+", "4+", [P("Fast")], 1, [P("Caster", 3)]);
+        var state = State([wizard], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, terrain: [Ruin(-14)]).Under(rules);
+        var sim = new Sim(state, rules == RuleSets.Gf360 ? GrimdarkFutureRules.V360 : GrimdarkFutureRules.V351, TestProperties.WithSpells(Ward), new ScriptedDice(4));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(wizard.Id, [], [], GfNames.Advance));
+        Assert.True(Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Stoppable);
+        sim.Answer(Samples.Team1, By(sim, wizard, 4) with { Continues = true });
+        Assert.Empty(sim.Steps("test"));
+        sim.Answer(Samples.Team1, new Passed());                                                    // the window after the stop
+        sim.Answer(Samples.Team1, By(sim, wizard, 4));
+        Assert.Equal(tests, sim.Steps("test").Count);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void A_path_over_six_inches_goes_round_a_small_unstable_ruin_when_that_fits(string rules)
+    {
+        // Fast Advance (8"): -12 → -5, 7" straight through a 2" ruin at x -9.5..-7.5; round it is under 8". 3.5.1 Advance: not dangerous anyway.
+        var fast = Unit("A", "4+", "4+", [P("Fast")], 1, []);
+        var sim = Sim.Gf(rules, State([fast], [Unit("B", "4+", "4+", [], 1, [])], x1: -12, x2: 20, terrain: [Ruin(-8.5, 2, 2)]), Fours);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(fast.Id, [], [], GfNames.Advance));
+        sim.Answer(Samples.Team1, By(sim, fast, 7));
+        Assert.Empty(sim.Steps("test"));
+        Assert.Equal(-5, ((OnTable)sim.Model(fast.Models[0].Id).Location).Placement.Position.X, 3);
+    }
+
+    [Fact]
+    public void Terrain_words_follow_the_edition()
+    {
+        Assert.Equal("See in and out", GrimdarkFutureRules.V351.TerrainWords["see_in_and_out"]);
+        Assert.Equal("Dense", GrimdarkFutureRules.V360.TerrainWords["see_in_and_out"]);
+        Assert.Equal("Difficult moving up", GrimdarkFutureRules.V351.TerrainWords["steep"]);
+        Assert.Equal("Steep", GrimdarkFutureRules.V360.TerrainWords["steep"]);
+        Assert.Equal("Unstable", GrimdarkFutureRules.V360.TerrainWords["dangerous_on_rush_charge"]);
+        Assert.Equal("Sight blocking", GrimdarkFutureRules.V360.TerrainWords["blocks_line_of_sight"]);
+        Assert.All(GrimdarkFutureRules.V360.TerrainWords.Keys, k => Assert.True(BuiltinTerrain.DeclarationNames.ContainsKey(k), k));
+    }
+
+    [Fact]
+    public async Task The_welcome_carries_the_games_terrain_words()
+    {
+        var db = new InMemorySeeder();
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        await using var client = await TestClient.OpenAsync(factory);
+        var welcome = await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        Assert.Equal(GrimdarkFutureRules.Instance.TerrainWords, welcome.TerrainWords);
+        Assert.Equal("Difficult moving up", welcome.TerrainWords["steep"]);
+    }
+}

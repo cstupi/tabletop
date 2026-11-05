@@ -156,10 +156,10 @@ public class PropertiesStoreTests(PostgresFixture pg)
     public async Task The_embedded_documents_seed_at_startup()
     {
         var docs = PropertiesSeeder.EmbeddedDocuments();
-        Assert.Single(docs);
+        Assert.Equal(2, docs.Count);
         var hashes = await new PropertiesSeeder(_store, Microsoft.Extensions.Logging.Abstractions.NullLogger<PropertiesSeeder>.Instance).SeedEmbeddedAsync(CancellationToken.None);
-        Assert.Equal([PropertiesJson.Hash(docs[0])], hashes);
-        Assert.NotNull(await _store.LoadAsync(hashes[0], CancellationToken.None));
+        Assert.Equal(docs.Select(PropertiesJson.Hash), hashes);
+        foreach (var hash in hashes) Assert.NotNull(await _store.LoadAsync(hash, CancellationToken.None));
     }
 
     [Fact]
@@ -275,6 +275,42 @@ public class PropertiesStoreTests(PostgresFixture pg)
             var entry = (await _store.LoadAsync(hash, CancellationToken.None))!.Entry("Healer")!;
             Assert.Equal("Healer", entry.Targeting!.Requires);
             Assert.Equal((EffectKind.RemoveWounds, "d3"), (entry.Effects.Single().Kind, entry.Effects.Single().AmountDice));
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
+    }
+
+    [Fact]
+    public async Task The_text_only_rules_grammar_round_trips()
+    {
+        var name = "Grammar36 " + Guid.CreateVersion7().ToString("N")[24..32];
+        var at = new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["before-attacking"]);
+        var blockOne = new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 1, ["defense", "raw"]);
+        EffectDocument Row(EffectKind kind, EffectDuration duration, TargetModifier? modifier = null, TargetQuantity? quantity = null, bool optional = false, params ConditionDocument[] when) =>
+            new(EffectSubject.Opponent, 10, kind, kind == EffectKind.ModifyRoll ? "defense" : null, null, null, null, quantity, null, modifier, 1, false, null, null, null, duration, when, [], Optional: optional);
+        var doc = new PropertySetDocument(name, "grammar36-" + name, [], [], ["hit", "defense"],
+        [
+            new EntryDocument("Tagger", CatalogKind.Model, false, Aggregation.Any, null, null, "Tag.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 18, OncePerRound: true, CountFromParameter: true),
+                [Row(EffectKind.ModifyRoll, EffectDuration.OneMarker, when: at)]),
+            new EntryDocument("Ranged", CatalogKind.Weapon, false, null, null, null, "Ranged.", null,
+            [
+                Row(EffectKind.SuppressModifiers, EffectDuration.Interaction, TargetModifier.PositiveDefense, when: new ConditionDocument(ConditionKind.WeaponRange, null, Comparison.Gt, 50, [])),
+                Row(EffectKind.CountWounds, EffectDuration.Interaction, when: blockOne), Row(EffectKind.RemoveSpellTokens, EffectDuration.Interaction),
+                Row(EffectKind.AddHit, EffectDuration.Interaction, quantity: TargetQuantity.Attacks, optional: true, when: blockOne),
+                Row(EffectKind.ModifyRoll, EffectDuration.Interaction, when: new ConditionDocument(ConditionKind.RemainingSize, EffectSubject.Opponent, Comparison.Gt, 50, ["Tough"])),
+            ]),
+        ]);
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+            var set = (await _store.LoadAsync(hash, CancellationToken.None))!;
+            var tagger = set.Entry("Tagger")!;
+            Assert.Equal((true, true, EffectDuration.OneMarker), (tagger.Targeting!.OncePerRound, tagger.Targeting.CountFromParameter, tagger.Effects.Single().Duration));
+            var rows = set.Entry("Ranged")!.Effects;
+            Assert.Equal([EffectKind.SuppressModifiers, EffectKind.CountWounds, EffectKind.RemoveSpellTokens, EffectKind.AddHit, EffectKind.ModifyRoll], rows.Select(e => e.Kind));
+            Assert.Equal((TargetModifier.PositiveDefense, ConditionKind.WeaponRange), (rows[0].TargetModifier!.Value, rows[0].Conditions.Single().Kind));
+            Assert.Equal([false, false, false, true, false], rows.Select(e => e.Optional));
+            Assert.Equal(ConditionKind.RemainingSize, rows[4].Conditions.Single().Kind);
         }
         finally { await pg.DeletePropertiesAsync(hash); }
     }

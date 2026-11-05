@@ -11,6 +11,31 @@ public static partial class SpellTranslator
     public static IReadOnlyDictionary<string, EntryDocument> Overrides { get; } = new Dictionary<string, EntryDocument>();
 
     [GeneratedRegex(@"(-?\+?\d+)")] private static partial Regex Number();
+    [GeneratedRegex("^Pick [^\"]*? within (\\d+)\"")] private static partial Regex PrintedRangeRx();
+
+    /// <summary>The effect id Army Forge uses for "loses N spell tokens": a `remove_spell_tokens` row.</summary>
+    const string TokenLossEffect = "Urj6dU6Tua8B";
+
+    /// <summary>The range the printed text states ("Pick one enemy unit within 18" …"), or null when it states none.</summary>
+    public static int? PrintedRange(AfSpell spell) => PrintedRangeRx().Match(spell.Effect) is { Success: true } m ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : null;
+
+    /// <summary>The range the generation names and the printed text states, when they differ: the printed text is the authority.</summary>
+    public static (int Generation, int Printed)? RangeCorrection(AfSpell spell)
+    {
+        var generation = Int(spell.Generation.Assignment.Text("inRange"), spell.Name.Trim());
+        return PrintedRange(spell) is { } printed && printed != generation ? (generation, printed) : null;
+    }
+
+    /// <summary>The effect id of a weapon-rule grant to the picked unit; its attack type may be empty (the grant then carries no attack condition).</summary>
+    const string WeaponRuleGrantEffect = "54xO9EKTj-ix";
+
+    /// <summary>True when the translation falls back to a text-only spell: an attack type the structured field leaves unknown, or empty on an effect that needs one.</summary>
+    public static bool IsTextOnly(AfSpell spell)
+    {
+        var e = spell.Generation.Effect;
+        return e.Parameters.Any(p => p.Name == "attackType") && e.Text("attackType") is not ("when shooting" or "in melee" or "when attacking")
+            && !(e.Id == WeaponRuleGrantEffect && e.Text("attackType") is "");
+    }
 
     public static EntryDocument Translate(AfBook book, AfSpell spell)
     {
@@ -21,13 +46,16 @@ public static partial class SpellTranslator
             a.Text("friendly-enemy") switch { "friendly" => TargetSide.Friendly, "enemy" => TargetSide.Enemy, var x => throw Bad(where, $"side '{x}'") },
             a.Text("target") switch { "unit" => TargetGrain.Unit, "model" => TargetGrain.Model, var x => throw Bad(where, $"target '{x}'") },
             a.Text("numberText") switch { "one" => 1, "up to two" => 2, "up to three" => 3, var x => throw Bad(where, $"count '{x}'") },
-            Int(a.Text("inRange"), where));
+            PrintedRange(spell) ?? Int(a.Text("inRange"), where),
+            a.Text("inLoS") is { Length: > 0 } ? true : null);   // 3.6: the spell's own "in line of sight"; 3.5 dumps carry none, so 3.5.1 stays null
+        if (IsTextOnly(spell)) return new EntryDocument(spell.Name.Trim(), CatalogKind.Spell, false, null, spell.Threshold, null, spell.Effect, targeting, [], false);
         IReadOnlyList<EffectDocument> rows = e.Id switch
         {
             "QFjxWsOHTCSi" => [Damage(spell, e, where)],
             "RWnJrrMKAUbg" => [Grant(e.Rule("unitRule"), EffectSubject.Self, [], where)],
             "1yTPcanTyckX" => [Grant(e.Rule("unitRule"), EffectSubject.Opponent, [], where)],
-            "54xO9EKTj-ix" => [Grant(e.Rule("weaponRule"), EffectSubject.Opponent, Attack(e.Text("attackType"), where), where)],
+            WeaponRuleGrantEffect => [Grant(e.Rule("weaponRule"), EffectSubject.Opponent, e.Text("attackType") is "" ? [] : Attack(e.Text("attackType"), where), where)],
+            TokenLossEffect => [Row(EffectKind.RemoveSpellTokens, EffectSubject.Self, EffectDuration.Interaction) with { Amount = Int(e.Text("numberDigit"), where) }],
             "i1BVqztsr1V6" => [e.Text("gets/loses/ignores") switch
                 {
                     "loses" => Loses(e.Rule("weaponRule"), Attack(e.Text("attackType"), where), where),
@@ -56,7 +84,9 @@ public static partial class SpellTranslator
     static EffectDocument Row(EffectKind kind, EffectSubject subject, EffectDuration duration, int ordinal = 10) =>
         new(subject, ordinal, kind, null, null, null, null, null, null, null, null, false, null, null, null, duration, [], []);
 
-    /// <summary>Row 1 and 2: hits are numberDigit × the spell's value (all 141 damage spells); weapon rules are grant children; the roll sentence sets target_roll.</summary>
+    const string RollSentence = "Roll as many dice as hits";
+
+    /// <summary>Row 1 and 2: hits are numberDigit × the spell's value (all 141 damage spells); weapon rules are grant children; the roll sentence (the generation's or the printed text's) sets target_roll.</summary>
     static EffectDocument Damage(AfSpell spell, AfGenPart e, string where)
     {
         if (e.Text("hits-wounds") != "hits") throw Bad(where, $"hits-wounds '{e.Text("hits-wounds")}'");
@@ -65,7 +95,8 @@ public static partial class SpellTranslator
         return Row(EffectKind.AddHit, EffectSubject.Self, EffectDuration.Interaction) with
         {
             Amount = Int(e.Text("numberDigit"), where) * spell.Threshold,
-            TargetRoll = string.IsNullOrEmpty(e.Text("spellHitRoll")) ? null : "hit",
+            // The 3.6 dump's generation can leave spellHitRoll out where the printed text has the sentence: the printed text is the authority.
+            TargetRoll = !string.IsNullOrEmpty(e.Text("spellHitRoll")) || spell.Effect.Contains(RollSentence, StringComparison.Ordinal) ? "hit" : null,
             Children = children,
         };
     }

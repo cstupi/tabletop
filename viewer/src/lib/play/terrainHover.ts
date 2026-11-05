@@ -7,14 +7,15 @@ import type { Overlay } from '../board/interaction';
 import type { Point } from '../board/transform';
 import type { TableState } from '../protocol/wire.generated';
 import type { Catalog } from '../setup/catalog';
+import type { TerrainWords } from '../setup/terrainCard';
 import { terrainLabelOf } from './terrainLabel';
 
 /** The label's lines for the hovered piece; null when nothing is hovered, the piece is selected or is not on the table. */
-export function terrainHoverText(table: TableState, catalog: Catalog, hovered: string | null, selected: string | null): string[] | null {
+export function terrainHoverText(table: TableState, catalog: Catalog, hovered: string | null, selected: string | null, words?: TerrainWords | null): string[] | null {
   if (hovered === null || hovered === selected) return null;
   const piece = table.terrain.find((t) => t.id === hovered);
   if (piece === undefined || piece.volumes.length === 0) return null;
-  return terrainLabelOf(piece, catalog).split('\n');
+  return terrainLabelOf(piece, catalog, words).split('\n');
 }
 
 const LINE = 16;

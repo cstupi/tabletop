@@ -25,6 +25,7 @@ public class DraftLimitsTests
         TerrainPlacement With(TerrainDeclarations d) => Hill() with { Volumes = [new TerrainVolume(Guid.CreateVersion7(), Volume().Volume with { Declarations = d })] };
         Assert.Null(Refusal(Empty, new AddTerrain(With(all))));
         Assert.Null(Refusal(Empty, new AddTerrain(With(TerrainDeclarations.DangerousOnRushCharge | TerrainDeclarations.Cover))));
+        Assert.Null(Refusal(Empty, new AddTerrain(With(TerrainDeclarations.Steep | TerrainDeclarations.Cover))));
         Assert.NotNull(Refusal(Empty, new AddTerrain(With((TerrainDeclarations)((int)all + 1)))));
     }
 

@@ -120,7 +120,7 @@
 
   /** A selected terrain piece takes the unit card's place (SheetFocus names no unit then); read-only in play. */
   const terrainCard = $derived(shown !== null && snap.game !== null && playing
-    ? terrainCardOf(shown.board.table, snap.game.status, selection?.pieceId ?? null, catalog) : null);
+    ? terrainCardOf(shown.board.table, snap.game.status, selection?.pieceId ?? null, catalog, snap.terrainWords) : null);
 
   const selectionLine = $derived(shown !== null && snap.game !== null && playing ? describeSelection(new Names(snap.game, shown), shown, selection) : null);
 

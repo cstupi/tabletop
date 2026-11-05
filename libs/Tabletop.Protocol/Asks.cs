@@ -94,10 +94,14 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// every other move.
 /// ContactGrace: with ContactWith, how far apart a moving model's base may end from one of those models and still count as reaching it; the
 /// server draws such a model flush into base contact, and a client draws its landing flush the same way. Null with no ContactWith.
+/// SteepVolumeIds: volumes on the Board that count as difficult for a model whose base centre starts outside the footprint, and as open ground for
+/// one that starts inside (3.6.0 p.12 Steep; 3.5.1 p.12 Hills "Difficult when moving up"): Tabletop.Geometry.Movement.SteepEntering per model.
+/// Null is none.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
     IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false,
-    double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false, IReadOnlyList<Guid>? ContactWith = null, double? ContactGrace = null) : LegalSet;
+    double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false, IReadOnlyList<Guid>? ContactWith = null, double? ContactGrace = null,
+    IReadOnlyList<Guid>? SteepVolumeIds = null) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId

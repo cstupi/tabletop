@@ -35,6 +35,7 @@ public interface IGameRules
     // Per roll: the dice convention and the threshold derivation, a function (action sequences → constraints 2–4).
     RollSpec RollSpec(string roll);
     string HitRoll { get; }
+    string DefenseRoll { get; }
     // Windows: who can react at a named point, and with what (action sequences → Windows).
     IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame);
     // Hooks the scheduler calls (scheduler → The line), each once per turn or round, with the scheduler's TurnContext.
@@ -74,6 +75,10 @@ public interface IGameRules
     /// <summary>Changes written as one round_ended event when a player has ended <paramref name="round"/>, before the next round_started (OPR: objectives seized). Empty: no event.</summary>
     IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
 
+    /// <summary>A sequence under which a once grant a step reads is held rather than spent, to the step that closes it (OPR: the attack is "next time the
+    /// effect would apply"; StepContext.Consume). None by default. Wrapping rulesets must forward it.</summary>
+    bool HoldsOnceGrants(string sequence) => false;
+
     // Facts the client is told rather than reading a rule name.
     /// <summary>Wounds the model takes before it is killed (OPR: Tough(X), else 1). Wrapping rulesets must forward it.</summary>
     int MaxWounds(GameState state, Guid modelId) => 1;
@@ -89,6 +94,11 @@ public interface IGameRules
     // Optional rules (optional-rules spec). The map is GameInfo.OptionalRules; nothing outside the ruleset reads its keys.
     /// <summary>The ruleset's optional rules and presets, sent in Welcome for the lobby. Empty by default. Wrapping rulesets must forward it.</summary>
     RulesOptionCatalog OptionCatalog => RulesOptionCatalog.Empty;
+    /// <summary>Side Battle's legs under this rule set, sent in Welcome and read by the deployment-zone breach. ZoneLegs.Default by default. Wrapping rulesets must forward it.</summary>
+    Tabletop.Geometry.ZoneLegs Zones => Tabletop.Geometry.ZoneLegs.Default;
+    /// <summary>The words a client shows for a terrain declaration under this rule set, keyed by its snake_case name (BuiltinTerrain.DeclarationNames),
+    /// sent in Welcome. Empty by default: a client keeps its own words. Wrapping rulesets must forward it.</summary>
+    IReadOnlyDictionary<string, string> TerrainWords => new Dictionary<string, string>();
     /// <summary>What is wrong with an optional-rules map: an unknown key or value. A set_configuration with any is refused. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => optionalRules.Keys.Select(k => $"unknown option {k}").ToList();
     /// <summary>What blocks sight in this state under the game's optional rules (Sight.From reads it). Each model's body, by default. Wrapping rulesets must forward it.</summary>
@@ -112,5 +122,10 @@ public sealed class UnknownGameRulesException(string id) : Exception($"No GameRu
 
 public static class GameRulesRegistry
 {
-    public static IGameRules Resolve(string id) => id == GrimdarkFutureRules.RulesId ? GrimdarkFutureRules.Instance : throw new UnknownGameRulesException(id);
+    public static IGameRules Resolve(string id) => id switch
+    {
+        Tabletop.Content.RuleSets.Gf351 => GrimdarkFutureRules.V351,
+        Tabletop.Content.RuleSets.Gf360 => GrimdarkFutureRules.V360,
+        _ => throw new UnknownGameRulesException(id),
+    };
 }

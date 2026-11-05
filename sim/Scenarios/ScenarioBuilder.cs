@@ -22,6 +22,7 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     private MoveGoal? _goal;
     private IReadOnlyDictionary<string, string> _optionalRules = new Dictionary<string, string>();
     private bool _selfPlay;
+    private string _rules = RuleSets.Gf351;
 
     public ScenarioBuilder Shape(SchedulerShape shape) { _shape = shape; return this; }
     public ScenarioBuilder Enforcing(Enforcement e) { _enforcement = e; return this; }
@@ -30,6 +31,8 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     public ScenarioBuilder RoundCap(int rounds) { _roundCap = rounds; return this; }
     /// <summary>One account plays every side (Scenario.SelfPlay).</summary>
     public ScenarioBuilder SelfPlay() { _selfPlay = true; return this; }
+    /// <summary>The game-rules id the scenario plays under; 3.5.1 unless named.</summary>
+    public ScenarioBuilder Rules(string rulesId) { _rules = rulesId; return this; }
     public ScenarioBuilder Table(double width, double length) { _table = new TableSize(width, length); return this; }
     /// <summary>A zone style id from Tabletop.Geometry.ZoneStyles; its shapes expand in team-ordinal order.</summary>
     public ScenarioBuilder Zones(string style) { _zoneStyle = style; return this; }
@@ -79,6 +82,6 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         }
         var style = _zoneStyle ?? (teams > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
         var shapes = ZoneStyles.ShapesOf(style).Take(teams).ToList();
-        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations) { Goal = _goal, OptionalRules = _optionalRules, SelfPlay = _selfPlay };
+        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations) { Goal = _goal, OptionalRules = _optionalRules, SelfPlay = _selfPlay, Rules = _rules };
     }
 }

@@ -18,6 +18,8 @@ public interface IGameRows
     Task<IReadOnlyList<ArmyInPlay>> ReadSnapshotsAsync(Guid gameId, CancellationToken ct);
     Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct);
     Task<bool> PropertiesExistAsync(string hash, CancellationToken ct);
+    /// <summary>The game rules id of the properties row with this hash; null when there is none.</summary>
+    Task<string?> PropertiesGameRulesAsync(string hash, CancellationToken ct);
     /// <summary>Each named asset that exists, with its owner's account id. A setup edit may reference only assets a participant owns.</summary>
     Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct);
 

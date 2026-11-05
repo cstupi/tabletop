@@ -11,22 +11,26 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>A flagged interpretation, not a silent guess (action sequences → Rulings): the scope is the activation, so a caster that failed a spell may try it again in a later activation.</summary>
     public const string OneTryPerSpellScope = "activation";
 
-    private readonly Lazy<IReadOnlyDictionary<string, Sequence>> _sequences = new(() => new Sequence[]
+    private readonly Lazy<IReadOnlyDictionary<string, Sequence>> _sequences;
+
+    /// <summary>This edition's sequence catalog, built once per instance on first use.</summary>
+    private IReadOnlyDictionary<string, Sequence> BuildSequences() => new Sequence[]
     {
         GfRolls.RollOffSequence(),
         GfAttack.DealWounds(),
-        GfAttack.AttackSequence(),
-        GfAttack.ResolveHits(),
+        GfAttack.AttackSequence(Edition),
+        GfAttack.ResolveHits(Edition),
         GfShooting.Shooting(),
         GfMoves.Hold(),
         GfMoves.Advance(),
         GfMoves.Rush(),
         GfMoves.DangerousTerrain(),
+        GfMoves.DangerousTerrain36(),
         GfMoves.Idle(),
         GfMoves.Reposition(),
-        GfMorale.MoraleTest(),
+        GfMorale.MoraleTest(Edition),
         GfMelee.Charge(),
-        GfMelee.Melee(),
+        GfMelee.Melee(Edition),
         GfCasting.Casting(),
         GfCasting.SpellHits(),
         GfCasting.SpellTest(),
@@ -38,10 +42,11 @@ public sealed partial class GrimdarkFutureRules
         GfAmbush.AmbushRedeploy(),
         GfRuleHits.RuleHits(),
         GfRuleHits.RuleWounds(),
+        GfStrikeRolls36.StrikeRolls(),
         GfMarkers.Rally(),
-        GfContainers.TransportDestroyed(),
+        GfContainers.TransportDestroyed(Edition),
         GfReserves.PlaceReserve(),
-    }.ToDictionary(s => s.Name));
+    }.ToDictionary(s => s.Name);
 
     public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);
     public string? ActionSequence(string actionName) => actionName switch
@@ -51,6 +56,9 @@ public sealed partial class GrimdarkFutureRules
     };
     public RollSpec RollSpec(string roll) => GfRolls.Spec(roll);
     public string HitRoll => GfNames.Hit;
+    public string DefenseRoll => GfNames.DefenseRoll;
+    /// <summary>The attack is "next time the effect would apply": a once grant read under an attack root is held to its `attack-end` (GfAttack.AttackEndStep).</summary>
+    public bool HoldsOnceGrants(string sequence) => GfAttack.IsAttackRoot(sequence);
     public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => GfHooks.ReactionsAt(state, properties, point, frame);
     public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => GfActivationEnd.Sequences(state, properties, turn.Activation);
     public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => round == 0 ? [] : GfHooks.OnRoundStarted(state, properties);

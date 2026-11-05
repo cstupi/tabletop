@@ -26,7 +26,7 @@ public class GfUnstoppableTests
         var weapons = shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id));
         var live = LiveProperties.Settle(new Interaction(state, Core, Party.Of(state, shooter.Id, shooter.Models.Select(m => m.Id), weapons),
             Party.Whole(state, target.Id), AttackKind.Shooting, action, 12, []));
-        return RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit");
+        return RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, "hit", "defense");
     }
 
     [Fact]

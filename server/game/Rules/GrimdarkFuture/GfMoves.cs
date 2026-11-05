@@ -36,6 +36,16 @@ public static partial class GfMoves
         terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Dangerous)
             || (rushOrCharge && v.Volume.Declarations.HasFlag(TerrainDeclarations.DangerousOnRushCharge))).ToList();
 
+    /// <summary>3.6.0 p.12's dangerous terrain for one model's move: every Dangerous volume, and every DangerousOnRushCharge volume (Unstable: "If any model
+    /// in a unit moves over 6” when moving into or through unstable terrain, then it counts as Dangerous terrain") when that model's path is over 6".</summary>
+    static IReadOnlyList<WorldVolume> DangerousFor36(IReadOnlyList<WorldVolume> terrain, double pathLength) =>
+        terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Dangerous)
+            || (pathLength > GfNames.UnstableDistance + 1e-6 && v.Volume.Declarations.HasFlag(TerrainDeclarations.DangerousOnRushCharge))).ToList();
+
+    /// <summary>Whether an activation's DangerousOnRushCharge volumes are dangerous to stand in: under 3.5.1 for a Rush or a Charge (p.12); never under
+    /// 3.6.0, whose Unstable names only a move over 6" into or through it.</summary>
+    static bool ActivatedInUnstable(StepContext ctx) => !GfEdition.Of(ctx.State).UnstableByDistance && RushesOrCharges(ctx);
+
     /// <summary>Whether an action's move is a Rush or a Charge (p.7, p.9).</summary>
     static bool RushOrCharge(string? action) => action is GfNames.Rush or GfNames.Charge;
 
@@ -113,13 +123,17 @@ public static partial class GfMoves
     /// <summary>
     /// p.15: the containers a model of this unit could reach — a friendly container (IsFriendlyContainer) within the move's
     /// remaining allowance of one of the unit's models, by a path to base contact round every impassable volume (Movement.ContactDistance, the same
-    /// reading as charge-target's). Only one model has to reach it, so the answer is per container, not per model.
+    /// reading as charge-target's). Only one model has to reach it, so the answer is per container, not per model. Under 3.6.0 p.15
+    /// ("If the Transport is unreachable (for example because it’s flying), then units can’t embark in it", GfEdition.AircraftTransportUnreachable)
+    /// an Aircraft container is never in reach; deploying inside one (MayDeployInside) stays allowed.
     /// </summary>
     public static IReadOnlyList<Guid> ContainersInReach(StepContext ctx, Guid unit, double remaining, IReadOnlyList<WorldVolume> impassable)
     {
         var movers = Lookup.LivingModels(ctx.State, unit);
         if (movers.Count == 0) return [];
+        var unreachableAircraft = GfEdition.Of(ctx.State).AircraftTransportUnreachable;
         return ctx.Projection.Models.Values.Where(c => IsFriendlyContainer(ctx.State, unit, c.Id))
+            .Where(c => !(unreachableAircraft && IsAircraft(ctx, c.UnitId)))
             .Where(c => movers.Any(m => Battlefield.Distance(ctx.State, m, c.Id) <= remaining
                 && Movement.ContactDistance(Battlefield.Placed(ctx.State, m)!.Value, Battlefield.Placed(ctx.State, c.Id)!.Value, remaining, impassable, ctx.State.Board.Table.Size) is not null))
             .Select(c => c.Id).ToList();
@@ -176,20 +190,20 @@ public static partial class GfMoves
             // p.13: Flying ignores terrain effects, p.36: so does the Banner of Eternal Flame. A granted Flying applies when there was a test to skip, and is kept to the activation's end (ConsumeKeepingFlying).
             if (rules.IgnoresDangerous)
             {
-                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx)).Count > 0;
+                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit, ActivatedInUnstable(ctx)).Count > 0;
                 if (tested) RecordSkipped(live, rules, useFlying: true);
                 var (spent, held) = ConsumeKeepingFlying(live);
                 return new Complete(spent, held);
             }
             // Write the dice count first, then push: the child reads dangerous_dice off this frame, so it must be settled before the push.
             // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
-            if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(GfNames.DangerousTerrain, ctx.Frame.Context);
+            if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(DangerousSeq(ctx.State), ctx.Frame.Context);
             // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
-            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, RushesOrCharges(ctx));
+            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit, ActivatedInUnstable(ctx));
             if (standing.Count == 0) return new Complete([]);
-            var values = new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) };
-            MarkTested(values, standing);
-            return new Complete(RollEffects.Consume(live), values, Repeat: true);
+            var values = new Dictionary<string, int> { ["dangerous_dice"] = OwedDice(ctx.State, unit, standing) };   // 3.6.0 p.12: the whole unit's wounds
+            MarkTested(ctx.State, unit, values, standing);
+            return new Complete(ctx.Consume(live), values, Repeat: true);
         }
     }
 
@@ -198,7 +212,7 @@ public static partial class GfMoves
     {
         public string Name => "casting-window";
         public StepOutcome Run(StepContext ctx) =>
-            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], null, Repeat: ctx.History.Children.Count > 0);
+            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], GfCasting.MarkWindow(ctx), Repeat: ctx.History.Children.Count > 0);
     }
 
     /// <summary>
@@ -212,11 +226,13 @@ public static partial class GfMoves
     public static bool IsAircraft(StepContext ctx, Guid unit) => Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Aircraft);
 
     /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, the dangerous-terrain dice the models that moved in or
-    /// through a Dangerous volume owe (p.11; a DangerousOnRushCharge volume too when the action is a Rush or a Charge, p.12), and whether a model went in or
+    /// through a Dangerous volume owe (p.11; a DangerousOnRushCharge volume too when the action is a Rush or a Charge, p.12; under 3.6.0 p.12 Unstable,
+    /// when that model's own path is over 6", whatever the action: DangerousFor36), and whether a model went in or
     /// through difficult ground with the cap binding the unit (p.11, not Strider or Flying). A model that has taken the test this activation owes none;
     /// Tested is the models these dice are for, which the caller marks (MarkTested). Each is read along the path the model's base takes within
-    /// `remaining` (what this segment had left; the whole allowance when not given).</summary>
-    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null)
+    /// `remaining` (what this segment had left; the whole allowance when not given). `usedBefore` is what earlier segments of the same move used
+    /// (the move step's distance_used_tenths): 3.6.0 p.12 Unstable reads "moves over 6”" over the whole movement, as p.11's cap does.</summary>
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult, IReadOnlyList<Guid> Tested) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, string? action, double? remaining = null, double usedBefore = 0)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
         var rules = TerrainFor(ctx, unit, live);
@@ -225,7 +241,10 @@ public static partial class GfMoves
         var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>(); var crossedDifficult = false;
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
-        var dangerous = DangerousFor(terrain, RushOrCharge(action));
+        var steep = Declared(terrain, TerrainDeclarations.Steep);
+        var byDistance = GfEdition.Of(ctx.State).UnstableByDistance;
+        var dangerous = byDistance ? DangerousFor36(terrain, 0) : DangerousFor(terrain, RushOrCharge(action));
+        var unstable = byDistance ? DangerousFor36(terrain, double.PositiveInfinity) : dangerous;
         var strider = rules.IgnoresDifficult;   // p.14: Strider ignores difficult terrain, Flying and the Banner of Eternal Flame all terrain effects
         var flying = rules.Flying;              // Strider does *not* skip a dangerous terrain test; Flying and the banner do
         // The path each model's base takes (Movement.Check, as the answer was judged): round what it may not pass, and round difficult and dangerous
@@ -254,12 +273,15 @@ public static partial class GfMoves
             }
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, m.ModelId, to.Placement);
-            var path = Movement.Check(start, settled.Position.Horizontal, remaining ?? allowance, walls, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size,
-                standing, Battlefield.Terrain(ctx.State), dangerous);
+            MoveCheck Path(IReadOnlyList<WorldVolume> avoid) => Movement.Check(start, settled.Position.Horizontal, remaining ?? allowance, walls, difficult,
+                strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size, standing, Battlefield.Terrain(ctx.State), avoid, steep);
+            var path = Path(dangerous);
+            // 3.6.0 p.12: Unstable ground is dangerous to a path over 6", so such a path goes round it when that fits, as round Dangerous ground.
+            if (byDistance && usedBefore + path.Distance > GfNames.UnstableDistance + 1e-6 && Movement.VolumesOnPath(start, path.Path, unstable).Count > 0) path = Path(unstable);
             used = Math.Max(used, path.Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer: the volumes the base touches along its path.
-            if (Movement.VolumesOnPath(start, path.Path, dangerous).Count > 0) exposed.Add(m.ModelId);
-            crossedDifficult |= Movement.VolumesOnPath(start, path.Path, difficult).Count > 0;
+            if (Movement.VolumesOnPath(start, path.Path, byDistance ? DangerousFor36(terrain, usedBefore + path.Distance) : dangerous).Count > 0) exposed.Add(m.ModelId);
+            crossedDifficult |= Movement.VolumesOnPath(start, path.Path, [.. difficult, .. Movement.SteepEntering(start, steep)]).Count > 0;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         if (aircraft && moves.Any(m => m.From is OnTable && m.To is OnTable)) ctx.Applied.Add(GfNames.Aircraft);
@@ -271,12 +293,13 @@ public static partial class GfMoves
         if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true));
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.MovedThisRound)) changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.MovedThisRound, true)); }
-        // p.11: a model that has taken the test this activation (activated in it, or an earlier segment) owes none for this move.
-        var testing = rules.IgnoresDangerous ? [] : exposed.Where(m => !TestedThisActivation(ctx.Frame, m)).ToList();
-        return (changes, (int)Math.Round(used * 10), DangerousDice(ctx.State, testing), crossedDifficult && !strider, testing);
+        // p.11: a model that has taken the test this activation (activated in it, or an earlier segment) owes none for this move; 3.6.0 p.12: the unit, once.
+        var testing = rules.IgnoresDangerous ? [] : Untested(ctx, unit, exposed);
+        return (changes, (int)Math.Round(used * 10), OwedDice(ctx.State, unit, testing), crossedDifficult && !strider, testing);
     }
 
-    /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.</summary>
+    /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.
+    /// 3.6.0 p.14: a Cumbersome unit that moved skips the shot, and the step's Values["cumbersome_no_shot"] = 1 says why.</summary>
     public sealed class ShootOrNotStep : IStep
     {
         public string Name => "shoot-or-not";
@@ -286,6 +309,9 @@ public static partial class GfMoves
             if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) return new Finish([new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, false)]);
             if (ctx.History.Children.Count > 0) return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete([]) : new OpenAsks([]);
             if (ctx.History.LastClosed() is { } closed) return closed.Single is Chosen { OptionId: "shoot" } ? new Push(GfNames.Shooting, ctx.Frame.Context) : new Complete([]);
+            // 3.6.0 p.14 Cumbersome: "can’t shoot when moving" — any model of this activation's move went some distance.
+            if (ctx.Frame.Value("distance_used_tenths") > 0 && GfEdition.Of(ctx.State).HasCumbersome && Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Cumbersome))
+                return new Complete([], new Dictionary<string, int> { ["cumbersome_no_shot"] = 1 });
             var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit, null).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
             if (!canShoot) return new Complete([]);
             // Instinctive: "it must immediately attack the closest valid target".
@@ -348,25 +374,28 @@ public static partial class GfMoves
         public StepOutcome Run(StepContext ctx)
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value; var entry = ctx.Frame.Context.Action!;
-            if (ctx.Frame.Value("dangerous_dice") > 0) return ctx.History.Children.Count == 0 ? new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], entry)) : new Complete([]);
+            if (ctx.Frame.Value("dangerous_dice") > 0) return ctx.History.Children.Count == 0 ? new Push(DangerousSeq(ctx.State), new SequenceContext(unit, [], [], entry)) : new Complete([]);
             var live = Lone(ctx, unit, ActionOf(ctx.Frame));
             if (Offered(live, entry) is not var (source, row)) return new Finish([]);
             if (row.Kind == EffectKind.Place) return Place(ctx, unit, entry, live, source, row);
-            var allowance = row.EffectiveAmount(null);
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, source, row);
+            // "move all models with this rule in it by up to D3"": a rolled move takes the holding models (the whole unit when the rule is granted).
+            var allowance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
+            var movers = row.AmountDice is null ? Lookup.AliveModels(ctx.State, unit) : Holders(ctx, unit, entry);
             if (ctx.History.LastClosed("move") is not { } closed)
             {
                 var rules = TerrainFor(ctx, unit, live);
-                var (impassable, difficult) = RegionVolumes(ctx.State, rules);
-                return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain), allowPass: true)]);   // the cap ApplyMove holds the move to
+                var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
+                return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance:0.#}\"", ctx.ActorTeam!.Value,
+                    new MoveRegion(movers, allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
-            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed), null);
+            var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, [.. GfAnswers.Moves(ctx.State, closed).Where(m => row.AmountDice is null || movers.Contains(m.ModelId))], null);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
             live.Read(source);
             var (spent, held) = ConsumeKeepingFlying(live);
             changes.AddRange(spent);
             held["dangerous_dice"] = dice;
-            MarkTested(held, tested);
+            MarkTested(ctx.State, unit, held, tested);
             return new Complete(changes, held, Repeat: dice > 0);
         }
 
@@ -374,23 +403,36 @@ public static partial class GfMoves
         /// A declined offer or a landing refused everywhere consumes nothing: a grant is spent only by the placement it makes (the dice are rolled once chosen, never at the offer).</summary>
         static StepOutcome Place(StepContext ctx, Guid unit, string entry, LiveSet live, LiveProperty source, Effect row)
         {
-            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0)
-            {
-                // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
-                var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
-                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (int)Math.Round(Inches(record, row) * 10) }, Repeat: true);
-            }
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0) return RollDistance(ctx, entry, source, row);
             var distance = row.AmountDice is null ? row.EffectiveAmount(null) : Distance(ctx.Frame, entry, row);
-            var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();
-            var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
+            var models = Holders(ctx, unit, entry);
             if (ctx.History.LastClosed("move") is not { } placed)
                 return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
                     PlacementRegion(models, distance, IsAircraft(ctx, unit)), allowPass: true)]);
             var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
             if (changes.Count == 0) return new Complete([]);
             live.Read(source);
-            changes.AddRange(RollEffects.Consume(live));
+            changes.AddRange(ctx.Consume(live));
             return new Complete(changes);
+        }
+
+        /// <summary>The roll of a rolled distance, recorded in tenths on the frame, then the step repeats to ask. The count is the row's plus the instance's
+        /// parameter: Enhanced Wolfborn's `modify_parameter Wolfborn +1` rolls 2D3.</summary>
+        static StepOutcome RollDistance(StepContext ctx, string entry, LiveProperty source, Effect row)
+        {
+            // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
+            var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), DiceCount(source, row));
+            return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = (int)Math.Round(Inches(record, row) * 10) }, Repeat: true);
+        }
+
+        /// <summary>A rolled distance's dice: the row's count plus the instance's parameter.</summary>
+        internal static int DiceCount(LiveProperty source, Effect row) => row.EffectiveAmount(null) + (source.Parameter ?? 0);
+
+        /// <summary>The unit's models carrying the rule, or the whole unit when none does (the rule held by a grant).</summary>
+        static IReadOnlyList<Guid> Holders(StepContext ctx, Guid unit, string entry)
+        {
+            var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();
+            return holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();
         }
 
         /// <summary>p.4's D3, a D6 halved and rounded up, per die; "D3+1" (Bounding, Dash) adds one per die.</summary>
@@ -410,7 +452,7 @@ public static partial class GfMoves
         internal static (LiveProperty Source, Effect Row)? Offered(LiveSet live, string entry) =>
             live.On(Side.Attacker).Where(p => p.Entry.Name == entry)
                 .SelectMany(p => p.Effects.Where(e => e.Kind is EffectKind.Move or EffectKind.Place).Select(e => (p, e)))
-                .Where(x => x.e.Conditions.Where(c => c.Kind is not ConditionKind.AtPoint and not ConditionKind.UsageCount).All(c => Conditions.Holds(live.Interaction, x.p.Holder, c, x.p, null)))
+                .Where(x => x.e.Conditions.Where(c => c.Kind is not ConditionKind.AtPoint and not ConditionKind.UsageCount).All(c => Conditions.Holds(live.Interaction, x.p.Holder, c, x.p, null, live)))
                 .Select(x => ((LiveProperty, Effect)?)(x.p, x.e)).FirstOrDefault();
 
         /// <summary>The action of the activation this frame is inside: its nearest ancestor action sequence's context.</summary>

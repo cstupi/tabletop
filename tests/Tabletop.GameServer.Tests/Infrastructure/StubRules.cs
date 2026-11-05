@@ -12,6 +12,7 @@ public sealed class StubRules(params Sequence[] sequences) : IGameRules
 {
     public string Id => "stub";
     public string HitRoll => "hit";
+    public string DefenseRoll => "defense";
     public Sequence Sequence(string name) => sequences.FirstOrDefault(s => s.Name == name) ?? throw new UnknownSequenceException(name);
     public string? ActionSequence(string actionName) => actionName.ToLowerInvariant();
     public RollSpec RollSpec(string roll) => new(roll, new RollConvention(6, null), (_, _) => new TargetRead(4, null));
@@ -47,6 +48,7 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
         new(name, steps.Select(s => (IStep)new LambdaStep(s, _ => throw new InvalidOperationException($"{name}: a parked parent never runs"))).ToList());
     public string Id => inner.Id;
     public string HitRoll => inner.HitRoll;
+    public string DefenseRoll => inner.DefenseRoll;
     public Sequence Sequence(string name) => extra.FirstOrDefault(s => s.Name == name) ?? inner.Sequence(name);
     public string? ActionSequence(string actionName) => inner.ActionSequence(actionName);
     public RollSpec RollSpec(string roll) => inner.RollSpec(roll);
@@ -66,6 +68,7 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => inner.JudgeAdvance(state, properties, proposed);
     public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => inner.OnRoundEnded(state, properties, round);
     public int MaxWounds(GameState state, Guid modelId) => inner.MaxWounds(state, modelId);
+    public bool HoldsOnceGrants(string sequence) => inner.HoldsOnceGrants(sequence);
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => inner.Shooters(state, properties, unitId, targetUnitId);
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => inner.MayDeployInside(state, unitId, containerModelId, deploying);
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => inner.DeployInside(state);
@@ -73,6 +76,8 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) => inner.AnswerBreach(state, ask, answer);
     public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => inner.PlacementBreach(state, moves);
     public RulesOptionCatalog OptionCatalog => inner.OptionCatalog;
+    public Tabletop.Geometry.ZoneLegs Zones => inner.Zones;
+    public IReadOnlyDictionary<string, string> TerrainWords => inner.TerrainWords;
     public IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => inner.OptionProblems(optionalRules);
     public Interpreter.ISightPolicy SightPolicy(GameState state) => inner.SightPolicy(state);
 }

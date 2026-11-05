@@ -15,8 +15,8 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfRuleHits
 {
     /// <summary>`rule-hits`: n hits that land with no roll to hit (a hit the holder's unit deals), then blocks and wounds.</summary>
-    public static Sequence RuleHits() => new(GfNames.RuleHitsSeq, [new HitsStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits)]);
-    /// <summary>`rule-wounds`: n dice, each 6+ one wound on the target with no block.</summary>
+    public static Sequence RuleHits() => new(GfNames.RuleHitsSeq, [new HitsStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.AttackEndStep()]);
+    /// <summary>`rule-wounds`: n dice, each 6+ (3.6 Regenerative Strength: 4+) one wound on the target with no block.</summary>
     public static Sequence RuleWounds() => new(GfNames.RuleWoundsSeq, [new WoundDiceStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.TargetUnitIds[0]], [], null))]);
 
     /// <summary>The most hits or dice one use deals or rolls. X and its multiples come from imported army data; the books' largest is a Retaliate or Deathstrike of a few
@@ -43,7 +43,7 @@ public static class GfRuleHits
         public StepOutcome Run(StepContext ctx)
         {
             if (Parse(ctx.Frame.Context.Action) is not var (rule, n) || n <= 0) return new Finish([]);
-            var record = ctx.Roll(new Dice.RollPlan(rule, 6, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
+            var record = ctx.Roll(new Dice.RollPlan(rule, GfStrikeRolls36.WoundOn(rule), [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
             ctx.Applied.Add(rule);
             var wounds = Dice.RollOutcome.Successes(record);
             var values = new Dictionary<string, int> { ["wounds"] = wounds };
@@ -98,12 +98,14 @@ public static class GfRuleHits
     }
 
     /// <summary>Ravage: "When it's this model's turn to attack in melee, roll X dice. For each 6+ the target takes one wound." The striking unit's turn: the
-    /// charger's before its strikes, the defender's when it strikes back (or struck first with Counter).</summary>
+    /// charger's before its strikes, the defender's when it strikes back (or struck first with Counter). A text-only entry (3.6.0's "Once per round ...
+    /// unless this unit is Fatigued", which no step plays yet) rolls nothing, as the marker rules' Played gate (GfMarkers).</summary>
     public sealed class RavageStep(string name, bool charger) : IStep
     {
         public string Name => name;
         public StepOutcome Run(StepContext ctx)
         {
+            if (ctx.Properties.Entry(GfNames.Ravage) is not { Played: true }) return new Complete([]);
             var (attacker, target) = charger ? (ctx.Frame.Context.ActorUnitId!.Value, ctx.Frame.Context.TargetUnitIds[0]) : (ctx.Frame.Context.TargetUnitIds[0], ctx.Frame.Context.ActorUnitId!.Value);
             if (ctx.History.Children.Count > 0) return new Complete([]);
             if (!charger && !GfMelee.DefenderStruck(ctx)) return new Complete([]);
@@ -153,7 +155,7 @@ public static class GfRuleHits
             var (rule, weapon, x) = Carried(ctx, unit);
             if (ctx.History.Children.Count > 0)
             {
-                if (rule == GfNames.Strafing) ctx.Applied.Add(GfNames.Strafing);   // the weapon's attack is the rule acting; Crossing Attack's dice name it themselves
+                if (rule is { } strafing && GfNames.IsStrafing(strafing)) ctx.Applied.Add(strafing);   // the weapon's attack is the rule acting; Crossing Attack's dice name it themselves
                 return new Complete([]);
             }
             if (rule is null) return new Complete([]);
@@ -162,7 +164,7 @@ public static class GfRuleHits
             if (ctx.History.LastClosed("crossing_target") is { } closed)
             {
                 if (GfAnswers.Pieces(closed.Single, closed.Ask) is not [var target, ..]) return new Complete([]);
-                return rule == GfNames.Strafing
+                return GfNames.IsStrafing(rule)
                     ? new Push(GfNames.AttackSequence, new SequenceContext(unit, [target], [weapon!.Value], ctx.Frame.Context.Action))
                     : new Push(GfNames.RuleWoundsSeq, new SequenceContext(unit, [target], [], Key(rule, x)));
             }
@@ -175,7 +177,7 @@ public static class GfRuleHits
             foreach (var m in Lookup.LivingModels(ctx.State, unit))
                 if (Lookup.ModelParameter(ctx.State, m, GfNames.CrossingAttack) is { } x) return (GfNames.CrossingAttack, null, x);
             foreach (var m in Lookup.LivingModels(ctx.State, unit))
-                if (ctx.Projection.Models[m].Slot.Weapons.FirstOrDefault(w => w.Properties.Any(p => p.Name == GfNames.Strafing)) is { } w) return (GfNames.Strafing, w.Id, 0);
+                if (ctx.Projection.Models[m].Slot.Weapons.SelectMany(w => w.Properties.Where(p => GfNames.IsStrafing(p.Name)).Select(p => (w, p.Name))).FirstOrDefault() is ({ } w, { } name)) return (name, w.Id, 0);
             return (null, null, 0);
         }
 

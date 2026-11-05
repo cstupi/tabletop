@@ -92,7 +92,7 @@ public class GfAttackTests
         Assert.Equal((1, 1, 2), (pick.Min, pick.Max, pick.Eligible.Count));
         Assert.Empty(sim.Steps("roll-to-hit"));                                                        // the pick precedes the hit roll (p.8)
         sim.Answer(Samples.Team1, new SelectedPieces([hero]));
-        Assert.Equal(5, sim.Steps("roll-to-hit").Single().Rolls.Single().Threshold);                   // 3.5.1 dropped Takedown's Quality 2+, so the unit's own 5+ stands
+        Assert.Equal(5, sim.Steps("roll-to-hit").Single().Rolls.Single().Threshold);                   // 3.5.1 and 3.6.0 both drop Takedown's Quality 2+, so the unit's own 5+ stands
         Assert.Null(sim.AskForOrNull(Samples.Team2));                                                  // no allocation, so heroes-last never applies
         Assert.IsType<OnShelf>(sim.Model(hero).Location);
         Assert.Equal(0, sim.Model(plain).Wounds);

@@ -12,6 +12,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(EditMessage), "edit")]
 [JsonDerivedType(typeof(Welcome), "welcome")]
 [JsonDerivedType(typeof(GameInfoMessage), "game")]
+[JsonDerivedType(typeof(RulesOptionsMessage), "rules_options")]
 [JsonDerivedType(typeof(BoardMessage), "board")]
 [JsonDerivedType(typeof(EventsMessage), "events")]
 [JsonDerivedType(typeof(AtRest), "at_rest")]
@@ -43,9 +44,23 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
 {
     /// <summary>The game ruleset's optional rules and presets, for the lobby's controls.</summary>
     public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty;
+    /// <summary>Side Battle's legs under the game's rule set (IGameRules.Zones): what a client resolves the zone shapes with.</summary>
+    public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
+    /// <summary>The words a client shows for a terrain declaration under the game's rule set (IGameRules.TerrainWords), keyed by its snake_case
+    /// name; a client keeps its own word for a name not listed.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
 }
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
+/// <summary>A lobby SetConfiguration moved the game to another rule set's id: the new ruleset's whole per-rules bundle (catalog, zone legs,
+/// terrain words), shaped as Welcome's, before its GameInfoMessage.</summary>
+public sealed record RulesOptionsMessage(RulesOptionCatalog Options) : SocketMessage
+{
+    /// <summary>As Welcome.Zones, under the new rule set.</summary>
+    public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
+    /// <summary>As Welcome.TerrainWords, under the new rule set.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
+}
 /// <summary>On connect from setup on, and after every setup edit (the whole draft).</summary>
 public sealed record BoardMessage(Board Board) : SocketMessage;
 /// <summary>The log from the start on connect, then live events. Filtered per viewer for sealed answers.</summary>

@@ -34,18 +34,28 @@ public static partial class SuiteCatalog
         }
 
         /// <summary>An Ask with its frame; Steps: how many steps the log had completed when it opened.</summary>
-        sealed record LoggedAsk(Ask Ask, SequenceStarted? Frame, IReadOnlyList<SequenceStarted> Ancestors, int Steps = 0);
+        sealed record LoggedAsk(Ask Ask, SequenceStarted? Frame, IReadOnlyList<SequenceStarted> Ancestors, int Steps = 0)
+        {
+            /// <summary>The answers it closed with; empty while it is open.</summary>
+            public IReadOnlyList<TeamAnswer> Answers { get; set; } = [];
+            /// <summary>Whether it closed on the option labelled Yes.</summary>
+            public bool Yes => Ask.Legal is Options o && Answers.Any(a => a.Answer is Chosen c && o.Choices.Any(x => x.Id == c.OptionId && x.Label == "Yes"));
+        }
 
         /// <summary>
         /// One attack-sequence of the log: the attacking unit, its target, its weapon group, whether it was made shooting or in a melee the
-        /// attacker started by charging, its roll-to-hit step, the score-hits step that read those dice as they then stood, and the
-        /// roll-to-block steps of the resolve-hits frames under it.
+        /// attacker started by charging, its roll-to-hit completions (a second one holds the extra attacks an optional row offered and the
+        /// roller took; Hit is the first), the score-hits step that read those dice as they then stood, and the roll-to-block steps of the
+        /// resolve-hits frames under it.
         /// </summary>
         sealed record LoggedAttack(SequenceStarted Frame, Guid? Attacker, Guid? Target, IReadOnlyList<Guid> Weapons, bool Shooting, bool Charging,
-            LoggedStep? Hit, LoggedStep? Score, IReadOnlyList<LoggedStep> Blocks)
+            IReadOnlyList<LoggedStep> Hits, LoggedStep? Score, IReadOnlyList<LoggedStep> Blocks)
         {
-            /// <summary>The hit dice as they stand after every edit and reroll: what score-hits read.</summary>
-            public IReadOnlyList<Die> HitDice => Hit is null ? [] : [.. Hit.Rolls("hit").SelectMany(Hit.Now)];
+            public LoggedStep? Hit => Hits.FirstOrDefault();
+            /// <summary>Every roll of the kind across the roll-to-hit completions, in log order.</summary>
+            public IEnumerable<RollRecord> HitRolls(string kind) => Hits.SelectMany(h => h.Rolls(kind));
+            /// <summary>The hit dice of every completion as they stand after every edit and reroll: what score-hits read.</summary>
+            public IReadOnlyList<Die> HitDice => [.. Hits.SelectMany(h => h.Rolls("hit").SelectMany(h.Now))];
             public int Scored(string key) => Score?.Value(key) ?? 0;
         }
 
@@ -54,6 +64,16 @@ public static partial class SuiteCatalog
         {
             /// <summary>Every attack-sequence that completed a step or had a block under it, in log order, read from its frame and its ancestors.</summary>
             public IReadOnlyList<LoggedAttack> Attacks { get; } = AttacksOf(Steps);
+
+            /// <summary>The changes that spend what the step read: under an attack (`attack-sequence`, `spell-hits`, `rule-hits`) a once grant is held to
+            /// that frame's `attack-end`, so the step's and every later step's of that attack; elsewhere the step's own.</summary>
+            public IEnumerable<StateChange> SpentBy(StepCompleted step)
+            {
+                var at = Steps.First(s => ReferenceEquals(s.Step, step));
+                return at.Nearest(AttackSequence, "spell-hits", "rule-hits") is { } attack
+                    ? Steps.Where(s => s.Index >= at.Index && (s.Frame.FrameId == attack.FrameId || s.Ancestors.Any(a => a.FrameId == attack.FrameId))).SelectMany(s => s.Step.Changes)
+                    : step.Changes;
+            }
 
             static IReadOnlyList<LoggedAttack> AttacksOf(IReadOnlyList<LoggedStep> steps)
             {
@@ -72,7 +92,7 @@ public static partial class SuiteCatalog
                     return new LoggedAttack(x.Frame, attacker, x.Frame.Context.TargetUnitIds.FirstOrDefault(), x.Frame.Context.WeaponIds,
                         Shooting: x.Ancestors.Any(a => a.Sequence == ShootingSequence),
                         Charging: melee is not null && attacker is not null && melee.Context.ActorUnitId == attacker,
-                        Hit: steps.FirstOrDefault(s => s.Frame.FrameId == x.Frame.FrameId && s.Step.Step == "roll-to-hit"),
+                        Hits: [.. steps.Where(s => s.Frame.FrameId == x.Frame.FrameId && s.Step.Step == "roll-to-hit")],
                         Score: steps.FirstOrDefault(s => s.Frame.FrameId == x.Frame.FrameId && s.Step.Step == "score-hits"),
                         Blocks: [.. steps.Where(s => s.Step.Step == "roll-to-block" && s.Frame.Sequence == "resolve-hits"
                             && s.Ancestors.FirstOrDefault(a => a.Sequence == AttackSequence)?.FrameId == x.Frame.FrameId)]);
@@ -115,6 +135,9 @@ public static partial class SuiteCatalog
                         case AskOpened a:
                             var asked = a.Ask.FrameId is { } id && frames.TryGetValue(id, out var f2) ? f2 : null;
                             asks.Add(new LoggedAsk(a.Ask, asked, asked is null ? [] : Ancestors(asked.FrameId), steps.Count));
+                            break;
+                        case AskClosed c when asks.LastOrDefault(x => x.Ask.Id == c.AskId) is { } closed:
+                            closed.Answers = c.Answers;
                             break;
                     }
                 return new ArmyLog(steps, asks);
@@ -162,6 +185,11 @@ public static partial class SuiteCatalog
             (run, a) => a.Attacker is { } id && run.Final.Units.TryGetValue(id, out var unit)
                 && unit.Definition.Models.SelectMany(m => m.Weapons).Any(w => a.Weapons.Contains(w.Id) && w.Properties.Any(p => p.Name == entry));
 
+        /// <summary>The occasion's attacks whose weapon group fires a weapon of that name.</summary>
+        static Occasion Firing(Occasion occasion, string weapon) =>
+            (run, a) => occasion(run, a) && a.Attacker is { } id && run.Final.Units.TryGetValue(id, out var unit)
+                && unit.Definition.Models.SelectMany(m => m.Weapons).Any(w => a.Weapons.Contains(w.Id) && w.Name == weapon);
+
         static IEnumerable<LoggedAttack> Of(SuiteGameRun run, ArmyLog log, Occasion occasion) => log.Attacks.Where(a => occasion(run, a));
 
         static string Faces(IEnumerable<Die> dice) => $"[{string.Join(" ", dice.Select(d => d.Raw))}]";
@@ -195,18 +223,20 @@ public static partial class SuiteCatalog
                 let expected = Count(a.HitDice, faces)
                 select a.Scored("extra_hits") == expected ? null : $"{a.Scored("extra_hits")} extra hits from {Faces(a.HitDice)}, expected {expected}");
 
-        /// <summary>add_hit (attacks): one added die per successful pool die showing the faces as rolled (an edit draws no die), rolled once in the same
-        /// step, and the added dice add none.</summary>
+        /// <summary>add_hit (attacks): one added die per successful pool die showing the faces as rolled (an edit draws no die), rolled once, and the
+        /// added dice add none. A mandatory row's dice are in the pool's step; an optional row's ("may roll") in the frame's second roll-to-hit
+        /// completion, only when its `extra_attacks` Ask closed on Yes: No or a pass adds none.</summary>
         static GameCheck ExtraAttacks(string entry, Occasion occasion, IReadOnlyCollection<int> faces, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from a in Of(run, log, occasion)
-                where a.Hit is not null && a.Hit.Rolls("hit").Any()
-                let s = a.Hit
-                let hits = s.Rolls("hit").ToList()
-                let expected = Count(hits.Take(1), faces)
+                where a.HitRolls("hit").Any()
+                let hits = a.HitRolls("hit").ToList()
+                let offer = log.Asks.FirstOrDefault(x => x.Ask.Question == "extra_attacks" && x.Frame?.FrameId == a.Frame.FrameId)
+                let expected = offer is { Yes: false } ? 0 : Count(hits.Take(1), faces)
                 let added = hits.Skip(1).Sum(r => r.Dice.Count)
                 select hits.Count > 2 ? $"{hits.Count} hit rolls: the added attacks generated more"
-                    : added == expected ? null : $"{added} added attacks from {Faces(hits[0].Dice)}, expected {expected}");
+                    : added == expected ? null
+                    : $"{added} added attacks from {Faces(hits[0].Dice)}{(offer is null ? "" : offer.Yes ? " (taken)" : " (declined)")}, expected {expected}");
 
         /// <summary>add_hit (wounds) on the defender's dice: the block's extra wounds equal its failed defense dice showing the faces ("failed defense rolls of 1-2"; a 1 always fails, p.5).</summary>
         static GameCheck ExtraWounds(string entry, Occasion occasion, IReadOnlyCollection<int> faces, string quote) =>
@@ -344,7 +374,7 @@ public static partial class SuiteCatalog
         static GameCheck EditedExtraHits(string entry, string quote) =>
             Exact(entry, $"{quote}, after SetDice", (_, log) =>
                 from a in log.Attacks
-                where a.Hit is not null && a.Hit.Changes.OfType<DiceEdited>().Any()
+                where a.Hits.Any(h => h.Changes.OfType<DiceEdited>().Any())
                 let expected = a.HitDice.Count(d => d.Raw == 6 && d.Success)
                 select a.Scored("extra_hits") == expected ? null : $"{a.Scored("extra_hits")} extra hits for edited dice {Faces(a.HitDice)}, expected {expected}");
     }

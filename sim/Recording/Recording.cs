@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Tabletop.Geometry;
 
 namespace Tabletop.Sim.Recording;
 
@@ -33,7 +34,14 @@ public sealed record RecordingMeta(
     int Rounds,
     long LastSeq,
     DateTimeOffset StartedAt,
-    double DurationMs);
+    double DurationMs,
+    string? RuleSet = null)
+{
+    /// <summary>Side Battle's legs under the game's rule set, as Welcome carries them.</summary>
+    public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
+    /// <summary>The terrain words under the game's rule set, by declaration name, as Welcome carries them.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
+}
 
 public sealed record RecordedTeam(Guid Id, int Ordinal, string Name, IReadOnlyList<string> Participants);
 
@@ -52,7 +60,7 @@ public sealed record RecordedTerrain(
 
 /// <param name="Kind">`solid` or `area`.</param>
 /// <param name="Footprint">`circle` (A = radius) or `rect` (A = width, B = length).</param>
-/// <param name="Declarations">The closed seven, snake_case: impassable, blocks_line_of_sight, see_in_and_out, cover, difficult, dangerous, dangerous_on_rush_charge.</param>
+/// <param name="Declarations">The closed eight, snake_case: impassable, blocks_line_of_sight, see_in_and_out, cover, difficult, dangerous, dangerous_on_rush_charge, steep.</param>
 public sealed record RecordedVolume(
     Guid Id, string Kind, string Footprint, double A, double B,
     double OffsetX, double OffsetY, double Yaw, double Bottom, double Top,

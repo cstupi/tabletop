@@ -1,0 +1,1983 @@
+{
+  "name": "Grimdark Future army-book rules (generated)",
+  "gameRules": "grimdark-future-3.6",
+  "stats": [],
+  "actions": [],
+  "rolls": [],
+  "entries": [
+    {
+      "name": "Ambush Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Ambush.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Ambush",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Bounding Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Bounding.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Bounding",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Dash Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Dash.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Dash",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Defensive Growth Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Defensive Growth.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Defensive Growth",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Bloodborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Bloodborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Bloodborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Changebound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Changebound.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Changebound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Clan Warrior Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Clan Warrior.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Clan Warrior",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Darkborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Darkborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Darkborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Devout Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Devout.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Devout",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Guardian Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Guardian.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Guardian",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Guerrilla Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Guerrilla.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Guerrilla",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Harassing Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Harassing.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Harassing",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Havocbound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Havocbound.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Havocbound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Highborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Highborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Highborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Hive Bond Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Hive Bond.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Hive Bond",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Hold the Line Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Hold the Line.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Hold the Line",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Infected Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Infected.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Infected",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Knightborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Knightborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Knightborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Lustbound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Lustbound.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Lustbound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Machine-Fog Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Machine-Fog.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Machine-Fog",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Mischievous Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Mischievous.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Mischievous",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Plaguebound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Plaguebound.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Plaguebound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Primal Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Primal once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Primal",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Rapid Blink Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Rapid Blink.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Rapid Blink",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Scrapper Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Scrapper.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Scrapper",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Scurry Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Scurry.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Scurry",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Self-Repair Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Self-Repair once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Self-Repair",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Shadowborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Shadowborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Shadowborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Shadowborn Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Enhanced Shadowborn once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Shadowborn",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Sturdy Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Sturdy.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Sturdy",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Targeting Visor Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Targeting Visor.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Targeting Visor",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Warbound Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Warbound.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Warbound",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Watchborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Watchborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Watchborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Wolfborn Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Enhanced Wolfborn.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Enhanced Wolfborn",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Entrenched Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Entrenched once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Entrenched",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Evasive Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Evasive.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Evasive",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Fearless Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Fearless.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Fearless",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Fortified Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Fortified.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Fortified",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Furious Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Furious.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Furious",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Furious Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Furious once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Furious",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Furious Mark",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Furious against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Furious",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Grounded Defense Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Grounded Defense.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Grounded Defense",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Grounded Precision Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Grounded Precision.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Grounded Precision",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Guarded Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Guarded once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Guarded",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Hit \u0026 Run Fighter Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Hit \u0026 Run Fighter.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Hit \u0026 Run Fighter",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Hit \u0026 Run Shooter Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Hit \u0026 Run Shooter.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Hit \u0026 Run Shooter",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Infiltrate Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Infiltrate.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Infiltrate",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Melee Evasion Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Melee Evasion.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Melee Evasion",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Melee Shrouding Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Melee Shrouding.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Melee Shrouding",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Melee Slayer Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Melee Slayer.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Melee Slayer",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "No Retreat Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get No Retreat.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "No Retreat",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "No Retreat Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets No Retreat once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "No Retreat",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Piercing Charge Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Piercing Charge.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Piercing Charge",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Piercing Marksman Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Piercing Marksman.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Piercing Marksman",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Predator Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Predator.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Predator",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Predator Shooter Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Predator Shooter.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Predator Shooter",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Protected Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Protected.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Protected",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Protection Feat Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Protection Feat.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Protection Feat",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Quick Shot Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Quick Shot.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Quick Shot",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Quick Shot Mark",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Quick Shot against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Quick Shot",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Ranged Shrouding Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Ranged Shrouding.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Ranged Shrouding",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Ranged Slayer Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Ranged Slayer.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Ranged Slayer",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Rapid Advance Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Rapid Advance.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Rapid Advance",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Rapid Advance Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Rapid Advance once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Rapid Advance",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Rapid Rush Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Rapid Rush.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Rapid Rush",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Rapid Rush Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Rapid Rush once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Rapid Rush",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Reanimation Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Reanimation.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Reanimation",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Regeneration Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Regeneration.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Regeneration",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Regeneration Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Regeneration once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Regeneration",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Relentless Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Relentless.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Relentless",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Relentless Mark",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Relentless against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Relentless",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Scout Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Scout.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Scout",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Screened Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Screened.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Screened",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Shielded Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Shielded.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Shielded",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Slayer Mark",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Slayer against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Slayer",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Speed Feat Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Speed Feat.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Speed Feat",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Spell Resistance Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Spell Resistance.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Spell Resistance",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Steadfast Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Steadfast.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Steadfast",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Stealth Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Stealth.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Stealth",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Stealth Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Stealth once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Stealth",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Strider Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Strider.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Strider",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Swift Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Swift.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Swift",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Swift Buff",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Swift once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Swift",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Teleport Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Teleport.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Teleport",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Unpredictable Fighter Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Unpredictable Fighter.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Unpredictable Fighter",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Unpredictable Fighter Mark",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unpredictable Fighter against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Unpredictable Fighter",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Unpredictable Shooter Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Unpredictable Shooter.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Unpredictable Shooter",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Unpredictable Shooter Mark",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "none",
+      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Unpredictable Shooter against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Unpredictable Shooter",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Versatile Defense Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Versatile Defense.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Versatile Defense",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Versatile Reach Aura",
+      "kind": "model",
+      "takesParameter": false,
+      "aggregation": "any",
+      "ruleText": "This model and its unit get Versatile Reach.",
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Versatile Reach",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

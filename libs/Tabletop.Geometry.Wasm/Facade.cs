@@ -112,19 +112,19 @@ public static class Facade
     public static string ZonePolygons(string json)
     {
         var r = Read<ZoneRequest>(json);
-        return Write(ZoneStyles.Resolve(r.Shape, r.Size).Select(p => p.Vertices.ToArray()).ToArray());
+        return Write(ZoneStyles.Resolve(r.Shape, r.Size, r.Legs).Select(p => p.Vertices.ToArray()).ToArray());
     }
 
     public static string ZoneContains(string json)
     {
         var r = Read<ZoneRequest>(json);
-        return Write(ZoneStyles.Contains(r.Shape, r.Size, r.Point ?? throw new JsonException("ZoneContains needs a point.")));
+        return Write(ZoneStyles.Contains(r.Shape, r.Size, r.Point ?? throw new JsonException("ZoneContains needs a point."), r.Legs));
     }
 
     public static string ZoneHoldsBase(string json)
     {
         var r = Read<ZoneRequest>(json);
-        return Write(ZoneStyles.BaseFullyWithin(r.Shape, r.Size, r.Model ?? throw new JsonException("ZoneHoldsBase needs a model.")));
+        return Write(ZoneStyles.BaseFullyWithin(r.Shape, r.Size, r.Model ?? throw new JsonException("ZoneHoldsBase needs a model."), r.Legs));
     }
 
     /// <summary>Containment.ExitYaw over the terrain's volumes the Ask names Impassable: a facing the exit position is legal at, or null.</summary>

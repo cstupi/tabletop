@@ -85,8 +85,11 @@ public sealed record SimOptions(
         ulong.TryParse(text, out var value) ? value : throw new UsageException($"'{text}' is not a seed");
 }
 
-/// <summary>`suite [--only a,b] [--driver in-process|socket] [--keep] [--list] [--out DIR] [--verbose]`. Out is null unless given.</summary>
-public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind Driver, bool Keep, bool List, string? Out, bool Verbose = false)
+/// <summary>
+/// `suite [--only a,b] [--driver in-process|socket] [--keep] [--list] [--out DIR] [--verbose] [--seed N]`. Out is null unless given;
+/// Seed is null unless given, and then every game plays on it instead of its own.
+/// </summary>
+public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind Driver, bool Keep, bool List, string? Out, bool Verbose = false, ulong? Seed = null)
 {
     public const string Verb = "suite";
     public const string DefaultOut = "recordings";
@@ -94,11 +97,12 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
     public static string Usage => """
         dotnet run --project sim -- suite [options]
 
-          --only A,B            game names or groups (core, special, army:<book>, spells:<book>); repeatable; default every game
+          --only A,B            game names (name, name@3.6) or groups (core, special, army:3.5:<book>, spells:3.5:<book>); repeatable; default every game
           --driver in-process   the default; or socket (the stack up, as for a scenario's socket run)
           --keep                keep the games: recordings in --out, and a socket run's rows
           --out DIR             where the report (suite-<run id>.json and .md, copied to suite-latest.*) and kept recordings go (default: ./recordings)
           --verbose             print a line per game and the coverage table as well as writing them to the report
+          --seed N              play every game on seed N instead of its own (a robustness run)
           --list                list the games and what each covers, and exit
         """;
 
@@ -110,6 +114,7 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
         var list = false;
         var verbose = false;
         string? output = null;
+        ulong? seed = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -129,10 +134,14 @@ public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind
                 case "--list": list = true; break;
                 case "--verbose": verbose = true; break;
                 case "--out": output = Next(args, ref i, "--out"); break;
+                case "--seed":
+                    var text = Next(args, ref i, "--seed");
+                    seed = ulong.TryParse(text, out var value) ? value : throw new UsageException($"'{text}' is not a seed");
+                    break;
                 default: throw new UsageException($"unknown suite argument '{args[i]}'\n\n{Usage}");
             }
         }
-        return new SuiteArguments(only, driver, keep, list, output, verbose);
+        return new SuiteArguments(only, driver, keep, list, output, verbose, seed);
     }
 
     private static string Next(string[] args, ref int i, string option) =>

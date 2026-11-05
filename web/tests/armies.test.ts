@@ -17,7 +17,7 @@ describe('normaliseSource', () => {
 describe('reimport', () => {
   it('imports the same source as a new army and then deletes the old one', async () => {
     const calls: string[] = [];
-    vi.spyOn(api.armies, 'import').mockImplementation(async (s) => { calls.push(`import ${s}`); return { id: 'new', name: 'N', gameSystem: 'grimdark-future', source: s, units: [] }; });
+    vi.spyOn(api.armies, 'import').mockImplementation(async (s) => { calls.push(`import ${s}`); return { id: 'new', name: 'N', gameSystem: 'grimdark-future', edition: '3.6', source: s, units: [] }; });
     vi.spyOn(api.armies, 'delete').mockImplementation(async (id) => { calls.push(`delete ${id}`); });
     const army = await reimport({ id: 'old', source: 'c2-6YsWRH3py' });
     expect(army.id).toBe('new');

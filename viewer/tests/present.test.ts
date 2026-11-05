@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, mainActionOf, playersLine } from '../src/lib/games/present';
+import { ago, mainActionOf, playersLine, ruleSetLine } from '../src/lib/games/present';
 import type { GameSummary } from '../src/lib/live/games';
 
 const game = (status: GameSummary['status']) => ({ status } as GameSummary);
@@ -24,5 +24,12 @@ describe('the games list words', () => {
     expect(playersLine(['Ann'])).toBe('Ann');
     expect(playersLine(['Ann', 'Ben', 'Cy'])).toBe('Ann, Ben and Cy');
     expect(playersLine(['Ann', 'Ben', 'Cy', 'Di'])).toBe('Ann, Ben and 2 more');
+  });
+});
+
+describe('the games list rule set chip', () => {
+  it('names the rule set, and has none for a row without it', () => {
+    expect(ruleSetLine({ ruleSet: 'Grimdark Future v3.6.0' } as GameSummary)).toBe('Grimdark Future v3.6.0');
+    expect(ruleSetLine({} as GameSummary)).toBeNull();
   });
 });

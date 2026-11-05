@@ -65,6 +65,7 @@ var app = builder.Build();
 // missing required configuration fails startup instead of being silently deferred to first use.
 var options = app.Services.GetRequiredService<ManagementOptions>();
 StartupGuard.Enforce(app.Environment.EnvironmentName, app.Configuration, options);
+Tabletop.Management.Content.Armies.ArmyBookReserves.RequireFiles(Tabletop.Content.ArmyEditions.Served, Tabletop.Content.ArmyEditions.All);
 var devMode = StartupGuard.DevMode(app.Environment.EnvironmentName, app.Configuration);
 // Dev mode migrates at startup. Anywhere else the runtime role cannot, so a schema behind the build refuses to start: run --migrate as the owner role first.
 var migrator = app.Services.GetRequiredService<Tabletop.Management.Persistence.IMigrator>();

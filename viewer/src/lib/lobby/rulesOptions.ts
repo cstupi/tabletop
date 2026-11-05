@@ -22,13 +22,13 @@ export function mapOf(catalog: RulesOptionCatalog, chosen: Readonly<Record<strin
   return map;
 }
 
-/** The SetConfiguration Apply sends (WaitsBetweenSteps false; the game's properties hash). */
+/** The SetConfiguration Apply sends (WaitsBetweenSteps false; the picked properties hash, the game's by default). */
 export function configurationOf(
   game: GameInfo, name: string, shape: SchedulerShape, enforcement: Enforcement, catalog: RulesOptionCatalog,
-  chosen: Readonly<Record<string, string>>,
+  chosen: Readonly<Record<string, string>>, propertiesHash: string = game.propertiesHash,
 ): SetConfiguration {
   return {
-    kind: 'set_configuration', name: name.trim(), propertiesHash: game.propertiesHash, schedulerShape: shape, enforcement,
+    kind: 'set_configuration', name: name.trim(), propertiesHash, schedulerShape: shape, enforcement,
     waitsBetweenSteps: false, optionalRules: mapOf(catalog, chosen),
   };
 }

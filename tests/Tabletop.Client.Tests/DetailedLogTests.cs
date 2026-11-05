@@ -45,6 +45,20 @@ public class DetailedLogTests
         ], worked.Skip(2));
     }
 
+    /// <summary>Extra attacks taken on an `extra_attacks` Ask complete roll-to-hit a second time in the frame: the attack is read once, on the pool.</summary>
+    [Fact]
+    public void A_second_roll_to_hit_in_the_frame_reads_no_second_attack()
+    {
+        var pool = new RollRecord(Guid.CreateVersion7(), "hit", 4, [], [D(6, 6, true), D(2, 2, false)]);
+        var added = new RollRecord(Guid.CreateVersion7(), "hit", 4, [], [D(5, 5, true)]);
+        var rolls = Block(new StepCompleted(Samples.Frame, "roll-to-hit", null, [pool], []), new StepCompleted(Samples.Frame, "roll-to-hit", null, [added], []))
+            .OfType<RollEntry>().ToList();
+        Assert.Equal(2, rolls.Count);
+        Assert.StartsWith("Attack: ", rolls[0].Worked[0]);
+        Assert.Null(rolls[1].Attack);
+        Assert.Equal("Hit", rolls[1].Worked[0]);
+    }
+
     [Fact]
     public void A_block_reads_cover_ap_the_final_values_and_the_six_that_passed_against_them()
     {

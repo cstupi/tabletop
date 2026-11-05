@@ -67,6 +67,20 @@ public class GfDeploymentZoneTests
         Assert.NotNull(HandMoves.Judge(h.State, At(h, a[0], 10, 6), TeamOf(h, 0)));
     }
 
+    /// <summary>Side Battle's legs by edition: 3.5.1 p.22 runs zone A 30" up the short edge, 3.6.0 p.21 36". A unit at (2, 31) and (4, 31) is inside only under 3.6.</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, false)]
+    [InlineData(RuleSets.Gf360, true)]
+    public void Side_battle_zone_follows_the_editions_legs(string gameRules, bool inside)
+    {
+        var h = AtDeployment(Enforcement.Strict);
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[0]]));
+        var zones = h.State.Board.Table.Zones.Select(z => z with { Shape = $"{ZoneStyles.SideBattle}/{z.TeamOrdinal}" }).ToList();
+        var state = new GameState(h.State.Info with { GameRules = gameRules }, h.State.Board with { Table = h.State.Board.Table with { Zones = zones } }, h.State.Applier, h.State.Rules);
+        Assert.Equal(inside, GrimdarkFutureRules.ZoneBreach(state, At(h, a[0], 2, 31).Moves) is null);
+    }
+
     [Fact]
     public void A_Scout_deploys_fully_within_12_inches_of_its_zone()
     {

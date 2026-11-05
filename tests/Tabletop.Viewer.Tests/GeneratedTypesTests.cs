@@ -23,7 +23,7 @@ public class GeneratedTypesTests
         {
             [typeof(SocketMessage)] =
             [
-                typeof(Connect), typeof(Welcome), typeof(GameInfoMessage), typeof(BoardMessage),
+                typeof(Connect), typeof(Welcome), typeof(GameInfoMessage), typeof(RulesOptionsMessage), typeof(BoardMessage),
                 typeof(EventsMessage), typeof(Refused), typeof(Rejected),
                 typeof(CommandMessage), typeof(EditMessage), typeof(AtRest), typeof(Reauth),
                 typeof(SightQuery), typeof(SightAnswer), typeof(ModelFacts),

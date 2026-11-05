@@ -30,10 +30,14 @@ public static partial class SuiteCatalog
         }
 
         static TestGame Again((string Uid, string Army) book, string entry) =>
-            Game(book, $"{book.Army.ToLowerInvariant().Replace(' ', '-')}-{entry.ToLowerInvariant().Replace(' ', '-')}", Play.Charges, [entry], [R(1, entry)], [],
-                [SecondActivation(entry, "\"Once per game … it may be activated even if it had already activated this round (stops being fatigued when activated for the second time)\"")],
-                units: 1, more: Activates(c => c.Note == "Activated again (once per game)"))
+            Game(book, $"{book.Army.ToLowerInvariant().Replace(' ', '-')}-{entry.ToLowerInvariant().Replace(' ', '-')}", Play.Charges, [entry], [R(1, entry)], [Fix("hit", 6), Fix("defense", 1)],
+                [SecondActivationClears(entry, "\"Once per game … it may be activated even if it had already activated this round (stops being fatigued when activated for the second time)\"")],
+                units: 1, more: Activates(c => c.Note == "Activated again (once per game)"), enemyModels: 1, length: 26, anchors: AgainAnchor, enemyAnchors: AgainEnemyAnchor)
                 with { Evidence = new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { [entry] = TwiceInARound } };
+
+        /// <summary>The unit starts 4.5" from enemy unit 1 (one model a unit), and its charge's first hit die is fixed to 6 and the block to 1, so the charge destroys it: the first
+        /// activation ends in melee won, no morale test, and the unit Fatigued (p.9) before it is activated again.</summary>
+        static readonly Dictionary<int, Tabletop.Geometry.Point2> AgainAnchor = new() { [1] = new(16, 15) }, AgainEnemyAnchor = new() { [1] = new(16, 10.5) };
 
         public static IReadOnlyList<TestGame> Batch4 =>
         [
@@ -45,7 +49,9 @@ public static partial class SuiteCatalog
                 [Reposition("Hit & Run", 3, "\"may move by up to 3\" after shooting or being in melee\"")]),
             Game(Hdf, "human-defense-force-coordinate", Play.Moves, ["Coordinate"], [R(1, "Coordinate")], [],
                 [CoordinateActivates("\"another friendly unit within 12\" that hasn't activated yet may be activated immediately\"")], units: 3,
-                more: s => s.Match("coordinate", (ask, _) => AskPicks.Option(ask, _ => true))),
+                more: s => s.Match("coordinate", (ask, _) => AskPicks.Option(ask, _ => true)),
+                // The three units deploy 8" apart on one line, so unit 2 stands within 12" of the Coordinate unit when it activates first.
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(10, 30), [2] = new(18, 30), [3] = new(26, 30) }),
             Game(TitanLords, "titan-lords-delayed-action", Play.Shoots, ["Delayed Action"], [R(1, "Delayed Action")], [],
                 [Delays("\"Once per round, if your opponent has more units left to activate than you, then this model's unit may pass its turn instead of activating\"")],
                 units: 1, enemyUnits: 3, more: Activates(c => c.Id.EndsWith("/Delay", StringComparison.Ordinal)))

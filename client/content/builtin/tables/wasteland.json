@@ -590,8 +590,7 @@
             },
             "bottom": 0,
             "top": 1.5,
-            "declarations": "cover",
-            "notes": "Units on top may ignore one unit/terrain for line of sight"
+            "declarations": "cover, steep"
           }
         }
       ]
@@ -630,8 +629,7 @@
             },
             "bottom": 0,
             "top": 1.5,
-            "declarations": "cover",
-            "notes": "Units on top may ignore one unit/terrain for line of sight"
+            "declarations": "cover, steep"
           }
         }
       ]

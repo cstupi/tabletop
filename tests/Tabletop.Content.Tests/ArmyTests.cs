@@ -19,6 +19,12 @@ public class ArmyTests
     }
 
     [Fact]
+    public void An_army_is_3_5_unless_stamped() { Assert.Equal("3.5", Sample().Edition); Assert.Equal("3.6", (Sample() with { Edition = ArmyEditions.V36 }).Edition); }
+    [Fact] public void A_snapshot_keeps_the_armys_edition() => Assert.Equal("3.6", ArmySnapshot.Of(Sample() with { Edition = "3.6" }, Guid.NewGuid()).Edition);
+    [Fact] public void A_snapshot_written_before_editions_reads_as_3_5()
+        => Assert.Equal("3.5", ContentJson.Deserialize<ArmySnapshot>("""{"id":"00000000-0000-0000-0000-000000000001","name":"a","gameSystem":"grimdark-future","units":[]}""")!.Edition);
+
+    [Fact]
     public void Snapshot_copies_units_and_has_no_army_id()
     {
         var army = Sample();

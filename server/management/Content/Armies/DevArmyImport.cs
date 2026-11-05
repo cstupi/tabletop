@@ -1,11 +1,12 @@
 using System.Security.Claims;
 using System.Text.Json;
+using Tabletop.Content;
 using Tabletop.Management.Http;
 
 namespace Tabletop.Management.Content.Armies;
 
-/// <summary>Source: what the army records as its source (the import stores the share link there). List: an Army Forge export body.</summary>
-public sealed record DevArmyImportRequest(string Source, JsonElement List);
+/// <summary>Source: what the army records as its source (the import stores the share link there). List: an Army Forge export body. Edition: one of ArmyEditions.All the army is stamped with; none is the served edition.</summary>
+public sealed record DevArmyImportRequest(string Source, JsonElement List, string? Edition = null);
 
 public static class DevArmyImportEndpoint
 {
@@ -19,7 +20,8 @@ public static class DevArmyImportEndpoint
         {
             if (Limits.Text(r.Source, "source", Limits.Source) is { } badSource) return Problems.Unprocessable(badSource);
             if (r.List.ValueKind != JsonValueKind.Object) return Problems.Unprocessable(ArmyEndpoints.MalformedExport);
+            if (r.Edition is not null && !ArmyEditions.All.Contains(r.Edition)) return Problems.Unprocessable($"Edition must be one of {string.Join(", ", ArmyEditions.All)}.");
             var body = r.List.GetRawText();
-            return await ArmyEndpoints.ImportAsync(CurrentAccount.Id(u), r.Source, "(body)", () => Task.FromResult(ArmyForgeClient.Parse(body)), kinds, armies, log);
+            return await ArmyEndpoints.ImportAsync(CurrentAccount.Id(u), r.Source, "(body)", () => Task.FromResult(ArmyForgeClient.Parse(body)), kinds, armies, log, r.Edition ?? ArmyEditions.Served);
         }).RequireAuthorization();
 }

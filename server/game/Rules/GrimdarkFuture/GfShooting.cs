@@ -22,7 +22,7 @@ public static class GfShooting
         var used = log.Take(start < 0 ? log.Count : start).Where(e => e.Payload is SequenceStarted).SelectMany(e => ((SequenceStarted)e.Payload).Context.WeaponIds).ToHashSet();
         return GfGroups.Of(state, Lookup.AliveModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => w.Stats.ContainsKey(GfNames.Range))
             .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id)))
-            .Where(w => !w.Properties.Any(p => p.Name == GfNames.Strafing)));   // Strafing: "This weapon may only be used in this way" (GfRuleHits.CrossingStep)
+            .Where(w => !w.Properties.Any(p => GfNames.IsStrafing(p.Name))));   // Strafing (3.6.0 Crossing Strike): "This weapon may only be used in this way" (GfRuleHits.CrossingStep)
     }
 
     public static IReadOnlyList<Guid> ValidTargets(StepContext ctx, Guid unit, WeaponGroup group)
@@ -53,7 +53,7 @@ public static class GfShooting
     {
         var live = ctx.Settle(GfAttack.AttackInteraction(ctx, unit, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
         foreach (var p in live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.QuickShot)) live.Read(p);
-        return RollEffects.Consume(live);
+        return ctx.Consume(live);
     }
 
     /// <summary>The declare-targets answer cut to what the Ask offered: only a group it listed, aimed at a unit it offered that group (p.8). Null when nothing was answered with an Assigned.</summary>

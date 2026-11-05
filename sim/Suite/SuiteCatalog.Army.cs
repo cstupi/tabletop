@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -6,7 +7,7 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// The army-book rules of grimdark-future-army-rules.part.json, grouped army:&lt;book uid&gt; by a book that prints them (a rule several books
+/// The army-book rules of Content/grimdark-future-3.5.1/army-rules.part.json, grouped army:&lt;book uid&gt; by a book that prints them (a rule several books
 /// print is played once, under one of them). A rule and its Boost are separate games where the dice decide the occasion. Every game is
 /// built so its occasion does not depend on the seed: the roll-off is fixed so the first army (the rule's) deploys and acts first, the
 /// script shoots and strikes back whenever asked, the core rule Immobile (p.14, "may only use Hold actions") keeps a side holding and
@@ -14,7 +15,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8, .. ArmyGames.Batch9];
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2, .. ArmyGames.Batch3, .. ArmyGames.Batch4, .. ArmyGames.Batch5, .. ArmyGames.Batch6, .. ArmyGames.Batch7, .. ArmyGames.Batch8, .. ArmyGames.Batch9, .. ArmyGames.Army36B, .. ArmyGames.Army36A, .. ArmyGames.Army36C, .. ArmyGames.Army36F, .. ArmyGames.Army36, .. ArmyGames.Army36G, .. ArmyGames.Army36I, .. ArmyGames.Army36H, .. ArmyGames.Army36H2, .. ArmyGames.Army36J, .. ArmyGames.Army36K, .. ArmyGames.Army36L, .. ArmyGames.Army36M, .. ArmyGames.Army36N, .. ArmyGames.Army36P];
 
     private static partial class ArmyGames
     {
@@ -85,10 +86,14 @@ public static partial class SuiteCatalog
             Game(Custodians, "custodian-brothers-tear", Play.Shoots, ["Tear"], [], [],
                 [ApGrant("Tear", With("Tear"), 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
                 weapon: [R(0, "Tear")], enemy: [R(1, "Tough", 9), R(2, "Tough", 9)], enemyModels: 1, units: 2),
-            Game(Custodians, "custodian-brothers-guardian", Play.Shot, ["Guardian"], [R(1, "Guardian")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Guardian", On("Guardian", "Guardian Boost", When.Shooting), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
-            Game(Custodians, "custodian-brothers-guardian-boost", Play.Shot, ["Guardian Boost"], [R(1, "Guardian"), R(1, "Guardian Boost")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Guardian Boost", On("Guardian Boost"), 0, "\"enemy hits always count as having AP(-1)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
+            Game(Custodians, "custodian-brothers-guardian", Play.Shot, ["Guardian"], [R(1, "Guardian")], FloorDice,
+                [ApGrant("Guardian", Firing(On("Guardian", "Guardian Boost", When.Shooting), "Rifle"), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))"),
+                 ApGrant("Guardian", Firing(On("Guardian", "Guardian Boost", When.Shooting), "Carbine"), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(0))")],
+                enemyWeapon: [R(0, "AP", 1)], enemyCarriers: CarbineUnit(2, 0)),
+            Game(Custodians, "custodian-brothers-guardian-boost", Play.Shot, ["Guardian Boost"], [R(1, "Guardian"), R(1, "Guardian Boost")], FloorDice,
+                [ApGrant("Guardian Boost", Firing(On("Guardian Boost"), "Rifle"), 0, "\"enemy hits always count as having AP(-1) from Guardian\" (against AP(1))"),
+                 ApGrant("Guardian Boost", Firing(On("Guardian Boost"), "Carbine"), 0, "\"enemy hits always count as having AP(-1) from Guardian\", Guardian's \"to a min. of AP(0)\" (against AP(0))")],
+                enemyWeapon: [R(0, "AP", 1)], enemyCarriers: CarbineUnit(2, 0)),
             Game(DarkElves, "dark-elf-raiders-harassing", Play.Shoots, ["Harassing", "Harassing Boost"], [R(1, "Harassing"), R(2, "Harassing"), R(2, "Harassing Boost")], [],
                 [Reposition("Harassing", 3, "\"may move by up to 3\" after shooting or being in melee\""), Reposition("Harassing Boost", 6, "\"they may move by up to 6\" from Harassing\"")]),
             Game(DarkElves, "dark-elf-raiders-lacerate", Play.Shoots, ["Lacerate", "Piercing Hunter"], [R(1, "Piercing Hunter"), R(2, "Piercing Hunter")], [],
@@ -138,10 +143,15 @@ public static partial class SuiteCatalog
                 [Rerolls("Scrapper", By("Scrapper", "Scrapper Boost"), [6], successOnly: false, SixesRerolled),
                  ApGrant("Shatter", With("Shatter"), 2, "\"Against units where most models have Tough(3) or higher, this weapon gets AP(+2)\"")],
                 weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
-            // The rule re-rolls only "successful unmodified defense results of 5-6": Shatter's AP(+2) acts against the Tough unit only, so an
-            // unmodified 5 fails to block there and is not re-rolled, and blocks against the other unit and is.
+            // The rule re-rolls only "successful unmodified defense results of 5-6": Shatter's AP(+2) acts against the Tough unit only, so at its 4+ an
+            // unmodified 5 fails to block and must not be re-rolled. Unit 1 shoots the Tough(3) unit; unit 2 shoots Opponents unit 2, then unit 3, whose
+            // Tough(2) models (under Shatter's Tough(3)) last several of its twenty-die volleys, where every unmodified 5 blocks and is re-rolled. (The re-roll
+            // is decided inside roll-to-block, before a DiceFix could set the 5.)
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)], seed: 3),
+                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)], seed: 3, models: 5, enemyUnits: 3,
+                enemyCarriers: [.. new[] { 2, 3 }.SelectMany(u => Enumerable.Range(1, 5).Select(m => new ScenarioModel(u, m, [R(0, "Tough", 2)])))],
+                more: s => s.Match("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == $"{Jackals.Army} unit 1" ? AskPicks.AllAt(ask, p, "Opponents unit 1")
+                    : AskPicks.AllAt(ask, p, "Opponents unit 2") ?? AskPicks.AllAt(ask, p, "Opponents unit 3"))),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],
@@ -195,7 +205,8 @@ public static partial class SuiteCatalog
             IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null, string? enemyBook = null,
             IReadOnlyList<(int Unit, string Condition)>? conditions = null, int enemyRange = 60, IReadOnlyList<int>? setAside = null,
             IReadOnlyList<int>? enemySetAside = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null,
-            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null)
+            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null, int enemyBlade = 1,
+            IReadOnlyList<ScenarioModel>? enemyCarriers = null)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
             var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged or Play.Exchange, play is not Play.Charged);
@@ -212,8 +223,9 @@ public static partial class SuiteCatalog
                     weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers, conditions: conditions,
                     setAside: setAside, anchors: anchors, reserves: reserves, sizes: sizes)
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
-                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(1)], setAside: enemySetAside, anchors: enemyAnchors);
-            return new TestGame(name, ArmyPrefix + book.Uid, (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
+                    weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(enemyBlade)], setAside: enemySetAside, anchors: enemyAnchors,
+                    models: enemyCarriers);
+            return new TestGame(name, ArmyGroup(RuleSets.Gf351, book.Uid), (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
         }
 
         /// <summary>
@@ -260,8 +272,61 @@ public static partial class SuiteCatalog
             return script.Build();
         }
 
+        /// <summary>The game with army's unit anchored at the point (the anchor added or replaced).</summary>
+        static TestGame AnchorAt(TestGame game, int army, int unit, Point2 at) => game with
+        {
+            Scenario = game.Scenario with
+            {
+                Armies = [.. game.Scenario.Armies.Select((a, i) => i == army ? a with { Anchors = new Dictionary<int, Point2>(a.Anchors) { [unit] = at } } : a)],
+            },
+        };
+
+        /// <summary>The game with every shooter of the shooting army firing all its groups at the target unit first, whenever the target is legal.</summary>
+        static TestGame Aiming(TestGame game, int shootingArmy, string target)
+        {
+            var prefix = game.Scenario.Armies[shootingArmy].Name + " unit ";
+            var aim = new ScriptMatch("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p)?.StartsWith(prefix, StringComparison.Ordinal) == true ? AskPicks.AllAt(ask, p, target) : null);
+            return game with { Scenario = game.Scenario with { Script = game.Scenario.Script with { Matches = [aim, .. game.Scenario.Script.Matches] } } };
+        }
+
+        /// <summary>
+        /// The game with the opponents' unit anchored at the point, beyond the reach the rule gives, and the rule side shooting it first whenever it is a
+        /// legal target: a rule read with a longer reach offers it or shoots it, and the rule's check sees that.
+        /// </summary>
+        static TestGame Overreach(TestGame game, int unit, Point2 at) =>
+            Aiming(AnchorAt(game, 1, unit, at), 0, $"{game.Scenario.Armies[1].Name} unit {unit}");
+
+        /// <summary>
+        /// A shrouding game laid out across a table of the given length: the rule's unit 1 at (4, length − 11) and opponent unit 1 at (4, 11), 8" or more
+        /// apart; the rule's unit 2 at x 30 inside its zone and opponent unit 2 straight below it, `edge` inches edge to edge (32mm bases), both over 24" from
+    /// the other side's unit 1;
+        /// the opponents shoot unit 2 first whenever it is a legal target, so a reach read past the rule's limit shoots it from inside the band.
+        /// </summary>
+        static TestGame Banded(TestGame game, double length, double edge)
+        {
+            var army = game.Scenario.Armies[0].Name;
+            var y = Math.Max(length - 11, 1 + edge + 1.26);
+            var laid = AnchorAt(AnchorAt(AnchorAt(AnchorAt(game, 0, 1, new(4, length - 11)), 0, 2, new(30, y)), 1, 1, new(4, 11)), 1, 2, new(30, y - edge - 1.26));
+            return Aiming(laid, 1, $"{army} unit 2");
+        }
+
         static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules, int range = 60) =>
             new("Rifle", new Dictionary<string, string> { ["Range"] = $"{range}\"", ["Attacks"] = $"{attacks}" }, rules);
+        /// <summary>A second gun of 2 attacks, apart from the Rifle by name, with AP(ap).</summary>
+        static ScenarioWeapon Carbine(int ap) =>
+            new("Carbine", new Dictionary<string, string> { ["Range"] = "60\"", ["Attacks"] = "2" }, [R(0, "AP", ap)]);
+
+        /// <summary>The opponents' unit armed with a Carbine of AP(ap) in place of the Rifle, three models.</summary>
+        static IReadOnlyList<ScenarioModel> CarbineUnit(int unit, int ap) =>
+            [.. Enumerable.Range(1, 3).Select(m => new ScenarioModel(unit, m, Weapons: [Carbine(ap), Blade(1)]))];
+
+        /// <summary>
+        /// An AP-floor game: the Rifle's and the Carbine's first hits and blocks are fixed at 6, so each shooting unit fires at the floored
+        /// unit and it stands for the other (p.5: a 6 always succeeds).
+        /// </summary>
+        static IReadOnlyList<DiceFix> FloorDice =>
+            [new("hit", 0, [6, 6, 6], new RollKey(Weapon: "Rifle")), new("defense", 0, [6, 6, 6], new RollKey(Weapon: "Rifle")),
+             new("hit", 0, [6, 6, 6], new RollKey(Weapon: "Carbine")), new("defense", 0, [6, 6, 6], new RollKey(Weapon: "Carbine"))];
         static ScenarioWeapon Blade(int attacks, IReadOnlyList<ScenarioRule>? rules = null) =>
             new("Blade", new Dictionary<string, string> { ["Attacks"] = $"{attacks}" }, rules ?? []);
         static ScenarioRule R(int unit, string name, int? parameter = null) => new(unit, name, parameter);

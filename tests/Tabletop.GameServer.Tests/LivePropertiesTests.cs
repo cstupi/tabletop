@@ -50,8 +50,8 @@ public class LivePropertiesTests
         var state = State([Unit("Shooters", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1))], [stealthy]);
         var ix = new Interaction(state, Core, Party.Whole(state, state.Board.Armies[0].Snapshot.Units[0].Id), Party.Whole(state, stealthy.Id), AttackKind.Shooting, "Hold", 12, []);
         var live = LiveProperties.Settle(ix);
-        Assert.False(live.Has(Side.Defender, "Stealth"));                                           // all: one model lacks it
-        Assert.True(live.Has(Side.Defender, "Fearless"));                                           // all, and all three carry it (3.5.1: "a unit where all models have this rule")
+        Assert.False(live.Has(Side.Defender, "Stealth"));                                           // all: one model lacks it (3.5.1 p.14: "units where all models"; 3.6.0 p.15: "most models", under which two of three would carry it)
+        Assert.True(live.Has(Side.Defender, "Fearless"));                                           // all, and all three carry it (3.5.1: "a unit where all models have this rule"; 3.6.0 p.14: "most models")
         Assert.Equal(3, live.On(Side.Defender).Count(p => p.Entry.Name == "Tough"));                // none: per model, all three have it
         Assert.Single(live.On(Side.Defender).Where(p => p.Entry.Name == "Fearless"));               // collapsed: no (X)
     }
@@ -89,7 +89,7 @@ public class LivePropertiesTests
         Assert.True(live.Has(Side.Defender, "Ambush"));                                             // the effect pass agrees with the name lookup
         var aircraft = live.On(Side.Defender).Single(p => p.Entry.Name == "Aircraft");
         Assert.Null(aircraft.ModelId);                                                              // holder-less: it is the unit's, not the captain's
-        Assert.Equal(-12, live.Effects(Side.Attacker, EffectKind.ModifyStat).Single(x => x.Source.Entry.Name == "Aircraft").Effect.Amount);   // 3.5.1: -12" to range, and no -1 to hit
+        Assert.Equal(-12, live.Effects(Side.Attacker, EffectKind.ModifyStat).Single(x => x.Source.Entry.Name == "Aircraft").Effect.Amount);   // 3.5.1: -12" to range, and no -1 to hit (3.6.0 p.13 adds -1 to hit rolls)
         Assert.Empty(live.Effects(Side.Attacker, EffectKind.ModifyRoll).Where(x => x.Source.Entry.Name == "Aircraft"));
         // The captain's own Quality is declared at model level and read: determine-attacks splits the group's attacks by it and roll-to-hit rolls a pool per value (p.4, p.14). Defense stays the unit's until it is alone.
         Assert.NotNull(Core.Stat(StatLevel.Model, "Quality"));
@@ -104,7 +104,7 @@ public class LivePropertiesTests
         var s = Unit("Shooters", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
         var state = State([s], [e]);
         Interaction Ix(double range, string action) => new(state, Core, Party.Whole(state, s.Id), Party.Whole(state, e.Id), AttackKind.Shooting, action, range, []);
-        // Artillery's second effect is the -2 on the opponent, conditioned on shooting from over 9" away. 3.5.1 dropped Entrenched's "hasn't moved" condition with the rule itself.
+        // Artillery's second effect is the -2 on the opponent, conditioned on shooting from over 9" away (3.6.0 p.13: -1, over 12", only while the unit has not moved this round). 3.5.1 dropped Entrenched's "hasn't moved" condition with the rule itself.
         var artillery = Core.Entry("Artillery")!.Effects[1];
         var holder = new LiveProperty(Side.Defender, Core.Entry("Artillery")!, null, e.Models[0].Id, null, null);
         Assert.True(Conditions.Hold(Ix(12, "Hold"), Side.Defender, artillery, holder, null));
@@ -142,5 +142,91 @@ public class LivePropertiesTests
         // aggregation:none, so both models keep their own instance. Both branches of Gather's collapse are exercised here.
         Assert.Equal(1, live.On(Side.Attacker).Count(p => p.Entry.Name == "Regeneration"));
         Assert.Equal(2, live.On(Side.Attacker).Count(p => p.Entry.Name == "Tough"));
+    }
+
+    // "those hits count as having AP(-1), to a min. of AP(0)" (3.6.0 Fortified, Fortified Growth, Guardian, Primeborn): a floor on modify_parameter.
+    static EntryDocument Dampen(string name, int? floor) => new(name, CatalogKind.Model, false, Aggregation.All, null, null, $"{name}.", null,
+        [new EffectDocument(EffectSubject.Opponent, 10, EffectKind.ModifyParameter, null, null, "AP", null, null, null, null, -1, false, null, null, null, EffectDuration.Interaction, [], [], Floor: floor),
+         new EffectDocument(EffectSubject.Opponent, 20, EffectKind.ModifyParameter, null, null, "AP", null, null, null, null, -1, false, null, null, null, EffectDuration.Interaction, [], [], Floor: floor)]);
+
+    [Fact]
+    public void A_floor_on_modify_parameter_holds_ap_at_zero()
+    {
+        var props = TestProperties.WithSpells(Dampen("Floored Dampen", 0), Dampen("Open Dampen", null));
+        int? Ap(string rule)
+        {
+            var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("AP", 1)));
+            var b = Unit("B", "4+", "4+", [], 1, [P(rule)]);
+            var s = State([a], [b]);
+            var weapons = s.Projection.Units[a.Id].Definition.Models.SelectMany(m => m.Weapons.Select(w => w.Id));
+            return LiveProperties.Settle(new Interaction(s, props, Party.Of(s, a.Id, a.Models.Select(m => m.Id), weapons), Party.Whole(s, b.Id), AttackKind.Shooting, "Hold", 12, [])).Parameter(Side.Attacker, "AP");
+        }
+        Assert.Equal(0, Ap("Floored Dampen"));
+        Assert.Equal(-1, Ap("Open Dampen"));
+    }
+
+    /// <summary>Every 3.5.1 entry printing "to a min. of AP(0)" (Fortified, Fortified Growth, Guardian, Primeborn) floors each of its AP rows at zero.</summary>
+    [Fact]
+    public void The_351_min_ap0_rows_carry_a_floor_of_zero()
+    {
+        var entries = TestProperties.CoreDocument.Entries.Where(e => e.RuleText?.Contains("to a min. of AP(0)") == true).ToList();
+        Assert.Equal(["Fortified", "Fortified Growth", "Guardian", "Primeborn"], entries.Select(e => e.Name).Order(StringComparer.Ordinal));
+        foreach (var entry in entries)
+        {
+            var rows = entry.Effects.Where(e => e.Kind == EffectKind.ModifyParameter && e.TargetEntry == "AP").ToList();
+            Assert.NotEmpty(rows);
+            Assert.All(rows, e => Assert.Equal(0, e.Floor));
+        }
+    }
+
+    /// <summary>
+    /// A rule that changes what AP a unit gets "from Guardian" or "from Fortified" (3.6.0 Enhanced Guardian, 3.5.1 Guardian Boost) suppresses
+    /// that rule and adds its own AP rows, which keep its "to a min. of AP(0)".
+    /// </summary>
+    [Fact]
+    public void The_rows_that_count_as_from_guardian_or_fortified_carry_a_floor_of_zero()
+    {
+        foreach (var (document, expected) in new[] { (TestProperties.CoreDocument, "Guardian Boost"), (TestProperties.CoreDocument36, "Enhanced Guardian") })
+        {
+            var entries = document.Entries.Where(e => e.RuleText is { } t && (t.Contains("from Guardian") || t.Contains("from Fortified"))).ToList();
+            Assert.Equal([expected], entries.Select(e => e.Name));
+            foreach (var entry in entries)
+            {
+                var rows = entry.Effects.Where(e => e.Kind == EffectKind.ModifyParameter && e.TargetEntry == "AP").ToList();
+                Assert.NotEmpty(rows);
+                Assert.All(rows, e => Assert.Equal(0, e.Floor));
+            }
+        }
+    }
+
+    // 3.6.0 Enhanced Guardian: "hits they take count as having AP(-2) from Guardian (instead of only AP(-1))", and Guardian's "to a min. of AP(0)".
+    // 3.5.1 Guardian Boost: "enemy hits always count as having AP(-1) from Guardian", the same floor.
+    [Theory]
+    [InlineData(false, "Enhanced Guardian", 1, 0)]
+    [InlineData(false, "Enhanced Guardian", 0, 0)]
+    [InlineData(false, "Enhanced Guardian", 3, 1)]
+    [InlineData(true, "Guardian Boost", 1, 0)]
+    [InlineData(true, "Guardian Boost", 0, 0)]
+    [InlineData(true, "Guardian Boost", 2, 1)]
+    public void A_rule_counting_as_guardian_holds_ap_at_zero(bool gf351, string rule, int weaponAp, int expected)
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("AP", weaponAp)));
+        var b = Unit("B", "4+", "4+", [], 1, [P("Guardian"), P(rule)]);
+        var s = State([a], [b]);
+        var weapons = s.Projection.Units[a.Id].Definition.Models.SelectMany(m => m.Weapons.Select(w => w.Id));
+        var props = gf351 ? TestProperties.Core : TestProperties.Core36;
+        var live = LiveProperties.Settle(new Interaction(s, props, Party.Of(s, a.Id, a.Models.Select(m => m.Id), weapons), Party.Whole(s, b.Id), AttackKind.Shooting, "Hold", 12, []));
+        Assert.Equal(expected, live.Parameter(Side.Attacker, "AP"));
+    }
+
+    [Fact]
+    public void The_36_min_ap0_rows_carry_a_floor_of_zero()
+    {
+        foreach (var name in new[] { "Fortified", "Fortified Growth", "Guardian", "Primeborn" })
+        {
+            var rows = TestProperties.Core36.Entry(name)!.Effects.Where(e => e.Kind == EffectKind.ModifyParameter && e.TargetEntry == "AP").ToList();
+            Assert.NotEmpty(rows);
+            Assert.All(rows, e => Assert.Equal(0, e.Floor));
+        }
     }
 }

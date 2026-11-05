@@ -314,17 +314,21 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
     private static bool Passes(PlacedModel start, Point2 candidate, MoveRegion m, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult,
         PolicyView view, IReadOnlyList<WorldVolume>? landing, Func<Point2, bool>? clear)
     {
-        var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
+        var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table, steep: SteepOf(m, view));
         if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return false;
         if (landing is { Count: > 0 } && Lands(start, candidate, landing)) return false;
         return clear is null || clear(candidate);
     }
 
     /// <summary>A move along the path its base takes (Movement.Check), as GfMoves.Route judges it: the region's impassable volumes, these difficult
-    /// volumes and cap, the table, and the standing models in plan and height over the board's volumes.</summary>
+    /// volumes and cap (with the region's steep volumes; none with no cap, a path the unit is held to), the table, and the standing models in plan and
+    /// height over the board's volumes.</summary>
     private static MoveCheck Route(PlacedModel start, Point2 to, MoveRegion m, PolicyView view, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap,
         IReadOnlyList<PlacedModel>? standing = null) =>
-        Movement.Check(start, to, allowance, view.VolumesById(m.ImpassableVolumeIds), difficult, cap, view.Table, standing, view.Volumes);
+        Movement.Check(start, to, allowance, view.VolumesById(m.ImpassableVolumeIds), difficult, cap, view.Table, standing, view.Volumes, steep: cap is null ? null : SteepOf(m, view));
+
+    /// <summary>The region's steep volumes (MoveRegion.SteepVolumeIds), difficult for a model that starts outside one (Movement.SteepEntering).</summary>
+    private static IReadOnlyList<WorldVolume>? SteepOf(MoveRegion m, PolicyView view) => m.SteepVolumeIds is { Count: > 0 } ids ? view.VolumesById(ids) : null;
 
     /// <summary>The models on the table the region does not move, which a path goes round (none when it PassesModels).</summary>
     private static IReadOnlyList<PlacedModel> Standing(MoveRegion m, PolicyView view) => m.PassesModels ? []

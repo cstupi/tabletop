@@ -19,7 +19,7 @@ suspension. Undo-by-replay, hydration and crash recovery are the same mechanism 
 | Directory | Contents |
 | --- | --- |
 | `server/game/Properties/` | `PropertySet`, `PropertySetDocument`, `PropertiesJson`, `IPropertiesStore`, `PostgresPropertiesStore`, `PropertiesSeeder` |
-| `server/game/Content/` | `grimdark-future-core.properties.json` (the rulebook's rules), `grimdark-future-army-rules.part.json` (hand-written army-book rules), `grimdark-future-army-book-rules.part.json` and `army-books/<uid>.book.json` (48 books, written by `scripts/ArmyBooks`), embedded resources composed into one set |
+| `server/game/Content/<edition>/` | `grimdark-future-3.5.1/` and `grimdark-future-3.6/`, each `core.properties.json` (the rulebook's rules), `army-rules.part.json` and `relic-wargear.part.json` (hand-written), `army-book-rules.part.json` and `army-books/<uid>.book.json` (48 books under 3.5.1, 49 under 3.6.0, written by `scripts/ArmyBooks`), embedded resources composed into one set per edition |
 | `server/game/Dice/` | `IDiceSource`, `DiceSource`, `ScriptedDice`, `DiceCursor`, `RollPlan`, `Roller`, `RollOutcome` |
 | `server/game/Effects/` | `Interaction`, `Conditions`, `LiveProperties`, `RollEffects`, `StatReader`, `Lookup` |
 | `server/game/Interpreter/` | `Steps`, `FrameReader`, `StepContext`, `SequenceInterpreter`, `Windows`, `Battlefield` |
@@ -146,7 +146,8 @@ as a three-line decision procedure.
 | [Decisions and rulings](decisions.md) | contested decisions, decisions taken where a spec was silent, the fourteen rulings, what is deferred |
 | [Interfaces and sequences](interfaces.md) | types produced and consumed, and the cross-module sequence diagrams |
 | [State, failure modes and testing](operations.md) | persisted and in-memory state, failure modes, accepted gaps, the test suites |
-| [The effect grammar](effect-grammar.md) | the kinds, the predicates, both passes in code, the grants store, worked rows |
+| [The effect grammar](effect-grammar.md) | the kinds, the predicates, both passes in code, worked rows |
+| [The grants store](grants.md) | how a once row, a marker or a pick entry writes a grant, and when it is released |
 | [Grimdark Future's sequences](opr-sequences.md) | every sequence, its steps and their rulebook pages |
 
 ## References
@@ -170,7 +171,8 @@ Command / Event spine, Rules enforcement, Undo, Abilities, Rules as data, Pinnin
 [`docs/schema.md`](../../schema.md) → `Properties` is ten tables, One `effect` table for every kind,
 An army book is a row and lists its spells, A condition is a row, Worked against the book; [`docs/data-model.md`](../../data-model.md).
 
-**Rulebook.** Grimdark Future v3.5.1, read for this plan: p.7 (the four actions and their
+**Rulebook.** Grimdark Future v3.5.1, read for this plan (a 3.6.0 page is cited `3.6.0 p.N`; the two editions' differences are
+in [the rule-set versions spec](../../superpowers/specs/2026-10-29-rule-set-versions-design.md)): p.7 (the four actions and their
 distances), p.8 (shooting, weapon groups, two targets, the worked attack example), p.9 (melee
 reach, striking back, fatigue), p.10 (who won, consolidation, morale, Shaken), p.11 (terrain:
 cover, difficult, dangerous), p.13–15 (every special rule), p.21 (solid buildings), p.30–35 and
@@ -178,9 +180,11 @@ p.50 (the token economy's edges and the free-for-all roll-off).
 
 **Sibling documents in this folder.**
 
-- [The effect grammar](effect-grammar.md): eighteen kinds, eleven predicates, the two passes in
-  detail, the grants store, and the worked rows.
-- [Grimdark Future's sequences](opr-sequences.md): the nineteen sequences, the shared attack
+- [The effect grammar](effect-grammar.md): twenty kinds, thirteen predicates, the two passes in
+  detail, and the worked rows.
+- [The grants store](grants.md): once, marker, `spent_marker` and `one_marker` grants, release at an
+  attack's end, pick targeting.
+- [Grimdark Future's sequences](opr-sequences.md): the thirty sequences, the shared attack
   chain, the move step's phase machine, casting, and containment.
 
 **Other module designs.** [`docs/design/game-server/`](../game-server/) is the module this one

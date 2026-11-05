@@ -1,4 +1,6 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
@@ -13,9 +15,10 @@ public enum DriverKind { InProcess, Socket }
 
 /// <summary>
 /// Only: game names and groups, none for every game (a full run). OutDir: where a kept game's recording goes. RunId: the caller's id for
-/// the run (its report files, a served run); a fresh one when null.
+/// the run (its report files, a served run); a fresh one when null. Seed: the seed every game plays on instead of its scenario's own;
+/// null keeps each game's.
 /// </summary>
-public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver, bool Keep, string OutDir, Guid? RunId = null);
+public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver, bool Keep, string OutDir, Guid? RunId = null, ulong? Seed = null);
 
 /// <summary>
 /// Plays the selected games one after another on one driver, judges each, and computes coverage. Every game is judged by Ended,
@@ -24,13 +27,12 @@ public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver,
 /// </summary>
 /// <param name="games">The games to select from; the catalog by default.</param>
 /// <param name="socket">The socket environment; from the process environment by default. One handed in is not disposed here.</param>
-/// <param name="properties">The pinned set coverage is measured against; the shipped set by default.</param>
-public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSocket? socket = null, PropertySet? properties = null)
+public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSocket? socket = null)
 {
-    /// <summary>The wrappers scripts/ArmyBooks generated (the generated part's entries with effects), which coverage counts by pattern.</summary>
-    static readonly IReadOnlySet<string> Generated =
-        PropertiesSeeder.EmbeddedPart(PropertiesSeeder.GeneratedPart)?.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet(StringComparer.Ordinal)
-        ?? new HashSet<string>();
+    /// <summary>Per shipped set: the wrappers scripts/ArmyBooks generated (the generated part's entries with effects), which coverage counts by pattern.</summary>
+    static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> Generated = RuleSets.All.ToDictionary(id => id, id => (IReadOnlySet<string>)(
+        PropertiesSeeder.EmbeddedPart(GfEdition.Of(id).ContentFolder, PropertiesSeeder.GeneratedPartName)?.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet(StringComparer.Ordinal)
+        ?? new HashSet<string>()));
 
     public IReadOnlyList<TestGame> Games { get; } = games ?? SuiteCatalog.All;
 
@@ -65,11 +67,18 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             if (sock is not null && sock != socket) await sock.DisposeAsync();
         }
 
-        var coverage = Coverage.Of(properties ?? ScenarioCompiler.CoreProperties, runs, fullRun: options.Only.Count == 0, Generated,
-            results.Where(r => r.Passed).Select(r => r.Name).ToHashSet(StringComparer.Ordinal));
+        var coverage = CoverageOf(runs, fullRun: options.Only.Count == 0, results.Where(r => r.Passed).Select(r => r.Name).ToHashSet(StringComparer.Ordinal));
         return new SuiteReport(runId, results, coverage,
             results.All(r => r.Passed) && Coverage.Complete(coverage) && coverage.Where(c => c.Counts).All(c => c.Uncovered || c.Fired));
     }
+
+    /// <summary>
+    /// Coverage of every shipped set, each against the games that ran under it and its own generated part, 3.5.1 first. A full run lists
+    /// every entry of each set, so it fails on an uncovered entry of either; a limited run lists only what its games cover.
+    /// </summary>
+    public static IReadOnlyList<CoverageEntry> CoverageOf(IReadOnlyList<SuiteGameRun> runs, bool fullRun, IReadOnlySet<string> passed) =>
+        [.. RuleSets.All.SelectMany(edition => Coverage.Of(ScenarioCompiler.CorePropertiesOf(edition), runs.Where(r => r.Game.Edition == edition),
+            fullRun, Generated[edition], passed))];
 
     /// <summary>A fresh session for a kept game's spectator account (SuiteGameResult.Spectator).</summary>
     public async Task<MintedSession> SpectatorSessionAsync(string spectator, CancellationToken ct)
@@ -79,15 +88,20 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         finally { if (sock != socket) await sock.DisposeAsync(); }
     }
 
-    /// <summary>The command line that reruns one game alone and keeps it.</summary>
-    public static string ReplayOf(TestGame game, DriverKind driver) =>
-        $"dotnet run --project sim -- suite --only {Quote(game.Name)} --keep{(driver == DriverKind.Socket ? " --driver socket" : "")}";
+    /// <summary>The command line that reruns one game alone and keeps it, on the run's seed when it named one.</summary>
+    public static string ReplayOf(TestGame game, DriverKind driver, ulong? seed = null) =>
+        $"dotnet run --project sim -- suite --only {Quote(game.Name)} --keep{(driver == DriverKind.Socket ? " --driver socket" : "")}{(seed is { } s ? $" --seed {s}" : "")}";
 
     private static async Task<(SuiteGameResult, SuiteGameRun)> PlayAsync(
         TestGame game, SuiteOptions options, Guid runId, SuiteSocket? sock, CancellationToken ct)
     {
         // The step gate keeps a completed step's rolls on the stack, which is where SetDice reaches them.
-        var scenario = game.Dice.Count > 0 ? game.Scenario with { WaitsBetweenSteps = true } : game.Scenario;
+        // The game's edition is the rules its scenario compiles under.
+        var scenario = game.Scenario with
+        {
+            Rules = game.Edition, Seed = options.Seed ?? game.Scenario.Seed,
+            WaitsBetweenSteps = game.Scenario.WaitsBetweenSteps || game.Dice.Count > 0,
+        };
         var compiled = ScenarioCompiler.Compile(scenario);
         if (sock is not null)
             compiled = compiled with { Info = compiled.Info with { Name = SuiteRows.GameName(runId, game.Name, options.Keep) } };
@@ -154,8 +168,8 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         var pins = game.KnownOn(options.Driver);
         var (lines, known, stale) = SuiteGameResult.Attribute(failures, pins);
         var result = new SuiteGameResult(game.Name, game.Group, failures.Count == 0, lines, scenario.Seed,
-            ReplayOf(game, options.Driver), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator, known,
-            pins.Count == 0 ? null : pins.Select(k => k.Id).Distinct().ToList(), stale, Math.Round(clock.Elapsed.TotalSeconds, 3));
+            ReplayOf(game, options.Driver, options.Seed), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator, known,
+            pins.Count == 0 ? null : pins.Select(k => k.Id).Distinct().ToList(), stale, Math.Round(clock.Elapsed.TotalSeconds, 3)) { Edition = game.Edition };
         return (result, run);
     }
 

@@ -57,10 +57,11 @@ public static class GfRolls
     /// merged into a single group.
     ///
     /// A fatigued melee is a flat 6+ with no modifiers and `RequiredRaw = 6`, because p.9 says *"only hit on unmodified rolls of 6"*.
+    /// Under 3.6 it also carries `HitsTriggerNothing`: 3.6.0 p.9 *"those hits don’t count as rolls of 6 for special rules"*.
     /// </summary>
     public static RollPlan HitPlan(StepContext ctx, LiveSet live, AttackKind kind, int quality) =>
         Fatigued(ctx, live, kind)
-            ? new RollPlan(GfNames.Hit, 6, [], D6, RequiredRaw: 6, RerollRaw: new HashSet<int>())
+            ? new RollPlan(GfNames.Hit, 6, [], D6, RequiredRaw: 6, RerollRaw: new HashSet<int>(), HitsTriggerNothing: !GfEdition.Of(ctx.State).FatiguedSixesTrigger)
             : ctx.Plan(live, Side.Attacker, GfNames.Hit, [], threshold: new TargetRead(quality, HitBasis(live, quality)));
 
     /// <summary>One pool's basis: the first attacking model, in party order, that brings the value. Peeked: determine-attacks accounted it.</summary>
@@ -127,7 +128,7 @@ public static class GfRolls
             verdict = verdict with { IgnoredBy = live.Suppressors(TargetModifier.Cover).FirstOrDefault() };
         var living = Lookup.LivingModels(ctx.State, live.Interaction.Defender!.UnitId);
         var alone = takedown ?? (defenderModels == 1 && living.Count == 1 ? living[0] : (Guid?)null);
-        if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => p.Name == GfNames.Hero) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
+        if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => GfNames.IsHero(p.Name)) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
             ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Defender, GfNames.DefenseRoll,
             shooting && inCover ? [new RollModifier("cover", 1)] : [],
@@ -138,19 +139,41 @@ public static class GfRolls
     /// p.10: one Quality test. p.14 lets a joined hero *"take morale tests on behalf of the unit"*, and that clause is resolved
     /// always-when-it-helps, so the threshold is the best of the unit's Quality and every living Hero's own and no Ask
     /// is opened. Nothing else of the test moves: p.14's *"even if the hero is the last model remaining, it takes morale tests as the
-    /// unit"* keeps the starting-size comparison that decides Shaken from Rout on the unit.
+    /// unit"* keeps the starting-size comparison that decides Shaken from Rout on the unit. 3.6.0 p.14 adds *"units within 6” of friendly
+    /// Heroes with Tough(9) or higher, may use the Hero’s Quality for Morale Tests as long as the Hero isn’t Shaken"* (LentQualities).
     /// </summary>
     public static RollPlan MoralePlan(StepContext ctx, LiveSet live)
     {
         var unit = live.Interaction.Attacker.UnitId;
         var own = StatReader.TargetNumber(live, Side.Attacker, Quality);
         var heroes = Lookup.LivingModels(ctx.State, unit)
-            .Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero))
-            .Select(m => StatReader.TargetNumber(live, Side.Attacker, ModelQuality, m)).ToList();
+            .Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => GfNames.IsHero(p.Name)))
+            .Select(m => StatReader.TargetNumber(live, Side.Attacker, ModelQuality, m))
+            .Concat(GfEdition.Of(ctx.State).HeroAuraTough is { } tough ? LentQualities(ctx, live, unit, tough) : []).ToList();
         var best = heroes.Prepend(own).MinBy(r => r.Value)!;   // the first minimum: a tie stays the unit's own
         if (best.Value < own.Value) ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Attacker, GfNames.Morale, [], threshold: best);
     }
+
+    /// <summary>3.6.0 p.14's aura: every living Hero with Tough(tough) or more in another unit of the team, that unit not Shaken, within 6" base to base of
+    /// one of the testing unit's models. Each Quality is the Hero's own as its unit's live properties leave it, peeked: the test spends nothing of theirs.</summary>
+    static IEnumerable<TargetRead> LentQualities(StepContext ctx, LiveSet live, Guid unit, int tough)
+    {
+        var state = ctx.State;
+        if (Teams.Of(state, unit) is not { } team) yield break;
+        var mine = Lookup.LivingModels(state, unit);
+        foreach (var other in Scheduler.TeamUnits.Of(state, team).Where(u => u.Id != unit && !u.Conditions.Contains(GfNames.Shaken)))
+        {
+            var lenders = Lookup.LivingModels(state, other.Id).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => GfNames.IsHero(p.Name))
+                && (Lookup.ModelParameter(state, m, GfNames.Tough) ?? 0) >= tough
+                && mine.Any(o => Battlefield.Distance(state, m, o) <= HeroAuraRange + 1e-6)).ToList();
+            if (lenders.Count == 0) continue;
+            var theirs = LiveProperties.Settle(new Interaction(state, ctx.Properties, Party.Whole(state, other.Id), null, live.Interaction.Attack, live.Interaction.ActionTaken, null, []));
+            foreach (var m in lenders) yield return StatReader.Peek(theirs, Side.Attacker, ModelQuality, m);
+        }
+    }
+
+    const double HeroAuraRange = 6;
 
     /// <summary>p.13: one die on 4+, ±1 per token spent for or against.</summary>
     /// <summary>conduit: cast from a Spell Conduit's position, which "get +1 to casting rolls when doing so" (army-book rules spec, batch 7).</summary>

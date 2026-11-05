@@ -16,6 +16,8 @@ export type GameSummary = {
   readonly participantNames: readonly string[];
   /** The signed-in account is a participant. */
   readonly joined: boolean;
+  /** The name of the game's rule set; absent from a server that does not send it. */
+  readonly ruleSet?: string;
 };
 
 /** Management leaves `next` out of the last page. */

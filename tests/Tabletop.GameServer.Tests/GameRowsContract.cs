@@ -24,6 +24,7 @@ public abstract class GameRowsContract
         Assert.NotNull(game);
         Assert.Equal((GameStatus.Lobby, "Friday", seeded.CreatorAccountId, "grimdark-future", SchedulerShape.AlternatingActivation, Enforcement.Warn),
             (game.Status, game.Name, game.CreatedBy, game.GameRules, game.SchedulerShape, game.Enforcement));
+        Assert.False(string.IsNullOrEmpty(game.RuleSet));   // the properties row's name
         Assert.Equal(seeded.RngSeed, game.RngSeed);      // the stored dice seed arrives with the rest of the row; this server never writes it
         Assert.Equal([1, 2], game.Teams.Select(t => t.Ordinal));
         Assert.Equal(3, game.Participants.Count);
@@ -34,6 +35,8 @@ public abstract class GameRowsContract
         Assert.Empty(await Rows.ReadSnapshotsAsync(seeded.GameId, Ct));
         Assert.True(await Rows.PropertiesExistAsync(seeded.PropertiesHash, Ct));
         Assert.False(await Rows.PropertiesExistAsync("sha256:nope", Ct));
+        Assert.Equal("grimdark-future", await Rows.PropertiesGameRulesAsync(seeded.PropertiesHash, Ct));
+        Assert.Null(await Rows.PropertiesGameRulesAsync("sha256:nope", Ct));
     }
 
     [Fact]
@@ -85,6 +88,13 @@ public abstract class GameRowsContract
         Assert.NotNull(owned);
         Assert.Equal(owner, owned.OwnerId);
         Assert.Equal(ContentJson.Serialize(seeded), ContentJson.Serialize(owned.Army));
+    }
+
+    [Fact]
+    public async Task A_read_army_carries_its_edition()
+    {
+        var seeded = await Seeder.SeedArmyAsync(await Seeder.SeedAccountAsync("Owner"), ArmyTests.Sample() with { Edition = ArmyEditions.V36 });
+        Assert.Equal("3.6", (await Rows.ReadArmyAsync(seeded.Id, Ct))!.Army.Edition);
     }
 
     [Fact]

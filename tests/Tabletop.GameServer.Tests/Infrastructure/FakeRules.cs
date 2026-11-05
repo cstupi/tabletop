@@ -64,6 +64,7 @@ public sealed class FakeRules : IGameRules
     public string? ActionSequence(string actionName) => _inner.ActionSequence(actionName);
     public RollSpec RollSpec(string roll) => _inner.RollSpec(roll);
     public string HitRoll => _inner.HitRoll;
+    public string DefenseRoll => _inner.DefenseRoll;
     public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => [];
     public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => EndOfTurnHook?.Invoke(state, properties, turn) ?? _inner.EndOfTurnSequences(state, properties, turn);
     public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => _inner.OnRoundStarted(state, properties, round);

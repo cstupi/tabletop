@@ -13,16 +13,33 @@ internal static partial class CoreGames
 
     /// <summary>
     /// p.8 shooting: Red's squad carries two weapon types, so it may split its fire between two targets. The first hit roll is fixed to test
-    /// the Quality threshold and the automatic 6 and 1; the first defense roll to test the Defense threshold.
+    /// the Quality threshold and the automatic 6 and 1; the first defense roll to test the Defense threshold. Every unit Holds on its anchor and shoots.
+    /// Blue wins the roll-off (fixed) and Blue 1 shoots first, all six dice of its whole squad at Red 1: the game's first hit roll; Red's squads put their
+    /// Rifles at Blue 1 and their Heavy Rifles at Blue 2.
     /// </summary>
     public static TestGame FiringLine()
     {
         const string name = "core-firing-line";
+        var script = AnswerScript.Build()
+            .Match(AskQuestions.Activate, (ask, _) => AskPicks.Activate(ask, "Blue unit 1", "Hold") ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold")))
+            .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
+            .Match("declare_targets", (ask, p) =>
+            {
+                if (ask.Legal is not Assignment a || AskPicks.ShooterOf(ask, p) is not { } name) return null;
+                if (name == "Blue unit 1") return AskPicks.AllAt(ask, p, "Red unit 1");
+                Guid Named(string unit) => a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit);
+                var (first, second) = (Named("Blue unit 1"), Named("Blue unit 2"));
+                if (name?.StartsWith("Red ", StringComparison.Ordinal) != true || first == Guid.Empty || second == Guid.Empty || a.MaxDistinctTargets < 2) return null;
+                var targets = a.Items.ToDictionary(i => i.Id, i => i.Label.Contains("Heavy Rifle", StringComparison.Ordinal) ? second : first);
+                return targets.All(kv => a.TargetsOf(kv.Key).Contains(kv.Value)) ? new Assigned(targets) : null;
+            })
+            .Build();
         var scenario = new ScenarioBuilder(name, seed: 1)
             .RoundCap(5).Table(48, 36)
-            .Army("Red", 2, 5, weapons: [Rifle(2), Rifle(2, "Heavy Rifle"), HandWeapon()])
-            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])
+            .Army("Red", 2, 5, weapons: [Rifle(2), Rifle(2, "Heavy Rifle"), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(6, 25), [2] = new(26, 25) })
+            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(6, 11), [2] = new(18, 11), [3] = new(34, 11) })
             .Seeking(NearestEnemy)
+            .Scripted(script)
             .Build();
         return Game(name, scenario,
         [
@@ -47,7 +64,7 @@ internal static partial class CoreGames
                     ? null : "no unit split its fire between two targets";
             }),
             FinalRound(Enforcement.Strict),
-        ], dice: [new DiceFix("hit", 0, [6, 1, 4, 3, 2, 2]), new DiceFix("defense", 0, [4, 3])]);
+        ], dice: [new DiceFix("roll-off", 0, [1, 6]), new DiceFix("hit", 0, [6, 1, 4, 3, 2, 2]), new DiceFix("defense", 0, [4, 3])]);
     }
 
     /// <summary>
@@ -84,10 +101,12 @@ internal static partial class CoreGames
     {
         const string name = "core-overkill";
         ScenarioWeapon Long(string weapon) => new(weapon, new Dictionary<string, string> { ["Range"] = "36\"", ["Attacks"] = "2" }, []);
+        // Red holds 32" from Blue (zones x 12-24 and 0-12 on this 24" by 48" table), inside its 36" rifles and beyond a 12" charge, so its first shooting is the game's first hit and defense rolls.
         var scenario = new ScenarioBuilder(name, seed: 7)
             .RoundCap(2).Table(24, 48)
-            .Army("Red", 1, 3, weapons: [Long("Rifle"), Long("Heavy Rifle")])
-            .Army("Blue", 1, 1, weapons: [HandWeapon()])
+            .Army("Red", 1, 3, weapons: [Long("Rifle"), Long("Heavy Rifle")], anchors: new Dictionary<int, Point2> { [1] = new(15, 10) })
+            .Army("Blue", 1, 1, weapons: [HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(4, 40) })
+            .Scripted(EveryoneHoldsAiming(new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1" }))
             .Build();
         return Game(name, scenario,
         [
@@ -108,14 +127,31 @@ internal static partial class CoreGames
     static readonly Point2 WoodCentre = new(8, 6);
     const double WoodRadius = 6;
 
-    /// <summary>p.11 blocking and cover terrain: Red shoots across the middle, past a wall, at Blue units that may stand in a wood.</summary>
+    /// <summary>
+    /// p.11 blocking and cover terrain: Red shoots across the middle, past a wall, at Blue units that may stand in a wood. Every unit Holds on its anchor;
+    /// Red wins the roll-off (fixed), activates 1, 2, 3 and shoots, and Blue never shoots. Blue 1 stands in the wood, Red 1 and Red 3 shoot it; Blue 2 stands
+    /// wholly behind the wall from Red 2, which shoots Blue 3 instead. So the game's defense rolls 0 and 2 are Blue 1's in cover and roll 1 is Blue 3's;
+    /// Red 3's first volley (its whole squad's six dice) is fixed to two hits, the two blocks roll 2 reads.
+    /// </summary>
     public static TestGame CoverAndSight()
     {
         const string name = "core-cover-and-sight";
+        var aims = new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1", ["Red unit 2"] = "Blue unit 3", ["Red unit 3"] = "Blue unit 1" };
+        var script = AnswerScript.Build()
+            .Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, 3).Select(k => AskPicks.Activate(ask, $"Red unit {k}", "Hold")).FirstOrDefault(a => a is not null)
+                ?? AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)))
+            .Match("shoot_or_not", (ask, p) => ask.Legal is Options o && p.Stack.LastOrDefault()?.Context.ActorUnitId is { } unit
+                ? AskPicks.UnitNameOf(p, unit)?.StartsWith("Red ", StringComparison.Ordinal) == true
+                    ? o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null
+                    : o.Choices.FirstOrDefault(c => c.Id != "shoot") is { } no ? new Chosen(no.Id) : null
+                : null)
+            .Match("declare_targets", (ask, p) => AskPicks.Aimed(ask, p, aims.GetValueOrDefault))
+            .Build();
         var scenario = new ScenarioBuilder(name, seed: 119)
             .RoundCap(4).Table(48, 36)
-            .Army("Red", 3, 3, weapons: [Rifle(2), HandWeapon()])
-            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()])
+            .Army("Red", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(4, 25), [2] = new(22, 25), [3] = new(12, 25) })
+            .Army("Blue", 3, 3, weapons: [Rifle(2), HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(5, 6), [2] = new(34, 8), [3] = new(12, 11) })
+            .Scripted(script)
             .Terrain("wall", new Point3((WallWest + WallEast) / 2, (WallSouth + WallNorth) / 2, 0), volumes:
                 [new Volume(VolumeKind.Solid, Footprint.Rect(WallEast - WallWest, WallNorth - WallSouth), new Point2(0, 0), new Yaw(0), 0, 4,
                     TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight, null)])
@@ -165,7 +201,7 @@ internal static partial class CoreGames
                 "defense", 2, "3+,2-", (log, r) =>
                     !r.Roll.Modifiers.Any(m => m is { Source: "cover", Amount: 1 }) ? "defense #2 had no cover"
                     : log.CasualtiesUnder(r.Frame) is 1 ? null : $"defense #2 removed {log.CasualtiesUnder(r.Frame)} models, expected 1"),
-        ], dice: [new DiceFix("defense", 2, [3, 2])]);
+        ], dice: [new DiceFix("roll-off", 0, [6, 1]), new DiceFix("hit", 0, [6, 6, 1, 1, 1, 1], new RollKey(Actor: "Red unit 3")), new DiceFix("defense", 2, [3, 2])]);
     }
 
     // ---- core-fence-cover ------------------------------------------------------------------------------------------------------------
@@ -188,7 +224,8 @@ internal static partial class CoreGames
                 anchors: new Dictionary<int, Point2> { [1] = new(16, below), [2] = new(20.5, below) })
             .Terrain("wall", new Point3(16, FenceY, 0), volumes:
                 [new Volume(VolumeKind.Solid, Footprint.Rect(6, 0.5), new Point2(0, 0), new Yaw(0), 0, 1.5, TerrainDeclarations.Cover | TerrainDeclarations.Difficult, null)])
-            .Scripted(EveryoneHolds())
+            // Red k shoots Blue k, so both Blue units are shot whatever the seed.
+            .Scripted(EveryoneHoldsAiming(new Dictionary<string, string> { ["Red unit 1"] = "Blue unit 1", ["Red unit 2"] = "Blue unit 2" }))
             .Build();
         string? Shots(CoreLog log, string unit, bool cover)
         {

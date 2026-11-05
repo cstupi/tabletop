@@ -19,6 +19,9 @@ public sealed class LoggedFrame(SequenceStarted start, long seq, int round, Logg
     /// <summary>The frames this one was started under, nearest first.</summary>
     public IEnumerable<LoggedFrame> Ancestors { get { for (var p = Parent; p is not null; p = p.Parent) yield return p; } }
 
+    /// <summary>Whether this is the root frame or a frame started under it.</summary>
+    public bool Under(LoggedFrame root) => this == root || Ancestors.Contains(root);
+
     /// <summary>This frame or its nearest ancestor running one of those sequences.</summary>
     public LoggedFrame? Nearest(params string[] sequences) => Ancestors.Prepend(this).FirstOrDefault(f => sequences.Contains(f.Sequence));
 }
@@ -201,6 +204,12 @@ public sealed class LogQueries
     /// <summary>Every step of every frame running that sequence, optionally only the steps of that name, in log order.</summary>
     public IEnumerable<LoggedStep> StepsOf(string sequence, string? step = null) =>
         _steps.Where(s => s.Frame.Sequence == sequence && (step is null || s.Name == step));
+    /// <summary>The changes that spend what the step read: under an attack (`attack-sequence`, `spell-hits`, `rule-hits`) a once grant is held to that
+    /// frame's `attack-end`, so the step's and every later step's of that attack; elsewhere the step's own.</summary>
+    public IEnumerable<StateChange> SpentBy(LoggedStep step) =>
+        step.Frame.Nearest("attack-sequence", "spell-hits", "rule-hits") is { } attack
+            ? _steps.Where(s => s.Seq >= step.Seq && s.Frame.Under(attack)).SelectMany(s => s.Step.Changes)
+            : step.Step.Changes;
     /// <summary>Every step whose Applied names the entry.</summary>
     public IEnumerable<LoggedStep> Listing(string entry) => _steps.Where(s => s.Lists(entry));
 
@@ -218,11 +227,10 @@ public sealed class LogQueries
     public IReadOnlyList<LoggedRemoval> ModelsRemoved => _removals;
     public IEnumerable<LoggedRemoval> RemovedFrom(Guid unit) => _removals.Where(r => r.Unit == unit);
     /// <summary>Removals made by the frame's own steps and every frame started under it.</summary>
-    public IEnumerable<LoggedRemoval> RemovedUnder(LoggedFrame frame)
-    {
-        var frames = Descendants(frame).Prepend(frame).ToHashSet();
-        return _removals.Where(r => r.Step is { } s && frames.Contains(s.Frame));
-    }
+    public IEnumerable<LoggedRemoval> RemovedUnder(LoggedFrame frame) => _removals.Where(r => r.Step is { } s && s.Frame.Under(frame));
+
+    /// <summary>The steps of the frame and of every frame started under it, in log order.</summary>
+    public IEnumerable<LoggedStep> StepsUnder(LoggedFrame frame) => _steps.Where(s => s.Frame.Under(frame));
 
     public IReadOnlyList<LoggedDeployment> Deployments => _deployments;
     public IReadOnlyList<LoggedActivation> Activations => _activations;
@@ -252,6 +260,13 @@ public sealed class LogQueries
         }
         return taken;
     }
+
+    /// <summary>The wounds a model carried before that seq: its last WoundsSet, or none.</summary>
+    public int WoundsOn(Guid model, long seq) => _wounds.Where(w => w.Seq < seq && w.ModelId == model).Select(w => w.Wounds).LastOrDefault();
+
+    /// <summary>The spell tokens a model held before that seq: the last SpellTokensSet on it, 0 before any.</summary>
+    public int TokensBefore(Guid model, long seq) =>
+        Events.TakeWhile(e => e.Seq < seq).SelectMany(e => ChangesOf(e.Payload)).OfType<SpellTokensSet>().LastOrDefault(t => t.ModelId == model)?.Tokens ?? 0;
 
     /// <summary>Whether the subject (a unit or model id) carried the condition before that seq.</summary>
     public bool HasCondition(Guid subject, string condition, long seq) =>

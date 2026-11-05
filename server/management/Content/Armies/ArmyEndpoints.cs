@@ -49,15 +49,15 @@ public static class ArmyEndpoints
     /// system, the mapping, the insert. Every problem is the fixed text above or the mapping's own.
     /// </summary>
     internal static async Task<IResult> ImportAsync(Guid owner, string source, string listId, Func<Task<AfList>> read,
-        ICatalogKinds kinds, IArmyRepository armies, ILogger log)
+        ICatalogKinds kinds, IArmyRepository armies, ILogger log, string edition = ArmyEditions.Served)
     {
         if (await armies.Count(owner) >= Limits.PerAccount) return Problems.Unprocessable($"An account keeps at most {Limits.PerAccount} armies.");
         Army army;
         try
         {
             var list = await read();
-            if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem ?? "", out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{Printable(list.GameSystem)}'.");
-            army = ArmyForgeImport.ToArmy(list, source, await kinds.For(gameRules));
+            if (!ArmyForgeImport.GameRules.ContainsKey(list.GameSystem ?? "")) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{Printable(list.GameSystem)}'.");
+            army = ArmyForgeImport.ToArmy(list, source, await kinds.For(RuleSets.RulesIdOf(edition)), edition);
         }
         catch (ArmyForgeException e)
         {

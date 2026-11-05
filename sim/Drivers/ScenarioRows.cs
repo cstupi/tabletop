@@ -11,7 +11,7 @@ namespace Tabletop.Sim.Drivers;
 ///
 /// This is also how an in-process run sets the RNG seed: ReadGameAsync hands back the scenario's own
 /// GameInfo, whose RngSeed the compiler set from the scenario seed, so Hydrator reaches GameState.RngSeed
-/// by the ordinary path. The socket driver has to write the rng_seed column instead (Task 8).
+/// by the ordinary path. The socket driver has to write the rng_seed column instead (SocketRowSeeder).
 /// </summary>
 public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRows
 {
@@ -45,6 +45,8 @@ public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRow
     public Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct) => Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(new Dictionary<Guid, Guid>());
     public Task<bool> PropertiesExistAsync(string hash, CancellationToken ct) =>
         Task.FromResult(hash == scenario.Properties.ContentHash);
+    public Task<string?> PropertiesGameRulesAsync(string hash, CancellationToken ct) =>
+        Task.FromResult(hash == scenario.Properties.ContentHash ? scenario.Properties.GameRules : null);
 
     private static Task Unsupported(string member) =>
         throw new NotSupportedException($"a scenario is already playing; {member} belongs to lobby or setup");

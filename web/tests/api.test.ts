@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, http, setTokenProvider } from '../src/lib/api/http';
 import { api } from '../src/lib/api/client';
+import type { ArmySummary } from '../src/lib/api/types';
 
 function fakeFetch(status: number, body: unknown, contentType = 'application/json') {
   const f = vi.fn(async () => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'content-type': contentType } }));
@@ -42,6 +43,14 @@ describe('http', () => {
   });
 });
 
+describe('army edition', () => {
+  it('lists armies with their edition', async () => {
+    const summary: ArmySummary = { id: 'a', name: 'A', gameSystem: 'grimdark-future', edition: '3.6', source: 's', units: 1, models: 5 };
+    fakeFetch(200, { items: [summary], next: undefined });
+    const page = await api.armies.list({});
+    expect(page.items[0]?.edition).toBe('3.6');
+  });
+});
 describe('client', () => {
   it('builds keyset query strings and the documented paths', async () => {
     const f = fakeFetch(200, { items: [], next: undefined });
@@ -54,7 +63,7 @@ describe('client', () => {
   });
 
   it('sends only the source with an import', async () => {
-    const f = fakeFetch(201, { id: 'a', name: 'A', gameSystem: 'grimdark-future', source: 's', units: [] });
+    const f = fakeFetch(201, { id: 'a', name: 'A', gameSystem: 'grimdark-future', edition: '3.6', source: 's', units: [] });
     await api.armies.import('c2-6YsWRH3py');
     const bodies = f.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string));
     expect(bodies).toEqual([{ source: 'c2-6YsWRH3py' }]);

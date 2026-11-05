@@ -1,4 +1,5 @@
 using Tabletop.ArmyBooks;
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 
 var repo = new DirectoryInfo(AppContext.BaseDirectory);
@@ -24,61 +25,57 @@ switch (args.FirstOrDefault())
     {
         // The only code path that calls Army Forge. Never run by a test.
         using var http = new HttpClient { BaseAddress = new Uri("https://army-forge.onepagerules.com") };
-        var index = await http.GetStringAsync("/api/army-books?filters=official&gameSystemSlug=grimdark-future");
-        Directory.CreateDirectory(Path.Combine(dump, "books"));
-        await File.WriteAllTextAsync(Path.Combine(dump, "index.json"), index);
-        foreach (var e in ArmyForgeJson.ReadIndex(index))
-            await File.WriteAllTextAsync(Path.Combine(dump, "books", e.Uid + ".json"), await http.GetStringAsync($"/api/army-books/{e.Uid}?gameSystem=2"));
-        Console.WriteLine($"fetched {ArmyForgeJson.ReadIndex(index).Count} books into {dump}");
+        var indexJson = await http.GetStringAsync("/api/army-books?filters=official&gameSystemSlug=grimdark-future");
+        var index = ArmyForgeJson.ReadIndex(indexJson);
+        var edition = ArmyForgeJson.EditionOf(index);
+        var dir = Path.Combine(dump, edition);
+        if (File.Exists(Path.Combine(dir, "index.json")))
+        {
+            var held = ArmyForgeJson.EditionOf(ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dir, "index.json"))));
+            if (held != edition) { Console.Error.WriteLine($"refusing: {dir} holds edition {held}, Army Forge serves {edition}"); return 1; }
+        }
+        var rulesOnly = args.Contains("--rules-only");     // leaves the index and books as they are
+        Directory.CreateDirectory(Path.Combine(dir, "books"));
+        if (!rulesOnly) await File.WriteAllTextAsync(Path.Combine(dir, "index.json"), indexJson);
+        foreach (var e in rulesOnly ? [] : index)
+            await File.WriteAllTextAsync(Path.Combine(dir, "books", e.Uid + ".json"), await http.GetStringAsync($"/api/army-books/{e.Uid}?gameSystem=2"));
+        // Grimdark Future is game system 2: the common rules describe Brace and Parry, which no book does.
+        await File.WriteAllTextAsync(Path.Combine(dir, "common-rules.json"), await http.GetStringAsync("/api/rules/common/2"));
+        Console.WriteLine(rulesOnly ? $"fetched the common rules into {dir}" : $"fetched {index.Count} books and the common rules into {dir}");
         return 0;
     }
     case "generate":
     {
-        List<AfBook> books;
-        List<(string Uid, string Name, string Json)> raw;
-        try
-        {
-            var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dump, "index.json")));
-            raw = index.Select(e => (e.Uid, e.Name, File.ReadAllText(Path.Combine(dump, "books", e.Uid + ".json")))).ToList();
-            books = index.Zip(raw).Select(p => ArmyForgeJson.ReadBook(p.Second.Json) with { Name = p.First.Name, VersionString = p.First.VersionString }).ToList();
-        }
+        var edition = Arg("--edition", "3.5");
+        var rulesId = RuleSets.RulesIdOf(edition);
+        var folder = edition == "3.5" ? "grimdark-future-3.5.1" : "grimdark-future-3.6";
+        var dir = Path.Combine(dump, edition);
+        var content = Path.Combine(repo.FullName, "server", "game", "Content", folder);
+        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "core.properties.json")));
+        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "army-rules.part.json")));
+        Generated g;
+        try { g = Generation.Run(dir, core, hand, rulesId); }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
-            Console.Error.WriteLine($"dump file missing under {dump}: {ex.Message}");
+            Console.Error.WriteLine($"dump file missing under {dir}: {ex.Message}");
             return 2;
         }
-        var problems = books.SelectMany(b => b.Spells.SelectMany(s =>
-        {
-            try { return TextCheck.Problems(s, SpellTranslator.Translate(b, s)).Select(p => $"{b.Name}: {p}"); }
-            catch (GenerationException ex) { return ex.Problems; }
-        })).ToList();
-        IReadOnlyList<BookDocument> built = [];
-        var content = Path.Combine(repo.FullName, "server", "game", "Content");
-        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-core.properties.json")));
-        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-army-rules.part.json")));
-        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand);
-        problems.AddRange(ruleProblems);
-        var (reserveUnits, reserveProblems) = ReserveUnits.Build(raw);
-        problems.AddRange(reserveProblems);
-        if (problems.Count == 0)
-        {
-            built = BookWriter.Build(books);
-            problems.AddRange(BookWriter.Check(built, core, hand, rules));
-        }
+        var (built, rules, report, reserveUnits, problems, notes) = g;
         if (problems.Count > 0) { foreach (var p in problems) Console.Error.WriteLine(p); return 1; }
         BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
-        var rulesPath = Arg("--rules", Path.Combine(content, PropertiesSeeder.GeneratedPart));
+        var rulesPath = Arg("--rules", Path.Combine(content, "army-book-rules.part.json"));
         File.WriteAllText(rulesPath, RuleWriter.Serialize(rules!));
-        var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName));
+        var unitsPath = Arg("--units", Path.Combine(repo.FullName, "server", "management", "Content", "Armies", ReserveUnits.FileName(edition)));
         File.WriteAllText(unitsPath, reserveUnits);
         Console.WriteLine($"wrote {unitsPath}");
         Console.WriteLine($"wrote {built.Count} books, {built.SelectMany(b => b.Spells).Select(s => s.Name).Distinct().Count()} spells");
         Console.WriteLine($"wrote {rulesPath}: {report!.Generated} generated, {rules!.Entries.Count - report.Generated} text-only");
         foreach (var (group, count) in report.Groups) Console.WriteLine($"  {group}: {count}");
         if (report.NoDescription.Count > 0) Console.WriteLine($"  no description: {string.Join(", ", report.NoDescription)}");
+        foreach (var n in notes) Console.WriteLine($"  {n}");
         return 0;
     }
     default:
-        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
+        Console.Error.WriteLine("usage: army-books fetch [--to DIR] [--rules-only] | generate [--edition 3.5|3.6] [--from DIR] [--out DIR] [--rules FILE] [--units FILE]");
         return 2;
 }

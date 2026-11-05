@@ -179,7 +179,7 @@
   const shown = $derived.by(() => { void predictionTick; return snap === null ? null : prediction.projection(snap); });
   const pendingUndo = $derived.by(() => { void predictionTick; return prediction.pendingUndoTo; });
   const scene = $derived(shown !== null && snap?.game != null
-    ? sceneOfPlay(shown, snap.game, geometry?.zonePolygons ?? (() => []), meshName, ghostsDrawn) : null);
+    ? sceneOfPlay(shown, snap.game, geometry?.zonePolygons ?? (() => []), meshName, ghostsDrawn, snap.zones ?? undefined) : null);
   const extent = $derived(scene === null ? undefined : extentOf(scene));
   // The box's glow and marks are not reactive: a new panel (every change of either publishes one) hands the board new ones to redraw by.
   const glow = $derived.by(() => { void panel; const b = box; return (m: string, u: string) => b?.glowOf(m, u) ?? null; });
@@ -334,7 +334,7 @@
   /** The table lights the selection and what a clicked log row touched. */
   /** HoverLabels.DrawTerrain: the hovered terrain piece's label, not the selected one's. */
   const terrainDrawn = $derived.by(() => {
-    const lines = shown === null ? null : terrainHoverText(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null);
+    const lines = shown === null ? null : terrainHoverText(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null, snap?.terrainWords);
     return lines === null || scene === null || hoveredTerrain === null ? null : terrainHoverOverlay(scene, hoveredTerrain, lines);
   });
   const drawnSelection = $derived(touchedIds.size === 0 ? selected : new Set([...selected, ...touchedIds]));

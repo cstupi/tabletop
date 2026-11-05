@@ -57,7 +57,7 @@
     <label for="army-name" class="eyebrow">Army name</label>
     <input id="army-name" bind:value={name} maxlength={MAX_NAME} onchange={saveName} aria-invalid={!!nameError} aria-describedby="army-name-help" class="title" />
     {#if nameError}<p id="army-name-help"><small>{nameError}</small></p>{/if}
-    <p><small>{army.gameSystem} · imported from <a href={army.source.startsWith('http') ? army.source : `https://army-forge.onepagerules.com/share?id=${army.source}`} target="_blank" rel="noopener">Army Forge</a>. Stats, weapons and rules are the list's; meshes, bases and heights are yours. Changes save as you make them.</small></p>
+    <p><small>{army.gameSystem} · {army.edition} · imported from <a href={army.source.startsWith('http') ? army.source : `https://army-forge.onepagerules.com/share?id=${army.source}`} target="_blank" rel="noopener">Army Forge</a>. Stats, weapons and rules are the list's; meshes, bases and heights are yours. Changes save as you make them.</small></p>
   </header>
   <p class="status saved" role="status">{status}</p>
   {#if assetsLoaded && assets.length === 0}

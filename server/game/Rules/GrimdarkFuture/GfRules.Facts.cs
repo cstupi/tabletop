@@ -100,7 +100,7 @@ public sealed partial class GrimdarkFutureRules
     static int? Spaces(GameState state, Guid modelId)
     {
         var tough = Lookup.ModelParameter(state, modelId, GfNames.Tough);
-        var hero = state.Projection.Models[modelId].Slot.Properties.Any(p => p.Name == GfNames.Hero);
+        var hero = state.Projection.Models[modelId].Slot.Properties.Any(p => GfNames.IsHero(p.Name));
         return (tough, hero) switch
         {
             (null, _) => 1,

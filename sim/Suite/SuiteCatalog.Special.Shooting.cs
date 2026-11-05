@@ -8,14 +8,20 @@ namespace Tabletop.Sim.Suite;
 /// <summary>The special group's shooting games (pp.13–15).</summary>
 static partial class SpecialGames
 {
-    /// <summary>AP, Bane, Rending, Regeneration: two Regeneration squads, one shooting Bane and Rending rifles (both ignore Regeneration).</summary>
+    /// <summary>
+    /// AP, Bane, Rending, Regeneration: two Regeneration squads, one shooting Bane and Rending rifles (both ignore Regeneration). Both Hold and shoot
+    /// every round; Blue wins the roll-off (fixed). Blue's first AP Rifle die hits and Red's block of it is a raw 5; Red's first Rending Rifle die is
+    /// a 6. Under 3.5.1 Bane's re-roll and the Regeneration die are decided inside their steps, before a fix can land, so both are left as rolled, in
+    /// volume: forty one-wound Red models take Blue's twenty AP Rifle dice a round and stay over half their size to shoot each round, and Blue's ten
+    /// Tough(12) models stand all game under Red's forty Bane and forty Rending dice a round.
+    /// </summary>
     static TestGame Regrowth()
     {
         const string name = "special-regrowth-under-rending-fire";
-        return Game(name, new ScenarioBuilder(name, 64).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
-                .Army("Red", 1, 5, modelRules: [new(1, "Regeneration")],
-                    weapons: [Gun("Bane Rifle", 24, 1, Rule("Bane")), Gun("Rending Rifle", 24, 1, Rule("Rending"))], unitStats: Stats(4, 4))
-                .Army("Blue", 1, 5, modelRules: [new(1, "Regeneration")], weapons: [Gun("AP Rifle", 24, 1, Rule("AP", 2))], unitStats: Stats(4, 4))
+        return Game(name, new ScenarioBuilder(name, 64).RoundCap(4).Table(24, 30).Scripted(Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal))))
+                .Army("Red", 1, 40, modelRules: [new(1, "Regeneration")],
+                    weapons: [Gun("Bane Rifle", 36, 1, Rule("Bane")), Gun("Rending Rifle", 36, 1, Rule("Rending"))], unitStats: Stats(4, 4))
+                .Army("Blue", 1, 10, modelRules: [new(1, "Regeneration"), new(1, "Tough", 12)], weapons: [Gun("AP Rifle", 36, 2, Rule("AP", 2))], unitStats: Stats(4, 4))
                 .Build(),
             ["AP", "Bane", "Rending", "Regeneration"],
             [
@@ -48,9 +54,11 @@ static partial class SpecialGames
                         if (regen.Any(r => r.Threshold != 5)) return $"Regeneration rolls {string.Join(" ", regen.Select(Show))} are not at 5+";
                         var dice = regen.Sum(r => r.Dice.Count);
                         var ignored = regen.Sum(r => r.Dice.Count(d => d.Raw >= 5));
-                        var taken = WoundsSet(a.Assigns).Sum(w => w.Wounds);   // one-wound models: each wound that stands sets 1
-                        return dice == Unblocked(a) && taken == dice - ignored ? null
-                            : $"{Unblocked(a)} wounds, {dice} Regeneration dice, {ignored} of 5+, but {taken} taken";
+                        // One-wound models: each wound that stands removes a model, until none is left (p.8: "remove one model").
+                        var taken = a.Assigns.SelectMany(s => s.Changes.OfType<ModelsMoved>()).SelectMany(m => m.Moves).Count(m => m.To is OnShelf);
+                        var due = Math.Min(dice - ignored, Living(run, a.Target, a.At));
+                        return dice == Unblocked(a) && taken == due ? null
+                            : $"{Unblocked(a)} wounds, {dice} Regeneration dice, {ignored} of 5+, {due} standing, but {taken} models removed";
                     }) ?? Judged(hit.SelectMany(a => a.Assigns).SelectMany(s => s.Rolls).Where(r => r.Roll == "Regeneration"), "a Regeneration roll", 0, -1);
                 }),
                 Exact("p.13 Bane, p.14 Rending: \"Ignores Regeneration\"", ["Bane", "Rending", "Regeneration"], run =>
@@ -62,18 +70,27 @@ static partial class SpecialGames
             dice: [.. RegrowthFixes]);
     }
 
-    /// <summary>In the regrowth's seed: an AP Rifle defense roll with a raw 5 (3 after AP(2), one below 4+).</summary>
-    static DiceFix[] RegrowthFixes => [new("defense", 0, [5])];
+    /// <summary>An AP Rifle hit and its block, a raw 5 (3 after AP(2), one below 4+); a Rending Rifle 6 to hit.</summary>
+    static DiceFix[] RegrowthFixes =>
+    [
+        new("roll-off", 0, [1, 6]), new("hit", 0, [6], new RollKey(Actor: "Blue unit 1", Weapon: "AP Rifle")), new("defense", 0, [5], new RollKey(Actor: "Blue unit 1", Weapon: "AP Rifle")),
+        new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Rending Rifle")),
+    ];
 
     /// <summary>Blast, Deadly, Tough, Takedown: a heavy-weapons team into a squad of Tough(3) models and a squad of one-wound models.</summary>
     static TestGame BlastDeadly()
     {
         const string name = "special-blast-deadly-takedown";
-        return Game(name, new ScenarioBuilder(name, 11).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
+        // Everyone Holds on anchors and shoots; Red wins the roll-off (fixed) and puts all three weapons at the one-wound squad (Blue unit 2). Each Red
+        // weapon's first die hits, the Lascannon's and the Sniper Rifle's blocks fail; Blue unit 1's first die hits Red's Tough(3) models and the block fails.
+        var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
+            ("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) == "Red unit 1" ? AskPicks.AllAt(ask, p, "Blue unit 2") : null));
+        return Game(name, new ScenarioBuilder(name, 11).RoundCap(4).Table(24, 30).Scripted(script)
                 .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)],
                     weapons: [Gun("Frag Launcher", 24, 1, Rule("Blast", 3)), Gun("Lascannon", 24, 1, Rule("Deadly", 3)), Gun("Sniper Rifle", 24, 1, Rule("Takedown"))],
-                    unitStats: Stats(4, 5))
-                .Army("Blue", 2, 5, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5))
+                    unitStats: Stats(4, 5), anchors: new Dictionary<int, Point2> { [1] = new(16, 15) })
+                .Army("Blue", 2, 5, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5),
+                    anchors: new Dictionary<int, Point2> { [1] = new(2, 6), [2] = new(2, 22) })
                 .Build(),
             ["Blast", "Deadly", "Tough", "Takedown"],
             [
@@ -120,6 +137,13 @@ static partial class SpecialGames
                         var order = v.Select(a => a.Weapon switch { "Sniper Rifle" => 0, "Lascannon" => 1, _ => 2 }).ToList();
                         return order.SequenceEqual(order.Order()) ? null : $"resolved in the order {string.Join(", ", v.Select(a => a.Weapon))}";
                     })),
+            ],
+            dice:
+            [
+                new("roll-off", 0, [6, 1]), new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Frag Launcher")),
+                new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Lascannon")), new("defense", 0, [1], new RollKey(Actor: "Red unit 1", Weapon: "Lascannon")),
+                new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Sniper Rifle")), new("defense", 0, [1], new RollKey(Actor: "Red unit 1", Weapon: "Sniper Rifle")),
+                new("hit", 0, [6], new RollKey(Actor: "Blue unit 1")), new("defense", 0, [1], new RollKey(Actor: "Blue unit 1")),
             ]);
     }
 
@@ -131,10 +155,15 @@ static partial class SpecialGames
     static TestGame TakedownPicksOne()
     {
         const string name = "special-takedown-picks-one";
-        return Game(name, new ScenarioBuilder(name, 1).RoundCap(4).Table(24, 30).Scripted(PickTheHero)
-                .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Seeker Launcher", 24, 2, Rule("Blast", 3), Rule("Takedown")), Gun("Frag Launcher", 24, 1, Rule("Blast", 3))], unitStats: Stats(4, 4))
+        // Both sides Hold 14" apart (anchors), inside the 24" guns; Red's first Seeker Launcher die is fixed to hit and the picked Hero's block of it to fail.
+        var script = Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal)),
+            ("takedown_target", (ask, p) => ask.Legal is PieceSelection s && s.Eligible.FirstOrDefault(id => p.Models[id].Slot.Properties.Any(r => r.Name == "Hero")) is var h && h != Guid.Empty
+                ? new SelectedPieces([h]) : null));
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(4).Table(24, 30).Scripted(script)
+                .Army("Red", 1, 2, modelRules: [new(1, "Tough", 3)], weapons: [Gun("Seeker Launcher", 24, 2, Rule("Blast", 3), Rule("Takedown")), Gun("Frag Launcher", 24, 1, Rule("Blast", 3))], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(18, 15) })
                 .Army("Blue", 1, 5, weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 5),
-                    models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(3, 2))])
+                    models: [new ScenarioModel(1, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(3, 2))], anchors: new Dictionary<int, Point2> { [1] = new(1, 15) })
                 .Build(),
             ["Takedown", "Blast", "Tough", "Hero"],
             [
@@ -152,7 +181,8 @@ static partial class SpecialGames
                         .SelectMany(a => a.Block!.Rolls.Where(r => r.Roll == "defense")), "a defense roll by the picked Hero", r =>
                         r.Threshold == 2 ? null : $"defense {Show(r)} is not at the Hero's own 2+");
                 }),
-            ]);
+            ],
+            dice: [new("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Seeker Launcher")), new("defense", 0, [1], new RollKey(Actor: "Red unit 1", Weapon: "Seeker Launcher"))]);
     }
 
     /// <summary>ShootAndStrike, and a takedown pick names Blue's Hero whenever it is offered.</summary>
@@ -169,14 +199,18 @@ static partial class SpecialGames
         }
     }
 
-    /// <summary>Relentless, Surge, Reliable, Stealth: a long-range gunline across a 48" table at a squad that is hard to see.</summary>
+    /// <summary>
+    /// Relentless, Surge, Reliable, Stealth: a long-range gunline across a 48" table at a squad that is hard to see. Both units Hold on anchors about 37"
+    /// apart and shoot. Red's first Reliable Gun roll is fixed to 3, 2, 6 (2 and 1 after Stealth, at 2+, and a 6 Relentless adds to) and its first
+    /// Surge Gun roll to a 6; Red's Tough(3) models stand to roll every die of that first volley.
+    /// </summary>
     static TestGame Gunline()
     {
         const string name = "special-long-range-gunline";
-        return Game(name, new ScenarioBuilder(name, 42).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 42).RoundCap(4).Table(24, 48).Scripted(Plays((ask, _) => AskPicks.Option(ask, c => c.Label.EndsWith(": Hold", StringComparison.Ordinal))))
                 .Army("Red", 1, 3, modelRules: [new(1, "Relentless"), new(1, "Tough", 3)],
-                    weapons: [Gun("Surge Gun", 48, 2, Rule("Surge")), Gun("Reliable Gun", 48, 2, Rule("Reliable"))], unitStats: Stats(5, 4))
-                .Army("Blue", 1, 5, modelRules: [new(1, "Stealth")], weapons: [Gun("Rifle", 48, 1)], unitStats: Stats(4, 5))
+                    weapons: [Gun("Surge Gun", 48, 2, Rule("Surge")), Gun("Reliable Gun", 48, 2, Rule("Reliable"))], unitStats: Stats(5, 4), anchors: new Dictionary<int, Point2> { [1] = new(18, 40) })
+                .Army("Blue", 1, 5, modelRules: [new(1, "Stealth")], weapons: [Gun("Rifle", 48, 1)], unitStats: Stats(4, 5), anchors: new Dictionary<int, Point2> { [1] = new(3, 5) })
                 .Build(),
             ["Relentless", "Surge", "Reliable", "Stealth"],
             [
@@ -209,11 +243,8 @@ static partial class SpecialGames
                     }, need: 2);
                 }),
             ],
-            dice: [new DiceFix("hit", GunlineReliableHit, [3, 2])]);
+            dice: [new DiceFix("hit", 0, [3, 2, 6], new RollKey(Actor: "Red unit 1", Weapon: "Reliable Gun")), new DiceFix("hit", 0, [6], new RollKey(Actor: "Red unit 1", Weapon: "Surge Gun"))]);
     }
-
-    /// <summary>In the gunline's seed: the first Reliable Gun hit roll (log order, every hit roll counted), set to a raw 3 and a raw 2 (2 and 1 after Stealth, at 2+).</summary>
-    const int GunlineReliableHit = 1;
 
     /// <summary>
     /// Artillery, Immobile, Indirect, Limited, Unstoppable: an emplaced gun line that can only hold, against a mobile mortar squad. Red
@@ -239,11 +270,11 @@ static partial class SpecialGames
             ? new Destinations([.. region.ModelIds.Where(id => p.Models[id].Location is OnTable).Select(id => (Id: id, At: ((OnTable)p.Models[id].Location).Placement))
                 .Select(m => new ModelRelocation(m.Id, p.Models[m.Id].Location, new OnTable(m.At with { Position = m.At.Position with { Y = m.At.Position.Y + 1 } })))])
             : null);
-        script.Match("declare_targets", (ask, p) => ShooterOf(ask, p) switch
+        script.Match("declare_targets", (ask, p) => AskPicks.ShooterOf(ask, p) switch
         {
-            "Red unit 1" or "Red unit 2" => AllAt(ask, p, "Blue unit 3") ?? AllAt(ask, p, "Blue unit 2"),
-            "Blue unit 2" => AllAt(ask, p, "Red unit 2"),
-            "Blue unit 1" => AllAt(ask, p, "Red unit 1"),
+            "Red unit 1" or "Red unit 2" => AskPicks.AllAt(ask, p, "Blue unit 3") ?? AskPicks.AllAt(ask, p, "Blue unit 2"),
+            "Blue unit 2" => AskPicks.AllAt(ask, p, "Red unit 2"),
+            "Blue unit 1" => AskPicks.AllAt(ask, p, "Red unit 1"),
             _ => null,
         });
         return Game(name, new ScenarioBuilder(name, 122).RoundCap(4).Table(24, 48).Scripted(script.Build())
@@ -295,8 +326,7 @@ static partial class SpecialGames
     }
 
     /// <summary>
-    /// Stealth at 9-10": two thirty-model units that only Hold, in frontline zones 9.1" apart on a 33.1" table, so each unit's six rows
-    /// leave under 2" of play and the seed puts the closest bases between 9" and 10" apart. p.5: "When measuring the distance between two
+    /// Stealth at 9-10": two one-model units that only Hold, anchored with their bases 9.6" apart. p.5: "When measuring the distance between two
     /// units you always measure from/to the closest model in each unit", base to base; 9.6" is over 9", measured unrounded. A
     /// defect exhibit: it covers nothing (special-long-range-gunline covers Stealth), and its check reports against Stealth.
     /// </summary>
@@ -304,8 +334,9 @@ static partial class SpecialGames
     {
         const string name = "special-stealth-at-nine-and-a-half";
         return Game(name, new ScenarioBuilder(name, StealthSeed).RoundCap(1).Table(10, 33.1).Scripted(ShootAndStrike)
-                .Army("Red", 1, 30, modelRules: [new(1, "Immobile")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4))
-                .Army("Blue", 1, 30, modelRules: [new(1, "Stealth"), new(1, "Immobile")], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4))
+                .Army("Red", 1, 1, modelRules: [new(1, "Immobile")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(5, 4) })
+                .Army("Blue", 1, 1, modelRules: [new(1, "Stealth"), new(1, "Immobile")], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(5, 4 + 9.6 + 1.26) })
                 .Build(),
             [],
             [
@@ -322,7 +353,6 @@ static partial class SpecialGames
             ]);
     }
 
-    /// <summary>The seed whose placements put the two units' closest bases between 9" and 10" apart.</summary>
     const ulong StealthSeed = 14;
 
     /// <summary>
@@ -336,12 +366,4 @@ static partial class SpecialGames
         new("hit", 0, [5, 4], new RollKey(Actor: "Blue unit 2", Weapon: "Mortar", Action: "Advance")),
     ];
 
-    /// <summary>The unit whose shooting a declare_targets Ask is for: the actor of the frame that asks.</summary>
-    static string? ShooterOf(Ask ask, Projection p) =>
-        ask.FrameId is { } frame && p.Stack.FirstOrDefault(f => f.Id == frame)?.Context.ActorUnitId is { } actor ? AskPicks.UnitNameOf(p, actor) : null;
-
-    /// <summary>Every weapon group at the named unit, when every group may take it; else null, for the policy.</summary>
-    static AskAnswer? AllAt(Ask ask, Projection p, string unit) =>
-        ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == unit) is var t && t != Guid.Empty
-            && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null;
 }

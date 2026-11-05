@@ -11,8 +11,9 @@ public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Paramete
 {
     public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Carried(Entry));
     /// <summary>A carried entry's rows, less its marker rows, which act only through the grants a marker is.</summary>
-    static IReadOnlyList<Effect> Carried(CatalogEntry entry) => CarriedRows.GetValue(entry, e => e.Effects.Any(f => f.Duration is EffectDuration.Marker or EffectDuration.SpentMarker)
-        ? e.Effects.Where(f => f.Duration is not (EffectDuration.Marker or EffectDuration.SpentMarker)).ToList() : e.Effects);
+    static IReadOnlyList<Effect> Carried(CatalogEntry entry) => CarriedRows.GetValue(entry, e => e.Effects.Any(f => IsMarker(f.Duration))
+        ? e.Effects.Where(f => !IsMarker(f.Duration)).ToList() : e.Effects);
+    static bool IsMarker(EffectDuration d) => d is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker;
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CatalogEntry, IReadOnlyList<Effect>> CarriedRows = new();
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
@@ -23,7 +24,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 {
     private readonly HashSet<(Guid UnitId, Guid GrantId)> _read = read ?? [];
     private readonly PassOneActs _acts = acts ?? new();
-    /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set emits RollEffects.Consume.</summary>
+    /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set spends them through StepContext.Consume.</summary>
     public IReadOnlyCollection<(Guid UnitId, Guid GrantId)> GrantsRead => _read;
 
     /// <summary>A source whose row applied here: it is spent (Spend) and its entry recorded as having acted (Record).</summary>
@@ -34,7 +35,8 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     }
 
     /// <summary>Records a granted source as used, under the unit that holds the grant (a derived instance's Holder is the side it acts on, which an opponent-subject grant makes the other unit),
-    /// without saying it changed anything: "next time the effect would apply" spends a grant whatever the dice then show.
+    /// without saying it changed anything: "next time the effect would apply" spends a grant whatever the dice then show. It marks that grant alone;
+    /// RollEffects.Consume takes its fellows with it unless it is a one_marker token.
     /// Spending a property also spends the granted pass-one effects that changed its parameter.</summary>
     public void Spend(LiveProperty source)
     {
@@ -77,7 +79,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     /// hold now: what would have applied, and the property that removed it (detailed-log spec). Pure.</summary>
     public IEnumerable<(LiveProperty Removed, Effect Effect, LiveProperty By)> RemovedRows(Side actedOn, EffectKind kind, Func<Effect, bool>? filter = null) =>
         _acts.Removed.SelectMany(x => x.Removed.Effects
-            .Where(e => e.Kind == kind && x.Removed.ActedOn(e) == actedOn && (filter?.Invoke(e) ?? true) && Conditions.Hold(Interaction, x.Removed.Holder, e, x.Removed, null))
+            .Where(e => e.Kind == kind && x.Removed.ActedOn(e) == actedOn && (filter?.Invoke(e) ?? true) && Conditions.Hold(Interaction, x.Removed.Holder, e, x.Removed, null, this))
             .Select(e => (x.Removed, e, x.Source)))
             .OrderBy(x => x.e.Ordinal);
     public Interaction Interaction { get; } = interaction;
@@ -116,26 +118,46 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 
     /// <summary>Effects of one kind acting on a side, in ordinal order, whose conditions hold now (a per-die condition is judged with the die).</summary>
     public IEnumerable<(LiveProperty Source, Effect Effect)> Effects(Side actedOn, EffectKind kind, DieContext? die = null) =>
-        Live.SelectMany(p => p.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die)).Select(e => (p, e)))
+        Live.SelectMany(p => p.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die, this)).Select(e => (p, e)))
             .OrderBy(x => x.e.Ordinal).Select(x => (x.p, x.e));
 
     /// <summary>The rows acting on a side that are offered at a point: an at_point row naming it, whose other conditions hold now. The live set's
     /// interaction must carry that Point, or no at_point condition holds.</summary>
     public IEnumerable<(LiveProperty Source, Effect Effect)> AtPoint(Side side, string point) =>
         Live.SelectMany(p => p.Effects.Where(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values.Contains(point))
-                && Conditions.Hold(Interaction, p.Holder, e, p, null)).Select(e => (p, e)));
+                && Conditions.Hold(Interaction, p.Holder, e, p, null, this)).Select(e => (p, e)));
 
     /// <summary>The live set with one per-die grant added (a block group's hits, keyed by score-hits). The added instance's Via is the
     /// live rule whose per-die grant_property row names that entry and amount, which is what the dice set off.</summary>
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
         Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null, Via: PerDieGrantor(holder, entry, parameter))], SuppressedModifiers, Applied, _read, _acts, recorder) : this;
 
-    string? PerDieGrantor(Side holder, string entry, int? parameter) =>
+    string? PerDieGrantor(Side holder, string entry, int? parameter) => PerDieGrantorOf(holder, entry, parameter)?.Entry.Name;
+
+    LiveProperty? PerDieGrantorOf(Side holder, string entry, int? parameter) =>
         Live.FirstOrDefault(p => p.Effects.Any(e => e.Kind == EffectKind.GrantProperty && e.TargetEntry == entry && (e.Amount ?? 0) == (parameter ?? 0)
-            && p.ActedOn(e) == holder && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult)))?.Entry.Name;
+            && p.ActedOn(e) == holder && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult)));
 
     /// <summary>The entry that granted this instance: pass one's grantor, or a per-die grant's (Via). Null for a property held outright.</summary>
     public string? GrantorOf(LiveProperty p) => p.Via ?? (_acts.GrantedBy.TryGetValue(p, out var by) ? by.Entry.Name : null);
+
+    /// <summary>Whether this instance comes from the side's own rules: traced back through the grants that put it here (pass one's grantor, a per-die
+    /// grant's rule), the rule at the root is held by that side, and a granted row on it was placed by its own team (ForeignToHitPenalties).</summary>
+    public bool OwnedBy(LiveProperty p, Side side)
+    {
+        var seen = new HashSet<LiveProperty>(ReferenceEqualityComparer.Instance);
+        while (seen.Add(p))
+        {
+            if (_acts.GrantedBy.TryGetValue(p, out var by)) { p = by; continue; }
+            if (p.Via is not null && PerDieGrantorOf(p.Holder, p.Entry.Name, p.Parameter) is { } die) { p = die; continue; }
+            break;
+        }
+        if (p.Holder != side) return false;
+        if (p.GrantId is not { } g) return true;
+        var unit = Interaction.Of(side).UnitId;
+        var grant = Interaction.State.Projection.Units[unit].Grants.FirstOrDefault(x => x.Id == g);
+        return grant is not null && Interpreter.Teams.Of(Interaction.State, grant.CasterUnitId) == Interpreter.Teams.Of(Interaction.State, unit);
+    }
 
     /// <summary>The entries whose pass-one rows suppressed this modifier class.</summary>
     public IReadOnlyList<string> Suppressors(TargetModifier modifier) =>
@@ -203,7 +225,9 @@ public static class LiveProperties
                         for (var i = 0; i < live.Count; i++)
                             if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) {
                                 var was = live[i];
-                                live[i] = was with { Parameter = (was.Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) };
+                                // "to a min. of AP(0)": a floor holds the sum there, and never raises a parameter already below it.
+                                var sum = (was.Parameter ?? 0) + effect.EffectiveAmount(source.Parameter);
+                                live[i] = was with { Parameter = effect.Floor is { } floor ? Math.Max(sum, Math.Min(was.Parameter ?? 0, floor)) : sum };
                                 if (scanned.Contains(was)) scanned.Add(live[i]);   // the same instance with a new parameter, not a new one
                                 if (acts.GrantedBy.TryGetValue(was, out var grantor)) acts.GrantedBy[live[i]] = grantor;
                                 if (!acts.Modified.TryGetValue(PassOneActs.Key(live[i]), out var by)) acts.Modified[PassOneActs.Key(live[i])] = by = [];
@@ -232,14 +256,17 @@ public static class LiveProperties
         // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
         // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant. A grant its holder's own side
         // placed (a marker a unit's own rule puts on it: "enemies attacking this unit get AP(-1)") reaches every opponent.
+        // A one_marker token is one: of an entry's tokens on the unit, the first that reaches this interaction acts ("may remove one token … to get").
         var holderTeam = Interpreter.Teams.Of(state, unit.Id);
+        var tokens = new HashSet<string>();
         foreach (var g in unit.Grants)
         {
             if (ix.Properties.Entry(g.EntryName) is not { } spell || ix.Properties.EffectById(g.EffectId) is not { } row) continue;
             var casterTeam = Interpreter.Teams.Of(state, g.CasterUnitId);
-            var ownMarker = casterTeam == holderTeam && row.Duration is EffectDuration.Marker or EffectDuration.SpentMarker;
+            var ownMarker = casterTeam == holderTeam && row.Duration is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker;
             if (row.Subject == EffectSubject.Opponent && ix.Defender is not null && !ownMarker
                 && Interpreter.Teams.Of(state, ix.Of(Interaction.Other(side)).UnitId) != casterTeam) continue;
+            if (row.Duration == EffectDuration.OneMarker && !tokens.Add(g.EntryName)) continue;
             result.Add(new LiveProperty(side, spell, null, null, null, g.Id, row));
         }
         // A unit-kind entry on a model slot is the unit's rule, not a per-model one, and aggregation is not declared for the kind. Import produces the

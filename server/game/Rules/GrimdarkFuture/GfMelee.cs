@@ -11,8 +11,12 @@ public static class GfMelee
 {
     /// <summary>Outline labels: p.9 ("must pick one valid target"; Charge moves; the target's models "must move by up to 3”"; The melee sequence).</summary>
     public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep().Labelled("Pick target"), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true).Labelled("Charge move"), new GfRuleHits.CrossingStep(), new DefenderClosesStep().Labelled("Target moves"), new FightStep().Labelled("Melee")]);
-    /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.</summary>
-    public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
+    /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.
+    /// 3.5.1 resolves Counter before Impact; 3.6.0 p.14 rolls Impact "before either unit attacks" (GfEdition.ImpactBeforeCounter). 3.5.1 Ravage rolls after each side's
+    /// strikes are chosen (GfRuleHits.RavageStep); 3.6 Ravage and Regenerative Strength roll before each side strikes (GfEdition.StrikeTurnRolls, GfStrikeRolls36).</summary>
+    public static Sequence Melee(GfEdition e) => new(GfNames.Melee, [new MeleeStartStep(), .. e.ImpactBeforeCounter ? (IStep[])[new ImpactStep(e), new CounterStep(e)] : [new CounterStep(e), new ImpactStep(e)], .. e.StrikeTurnRolls
+        ? (IStep[])[new GfStrikeRolls36.StrikeTurnStep("charger-strike-rolls", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeChoiceStep(), new GfStrikeRolls36.StrikeTurnStep("defender-strike-rolls", charger: false), new StrikeBackStep(e).Labelled("Strike back")]
+        : [new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep(e).Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false)], new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
     /// <summary>The unit's melee weapons. A Limited weapon fired before the melee under way (or, outside one, ever) is left out (p.14 "may only be used once
     /// per game"), so the list is the same on each run of a melee step.</summary>
@@ -20,17 +24,36 @@ public static class GfMelee
     {
         var used = GfAttack.FiredLimited(state, state.Projection.Stack.LastOrDefault(f => f.Sequence == GfNames.Melee)?.Id);
         return Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons)
-            .Where(w => !w.Stats.ContainsKey(GfNames.Range) && !used.Contains(w.Id) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
+            .Where(w => IsMelee(state, w) && !used.Contains(w.Id) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
     }
 
+    /// <summary>A melee weapon has no Range (Army.cs); 3.6.0 p.13 Assault "Counts as both a ranged weapon and a melee weapon", so under 3.6 a
+    /// ranged weapon carrying Assault is one too (GfEdition.HasAssault). It still shoots: GfShooting.Groups reads Range alone.</summary>
+    public static bool IsMelee(GameState state, Weapon w) =>
+        !w.Stats.ContainsKey(GfNames.Range) || (GfEdition.Of(state).HasAssault && w.Properties.Any(p => p.Name == GfNames.Assault));
+
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
-    static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
-    /// <summary>p.13 Counter's strike-first weapons, and every melee weapon of a defender with Counter-Attack ("Strikes first when charged").</summary>
-    static bool StrikesFirst(StepContext ctx, Weapon w) => IsCounter(w) || CounterAttacks(ctx);
+    const string CounterInMeleeKey = "counter_in_melee";
+    /// <summary>The defender's strike-first test, settled once: p.13 Counter's weapons, and every melee weapon of a defender with Counter-Attack ("Strikes
+    /// first when charged"). 3.6.0 Counter in Melee ("This model gets Counter on its weapons in melee") makes a holding model's weapons Counter weapons, and
+    /// every model's when granted to the unit; a granted one is spent by the counter step, so every later step reads what that step recorded. A Counter
+    /// the counter step held back (3.6.0 p.13: passed, or lost to fatigue) strikes with the rest.</summary>
+    static Func<Weapon, bool> StrikesFirst(StepContext ctx)
+    {
+        var live = DefenderLive(ctx);
+        if (CounterAttacks(ctx, live)) return _ => true;
+        if (CounterHeld(ctx)) return _ => false;
+        var holders = live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.CounterInMelee).ToList();
+        var everyModel = holders.Any(p => p.ModelId is null) || ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterInMeleeKey) == 1);
+        var carried = holders.Select(p => p.ModelId).OfType<Guid>().SelectMany(m => ctx.Projection.Models[m].Slot.Weapons.Select(w => w.Id)).ToHashSet();
+        return w => everyModel || carried.Contains(w.Id) || w.Properties.Any(p => p.Name == "Counter");
+    }
+    const string CounterHeldKey = "counter_held";
+    static bool CounterHeld(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterHeldKey) == 1);
     const string CounterAttackKey = "counter_attack";
     /// <summary>The defender's Counter-Attack, innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
-    static bool CounterAttacks(StepContext ctx) =>
-        ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || DefenderLive(ctx).Has(Side.Attacker, GfNames.CounterAttack);
+    static bool CounterAttacks(StepContext ctx, LiveSet? live = null) =>
+        ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || (live ?? DefenderLive(ctx)).Has(Side.Attacker, GfNames.CounterAttack);
     static LiveSet DefenderLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
     static LiveSet ChargerLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
     /// <summary>Unwieldy: "Strikes last when charging": the charger's weapon, or every weapon of a charger the rule was granted to.</summary>
@@ -42,7 +65,9 @@ public static class GfMelee
     static Guid Defender(StepContext ctx) => ctx.Frame.Context.TargetUnitIds[0];
     /// <summary>By step name, not by index: charge's first step is the activation's dangerous terrain test (p.11).</summary>
     static Guid? Target(StepContext ctx) => GfAnswers.Pieces(ctx.State, ctx.Frame, "charge-target", "charge_target") is [var target, ..] ? target : null;
-    static bool InReach(GameState state, Guid a, Guid b) => Lookup.LivingModels(state, a).Any(m => Lookup.LivingModels(state, b).Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical));
+    /// <summary>A model of a within striking reach of a model of b: 3.5.1 p.9 "within 2” horizontally and 4” vertically"; 3.6.0 p.9 "within 3” of an enemy
+    /// model from the target unit (horizontally or vertically)". The bound is the edition's (GfEdition.MeleeHorizontal, MeleeVertical).</summary>
+    static bool InReach(GameState state, Guid a, Guid b) => Lookup.LivingModels(state, a).Any(m => Lookup.LivingModels(state, b).Any(t => GfAttack.WithinStrike(state, m, t)));
     static StepOutcome AfterChild(StepContext ctx, Func<StepOutcome> push, IReadOnlyList<StateChange>? onDone = null) =>
         ctx.History.Children.Count == 0 ? push() : ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete(onDone ?? []) : new OpenAsks([]);
 
@@ -110,6 +135,26 @@ public static class GfMelee
         var fear = attacked ? Lookup.LivingModels(ctx.State, by).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0) : 0;
         if (fear > 0) ctx.Applied.Add("Fear");
         return wounds + fear;
+    }
+
+    /// <summary>3.6.0 p.10: the wounds the unit took during this activation (its WoundsThisActivation, every deal-wounds frame on it since the activation
+    /// began, the charge move's dangerous-terrain test included), plus 3.6.0 p.14 Fear(X) over the enemy's models ("enemies count as having taken +X
+    /// wounds when checking who won"), whether or not the enemy attacked, plus the wounds a count_wounds row made it count as having taken in this melee's
+    /// resolve-hits frames on it (3.6 Scourge: "enemies count as having taken 2 extra wounds when checking who won melee"), from CountedInMelee.</summary>
+    public static int WoundsTaken(StepContext ctx, Guid unit, Guid enemy, IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> counted)
+    {
+        var fear = Lookup.LivingModels(ctx.State, enemy).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0);
+        if (fear > 0) ctx.Applied.Add("Fear");
+        var (count, rules) = counted.GetValueOrDefault(unit, (0, []));
+        foreach (var rule in rules) ctx.Applied.Add(rule);
+        return ctx.Projection.Units[unit].WoundsThisActivation + fear + count;
+    }
+
+    /// <summary>The count_wounds wounds each unit took in this melee's resolve-hits frames (GfAttack.CountedWounds). Run from the melee frame.</summary>
+    public static IReadOnlyDictionary<Guid, (int Count, IReadOnlyList<string> Rules)> CountedInMelee(StepContext ctx)
+    {
+        var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
+        return GfAttack.CountedWounds(log, log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id), shootingAndSpells: false);
     }
 
     /// <summary>
@@ -213,27 +258,49 @@ public static class GfMelee
 
     const string StruckKey = "struck";
 
-    sealed class CounterStep : IStep
+    /// <summary>3.5.1 p.13 Counter: "Strikes first with this weapon when charged". 3.6.0 p.13: "May strike first with this weapon when charged, unless this
+    /// unit is Fatigued" (GfEdition.CounterOptional, CounterLostWhenFatigued; a Shaken unit counts as Fatigued, p.10): the defender's team is asked
+    /// (`counter`), and a pass or a fatigued defender records counter_held, so the Counter weapons strike with the rest in strike-back. Counter-Attack
+    /// ("Strikes first when charged") puts every weapon first and is not asked.</summary>
+    sealed class CounterStep(GfEdition edition) : IStep
     {
         public string Name => "counter";
         public StepOutcome Run(StepContext ctx)
         {
-            var counters = MeleeWeapons(ctx.State, Defender(ctx), w => StrikesFirst(ctx, w));
+            var defender = Defender(ctx);
+            var counters = MeleeWeapons(ctx.State, defender, StrikesFirst(ctx));
             if (counters.Count == 0) return new Complete([]);
+            if (!Recorded(ctx, Name) && !CounterAttacks(ctx) && (edition.CounterOptional || edition.CounterLostWhenFatigued))
+            {
+                var held = new Dictionary<string, int> { [CounterHeldKey] = 1 };
+                if (edition.CounterLostWhenFatigued && ctx.Projection.Units[defender].Conditions is var c && (c.Contains(GfNames.Fatigued) || c.Contains(GfNames.Shaken)))
+                    return new Complete([], held);
+                if (edition.CounterOptional)
+                {
+                    if (ctx.History.LastClosed("counter") is not { } closed)
+                        return new OpenAsks([ctx.Ask("counter", "Strike first with Counter?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike first", [defender]), new AskOption("pass", "Strike with the rest", [])]))]);
+                    if (closed.Single is not Chosen { OptionId: "strike" }) return new Complete([], held);
+                }
+            }
+            // 3.6 Ravage, Regenerative Strength: its turn to strike is now, so its strike rolls come before the Counter strike (GfStrikeRolls36).
+            if (edition.StrikeTurnRolls && !Recorded(ctx, Name) && ctx.History.Children.Count == 0 && GfStrikeRolls36.Due(ctx, defender, Charger(ctx)) is { } rolls) return rolls;
+            if (edition.StrikeTurnRolls && !Recorded(ctx, Name) && ctx.History.Children is [.., var rolled] && !(rolled.Finished || rolled.Abandoned)) return new OpenAsks([]);
             // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back. A granted Counter-Attack
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);
             var values = new Dictionary<string, int> { [StruckKey] = 1 };
-            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), IsCounter).Count > 0) ctx.Applied.Add("Counter");
+            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), w => w.Properties.Any(p => p.Name == "Counter")).Count > 0) ctx.Applied.Add("Counter");
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
-            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
+            if (live.On(Side.Attacker).Any(p => p.Entry.Name == GfNames.CounterInMelee && p.ModelId is null)) values[CounterInMeleeKey] = 1;   // granted to the unit
+            live.Use(Side.Attacker, GfNames.CounterInMelee);
+            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, ctx.Consume(live), values);
         }
     }
 
-    /// <summary>p.14's `Impact(X)` and p.13's `Counter`: X dice per Impact(X) model, unless fatigued, less one per defending model with Counter; hits at the effect's threshold.
-    /// Two phases: roll (Repeat), then push resolve-hits when the dice as they then stand hold a hit (ImpactHits), so an edit between the two counts.
-    /// Values["hits"] is the hits as rolled.</summary>
-    sealed class ImpactStep : IStep
+    /// <summary>p.14's `Impact(X)`: X dice per Impact(X) model, unless fatigued; hits at the effect's threshold. Under 3.5.1 (GfEdition.CounterReducesImpact) p.13's
+    /// `Counter` takes one die per defending model with Counter; 3.6.0 p.14 drops that. Two phases: roll (Repeat), then push resolve-hits when the dice as they then
+    /// stand hold a hit (ImpactHits), so an edit between the two counts. Values["hits"] is the hits as rolled.</summary>
+    sealed class ImpactStep(GfEdition edition) : IStep
     {
         public string Name => "impact";
         public StepOutcome Run(StepContext ctx)
@@ -245,11 +312,24 @@ public static class GfMelee
             var live = ctx.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
             var impacts = RollEffects.OwnRolls(live, Side.Attacker, c => c.Kind == EffectKind.AddHit);   // Impact's conditions (charging, not fatigued) were judged in pass one's read
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
-            var counterModels = Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
-            var dice = Math.Max(0, impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter)) - counterModels);
+            var counterModels = !edition.CounterReducesImpact ? 0 : Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
+            var brace = edition.ImpactBeforeCounter ? Brace(ctx, charger, defender) : 0;
+            var total = impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter));
+            var dice = Math.Max(0, total - counterModels - brace);
             if (counterModels > 0) ctx.Applied.Add("Counter");
+            if (brace > 0 && total > 0) ctx.Applied.Add(GfNames.Brace);
             var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
             return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: dice > 0);
+        }
+
+        /// <summary>Brace: "Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued." X read off the defender's melee weapons, one
+        /// instance per weapon type; a Shaken unit counts as Fatigued (3.6.0 p.10).</summary>
+        static int Brace(StepContext ctx, Guid charger, Guid defender)
+        {
+            if (ctx.Projection.Units[defender].Conditions is var c && (c.Contains(GfNames.Fatigued) || c.Contains(GfNames.Shaken))) return 0;
+            var ix = GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge)
+                with { Defender = Party.Of(ctx.State, defender, Lookup.LivingModels(ctx.State, defender), MeleeWeapons(ctx.State, defender)) };
+            return Math.Max(0, LiveProperties.Settle(ix).Parameter(Side.Defender, GfNames.Brace) ?? 0);
         }
     }
 
@@ -280,7 +360,7 @@ public static class GfMelee
             var live = ChargerLive(ctx);
             live.Use(Side.Attacker, GfNames.Unwieldy);
             if (weapons.Count > 0 && !Recorded(ctx, Name)) ctx.Applied.Add(GfNames.Unwieldy);
-            var spent = RollEffects.Consume(live);
+            var spent = ctx.Consume(live);
             if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete(spent);
             // The charger's other weapons may have destroyed the defender: nothing is struck, but the fatigue charger-attacks deferred is still owed.
             if (!Recorded(ctx, Name) && Lookup.LivingModels(ctx.State, Defender(ctx)).Count == 0) return new Complete([.. spent, .. Fatigue(Charger(ctx))]);
@@ -295,26 +375,51 @@ public static class GfMelee
     /// back too, and it is fatigued for doing so: 3.5.1 p.10 reads "must stay idle, but may strike back counting as fatigued"
     /// (GfRolls.Fatigued reads the Shaken condition as fatigue). No Shaken guard belongs here.
     /// </summary>
-    sealed class StrikeBackStep : IStep
+    /// <summary>3.6 (GfEdition.StrikeTurnRolls): the defender's "Strike back?" asked before its strike rolls, recorded as `strike_back_chosen`, which
+    /// `defender-strike-rolls` and `strike-back` read. Nothing to strike with, or a side gone, records 0.</summary>
+    sealed class StrikeChoiceStep : IStep
+    {
+        public string Name => "strike-choice";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var (charger, defender) = (Charger(ctx), Defender(ctx));
+            var first = StrikesFirst(ctx);
+            static Complete Chosen(bool strike) => new([], new Dictionary<string, int> { [StrikeBackChosenKey] = strike ? 1 : 0 });
+            if (Lookup.LivingModels(ctx.State, defender).Count == 0 || Lookup.LivingModels(ctx.State, charger).Count == 0 || MeleeWeapons(ctx.State, defender, w => !first(w)).Count == 0) return Chosen(false);
+            if (ctx.History.LastClosed("strike_back") is { } closed) return Chosen(closed.Single is Chosen { OptionId: "strike" });
+            return new OpenAsks([StrikeBackAsk(ctx, defender)]);
+        }
+    }
+
+    public const string StrikeBackChosenKey = "strike_back_chosen";
+    static Ask StrikeBackAsk(StepContext ctx, Guid defender) =>
+        ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]));
+
+    sealed class StrikeBackStep(GfEdition edition) : IStep
     {
         public string Name => "strike-back";
         public StepOutcome Run(StepContext ctx)
         {
             var (charger, defender) = (Charger(ctx), Defender(ctx));
             var counterStruck = CounterStruck(ctx);
-            var weapons = MeleeWeapons(ctx.State, defender, w => !StrikesFirst(ctx, w));   // p.13: the Counter weapon's strike already happened in `counter`
+            var first = StrikesFirst(ctx);
+            var weapons = MeleeWeapons(ctx.State, defender, w => !first(w));   // p.13: the Counter weapon's strike already happened in `counter`
             // Striking under way comes before the living-model checks: a strike back that destroys the charger still fatigues (p.9).
             if (Recorded(ctx, Name)) return Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
             if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
             if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
+            if (edition.StrikeTurnRolls)   // the choice was asked by strike-choice, before the strike rolls
+                return ctx.Frame.Value(StrikeBackChosenKey) == 1 && weapons.Count > 0 ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (ctx.History.LastClosed("strike_back") is { } closed)
                 return closed.Single is Chosen { OptionId: "strike" } ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
-            return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]))]);
+            return new OpenAsks([StrikeBackAsk(ctx, defender)]);
         }
     }
 
-    /// <summary>p.10: sum wounds caused each way; a destroyed unit always loses; the loser tests morale; a tie tests nobody. Values: charger_wounds, defender_wounds, loser (0 none, 1 charger, 2 defender).</summary>
+    /// <summary>p.10: sum wounds caused each way; a destroyed unit always loses; the loser tests morale; a tie tests nobody. Values: charger_wounds, defender_wounds, loser (0 none, 1 charger, 2 defender).
+    /// 3.6.0 p.10 (GfEdition.MeleeLossByWoundsTaken): "compare the number of wounds each unit took during this activation instead. The unit with the highest
+    /// total loses": charger_wounds and defender_wounds hold the wounds each unit took (WoundsTaken), the charge move's dangerous-terrain wounds included.</summary>
     sealed class CompareStep : IStep
     {
         public string Name => "compare";
@@ -327,10 +432,13 @@ public static class GfMelee
                 return AfterChild(ctx, () => new Push(GfNames.MoraleTest, new SequenceContext(loserUnit, [], [], "melee")));
             }
             var struck = ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && s.Answer is Chosen { OptionId: "strike" }) || CounterStruck(ctx);
-            var chargerWounds = WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
-            var defenderWounds = WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
+            var byTaken = GfEdition.Of(ctx.State).MeleeLossByWoundsTaken;
+            var counted = byTaken ? CountedInMelee(ctx) : new Dictionary<Guid, (int, IReadOnlyList<string>)>();
+            var chargerWounds = byTaken ? WoundsTaken(ctx, charger, defender, counted) : WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
+            var defenderWounds = byTaken ? WoundsTaken(ctx, defender, charger, counted) : WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
             var chargerDead = Lookup.LivingModels(ctx.State, charger).Count == 0; var defenderDead = Lookup.LivingModels(ctx.State, defender).Count == 0;
-            var loser = defenderDead ? 2 : chargerDead ? 1 : chargerWounds > defenderWounds ? 2 : defenderWounds > chargerWounds ? 1 : 0;
+            var (chargerLosing, defenderLosing) = byTaken ? (chargerWounds > defenderWounds, defenderWounds > chargerWounds) : (defenderWounds > chargerWounds, chargerWounds > defenderWounds);
+            var loser = defenderDead ? 2 : chargerDead ? 1 : defenderLosing ? 2 : chargerLosing ? 1 : 0;
             var values = new Dictionary<string, int> { ["charger_wounds"] = chargerWounds, ["defender_wounds"] = defenderWounds, ["loser"] = loser, ["compared"] = 1 };
             var testing = loser == 1 ? charger : loser == 2 ? defender : (Guid?)null;
             var spent = GfAttack.SpendAttackStart(ctx, charger, [defender], AttackKind.Melee).Concat(GfAttack.SpendAttackStart(ctx, defender, [charger], AttackKind.Melee)).Distinct().ToList();

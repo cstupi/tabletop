@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using Tabletop.Content;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -11,6 +13,12 @@ public sealed record CompiledScenario(
     IReadOnlyList<Guid> TeamIds, IReadOnlyList<Guid> ParticipantIds,
     IReadOnlyDictionary<Guid, Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)
 {
+    /// <summary>Side Battle's legs under the game's rule set: what the server sends in Welcome.</summary>
+    public ZoneLegs Zones => GameRulesRegistry.Resolve(Info.GameRules).Zones;
+
+    /// <summary>The terrain words under the game's rule set: what the server sends in Welcome.</summary>
+    public IReadOnlyDictionary<string, string> TerrainWords => GameRulesRegistry.Resolve(Info.GameRules).TerrainWords;
+
     public Guid ParticipantFor(Guid teamId) => TeamOfParticipant.First(kv => kv.Value == teamId).Key;
 
     /// <summary>The participants a driver connects: every team's, or under self-play the one account's first row, whose connection plays every team.</summary>
@@ -35,11 +43,18 @@ public sealed record CompiledScenario(
 public static class ScenarioCompiler
 {
     // Declared first: static initializers run in textual order and CoreProperties reads it.
-    static PropertySetDocument CoreDocument { get; } =
-        PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId);
+    /// <summary>The embedded core documents, by rules id.</summary>
+    public static IReadOnlyDictionary<string, PropertySetDocument> CoreDocuments { get; } =
+        PropertiesSeeder.EmbeddedDocuments().ToDictionary(d => d.GameRules);
 
-    /// <summary>The shipped Grimdark Future set, through the production path: the game server's composed embedded document, every army book included.</summary>
-    public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
+    static readonly ConcurrentDictionary<string, PropertySet> Cache = new();
+
+    /// <summary>An edition's shipped set, through the production path: the game server's composed embedded document, every army book included.</summary>
+    public static PropertySet CorePropertiesOf(string rulesId) =>
+        Cache.GetOrAdd(rulesId, id => PropertiesJson.ToSet(CoreDocuments[id], Guid.CreateVersion7));
+
+    /// <summary>The Grimdark Future 3.5.1 set; every existing game stays on it.</summary>
+    public static PropertySet CoreProperties { get; } = CorePropertiesOf(RuleSets.Gf351);
 
     public static CompiledScenario Compile(Scenario s)
     {
@@ -68,17 +83,17 @@ public static class ScenarioCompiler
                 Guid.CreateVersion7(), m.Kind, m.Position, new Yaw(0), m.Diameter, m.Label, VisualRef.OfBuiltin("objective"))).ToList(),
             s.ZoneShapes.Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList());
 
-        var armies = s.Armies.Select((a, i) => new ArmyInPlay(participants[i].Id, BuildArmy(i + 1, a))).ToList();
+        var armies = s.Armies.Select((a, i) => new ArmyInPlay(participants[i].Id, BuildArmy(a, RuleSets.EditionOf(s.Rules)))).ToList();
 
         // The properties the engine is handed and the hash the game row names must be one set (hydration loads by hash).
-        var props = CoreProperties;
+        var props = CorePropertiesOf(s.Rules);
 
         // RngSeed is positional and last among the scalars (contracts plan → GameInfo), so a game cannot
         // be built without a seed. This is the one value a scenario's seed fixes.
         var info = new GameInfo(
             Guid.CreateVersion7(), s.Name, GameStatus.Playing, participants[0].AccountId,
-            GrimdarkFutureRules.RulesId, props.ContentHash, s.Shape, s.Enforcement,
-            WaitsBetweenSteps: s.WaitsBetweenSteps, unchecked((long)s.Seed), teams, participants) { OptionalRules = s.OptionalRules };
+            s.Rules, props.ContentHash, s.Shape, s.Enforcement,
+            WaitsBetweenSteps: s.WaitsBetweenSteps, unchecked((long)s.Seed), teams, participants) { OptionalRules = s.OptionalRules, RuleSet = props.Name };
 
         return new CompiledScenario(s, info, new Board(snapshot, armies), props,
             teams.Select(t => t.Id).ToList(), participants.Where(p => p.TeamId is not null).Select(p => p.Id).ToList(),
@@ -86,7 +101,7 @@ public static class ScenarioCompiler
             snapshot, recorder.Id);
     }
 
-    private static ArmySnapshot BuildArmy(int team, ScenarioArmy a)
+    private static ArmySnapshot BuildArmy(ScenarioArmy a, string edition)
     {
         var units = new List<Unit>();
         for (var u = 1; u <= a.Units; u++)
@@ -114,6 +129,6 @@ public static class ScenarioCompiler
             {
                 Reserve = new UnitReserve(r.Property, r.OfModel is { } m ? units[r.OfUnit - 1].Models[m - 1].Id : units[r.OfUnit - 1].Id),
             };
-        return new ArmySnapshot(Guid.CreateVersion7(), a.Name, "grimdark-future", units);
+        return new ArmySnapshot(Guid.CreateVersion7(), a.Name, RuleSets.Gf351, units) { Edition = edition };
     }
 }

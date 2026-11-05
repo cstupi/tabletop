@@ -50,6 +50,25 @@ public class WaitingForPlayersTests
     }
 
     [Fact]
+    public async Task A_late_army_of_another_edition_is_refused()
+    {
+        using var factory = Factory();
+        var (seeded, creator) = await EndedSetupAlone(factory);
+        await using var _ = creator;
+        var late = await db.SeedAccountAsync("Late");
+        await db.SeedParticipantAsync(seeded.GameId, late, null);
+        var hers = await db.SeedArmyAsync(late, Tabletop.Content.Tests.ArmyTests.Sample() with { Edition = Tabletop.Content.ArmyEditions.V36 });
+        await using var second = await TestClient.OpenAsync(factory);
+        await second.ConnectAsync(late, seeded.GameId);
+        await second.SendAsync(Edit(new PickTeam(seeded.TeamIds[1]))); await second.ExpectAsync<GameInfoMessage>();
+
+        await second.SendAsync(Edit(new PickArmy(hers.Id)));
+        var refused = await second.ExpectAsync<Refused>();
+        Assert.Equal((RefusalReason.NotPermitted, "this army is a 3.6 list; the game plays Grimdark Future 3.5"), (refused.Reason, refused.Detail));
+        Assert.Equal(0, db.EventCount(seeded.GameId));
+    }
+
+    [Fact]
     public async Task A_second_player_who_takes_the_empty_team_and_brings_an_army_starts_the_roll_off()
     {
         using var factory = Factory();

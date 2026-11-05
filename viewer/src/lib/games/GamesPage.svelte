@@ -9,7 +9,7 @@
   import { hrefOf } from '../shell/route';
   import { listsOf } from './listModel';
   import { rowActionsOf } from './rowActions';
-  import { STATUS_LABEL, ago, mainActionOf, playersLine } from './present';
+  import { STATUS_LABEL, ago, mainActionOf, playersLine, ruleSetLine } from './present';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
   let { auth }: { auth: Auth } = $props();
@@ -84,6 +84,7 @@
       <span class="name">{game.name}</span>
       <span class="meta">
         <span class="chip {game.status}">{STATUS_LABEL[game.status]}</span>
+        {#if ruleSetLine(game) !== null}<span class="chip">{ruleSetLine(game)}</span>{/if}
         <span>{playersLine(game.participantNames)}</span>
         <span class="dim">{ago(game.createdAt)}</span>
       </span>
@@ -149,7 +150,7 @@
               <li class="row">
                 <div class="what">
                   <span class="name">{game.name}</span>
-                  <span class="meta"><span class="chip {game.status}">{STATUS_LABEL[game.status]}</span><span>{playersLine(game.participantNames)}</span><span class="dim">{ago(game.createdAt)}</span></span>
+                  <span class="meta"><span class="chip {game.status}">{STATUS_LABEL[game.status]}</span>{#if ruleSetLine(game) !== null}<span class="chip">{ruleSetLine(game)}</span>{/if}<span>{playersLine(game.participantNames)}</span><span class="dim">{ago(game.createdAt)}</span></span>
                 </div>
                 <div class="acts"><a class="button small" href={hrefOf({ page: 'replay', gameId: game.id })}>Watch</a></div>
               </li>

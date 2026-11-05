@@ -69,6 +69,22 @@ describe('GameConnection', () => {
     expect(h.conn.state).toMatchObject({ phase: 'connected', participantId: 'p1', game: setupGame, options: { options: [], presets: [] } });
   });
 
+  it('rules_options replaces the catalog, zone legs and terrain words', async () => {
+    const h = harness();
+    const s = await welcomed(h, setupWelcome);
+    const next = { options: [{ key: 'a', label: 'A', page: '1', default: 'off', values: [{ value: 'off', label: 'Off' }] }], presets: [] };
+    const zones = { sideBattleLong: 2 / 3, sideBattleShort: 0.75 };
+    s.deliver({ kind: 'rules_options', options: next, zones, terrainWords: { see_in_and_out: 'Dense' } });
+    expect(h.conn.state).toMatchObject({ options: next, zones, terrainWords: { see_in_and_out: 'Dense' } });
+  });
+
+  it('a welcome publishes its zone legs', async () => {
+    const h = harness();
+    expect(h.conn.state.zones).toBeNull();
+    await welcomed(h, { ...setupWelcome, zones: { sideBattleLong: 2 / 3, sideBattleShort: 0.75 } });
+    expect(h.conn.state.zones).toEqual({ sideBattleLong: 2 / 3, sideBattleShort: 0.75 });
+  });
+
   it('setup boards replace the draft', async () => {
     const h = harness();
     const s = await welcomed(h, setupWelcome);

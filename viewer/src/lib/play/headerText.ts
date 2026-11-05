@@ -12,6 +12,9 @@ export const scoreText = (score: number): string => `${score} VP`;
 export const notActivatedText = (count: number): string => (count === 0 ? 'all activated' : `${count} not activated`);
 export const outlineText = (item: { label: string; state: OutlineState }): string => (item.state === 'done' ? `  ✓ ${item.label}` : `  ${item.label}`);
 
+/** The rule set a game or recording is played under, by its name; an old recording has none, so its rules id stands. */
+export const ruleSetText = (of: { readonly ruleSet?: string | null; readonly gameRules: string }): string => of.ruleSet ?? of.gameRules;
+
 /** HeaderBar's third line: the wait for players, else the replay's or the watcher's line, else the open Asks' waiting line. */
 export function waitingLine(
   p: Projection, n: Names, waitingTeams: readonly TeamWaiting[], watching: boolean, mine: readonly string[], replaying = false,

@@ -104,8 +104,8 @@ public partial class TableView : Node3D
         Sync(_markers, markers.Select(m => (Marker: m, Team: ControlColour(m))).ToList(), x => x.Marker.Id, (a, b) => BoardDiff.SameShape(a.Marker, b.Marker) && a.Team == b.Team,
             x => { var n = new MarkerNode { MarkerId = x.Marker.Id }; n.Build(x.Marker, x.Team); return n; }, (n, x) => n.Place(x.Marker));
         var teams = _session.Game?.Teams ?? [];
-        Sync(_zones, ZonesShown(table, _session.Projection, teams).Select(z => (Zone: z, Size, Colour: ZoneColour(z, teams))).ToList(), x => x.Zone.Id, (a, b) => a == b,
-            x => { var n = new ZoneNode(); n.Build(x.Zone, x.Size, x.Colour); return n; }, (_, _) => { });
+        Sync(_zones, ZonesShown(table, _session.Projection, teams).Select(z => (Zone: z, Size, Legs: _session.Zones, Colour: ZoneColour(z, teams))).ToList(), x => x.Zone.Id, (a, b) => a == b,
+            x => { var n = new ZoneNode(); n.Build(x.Zone, x.Size, x.Legs, x.Colour); return n; }, (_, _) => { });
         var onTable = _session.Projection?.Models.Values.Where(m => m.Location is OnTable).ToList() ?? [];
         // Each model's proxy takes its team's tint, recoloured on every redraw so it follows ownership as GameInfo arrives.
         Color Tint(ModelInPlay m) => Palette.Tinted(_session.Projection is { } p && _session.Game is { } g ? SheetFocus.TeamOf(p, g, m.UnitId)?.Ordinal : null);

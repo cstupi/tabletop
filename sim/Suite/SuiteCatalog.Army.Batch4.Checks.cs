@@ -78,30 +78,6 @@ public static partial class SuiteCatalog
                 return verdicts;
             });
 
-        /// <summary>A second activation ("once per game … may be activated even if it had already activated this round … stops being fatigued"): at most one round
-        /// of the game records two actions for a unit, and a fatigued unit's second action comes with fatigue cleared.</summary>
-        static GameCheck SecondActivation(string entry, string quote) =>
-            Exact(entry, quote, (run, _) =>
-            {
-                var verdicts = new List<string?>();
-                var actions = new Dictionary<(Guid, int), int>();
-                var seconds = new Dictionary<Guid, int>();
-                var fatigued = new HashSet<Guid>();
-                ConditionSet? last = null;
-                foreach (var (p, round) in Rounds(run))
-                {
-                    foreach (var c in p is StepCompleted s ? s.Changes.OfType<ConditionSet>() : p is ConditionSet cs ? [cs] : [])
-                        if (c.Condition == "fatigued") { if (c.Present) fatigued.Add(c.Subject.Id); else fatigued.Remove(c.Subject.Id); last = c; }
-                    if (p is RoundStarted) fatigued.Clear();
-                    if (p is not ActionRecorded a || !Holds(run, a.UnitId, entry)) continue;
-                    var n = actions[(a.UnitId, round)] = actions.GetValueOrDefault((a.UnitId, round)) + 1;
-                    if (n < 2) continue;
-                    seconds[a.UnitId] = seconds.GetValueOrDefault(a.UnitId) + 1;
-                    verdicts.Add(seconds[a.UnitId] > 1 ? "activated a second time in two rounds" : fatigued.Contains(a.UnitId) ? "still fatigued on its second activation" : null);
-                }
-                return verdicts;
-            });
-
         /// <summary>Instinctive's "closest valid target": every declare_targets Ask of a unit holding it offers one target.</summary>
         static GameCheck ClosestOnly(string entry, string quote) =>
             Exact(entry, quote, (run, log) =>

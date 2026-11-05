@@ -100,7 +100,7 @@ public static class Program
         SuiteReport report;
         try
         {
-            report = await runner.RunAsync(new SuiteOptions(arguments.Only, arguments.Driver, arguments.Keep, outDir, runId),
+            report = await runner.RunAsync(new SuiteOptions(arguments.Only, arguments.Driver, arguments.Keep, outDir, runId, arguments.Seed),
                 new Inline<SuiteGameResult>(Progress), ct);
         }
         catch (Exception ex) when (ex is not UsageException)

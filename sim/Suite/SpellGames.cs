@@ -10,12 +10,22 @@ namespace Tabletop.Sim.Suite;
 /// How a book's game is played beyond the defaults. First: spells moved to the front of the casting order. Targets: per spell, the unit
 /// names its casts pick, given the caster's unit name (default: SpellGames.Friends for a friendly spell; for an enemy one the target
 /// units in order starting from unit r in round r, so a grant no attack uses up, which no recast can stack (p.13), still meets a fresh unit). BlueAction: the action each target unit takes, by unit number (default Rush, which never attacks).
+/// Rules, TargetRules: further rules on every model of the book's army or of the target army, beside their Caster and Tough.
+/// TargetModels, TargetTough, TargetDefense: each target unit's model count, Tough value and Defense (default 4+). Anchored (default on): every unit's first
+/// model deploys on its lane's point (a target unit's row of models centred on it), so every caster stands about 4" from a target unit from round 1 and
+/// a spell "within 6"" reaches one whatever the seed's hand placement; off, the units deploy where the seed puts them and walk to their lanes.
 /// </summary>
 public sealed record SpellSetup(
     IReadOnlyList<string>? First = null,
     IReadOnlyDictionary<string, Func<string, IReadOnlyList<string>>>? Targets = null,
     Func<int, string>? BlueAction = null,
-    int Bonus = 2);
+    int Bonus = 2,
+    IReadOnlyList<ScenarioRule>? Rules = null,
+    IReadOnlyList<ScenarioRule>? TargetRules = null,
+    int TargetModels = 3,
+    int TargetTough = 6,
+    bool Anchored = true,
+    int TargetDefense = 4);
 
 /// <summary>
 /// The spell games, generated from the pinned set's books: one game per book that lists spells. The book's army is one single-model
@@ -35,9 +45,13 @@ public static class SpellGames
         NamePrefix + string.Join('-', new string([.. book.Name.ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : ' ')])
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-    /// <summary>The books with spells, in uid order.</summary>
+    /// <summary>
+    /// The books with a played spell, in uid order, each listing its played spells alone (PropertySet.SpellsOf): a text-only spell (played
+    /// false) is never offered to a caster, so no unit casts it and no game covers it.
+    /// </summary>
     public static IReadOnlyList<BookRecord> Books(PropertySet set) =>
-        set.Books.Values.Where(b => b.Spells.Count > 0).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
+        set.Books.Values.Select(b => b with { Spells = [.. set.SpellsOf(b.Uid).Select(e => e.Name)] }).Where(b => b.Spells.Count > 0)
+            .OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
 
     /// <summary>The spells in the order the book's units cast them: the setup's First, then the rest in the book's order.</summary>
     public static IReadOnlyList<string> CastingOrder(BookRecord book, SpellSetup? setup) =>
@@ -52,19 +66,24 @@ public static class SpellGames
     {
         var order = CastingOrder(book, setup);
         var units = Enumerable.Range(1, order.Count).ToList();
-        return new ScenarioBuilder(NameOf(book), seed)
+        return new ScenarioBuilder(NameOf(book), seed).Rules(set.GameRules)
             .RoundCap(4).Table(36, 24)
             .Army(book.Name, order.Count, 1,
-                modelRules: [.. units.SelectMany(u => new[] { new ScenarioRule(u, "Caster", 6), new ScenarioRule(u, "Tough", 6) })],
-                weapons: [HandWeapon], armyBook: book.Uid)
-            .Army(TargetArmy, 3, 3, modelRules: [.. Enumerable.Range(1, 3).Select(u => new ScenarioRule(u, "Tough", 6))], weapons: [ApRifle, HandWeapon])
+                modelRules: [.. units.SelectMany(u => new[] { new ScenarioRule(u, "Caster", 6), new ScenarioRule(u, "Tough", 6) }
+                    .Concat((setup?.Rules ?? []).Select(r => r with { Unit = u })))],
+                weapons: [HandWeapon], armyBook: book.Uid,
+                anchors: setup?.Anchored ?? true ? units.ToDictionary(k => k, k => new Point2(36.0 * (k - 0.5) / order.Count, 13)) : null)
+            .Army(TargetArmy, 3, setup?.TargetModels ?? 3, modelRules: [.. Enumerable.Range(1, 3).SelectMany(u => (setup?.TargetRules ?? []).Select(r => r with { Unit = u })
+                .Prepend(new ScenarioRule(u, "Tough", setup?.TargetTough ?? 6)))], weapons: [ApRifle, HandWeapon],
+                unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = $"{setup?.TargetDefense ?? 4}+" },
+                anchors: setup?.Anchored ?? true ? Enumerable.Range(1, 3).ToDictionary(j => j, j => new Point2(12.0 * j - 6 - 0.88 * ((setup?.TargetModels ?? 3) - 1), 10)) : null)
             .Seeking((model, view) => Lane(book.Name, order.Count, view.Projection, model))
             .Scripted(Script(book.Name, order, set, setup))
             .Build();
     }
 
     /// <summary>
-    /// Where a model makes for: each unit its own lane across the 36" table, the book's units on the line y = 15 and the targets on y = 10, so
+    /// Where a model makes for: each unit its own lane across the 36" table, the book's units on the line y = 13 and the targets on y = 10, so
     /// every caster stands within 6" of a target unit with no other model between them, and no two units crowd one spot.
     /// </summary>
     static Point2? Lane(string army, int casters, Projection p, Guid model)
@@ -72,7 +91,7 @@ public static class SpellGames
         var name = AskPicks.UnitNameOf(p, model);
         if (name is null) return null;
         if (name.StartsWith(army + " unit ", StringComparison.Ordinal) && int.TryParse(name[(army.Length + 6)..], out var k))
-            return new Point2(36.0 * (k - 0.5) / casters, 15);
+            return new Point2(36.0 * (k - 0.5) / casters, 13);
         if (name.StartsWith(TargetArmy + " unit ", StringComparison.Ordinal) && int.TryParse(name[(TargetArmy.Length + 6)..], out var j))
             return new Point2(12.0 * j - 6, 10);
         return null;
@@ -104,6 +123,8 @@ public static class SpellGames
                 Enumerable.Range(1, order.Count).Select(k => AskPicks.Activate(ask, UnitName(army, k), "Advance"))
                     .Concat(Enumerable.Range(1, 3).Select(j => AskPicks.Activate(ask, UnitName(TargetArmy, j), blue(j)))).FirstOrDefault(a => a is not null))
             .Match(AskQuestions.React, (ask, _) => AskPicks.Labeled(ask, "Cast a spell"))
+            // A target unit the setup has shoot always shoots (the server's fixed option id), so no policy choice decides the occasion.
+            .Match("shoot_or_not", (ask, _) => ask.Legal is Options o && o.Choices.Any(c => c.Id == "shoot") ? new Chosen("shoot") : null)
             .Match("cast", (ask, p) => SpellOf(p) is { } spell ? AskPicks.Spell(ask, p, spell) : null)
             .Match(AskQuestions.SpendTokens, (ask, p) => ask.Legal is TokenSpend t && Casting(p) is { } unit
                 ? new TokensSpent(t.MaxByModel.ToDictionary(kv => kv.Key, kv => p.Models[kv.Key].UnitId == unit ? Math.Min(kv.Value, setup?.Bonus ?? 2) : 0)) : null)
@@ -118,18 +139,34 @@ public static class SpellGames
             .Build();
     }
 
+    /// <summary>
+    /// A book's spell game. FirstCastsPass: every unit's first casting die is set to a 6 (a keyed DiceFix per caster, unless the given dice
+    /// already key that unit's first cast), so each spell resolves at least once however the seed rolls: a raw 1 always fails (p.5), and a
+    /// caster rolling four of them in four rounds is about one game in two per seed across the group.
+    /// </summary>
     public static TestGame Game(BookRecord book, ulong seed, PropertySet set, SpellSetup? setup = null, IReadOnlyList<DiceFix>? dice = null,
-        IReadOnlyList<GameCheck>? checks = null) =>
-        new(NameOf(book), SuiteCatalog.SpellsPrefix + book.Uid, Scenario(book, seed, set, setup), book.Spells, dice ?? [],
-            [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells), .. checks ?? []]);
+        IReadOnlyList<GameCheck>? checks = null, bool firstCastsPass = true) =>
+        new(NameOf(book), SuiteCatalog.SpellsGroup(set.GameRules, book.Uid), Scenario(book, seed, set, setup), book.Spells,
+            [.. firstCastsPass ? FirstCasts(book, setup, dice ?? []) : [], .. dice ?? []],
+            [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells, ResolvedCheckOf(set.GameRules)), .. checks ?? []]);
+
+    /// <summary>A casting die of 6 on each caster's first cast, but for a caster whose first cast the game's own dice already key.</summary>
+    static IEnumerable<DiceFix> FirstCasts(BookRecord book, SpellSetup? setup, IReadOnlyList<DiceFix> dice) =>
+        Enumerable.Range(1, CastingOrder(book, setup).Count).Select(k => UnitName(book.Name, k))
+            .Where(unit => !dice.Any(d => d is { Roll: "casting", Ordinal: 0 } && d.Key?.Actor == unit))
+            .Select(unit => new DiceFix("casting", 0, [6], new RollKey(Actor: unit)));
 
     public const string ResolvedCheck = "resolved on a legal cast (p.13: \"Roll one die, on 4+ resolve the effect\"; p.5: \"a roll of 1 always counts as a fail\")";
+    public const string ResolvedCheck36 = "resolved on a legal cast (3.6.0 p.13: \"Pick a target and roll one die, and on 4+ resolve the spell's effect\"; 3.6.0 p.5: \"a roll of 1 always counts as a fail\")";
+
+    /// <summary>The resolved check's name under a set's game rules: its quotes are that edition's.</summary>
+    public static string ResolvedCheckOf(string rulesId) => rulesId == Tabletop.Content.RuleSets.Gf360 ? ResolvedCheck36 : ResolvedCheck;
 
     /// <summary>
     /// Every spell of the book resolved at least once on a cast whose die was not an unmodified 1, so its coverage never rests on a cast
     /// p.5 says fails.
     /// </summary>
-    public static GameCheck ResolvedUnderP5(IReadOnlyList<string> spells) => new(ResolvedCheck, run =>
+    public static GameCheck ResolvedUnderP5(IReadOnlyList<string> spells, string name = ResolvedCheck) => new(name, run =>
     {
         var q = LogQueries.Of(run);
         var unresolved = spells.Where(s => !Casts(q, s).Any(c => c.Passed && c.Die.Raw != 1 && Resolved(q, c, s))).ToList();

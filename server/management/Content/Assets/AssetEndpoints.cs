@@ -197,13 +197,13 @@ public static class AssetEndpoints
     }
 
     private const TerrainDeclarations AllDeclarations = TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut
-        | TerrainDeclarations.Cover | TerrainDeclarations.Difficult | TerrainDeclarations.Dangerous | TerrainDeclarations.DangerousOnRushCharge;
+        | TerrainDeclarations.Cover | TerrainDeclarations.Difficult | TerrainDeclarations.Dangerous | TerrainDeclarations.DangerousOnRushCharge | TerrainDeclarations.Steep;
 
     private static string? VolumeProblem(Volume? v)
     {
         if (v is null) return "A volume is required.";
         if (!Enum.IsDefined(v.Kind)) return "A volume's kind is solid or area.";
-        if ((v.Declarations & ~AllDeclarations) != 0) return "A volume declares only the seven terrain declarations.";
+        if ((v.Declarations & ~AllDeclarations) != 0) return "A volume declares only the eight terrain declarations.";
         if (!v.Footprint.IsValid(1)) return "A volume's footprint is a circle or rect with finite sizes above zero.";
         if (!double.IsFinite(v.Offset.X) || !double.IsFinite(v.Offset.Y) || !double.IsFinite(v.Yaw.Degrees) || !double.IsFinite(v.Bottom) || !double.IsFinite(v.Top))
             return "A volume's offset, yaw, bottom and top are finite numbers.";

@@ -12,12 +12,13 @@ public sealed partial record BuiltinTerrain(string Name, string Label, Volume Vo
 
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,63}$")] private static partial Regex NamePattern();
 
-    static readonly Dictionary<string, TerrainDeclarations> DeclarationNames = new()
+    /// <summary>Each terrain declaration's snake_case name, as the catalog, the wire and IGameRules.TerrainWords spell it.</summary>
+    public static IReadOnlyDictionary<string, TerrainDeclarations> DeclarationNames { get; } = new Dictionary<string, TerrainDeclarations>
     {
         ["impassable"] = TerrainDeclarations.Impassable, ["blocks_line_of_sight"] = TerrainDeclarations.BlocksLineOfSight,
         ["see_in_and_out"] = TerrainDeclarations.SeeInAndOut, ["cover"] = TerrainDeclarations.Cover,
         ["difficult"] = TerrainDeclarations.Difficult, ["dangerous"] = TerrainDeclarations.Dangerous,
-        ["dangerous_on_rush_charge"] = TerrainDeclarations.DangerousOnRushCharge,
+        ["dangerous_on_rush_charge"] = TerrainDeclarations.DangerousOnRushCharge, ["steep"] = TerrainDeclarations.Steep,
     };
 
     /// <summary>The catalog's <c>terrain</c> array, checked; <see cref="FormatException"/> names the first fault. Ordinal key order is the array's.</summary>

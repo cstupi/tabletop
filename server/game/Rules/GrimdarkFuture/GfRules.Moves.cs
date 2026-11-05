@@ -12,7 +12,8 @@ public sealed partial class GrimdarkFutureRules
         MoveRegion region when answer is Destinations moves =>
             GfMoves.NotOfferedBreach(state, region, moves) ?? GfMoves.PathBreach(state, region, moves)
             ?? GfMoves.MinimumBreach(state, region, moves) ?? GfMoves.DifficultCapBreach(state, ask, region, moves)
-            ?? GfMoves.ContactBreach(state, region, moves) ?? GfMoves.CoherencyBreach(state, region, moves) ?? GfMoves.ChargeContactBreach(state, region, moves),
+            ?? GfMoves.ContactBreach(state, region, moves) ?? GfMoves.CoherencyBreach(state, region, moves) ?? GfMoves.ChargeContactBreach(state, region, moves)
+            ?? VanguardBreach(state, ask, region, moves),
         MoveRegion region when answer is Passed => GfMoves.ChargeContactBreach(state, region, null),
         _ => PassBreach(ask, answer) ?? DeployInsideBreach(state, ask, answer),
     };
@@ -31,5 +32,5 @@ public sealed partial class GrimdarkFutureRules
         return null;
     }
 
-    public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => GfMoves.OverlapBreach(state, moves) ?? ZoneBreach(state, moves) ?? AmbushBreach(state, moves) ?? GfReserves.EdgeBreach(state, moves);
+    public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => GfMoves.OverlapBreach(state, moves) ?? ZoneBreach(state, moves) ?? ScoutBreach(state, moves) ?? AmbushBreach(state, moves) ?? GfReserves.EdgeBreach(state, moves);
 }

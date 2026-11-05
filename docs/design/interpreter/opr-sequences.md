@@ -1,12 +1,14 @@
 # Grimdark Future's sequences
 
-Nineteen sequences, what each step does, which rulebook page it comes from, and where the
+Thirty sequences, what each step does, which rulebook page it comes from, and where the
 composition is subtle. [design.md](design.md) designs the generic interpreter they run on.
 Everything here lives in `server/game/Rules/GrimdarkFuture/`, the only directory in the module
 allowed to name an OPR rule.
 
 Read against Grimdark Future v3.5.1, pages 7–15 and 21, with 30–35 and 50 for the token economy's
-edges and the free-for-all roll-off.
+edges and the free-for-all roll-off. Both editions run these sequences: a bare `p.N` is 3.5.1, a 3.6.0 page is cited
+`3.6.0 p.N`, and where the editions differ the text gives both readings, chosen by `GfEdition.Of(state)` (`GfEdition.cs`)
+or, where a step's logic differs, by a per-edition copy (`dangerous-terrain-36`, the `melee` list built per edition).
 
 ## The catalogue
 
@@ -18,15 +20,16 @@ edges and the free-for-all roll-off.
 | `idle` | `activation-terrain`, `activation-start` | `GfMoves` | the scheduler, for an Idle activation (p.11: a unit activated in dangerous terrain tests) |
 | `charge` | `activation-terrain`, `charge-target`, `move`, `crossing`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
-| `melee` | `melee-start`, `counter`, `impact`, `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage`, `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
-| `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
-| `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
+| `melee` | `melee-start`, `counter`, `impact` (3.6.0: `impact`, `counter`), `charger-ravage`, `charger-attacks`, `strike-back`, `defender-ravage` (3.6.0: `charger-strike-rolls`, `charger-attacks`, `strike-choice`, `defender-strike-rolls`, `strike-back`), `unwieldy`, `self-destruct`, `compare`, `consolidate`, `after-melee` | `GfMelee` | `charge`'s `fight` |
+| `attack-sequence` | `determine-attacks`, `defender-choice` (3.6), `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds`, `attack-end` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
+| `resolve-hits` | `parry` (3.6, `GfParry`), `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
 | `deal-wounds` | `assign`, `disgorge`, `caster-group`, `destroyed`, `retaliation` | `GfAttack`, `GfContainers`, `GfSpellSupport`, `GfMarkers`, `GfRuleHits` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal`, `rule-wounds`' `deal` |
 | `morale-test` | `test`, `override`, `consequence` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
+| `dangerous-terrain-36` | `test`, `deal` | `GfMoves` (`GfMoves.Dangerous36.cs`) | the same pushers under 3.6.0 (`GfEdition.UnitDangerousTest`, `GfMoves.DangerousSeq`) |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
 | `casting` | `pick-spell`, `origin`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
-| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects`, `pick-rule`'s `rule-effects` |
+| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds`, `attack-end` | `GfCasting` | `casting`'s `effects`, `pick-rule`'s `rule-effects` |
 | `spell-test` | `test`, `consequence` | `GfCasting` | `casting`'s `effects` or `pick-rule`'s `rule-effects`, for a `take_test` row |
 | `reposition` | `reposition` | `GfMoves` | a `move` or `place` row offered at its point by `GfHooks.ReactionsAt` |
 | `pick-rule` | `rule-roll`, `rule-target`, `rule-effects` | `GfPick` | a pick entry's use offered at `before-attacking` by `GfHooks.ReactionsAt` |
@@ -35,8 +38,9 @@ edges and the free-for-all roll-off.
 | `after-deploy` | `after-deploy` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences` after a deployment turn, when the unit holds a row at `after-deploy` (Fanatic, Vanguard) |
 | `ambush-redeploy` | `remove` | `GfAmbush` | the `activation-end` window, for a unit all of whose models hold Ambush Re-Deployment |
 | `coordinate` | `coordinate-pick`, `coordinate-act`, `coordinate-end` | `GfActivationEnd` | `IGameRules.EndOfTurnSequences`, when the actor holds Coordinate |
-| `rule-hits` | `hit`, `score-hits`, `resolve` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct`, `pick-rule`'s `rule-effects` (Surprise Attack) |
-| `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage`, an action's `crossing` (Crossing Attack) |
+| `rule-hits` | `hit`, `score-hits`, `resolve`, `attack-end` | `GfRuleHits` | `deal-wounds`' `retaliation` (Deathstrike, Retaliate, Self-Destruct), `melee`'s `self-destruct`, `pick-rule`'s `rule-effects` (Surprise Attack) |
+| `rule-wounds` | `roll`, `deal` | `GfRuleHits` | `melee`'s `charger-ravage` and `defender-ravage` (3.6.0: `strike-rolls`, Ravage 6+ and Regenerative Strength 4+), an action's `crossing` (Crossing Attack) |
+| `strike-rolls` | `roll` | `GfStrikeRolls36` | 3.6.0: `melee`'s `charger-strike-rolls`, `counter` and `defender-strike-rolls` |
 | `rally` | `rally` | `GfMarkers` | `IGameRules.RoundBoundaryStep`, for a Shaken unit holding Steadfast, Battleborn or Honor Code |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
@@ -106,12 +110,14 @@ for a strike-back.
 
 | Step | Does |
 | --- | --- |
-| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]`, `Values["in_cover"]` and the cover verdict's `cover_models`, `cover_of`, `cover_indirect`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way. Shooting also writes `Values["aim_<shooter>_<target>"]` per eligible model on the table (`GfAttack.Aims`, read only by the Godot client's shot beams): the nearest target model in its range that it sees, valued at the index into `LineOfSight.TargetPoints` of the point its clear line reaches; an Indirect model that sees none aims at the nearest in range, at its body centre |
+| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]`, `Values["in_cover"]` and the cover verdict's `cover_models`, `cover_of`, `cover_indirect`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way. Shooting also writes `Values["aim_<shooter>_<target>"]` per eligible model on the table (`GfAttack.Aims`, read only by the Godot client's shot beams): the nearest target model in its range that it sees, valued at the index into `LineOfSight.TargetPoints` of the point its clear line reaches; an Indirect model that sees none aims at the nearest in range, at its body centre. Under 3.6.0 Indirect's *"not in line of sight"* half holds on a Hold action, or on any action when an attacking model holds Quick Throw (`GfAttack.IndirectApplies`, `GfEdition.IndirectNeedsHold`) |
+| `defender-choice` | 3.6 only (`GfEdition.DefenderChoice`). The attack's interaction at Point `attacked`: for each entry whose `set_condition` rows there act on the defender with their other conditions holding, an `Options` Ask `choose_effect` to the **defender's** team, one option per condition, pass allowed, in turn. Sets each chosen condition on the defending unit and clears the entry's others; `attack-end` clears every `attacked` condition on the defender (`GfAttack.Closing`), so the next attack asks again (Versatile Defense) |
 | `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then a `PieceSelection(models, 1, 1)` to the **attacker's** team, `models` being the target's living models the group's weapon is in range of and, shooting without Indirect, sees with the target's own models ignored (p.14: *"other models in the target's unit don't block line of sight"*; all of `AliveModels(target)` if none qualifies), which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
-| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`); an added die leaves out the extra-attacks rows, which do not apply to newly generated attacks. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires; at one for a `Takedown` group's picked model, p.14's unit of [1]). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
+| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`); an added die leaves out the extra-attacks rows, which do not apply to newly generated attacks. An `add_hit` row on `attacks` with `optional` (3.6.0 Predator, Primal: *"may"*) that set off dice is not added at once: the pool is rolled, then the step asks the roller's team `extra_attacks` ("roll N extra attacks?", Options Yes and No, pass is No) and rolls the added dice on Yes (`GfNames.ExtraAttacks`). Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires; at one for a `Takedown` group's picked model, p.14's unit of [1]). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
 | `score-hits` | Every `hit` roll of the frame as it now stands, through `RollEffects.PerDie`. Writes `Values["extra_hits"]` (`Surge`/`Relentless` per unmodified 6 on a success) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["self_wounds"]` (`Hazardous`'s 1s) with `Values["wounds"]` equal to it. Consumes the per-die grants |
 | `resolve` | `Push(resolve-hits, ...)` |
 | `self-wounds` | `Push(deal-wounds)` at the attacker's own unit, with no actor, when `self_wounds` is above 0 |
+| `attack-end` | `GfAttack.Closing`: `GrantRemoved` for every once grant a step of the frame or its descendants read and held (`held_<unit>_<grant>`) that is still on its unit, and the clearing of every `attacked`-point condition on the defender. `spell-hits` and `rule-hits` close the same way, and a frame that `Finish`es early closes in the finishing step |
 
 `GfAttack.HitsFrom(parent)` is what `resolve-hits` reads back. It is the successes of the
 parent's `hit` rolls plus its `extra_hits`, times its `hit_multiplier`. When the parent rolled no
@@ -143,6 +149,8 @@ eligible attacker set, not from one vantage model. Indirect drops the sight list
 defender's side as `Die.Triggered` (Shred's `+1 wound` on a 1). For every face of each defense roll that adds wounds, `roll-to-block`
 writes `Values["extra_wounds_<roll>_<face>"]` (`RollEffects.ExtraWounds` judged under the roll's plan), so the wounds are read off the
 face a die shows when they are dealt; `Values["wounds"]` and `Values["extra_wounds"]` are the totals as rolled. `deal` pushes `deal-wounds`.
+
+Under 3.6.0 (`GfEdition.HasParry`) a `parry` step opens the frame when it sits under a melee, an `attack-sequence` the melee pushed or Impact's hits (3.6.0 Parry, Army Forge's common rules: *"roll X dice per model with this rule in it, up to as many dice as hits taken. For each 6+ one hit is ignored (defender picks which)"*). Its dice are the sum over the defender's living models of the highest Parry X among that model's melee weapons, at most the hits; each 6+ ignores one hit, taken from the hits carrying the most per-die grants, with no Ask because the hits it chooses between differ only by their grants. `roll-to-block` reads the hits less `GfParry.Parried`, as the dice now stand.
 
 `Impact` hits enter here directly, skipping the hit roll. Spell hits enter from `spell-hits`: after a hit roll
 that cannot fail when the spell prints *"Roll as many dice as hits"*, so *on rolls of 6* rules read a real die,
@@ -185,13 +193,17 @@ hero last. Nothing after the
 assignment changes: `Deadly` multiplies, `Regeneration` rolls, the `Tough` capacity read shelves the
 model, and `WoundsThisActivation` rises by what landed. `Tough` therefore splits in two: it is not
 consulted as an *ordering* rule, so a takedown may name a fresh model while a wounded `Tough` model
-stands, and it is still read as a *capacity*. Wounds past that capacity are lost, exactly as they
-are when a defender allocates more to one model than it can take. A name that is not a living model
+stands, and it is still read as a *capacity*. Wounds past that capacity are lost: the takedown is
+resolved as a unit of one. A defender's allocation of more to one model than it can take carries the
+rest to the next segment instead. A name that is not a living model
 of the target is ignored and the ordinary Ask opens; only a menu edit can produce one, because the
 pick and the wound are two steps of one frame and the only wounds dealt in between are this group's.
 
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
-ordinal 0, with no carry-over past the model's capacity. `Regeneration` live on the target unit, which 3.5.1 needs
+ordinal 0, with no carry-over past the model's capacity. A model keeps only the `Deadly` wounds it
+needs to die, ⌈room ÷ X⌉; each further wound allocated to it is a wound of its own (p.8 *"For each wound
+that the unit has taken, the defending player must remove one model"*), so it goes to the next segment,
+where it is multiplied by X on the model it is assigned to; its excess there is lost too. `Regeneration` live on the target unit, which 3.5.1 needs
 every model to carry, rolls one die at the effect row's threshold, recorded as a `RollRecord` named `Regeneration`, and a
 success ignores the wound. A segment that rolls takes two runs of `assign`: the first rolls each model's dice and records the
 segment as `Values["ignore_wounds"]` and `Values["allocated_<i>_<model>"]` (Repeat), the second reads those dice as they then
@@ -200,8 +212,10 @@ stand and applies the wounds. The model's `Wounds` rises. At
 `WoundsThisActivation` on the target rises by the wounds that landed. It is a per-unit counter in
 game state, because the morale threshold needs it to outlive the frame that wrote it.
 
-**Constraint 6 lives in that one expression.** `deal-wounds` reads a *capacity*. The only place
-the string `Tough` appears is `GfAttack.cs`, and `InterfaceConstraintTests` asserts both halves.
+**Constraint 6 lives in that one expression.** `deal-wounds` reads a *capacity*,
+`Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1` in `GfAttack.Wounds.cs`. `Tough` is named only in the ruleset
+(`Rules/GrimdarkFuture/`), never in the generic half (`Interpreter`, `Effects`, `Dice`, `Engine`, `Properties`), and
+`InterfaceConstraintTests` asserts both halves.
 
 `disgorge` is covered under §Containment (Task 19).
 
@@ -218,6 +232,14 @@ through dangerous terrain, or is activated in it, then it must take a dangerous 
 out of it, through several pieces, over several segments of a move a stop splits, or a charge and its move. Each step
 that writes `dangerous_dice` also writes `Values["dangerous_tested_<model>"]` for the models it covers, and `ApplyMove`
 leaves out every model so marked on the action's frame or any frame under which the move runs (`GfMoves.TestedThisActivation`).
+
+Under 3.6.0 the test is the unit's (3.6.0 p.12 *"If any model in a unit moves into or through Dangerous terrain, or activates in it,
+then the entire unit must take a Dangerous Terrain Test. To take a Dangerous Terrain Test, roll as many dice as the number of wounds
+it would take to fully destroy the unit, and for each result is 1 the unit takes one wound."*; 3.6.0 p.15 Transport says the same of
+a destroyed transport's passengers). The same pushers push `dangerous-terrain-36` (`GfMoves.DangerousSeq`): its `test`
+(`UnitDangerousTestStep`) rolls `GfMoves.WoundsToDestroy` dice, the sum over the unit's models in play of Tough (or 1) less wounds
+taken, at 2+, and `deal` is the 3.5.1 sequence's. The pusher writes `Values["dangerous_tested_unit_<unit>"]` beside the model marks,
+and `ApplyMove` owes no dice once the unit is so marked on any frame above the move.
 
 `shoot-or-not` (p.7–8: Hold and Advance may shoot) is three cases in order. A `Shaken` unit
 `Finish`es with `ConditionSet(unit, shaken, false)`, spending the activation idle and ceasing to
@@ -273,7 +295,10 @@ at dispatch (`IGameRules.AnswerBreach`, rule `difficult_cap`), which reads the r
 `Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. That is the reason an
 action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 `Movement.Check(...).Distance` over the moved models, in tenths of an inch, because `Values` is a
-map of integers. A `Passed` answer is a zero move.
+map of integers. A `Passed` answer is a zero move. A once grant the allowance reads (Shock Speed's +2"/+4") holds for
+every segment of the action's move: a segment that moves writes `Values["move_held_<unit>_<grant>"]` instead of removing
+it, and the run that ends the step removes each one still on its unit with its entry's other grants (p.7, 3.6.0 p.7:
+one Advance, Rush or Charge, which a stop does not end).
 
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
 unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
@@ -396,21 +421,26 @@ sequenceDiagram
     DT-->>C: Destinations or Passed
     C->>M: fight: Push melee, or Finish when no charger model is in reach
     M->>M: melee-start: record both units' WoundsThisActivation
-    M->>A: counter: the defender's Counter weapons strike first
-    M->>M: impact: Impact(X) dice minus one per Counter model in reach, threshold 2; the repeat resolves the hits as the dice then stand
+    M->>DT: counter (3.6.0, unless the defender is Fatigued or Shaken): Options([strike, pass])
+    DT-->>M: Chosen
+    M->>A: counter: the defender's Counter weapons strike first (3.6.0: on strike)
+    M->>M: impact: Impact(X) dice (3.5.1: minus one per Counter model), threshold 2; the repeat resolves the hits as the dice then stand
     M->>A: charger-attacks, then set fatigued on the charger
     M->>DT: strike-back: Options([strike, pass])
     DT-->>M: Chosen
     M->>A: the defender's attack-sequence, then set fatigued on the defender
-    M->>M: compare: wounds each way, Fear(X) added, a destroyed unit always loses
+    M->>M: compare (3.5.1): wounds caused each way since melee-start plus Fear(X); fewer caused loses; a destroyed unit always loses
+    M->>M: compare (3.6.0): wounds each unit took this activation (dangerous-terrain included) plus the enemy's Fear(X); more taken loses; a destroyed unit always loses
     M->>M: the loser pushes morale-test with Action = melee - a tie tests nobody
     M->>CT: consolidate: 3 inches if a unit died, else the charger falls back 1 inch
 ```
 
-The defender is asked three times in one charge: close in, strike back, and allocation inside
-each `deal-wounds`. `Counter` resolves before `Impact`; the book leaves the order ambiguous. `melee-start` has to record both units' `WoundsThisActivation` **before**
-anything strikes, because `compare` subtracts that baseline. A step inserted before `melee-start`
-that causes a wound would be counted twice.
+The defender is asked three times in one charge (four under 3.6.0, with `counter`): close in, strike back, and allocation inside
+each `deal-wounds`. Under 3.5.1 `counter` precedes `impact` (the book leaves the order ambiguous) and each Counter model takes one Impact die; under 3.6.0 `impact` precedes `counter` (p.14 *"before either unit attacks"*) and Counter takes no dice (`GfEdition.ImpactBeforeCounter`, `CounterReducesImpact`). Under 3.6.0 the defender's team is asked `counter` (p.13 *"May strike first with this weapon when charged, unless this unit is Fatigued"*; `GfEdition.CounterOptional`), and a Fatigued or Shaken defender (p.10, *"counting as Fatigued"*) is not asked and has no Counter strike (`CounterLostWhenFatigued`); either way `counter` records `counter_held` and the Counter weapons strike with the rest in `strike-back`. Counter-Attack (*"Strikes first when charged"*) is not asked under either edition. Under 3.6.0 `impact` also takes Brace off the charger's total Impact dice (Army Forge's common rules: *"Enemies charging this unit get -X total Impact rolls, unless this unit is Fatigued"*): X is read off the defender's melee weapons with weapon-type collapse, so five Spears with Brace(1) take one die, floor 0, and a Fatigued or Shaken defender takes none off (`GfMelee.Brace`). `melee-start` has to record both units' `WoundsThisActivation` **before**
+anything strikes, because `compare` subtracts that baseline under 3.5.1. A step inserted before `melee-start`
+that causes a wound would be counted twice. Under 3.6.0 (`GfEdition.MeleeLossByWoundsTaken`, p.10 *"compare the number of wounds each
+unit took during this activation instead. The unit with the highest total loses"*) `compare` reads `WoundsThisActivation` whole, so the
+charge move's dangerous-terrain wounds count against the charger; `charger_wounds` and `defender_wounds` then hold the wounds each unit took.
 
 `charge-target` offers enemy units with a model a charger model reaches in base contact within `StatReader.ActionDistance(Charge)`
 along a path round every impassable volume (`Movement.ContactDistance`; p.9 *"has a clear path to reach it"*, *"charge moves
@@ -504,7 +534,7 @@ shape:
   model target is resolved as a unit of one: `GfAttack.TakedownModel` reads the model off the `targets` answer,
   `Blast` is capped at one model and the wounds go to that model with no allocation. Its `score-hits` is
   `attack-sequence`'s: `extra_hits`, `self_wounds` and `granted_<entry>_<amount>` from the dice as they now
-  stand, and it `Finish`es the frame when the spell scored no hit. Then `resolve-hits` is pushed.
+  stand, and it `Finish`es the frame, closing it as `attack-end` does, when the spell scored no hit. Then `resolve-hits` is pushed, and `attack-end` closes the frame.
 - **`TakeTest`** → `Push(spell-test, ...)`: `test` pushes `morale-test` for the target with p.10's ordinary
   consequence and attack kind `spell`, and `consequence`, when the test failed, applies the row's children: a
   `SetCondition` on the target's unit, or a `Move` Ask to the caster's team over the target's models.

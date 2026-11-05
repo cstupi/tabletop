@@ -588,11 +588,23 @@ public interface IRulesEngineFactory { IRulesEngine Create(IGameRules rules, Gam
 `IGameRules` is the ruleset-specific C# named by [identity and
 enumerations](../../superpowers/specs/2026-08-29-identity-and-enumerations-design.md). This
 module declares it with one member and ships one implementation, `GrimdarkFutureRules`
-(`Rules/GrimdarkFuture/GfRules.cs`, id `grimdark-future`), **`partial` from day one** so that
+(`Rules/GrimdarkFuture/GfRules.cs`), **`partial` from day one** so that
 the scheduler plan can add `GfRules.Scheduling.cs` and `GfRules.Deployment.cs` and the
 interpreter plan `GfRules.Sequences.cs` without either editing a file the other owns.
-`GameRulesRegistry.Resolve` is a two-arm switch throwing `UnknownGameRulesException`, because a
-registry table would answer "what rulesets exist", which the build already knows.
+`GameRulesRegistry.Resolve` is a switch over the ids in `RuleSets` (`Tabletop.Content`) throwing
+`UnknownGameRulesException`, because a registry table would answer "what rulesets exist", which the build already knows.
+
+**Editions are ids.** `grimdark-future` is Grimdark Future 3.5.1 and `grimdark-future-3.6` is 3.6.0
+([rule-set versions](../../superpowers/specs/2026-10-29-rule-set-versions-design.md)). `GrimdarkFutureRules` is one class with
+two instances, `V351` (also `Instance` and `RulesId`) and `V360`, each built from a `GfEdition` (`Rules/GrimdarkFuture/GfEdition.cs`),
+a record of what differs between the editions: numbers and yes/no values (melee reach, Scout reach, Side Battle legs, the
+Counter and Impact order, Artillery and Cumbersome, the terrain words, the content folder name) read as
+`GfEdition.Of(state)`, which reads `state.Info.GameRules` as `GfOptions.Of` reads `OptionalRules`. A step whose logic differs
+has a copy per edition: `dangerous-terrain` and `dangerous-terrain-36` are both in the catalog and the pushers choose by
+`GfEdition.UnitDangerousTest` (`GfMoves.DangerousSeq`), and the `melee` sequence is built per instance (`GfMelee.Melee(Edition)`);
+the 3.5.1 code paths are not edited for a 3.6.0 behaviour. `Id`, `OptionCatalog`, `Zones` and `TerrainWords` come from the edition. The id is
+`game.game_rules`, copied from the chosen property set's row at create and at `SetConfiguration`; existing games hold
+`grimdark-future` and stay on 3.5.1.
 
 `IRulesEngine` is ruleset-blind. The scheduler and the interpreter are **one** implementation
 between them, not two. The interpreter plan's `RulesEngine` registers as `IRulesEngineFactory`
@@ -781,6 +793,14 @@ up); a team another account holds is joined only by the creator's placing (`Part
 the creator places; a non-creator naming anyone but themselves, or a held team, is `NotPermitted`). A lobby
 edit from a participant whose row has gone is refused.
 
+The creator may change the edition in the lobby: a `SetConfiguration` whose `PropertiesHash` belongs to another `game_rules`
+id (`IGameRows.PropertiesGameRulesAsync`; an unknown hash is `Unknown`) is checked against the new edition's option catalog
+(`OptionProblems`, refused `Unknown` before any write), written, and then `Rules` is re-resolved on the session. The session
+clears every participant's army whose edition (`RuleSets.EditionOf`) is not the new one, broadcasts a `RulesOptionsMessage`
+(the new `OptionCatalog`, `Zones` and `TerrainWords`, shaped as `Welcome`'s) and then the `GameInfoMessage`, because both clients
+rebuild their option controls, zones and terrain words when the GameInfo lands. From `playing` on the configuration, the
+edition with it, is frozen (`WrongStatus`).
+
 ### Presence and the drain
 
 `PresenceTable` keeps the latest value per participant plus a dirty set. `HandlePresence` stamps
@@ -827,6 +847,7 @@ or a record it holds (`DraftLimits`, `ArmyLimits`). The figures and why:
 | Draft (`DraftLimits`) | 64 pieces, 8 volumes a piece, 32 markers; labels 64, notes 500 characters; volumes from 0 to at most 24" and upward; markers 0.5–6" across; scale up to 10; positions finite within 144" of the table's centre; table edges at most 144" (`Table.MaxEdge`); a built-in visual a lowercase slug (the catalog lives in the client); zone shapes the style's own, once each | the edit `Refused(Unknown)`; removals always apply | p.6 recommends 15 or more pieces; the client's generators place 13–21 |
 | Assets in a setup edit | each must exist in `management.asset` and belong to a participant (`IGameRows.AssetOwnersAsync`) | `Refused(NotPermitted)` | a stranger's mesh id would publish their blob |
 | Army at `PickArmy` and `EndSetup` (`ArmyLimits`) | 150 units, 50 models a unit, 1000 models; bases 0.4–12", heights 0.1–24", a defined base shape; Quality and Defense 2+–6+, Attacks 1–100, Range up to 144"; rule parameters 0–100 | `Refused(Illegal)` naming what is out of range | an army is user data read by every step; 100 keeps a titan's Tough playable |
+| Army edition at `PickArmy` (lobby and waiting for players) and `EndSetup` (`ArmyLimits.EditionBreach`) | the army's edition is `RuleSets.EditionOf` the game's rules | `Refused(NotPermitted)`: "this army is a 3.5 list; the game plays Grimdark Future 3.6", EndSetup's prefixed with the participant | unit ids, costs and options differ between editions (rule-set versions spec → A 3.5 army in a 3.6 game, and the reverse) |
 | Override commands (`MenuLimits`) | an action or a grant's entry and effect must exist in the property set; a condition 1–64 characters (conditions are free names: game flow, "anything else the unit currently is"); positions finite within the table's diagonal of its centre (`GfAnswers.Moves`' bound); wounds, tokens 0–10 000; score ±10 000; round 0–100 | `Refused(Unknown)` | what the menu writes is read back by every later step |
 | Presence (`PresenceLimits`) | 64 placements, 64 selected models, finite coordinates; a ping's point finite | dropped | one unit's drag |
 | A roll | 1000 dice (`Roller.MaxDice`); a negative count throws | clamped, logged | the rulebook's largest pool is a few hundred |
@@ -884,8 +905,9 @@ Decisions this module settles itself:
 | Type | Members |
 | --- | --- |
 | `interface IGameRules` | `string Id { get; }`, `GameEndingBreach? JudgeAdvance(GameState, PropertySet, IReadOnlyList<EventPayload>)`, `IReadOnlyList<StateChange> OnRoundEnded(GameState, PropertySet, int round)` (the last two default to none; extend with hooks, do not replace) |
-| `sealed partial class GrimdarkFutureRules : IGameRules` | `const string RulesId = "grimdark-future"`, `static GrimdarkFutureRules Instance`, `Id`; namespace `Tabletop.GameServer.Rules.GrimdarkFuture`, file `Rules/GrimdarkFuture/GfRules.cs` |
-| `static class GameRulesRegistry` | `IGameRules Resolve(string id)`, throws `UnknownGameRulesException(string id)` |
+| `sealed partial class GrimdarkFutureRules : IGameRules` | `const string RulesId = RuleSets.Gf351`, `static GrimdarkFutureRules V351, V360`, `Instance` (= `V351`), `GfEdition Edition`, `Id` (= `Edition.Id`); namespace `Tabletop.GameServer.Rules.GrimdarkFuture`, file `Rules/GrimdarkFuture/GfRules.cs` |
+| `sealed record GfEdition` | `V351`, `V360`, `Of(GameState)`, `Of(string rulesId)` (throws `UnknownGameRulesException`), `ZoneLegsOf`; file `Rules/GrimdarkFuture/GfEdition.cs` |
+| `static class GameRulesRegistry` | `IGameRules Resolve(string id)` over `RuleSets.Gf351` and `RuleSets.Gf360`, throws `UnknownGameRulesException(string id)` |
 | `sealed record Actor(Guid ParticipantId, Guid? TeamId)` | |
 | `sealed class GameState(GameInfo, Board, EventApplier, IGameRules)` | `GameInfo Info { get; set; }`, `Board Board`, `EventApplier Applier`, `Projection Projection`, `IGameRules Rules`; the interpreter plan adds the RNG seed here |
 | `abstract record EngineResult` | `Emit(IReadOnlyList<EventPayload> Events)`, `RefuseCommand(RefusalReason Reason, string Detail)` |
@@ -1479,7 +1501,7 @@ command/event spine, rules enforcement, undo, two servers, transport, deployment
 constraints, the game management data model, persistence, contracts to freeze, build order);
 [`docs/schema.md`](../../schema.md); [`docs/data-model.md`](../../data-model.md).
 
-**Rulebook.** Grimdark Future v3.5.1 page 17 covers the placement styles, and *"if it's
+**Rulebook.** Grimdark Future v3.5.1 page 17 (the same text is 3.6.0 p.29; the module holds no edition-specific rule) covers the placement styles, and *"if it's
 impossible to place the terrain piece, simply remove it"*, which is `DraftEditor.DropOffSlab`.
 Page 6 covers the deployment roll-off the app does not run in setup, reconciled by `SwapZones`.
 No other page is read by this module, because this module holds no rules.

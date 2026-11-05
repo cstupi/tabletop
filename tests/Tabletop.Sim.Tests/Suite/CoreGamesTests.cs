@@ -1,3 +1,5 @@
+using Tabletop.Content;
+using Tabletop.Sim.Scenarios;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -26,8 +28,8 @@ public class CoreGamesTests
     [Fact]
     public void The_core_group_is_a_small_set_of_themed_games_and_one_per_optional_rule()
     {
-        var core = SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).ToList();
-        Assert.InRange(core.Count(g => g.Scenario.OptionalRules.Count == 0), 8, 18);
+        var core = SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup && g.Edition == RuleSets.Gf351).ToList();    // a game that runs both editions counts once
+        Assert.InRange(core.Count(g => g.Scenario.OptionalRules.Count == 0), 8, 19);
         Assert.Equal(3, core.Count(g => g.Scenario.OptionalRules.Count > 0));                   // one per optional-rule value that is not the default
         Assert.All(core, g => Assert.StartsWith("core-", g.Name));
         Assert.Equal(core.Count, core.Select(g => g.Name).Distinct().Count());
@@ -80,7 +82,7 @@ public class CoreGamesSocketTests(PostgresFixture pg) : IDisposable
     async Task<SuiteSocket> SocketAsync()
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
-            PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+            ScenarioCompiler.CoreDocuments[RuleSets.Gf351], Ct);
         return new TestPool(pg).Socket(() => new FactoryConnector(_factory));
     }
 }

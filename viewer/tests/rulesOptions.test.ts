@@ -19,6 +19,10 @@ describe('RulesOptions', () => {
   it('mapOf drops defaults', () => {
     expect(mapOf(catalog, { a: 'on', b: 'x' })).toEqual({ a: 'on' });
   });
+  it('configurationOf sends the picked hash over the game\'s', () => {
+    const game = { propertiesHash: 'hash' } as GameInfo;
+    expect(configurationOf(game, 'N', 'player-turn', 'strict', catalog, {}, 'other').propertiesHash).toBe('other');
+  });
   it('configurationOf carries the hash and the map', () => {
     const game = { propertiesHash: 'hash' } as GameInfo;
     expect(configurationOf(game, '  N ', 'player-turn', 'strict', catalog, { b: 'y' })).toEqual({

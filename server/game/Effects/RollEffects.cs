@@ -5,13 +5,13 @@ using Tabletop.Protocol;
 namespace Tabletop.GameServer.Effects;
 
 /// <summary>What one die does beyond its success, for the side that rolled it: extra hits it scores, extra wounds that side's unit takes, per-hit grants.</summary>
-public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants, int ExtraAttacks = 0);
+public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants);
 
 public static class RollEffects
 {
     /// <summary>The roll as the live set leaves it. Summing is generic; the convention clamps. Suppressed modifier classes are removed before summing.</summary>
-    public static RollPlan Plan(LiveSet live, Side roller, string roll, int? threshold, IEnumerable<RollModifier> baseModifiers, RollConvention convention, int? requiredRaw, string hitRollName) =>
-        Attributed(live, roller, roll, threshold, baseModifiers, convention, requiredRaw, hitRollName).Plan;
+    public static RollPlan Plan(LiveSet live, Side roller, string roll, int? threshold, IEnumerable<RollModifier> baseModifiers, RollConvention convention, int? requiredRaw, string hitRollName, string defenseRollName) =>
+        Attributed(live, roller, roll, threshold, baseModifiers, convention, requiredRaw, hitRollName, defenseRollName).Plan;
 
     /// <summary>
     /// Plan, with the sources behind its forced rerolls by the face each rerolls. A modifier that survives the suppressions is recorded as applied; one a
@@ -19,7 +19,7 @@ public static class RollEffects
     /// so the caller records its source when the roller rerolled that face (StepContext.Roll).
     /// </summary>
     public static (RollPlan Plan, IReadOnlyList<(int Face, bool SuccessOnly, LiveProperty Source)> Rerolls) Attributed(LiveSet live, Side roller, string roll, int? threshold, IEnumerable<RollModifier> baseModifiers,
-        RollConvention convention, int? requiredRaw, string hitRollName)
+        RollConvention convention, int? requiredRaw, string hitRollName, string defenseRollName)
     {
         var modifiers = baseModifiers.ToList();
         var added = new List<(RollModifier Modifier, LiveProperty Source)>();
@@ -30,16 +30,34 @@ public static class RollEffects
             added.Add((modifier, src));
         }
         // What a suppression took away, for the log (detailed-log spec): the modify_roll rows of removed properties that would have applied, and the
-        // negative hit modifiers a to_hit_penalties suppression drops. Cover's is the CoverVerdict's to say.
+        // negative hit modifiers a to_hit_penalties or foreign_to_hit_penalties suppression drops, and the positive defense modifiers a positive_defense
+        // suppression drops (cover's among them). Cover's under a cover suppression is the CoverVerdict's to say.
         var ignored = live.RemovedRows(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll)
             .Select(x => new IgnoredEffect(x.Removed.Entry.Name, x.By.Entry.Name, x.Effect.EffectiveAmount(x.Removed.Parameter))).ToList();
         live.ReadRemoved(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll);
         if (live.SuppressedModifiers.Contains(TargetModifier.Cover) && modifiers.RemoveAll(m => m.Source == "cover") > 0) live.ReadSuppressedModifier(TargetModifier.Cover);
-        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties))
+        if (roll == hitRollName)
         {
-            var by = string.Join(", ", live.Suppressors(TargetModifier.ToHitPenalties));
-            ignored.AddRange(modifiers.Where(m => m.Amount < 0).Select(m => new IgnoredEffect(m.Via is { } via && m.Source == "AP" ? $"{via} {m.Source}" : m.Source, by, m.Amount)));
-            if (modifiers.RemoveAll(m => m.Amount < 0) > 0) live.ReadSuppressedModifier(TargetModifier.ToHitPenalties);
+            // ToHitPenalties drops every negative modifier; ForeignToHitPenalties keeps those from the roller's own rules (LiveSet.OwnedBy). A base modifier has no
+            // rule behind it, so it is foreign.
+            var sources = new Dictionary<RollModifier, LiveProperty>(ReferenceEqualityComparer.Instance);
+            foreach (var (modifier, src) in added) sources.Add(modifier, src);
+            bool Own(RollModifier m) => sources.TryGetValue(m, out var src) && live.OwnedBy(src, roller);
+            foreach (var kind in new[] { TargetModifier.ToHitPenalties, TargetModifier.ForeignToHitPenalties })
+            {
+                if (!live.SuppressedModifiers.Contains(kind)) continue;
+                bool Drops(RollModifier m) => m.Amount < 0 && (kind == TargetModifier.ToHitPenalties || !Own(m));
+                var by = string.Join(", ", live.Suppressors(kind));
+                ignored.AddRange(modifiers.Where(Drops).Select(m => new IgnoredEffect(m.Via is { } via && m.Source == "AP" ? $"{via} {m.Source}" : m.Source, by, m.Amount)));
+                if (modifiers.RemoveAll(Drops) > 0) live.ReadSuppressedModifier(kind);
+            }
+        }
+        if (roll == defenseRollName && live.SuppressedModifiers.Contains(TargetModifier.PositiveDefense))
+        {
+            // PositiveDefense drops every positive modifier of the defense roll, base and rule rows alike; negative ones stay.
+            var by = string.Join(", ", live.Suppressors(TargetModifier.PositiveDefense));
+            ignored.AddRange(modifiers.Where(m => m.Amount > 0).Select(m => new IgnoredEffect(m.Source, by, m.Amount)));
+            if (modifiers.RemoveAll(m => m.Amount > 0) > 0) live.ReadSuppressedModifier(TargetModifier.PositiveDefense);
         }
         foreach (var (modifier, src) in added)
             if (modifiers.Any(m => ReferenceEquals(m, modifier))) live.Read(src); else live.Spend(src);
@@ -50,7 +68,7 @@ public static class RollEffects
             foreach (var e in p.Effects.Where(e => e.Kind == EffectKind.ForceReroll && e.TargetRoll == roll && p.ActedOn(e) == roller))
             {
                 var face = e.Conditions.FirstOrDefault(c => c.Kind == ConditionKind.RollResult && c.Values.Count is 2 or 3 && c.Values[0] == roll && c.Values[1] == "raw");
-                if (face?.Number is not { } n || !e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))) continue;
+                if (face?.Number is not { } n || !e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null, live))) continue;
                 var successOnly = face.Values.Count == 3;
                 (successOnly ? successful : reroll).Add(n); rerolls.Add((n, successOnly, p)); live.Spend(p);
             }
@@ -58,7 +76,9 @@ public static class RollEffects
     }
 
     /// <summary>What one die does beyond its success: extra hits and per-hit grants of a rule. A row that adds wounds acts on the die whatever it scored and is
-    /// read; one that adds hits, attacks or a grant acts only on a success, so its source is recorded only then (ReadPerDie spends a granted one).</summary>
+    /// read; one that adds hits, attacks or a grant acts only on a success, so its source is recorded only then (ReadPerDie spends a granted one). The dice an
+    /// attacks row adds are `roll-to-hit`'s to draw; an optional attacks row is not recorded here, as it acts only when the roller's team takes the dice,
+    /// which `roll-to-hit` records.</summary>
     public static DieEffects PerDie(LiveSet live, Side roller, Die die, string roll)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified, die.Success);
@@ -69,9 +89,8 @@ public static class RollEffects
         var grants = live.Effects(roller, EffectKind.GrantProperty, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .ToList();
         if (die.Success)
-            foreach (var x in adds.Where(x => x.Effect.TargetQuantity != TargetQuantity.Wounds).Concat(grants)) live.Record(x.Source);
-        var attacks = adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
-        return new DieEffects(extra, wounds, grants.Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList(), attacks);
+            foreach (var x in adds.Where(x => x.Effect.TargetQuantity != TargetQuantity.Wounds && !x.Effect.Optional).Concat(grants)) live.Record(x.Source);
+        return new DieEffects(extra, wounds, grants.Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList());
     }
 
     /// <summary>The wounds a die showing this face adds (a roll-result add_hit row on wounds, which acts whatever the die scored). Pure: PerDie reads
@@ -80,6 +99,16 @@ public static class RollEffects
         live.Effects(roller, EffectKind.AddHit, new DieContext(roll, die.Raw, die.Modified, die.Success))
             .Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+
+    /// <summary>The wounds a die showing this face makes the side count as having taken without taking them: the count_wounds rows with a roll_result
+    /// condition on the roll, summed. Pure, mapped per face as ExtraWounds is.</summary>
+    public static int CountedWounds(LiveSet live, Side side, Die die, string roll) =>
+        CountedRows(live, side, die, roll).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+
+    /// <summary>The count_wounds rows a die showing this face sets off, for the caller to record.</summary>
+    public static IEnumerable<(LiveProperty Source, Effect Effect)> CountedRows(LiveSet live, Side side, Die die, string roll) =>
+        live.Effects(side, EffectKind.CountWounds, new DieContext(roll, die.Raw, die.Modified, die.Success))
+            .Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult));
 
     /// <summary>
     /// What one die set off, for the log (combat-log spec → Die.Triggered): each roll-result add_hit row as `Rule +N hit(s)` (or attack(s),
@@ -136,19 +165,25 @@ public static class RollEffects
     {
         foreach (var p in live.Live.Where(p => p.GrantId is not null))
             if (p.Effects.Any(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult && c.Values.Count >= 2 && c.Values[0] == roll)
-                    && e.Conditions.Where(c => c.Kind != ConditionKind.RollResult).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))))
+                    && e.Conditions.Where(c => c.Kind != ConditionKind.RollResult).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null, live))))
                 live.Spend(p);
     }
 
     /// <summary>A GrantRemoved for every grant the live set read, and for every other grant on that unit the same spell left (spell library → the grants
-    /// a spell left on a unit are consumed together). A grant already gone, or on a unit no longer in play, removes nothing.</summary>
-    public static IReadOnlyList<StateChange> Consume(LiveSet live)
+    /// a spell left on a unit are consumed together), except that a one_marker token goes alone ("remove one token"). A grant already gone, or on a
+    /// unit no longer in play, removes nothing.</summary>
+    public static IReadOnlyList<StateChange> Consume(LiveSet live) => Release(live.Interaction.State, live.Interaction.Properties, live.GrantsRead);
+
+    /// <summary>Consume's rule for grants read earlier and held (StepContext.Consume): each one still on its unit goes with every other grant of its entry
+    /// on that unit, except that a one_marker token goes alone.</summary>
+    public static IReadOnlyList<StateChange> Release(Rules.GameState state, PropertySet props, IEnumerable<(Guid UnitId, Guid GrantId)> read)
     {
-        var units = live.Interaction.State.Projection.Units;
-        return live.GrantsRead
+        var units = state.Projection.Units;
+        return read
             .Where(r => units.ContainsKey(r.UnitId))
             .SelectMany(r => units[r.UnitId].Grants.FirstOrDefault(g => g.Id == r.GrantId) is { } read
-                ? units[r.UnitId].Grants.Where(g => g.EntryName == read.EntryName).Select(g => (r.UnitId, g.Id)) : [])
+                ? props.EffectById(read.EffectId)?.Duration == EffectDuration.OneMarker ? [(r.UnitId, read.Id)]
+                    : units[r.UnitId].Grants.Where(g => g.EntryName == read.EntryName).Select(g => (r.UnitId, g.Id)) : [])
             .Distinct()
             .Select(x => (StateChange)new GrantRemoved(x.UnitId, x.Item2)).ToList();
     }

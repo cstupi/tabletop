@@ -99,7 +99,8 @@ public static partial class GfMoves
         var terms = new FormationTerms(region.Allowance, terrain.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList(),
             terrain.Where(v => region.DifficultVolumeIds.Contains(v.Id)).ToList(), region.DifficultCap,
             region.IgnoresTerrain ? [] : Declared(terrain, TerrainDeclarations.Impassable), terrain, state.Board.Table.Size, standing.Select(s => s.At).ToList(),
-            region.PassesModels, GfNames.CoherencyChain, GfNames.CoherencyElevated, GfNames.CoherencySpread);
+            region.PassesModels, GfNames.CoherencyChain, GfNames.CoherencyElevated, GfNames.CoherencySpread,
+            region.SteepVolumeIds is { Count: > 0 } steep ? terrain.Where(v => steep.Contains(v.Id)).ToList() : null);
         return UnitFormation.InContact(chargers, standing.Where(s => units.Contains(s.UnitId)).Select(s => s.At).ToList(), targets, terms);
     }
 }

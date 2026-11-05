@@ -1,7 +1,8 @@
 # The effect grammar
 
-What each of the eighteen effect kinds does in code, what each of the eleven predicates reads, which
-pass a kind belongs to, and how a grant is written and consumed. [design.md](design.md) states
+What each of the twenty effect kinds does in code, what each of the thirteen predicates reads, which
+pass a kind belongs to, and the worked rows; [grants.md](grants.md) covers how a grant is written,
+held and released. [design.md](design.md) states
 the two-pass decision and its motivation. Everything here lives in `server/game/Effects/` and may
 not name an OPR rule.
 
@@ -23,7 +24,8 @@ sealed record Party(Guid UnitId, IReadOnlyList<Guid> ModelIds, IReadOnlyList<Gui
 sealed record Interaction(GameState State, PropertySet Properties, Party Attacker, Party? Defender,
     AttackKind? Attack, string? ActionTaken, double? RangeInches, IReadOnlyList<string> DefenderTerrain,
     string? Point = null, IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? Faces = null,
-    IReadOnlyList<(string Entry, int? Parameter)>? SpellRules = null)
+    IReadOnlyList<(string Entry, int? Parameter)>? SpellRules = null,
+    IReadOnlyList<string>? AttackerTerrain = null, SpellReach? SpellReach = null)
 {
     Party Of(Side side);
     static Side Other(Side side);
@@ -36,7 +38,8 @@ interactions, and every predicate has to cope. Spell hits resolve with `AttackKi
 *when shooting* or *in melee* rule reaches them, and `SpellRules` carries the spell's granted weapon
 rules into the settled set. A morale test's interaction carries the attack kind that caused it:
 `melee` for p.10's melee test, the kind of the unit's last wound that activation for the general
-test, `spell` for a `take_test`. In a Charge's melee, `RangeInches` is the distance at the charge's
+test, `spell` for a `take_test`. After a melee or a shooting it also carries the opposing unit as the defender and a range (`GfMorale.Ix`): the
+charge's recorded range and, for the unit charged, `ActionTaken` `Charge`; the range the attack measured (3.6: `determine-attacks`' `range_hundredths`). In a Charge's melee, `RangeInches` is the distance at the charge's
 start, which the `charge-target` step records as `charge_range` in hundredths of an inch. `Party.Whole` uses `Lookup.AliveModels`, which is
 models still in play, container occupants included. An occupant unit's own properties are
 therefore still gathered when a wrecked transport wounds it.
@@ -57,14 +60,16 @@ sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid
 `Artillery` needs most of it at once. The property sits on the target model, and the effect is −2
 to the **opponent's** hit roll. `Counter` is the case that also tests **self**: the property is
 the defender's, the effect takes a roll off the *charger's* `Impact`, and the condition is *when
-charged*. `Artillery` needs no movement condition because it *may only use Hold actions*.
+charged*. Under 3.5.1 `Artillery` needs no movement condition because it *may only use Hold actions*. Under 3.6.0
+(p.13) it may move: its opponent row carries `actor_state` with subject **self** `neq moved this round`, the condition's
+subject read relative to the holder, so the -1 acted on the shooter tests the Artillery unit's own state; its self row's `action_taken eq Hold` reads the shooter's action.
 
-## The eleven predicates
+## The thirteen predicates
 
 The set is closed. An effect carries a flat list of them and all must hold. Grimdark Future's
 properties contain no *or* and no *not*. `Rush/Charge` looks like an *or* and is set membership
 over action names, which is why a condition's values are rows. `Comparison` includes `neq`
-because a single predicate still has to test a state's absence. `Impact` is *unless fatigued*, which is the one `actor_state` predicate the core set still uses.
+because a single predicate still has to test a state's absence. `actor_state` is read in the core sets by `Impact` (*unless fatigued*) and by 3.6.0's `Artillery` (*as long as they haven't moved during this round*).
 
 | `ConditionKind` | Reads | Subject | Read in `Conditions.Holds` as |
 | --- | --- | --- | --- |
@@ -78,14 +83,17 @@ because a single predicate still has to test a state's absence. `Impact` is *unl
 | `UsageCount` | the effective log | **no** | how many `sequence_started` payloads name this weapon id, the usage record `Limited` reads; with a first value `round`, `activation` or `game`, how many sequences the holder's unit started under this entry's name in that scope |
 | `HoldsProperty` | `Lookup.UnitHas` on the named side | yes | the side holds the one named entry under its own aggregation, granted instances included; a suppression does not unhold, so a Boost still sees its base |
 | `MostModels` | the named side's living models | yes | more than half meet `Compare` on the one named value: a declared stat's target number (`Defense lte 3`), or a rule's parameter, which a model without the rule fails (`Tough gte 3`) |
-| `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`, `activation-end`, `after-deploy`); always true on a granted row, since the grant is that use |
+| `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`, `activation-end`, `after-deploy`, `attacked`); always true on a granted row, since the grant is that use |
+| `WeaponRange` | `Interaction.RangeInches` and the source instance's `WeaponId`; `Interaction.SpellReach` for a source with no weapon | **no** | `RangeInches × 100` compared with `number × range`, the weapon's range as the live set leaves it (`StatReader.PeekWeaponRange`; printed in pass one, where there is no live set). A source with no weapon compares `SpellReach.Distance × 100` with `number × SpellReach.Range`: a spell's hits, whose printed range is the weapon's range and whose distance is the caster model's to the target as the spell's range is measured. False with no weapon and no reach, no range on the weapon or no range in the interaction |
+| `RemainingSize` | `Lookup.RemainingSize` on the named side | yes | `remaining × 100` compared with `number × starting`: models still in play against the definition's count, or for a single model the named rule's parameter (1 without it) less its wounds, 0 on the shelf, against that parameter |
 
-`Validate` refuses a subject on the four relational predicates, `Range`, `RoundNumber`, `UsageCount` and
-`AtPoint`, and requires one, with exactly one value, on `HoldsProperty` and `MostModels`. A range test is about
+`Validate` refuses a subject on the five relational predicates, `Range`, `RoundNumber`, `UsageCount`,
+`AtPoint` and `WeaponRange`, and requires one, with exactly one value, on `HoldsProperty`, `MostModels` and `RemainingSize`;
+`WeaponRange` and `RemainingSize` need a number. A range test is about
 both parties, so a subject would have no meaning.
 
 `Range` compares the distance as measured (p.5, base to base), so a condition written `gt 9` is
-false at exactly 9.0 and true at 9.41. `ActorState`, `HoldsProperty` and `MostModels` on the
+false at exactly 9.0 and true at 9.41. `ActorState`, `HoldsProperty`, `MostModels` and `RemainingSize` on the
 defender are false when the interaction has none (a charge's reach, a move, a lone roll), as
 `PositionTerrain` reads the lone party. `UsageCount` scanning `SequenceContext.WeaponIds`
 counts sequences the weapon was in, not shots fired. That is the right reading for *once per
@@ -98,7 +106,7 @@ reads.
 **Aggregation is not a predicate.** `Stealth`'s *"units where all models have this rule"* is the
 `aggregation` field on the entry. Writing it as a condition too would state one fact twice.
 
-## The eighteen kinds and their passes
+## The twenty kinds and their passes
 
 ```mermaid
 flowchart TD
@@ -118,7 +126,8 @@ flowchart TD
     mu["multiply -> Hit/WoundMultiplier, product, capped"]
     ro["roll -> RollEffects.OwnRolls, the step rolls it"]
     ovr["override_result -> the roll's nested child, read by the step"]
-    steps["count_as_terrain, take_test, set_condition, move, place -> read by the GameRules step that acts"]
+    cw["count_wounds -> RollEffects.CountedWounds, summed per defense die into counted_wounds"]
+    steps["count_as_terrain, take_test, set_condition, move, place, remove_wounds, remove_spell_tokens -> read by the GameRules step that acts"]
     defer["deferred to pass two when it carries a roll_result condition"]
 
     entry --> p1
@@ -140,6 +149,7 @@ flowchart TD
     p2 --> ah
     p2 --> mu
     p2 --> ro
+    p2 --> cw
     ro --> ovr
     p2 --> steps
 ```
@@ -155,19 +165,21 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 3 | `ReplaceStat` | two | `StatReader.TargetNumber`, in ordinal order, last wins | `Reliable` |
 | 4 | `ForceReroll` | two | `RollEffects.Plan` collects the face into `RollPlan.RerollRaw`; `Roller.Roll` redraws once | `Bane` |
 | 5 | `Roll` | two | `RollEffects.OwnRolls` returns it; the **step** rolls it under the entry's name with the row's threshold | `Regeneration`, `Fearless`, `Impact(X)` |
-| 6 | `AddHit` | two | `RollEffects.PerDie` per die with a `RollResult` condition, by `TargetQuantity`: `hits` extra hits, `wounds` extra wounds to the side the subject names (subject `opponent` on a defense die, subject `self` on a hit die), `attacks` extra attacks. An unconditional one is a spell's *takes N hits*, which `spell-hits` reads: with `TargetRoll = hit` it rolls one die per hit that cannot fail, with none the hits land and no die is rolled | `Furious`, `Relentless`, `Shred`, `Hazardous`, damage spells |
+| 6 | `AddHit` | two | `RollEffects.PerDie` per die with a `RollResult` condition, by `TargetQuantity`: `hits` extra hits, `wounds` extra wounds to the side the subject names (subject `opponent` on a defense die, subject `self` on a hit die), `attacks` extra attacks. An unconditional one is a spell's *takes N hits*, which `spell-hits` reads: with `TargetRoll = hit` it rolls one die per hit that cannot fail, with none the hits land and no die is rolled. `optional` on an `attacks` row is a *may*: `roll-to-hit` asks the roller's team `extra_attacks` (Yes, No; pass is No) before adding the dice | `Furious`, `Relentless`, `Shred`, `Hazardous`, damage spells; 3.6.0 `Predator`, `Primal` (optional) |
 | 7 | `Multiply` | two | `RollEffects.HitMultiplier`/`WoundMultiplier`, product of amounts, each capped by `CapKind` | `Blast(X)` on hits, `Deadly(X)` on wounds |
 | 8 | `OverrideResult` | two | nobody: it is the child of a kind-5 roll, and the step reads `TargetResult` to know what a success does | `Regeneration` (wound), `Fearless` (morale test) |
 | 9 | `GrantProperty` | one, or two when per-die | `LiveProperties.Settle` adds a `LiveProperty`; per-die, `RollEffects.PerDie` names it and the step folds it in with `LiveSet.WithGranted` | `Rending`, every spell grant |
 | 10 | `SuppressProperty` | one | `Settle` removes every instance of the entry on the acted-on side | `Bane`, `Rending` and `Unstoppable` ignoring `Regeneration` |
-| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter | `Counter` (−1 `Impact` rolls) |
+| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter; a `floor` holds the sum at it and never raises a parameter already below it | `Counter` (−1 `Impact` rolls); AP(-1) *"to a min. of AP(0)"*, `floor: 0`: 3.5.1 `Fortified`, `Fortified Growth`, `Guardian`, `Guardian Boost` and `Primeborn`, 3.6.0 `Fortified`, `Fortified Growth`, `Guardian`, `Primeborn` and `Enhanced Guardian` (AP(-2) *"from Guardian"*) |
 | 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, and `Blast` for cover |
 | 13 | `CountAsTerrain` | two | `GfMoves` reads the `TargetTerrain` row: `difficult` caps the holder's next move at 6", `dangerous` runs the `dangerous-terrain` test at its next activation, an idle one included | spells granting either terrain type |
 | 14 | `TakeTest` | two | `GfCasting`'s `effects` step pushes `spell-test`, which pushes `morale-test` for the target with p.10's consequence; the row's children apply when the test fails | morale-test spells |
 | 15 | `SetCondition` | two | `spell-test`'s `consequence` sets `TargetCondition` on the target's unit; at an `at_point`, the rule's rows are a choice: `GfHooks.ReactionsAt` offers the rule once and `choose-effect` sets the row picked (the unit's chosen conditions clear as its next activation starts), read by the rule's `actor_state` rows | *Terrifying Fury* (`fatigued`); Versatile Attack, Speed Feat |
-| 16 | `Move` | two | `spell-test`'s `consequence` opens a `move` Ask to the caster's team over the target's alive models, `Amount` inches under that unit's own move rules, which may pass; at an `at_point`, `GfHooks.ReactionsAt` offers it and `reposition` moves the holder | *Deep Hypnosis*; `Hit & Run Fighter`, `Harassing`, `Guerrilla` |
+| 16 | `Move` | two | `spell-test`'s `consequence` opens a `move` Ask to the caster's team over the target's alive models, `Amount` inches under that unit's own move rules, which may pass; at an `at_point`, `GfHooks.ReactionsAt` offers it and `reposition` moves the holder; with `AmountDice` (`d3`, `d3+1`) `reposition` rolls the distance once chosen and moves the holding models | *Deep Hypnosis*; `Hit & Run Fighter`, `Harassing`, `Guerrilla`; 3.6.0 `Rapid Blink`, `Wolfborn`, Bounding, Dash |
 | 17 | `Place` | two | `GfHooks.ReactionsAt` offers it at its `at_point` and `reposition` places the holder, `Amount` inches or `AmountDice` (`d3`, or `d3+1`: a D3 plus one per die) | `Teleport`, `Rapid Blink`, `Wolfborn`, Bounding, Dash |
 | 18 | `RemoveWounds` | two | a pick entry's use row: `pick-rule`'s `rule-effects` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model | `Mend` |
+| 19 | `CountWounds` | two | `RollEffects.CountedWounds` per defense die, an `add_hit`-shaped row with a `roll_result` condition and `amount` N; `roll-to-block` sums it into `Values["counted_wounds"]` (a per-face map as extra wounds keep, so an edited die counts on the face it shows). It wounds no model. Read by `GfMelee.WoundsTaken` (through `CountedInMelee`) for the melee result and by `GfActivationEnd`'s morale trigger, over shooting's attack-sequences and the spells' hits (`GfAttack.CountedWounds`) | 3.6.0 `Scourge` |
+| 20 | `RemoveSpellTokens` | two | `amount` N. A spell's row (`GfCasting.EffectsStep`): the picked unit loses N tokens, from the models with the most first. A `take_test` child (`spell-test`'s `consequence`): the picked model loses N | `Spell Drain`; the spells that print *"loses N spell tokens"* |
 
 `Roll` nests. *X dice at 2+, each success adds a hit* is a `Roll` whose `Amount` is the count or
 the entry's parameter, whose `Threshold` is the score, and whose `Children` hold the per-success
@@ -253,12 +265,20 @@ now, taking the die when one is given, and orders by `Ordinal`. Every reader is 
 ruleset has one: `StepContext.Plan` takes an optional `threshold` that overrides
 `RollSpec.Threshold`, which is how a target number read off a model's slot rather than the unit's
 reaches a plan without putting a model on `RollSpec` and therefore on `IGameRules`. Every `ModifyRoll` on this roll is
-then appended, and two suppressions are applied by removal:
+then appended, and four suppressions are applied by removal:
 
 - `TargetModifier.Cover` suppressed removes modifiers whose `Source` is the literal `"cover"`.
 - `TargetModifier.ToHitPenalties` suppressed removes every negative modifier, **but only when the
   roll is the ruleset's hit roll**. `Plan` receives that roll's name as the `hitRollName`
   parameter. That parameter is what keeps `Effects/` free of OPR's roll names.
+- `TargetModifier.ForeignToHitPenalties` suppressed removes, on the same roll, every negative modifier
+  that is not from the roller's own rules (3.6.0 p.15 Unstoppable: *"which are not from this model's
+  special rules"*). A modifier is the roller's own when `LiveSet.OwnedBy` traces its `modify_roll`
+  row's property, through pass one's grantor and a per-die grant's rule, to a property its side holds,
+  and a granted row on it was placed by its own team. A base modifier has no property, so it goes.
+- `TargetModifier.PositiveDefense` suppressed removes every positive modifier, base (`cover`) and rule rows alike, **only on the
+  ruleset's defense roll** (the `defenseRollName` parameter, from `IGameRules.DefenseRoll`), each listed in `RollPlan.Ignored` by
+  its suppressor; negative modifiers (AP) stay (3.6.0 Pierce).
 
 Matching a base modifier by the string `"cover"` is the weakest join in the module. It couples a
 generic suppressor to a string the ruleset happens to use, and `Blast` silently stops ignoring cover
@@ -273,8 +293,9 @@ condition names the *face*, every other condition must hold now, and the face go
 `"fail"` on a `force_reroll`.
 
 **`RollEffects.PerDie`** returns `DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int?
-Parameter)> Grants, int ExtraAttacks)` for one die. It keeps only effects that carry a `RollResult` condition, so a
-spell's unconditional *takes 4 hits* is not counted once per die. A defense die's extra wounds are wounds of the hit
+Parameter)> Grants)` for one die. It keeps only effects that carry a `RollResult` condition, so a
+spell's unconditional *takes 4 hits* is not counted once per die. The dice an `add_hit` on attacks adds are
+`roll-to-hit`'s to draw, which reads those rows itself. A defense die's extra wounds are wounds of the hit
 whose block failed, so `GfAttack.WoundsToDeal` adds them to the failures and `Deadly` multiplies them; a hit die's
 subject-`self` wounds go to the attacker's own unit after the attack, through `self-wounds`.
 
@@ -298,8 +319,7 @@ declaration at each level and every catalog row names the unit-level ref; that i
 
 ## Worked against the book
 
-`schema.md` works four rules out row by row. Two more are added here because they exercise the
-parts the first four do not.
+`schema.md` works four rules out row by row. The rows here exercise the parts those do not.
 
 | Rule | Rows |
 | --- | --- |
@@ -310,7 +330,9 @@ parts the first four do not.
 | `Rending` | `grant_property` with `target_entry = AP` and `amount = 4`, conditioned on a raw `hit` result of 6, so it is deferred to pass two and folded in per die |
 | `Thrust` | **two** effects. `modify_roll` on `hit`, `amount = 1`; and `grant_property` with `target_entry = AP` and `amount = 1`. Both conditioned on the action taken being `Charge` and the attack kind melee. The grant is not per-die, so unlike `Rending`'s it settles in pass one |
 | `Blast(X)` | `kind = multiply`, `target_quantity = hits`, `amount_from_parameter`, `cap_kind = models_in_target_unit`, at a high `ordinal` because the book says *after resolving other special rules* |
-| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` is what suppresses that |
+| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. 3.6.0 p.15 adds *"which are not from this model's special rules"*: the 3.6 row is `foreign_to_hit_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` is what suppresses that |
+| `Pierce` | *"Ignores all positive Defense modifiers on the target, and when attacking units over half of this weapon's range away, this weapon gets AP(+1)"*: **two** effects. `suppress_modifiers` with `target_modifier = positive_defense` on the opponent, unconditional; and `grant_property` of `AP` amount 1 on self, conditioned on `weapon_range gt 50`, which reads the attack's measured unit-to-unit range against the weapon's range, or, on a spell's hits, the caster's distance to the target's nearest model against the spell's printed range |
+| `Scourge` | `count_wounds`, `amount = 2`, subject `opponent`, conditioned on a raw `defense` result of 1. The wounds change no model; they count for the melee result and for the morale trigger of shooting wounds and a spell's hits |
 
 `Bane` shows why conditions belong to the effect and not to the entry. One of its two effects
 is conditional and the other is not, and a single condition list on the entry would get it wrong.
@@ -327,76 +349,11 @@ on a 6 gets 6 from the grant and 7 from the modifier, which adds to both instanc
 `ModifyParameter` keeps its place in the grammar for `Counter`, which genuinely modifies an existing
 instance's parameter rather than adding one.
 
-## The grants store
-
-```mermaid
-flowchart LR
-    spell["a spell or pick entry row with duration = once"]
-    step1["the casting effects step, or pick-rule"]
-    ga["GrantAdded(unitId, Grant(id, effectId = the row, entryName = the entry, casterUnitId, RemainingUses = 1))"]
-    store["UnitInPlay.Grants, rebuilt from the log"]
-    gather["LiveProperties.Gather adds it as a LiveProperty with GrantId set"]
-    namecheck["Lookup.UnitHas: GameRules name checks"]
-    consume["LiveSet.GrantsRead, then RollEffects.Consume at the step that applied it"]
-    gr["GrantRemoved for every grant of that entry on the unit"]
-    menu["the menu: add or remove like any property, logged with an actor"]
-
-    spell --> step1 --> ga --> store
-    store --> gather
-    store --> namecheck
-    gather --> consume --> gr --> store
-    menu --> store
-```
-
-A grant is written by one step's `step_completed` and consumed by another's, both explicitly in
-the payload, so the client's projection copies rather than derives. Name checks read the store
-too, or a granted hook-name rule would never fire.
-
-- **A grant is its effect row.** `EntryName` names the spell and `EffectId` the one row the grant holds;
-  `LiveProperties.Gather` makes a granted instance whose `GrantRow` exposes that row and its children and nothing
-  else of the spell. A subject-`opponent` row gives the holder nothing, so *Relentless against* does not read
-  as the enemy's own `Relentless`, and it applies only when the opponent's team is the team of the grant's
-  `CasterUnitId`. One cast writes one grant per once-row per target, and none on a target already holding
-  grants of that spell.
-- **`RemainingUses` is 1 for every once-effect.** *"Next time the effect would apply"* read
-  literally: the first step whose query returns the row, with every condition holding except a per-die one,
-  consumes it, and every grant that spell left on the unit goes with it. Reading a grant to build a legal set
-  (Charge offered by a speed grant) consumes nothing. A grant that never gets a chance to apply is never consumed.
-- **A granted `Flying` lasts the activation** in which it first applied; the turn-end hook removes it
-  (`GfMoves.ConsumeKeepingFlying`). A spell's forced move flies with it but neither spends nor holds it.
-- **A model-grain target's grant lands on the model's unit**, because the store is the unit's.
-- **A granted `Regeneration` is consumed by the step that assigns the wound,** not by a roll plan:
-  kind 5 is a roll of its own rather than a modifier, so no plan carries it; `assign` finds the grant through
-  the row-bearing instance.
-- **A grant's parameter is the granting effect's `amount`,** read from the game's set by
-  `EffectId`. The grant row carries none, so the id's database-locality matters
-  ([operations.md → Failure modes](operations.md#failure-modes)).
-- **Conditions stay names.** Game flow keeps containment out of the condition store because it
-  carries one reference. A grant carries three, so it is not a condition either. The rule is not
-  written into the unit's property list, because that list is the frozen army snapshot's copy.
-
-**A marker is a grant.** A row with duration `marker` or `spent_marker` is one marker a rule places on a unit: the ruleset
-writes one `GrantAdded` of the row per marker (a pick entry's use, a unit destroyed, a round's start), and grants of one
-rule stack, so *"for each marker"* is the sum of the instances. A carried entry exposes none of its marker rows. A `marker`
-grant is never spent (`LiveSet.Spend` skips it); a `spent_marker` grant is consumed with every grant of its rule on the
-unit, as a once grant is. A subject-opponent marker row the holder's own side placed reaches every opponent.
-
-**A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`, an
-optional `requires`: the rule the picked unit or model must hold, *"with Caster"*) whose rows all carry `at_point
-before-attacking` is an army-book Buff, Mark, Debuff or before-attacking active. Carried, it exposes no rows. The
-`pick-rule` sequence (`rule-roll`, `rule-target`, `rule-effects`) rolls the entry's `roll` row when it has one (*"roll 3
-dice. For each 2+ one enemy unit …"*) and asks one target per success, or one without dice; it writes one `GrantAdded`
-per `once` row on each unit it picks, read and consumed as a spell's is; and it resolves the use rows on each target:
-`add_hit` hits (top-level, or the `roll` row's children) push `spell-hits`, `take_test` pushes `spell-test`, and
-`remove_wounds` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model, and a `move` row moves the picked model's unit up to `Amount` under its own move rules. A granted row's `at_point` holds
-wherever the grant is read: it said when the rule was used. Each carrying model has one use per activation, counted by
-`GfPick.Uses`; a row with `usage_count lt 1 [game]` makes it one per game (`GfPick.GameUses`).
-
 ## Name checks handled by `GameRules`
 
 Some entries carry no effects at all. They are names `GrimdarkFutureRules` checks for at hooks it
 owns. `Lookup` is the reader: `UnitHas`, `UnitParameter` and `ModelParameter` all consult the
-unit's own properties, the aggregated model properties **and** the grants store.
+unit's own properties, the aggregated model properties **and** [the grants store](grants.md).
 
 | Hook | Entries |
 | --- | --- |
@@ -406,6 +363,9 @@ unit's own properties, the aggregated model properties **and** the grants store.
 | Usage | `Limited` |
 | Melee strike order | `Counter` |
 | Melee result | `Fear` |
+| Impact | `Brace` (`GfMelee.ImpactStep`, 3.6.0: takes X off the charger's Impact dice unless the holder is Fatigued or Shaken) |
+| Block | `Parry` (`GfParry`, 3.6.0: the `parry` step of `resolve-hits` under a melee) |
+| Sight | `Quick Throw` (`GfAttack.IndirectApplies`: Indirect off Hold) |
 | Interrupt | `Caster` |
 | Wound assignment | `Tough`, `Hero` |
 | Containment | `Transport` |
@@ -437,9 +397,9 @@ knows the count was settled before the first group fired.
 ## Not covered by the grammar
 
 - **Percentages.** `amount` is an integer, and Action Boosting is written as proportions. Boosted
-  `Rush` *"may move by up to +50%"*. A nineteenth kind, or a flavour on kind 1.
+  `Rush` *"may move by up to +50%"*. A twenty-first kind, or a flavour on kind 1.
 - **Two abilities reading the same result.** Whether both apply or one wins is deferred. Every
   example is specific to one ruleset.
-- **Whether eighteen kinds survive a different ruleset.** The grammar is derived from one, and Age
+- **Whether twenty kinds survive a different ruleset.** The grammar is derived from one, and Age
   of Fantasy shares the engine. Warhammer is the test.
 - **Deeper nesting.** One level covers the book. Nothing forbids more and nothing tests it.

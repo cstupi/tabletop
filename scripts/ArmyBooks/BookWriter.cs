@@ -8,7 +8,7 @@ public static class BookWriter
 {
     static readonly JsonSerializerOptions Indented = new(PropertiesJson.Options) { WriteIndented = true, NewLine = "\n" };
 
-    public static IReadOnlyList<BookDocument> Build(IReadOnlyList<AfBook> books)
+    public static IReadOnlyList<BookDocument> Build(IReadOnlyList<AfBook> books, string rulesId)
     {
         var ordered = books.OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
         var translated = ordered.Select(b => (Book: b, Spells: b.Spells.Select(s => SpellTranslator.Translate(b, s)).ToList())).ToList();
@@ -21,7 +21,7 @@ public static class BookWriter
             foreach (var v in variants)
                 rename[v.Key] = variants.Count == 1 ? group.Key : $"{group.Key} ({v.Select(x => x.Book.Name).Order(StringComparer.Ordinal).First()})";
         }
-        return translated.Select(t => new BookDocument(t.Book.Uid, t.Book.Name, t.Book.VersionString, "grimdark-future",
+        return translated.Select(t => new BookDocument(t.Book.Uid, t.Book.Name, t.Book.VersionString, rulesId,
             t.Spells.Select(s => s with { Name = rename[PropertiesJson.EntryCanonical(s)] }).ToList())).ToList();
     }
 
@@ -37,6 +37,27 @@ public static class BookWriter
         if (problems.Count > 0) return problems;
         try { return PropertiesJson.Validate(PropertiesSeeder.Compose(core, generated is null ? [part] : [part, generated], books)).ToList(); }
         catch (InvalidDataException ex) { return [ex.Message]; }
+    }
+
+    /// <summary>A spell granting a rule neither the core nor the hand part defines, or one they define text-only (played false), is written text-only
+    /// (effects empty, played false) until the hand part plays the rule; returns the books and each such spell with the rules it names.</summary>
+    public static (IReadOnlyList<BookDocument> Books, IReadOnlyList<string> Demoted) DemoteUndefinedGrants(IReadOnlyList<BookDocument> books, PropertySetDocument core, PropertySetDocument part)
+    {
+        var entries = core.Entries.Concat(part.Entries).ToList();
+        var rules = entries.Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        var unplayed = entries.Where(e => e.Played == false).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        static IEnumerable<EffectDocument> All(EffectDocument f) => new[] { f }.Concat(f.Children.SelectMany(All));
+        var demoted = new List<string>();
+        var result = books.Select(b => b with { Spells = b.Spells.Select(s =>
+        {
+            var named = s.Effects.SelectMany(All).Select(f => f.TargetEntry).OfType<string>().Distinct().Order(StringComparer.Ordinal).ToList();
+            var missing = named.Where(t => !rules.Contains(t)).ToList();
+            var textOnly = named.Where(unplayed.Contains).ToList();
+            if (missing.Count == 0 && textOnly.Count == 0) return s;
+            demoted.Add($"{b.Name}: {s.Name} ({string.Join("; ", new[] { (missing, "undefined grant"), (textOnly, "text-only grant") }.Where(x => x.Item1.Count > 0).Select(x => $"{x.Item2}: {string.Join(", ", x.Item1)}"))})");
+            return s with { Effects = [], Played = false };
+        }).ToList() }).ToList();
+        return (result, demoted);
     }
 
     public static string Serialize(BookDocument book) => JsonSerializer.Serialize(book, Indented) + "\n";

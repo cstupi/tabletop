@@ -47,6 +47,52 @@ public class DevArmyImportTests(ManagementFactory f) : IClassFixture<ManagementF
     }
 
     [Fact]
+    public async Task An_edition_in_the_body_stamps_the_army_and_none_stamps_the_served_edition()
+    {
+        var c = await _dev.AuthenticatedClient(Guid.CreateVersion7());
+        Assert.Equal(ArmyEditions.Served, (await c.PostJson<Army>(Path, new { source = "lifecycle", list = Fixture() })).Edition);
+        foreach (var edition in ArmyEditions.All)
+        {
+            var posted = await c.PostJson<Army>(Path, new { source = "lifecycle", list = Fixture(), edition });
+            Assert.Equal(edition, posted.Edition);
+            Assert.Equal(edition, (await c.GetJson<Army>($"/v1/armies/{posted.Id}")).Edition);
+        }
+    }
+
+    [Fact]
+    public async Task An_edition_outside_the_known_ones_is_refused()
+    {
+        var c = await _dev.AuthenticatedClient(Guid.CreateVersion7());
+        var r = await c.PostAsJsonAsync(Path, new { source = "lifecycle", list = Fixture(), edition = "3.7" }, ContentJson.Options);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, r.StatusCode);
+    }
+
+    /// <summary>A one-model hero whose Unique Hero is model-level in the 3.6 catalog and unit-level in the 3.5.1 one.</summary>
+    static JsonElement LoneHero() => JsonDocument.Parse("""
+        {"id":"h","name":"Hero list","gameSystem":"gf","units":[{"selectionId":"s1","name":"Lord","size":1,"quality":3,"defense":4,
+          "bases":{"round":"40","square":"40"},"rules":[{"name":"Unique Hero"}],"loadout":[]}]}
+        """).RootElement;
+
+    [Fact]
+    public async Task A_rule_classifies_against_the_catalog_of_the_imports_edition()
+    {
+        lock (_dev.Rows.Gate)
+        {
+            _dev.Rows.SeedProperties("sha256:kinds-35", "3.5 kinds", RuleSets.Gf351);
+            _dev.Rows.SeedCatalogEntry("sha256:kinds-35", "Unique Hero", "unit", false, "x");
+            _dev.Rows.SeedProperties("sha256:kinds-36", "3.6 kinds", RuleSets.Gf360);
+            _dev.Rows.SeedCatalogEntry("sha256:kinds-36", "Unique Hero", "model", false, "x");
+        }
+        var c = await _dev.AuthenticatedClient(Guid.CreateVersion7());
+        var v36 = (await c.PostJson<Army>(Path, new { source = "t", list = LoneHero(), edition = ArmyEditions.V36 })).Units.Single();
+        Assert.Empty(v36.Properties);
+        Assert.Equal(["Unique Hero"], v36.Models.Single().Properties.Select(p => p.Name));
+        var v35 = (await c.PostJson<Army>(Path, new { source = "t", list = LoneHero(), edition = ArmyEditions.V35 })).Units.Single();
+        Assert.Equal(["Unique Hero"], v35.Properties.Select(p => p.Name));
+        Assert.Empty(v35.Models.Single().Properties);
+    }
+
+    [Fact]
     public async Task The_route_needs_a_session()
     {
         var r = await _dev.CreateClient().PostAsJsonAsync(Path, new { source = "lifecycle", list = Fixture() }, ContentJson.Options);

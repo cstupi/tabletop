@@ -4,6 +4,7 @@ import { ReplayTimeline } from '../src/lib/replay/replayTimeline';
 import { replayCardOf, replayHeaderOf, terrainNamer, unitSelection } from '../src/lib/replay/replayView';
 import { parseCatalog } from '../src/lib/setup/catalog';
 import packed from '../../client/content/builtin/catalog.json';
+import { ruleSetText } from '../src/lib/play/headerText';
 import { loadFixture } from './fixture';
 
 describe('the replay page at a position', () => {
@@ -33,6 +34,12 @@ describe('the replay page at a position', () => {
     expect(card.team).toBeGreaterThan(0);
     expect(replayCardOf(t.projection, game, null, RuleTexts.empty, new Map())).toBeNull();
     expect(unitSelection(t.projection, 'nobody')).toBeNull();
+  });
+
+  it('a recording meta without a rule set name shows the rules id, one with it shows the name', () => {
+    const { meta } = loadFixture('skirmish').recording;
+    expect(ruleSetText({ ...meta, ruleSet: undefined })).toBe(meta.gameRules);
+    expect(ruleSetText({ ...meta, ruleSet: 'Grimdark Future v3.6.0' })).toBe('Grimdark Future v3.6.0');
   });
 
   it('names terrain from the catalog, never by id', () => {

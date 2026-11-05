@@ -11,8 +11,8 @@ public static partial class SuiteCatalog
 }
 
 /// <summary>
-/// The special group: the 33 core special rules (grimdark-future-core.properties.json, rulebook pp.13–15), three to five a game, chosen to
-/// collide, and the relic wargear built (grimdark-future-relic-wargear.part.json, p.36), a game of its own. Each exact check quotes its rule and states the rule's number as a literal; it reads the effective log and the final projection
+/// The special group: the 33 core special rules (Content/grimdark-future-3.5.1/core.properties.json, rulebook pp.13–15), three to five a game, chosen to
+/// collide, and the relic wargear built (relic-wargear.part.json, p.36), a game of its own. Each exact check quotes its rule and states the rule's number as a literal; it reads the effective log and the final projection
 /// and never computes a rules outcome. Every check also requires the case it judges to have happened, so a seed that never brings it into
 /// play fails rather than passing empty.
 /// </summary>
@@ -20,9 +20,9 @@ static partial class SpecialGames
 {
     public static IEnumerable<TestGame> All() =>
     [
-        Regrowth(), BlastDeadly(), Gunline(), Artillery(), Charge(), Swift(), EternalFlame(), Command(), Deployment(),
-        Aircraft(), CastMidMove(), AmbushCloseQuarters(), TakedownPicksOne(),
-        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk(),
+        Regrowth(), BlastDeadly().BothEditions(), Gunline(), Artillery(), Charge(), Swift().BothEditions(), EternalFlame().BothEditions(), Command(), Deployment(),
+        Aircraft(), CastMidMove(), AmbushCloseQuarters().BothEditions(), TakedownPicksOne().BothEditions(),
+        StealthAtNineAndAHalf(), AmbushSetAsideAtLastAsk().BothEditions(), .. All36(),
     ];
 
     // ---- Building blocks ---------------------------------------------------------------------------------------------------------------

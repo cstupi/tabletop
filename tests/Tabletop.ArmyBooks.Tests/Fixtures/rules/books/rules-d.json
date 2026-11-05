@@ -1,0 +1,2 @@
+{ "uid": "rules-d", "name": "Rules D", "versionString": "1", "spells": [], "specialRules": [],
+  "units": [ { "rules": [], "weapons": [ { "specialRules": [ { "name": "Brace" } ] }, { "specialRules": [ { "name": "Parry" } ] } ] } ] }

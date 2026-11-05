@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -16,29 +17,55 @@ public class SpellGamesTests
     static PropertySet Set => ScenarioCompiler.CoreProperties;
     static IReadOnlyList<TestGame> Spells => SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.SpellsPrefix, StringComparison.Ordinal)).ToList();
 
-    /// <summary>The per-book games: the group less its edited-casting-die game (SuiteCatalog.EditedCastingDieName).</summary>
-    static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName).ToList();
+    /// <summary>The per-book games: the group less its edited-casting-die game (SuiteCatalog.EditedCastingDieName) and the 3.6 games that cast one spell
+    /// from every unit (SuiteCatalog.RepeatedSpellGames36).</summary>
+    static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName
+        && !SuiteCatalog.RepeatedSpellGames36.Any(n => g.Name == n + "@3.6")).ToList();
 
     public static TheoryData<string> GameNames() => [.. Spells.Select(g => g.Name)];
 
     /// <summary>The games with exact checks: the ones whose dice fixes and log readings the socket run must reproduce.</summary>
     public static TheoryData<string> ExactGameNames() => [.. Spells.Where(g => g.Checks.Any(c => c.Entries is not null)).Select(g => g.Name)];
 
-    [Fact]
-    public void Every_book_with_spells_has_one_game_that_covers_its_spells_in_the_books_order()
+    public static TheoryData<string> Editions() => [.. RuleSets.All];
+
+    static PropertySet SetOf(string rules) => ScenarioCompiler.CorePropertiesOf(rules);
+    static IReadOnlyList<TestGame> BookGamesOf(string rules) => BookGames.Where(g => g.Edition == rules).ToList();
+
+    [Theory]
+    [MemberData(nameof(Editions))]
+    public void Every_book_with_a_played_spell_has_one_game_that_covers_its_played_spells_in_the_books_order(string rules)
     {
-        var books = Set.Books.Values.Where(b => b.Spells.Count > 0).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
-        Assert.Equal(books.Select(b => SuiteCatalog.SpellsPrefix + b.Uid), BookGames.Select(g => g.Group));
-        Assert.Equal(books.Select(b => b.Spells), BookGames.Select(g => g.Covers));
-        Assert.Equal(BookGames.Count, BookGames.Select(g => g.Name).Distinct().Count());
-        Assert.All(BookGames, g => Assert.StartsWith(SpellGames.NamePrefix, g.Name));
+        var set = SetOf(rules);
+        var books = set.Books.Values.Where(b => set.SpellsOf(b.Uid).Count > 0).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
+        var games = BookGamesOf(rules);
+        Assert.Equal(books.Select(b => SuiteCatalog.SpellsGroup(rules, b.Uid)), games.Select(g => g.Group));
+        Assert.Equal(books.Select(b => set.SpellsOf(b.Uid).Select(e => e.Name)), games.Select(g => g.Covers));
+        Assert.Equal(games.Count, games.Select(g => g.Name).Distinct().Count());
+        Assert.All(games, g => Assert.StartsWith(SpellGames.NamePrefix, g.Name));
     }
 
-    [Fact]
-    public void Every_spell_of_the_set_is_covered()
+    [Theory]
+    [MemberData(nameof(Editions))]
+    public void Every_played_spell_of_the_set_is_covered_and_no_text_only_one_is(string rules)
     {
-        var spells = Set.Entries.Where(e => e.Kind == CatalogKind.Spell).Select(e => e.Name).Order().ToList();
-        Assert.Equal(spells, Spells.SelectMany(g => g.Covers).Distinct().Order().ToList());
+        var set = SetOf(rules);
+        var spells = set.Entries.Where(e => e.Kind == CatalogKind.Spell && e.Played).Select(e => e.Name).Order().ToList();
+        Assert.Equal(spells, Spells.Where(g => g.Edition == rules).SelectMany(g => g.Covers).Distinct().Order().ToList());
+    }
+
+    /// <summary>No spell is text-only (SpellsPlayedTests): Shifting Form, translated to remove_spell_tokens, is played and cast in its book's game.</summary>
+    [Fact]
+    public void Shifting_Form_is_played_and_cast_in_its_books_3_6_game()
+    {
+        var set = SetOf(RuleSets.Gf360);
+        var book = set.Books["04z57ua0bwth37zh"];
+        Assert.True(set.Entry("Shifting Form")!.Played);
+        Assert.Contains("Shifting Form", book.Spells);
+        var game = BookGamesOf(RuleSets.Gf360).Single(g => g.Group == SuiteCatalog.SpellsGroup(RuleSets.Gf360, book.Uid));
+        Assert.Contains("Shifting Form", game.Covers);
+        Assert.Equal(game.Covers.Count, game.Scenario.Armies[0].Units);
+        Assert.Equal($"{SpellGames.NamePrefix}daemons-of-change@3.6", game.Name);
     }
 
     [Fact]
@@ -47,11 +74,11 @@ public class SpellGamesTests
         Assert.All(BookGames, g =>
         {
             var army = g.Scenario.Armies[0];
-            Assert.Equal(g.Group[SuiteCatalog.SpellsPrefix.Length..], army.ArmyBook);
+            Assert.Equal(SuiteCatalog.BookOf(g.Group), army.ArmyBook);
             Assert.Equal((g.Covers.Count, 1), (army.Units, army.ModelsPerUnit));
             Assert.Equal(Enumerable.Range(1, army.Units), army.ModelRules.Where(r => r.Name == "Caster").Select(r => r.Unit));
             Assert.Null(g.Scenario.Armies[1].ArmyBook);
-            Assert.Contains(g.Checks, c => c.Name == SpellGames.ResolvedCheck);
+            Assert.Contains(g.Checks, c => c.Name == SpellGames.ResolvedCheckOf(g.Edition));
         });
     }
 
@@ -64,13 +91,15 @@ public class SpellGamesTests
         Assert.Equal(book.Spells, SpellGames.CastingOrder(book, null));
     }
 
-    [Fact]
-    public void Every_effect_kind_the_spells_use_has_an_exact_check_on_a_spell_that_uses_it()
+    [Theory]
+    [MemberData(nameof(Editions))]
+    public void Every_effect_kind_the_spells_use_has_an_exact_check_on_a_spell_that_uses_it(string rules)
     {
+        var set = SetOf(rules);
         static IEnumerable<Effect> All(IEnumerable<Effect> effects) => effects.SelectMany(e => All(e.Children).Prepend(e));
-        var spells = Set.Entries.Where(e => e.Kind == CatalogKind.Spell).ToList();
+        var spells = set.Entries.Where(e => e.Kind == CatalogKind.Spell && e.Played).ToList();
         var used = spells.SelectMany(s => All(s.Effects)).Select(e => e.Kind).Distinct().Order().ToList();
-        var checkedKinds = Spells.SelectMany(g => g.Checks).SelectMany(c => c.Entries ?? []).Select(Set.Entry).OfType<CatalogEntry>().Where(e => e.Kind == CatalogKind.Spell)
+        var checkedKinds = Spells.Where(g => g.Edition == rules).SelectMany(g => g.Checks).SelectMany(c => c.Entries ?? []).Select(set.Entry).OfType<CatalogEntry>().Where(e => e.Kind == CatalogKind.Spell)
             .SelectMany(s => All(s.Effects)).Select(e => e.Kind).Distinct().Order().ToList();
         Assert.Equal(used, checkedKinds);
     }
@@ -129,7 +158,7 @@ public class SpellGamesSocketTests(PostgresFixture pg) : IDisposable
     public async Task The_game_passes_over_the_socket(string name)
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
-            PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+            ScenarioCompiler.CoreDocuments[RuleSets.Gf351], Ct);
         var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
         var game = SuiteCatalog.All.Single(g => g.Name == name);
         var report = await new SuiteRunner([game], socket).RunAsync(new SuiteOptions([name], DriverKind.Socket, false, TempDir()), null, Ct);

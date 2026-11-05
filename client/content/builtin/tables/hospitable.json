@@ -395,8 +395,7 @@
             },
             "bottom": 0,
             "top": 2,
-            "declarations": "cover",
-            "notes": "Units on top may ignore one unit/terrain for line of sight"
+            "declarations": "cover, steep"
           }
         }
       ]

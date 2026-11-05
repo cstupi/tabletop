@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Games;
 using Tabletop.Management.Http;
@@ -13,8 +14,11 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
     {
         if (!rows.Games.TryGetValue(id, out var g)) return null;
         return new GameInfo(id, g.Name, g.Status, g.CreatedBy, g.GameRules, g.PropertiesHash, g.SchedulerShape, g.Enforcement, g.WaitsBetweenSteps, g.RngSeed, [],
-            Seated(id).Select(p => new Participant(p.Id, p.AccountId, rows.Accounts[p.AccountId].Name, null, p.ArmyId)).ToList());
+            Seated(id).Select(p => new Participant(p.Id, p.AccountId, rows.Accounts[p.AccountId].Name, null, p.ArmyId)).ToList())
+        { RuleSet = RuleSetName(g.PropertiesHash) };
     }
+
+    private string? RuleSetName(string hash) => rows.Properties.TryGetValue(hash, out var p) ? p.Name : null;
 
     public Task<IReadOnlyList<PropertiesSummary>> ListProperties()
     {
@@ -23,7 +27,7 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
                 .GroupBy(p => (p.Value.GameRules, p.Value.Name))
                 .Select(g => g.MaxBy(p => p.Value.SeededAt))
                 .OrderByDescending(p => p.Value.SeededAt)
-                .Select(p => new PropertiesSummary(p.Key, p.Value.Name, p.Value.GameRules)).ToList());
+                .Select(p => new PropertiesSummary(p.Key, p.Value.Name, p.Value.GameRules, p.Value.GameRules == RuleSets.Default)).ToList());
     }
 
     public Task<IReadOnlyList<CatalogRuleText>?> RuleTexts(string hash)
@@ -74,7 +78,7 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
                 {
                     var seated = Seated(g.Key);
                     var accounts = seated.Select(p => p.AccountId).Distinct().ToList();   // an account holding several teams is one participant to the browser
-                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList(), accounts.Contains(viewer));
+                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList(), accounts.Contains(viewer), RuleSetName(g.Value.PropertiesHash));
                 }).ToList());
     }
 

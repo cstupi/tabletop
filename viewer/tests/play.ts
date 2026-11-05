@@ -54,7 +54,7 @@ export const emptyTable = (): TableState => ({
 export function boardOf(armies: ReadonlyArray<{ participantId: string; units: Unit[] }>, table: TableState = emptyTable()): Board {
   return {
     table,
-    armies: armies.map((a) => ({ participantId: a.participantId, snapshot: { id: newId(), name: 'Army', gameSystem: 'grimdark-future', units: a.units } })),
+    armies: armies.map((a) => ({ participantId: a.participantId, snapshot: { id: newId(), name: 'Army', gameSystem: 'grimdark-future', edition: '3.5', units: a.units } })),
   };
 }
 

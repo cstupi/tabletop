@@ -193,4 +193,12 @@ export interface RecordingMeta {
   readonly lastSeq: number;
   readonly startedAt: string;
   readonly durationMs: number;
+  readonly ruleSet?: string;
+  readonly zones: ZoneLegs;
+  readonly terrainWords: { readonly [key: string]: string };
+}
+
+export interface ZoneLegs {
+  readonly sideBattleLong: number;
+  readonly sideBattleShort: number;
 }

@@ -202,7 +202,7 @@ public sealed class OfferRepository(Database db) : IOfferRepository
             var volumes = await c.QueryAsync<VolumeRow>($"select {VolumeRow.Columns} from asset_volume where asset_id = @source order by id", new { source = s.Id }, tx);
             foreach (var v in volumes.Select(v => v with { Id = Guid.CreateVersion7() }))
                 await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})",
-                    new { AssetId = id, v.Id, v.Kind, v.Footprint, v.DimA, v.DimB, v.OffsetX, v.OffsetY, v.Yaw, v.Bottom, v.Top, v.Impassable, v.BlocksLos, v.SeeInOut, v.Cover, v.Difficult, v.Dangerous, v.DangerousRushCharge, v.Notes }, tx);
+                    new { AssetId = id, v.Id, v.Kind, v.Footprint, v.DimA, v.DimB, v.OffsetX, v.OffsetY, v.Yaw, v.Bottom, v.Top, v.Impassable, v.BlocksLos, v.SeeInOut, v.Cover, v.Difficult, v.Dangerous, v.DangerousRushCharge, v.Steep, v.Notes }, tx);
             if (folderId is not null) await c.ExecuteAsync("insert into asset_folder (asset_id, folder_id) values (@id, @folderId)", new { id, folderId }, tx);
             copied.Add(id);
         }

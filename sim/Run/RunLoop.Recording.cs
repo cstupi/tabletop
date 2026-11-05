@@ -31,7 +31,7 @@ public sealed partial class RunLoop
             scenario.Info.Participants.Where(p => p.TeamId == t.Id).Select(p => p.Name).ToList())).ToList(),
         outcome.Kind, outcome.Detail,
         report.Outcome is RunOutcome.Ended { Winners.Count: 1 } e ? e.Winners[0] : null,
-        report.Rounds, report.LastSeq, DateTimeOffset.UtcNow, report.DurationMs));
+        report.Rounds, report.LastSeq, DateTimeOffset.UtcNow, report.DurationMs, scenario.Info.RuleSet) { Zones = scenario.Zones, TerrainWords = scenario.TerrainWords });
 
     /// <summary>The Protocol's own spelling of an enum, so the meta block carries one convention and not two.</summary>
     private static string Wire<T>(T value) where T : struct, Enum => WireJson.Serialize(value).Trim('"');

@@ -30,6 +30,11 @@ public static class TestGames
         return new Built(state, info, teams.Select(t => t.Id).ToList(), participants.Select(p => p.Id).ToList());
     }
 
+    /// <summary>The same game under another rule set: Info.GameRules (which GfEdition.Of reads) and Rules swapped; board and applier shared. Sim.Gf36 applies it.
+    /// The board's army snapshots keep their edition, so a setup-path test under 3.6 builds its armies with Edition = ArmyEditions.V36.</summary>
+    public static GameState Under(this GameState state, string rulesId) =>
+        state.Info.GameRules == rulesId ? state : new(state.Info with { GameRules = rulesId }, state.Board, state.Applier, GameRulesRegistry.Resolve(rulesId));
+
     public static void Apply(Built game, params EventPayload[] payloads)
     {
         foreach (var p in payloads) game.State.Applier.Apply(new GameEvent(game.State.Projection.LastSeq + 1, null, p, null));

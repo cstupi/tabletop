@@ -15,10 +15,12 @@ static partial class SpecialGames
     static TestGame Deployment()
     {
         const string name = "special-scouts-and-ambushers";
+        // Red unit 3 and Blue unit 1 deploy 14" apart; Blue wins the roll-off (fixed) and Blue unit 1 Holds and shoots it first: the first attack at the
+        // Hero's unit hits and its block fails, a wound while the other two models live.
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(3).Table(36, 36).Scripted(ShootTheHerosUnit)
                 .Army("Red", 3, 3, unitRules: [new(1, "Scout"), new(2, "Ambush")], unitStats: Stats(4, 4), setAside: [1, 2],
-                    models: [new ScenarioModel(3, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(4, 2))])
-                .Army("Blue", 2, 2, unitRules: [new(2, "Ambush")], unitStats: Stats(4, 4), setAside: [2])
+                    models: [new ScenarioModel(3, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(4, 2))], anchors: new Dictionary<int, Point2> { [3] = new(18, 25) })
+                .Army("Blue", 2, 2, unitRules: [new(2, "Ambush")], unitStats: Stats(4, 4), setAside: [2], anchors: new Dictionary<int, Point2> { [1] = new(18, 11) })
                 .Build(),
             ["Scout", "Ambush", "Hero"],
             [
@@ -68,7 +70,7 @@ static partial class SpecialGames
                 // Scheduler and legality rules act where no step completes (TestGame.Evidence): the Ask the rule shapes is the evidence.
                 ["Scout"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployScouts }),
                 ["Ambush"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployAmbusher }),
-            });
+            }, [new("roll-off", 0, [1, 6]), new("hit", 0, [6], new RollKey(Target: "Red unit 3")), new("defense", 0, [1], new RollKey(Target: "Red unit 3"))]);
     }
 
     /// <summary>
@@ -166,9 +168,12 @@ static partial class SpecialGames
     static TestGame Aircraft()
     {
         const string name = "special-aircraft-overhead";
+        // On anchors; Red wins the roll-off (fixed). Red 1 and Red 2 stand beyond charge range of every enemy; Red 3 (Fast, a 16" charge) stands about 13"
+        // from Blue 2 and from the Aircraft and charges Blue 2 in round 1, before the Aircraft moves: a charge offered within reach of the Aircraft.
         return Game(name, new ScenarioBuilder(name, 2).RoundCap(3).Table(36, 36).Scripted(ChargeTheAircraft).Seeking(NearestEnemy)
-                .Army("Red", 3, 3, modelRules: [new(3, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4))
-                .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4))
+                .Army("Red", 3, 3, modelRules: [new(3, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4),
+                    anchors: new Dictionary<int, Point2> { [1] = new(2, 35), [2] = new(30, 35), [3] = new(16, 25) })
+                .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4), anchors: new Dictionary<int, Point2> { [1] = new(24, 11), [2] = new(14, 11) })
                 .Build(),
             ["Aircraft", "Fast", "Slow"],
             [
@@ -209,7 +214,7 @@ static partial class SpecialGames
                     return inReach == 0 ? "no charger ever stood within its charge distance of the Aircraft" : null;
                 }),
             ],
-            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") });
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") }, [new("roll-off", 0, [6, 1])]);
     }
 
     /// <summary>ShootAndStrike, and every weapon group fires at Red unit 3, the Hero's unit, whenever it is a legal target of every group.</summary>
@@ -220,8 +225,8 @@ static partial class SpecialGames
             var script = AnswerScript.Build();
             for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
             return script
-                .Match("declare_targets", (ask, p) => ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == "Red unit 3") is var t && t != Guid.Empty
-                    && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null)
+                .Match(AskQuestions.Activate, (ask, _) => AskPicks.Activate(ask, "Blue unit 1", "Hold"))
+                .Match("declare_targets", (ask, p) => AskPicks.AllAt(ask, p, "Red unit 3"))
                 .Build();
         }
     }
@@ -238,7 +243,8 @@ static partial class SpecialGames
             for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
             return script
                 .Match(AskQuestions.Activate, (ask, _) => new[] { "Red unit 3", "Red unit 1", "Red unit 2" }
-                    .Select(unit => AskPicks.Activate(ask, unit, "Charge")).FirstOrDefault(a => a is not null))
+                    .Select(unit => AskPicks.Activate(ask, unit, "Charge")).FirstOrDefault(a => a is not null)
+                    ?? AskPicks.Activate(ask, "Red unit 3", "Advance") ?? AskPicks.Activate(ask, "Red unit 2", "Advance"))
                 .Match("charge_target", (ask, p) => AskPicks.Pieces(ask, p, "Blue unit 1"))
                 .Build();
         }

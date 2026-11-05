@@ -28,6 +28,19 @@ public class Batch1DefenseTests
         Assert.Equal(0, Shot("Fortified", 20).Parameter(Side.Attacker, "AP"));
     }
 
+    /// <summary>Fortified and Guardian (3.5.1): "those hits count as having AP(-1), to a min. of AP(0)": both on one unit against AP(1) from over 9"
+    /// take the AP to 0, not below it.</summary>
+    [Fact]
+    public void Fortified_and_guardian_together_hold_the_attackers_ap_at_zero()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Gun", "24\"", 1, P("AP", 1)));
+        var b = Unit("B", "4+", "4+", [], 1, [P("Fortified"), P("Guardian")]);
+        var s = State([a], [b]);
+        var weapons = s.Projection.Models.Values.Where(m => m.UnitId == a.Id).SelectMany(m => m.Slot.Weapons).Select(w => w.Id).ToList();
+        var live = LiveProperties.Settle(new Interaction(s, Core, Party.Of(s, a.Id, Lookup.AliveModels(s, a.Id), weapons), Party.Whole(s, b.Id), AttackKind.Shooting, null, 20, []));
+        Assert.Equal(0, live.Parameter(Side.Attacker, "AP"));
+    }
+
     [Fact]
     public void Grounded_stealth_is_minus_one_to_hit_near_terrain_only()
     {

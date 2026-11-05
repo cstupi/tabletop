@@ -90,7 +90,7 @@ public static partial class SuiteCatalog
                        where a.Hit is not null && a.Target is { } t && Holds(run, t, wrapper) && starts.ContainsKey(a.Frame.FrameId)
                        let carriers = run.Final.Units[a.Target!.Value].Definition.Models.Where(m => m.Properties.Any(p => p.Name == wrapper)).Select(m => m.Id)
                        let standing = carriers.Any(starts[a.Frame.FrameId].At.ContainsKey)
-                       let rolls = a.Hit!.Rolls(roll).ToList()
+                       let rolls = a.HitRolls(roll).ToList()
                        let carrying = rolls.Count(r => r.Modifiers.Any(m => m.Source == source && m.Amount == amount))
                        select standing ? rolls.Count > 0 && carrying == rolls.Count ? null : $"{carrying} of {rolls.Count} {roll} rolls carry {source} with a carrier standing"
                            : carrying == 0 ? null : $"{carrying} {roll} rolls carry {source} with no carrier standing";
