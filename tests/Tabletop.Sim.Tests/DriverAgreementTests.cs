@@ -202,6 +202,68 @@ public class DriverAgreementTests
         finally { await Clean(seeder, c, credentials); }
     }
 
+    /// <summary>The first socket a driver opens is its recorder; this one reads every frame late, as a loaded server's recorder socket may.</summary>
+    sealed class SlowRecorderConnector(GameServerFactory factory) : IWebSocketConnector
+    {
+        int opened;
+        public async Task<WebSocket> ConnectAsync(CancellationToken ct)
+        {
+            var socket = await factory.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), ct);
+            return Interlocked.Increment(ref opened) == 1 ? new SlowReceiveSocket(socket, TimeSpan.FromMilliseconds(300)) : socket;
+        }
+    }
+
+    sealed class SlowReceiveSocket(WebSocket inner, TimeSpan delay) : WebSocket
+    {
+        public override WebSocketCloseStatus? CloseStatus => inner.CloseStatus;
+        public override string? CloseStatusDescription => inner.CloseStatusDescription;
+        public override WebSocketState State => inner.State;
+        public override string? SubProtocol => inner.SubProtocol;
+        public override void Abort() => inner.Abort();
+        public override Task CloseAsync(WebSocketCloseStatus status, string? description, CancellationToken ct) => inner.CloseAsync(status, description, ct);
+        public override Task CloseOutputAsync(WebSocketCloseStatus status, string? description, CancellationToken ct) => inner.CloseOutputAsync(status, description, ct);
+        public override void Dispose() => inner.Dispose();
+        public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken ct)
+        {
+            var result = await inner.ReceiveAsync(buffer, ct);
+            await Task.Delay(delay, ct);
+            return result;
+        }
+        public override async ValueTask<ValueWebSocketReceiveResult> ReceiveAsync(Memory<byte> buffer, CancellationToken ct)
+        {
+            var result = await inner.ReceiveAsync(buffer, ct);
+            await Task.Delay(delay, ct);
+            return result;
+        }
+        public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool endOfMessage, CancellationToken ct) => inner.SendAsync(buffer, type, endOfMessage, ct);
+        public override ValueTask SendAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType type, WebSocketMessageFlags flags, CancellationToken ct) => inner.SendAsync(buffer, type, flags, ct);
+    }
+
+    /// <summary>
+    /// RunLoop reads the projection right after an answer (PlaceAsync places a unit the answer took off the table, Re-Deployment), so an accepted
+    /// submit returns only once the recorder, which feeds the projection, holds the command's events, however late its socket reads.
+    /// </summary>
+    [Fact]
+    public async Task An_accepted_submit_returns_with_its_events_in_the_projection_when_the_recorder_reads_late()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(6));
+        using var factory = new GameServerFactory(db);
+        var (seeder, credentials) = Prepare(c);
+        try
+        {
+            await Seed(seeder, c, credentials);
+            IGameDriver driver = await SocketDriver.StartAsync(c, new SlowRecorderConnector(factory), credentials, Ct);
+            await using var _ = driver;
+            var deploy = (await driver.OpenAsksAsync(Ct)).Single().Ask;
+            Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(deploy.Teams[0], deploy.Id, new SelectedPieces([((PieceSelection)deploy.Legal).Eligible[0]]), Ct));
+
+            var drained = await driver.DrainEventsAsync(Ct);
+            Assert.Contains(drained, e => e.Payload is AskAnswered answered && answered.AskId == deploy.Id);
+            Assert.DoesNotContain(deploy.Id, (await driver.ProjectionAsync(Ct)).OpenAsks.Keys);
+        }
+        finally { await Clean(seeder, c, credentials); }
+    }
+
     [Fact]
     public async Task Undoing_and_redoing_over_the_socket_draws_fresh_dice()
     {
