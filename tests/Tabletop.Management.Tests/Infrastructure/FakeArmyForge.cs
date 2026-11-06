@@ -15,7 +15,8 @@ public sealed class FakeArmyForge : HttpMessageHandler
     {
         var id = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)["id"];
         if (id == Unreachable) throw new HttpRequestException("connection refused by 10.0.0.7:443");
-        var json = id == "c2-6YsWRH3py" ? File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "army-forge-c2-6YsWRH3py.json"))
+        var fixture = id is null ? null : Path.Combine(AppContext.BaseDirectory, "Fixtures", $"army-forge-{id}.json");   // the real exports in Fixtures/
+        var json = fixture is not null && File.Exists(fixture) ? File.ReadAllText(fixture)
             : id is not null && Lists.TryGetValue(id, out var own) ? own : null;
         if (json is null) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") });

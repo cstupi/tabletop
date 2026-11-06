@@ -119,6 +119,22 @@ public class ArmyForgeImportTests
         Assert.Equal("15\"", m[0].Weapons[2].Stats["Range"]);
     }
 
+    /// <summary>A mount publishes its own bases (Voidys: the Reaper Champion's 32 mm, its Flying Beast's 120x92); the models that
+    /// carry it stand on the mount's base, the rest on the entry's.</summary>
+    [Fact]
+    public void Models_carrying_an_item_with_bases_stand_on_its_base()
+    {
+        var squad = Entry(size: 5, bases: """{"round":"32","square":"30"}""",
+            loadout: """[{"name":"Beast","type":"ArmyBookItem","count":2,"bases":{"round":"120x92","square":"100x50"},"content":[{"name":"Fast"}]},""" +
+                     """{"name":"Bike","type":"ArmyBookItem","count":1,"bases":{"round":"","square":"50"},"content":[]},""" +
+                     """{"name":"Banner","type":"ArmyBookItem","count":1,"content":[]}]""");
+        var m = ArmyForgeImport.ToArmy(ListOf(squad), "x", Catalog).Units.Single().Models;
+        var beast = Base.Oval(120 / 25.4, 92 / 25.4);
+        Assert.Equal([beast, beast, Base.Rect(50 / 25.4, 50 / 25.4), Base.Circle(32 / 25.4), Base.Circle(32 / 25.4)], m.Select(x => x.Base));
+        Assert.Equal(ArmyForgeImport.HeightFromBase(beast), m[0].Height, 6);
+        Assert.Contains("base", Refused(ListOf(Entry(loadout: """[{"name":"Beast","type":"ArmyBookItem","count":1,"bases":{"round":"2000"},"content":[]}]"""))));
+    }
+
     [Fact]
     public void An_item_weapon_is_bounded_like_any_weapon() =>
         Assert.Contains("attacks", Refused(ListOf(Entry(loadout: """[{"name":"Beast","type":"ArmyBookItem","count":1,"content":[{"name":"Stomp","type":"ArmyBookWeapon","count":1,"range":0,"attacks":0,"specialRules":[]}]}]"""))));

@@ -168,6 +168,25 @@ public class ArmyTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.NoContent, (await mine.DeleteAsync($"/v1/armies/{army.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await mine.GetAsync($"/v1/armies/{army.Id}")).StatusCode);
     }
+    /// <summary>Army Forge's Voidys list (Fixtures/army-forge-67f1yXBTN5XA.json): a Reaper Champion, Tough(3), on a Flying Beast,
+    /// which gives Tough(12), three weapons and a 120x92 base. It once failed import on a duplicate property row.</summary>
+    [Fact]
+    public async Task A_hero_on_a_mount_imports_with_the_mounts_weapons_base_and_stacked_tough()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var imported = await c.PostJson<Army>("/v1/armies/import", new ImportRequest("https://army-forge.onepagerules.com/share?id=67f1yXBTN5XA&name=Voidys"));
+        var fetched = await c.GetJson<Army>($"/v1/armies/{imported.Id}");
+        Assert.Equal(ContentJson.Serialize(imported), ContentJson.Serialize(fetched));
+        var unit = fetched.Units.Single(u => u.Name == "Reaper Champion");
+        var champion = unit.Models.Single();
+        var props = unit.Properties.Concat(champion.Properties).ToList();
+        Assert.Equal(new PropertyInstance("Tough", 15), props.Single(p => p.Name == "Tough"));
+        Assert.Equal(new PropertyInstance("Fear", 2), props.Single(p => p.Name == "Fear"));
+        Assert.Equal(["Burst Autogun", "Hand Weapon", "Assault Trench Machineguns", "Stomp", "Toxin Claws"], champion.Weapons.Select(w => w.Name));
+        Assert.DoesNotContain(props, p => p.Name is "Stomp" or "Toxin Claws" or "Assault Trench Machineguns");
+        Assert.Equal(Base.Oval(120 / 25.4, 92 / 25.4), champion.Base);
+    }
+
     [Fact]
     public async Task Import_takes_the_round_base_and_ignores_a_legacy_bases_field()
     {

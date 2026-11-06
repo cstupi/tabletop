@@ -87,6 +87,8 @@ public static class ArmyForgeImport
                 else if (item.Type == "ArmyBookItem")
                 {
                     Check(Prefixed(unit, Limits.Text(item.Name, "item name", Limits.Name)));
+                    if (ParseBase(item.Bases) is { } ib && ArmyLimits.Base(ib) is not null)
+                        throw new InvalidArmyException($"{unit}item '{item.Name}' base {Mm(ib)} mm is outside {ArmyLimits.MinBase}–{ArmyLimits.MaxBase} inches.");
                     var content = item.Content ?? [];
                     Rules(content.Where(r => !r.IsWeapon).ToList());
                     foreach (var w in content.Where(r => r.IsWeapon)) Weapon(w.Name, w.Attacks, w.Range, w.SpecialRules);
@@ -160,6 +162,7 @@ public static class ArmyForgeImport
     {
         var slotProps = Enumerable.Range(0, u.Size).Select(_ => new List<PropertyInstance>()).ToList();
         var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
+        var slotBodies = Enumerable.Repeat(Body(u.Bases), u.Size).ToList();
         var cursor = 0;
 
         void Place(PropertyInstance p, List<int> carriers)
@@ -194,13 +197,13 @@ public static class ArmyForgeImport
             {
                 // One upgrade's rules and weapons go to the same models.
                 var carriers = Carriers(item.Count);
+                if (ParseBase(item.Bases) is { } mount) foreach (var i in carriers) slotBodies[i] = new ModelBody(mount, HeightFromBase(mount));
                 foreach (var entry in item.Content ?? [])
                     if (entry.IsWeapon) Arm(carriers, entry.Name, entry.Attacks, entry.Range, entry.SpecialRules);
                     else Place(new PropertyInstance(entry.Name, Rating(entry.Rating)), carriers);
             }
         }
 
-        var body = Body(u.Bases);
         var slotStats = unitProps is null
             ? new Dictionary<string, string> { ["Quality"] = Target(u.Quality), ["Defense"] = Target(u.Defense) }
             : new Dictionary<string, string>();
@@ -208,7 +211,7 @@ public static class ArmyForgeImport
         {
             slotWeapons[i].AddRange(ArmyBookAdditions.Weapons(slotProps[i].Concat(unitProps ?? []), slotWeapons[i]));
             into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
-                Stacked(slotProps[i]), body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
+                Stacked(slotProps[i]), slotBodies[i].Base, slotBodies[i].Height, null, slotWeapons[i], u.ArmyId));
         }
     }
 

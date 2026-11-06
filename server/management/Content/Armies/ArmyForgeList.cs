@@ -13,5 +13,6 @@ public sealed record AfRule(string Name, JsonElement? Rating, string? Type = nul
 {
     public bool IsWeapon => Type == "ArmyBookWeapon";
 }
-public sealed record AfLoadoutItem(string Name, string Type, int Count, JsonElement? Range, int? Attacks, List<AfRule>? SpecialRules, List<AfRule>? Content);
+/// <summary>A weapon, or an upgrade (`ArmyBookItem`) whose `content` holds rules and weapons and whose `bases`, on a mount, are its carriers'.</summary>
+public sealed record AfLoadoutItem(string Name, string Type, int Count, JsonElement? Range, int? Attacks, List<AfRule>? SpecialRules, List<AfRule>? Content, AfBases? Bases = null);
 public sealed record AfBases(string? Round, string? Square);
