@@ -5,7 +5,7 @@ WORKDIR /src
 COPY global.json Directory.Build.props ./
 COPY libs/ libs/
 COPY server/game/ server/game/
-RUN --mount=type=cache,target=/root/.nuget/packages dotnet publish server/game/Tabletop.GameServer.csproj -c Release -o /app --nologo
+RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked dotnet publish server/game/Tabletop.GameServer.csproj -c Release -o /app --nologo
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app

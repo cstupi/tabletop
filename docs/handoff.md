@@ -5,7 +5,7 @@ The game is built end to end: a Grimdark Future game, under either edition (v3.5
 roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot
 client or the browser (`/viewer/`). The two editions are two rule sets, `grimdark-future` (3.5.1) and `grimdark-future-3.6`
 (3.6.0); an army carries its edition (`army.edition`, `'3.5'` or `'3.6'`) and picks only into a game of that edition. The
-3.6.0 work, with every rule and spell playing, is merged to `main`. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.33 is the latest tag. What each
+3.6.0 work, with every rule and spell playing, is merged to `main`. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.34 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
