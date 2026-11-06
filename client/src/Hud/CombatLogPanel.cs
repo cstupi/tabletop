@@ -11,7 +11,7 @@ namespace Tabletop.Client.Hud;
 /// until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Detailed (beside the filter, ClientSettings.LogDetailed)
 /// draws each roll and named change as its worked lines in monospace (detailed-log spec). Every row's words are selectable text (SelectableText):
 /// a drag selects within the row, Ctrl+C or the right-click menu copies, and a click without a drag is the row's; Copy puts the rows as drawn
-/// on the clipboard (LogCopy). Renders only; every word is CombatLog's.</summary>
+/// on the clipboard (LogCopy), and an activation's own Copy that activation with every roll open (LogCopy.Activation). Renders only; every word is CombatLog's.</summary>
 public partial class CombatLogPanel : VBoxContainer
 {
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
@@ -135,6 +135,7 @@ public partial class CombatLogPanel : VBoxContainer
             if (faded) words.Modulate = Ui.Faded;
             if (e is ActivationBlock { Spell: { } spell } cast) words.TooltipText = SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "";
             row.AddChild(words);
+            if (e is ActivationBlock whole) AddButton(row, "Copy", () => DisplayServer.ClipboardSet(LogCopy.Activation(whole, _s.Settings.LogDetailed)));
             if (e is not RollEntry && CombatLog.UndoHere(e, _s.IsWatching)) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
             shown = words;
         }

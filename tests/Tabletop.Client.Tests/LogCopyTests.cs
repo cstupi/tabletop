@@ -15,6 +15,18 @@ public class LogCopyTests
 
     static string Lines(params string[] lines) => string.Join("\n", lines);
 
+    /// <summary>An activation's own Copy: its header and every entry, every roll open, whatever the panel shows folded.</summary>
+    [Fact]
+    public void An_activation_copies_whole_with_every_roll_open()
+    {
+        var b = Block;
+        Assert.Equal(LogCopy.Text([b], detailed: true, _ => true), LogCopy.Activation(b, detailed: true));
+        var plain = LogCopy.Activation(b, detailed: false).Split('\n');
+        Assert.Equal(b.Header, plain[0]);
+        foreach (var r in b.Entries.OfType<RollEntry>())
+            Assert.Contains(plain, l => l == $"    {r.Dice[0].Text}");
+    }
+
     [Fact]
     public void A_folded_block_is_its_header_and_chain()
     {

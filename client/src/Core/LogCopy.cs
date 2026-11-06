@@ -14,6 +14,9 @@ public static class LogCopy
         return string.Join("\n", lines);
     }
 
+    /// <summary>One activation's Copy: its header and every entry with every roll open, whatever the panel shows folded.</summary>
+    public static string Activation(ActivationBlock block, bool detailed) => Text([block], detailed, _ => true);
+
     static void Add(List<string> lines, LogEntry e, int depth, bool detailed, Func<LogEntry, bool> open)
     {
         var pad = new string(' ', depth * 2);
