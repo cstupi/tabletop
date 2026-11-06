@@ -136,7 +136,16 @@ piece, and its details show in the terrain card in the unit card's slot (the uni
 **Target picks.** While an Ask wants a unit picked, eligible units glow, the cursor changes, the hover label reads
 "Click to target", and a left-click on an eligible unit answers instead of selecting.
 
-**Moves.** A plain drag moves the whole unit; **Shift**+drag moves one model.
+**Moves.** A plain drag moves the whole unit, or the picked models when the press is on one of them.
+
+- **Picking models.** **Shift**+click on a model of my team adds it to the picked models, or takes it out; **Shift**+drag
+  draws a box from the press to the cursor and, on release, adds the models of my team inside it (a base centre inside the
+  box). The picked models are one unit's: a pick or box naming another unit starts over with that unit's models, and a box
+  over several units takes the unit with most models inside it (on a tie, the unit of the model nearest the press). Each
+  picked model is outlined. A drag that starts on a picked model holds every picked model, the rest of the unit stays where it
+  is and blocks as any model does; a drag on a model that is not picked holds its whole unit and clears the pick. A plain
+  click on the table, a new Ask or the end of the move clears the pick; **Esc** clears it first, and a second **Esc** resets as before. One model moves by **Shift**+clicking it
+  alone, then dragging it. Formations (**1–5**) and **Q/E** act on the held models.
 
 - During my move step (MoveRegion Ask), a drag positions ghosts and **Enter** commits; **C** sends them as a stop instead when the Ask is
   `Stoppable`: the button reads **Cast a spell** when a moving model holds spell tokens, else **Stop here to use a rule**
@@ -170,7 +179,7 @@ play as well, yet no zone shows during deployment; the plan's first client task 
 play, or the zone mesh's height and facing over the slab) before building on it.
 
 **Deployment placement.** Once a deploy answer picks a unit, a click on the table drops its shelved models there as
-ghosts in a row (`DeployView.Layout`). They drag, **Shift**-drag and take formations like a move, and **Enter** places
+ghosts in a row (`DeployView.Layout`). They drag, are picked and boxed, and take formations like a move, and **Enter** places
 them with one `MoveModels` from the shelf. Nothing reaches the server before Enter, so the placement is final under
 every enforcement setting.
 

@@ -167,17 +167,17 @@ function drawModel(ctx: Ctx, model: Scene['models'][number], scene: Scene, view:
   if (model.elevated) ctx.setLineDash([2, 2]);
   ctx.stroke();
   ctx.setLineDash([]);
-  if (picked) {
-    circle(ctx, centre, radius + 2.5);
-    ctx.strokeStyle = c.select;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
   const glow = o.glow?.(model.id, model.unitId) ?? null;
   if (glow !== null) {
     circle(ctx, centre, Math.max(5, radius + 3));
     ctx.strokeStyle = GLOW[glow];
     ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  if (picked) {                                                    // outside an Ask's glow, so a picked model stays outlined in a move
+    circle(ctx, centre, glow === null ? radius + 2.5 : Math.max(5, radius + 3) + 3.5);
+    ctx.strokeStyle = c.select;
+    ctx.lineWidth = 2;
     ctx.stroke();
   }
   if (model.facing !== null && radius >= 4) {

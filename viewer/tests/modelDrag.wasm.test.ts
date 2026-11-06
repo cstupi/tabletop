@@ -18,7 +18,7 @@ describe('ModelDrag over the real geometry', () => {
     const on = (id: string, to: Placement) => ({ modelId: id, from: { kind: 'shelf' } as const, to: { kind: 'table', placement: to } as const });
     applier.apply({ seq: 1, actor: P1, payload: { kind: 'models_moved', moves: [on(a, at(10, 10)), on(b, at(14, 10))] } } as never);
     const drag = new ModelDrag(g);
-    drag.start(applier.projection, a, { x: 10, y: 10 }, true, new Set(), new Map());
+    drag.start(applier.projection, a, { x: 10, y: 10 }, [a], new Set(), new Map());
     const held = drag.move(applier.projection, { x: 14, y: 10 }, false, null, new Map())!;       // a is dropped on b's spot
     const lands = held.ends.get(a)!.lands;
     const body = (id: string, position: { x: number; y: number; z: number }) =>
@@ -37,7 +37,7 @@ describe('ModelDrag over the real geometry', () => {
     const charge: MoveRegion = { kind: 'move_region', modelIds: [a], allowance: 12, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false,
       ignoresTerrain: false, contactWith: [rival], contactGrace: 0.5 };
     const drag = new ModelDrag(g);
-    drag.start(applier.projection, a, { x: 30, y: 20 }, true, new Set([a]), new Map());
+    drag.start(applier.projection, a, { x: 30, y: 20 }, [a], new Set([a]), new Map());
     const lands = drag.move(applier.projection, { x: 38.7, y: 20 }, false, charge, new Map())!.ends.get(a)!.lands;   // 1" bases: touching at 39
     expect(lands.x).toBeCloseTo(39, 6);
     expect(lands.y).toBeCloseTo(20, 6);

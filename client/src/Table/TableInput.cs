@@ -177,7 +177,7 @@ public partial class TableInput : Node
     /// what is in hand smoothly (CameraFocus.HeldTurn).</summary>
     public override void _Process(double delta)
     {
-        if (_drag is not null && !Input.IsMouseButtonPressed(MouseButton.Left)) Observe(OnLeftUp());
+        if ((_drag is not null || _box is not null) && !Input.IsMouseButtonPressed(MouseButton.Left)) Observe(OnLeftUp());
         var held = new HashSet<Intent>();
         if (Input.IsKeyPressed(Key.Q)) held.Add(Intent.TurnLeft);
         if (Input.IsKeyPressed(Key.E)) held.Add(Intent.TurnRight);
@@ -216,6 +216,7 @@ public partial class TableInput : Node
         if (_drag is not null) { piece = null; point = OnPlane(screen, _drag.Start.Z) ?? point; }   // a drag follows the plane it started on: pieces and terrain never take the point
         _cursor = new Cursor(point, piece is null ? null : IdOf(piece)); _presenceDirty = true;
         if (_tape.Following) { _tape.Follow(AnchorAt(point, piece)); ShowTape(); return; }   // the line follows the cursor until the second click or Ctrl's release
+        DrawBox(screen);
         if (_drag is null) return;
         if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
         if (!_drag.Armed) { _drag.Armed = true; PickedUp?.Invoke(_drag.ModelIds); }
@@ -280,8 +281,10 @@ public partial class TableInput : Node
         if (_pickPiece is { } wantPiece && piece is not null) { _pickPiece = null; wantPiece(IdOf(piece)); return; }
         if (PlacementPoint is { } place) { place(OnPlane(screen, 0) ?? point); return; }
         if (Measuring) { _measureDown = screen; Measure(point, piece); return; }
+        var answers = piece is PieceNode eligible && (Eligible.Contains(eligible.ModelId) || Eligible.Contains(eligible.UnitId));
+        if (shift && !answers) { StartBox(screen, piece); return; }   // Shift picks models: a click toggles one, a drag boxes them (TableInput.Picks)
         if (piece is null) { ClearSelection(); return; }
-        if (piece is PieceNode target && (Eligible.Contains(target.ModelId) || Eligible.Contains(target.UnitId)))
+        if (answers && piece is PieceNode target)
         {
             // A pick answers: it neither selects nor drags. A model-id set (casualties, a Takedown) names the model; a unit-id set the unit.
             if (Eligible.Contains(target.ModelId)) ModelClicked?.Invoke(target.ModelId, false);
@@ -295,11 +298,13 @@ public partial class TableInput : Node
         {
             // The unit's models the view is drawing: the ones OnTable, or — during a disembark or a placement — its ghosts.
             var unitModels = projection.Models.Values.Where(m => m.UnitId == pn.UnitId && _view.PieceAt(m.Id) is not null).Select(m => m.Id).ToList();
-            Selected = shift ? new Selection(pn.UnitId, [pn.ModelId]) : new Selection(pn.UnitId, []);
-            models = shift ? [pn.ModelId] : unitModels;
+            // A press on a picked model holds the picks; on any other model the whole unit, and the picks are cleared.
+            _picks = _picks.Pressed(pn.ModelId);
+            Selected = _picks.Selection(pn.UnitId);
+            models = _picks.Held(pn.ModelId, unitModels);
             UnitClicked?.Invoke(pn.UnitId);
         }
-        else { Selected = new Selection(id, []); models = [id]; }
+        else { _picks = ModelPicks.None; Selected = new Selection(id, []); models = [id]; }
         SelectionChanged?.Invoke(); _presenceDirty = true;
         if (MayDrag(piece, models))
         {
@@ -331,14 +336,15 @@ public partial class TableInput : Node
         _ => true,
     };
 
-    /// <summary>Select a unit, or one of its models, as a click would: Tab and the unit card's wound rows.</summary>
+    /// <summary>Select a unit, or one of its models, as a click would: Tab and the unit card's wound rows. A model so selected is the picks.</summary>
     public void Select(Guid unitId, Guid? modelId = null)
     {
-        Selected = new Selection(unitId, modelId is { } m ? [m] : []); _presenceDirty = true;
+        _picks = modelId is { } m ? new ModelPicks(unitId, [m]) : ModelPicks.None;
+        Selected = _picks.Selection(unitId); _presenceDirty = true;
         SelectionChanged?.Invoke(); UnitClicked?.Invoke(unitId);
     }
 
-    void ClearSelection() { Selected = null; _presenceDirty = true; SelectionChanged?.Invoke(); }
+    void ClearSelection() { _picks = ModelPicks.None; Selected = null; _presenceDirty = true; SelectionChanged?.Invoke(); }
 
     Point3 Position(Guid id)
     {
@@ -370,6 +376,7 @@ public partial class TableInput : Node
 
     async Task OnLeftUp()
     {
+        if (_box is not null) { EndBox(GetViewport().GetMousePosition()); return; }
         if (Measuring)                                                   // the M tool: "two clicks or a drag" (client shell -> Input and presence)
         {
             var screen = GetViewport().GetMousePosition(); var (to, hit) = Pick(screen);

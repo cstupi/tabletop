@@ -4,6 +4,7 @@ import type { SendOutcome } from '../src/lib/connection/gameConnection';
 import type { Geometry, HeldModel } from '../src/lib/geometry';
 import { MarkerLocks } from '../src/lib/play/markerLocks';
 import { PlayDrags } from '../src/lib/play/playDrag';
+import type { Selection } from '../src/lib/play/selectionView';
 import type { Command, Marker } from '../src/lib/protocol/wire.generated';
 import { markerOf } from './play';
 import { at, moveRig, region, tick } from './moveRig';
@@ -19,13 +20,14 @@ function rig(over: Parameters<typeof moveRig>[0] & { frame?: (run: () => void) =
   let outcome: Promise<SendOutcome> = Promise.resolve({ id: 'x', refused: null });
   let changes = 0;
   const locks = new MarkerLocks();
+  let selection: Selection | null = null;
   const drags = new PlayDrags({
     state: () => r.box.host.state(), box: () => r.box, hooks: () => r.hooks, geometry: () => geometry,
     violations: r.violations, drops: r.drops, locks,
-    send: (command) => { sent.push(command); return outcome; }, select: () => {}, changed: () => { changes++; },
+    send: (command) => { sent.push(command); return outcome; }, select: (sel) => { selection = sel; }, selection: () => selection, changed: () => { changes++; },
     ...(over.frame !== undefined ? { frame: over.frame } : {}),
   });
-  return { ...r, drags, sent, locks, get panel() { return r.box.panel; }, setOutcome(o: Promise<SendOutcome>) { outcome = o; }, get changes() { return changes; } };
+  return { ...r, drags, sent, locks, get panel() { return r.box.panel; }, setOutcome(o: Promise<SendOutcome>) { outcome = o; }, get changes() { return changes; }, get selection() { return selection; } };
 }
 const model = (id: string) => ({ kind: 'model', id }) as const;
 
@@ -54,7 +56,7 @@ describe('PlayDrags', () => {
     const [a] = r.ids as [string, string];
     r.setOutcome(Promise.resolve({ id: 'm9', refused: { kind: 'refused', messageId: 'm9', reason: 'illegal', detail: 'not now' } }));
     r.box.render();
-    r.drags.onDragStart(model(a), { x: 10, y: 10 }, { ...NO_MODIFIERS, shift: true });
+    r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
     r.drags.onDragMove({ x: 15, y: 13 }, NO_MODIFIERS);
     r.drags.onDragEnd({ x: 15, y: 13 }, NO_MODIFIERS);
     await tick();
@@ -189,5 +191,75 @@ describe('PlayDrags', () => {
     r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS);
     r.drags.onDragMove({ x: 14, y: 10 }, NO_MODIFIERS);
     expect(r.drags.overlays(() => null, 1).length).toBe(3);                                                  // ring, rulers, landing rings
+  });
+
+  describe('picking models', () => {
+    it('Shift+click toggles a model of my team, starts over on another unit, and leaves an enemy to the page', () => {
+      const r = rig({ squad: 3 });
+      const [a, b] = r.ids as [string, string, string];
+      r.box.render();
+      expect(r.drags.shiftClick(a)).toBe(true);
+      expect(r.drags.shiftClick(b)).toBe(true);
+      expect(r.selection).toEqual({ pieceId: r.squad.id, modelIds: [a, b] });
+      r.drags.shiftClick(a);
+      expect(r.drags.picks.modelIds).toEqual([b]);
+      r.drags.shiftClick(r.truck);
+      expect(r.selection).toEqual({ pieceId: r.transport.id, modelIds: [r.truck] });
+      expect(r.drags.shiftClick(r.rival)).toBe(false);
+    });
+
+    it('a Shift+drag box picks my models inside it, the unit with most winning, and draws a box while it travels', () => {
+      const r = rig({ squad: 3 });
+      const [, b, c] = r.ids as [string, string, string];
+      r.box.render();
+      expect(r.drags.onBoxStart({ x: 11, y: 9 })).toBe(true);
+      r.drags.onBoxMove({ x: 11, y: 9 }, { x: 21, y: 11 });               // b, c and the truck
+      expect(r.drags.overlays(() => null, 1).length).toBe(1);
+      r.drags.onBoxEnd({ x: 11, y: 9 }, { x: 21, y: 11 });
+      expect(r.selection).toEqual({ pieceId: r.squad.id, modelIds: [b, c] });
+      expect(r.drags.overlays(() => null, 1)).toEqual([]);
+      r.drags.onBoxStart({ x: 35, y: 25 });
+      r.drags.onBoxEnd({ x: 35, y: 25 }, { x: 45, y: 35 });               // only the enemy: nothing changes
+      expect(r.drags.picks.modelIds).toEqual([b, c]);
+    });
+
+    it('a plain drag on a picked model holds the picks and the rest of the unit stays; on another model the whole unit, and the picks clear', () => {
+      const r = rig({ squad: 3 });
+      const [a, b, c] = r.ids as [string, string, string];
+      r.box.render();
+      r.drags.shiftClick(a); r.drags.shiftClick(c);
+      expect(r.drags.onDragStart(model(c), { x: 14, y: 10 }, NO_MODIFIERS)).toBe(true);
+      expect(r.drags.held!.ids).toEqual([a, c]);
+      r.drags.onDragMove({ x: 14, y: 20 }, NO_MODIFIERS);
+      r.drags.onDragEnd({ x: 14, y: 20 }, NO_MODIFIERS);
+      const moved = (r.sent[0] as unknown as { moves: { modelId: string }[] }).moves.map((m) => m.modelId);
+      expect(moved).toEqual([a, c]);
+      expect(r.drags.picks.modelIds).toEqual([a, c]);                      // the picks stay for the next drag
+      expect(r.drags.onDragStart(model(b), { x: 12, y: 10 }, NO_MODIFIERS)).toBe(true);
+      expect(r.drags.held!.ids).toEqual([a, b, c]);
+      expect(r.drags.picks.isEmpty).toBe(true);
+      expect(r.selection).toEqual({ pieceId: r.squad.id, modelIds: [] });
+    });
+
+    it('in a move Ask the picks are what a drag holds, and a new Ask or Esc clears them', () => {
+      const r = rig({ squad: 3 });
+      const [a] = r.ids as [string, string, string];
+      const first = r.openMove(region({ modelIds: r.ids }));
+      r.drags.boxChanged();
+      r.drags.shiftClick(a);
+      r.drags.boxChanged();                                               // the same Ask: the picks stay
+      expect(r.drags.onDragStart(model(a), { x: 10, y: 10 }, NO_MODIFIERS)).toBe(true);
+      expect(r.drags.held!.ids).toEqual([a]);
+      r.drags.onDragEnd({ x: 10, y: 12 }, NO_MODIFIERS);
+      expect(r.drags.picks.modelIds).toEqual([a]);
+      r.apply({ kind: 'ask_closed', askId: first.id, answers: [] });
+      r.openMove(region({ modelIds: r.ids }));                            // a new Ask
+      r.drags.boxChanged();
+      expect(r.drags.picks.isEmpty).toBe(true);
+      expect(r.selection).toEqual({ pieceId: r.squad.id, modelIds: [] });
+      r.drags.shiftClick(a);
+      expect(r.drags.clearPicks()).toBe(true);
+      expect(r.drags.clearPicks()).toBe(false);                           // a second Esc is the box's
+    });
   });
 });

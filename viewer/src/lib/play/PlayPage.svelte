@@ -39,7 +39,8 @@
   import { terrainHoverOverlay, terrainHoverText } from './terrainHover';
   import packedCatalog from '@builtin-catalog';
   import { loadCatalog, nameOf, parseCatalog, type Catalog } from '../setup/catalog';
-  import type { Selection } from './selectionView';
+  import { selectedModels, type Selection } from './selectionView';
+  import { ModelPicks } from './modelPicks';
   import { loadSettings, saveSettings, type PlaySettings, type StorageLike } from './settings';
   import { UndoPrediction } from './undo';
   // D2: moves, deploys and hand moves
@@ -104,13 +105,8 @@
   const drags = new PlayDrags({
     state: () => connection.state, box: () => box, hooks: () => moves, geometry: () => geometry, violations, drops, locks,
     send: (command) => connection.sendCommand(command),
-    select: (ids, unit) => {
-      selected = ids;
-      if (unit === null) return;
-      const all = [...(snap?.projection?.models.values() ?? [])].filter((m) => m.unitId === unit).map((m) => m.id);
-      selection = { pieceId: unit, modelIds: all.every((id) => ids.has(id)) ? [] : [...ids] };   // D3's selection: the unit, or the one model
-      box?.unit(unit);
-    },
+    select: (sel) => { selectUnit(sel); },                                // a pick-up, a pick or a box: the unit, or its picked models
+    selection: () => selection,
     changed: bump,
     frame: (run) => { requestAnimationFrame(run); },                       // one landing and one gate per frame, not per pointer move
   });
@@ -207,10 +203,18 @@
     if (eligible.has(id)) b.model(id, false);
     if (eligible.has(id) || (unit !== undefined && eligible.has(unit))) { b.target(eligible.has(id) ? id : unit!); return; }
     if (unit === undefined) return;
-    // D3: a plain click selects the unit, Shift the one model (the card names which).
-    selection = { pieceId: unit, modelIds: mods.shift ? [id] : [] };
-    selected = mods.shift ? new Set([id]) : new Set([...p.models.values()].filter((m) => m.unitId === unit).map((m) => m.id));
-    b.unit(unit);
+    // Shift+click toggles a model of my team in the picks (PlayDrags.shiftClick); any other model selects its unit. A plain click keeps
+    // the picks when it lands on a picked model, else selects the whole unit (ModelPicks.pressed).
+    if (mods.shift && drags.shiftClick(id)) return;
+    selectUnit(mods.shift ? { pieceId: unit, modelIds: [] } : ModelPicks.of(selection).pressed(id).selection(unit));
+  }
+
+  /** The selection is a unit, or its picked models (the picks are its model ids); the board lights them and the box follows the unit. */
+  function selectUnit(sel: Selection): void {
+    const p = snap?.projection ?? connection.state.projection;
+    selection = sel;
+    selected = new Set(p == null ? sel.modelIds : selectedModels(p, sel));
+    box?.unit(sel.pieceId);
   }
 
   // D4: range rings for my selected unit when V has them on (RangeRingNode).
@@ -308,6 +312,7 @@
     onSelect(hit: BoardHit | null, mods: Modifiers, at: { x: number; y: number }) {
       if (pending !== null) { resolvePick(hit, at); return; }              // D4: a menu item waits for this click
       if (drags.placeAt(at)) return;                                       // D2: a deploy's click on the table
+      if (mods.shift && hit === null) return;                              // a Shift+click on the table picks nothing and keeps the picks
       if (hit?.kind === 'model') clickModel(hit.id, mods);
       else { selected = new Set(); selection = hit === null ? null : { pieceId: hit.id, modelIds: [] }; }   // D3: a marker or terrain piece is selectable too
     },
@@ -321,6 +326,10 @@
     onDragMove: (at, mods) => drags.onDragMove(at, mods),
     onDragEnd: (at, mods) => drags.onDragEnd(at, mods),
     onDragCancel: () => drags.onDragCancel(),
+    onBoxStart: (at) => drags.onBoxStart(at),                            // Shift+drag anywhere: a box that picks my team's models
+    onBoxMove: (from, to) => drags.onBoxMove(from, to),
+    onBoxEnd: (from, to) => drags.onBoxEnd(from, to),
+    onBoxCancel: () => drags.onBoxCancel(),
     onContextMenu(hit: BoardHit | null, at: { x: number; y: number }, _screen: unknown, mods?: Modifiers) {
       pending = null;
       if (hit?.kind === 'model' && box?.eligible.has(hit.id) === true) { box.model(hit.id, true); return; }   // the casualty pick's, not a menu
@@ -360,7 +369,7 @@
     if (intent.kind === 'toggleRangeRings') { changeSettings((x) => ({ ...x, rangeRings: !x.rangeRings })); e.preventDefault(); return; }
     const used = intent.kind === 'option' ? box.number(intent.key)
       : intent.kind === 'confirm' ? box.enter()
-      : intent.kind === 'cancel' ? box.cancel()
+      : intent.kind === 'cancel' ? drags.clearPicks() || box.cancel()      // Esc clears the picks first, then resets
       : intent.kind === 'stopHere' ? box.stop()
       : false;
     if (used) e.preventDefault();

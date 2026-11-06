@@ -231,7 +231,7 @@ from `TableInput.PieceLeftClicked`, which carries the clicked piece's own id and
 rather than from `Selected`. The box calls `TableInput.CancelDrag()` on a click it consumed, so
 answering an Ask is never also a drag. That matters most here, because the eligible models are the
 other team's, and a stray click would otherwise start a hand move of the unit being shot at.
-Shift-click, which narrows the selection to one model, is not needed to answer and does no harm.
+Shift-click, which picks models for a move, is not needed to answer and does no harm.
 Where the pick is one model the counter reads that model's name instead of a tally, and the model
 is marked on the table. A wound landing on a particular model is worth reading back before "Done".
 

@@ -55,9 +55,9 @@ describe('DecisionView', () => {
   });
 
   it('each mode has its hint and casualties title the count', () => {
-    expect(of(ask('move', region()), TEAM1).hint).toBe('Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · Esc: reset');
+    expect(of(ask('move', region()), TEAM1).hint).toBe('Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · Esc: reset');
     expect(of(ask('move', region({ stoppable: true })), TEAM1).hint)
-      .toBe('Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to use a rule · Esc: reset');
+      .toBe('Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to use a rule · Esc: reset');
     expect(of(ask('declare_targets', { kind: 'assignment', items: [option('Rifles', 'Rifles')], targets: [s.squad.id], maxDistinctTargets: 2 }), TEAM1).hint)
       .toBe('Click a target · Click a chip: that group alone · Enter: fire · Esc: clear');
     const casualties = of(ask('remove_casualties', { kind: 'allocation', targets: [s.model.id], amount: 3 }, 'Assign 3 wound(s)'), TEAM1);

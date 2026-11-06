@@ -117,7 +117,7 @@ function hintOf(p: Projection, ask: Ask, numbered: readonly Numbered[]): string 
       return `Click a glowing ${l.eligible.length > 0 && p.models.has(l.eligible[0]!) ? 'model' : 'unit'}${l.max > 1 ? ' · Enter: done' : ''}`;
     case 'move_region': {
       const stop = stopLabel(p, l);
-      return `Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · ${stop !== null ? `C: ${stop[0]!.toLowerCase()}${stop.slice(1)} · ` : ''}Esc: reset`;
+      return `Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · ${stop !== null ? `C: ${stop[0]!.toLowerCase()}${stop.slice(1)} · ` : ''}Esc: reset`;
     }
     case 'assignment': return 'Click a target · Click a chip: that group alone · Enter: fire · Esc: clear';
     case 'allocation': return 'Click a model: +1 · Right-click: −1 · Auto: fill the rest · Enter: confirm';

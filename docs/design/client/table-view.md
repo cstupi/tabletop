@@ -174,7 +174,7 @@ sequenceDiagram
   participant GS as game server
   participant O as other clients
   P->>TI: left down on a piece
-  TI->>TI: select unit (Shift narrows to the model)
+  TI->>TI: select unit (a picked model: the picks)
   loop while dragging, 20 Hz timer
     P->>TI: mouse motion
     TI->>TI: displace every selected model, DragBodies + Collision.Separate (Alt: RestHeight only)
@@ -229,7 +229,7 @@ commit the server still refuses comes back where it was dropped (`CommitHold`, `
 when none moved) are marked with the server's reason until one of them is dragged again, and under `strict` the commit waits
 until then. A refused hand move snaps back.
 
-A click selects a unit and Shift+click one model; a click on empty table or Esc clears. While a decision wants a
+A click selects a unit. Shift+click on a model of my team picks it or takes it out, and Shift+drag boxes my team's models (`ModelPicks`: one unit's, the unit with most base centres in the box, on a tie the one nearest the press); the picks are the selection's model ids. A plain drag on a picked model holds the picks, on another model its whole unit, clearing the picks. A click on empty table clears; Esc clears the picks first, then the selection. A new Ask or the end of a move or placement clears the picks. While a decision wants a
 pick (`TableInput.Eligible`), a click on an eligible piece answers through `TargetClicked` or `ModelClicked` and
 neither selects nor drags. Under an Options Ask only a piece exactly one choice names is eligible
 (`DecisionView.ClickAnswers`); a unit several choices name (activate: one option per unit and action) glows, a click

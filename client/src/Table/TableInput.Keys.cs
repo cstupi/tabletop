@@ -71,7 +71,7 @@ public partial class TableInput
         }
     }
 
-    /// <summary>Esc, innermost first: the drag (its models back where they were picked up, facing as they did); the decision box has already taken an Esc it used for assignments; then the selection and the measurement.</summary>
+    /// <summary>Esc, innermost first: the drag (its models back where they were picked up, facing as they did), a Shift box, the picked models; the decision box has already taken an Esc it used for assignments unless models are picked; then the selection and the measurement.</summary>
     void Cancel()
     {
         if (_drag is { } drag)
@@ -81,6 +81,8 @@ public partial class TableInput
             CancelDrag();
             return;
         }
+        if (_box is not null) { _box = null; if (_boxRect is not null) _boxRect.Visible = false; return; }
+        if (HasPicks) { ClearPicks(); return; }                                     // the picks first; a second Esc resets as before
         IntentPressed?.Invoke(Intent.Cancel);
         _tape.Clear(); ShowTape();
         ClearSelection();

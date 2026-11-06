@@ -30,7 +30,7 @@ describe('deploy placement', () => {
     expect([...r.box.ghosts.keys()]).toEqual(r.reserveIds);
     for (const g of r.box.ghosts.values()) expect(Math.hypot(g.position.x - 30, g.position.y - 20)).toBeLessThan(2);
     expect([...r.box.proposing]).toEqual(r.reserveIds);
-    expect(r.panel.hint).toBe('Drag to place · Shift: one model · 1–5 while holding: rows · Enter: place · Esc: clear');
+    expect(r.panel.hint).toBe('Drag to place · Shift: pick models · 1–5 while holding: rows · Enter: place · Esc: clear');
     expect(r.control('place')).toMatchObject({ label: 'Place (Enter)', disabled: false });
     expect(r.box.placeAt({ x: 1, y: 1, z: 0 })).toBe(false);                   // the pick is spent: no second click
   });

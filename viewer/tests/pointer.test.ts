@@ -8,11 +8,11 @@ const never = () => false;
 const always = () => true;
 
 /** Runs inputs through the machine, returning every effect in order and the final state. */
-function run(inputs: PointerInput[], takesDrag: Parameters<typeof step>[3] = never) {
+function run(inputs: PointerInput[], takesDrag: Parameters<typeof step>[3] = never, takesBox?: Parameters<typeof step>[4]) {
   let state: PointerState = IDLE_POINTER;
   const effects: PointerEffect[] = [];
   for (const input of inputs) {
-    const result = step(state, input, pickModel, takesDrag);
+    const result = step(state, input, pickModel, takesDrag, takesBox);
     state = result.state;
     effects.push(...result.effects);
   }
@@ -84,5 +84,21 @@ describe('the pointer state machine', () => {
     expect(run([move(1), move(20)]).effects).toEqual([
       { type: 'hover', hit, at: { x: 1, y: 0 } }, { type: 'hover', hit: null, at: { x: 20, y: 0 } },
     ]);
+  });
+
+  it('a Shift press moved past the threshold boxes from the press, on a model or empty table, when the driver takes boxes', () => {
+    const shift = { ...NO_MODIFIERS, shift: true };
+    const sdown = (x: number): PointerInput => ({ type: 'down', screen: { x: x * 10, y: 0 }, at: { x, y: 0 }, button: 0, mods: shift });
+    for (const from of [1, 20]) {
+      const { effects, state } = run([sdown(from), move(from + 2), up(from + 3)], always, always);
+      expect(effects).toEqual([
+        { type: 'boxMove', from: { x: from, y: 0 }, at: { x: from + 2, y: 0 } },
+        { type: 'boxEnd', from: { x: from, y: 0 }, at: { x: from + 3, y: 0 } },
+      ]);
+      expect(state).toEqual(IDLE_POINTER);
+    }
+    expect(run([sdown(1), move(3), { type: 'cancel' }], always, always).effects.at(-1)).toEqual({ type: 'boxCancel' });
+    expect(run([sdown(1), move(3)], always).effects[0]!.type).toBe('dragStart');      // no box taker: Shift drags as before
+    expect(run([down(1), move(3)], always, always).effects[0]!.type).toBe('dragStart');  // no Shift: no box
   });
 });

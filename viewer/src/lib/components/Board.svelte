@@ -90,6 +90,9 @@
         case 'dragMove': interaction?.onDragMove?.(effect.at, effect.mods); break;
         case 'dragEnd': interaction?.onDragEnd?.(effect.at, effect.mods); break;
         case 'dragCancel': interaction?.onDragCancel?.(); break;
+        case 'boxMove': interaction?.onBoxMove?.(effect.from, effect.at); break;
+        case 'boxEnd': interaction?.onBoxEnd?.(effect.from, effect.at); break;
+        case 'boxCancel': interaction?.onBoxCancel?.(); break;
         case 'pan': view = panBy(current, effect.dx, effect.dy); break;
         case 'context': interaction?.onContextMenu?.(effect.hit, effect.at, effect.screen, downMods); break;
       }
@@ -97,7 +100,8 @@
   }
 
   function feed(input: PointerInput): void {
-    const result = step(pointer, input, pick, (hit, at, mods) => interaction?.onDragStart?.(hit, at, mods) ?? false);
+    const result = step(pointer, input, pick, (hit, at, mods) => interaction?.onDragStart?.(hit, at, mods) ?? false,
+      (at, mods) => interaction?.onBoxStart?.(at, mods) ?? false);
     pointer = result.state;
     apply(result.effects);
   }
@@ -127,11 +131,11 @@
       feed({ type: 'up', ...inputAt(e) });
     }}
     onpointercancel={() => feed({ type: 'cancel' })}
-    onlostpointercapture={() => { if (pointer.kind === 'dragging') feed({ type: 'cancel' }); }}
+    onlostpointercapture={() => { if (pointer.kind === 'dragging' || pointer.kind === 'boxing') feed({ type: 'cancel' }); }}
     onpointerleave={() => { hovered = undefined; }}
     oncontextmenu={(e) => e.preventDefault()}
     onkeydown={(e) => {
-      if (e.key === 'Escape' && pointer.kind === 'dragging') { e.preventDefault(); feed({ type: 'cancel' }); return; }
+      if (e.key === 'Escape' && (pointer.kind === 'dragging' || pointer.kind === 'boxing')) { e.preventDefault(); feed({ type: 'cancel' }); return; }
       if (interaction?.onKey?.(e.key, modsOf(e)) === true) e.preventDefault();
     }}
   ></canvas>

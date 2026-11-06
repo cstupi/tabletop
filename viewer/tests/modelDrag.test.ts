@@ -58,20 +58,20 @@ describe('ModelDrag', () => {
     expect(g.get('m3')).toBe(home);                  // proposing with no ghost drawn
   });
 
-  it('shift picks one model, else the unit', () => {
+  it('the picks given, else the unit; only models the board draws', () => {
     const r = rig();
     const { g } = fake();
     const drag = new ModelDrag(g);
-    expect(drag.start(r.p, r.b, { x: 12, y: 10 }, false, new Set(), none).ids).toEqual([r.a, r.b]);   // c is shelved: not drawn
-    expect(drag.start(r.p, r.b, { x: 12, y: 10 }, true, new Set(), none).ids).toEqual([r.b]);
-    expect(drag.start(r.p, r.b, { x: 12, y: 10 }, false, new Set([r.c]), new Map([[r.c, at(30, 30)]])).ids).toEqual([r.a, r.b, r.c]);
+    expect(drag.start(r.p, r.b, { x: 12, y: 10 }, null, new Set(), none).ids).toEqual([r.a, r.b]);   // c is shelved: not drawn
+    expect(drag.start(r.p, r.b, { x: 12, y: 10 }, [r.b], new Set(), none).ids).toEqual([r.b]);
+    expect(drag.start(r.p, r.b, { x: 12, y: 10 }, null, new Set([r.c]), new Map([[r.c, at(30, 30)]])).ids).toEqual([r.a, r.b, r.c]);
   });
 
   it('move sends held models in drag order with their grab offsets', () => {
     const r = rig();
     const { g, lands } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, false, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, null, new Set(), none);
     const held = drag.move(r.p, { x: 15, y: 13 }, false, null, none)!;
     expect(lands[0]!.held.map((h) => [h.id, h.to])).toEqual([[r.a, { x: 15, y: 13 }], [r.b, { x: 17, y: 13 }]]);
     expect(lands[0]!.held[0]!.at.placement.position).toEqual({ x: 10, y: 10, z: 0 });
@@ -84,7 +84,7 @@ describe('ModelDrag', () => {
     const r = rig([wall('v1', 'impassable'), wall('v2', 'cover'), wall('v3', 'impassable')]);
     const { g, lands } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, true, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, [r.a], new Set(), none);
     drag.move(r.p, { x: 11, y: 10 }, false, null, none);
     expect(lands[0]!.walls).toEqual(['v1', 'v3']);
     const region: MoveRegion = { kind: 'move_region', modelIds: [r.a], allowance: 6, impassableVolumeIds: ['v2'], difficultVolumeIds: [], stoppable: false, passesModels: false, ignoresTerrain: false };
@@ -103,7 +103,7 @@ describe('ModelDrag', () => {
     const { g, lands } = fake();
     const drag = new ModelDrag(g);
     const region: MoveRegion = { kind: 'move_region', modelIds: [r.a, r.b], allowance: 6, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false, ignoresTerrain: false };
-    drag.start(r.p, r.a, { x: 10, y: 10 }, false, new Set([r.a, r.b]), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, null, new Set([r.a, r.b]), none);
     const held = drag.move(r.p, { x: 20, y: 10 }, false, region, none)!;          // 10" to the right
     expect(lands[0]!.held.map((h) => [h.id, h.to])).toEqual([[r.a, { x: 16, y: 10 }], [r.b, { x: 18, y: 10 }]]);
     expect(held.ends.get(r.a)!.lands).toEqual({ x: 16, y: 10, z: 0 });
@@ -131,11 +131,11 @@ describe('ModelDrag', () => {
     const charge: MoveRegion = { kind: 'move_region', modelIds: [a], allowance: 40, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false, passesModels: false,
       ignoresTerrain: false, contactWith: [rival], contactGrace: 0.5 };
     const drag = new ModelDrag(g);
-    drag.start(p, a, { x: 10, y: 10 }, true, new Set([a]), new Map());
+    drag.start(p, a, { x: 10, y: 10 }, [a], new Set([a]), new Map());
     drag.move(p, { x: 38.7, y: 30 }, false, charge, new Map());
     expect(lands.at(-1)!.abut?.within).toBe(0.5);
     drag.cancel();
-    drag.start(p, a, { x: 10, y: 10 }, true, new Set(), new Map());
+    drag.start(p, a, { x: 10, y: 10 }, [a], new Set(), new Map());
     drag.move(p, { x: 38.7, y: 30 }, false, null, new Map());
     expect(lands.at(-1)!.abut).toBeUndefined();
   });
@@ -144,7 +144,7 @@ describe('ModelDrag', () => {
     const r = rig();
     const { g, lands, rests } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, true, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, [r.a], new Set(), none);
     const held = drag.move(r.p, { x: 20, y: 22 }, true, null, none)!;
     expect(lands).toHaveLength(0);
     expect(rests[0]!.placement.position).toEqual({ x: 20, y: 22, z: 0 });
@@ -155,7 +155,7 @@ describe('ModelDrag', () => {
     const r = rig();
     const { g, lands } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, false, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, null, new Set(), none);
     drag.move(r.p, { x: 20, y: 20 }, false, null, none);
     let held = drag.turn(r.p, 15, null, none)!;
     expect(held.yaws.get(r.a)!.degrees).toBe(15);
@@ -170,7 +170,7 @@ describe('ModelDrag', () => {
     const r = rig();
     const { g, lands } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, false, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, null, new Set(), none);
     drag.move(r.p, { x: 30, y: 20 }, false, null, none);
     const held = drag.arrange(r.p, 2, null, none)!;
     expect(held.rows).toBe(2);
@@ -187,11 +187,11 @@ describe('ModelDrag', () => {
     const r = rig();
     const { g } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, false, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, null, new Set(), none);
     drag.move(r.p, { x: 10, y: 10 }, false, null, none);
     expect(drag.end()).toBeNull();
     expect(drag.held).toBeNull();
-    drag.start(r.p, r.a, { x: 10, y: 10 }, true, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, [r.a], new Set(), none);
     drag.move(r.p, { x: 14, y: 10 }, false, null, none);
     expect([...drag.end()!]).toEqual([[r.a, at(14, 10)]]);
   });
@@ -200,7 +200,7 @@ describe('ModelDrag', () => {
     const r = rig();
     const { g, lands } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, true, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, [r.a], new Set(), none);
     drag.move(r.p, { x: 14, y: 10 }, false, null, none);
     expect(lands.at(-1)!.stationary.map((m) => m.placement)).toContainEqual(at(40, 30));
     r.p.models.get(r.rival)!.location = { kind: 'table', placement: at(15, 10) };    // another player's frame moves a model
@@ -213,11 +213,11 @@ describe('ModelDrag', () => {
     const r = rig();
     const { g } = fake();
     const drag = new ModelDrag(g);
-    drag.start(r.p, r.a, { x: 10, y: 10 }, true, new Set(), none);
+    drag.start(r.p, r.a, { x: 10, y: 10 }, [r.a], new Set(), none);
     r.p.models.get(r.a)!.location = { kind: 'shelf' };
     expect(drag.move(r.p, { x: 14, y: 10 }, false, null, none)).toBeNull();
     expect(drag.held).toBeNull();
-    drag.start(r.p, r.a, { x: 10, y: 10 }, true, new Set([r.a]), new Map([[r.a, at(1, 1)]]));
+    drag.start(r.p, r.a, { x: 10, y: 10 }, [r.a], new Set([r.a]), new Map([[r.a, at(1, 1)]]));
     expect(drag.move(r.p, { x: 14, y: 10 }, false, null, new Map([[r.a, at(1, 1)]]))).not.toBeNull();   // a proposal may be off the table
     r.p.models.delete(r.a);
     expect(drag.move(r.p, { x: 15, y: 10 }, false, null, none)).toBeNull();

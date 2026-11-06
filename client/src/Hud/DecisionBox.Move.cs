@@ -252,7 +252,7 @@ public partial class DecisionBox
         _deployAt = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
         _input.Proposing.Clear(); foreach (var r in layout) _input.Proposing.Add(r.ModelId);
         _view.ShowGhosts(layout);
-        _hint.Text = "Drag to place · Shift: one model · 1–5 while holding: rows · Enter: place · Esc: clear";
+        _hint.Text = "Drag to place · Shift: pick models · 1–5 while holding: rows · Enter: place · Esc: clear";
         _onEnter = PlaceDeploy;
         _onCancel = () => { Reset(); Render(); return true; };                    // Reset drops _deployUnit, so Render arms a fresh click
         var place = Btn("Place (Enter)", PlaceDeploy); Add(place);

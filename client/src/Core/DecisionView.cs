@@ -105,7 +105,7 @@ public static class DecisionView
             PieceSelection when DeployQuestions.Contains(ask.Question) => $"{keys}: pick a unit to deploy",
             PieceSelection s => $"Click a glowing {(s.Eligible.Count > 0 && p.Models.ContainsKey(s.Eligible[0]) ? "model" : "unit")}"
                                 + (s.Max > 1 ? " · Enter: done" : ""),
-            MoveRegion m => "Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · " + (StopLabel(p, m) is { } stop ? $"C: {char.ToLowerInvariant(stop[0])}{stop[1..]} · " : "") + "Esc: reset",
+            MoveRegion m => "Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · " + (StopLabel(p, m) is { } stop ? $"C: {char.ToLowerInvariant(stop[0])}{stop[1..]} · " : "") + "Esc: reset",
             Assignment => "Click a target · Click a chip: that group alone · Enter: fire · Esc: clear",
             Allocation => "Click a model: +1 · Right-click: −1 · Auto: fill the rest · Enter: confirm",
             TokenSpend => "Set the tokens per caster · Enter: spend",

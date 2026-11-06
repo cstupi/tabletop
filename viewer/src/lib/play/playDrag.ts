@@ -14,9 +14,12 @@ import type { MoveBoxHooks } from './decisionBox.move';
 import { handMarks, handMoveCommand, markerMove, mayDrag } from './handMove';
 import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
-import { allowanceOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
+import { ModelPicks, type PickBox, type PickCandidate } from './modelPicks';
+import { allowanceOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
 import { read } from './moveRuler';
 import { Names } from './names';
+import { teamsOf } from '../lobby/seats';
+import type { Selection } from './selectionView';
 import type { PendingDrops } from './pendingDrops';
 import type { Violations } from './violations';
 import { isWatching } from './waiting';
@@ -28,8 +31,10 @@ export interface DragDeps {
   geometry(): Geometry | null;
   violations: Violations; drops: PendingDrops; locks: MarkerLocks;
   send(command: Command): Promise<SendOutcome>;
-  /** The page's selection: a pick-up selects the unit as a click does. */
-  select(modelIds: ReadonlySet<string>, unitId: string | null): void;
+  /** The page's selection: a pick-up selects the unit as a click does; picked models are its model ids (ModelPicks.selection). */
+  select(selection: Selection): void;
+  /** The page's selection now: its model ids are the picks (ModelPicks.of). */
+  selection?(): Selection | null;
   /** Something the board draws changed. */
   changed(): void;
   /** Runs a pointer move's landing once per animation frame (the page passes requestAnimationFrame); without it each move lands at once. */
@@ -52,6 +57,10 @@ export class PlayDrags {
   /** The latest pointer move not yet landed, and whether a frame is due to land it. */
   #pending: { readonly at: XY; readonly mods: Modifiers } | null = null;
   #scheduled = false;
+  /** A Shift+drag box from the press to the pointer, while it is drawn. */
+  #box: PickBox | null = null;
+  /** The Ask the box last rendered: a change clears the picks. */
+  #ask: string | null = null;
   readonly #byId = new Map<string, string>();
 
   constructor(deps: DragDeps) { this.#deps = deps; }
@@ -78,23 +87,92 @@ export class PlayDrags {
     return out;
   }
 
+  /** The picked models: the selection's model ids. */
+  get picks(): ModelPicks { return ModelPicks.of(this.#deps.selection?.() ?? null); }
+
+  /** Whether a model is of a team this account holds. */
+  #mine(modelId: string): boolean {
+    const st = this.#deps.state(), p = st.projection, game = st.game;
+    if (p === null || game === null) return false;
+    const unit = p.units.get(p.models.get(modelId)?.unitId ?? '');
+    const team = unit === undefined ? undefined : game.participants.find((x) => x.id === unit.participantId)?.teamId;
+    return team !== undefined && teamsOf(game, st.participantId).includes(team);
+  }
+
+  /** Shift+click on a model of my team: it goes in or out of the picks. False for any other model (the page selects it as a click does). */
+  shiftClick(modelId: string): boolean {
+    const unit = this.#deps.state().projection?.models.get(modelId)?.unitId;
+    if (unit === undefined || !this.#mine(modelId)) return false;
+    const next = this.picks.toggle(unit, modelId);
+    this.#deps.select(next.selection(unit));
+    this.#deps.changed();
+    return true;
+  }
+
+  /** A plain click on the table, a new Ask, the move's end or Esc: true when there were picks to clear (the unit stays selected). */
+  clearPicks(): boolean {
+    const picks = this.picks;
+    if (picks.isEmpty) return false;
+    this.#deps.select(ModelPicks.none.selection(picks.unitId!));
+    this.#deps.changed();
+    return true;
+  }
+
+  /** Shift+drag: a box from the press, for anyone who may drag (a watcher pans). */
+  onBoxStart(at: XY): boolean {
+    const st = this.#deps.state();
+    if (st.projection === null || st.game === null || isWatching(st)) return false;
+    this.#box = { from: at, to: at };
+    return true;
+  }
+
+  onBoxMove(from: XY, to: XY): void { this.#box = { from, to }; this.#deps.changed(); }
+
+  /** The box released: my team's drawn models whose base centre is inside it join the picks (ModelPicks.boxed). */
+  onBoxEnd(from: XY, to: XY): void {
+    this.#box = null;
+    const p = this.#deps.state().projection;
+    if (p !== null) {
+      const picks = this.picks, next = picks.boxed(this.#candidates(), { from, to });
+      if (next !== picks) this.#deps.select(next.selection(next.unitId!));
+    }
+    this.#deps.changed();
+  }
+
+  onBoxCancel(): void { this.#box = null; this.#deps.changed(); }
+
+  /** My team's models the board draws, at their drawn base centres: a ghost or a drop where it is drawn, else on the table. */
+  #candidates(): PickCandidate[] {
+    const p = this.#deps.state().projection, ghosts = this.#deps.box()?.ghosts;
+    if (p === null) return [];
+    const drawn = this.drawn(), out: PickCandidate[] = [];
+    for (const m of p.models.values()) {
+      const at = drawn.get(m.id) ?? ghosts?.get(m.id) ?? (m.location.kind === 'table' ? m.location.placement : undefined);
+      if (at !== undefined && this.#mine(m.id)) out.push({ modelId: m.id, unitId: m.unitId, x: at.position.x, y: at.position.y });
+    }
+    return out;
+  }
+
   /** OnLeftDown: a click on a placement point is the box's; a pick answers and neither selects nor drags; the rest checks MayDrag. */
-  onDragStart(hit: BoardHit, at: XY, mods: Modifiers): boolean {
+  onDragStart(hit: BoardHit, at: XY, _mods: Modifiers = { shift: false, ctrl: false, alt: false }): boolean {
     const st = this.#deps.state(), p = st.projection, game = st.game, box = this.#deps.box();
     if (p === null || game === null || box === null || box.placementPoint !== null) return false;
     if (hit.kind === 'model') {
       const unit = p.models.get(hit.id)?.unitId;
       if (box.eligible.has(hit.id) || (unit !== undefined && box.eligible.has(unit))) return false;
       const drag = this.#models();
-      if (drag === null) return false;
-      const held = drag.start(p, hit.id, at, mods.shift, box.proposing, box.ghosts);
+      if (drag === null || unit === undefined) return false;
+      // A press on a picked model holds the picks; on any other model the whole unit, and the picks clear (ModelPicks.pressed, held).
+      const picks = this.picks.pressed(hit.id);
+      const unitModels = [...p.models.values()].filter((m) => m.unitId === unit && (m.location.kind === 'table' || box.ghosts.has(m.id))).map((m) => m.id);
+      const held = drag.start(p, hit.id, at, picks.isEmpty ? null : picks.held(hit.id, unitModels), box.proposing, box.ghosts);
       const proposing = held.ids.every((id) => box.proposing.has(id));
       if (held.ids.length === 0 || !mayDrag({ kind: 'models', ids: held.ids }, isWatching(st), box.proposing, game.enforcement, game.status, p, this.#deps.locks)) {
         drag.cancel();
         return false;
       }
       this.#held = held; this.#proposing = proposing; this.#marker = null; this.#pending = null;
-      this.#deps.select(new Set(mods.shift ? [hit.id] : held.ids), unit ?? null);
+      this.#deps.select(picks.selection(unit));
       this.#deps.hooks()?.picked(held.ids);
       this.#deps.changed();
       return true;
@@ -173,9 +251,12 @@ export class PlayDrags {
     this.#deps.changed();
   }
 
-  /** The box unhooked (the Ask ended by any route): a drag of its ghosts would otherwise drop as a hand move. */
+  /** The box unhooked (the Ask ended by any route): a drag of its ghosts would otherwise drop as a hand move. A new Ask, or the end of
+   *  the one rendered (the move's end), clears the picks. */
   boxChanged(): void {
     const box = this.#deps.box();
+    const ask = box?.renderedAsk ?? null;
+    if (ask !== this.#ask) { this.#ask = ask; this.clearPicks(); }
     if (this.#held !== null && this.#proposing && box !== null && !this.#held.ids.every((id) => box.proposing.has(id))) {
       this.#drag?.cancel(); this.#held = null; this.#pending = null; this.#deps.changed();
     }
@@ -229,6 +310,7 @@ export class PlayDrags {
     const order = [...(held?.ids ?? []), ...this.#deps.violations.marked.keys()];
     const labels = violationLabels(this.#deps.violations, order, centreOf);
     if (labels.length > 0) out.push(labelOverlay(labels, '#ffc44e'));
+    if (this.#box !== null) out.push(boxOverlay(this.#box.from, this.#box.to));
     const marker = this.#marker;
     if (marker !== null) out.push(landingOverlay([{ centre: { x: marker.at.x, y: marker.at.y }, radius: Math.max(0.5, marker.radius) }]));
     return out;

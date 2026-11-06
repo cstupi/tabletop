@@ -2,7 +2,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>What a selection shows: the models to light and the line naming them. A plain click selects the unit (no model ids); shift selects one model.
+/// <summary>What a selection shows: the models to light and the line naming them. A plain click selects the unit (no model ids); picked models (ModelPicks) are its model ids.
 /// A terrain piece has no line: the terrain card names it.</summary>
 public static class SelectionView
 {

@@ -68,9 +68,9 @@ public class DecisionViewTests
     [Fact]
     public void Each_mode_has_its_hint_and_casualties_title_the_count()
     {
-        Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · Esc: reset",
+        Assert.Equal("Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · Esc: reset",
             Of(AskOf("move", new MoveRegion([Samples.Model], 6, [], [], null)), Samples.Team1).Hint);
-        Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to use a rule · Esc: reset",
+        Assert.Equal("Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to use a rule · Esc: reset",
             Of(AskOf("move", new MoveRegion([Samples.Model], 6, [], [], null, Stoppable: true)), Samples.Team1).Hint);
         Assert.Equal("Click a target · Click a chip: that group alone · Enter: fire · Esc: clear",
             Of(AskOf("declare_targets", new Assignment([new AskOption("Rifles", "Rifles", [])], [Samples.Unit], 2)), Samples.Team1).Hint);

@@ -1,5 +1,5 @@
 // viewer/src/lib/play/moveOverlays.ts
-// What RulerNode, LandingMarks, MoveRegionNode (as a circle) and ViolationMarks draw, as data and then as board Overlays.
+// What RulerNode, LandingMarks, MoveRegionNode (as a circle), ViolationMarks and the pick box draw, as data and then as board Overlays.
 
 import type { Overlay } from '../board/interaction';
 import { drawLabel } from '../board/labelPlacement';
@@ -67,6 +67,16 @@ export const rulerOverlay = (lines: readonly RulerLine[]): Overlay => (ctx, proj
 export const landingOverlay = (rings: readonly Ring[]): Overlay => (ctx, project, ppi) => {
   ctx.strokeStyle = '#6ddf7c'; ctx.lineWidth = 2; ctx.setLineDash([2, 2]);
   for (const ring of rings) circle(ctx, project, ppi, ring);
+};
+
+/** A Shift+drag pick box (TableInput.Picks' rectangle): dashed, from the press to the pointer. */
+export const boxOverlay = (from: XY, to: XY, colour = '#ffffff'): Overlay => (ctx, project) => {
+  const a = project(from), b = project(to);
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);    // a rim, so the dashes read on either theme
+  ctx.strokeStyle = colour; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.strokeRect(x, y, w, h);
+  ctx.restore();
 };
 
 export const labelOverlay = (labels: readonly Label[], colour: string): Overlay => (ctx, project) => {

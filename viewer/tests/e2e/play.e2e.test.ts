@@ -101,7 +101,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, deployment and 
             const drag = new ModelDrag(g);
             const [id] = [...box.ghosts.keys()] as [string];
             const from = box.ghosts.get(id)!.position;
-            drag.start(proj(), id, from, true, box.proposing, box.ghosts);
+            drag.start(proj(), id, from, [id], box.proposing, box.ghosts);
             drag.move(proj(), { x: from.x + 0.6, y: from.y }, false, null, box.ghosts);
             for (const [model, placement] of drag.end() ?? []) box.dragged(model, placement);
           }
@@ -138,7 +138,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, deployment and 
         const drag = new ModelDrag(g);
         const [id] = [...box.ghosts.keys()] as [string];
         const from = box.ghosts.get(id)!.position;
-        drag.start(proj(), id, from, false, box.proposing, box.ghosts);
+        drag.start(proj(), id, from, null, box.proposing, box.ghosts);
         drag.move(proj(), { x: from.x, y: from.y + dy }, false, hooks.region(), box.ghosts);
         for (const [model, placement] of drag.end() ?? []) box.dragged(model, placement);
       };

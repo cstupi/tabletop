@@ -1,6 +1,6 @@
 // viewer/src/lib/play/keys.ts
 // Hotkeys.Of (client/src/Core/Hotkeys.cs), the keys the browser binds: digits are options, Enter and Escape confirm and cancel, Q and E
-// turn, C stops, Ctrl+Z undoes, G, R and V toggle the log, the roster and the range rings, Shift is one model, L is the sight check, Delete removes.
+// turn, C stops, Ctrl+Z undoes, G, R and V toggle the log, the roster and the range rings, Shift picks models (click picks a model, drag boxes models), L is the sight check, Delete removes.
 // Camera and measuring keys belong to Godot's 3D table and have no key here.
 
 import type { Modifiers } from '../board/interaction';

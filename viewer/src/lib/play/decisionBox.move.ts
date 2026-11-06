@@ -262,7 +262,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     box.ghosts.clear();
     for (const r of placed) if (r.to.kind === 'table') box.ghosts.set(r.modelId, r.to.placement);
     box.proposing = new Set(placed.map((r) => r.modelId));
-    box.setTexts({ hint: 'Drag to place · Shift: one model · 1–5 while holding: rows · Enter: place · Esc: clear' });
+    box.setTexts({ hint: 'Drag to place · Shift: pick models · 1–5 while holding: rows · Enter: place · Esc: clear' });
     let current: MoveGate = { allowed: true, reason: null };
     const place = (): void => {
       const st = box.host.state();

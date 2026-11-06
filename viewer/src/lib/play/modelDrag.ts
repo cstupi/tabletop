@@ -76,11 +76,14 @@ export class ModelDrag {
 
   get held(): Held | null { return this.#held; }
 
-  /** The clicked model alone with Shift, else every model of its unit the board draws (on the table, or ghosts). */
-  start(p: Projection, modelId: string, at: XY, shift: boolean, proposing: ReadonlySet<string>, ghosts: ReadonlyMap<string, Placement>): Held {
+  /** The picked models (ModelPicks.holds) when `picks` is given, else every model of the clicked one's unit; either way only those the board
+   *  draws (on the table, or ghosts; a pick also when proposed, as a disembark's). The unheld rest of the unit stays and blocks as any stationary model. */
+  start(p: Projection, modelId: string, at: XY, picks: readonly string[] | null, proposing: ReadonlySet<string>, ghosts: ReadonlyMap<string, Placement>): Held {
     const clicked = p.models.get(modelId);
-    const ids = shift || clicked === undefined ? [modelId]
-      : [...p.models.values()].filter((m) => m.unitId === clicked.unitId && (m.location.kind === 'table' || ghosts.has(m.id))).map((m) => m.id);
+    const drawn = (id: string): boolean => { const m = p.models.get(id); return m !== undefined && (m.location.kind === 'table' || ghosts.has(id)); };
+    const ids = picks !== null ? picks.filter((id) => drawn(id) || proposing.has(id))
+      : clicked === undefined ? [modelId]
+      : [...p.models.values()].filter((m) => m.unitId === clicked.unitId && drawn(m.id)).map((m) => m.id);
     const projected = (id: string): Placement | null => {
       const m = p.models.get(id);
       if (m === undefined) return null;

@@ -6,7 +6,7 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the one-model tag at the cursor. A hovered locked objective says how to unlock it. In play a hovered terrain piece shows its TerrainLabel, except the selected one, whose details are the terrain card's.</summary>
+/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the pick tag at the cursor. A hovered locked objective says how to unlock it. In play a hovered terrain piece shows its TerrainLabel, except the selected one, whose details are the terrain card's.</summary>
 public partial class HoverLabels : Node3D
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
@@ -15,7 +15,7 @@ public partial class HoverLabels : Node3D
     readonly Node3D _wounds = new();
     readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
     readonly Node3D _terrainLabels = new();
-    readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: one model", Visible = false };
+    readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: pick models", Visible = false };
     Guid? _hovered, _marker, _terrain;
     Action<Guid?>? _onHover, _onMarker, _onTerrain; Action? _onChanged, _onSelection; Action<RenderCause>? _onFrame;
 

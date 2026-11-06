@@ -24,6 +24,8 @@ public partial class DecisionBox : PanelContainer
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
     Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _revealed, _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
+    /// <summary>The Ask and placement the picked models were made under: a change clears them.</summary>
+    (Guid? Ask, Guid? Deploy) _picksFor;
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
     Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit; Action? _onDeselect;
@@ -96,6 +98,7 @@ public partial class DecisionBox : PanelContainer
     void Render()
     {
         RenderAsk();
+        if ((_renderedAsk, _deployUnit) != _picksFor) { _picksFor = (_renderedAsk, _deployUnit); _input.ClearPicks(); }   // a new Ask or placement, or the end of one, clears the picked models
         _refusalLabel.Text = _refusal ?? ""; _refusalLabel.Visible = _refusal is not null;
         _hint.Visible = _hint.Text != ""; _title.Visible = _title.Text != ""; _note.Visible = _note.Text != "";   // an empty label still takes a line
         _seat.Text = _title.Text != "" && _renderedAsk is not null || _deployUnit is not null ? Seats.PlayingAs(_s.Game!, _s.MyTeamIds, _s.MyTeamId) ?? "" : "";
@@ -263,7 +266,7 @@ public partial class DecisionBox : PanelContainer
         {
             >= Intent.Option1 and <= Intent.Option9 when !dragging => Number(intent - Intent.Option1 + 1),
             Intent.Confirm when !dragging && _onEnter is { } enter => Run(enter),   // a commit mid-drag would race the drop's own send
-            Intent.Cancel when !dragging => _onCancel?.Invoke() == true,
+            Intent.Cancel when !dragging && !_input.HasPicks => _onCancel?.Invoke() == true,   // Esc clears picked models first (TableInput.Cancel)
             Intent.StopHere when !dragging && _onStop is { } stop => Run(stop),
             _ => false,
         };
