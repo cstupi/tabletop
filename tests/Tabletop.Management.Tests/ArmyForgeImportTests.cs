@@ -77,6 +77,52 @@ public class ArmyForgeImportTests
         Assert.Equal(Base.Circle(25 / 25.4), m[0].Base);
     }
 
+    /// <summary>p.13: instances of the same rule don't stack unless it has (X). Army Forge's Voidys list (67f1yXBTN5XA): a Reaper
+    /// Champion with Tough(3) on a Flying Beast, whose upgrade gives Tough(12), is Tough(15).</summary>
+    [Fact]
+    public void A_repeated_rule_is_one_property_whose_ratings_add()
+    {
+        var hero = Entry(name: "Reaper Champion", size: 1, rules: """[{"name":"Hero"},{"name":"Tough","rating":3},{"name":"Fast"}]""",
+            loadout: """[{"name":"Flying Beast","type":"ArmyBookItem","count":1,"content":[{"name":"Tough","rating":12},{"name":"Fear","rating":2},{"name":"Fast"}]},""" +
+                     """{"name":"Banner","type":"ArmyBookItem","count":1,"content":[{"name":"Fear","rating":1}]},""" +
+                     Weapon("Claws", count: 1, range: "0", rules: """[{"name":"AP","rating":1},{"name":"AP","rating":1}]""") + "]");
+        var army = ArmyForgeImport.ToArmy(ListOf(hero), "x", Catalog);
+        var unit = army.Units.Single();
+        var slot = unit.Models.Single();
+        Assert.Equal([new PropertyInstance("Tough", 15)], slot.Properties);
+        Assert.Equal([new PropertyInstance("Hero", null), new PropertyInstance("Fast", null), new PropertyInstance("Fear", 3)], unit.Properties);
+        Assert.Equal([new PropertyInstance("AP", 2)], slot.Weapons.Single(w => w.Name == "Claws").Properties);
+    }
+
+    /// <summary>A mount's or upgrade's content carries weapons beside rules (Voidys: the Flying Beast's Stomp and Toxin Claws). They
+    /// are the carriers' weapons, never rule names, and an item's rules and weapons go to the same models.</summary>
+    [Fact]
+    public void Weapons_inside_an_item_are_weapons_of_the_models_that_carry_it()
+    {
+        var squad = Entry(size: 5, loadout: """[{"name":"Rifle","type":"ArmyBookWeapon","count":5,"range":24,"attacks":1,"specialRules":[]},""" +
+            """{"name":"Beast","type":"ArmyBookItem","count":2,"content":[""" +
+            """{"name":"Stomp","type":"ArmyBookWeapon","count":1,"range":0,"attacks":4,"specialRules":[{"name":"AP","rating":1}]},""" +
+            """{"name":"Fear","type":"ArmyBookRule","rating":2},""" +
+            """{"name":"Guns","type":"ArmyBookWeapon","count":1,"range":15,"attacks":3,"specialRules":[]}]}]""");
+        var unit = ArmyForgeImport.ToArmy(ListOf(squad), "x", new Dictionary<string, PropertyLevel> { ["Fear"] = PropertyLevel.Model }).Units.Single();
+        var m = unit.Models;
+        Assert.DoesNotContain(unit.Properties, p => p.Name is "Stomp" or "Guns");
+        foreach (var carrier in m.Take(2))
+        {
+            Assert.Equal(["Rifle", "Stomp", "Guns"], carrier.Weapons.Select(w => w.Name));
+            Assert.Equal([new PropertyInstance("Fear", 2)], carrier.Properties);
+        }
+        Assert.All(m.Skip(2), x => { Assert.Equal(["Rifle"], x.Weapons.Select(w => w.Name)); Assert.Empty(x.Properties); });
+        var stomp = m[0].Weapons[1];
+        Assert.Equal(new Dictionary<string, string> { ["Attacks"] = "4" }, stomp.Stats);
+        Assert.Equal([new PropertyInstance("AP", 1)], stomp.Properties);
+        Assert.Equal("15\"", m[0].Weapons[2].Stats["Range"]);
+    }
+
+    [Fact]
+    public void An_item_weapon_is_bounded_like_any_weapon() =>
+        Assert.Contains("attacks", Refused(ListOf(Entry(loadout: """[{"name":"Beast","type":"ArmyBookItem","count":1,"content":[{"name":"Stomp","type":"ArmyBookWeapon","count":1,"range":0,"attacks":0,"specialRules":[]}]}]"""))));
+
     [Fact]
     public void A_joined_hero_becomes_a_model_of_the_unit_it_joined()
     {

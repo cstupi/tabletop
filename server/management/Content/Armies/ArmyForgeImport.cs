@@ -65,24 +65,31 @@ public static class ArmyForgeImport
                     if (Rating(r.Rating) is { } n and (< 0 or > ArmyLimits.MaxRating)) throw new InvalidArmyException($"{unit}rule '{r.Name}' rating {n} is outside 0–{ArmyLimits.MaxRating}.");
                 }
             }
+            string Weapon(string name, int? attacksOrNull, JsonElement? range, List<AfRule>? rules)
+            {
+                Check(Prefixed(unit, Limits.Text(name, "weapon name", Limits.Name)));
+                var weapon = $"{unit}weapon '{name}' ";
+                var attacks = attacksOrNull ?? 1;
+                if (attacks is < ArmyLimits.MinAttacks or > ArmyLimits.MaxAttacks) throw new InvalidArmyException($"{weapon}has {attacks} attacks; the range is {ArmyLimits.MinAttacks}–{ArmyLimits.MaxAttacks}.");
+                Range(range, weapon);
+                Rules(rules);
+                return weapon;
+            }
             Rules(u.Rules);
             foreach (var item in u.Loadout ?? [])
             {
                 if (item.Type == "ArmyBookWeapon")
                 {
-                    Check(Prefixed(unit, Limits.Text(item.Name, "weapon name", Limits.Name)));
-                    var weapon = $"{unit}weapon '{item.Name}' ";
-                    var attacks = item.Attacks ?? 1;
-                    if (attacks is < ArmyLimits.MinAttacks or > ArmyLimits.MaxAttacks) throw new InvalidArmyException($"{weapon}has {attacks} attacks; the range is {ArmyLimits.MinAttacks}–{ArmyLimits.MaxAttacks}.");
+                    var weapon = Weapon(item.Name, item.Attacks, item.Range, item.SpecialRules);
                     var maxCount = u.Size * ArmyLimits.WeaponsPerModel;
                     if (item.Count < 0 || item.Count > maxCount) throw new InvalidArmyException($"{weapon}count {item.Count} is outside 0–{maxCount}.");
-                    Range(item.Range, weapon);
-                    Rules(item.SpecialRules);
                 }
                 else if (item.Type == "ArmyBookItem")
                 {
                     Check(Prefixed(unit, Limits.Text(item.Name, "item name", Limits.Name)));
-                    Rules(item.Content);
+                    var content = item.Content ?? [];
+                    Rules(content.Where(r => !r.IsWeapon).ToList());
+                    foreach (var w in content.Where(r => r.IsWeapon)) Weapon(w.Name, w.Attacks, w.Range, w.SpecialRules);
                 }
             }
             if (ParseBase(u.Bases) is { } b && ArmyLimits.Base(b) is not null)
@@ -143,7 +150,7 @@ public static class ArmyForgeImport
         var models = new List<ModelSlot>();
         Section(host, catalog, unitProps, models);
         foreach (var joined in m.Joined) Section(joined, catalog, null, models);
-        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, unitProps, models);
+        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, Stacked(unitProps), models);
     }
 
     /// <summary>One entry's slots, appended to the unit being built. `unitProps` is null for a joined entry: every rule of it goes on
@@ -155,33 +162,42 @@ public static class ArmyForgeImport
         var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
         var cursor = 0;
 
-        void Place(PropertyInstance p, int count)
+        void Place(PropertyInstance p, List<int> carriers)
         {
-            if (count >= u.Size)
-            {
-                if (unitProps is null || catalog.GetValueOrDefault(p.Name) == PropertyLevel.Model) slotProps.ForEach(s => s.Add(p));
-                else unitProps.Add(p);
-                return;
-            }
-            for (var i = 0; i < count; i++) slotProps[(cursor + i) % u.Size].Add(p);
-            cursor += count;
+            if (carriers.Count == u.Size && unitProps is not null && catalog.GetValueOrDefault(p.Name) != PropertyLevel.Model) { unitProps.Add(p); return; }
+            foreach (var i in carriers) slotProps[i].Add(p);
         }
 
-        foreach (var r in u.Rules ?? []) Place(new PropertyInstance(r.Name, Rating(r.Rating)), u.Size);
+        // The models an entry of `count` goes to: every model, else the next `count` from the cursor.
+        List<int> Carriers(int count)
+        {
+            if (count >= u.Size) return Enumerable.Range(0, u.Size).ToList();
+            var at = Enumerable.Range(cursor, count).Select(i => i % u.Size).ToList();
+            cursor += count;
+            return at;
+        }
+
+        void Arm(List<int> carriers, string name, int? attacks, JsonElement? rangeValue, List<AfRule>? rules)
+        {
+            var wstats = new Dictionary<string, string> { ["Attacks"] = (attacks ?? 1).ToString(CultureInfo.InvariantCulture) };
+            // Melee is `"range": 0` on some entries and `"range": null` on others in the same export; `is { } range and > 0` excludes both.
+            if (Range(rangeValue, "") is { } range and > 0) wstats["Range"] = $"{range.ToString(CultureInfo.InvariantCulture)}\"";
+            var props = Stacked((rules ?? []).Select(r => new PropertyInstance(r.Name, Rating(r.Rating))));
+            foreach (var i in carriers) slotWeapons[i].Add(new(Guid.CreateVersion7(), name, new Dictionary<string, string>(wstats), props));
+        }
+
+        foreach (var r in u.Rules ?? []) Place(new PropertyInstance(r.Name, Rating(r.Rating)), Carriers(u.Size));
         foreach (var item in u.Loadout ?? [])
         {
-            if (item.Type == "ArmyBookWeapon")
-            {
-                var wstats = new Dictionary<string, string> { ["Attacks"] = (item.Attacks ?? 1).ToString(CultureInfo.InvariantCulture) };
-                // Melee is `"range": 0` on some entries and `"range": null` on others in the same export; `is { } range and > 0` excludes both.
-                if (Range(item.Range, "") is { } range and > 0) wstats["Range"] = $"{range.ToString(CultureInfo.InvariantCulture)}\"";
-                var props = (item.SpecialRules ?? []).Select(r => new PropertyInstance(r.Name, Rating(r.Rating))).ToList();
-                Weapon W() => new(Guid.CreateVersion7(), item.Name, new Dictionary<string, string>(wstats), props);
-                if (item.Count >= u.Size) slotWeapons.ForEach(s => s.Add(W()));
-                else { for (var i = 0; i < item.Count; i++) slotWeapons[(cursor + i) % u.Size].Add(W()); cursor += item.Count; }
-            }
+            if (item.Type == "ArmyBookWeapon") Arm(Carriers(item.Count), item.Name, item.Attacks, item.Range, item.SpecialRules);
             else if (item.Type == "ArmyBookItem")
-                foreach (var rule in item.Content ?? []) Place(new PropertyInstance(rule.Name, Rating(rule.Rating)), item.Count);
+            {
+                // One upgrade's rules and weapons go to the same models.
+                var carriers = Carriers(item.Count);
+                foreach (var entry in item.Content ?? [])
+                    if (entry.IsWeapon) Arm(carriers, entry.Name, entry.Attacks, entry.Range, entry.SpecialRules);
+                    else Place(new PropertyInstance(entry.Name, Rating(entry.Rating)), carriers);
+            }
         }
 
         var body = Body(u.Bases);
@@ -192,9 +208,17 @@ public static class ArmyForgeImport
         {
             slotWeapons[i].AddRange(ArmyBookAdditions.Weapons(slotProps[i].Concat(unitProps ?? []), slotWeapons[i]));
             into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
-                slotProps[i], body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
+                Stacked(slotProps[i]), body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
         }
     }
+
+    /// <summary>One property per rule name, in first-seen order (an army's tables key properties by name). p.13: "Effects from multiple
+    /// instances of the same special rule or spell don't stack, unless it is a rule with (X) in its name", so rated instances add
+    /// (Tough(3) and a mount's Tough(12) are Tough(15)) and unrated ones are one.</summary>
+    internal static List<PropertyInstance> Stacked(IEnumerable<PropertyInstance> props) =>
+        props.GroupBy(p => p.Name)
+            .Select(g => g.Any(p => p.Parameter is not null) ? new PropertyInstance(g.Key, g.Sum(p => p.Parameter ?? 0)) : g.First())
+            .ToList();
 
     /// <summary>The published base with HeightFromBase of that base, or DefaultBody when the entry publishes none.</summary>
     private static ModelBody Body(AfBases? bases) =>

@@ -56,7 +56,7 @@ public static class ArmyBookReserves
     /// <summary>The entry's ratings of a rule, one per model that carries it: a rule of the entry is every model's, an item's goes to `count` models.</summary>
     static IEnumerable<(string Name, int Size)> Ratings(AfUnit entry, string rule) =>
         (entry.Rules ?? []).Where(r => r.Name == rule).Select(Rating).SelectMany(x => Enumerable.Repeat(x, entry.Size))
-            .Concat((entry.Loadout ?? []).Where(i => i.Type == "ArmyBookItem").SelectMany(i => (i.Content ?? []).Where(r => r.Name == rule).Select(Rating).SelectMany(x => Enumerable.Repeat(x, i.Count))))
+            .Concat((entry.Loadout ?? []).Where(i => i.Type == "ArmyBookItem").SelectMany(i => (i.Content ?? []).Where(r => !r.IsWeapon && r.Name == rule).Select(Rating).SelectMany(x => Enumerable.Repeat(x, i.Count))))
             .Where(x => x is not null).Select(x => x!.Value);
 
     /// <summary>The book's unit X at X's size, as an export entry: a loadout line every model of the book's unit had goes to every model.</summary>
