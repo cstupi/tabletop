@@ -14,9 +14,9 @@ import type { GameInfo, Marker, Placement, TerrainPlacement, ZoneLegs } from '..
  */
 export function sceneOfPlay(
   p: Projection, game: GameInfo, zones: ZonePolygons, name: (piece: TerrainPlacement) => string, ghosts: ReadonlyMap<string, Placement> = new Map(),
-  legs?: ZoneLegs,
+  legs?: ZoneLegs, markerRange?: number,
 ): Scene {
-  const base = sceneOfTable(p.board.table, zones, name, legs);
+  const base = sceneOfTable(p.board.table, zones, name, legs, markerRange);
   const teamOf = new Map(game.participants.filter((x) => x.teamId !== undefined).map((x) => [x.id, x.teamId!]));
   const ordinalOf = new Map(game.teams.map((t) => [t.id, t.ordinal]));
   const ordinalOfModel = (unitId: string): number => {
@@ -30,7 +30,7 @@ export function sceneOfPlay(
     const ordinal = controller === undefined ? undefined : ordinalOf.get(controller);
     return {
       id: m.id, kind: m.kind, label: m.label ?? m.kind, centre: { x: m.position.x, y: m.position.y }, radius: m.diameter / 2,
-      ...(ordinal === undefined ? {} : { teamOrdinal: ordinal }),
+      ...(ordinal === undefined ? {} : { teamOrdinal: ordinal }), ...(markerRange === undefined ? {} : { reach: markerRange }),
     };
   };
   const setupIds = new Set(p.board.table.markers.map((m) => m.id));

@@ -116,7 +116,7 @@ public partial class WarmupScene : Node
         var z = new Vector3(0, 0, -14);
         foreach (var label in new[] { "1", (string?)null })
         {
-            var m = new MarkerNode { MarkerId = Guid.NewGuid() }; m.Build(new Marker(Guid.NewGuid(), MarkerKind.Objective, new Point3(18, 14, 0), new Yaw(0), 1.5, label, VisualRef.OfBuiltin("objective-ring")), label is null ? Palette.Team(1) : null);
+            var m = new MarkerNode { MarkerId = Guid.NewGuid() }; m.Build(new Marker(Guid.NewGuid(), MarkerKind.Objective, new Point3(18, 14, 0), new Yaw(0), 1.5, label, VisualRef.OfBuiltin("objective-ring")), label is null ? Palette.Team(1) : null, 3);
             m.Position = z + new Vector3(18, 0, 0); _root.AddChild(m);
         }
         // The warm-up has no game, so the zone takes the 3.5.1 legs.

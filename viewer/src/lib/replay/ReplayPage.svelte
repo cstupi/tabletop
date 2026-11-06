@@ -110,7 +110,7 @@
   const projection = $derived.by(() => { void version; return player?.timeline.projection ?? null; });
   const scene = $derived.by(() => {
     void version;
-    return projection === null || game === null ? null : sceneOfPlay(projection, game, geometry?.zonePolygons ?? (() => []), namer, undefined, snap?.zones ?? undefined);
+    return projection === null || game === null ? null : sceneOfPlay(projection, game, geometry?.zonePolygons ?? (() => []), namer, undefined, snap?.zones ?? undefined, snap?.markerRange ?? undefined);
   });
   const extent = $derived(scene === null ? undefined : extentOf(scene));
   const header = $derived.by(() => { void version; return projection === null || game === null ? null : replayHeaderOf(projection, game); });

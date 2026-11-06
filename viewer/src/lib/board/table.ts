@@ -35,8 +35,9 @@ function zonePolygonsOf(zones: ZonePolygons, shape: string, size: TableSize, leg
   return polygons;
 }
 
-/** A TableState as a Scene: terrain outlines labelled with `name`, markers, zones resolved by `zones` with `legs`, no models. */
-export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piece: TerrainPlacement) => string, legs?: ZoneLegs): Scene {
+/** A TableState as a Scene: terrain outlines labelled with `name`, markers (with `markerRange`, Welcome's, as their reach), zones resolved
+ *  by `zones` with `legs`, no models. */
+export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piece: TerrainPlacement) => string, legs?: ZoneLegs, markerRange?: number): Scene {
   const terrain: TerrainShape[] = table.terrain.flatMap((piece) => {
     const shapes = outlines(piece, { position: piece.position, yaw: piece.yaw });
     return piece.volumes.map(({ id, volume: v }, i) => ({
@@ -54,6 +55,7 @@ export function sceneOfTable(table: TableState, zones: ZonePolygons, name: (piec
     })),
     markers: table.markers.map((m) => ({
       id: m.id, kind: m.kind, label: m.label ?? m.kind, centre: { x: m.position.x, y: m.position.y }, radius: m.diameter / 2,
+      ...(markerRange === undefined ? {} : { reach: markerRange }),
     })),
     models: [],
     offTable: [],

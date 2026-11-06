@@ -13,6 +13,8 @@ public sealed partial class GrimdarkFutureRules
     public IReadOnlyDictionary<string, string> TerrainWords => _terrainWords ??= Tabletop.Content.BuiltinTerrain.DeclarationNames
         .Where(n => Edition.TerrainWords.ContainsKey(n.Value)).ToDictionary(n => n.Key, n => Edition.TerrainWords[n.Value]);
     IReadOnlyDictionary<string, string>? _terrainWords;
+    /// <summary>p.6 (3.6.0 p.6): "within 3” of a marker", from the marker's centre (GfObjectives.Seize).</summary>
+    public double? MarkerRange => GfObjectives.SeizeRange;
     public IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => GfOptions.Problems(optionalRules);
     public Interpreter.ISightPolicy SightPolicy(GameState state) => GfSight.For(state);
 }

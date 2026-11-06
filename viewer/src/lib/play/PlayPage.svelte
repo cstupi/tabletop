@@ -179,7 +179,7 @@
   const shown = $derived.by(() => { void predictionTick; return snap === null ? null : prediction.projection(snap); });
   const pendingUndo = $derived.by(() => { void predictionTick; return prediction.pendingUndoTo; });
   const scene = $derived(shown !== null && snap?.game != null
-    ? sceneOfPlay(shown, snap.game, geometry?.zonePolygons ?? (() => []), meshName, ghostsDrawn, snap.zones ?? undefined) : null);
+    ? sceneOfPlay(shown, snap.game, geometry?.zonePolygons ?? (() => []), meshName, ghostsDrawn, snap.zones ?? undefined, snap.markerRange ?? undefined) : null);
   const extent = $derived(scene === null ? undefined : extentOf(scene));
   // The box's glow and marks are not reactive: a new panel (every change of either publishes one) hands the board new ones to redraw by.
   const glow = $derived.by(() => { void panel; const b = box; return (m: string, u: string) => b?.glowOf(m, u) ?? null; });

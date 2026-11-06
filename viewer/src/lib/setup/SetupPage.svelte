@@ -49,7 +49,7 @@
   const report = (text: string | null) => { problem = text; };
 
   const scene = $derived(draft !== null && geometry !== null && catalog !== null
-    ? sceneOfTable(draft, geometry.zonePolygons, (p) => nameOf(p, catalog!), snap.zones ?? undefined) : null);
+    ? sceneOfTable(draft, geometry.zonePolygons, (p) => nameOf(p, catalog!), snap.zones ?? undefined, snap.markerRange ?? undefined) : null);
   const extent = $derived(scene === null ? undefined : extentOf(scene));
 
   // A piece or marker another player removed leaves my selection and any drag of it.

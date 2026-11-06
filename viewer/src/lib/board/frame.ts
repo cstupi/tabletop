@@ -27,6 +27,8 @@ export type TerrainShape = {
 export type MarkerShape = {
   readonly id: string; readonly kind: string; readonly label: string;
   readonly centre: Point; readonly radius: number; readonly teamOrdinal?: number;
+  /** The rule set's marker range about the centre (Welcome.markerRange), drawn as a ring; absent draws none. */
+  readonly reach?: number;
 };
 export type ZoneShape = {
   readonly id: string; readonly shape: string; readonly teamOrdinal: number; readonly polygons: readonly Shape[];

@@ -99,6 +99,9 @@ public interface IGameRules
     /// <summary>The words a client shows for a terrain declaration under this rule set, keyed by its snake_case name (BuiltinTerrain.DeclarationNames),
     /// sent in Welcome. Empty by default: a client keeps its own words. Wrapping rulesets must forward it.</summary>
     IReadOnlyDictionary<string, string> TerrainWords => new Dictionary<string, string>();
+    /// <summary>How far from an objective marker's centre a model's base edge holds it, sent in Welcome for the clients to draw. Null by default:
+    /// no range. Wrapping rulesets must forward it.</summary>
+    double? MarkerRange => null;
     /// <summary>What is wrong with an optional-rules map: an unknown key or value. A set_configuration with any is refused. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => optionalRules.Keys.Select(k => $"unknown option {k}").ToList();
     /// <summary>What blocks sight in this state under the game's optional rules (Sight.From reads it). Each model's body, by default. Wrapping rulesets must forward it.</summary>

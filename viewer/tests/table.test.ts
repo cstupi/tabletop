@@ -31,6 +31,12 @@ describe('the draft as a scene', () => {
     expect(scene.models).toEqual([]);
   });
 
+  it('markers carry the welcome\'s marker range as their reach, and none without it', () => {
+    const draft: TableState = { ...table([]), markers: [{ id: 'm', kind: 'objective' as const, position: { x: 5, y: 6, z: 0 }, yaw: { degrees: 0 }, diameter: 3, visual: { builtin: 'o' } }] };
+    expect(sceneOfTable(draft, () => [], () => 'Name', undefined, 3).markers[0]).toMatchObject({ radius: 1.5, reach: 3 });
+    expect(sceneOfTable(draft, () => [], () => 'Name').markers[0]!.reach).toBeUndefined();
+  });
+
   it('zone polygons are asked once per shape and table size for the same source', () => {
     const asked: string[] = [];
     const zones = (shape: string, size: { width: number; length: number }) => { asked.push(`${shape} ${size.width}x${size.length}`); return [[{ x: 0, y: 0 }]]; };

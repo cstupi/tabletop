@@ -123,6 +123,14 @@ function markers(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o:
     const radius = Math.max(5, marker.radius * view.scale);
     const colour = marker.teamOrdinal !== undefined ? teamColour(marker.teamOrdinal) : c.label;
     const picked = o.selected.has(marker.id);
+    if (marker.reach !== undefined && marker.reach > 0) {   // the marker range: a base edge on this ring is in range
+      circle(ctx, p, marker.reach * view.scale);
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = withAlpha(colour, 0.8);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     circle(ctx, p, radius);
     ctx.fillStyle = withAlpha(c.bg, 0.55);
     ctx.fill();

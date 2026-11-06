@@ -45,6 +45,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public Tabletop.Geometry.ZoneLegs Zones { get; private set; } = Tabletop.Geometry.ZoneLegs.Default;
     /// <summary>The Welcome's terrain words by declaration name (the game rule set's words); TerrainLabel and TerrainGroups keep their own for a name not listed.</summary>
     public IReadOnlyDictionary<string, string> TerrainWords { get; private set; } = new Dictionary<string, string>();
+    /// <summary>The seize range about each objective marker's centre, from Welcome.MarkerRange; null draws none.</summary>
+    public double? MarkerRange { get; private set; }
     public TableState? Draft { get; private set; }
     public EventApplier? Applier { get; private set; }
     /// <summary>What the table shows: an undo's prediction, else the replay's position (Session.Replay), else the live projection.</summary>
@@ -369,14 +371,14 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         {
             case Welcome w:
                 _welcomed = true; _attempt = 0;
-                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones; TerrainWords = w.TerrainWords;
+                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options; Zones = w.Zones; TerrainWords = w.TerrainWords; MarkerRange = w.MarkerRange;
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
                 EnsureRuleTexts();
                 if (_queued.Count > 0 && _socket is { } welcomed) _ = FlushQueued(welcomed);
                 break;
             case RulesOptionsMessage r:
-                Options = r.Options; Zones = r.Zones; TerrainWords = r.TerrainWords;   // sent before the GameInfo that follows, which raises the change
+                Options = r.Options; Zones = r.Zones; TerrainWords = r.TerrainWords; MarkerRange = r.MarkerRange;   // sent before the GameInfo that follows, which raises the change
                 break;
             case GameInfoMessage g:
                 Game = g.Game;

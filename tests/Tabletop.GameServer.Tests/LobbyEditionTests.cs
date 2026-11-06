@@ -55,6 +55,7 @@ public class LobbyEditionTests
         Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json(bundle.Options));
         Assert.Equal(new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75), bundle.Zones);   // the new edition's legs and words ride with the catalog
         Assert.Equal("Dense", bundle.TerrainWords["see_in_and_out"]);
+        Assert.Equal(3.0, bundle.MarkerRange);
         Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json((await creator.ExpectAsync<RulesOptionsMessage>()).Options));
         Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json((await watcher.ExpectAsync<RulesOptionsMessage>()).Options));
 

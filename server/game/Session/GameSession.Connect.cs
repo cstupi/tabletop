@@ -35,7 +35,7 @@ public sealed partial class GameSession
 
     private async Task SendStateAsync(ISessionClient client, Guid participantId, IReadOnlySet<Guid> teams)
     {
-        await client.SendAsync(new Welcome(participantId, Info) { Options = Rules.OptionCatalog, Zones = Rules.Zones, TerrainWords = Rules.TerrainWords });
+        await client.SendAsync(new Welcome(participantId, Info) { Options = Rules.OptionCatalog, Zones = Rules.Zones, TerrainWords = Rules.TerrainWords, MarkerRange = Rules.MarkerRange });
         if (Draft is not null) await client.SendAsync(new BoardMessage(new Board(Draft, [])));
         if (Play is not null)
         {

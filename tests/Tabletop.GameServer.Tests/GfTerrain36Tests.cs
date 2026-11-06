@@ -154,4 +154,17 @@ public class GfTerrain36Tests
         Assert.Equal(GrimdarkFutureRules.Instance.TerrainWords, welcome.TerrainWords);
         Assert.Equal("Difficult moving up", welcome.TerrainWords["steep"]);
     }
+
+    /// <summary>p.6 "within 3" of a marker" (3.6.0 p.6 the same): the range a client draws about each marker's centre.</summary>
+    [Fact]
+    public async Task The_welcome_carries_the_marker_range()
+    {
+        var db = new InMemorySeeder();
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        await using var client = await TestClient.OpenAsync(factory);
+        var welcome = await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        Assert.Equal(3.0, welcome.MarkerRange);
+        Assert.Equal(GfObjectives.SeizeRange, GrimdarkFutureRules.V360.MarkerRange);
+    }
 }

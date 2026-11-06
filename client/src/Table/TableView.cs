@@ -101,8 +101,9 @@ public partial class TableView : Node3D
         var markers = table.Markers.Where(m => played.All(q => q.Id != m.Id)).Concat(played);
         Color? ControlColour(Marker m) => _session.Projection?.Control.TryGetValue(m.Id, out var holder) == true
             && _session.Game?.Teams.FirstOrDefault(t => t.Id == holder) is { } team ? Palette.Team(team.Ordinal) : null;
-        Sync(_markers, markers.Select(m => (Marker: m, Team: ControlColour(m))).ToList(), x => x.Marker.Id, (a, b) => BoardDiff.SameShape(a.Marker, b.Marker) && a.Team == b.Team,
-            x => { var n = new MarkerNode { MarkerId = x.Marker.Id }; n.Build(x.Marker, x.Team); return n; }, (n, x) => n.Place(x.Marker));
+        var range = _session.MarkerRange;
+        Sync(_markers, markers.Select(m => (Marker: m, Team: ControlColour(m), Range: range)).ToList(), x => x.Marker.Id, (a, b) => BoardDiff.SameShape(a.Marker, b.Marker) && a.Team == b.Team && a.Range == b.Range,
+            x => { var n = new MarkerNode { MarkerId = x.Marker.Id }; n.Build(x.Marker, x.Team, x.Range); return n; }, (n, x) => n.Place(x.Marker));
         var teams = _session.Game?.Teams ?? [];
         Sync(_zones, ZonesShown(table, _session.Projection, teams).Select(z => (Zone: z, Size, Legs: _session.Zones, Colour: ZoneColour(z, teams))).ToList(), x => x.Zone.Id, (a, b) => a == b,
             x => { var n = new ZoneNode(); n.Build(x.Zone, x.Size, x.Legs, x.Colour); return n; }, (_, _) => { });

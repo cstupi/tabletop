@@ -49,6 +49,9 @@ public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
     /// <summary>The words a client shows for a terrain declaration under the game's rule set (IGameRules.TerrainWords), keyed by its snake_case
     /// name; a client keeps its own word for a name not listed.</summary>
     public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
+    /// <summary>How far from an objective marker's centre a model's base edge holds it under the game's rule set (IGameRules.MarkerRange),
+    /// in inches; a client draws it about each marker. Null: the rule set holds no markers by range, and nothing is drawn.</summary>
+    public double? MarkerRange { get; init; }
 }
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
@@ -60,6 +63,8 @@ public sealed record RulesOptionsMessage(RulesOptionCatalog Options) : SocketMes
     public ZoneLegs Zones { get; init; } = ZoneLegs.Default;
     /// <summary>As Welcome.TerrainWords, under the new rule set.</summary>
     public IReadOnlyDictionary<string, string> TerrainWords { get; init; } = new Dictionary<string, string>();
+    /// <summary>As Welcome.MarkerRange, under the new rule set.</summary>
+    public double? MarkerRange { get; init; }
 }
 /// <summary>On connect from setup on, and after every setup edit (the whole draft).</summary>
 public sealed record BoardMessage(Board Board) : SocketMessage;
