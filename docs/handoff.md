@@ -5,7 +5,7 @@ The game is built end to end: a Grimdark Future game, under either edition (v3.5
 roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner, in the Godot
 client or the browser (`/viewer/`). The two editions are two rule sets, `grimdark-future` (3.5.1) and `grimdark-future-3.6`
 (3.6.0); an army carries its edition (`army.edition`, `'3.5'` or `'3.6'`) and picks only into a game of that edition. The
-3.6.0 work, with every rule and spell playing, is on branch `gf-3-6-0`, not yet merged to `main` or tagged. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.31 is the latest tag. What each
+3.6.0 work, with every rule and spell playing, is merged to `main`. `sim/` plays whole games headless; `viewer/` also replays them. v0.1.33 is the latest tag. What each
 earlier batch built, with the owner's rulings, is in `docs/shipped.md`. An undone roll's dice stay
 spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -92,11 +92,9 @@ approval) and `syn01-piped-castle` (NAS; no root).
 
 In order:
 
-1. **Merge `gf-3-6-0` to `main`** once the owner says so. Unit, E2E, socket-driver rules suite and lifecycle pass on the branch. The edition build's ledger is `.superpowers/sdd/index/progress.md`; `docs/shipped.md` quotes the
-   owner's edition ruling.
-2. **A GameServer test fails intermittently,** about once in five full runs. Its name was never captured;
+1. **A GameServer test fails intermittently,** about once in five full runs. Its name was never captured;
    `ZonesInPlayTests.A_third_team_created_in_setup_moves_default_zones_to_the_corners_and_leaves_chosen_zones` failed once.
-3. **The ISR Mark games cannot catch a small over-reach.** That needs a second shooter 18-20" from the marked unit.
+2. **The ISR Mark games cannot catch a small over-reach.** That needs a second shooter 18-20" from the marked unit.
 
 ### 2026-10-26, v0.1.29
 

@@ -120,7 +120,7 @@ public partial class WarmupScene : Node
             m.Position = z + new Vector3(18, 0, 0); _root.AddChild(m);
         }
         // The warm-up has no game, so the zone takes the 3.5.1 legs.
-        var zone = new ZoneNode(); zone.Build(new DeploymentZone(Guid.NewGuid(), "frontline", 1), new TableSize(24, 16), ZoneLegs.Default, Palette.Team(1) with { A = 0.35f }); _root.AddChild(zone);
+        var zone = new ZoneNode(); zone.Build(new DeploymentZone(Guid.NewGuid(), "frontline/1", 1), new TableSize(24, 16), ZoneLegs.Default, Palette.Team(1) with { A = 0.35f }); _root.AddChild(zone);
         var region = new MoveRegionNode(); _root.AddChild(region); region.Show([new Point2(14, 4), new Point2(20, 4), new Point2(20, 8), new Point2(14, 8)], Palette.Hovered);
         var ruler = new RulerNode(); _root.AddChild(ruler); ruler.Show(new Point3(14, 10, 0.1), new Point3(20, 10, 0.1), new RulerReadout(6, 2, false), Palette.Selected);
         var lines = new MeshInstance3D { Mesh = LineMesh.Of([(new Vector3(14, 0.5f, -6), new Vector3(20, 0.5f, -6), Palette.Hovered)]), MaterialOverride = LineMesh.Material() }; _root.AddChild(lines);

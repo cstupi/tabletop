@@ -53,7 +53,8 @@ public partial class LoadingCurtain : Control
 
     public override void _Ready()
     {
-        SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Stop;
+        if (GetParent() is Control) SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);   // under a Node the anchors stay 0 and Fit sizes it
+        MouseFilter = MouseFilterEnum.Stop;
         _back.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(_back);
         var centre = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; centre.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(centre);
         centre.AddChild(_panel);
