@@ -32,7 +32,8 @@
   import { unitSheetOf } from './unitSheet';
   import { isWatching } from './waiting';
   import type { UndoPrediction } from './undo';
-  import { FILTER_LABELS } from './logRows';
+  import { FILTER_LABELS, bandOf } from './logRows';
+  import HudIcon from './HudIcon.svelte';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
@@ -193,7 +194,8 @@
         <button type="button" class="toggle" tabindex="-1" aria-expanded={logOpen} title="Show or hide the log (G)"
           onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}>
           <span class="chev" class:open={logOpen}><Icon name="chevron" size="1rem" /></span>
-          <h2>Combat log</h2>
+          <HudIcon name="log" size={18} />
+          <h2>Log</h2>
           <kbd>G</kbd>
         </button>
         {#if logOpen}
@@ -208,6 +210,7 @@
       {#if logOpen}
         <CombatLogPanel
           {entries} filter={logFilter} detailed={logDetailed} {pendingUndoTo} {watching} {rules} reveal={revealRoll} showFilter={false}
+          bandOf={(e) => (log !== null && snap.game !== null ? bandOf(e, log.names, snap.game) : 0)}
           onFilter={setFilter} onUndoTo={(seq) => void undoTo(seq)} {onTouch}
         />
       {/if}

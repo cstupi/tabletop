@@ -32,7 +32,8 @@ public class ReserveLabelTests
         Assert.Equal("Reserve: Reinforcement (Brood)", RosterView.ReserveOf(p, p.Units[Copy.Id]));
         Assert.Null(RosterView.ReserveOf(p, p.Units[Plain.Id]));
         var rows = RosterView.Of(p, TableUx.Game, new Names(TableUx.Game, p), TableUx.T1, new Dictionary<Guid, int>()).Single(t => t.TeamId == TableUx.T1).Rows;
-        Assert.Equal([null, "Reserve: Spawn (Brood)", "Reserve: Reinforcement (Brood)", null], rows.Select(r => r.Reserve));
+        Assert.Equal([null, "Reserve: Spawn (Brood)", "Reserve: Reinforcement (Brood)", null],
+            new[] { Brood.Id, Spawned.Id, Copy.Id, Plain.Id }.Select(id => rows.Single(r => r.UnitId == id).Reserve));
     }
 
     /// <summary>Placed by its property, the unit is no longer held off the table: no chip.</summary>

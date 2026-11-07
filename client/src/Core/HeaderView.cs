@@ -18,8 +18,54 @@ public sealed record HeaderModel(int Round, string Turn, IReadOnlyList<(string T
     public string TopLine => Round == 0 ? (Turn.Length == 0 ? "Before round 1" : RosterView.Words(Turn)) : Turn.Length == 0 ? $"Round {Round}" : $"Round {Round} · {Turn}";
 }
 
+/// <summary>A team's tile on the header's first line (UX redesign part 2 → Header): its score, its units in play and how many of them have
+/// acted this round (one dot each, filled when acted; past twelve the count), the turn mark when it is the active team, the player icon when
+/// it is one of mine.</summary>
+public sealed record TeamTile(Guid TeamId, int Ordinal, string Name, int Score, int Acted, int InPlay, bool Acting, bool Mine)
+{
+    public const int MaxDots = 12;
+    public bool Dots => InPlay <= MaxDots;
+    public string CountText => $"{Acted}/{InPlay}";
+}
+
+/// <summary>The header's third line: Mine when an open Ask waits on a team of mine (`Your move`, in that team's colour); else the first
+/// team waited on, whose band leads the line, and what each waits for.</summary>
+public sealed record WaitLine(bool Mine, int Ordinal, string Text);
+
 public static class HeaderView
 {
+    /// <summary>One tile per team in ordinal order. Units in play as NotActivated counts them; acted is those with an action this round.</summary>
+    public static IReadOnlyList<TeamTile> Tiles(Projection p, GameInfo game, Names n, IReadOnlyCollection<Guid> mine) =>
+        game.Teams.OrderBy(t => t.Ordinal).Select(t =>
+        {
+            var units = p.Units.Values.Where(u => game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id)
+                && p.Models.Values.Any(m => m.UnitId == u.Id && InPlay(p, m.Location))).ToList();
+            return new TeamTile(t.Id, t.Ordinal, n.Team(t.Id), p.Scores.GetValueOrDefault(t.Id), units.Count(u => u.Actions.Count > 0), units.Count,
+                p.Scheduler.ActiveTeamId == t.Id, mine.Contains(t.Id));
+        }).ToList();
+
+    /// <summary>The round on the header: `Round 2`; before round 1 the phase (`Deployment`), else `Before round 1`.</summary>
+    public static string RoundText(int round, string? phase) =>
+        round > 0 ? $"Round {round}" : phase is { Length: > 0 } ? RosterView.Words(phase) : "Before round 1";
+
+    static readonly string[] ActionIcons = ["hold", "advance", "rush", "charge"];
+    /// <summary>The theme icon for an activation's action word (the option label after its colon, or the frame's action): hold, advance, rush,
+    /// charge; any other word draws the activation icon.</summary>
+    public static string ActionIcon(string? action) =>
+        action is not null && ActionIcons.FirstOrDefault(i => string.Equals(i, action.Trim(), StringComparison.OrdinalIgnoreCase)) is { } icon ? icon : "activation";
+
+    /// <summary>The header's waiting line (WaitLine); null when no open Ask waits on anyone.</summary>
+    public static WaitLine? Wait(Projection p, GameInfo game, Names n, IReadOnlyCollection<Guid> mine)
+    {
+        var waits = p.OpenAsks.Values.OrderBy(a => a.Ask.Id)
+            .SelectMany(a => a.Ask.Teams.Where(t => !a.Answers.ContainsKey(t)).Select(t => (Team: t, What: a.Ask.Question.Replace('_', ' ')))).Distinct().ToList();
+        if (waits.Count == 0) return null;
+        int Ordinal(Guid t) => game.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0;
+        if (waits.FirstOrDefault(w => mine.Contains(w.Team)) is { Team: var my } && mine.Contains(my))
+            return new WaitLine(true, Ordinal(my), mine.Count > 1 ? $"Your move · {n.Team(my)}" : "Your move");
+        return new WaitLine(false, Ordinal(waits[0].Team), string.Join(", ", waits.Select(w => $"{n.Team(w.Team)} · {w.What}")));
+    }
+
     /// <summary>A team's score in the rulebook's word (p.26: "players get 1 VP for each objective marker they control").</summary>
     public static string ScoreText(int score) => $"{score} VP";
 

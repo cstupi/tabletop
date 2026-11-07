@@ -1,3 +1,5 @@
+using Tabletop.Protocol;
+
 namespace Tabletop.Client.Core;
 
 /// <summary>
@@ -30,6 +32,10 @@ public static class CombatLogRows
             && x.Entries.Count == y.Entries.Count && x.Entries.Zip(y.Entries).All(p => Same(p.First, p.Second)),
         _ => false,
     };
+
+    /// <summary>The team ordinal whose band leads a block's header: its actor's team; 0 for a block with no actor of a known team and any other entry.</summary>
+    public static int Band(LogEntry e, Names n, GameInfo game) =>
+        e is ActivationBlock { Actor: { } unit } && n.TeamOfUnit(unit) is { } team && game.Teams.FirstOrDefault(t => t.Id == team) is { } t ? t.Ordinal : 0;
 
     static bool Same<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b) => a is null || b is null ? a is null && b is null : a.SequenceEqual(b);
 }

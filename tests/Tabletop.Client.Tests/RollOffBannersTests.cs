@@ -14,7 +14,7 @@ public class RollOffBannersTests
     {
         var batch = B(new StepCompleted(Guid.CreateVersion7(), "roll-off", null, [], []),
             Ranked(("winner_ordinal", 2), ("place_1", 2), ("place_2", 1), ("rolled_1_1", 3), ("rolled_2_1", 5)));
-        Assert.Equal(new Banner("Team 2 goes first", 4.0, "Team 2 rolled 5 · Team 1 rolled 3"), RollOffBanners.Of(batch, N, true, false));
+        Assert.Equal(new Banner("Team 2 goes first", 4.0, "Team 2 rolled 5 · Team 1 rolled 3", 2, [new(2, "Team 2 rolled 5"), new(1, "Team 1 rolled 3")]), RollOffBanners.Of(batch, N, true, false));
     }
 
     [Fact]
@@ -37,6 +37,6 @@ public class RollOffBannersTests
     [Fact]
     public void A_ranking_from_before_the_faces_were_named_shows_the_first_team_alone()
     {
-        Assert.Equal(new Banner("Team 1 goes first", 4.0, null), RollOffBanners.Of(B(Ranked(("place_1", 1), ("place_2", 2))), N, true, false));
+        Assert.Equal(new Banner("Team 1 goes first", 4.0, null, 1), RollOffBanners.Of(B(Ranked(("place_1", 1), ("place_2", 2))), N, true, false));
     }
 }

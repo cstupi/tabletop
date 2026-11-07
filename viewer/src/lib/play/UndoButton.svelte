@@ -1,8 +1,9 @@
 <!-- viewer/src/lib/play/UndoButton.svelte -->
-<!-- UndoButton.cs: undoes the last action in the game, whoever took it. Hidden for a watcher; disabled only when nothing is undoable;
+<!-- UndoButton.cs (`↶ Undo ⌃Z`): undoes the last action in the game, whoever took it. Hidden for a watcher; disabled only when nothing is undoable;
      the tooltip names the action. When the undo would take dice rolls with it, a dialog lists them, one per line, first. -->
 <script lang="ts">
   import { NOTHING_TO_UNDO, type UndoPlan } from './undo';
+  import HudIcon from './HudIcon.svelte';
 
   let { plan, watching, onUndo }: { plan: UndoPlan | null; watching: boolean; onUndo: (toSeq: number) => void } = $props();
 
@@ -25,7 +26,7 @@
 </script>
 
 {#if !watching}
-  <button type="button" tabindex="-1" disabled={plan === null} title={plan?.tooltip ?? NOTHING_TO_UNDO} class="small" onmousedown={(e) => e.preventDefault()} onclick={press}>Undo <kbd>Ctrl+Z</kbd></button>
+  <button type="button" tabindex="-1" disabled={plan === null} title={plan?.tooltip ?? NOTHING_TO_UNDO} class="small" onmousedown={(e) => e.preventDefault()} onclick={press}><span class="cap"><HudIcon name="undo" size={16} />Undo <kbd>⌃Z</kbd></span></button>
 {/if}
 
 <dialog bind:this={dialog} onclose={() => (asking = null)} aria-labelledby="undo-title">
@@ -33,13 +34,15 @@
     <h2 id="undo-title">Undo dice rolls?</h2>
     <p class="rolls">{asking.lostRolls.join('\n')}</p>
     <div class="actions">
-      <button type="button" onclick={() => (asking = null)}>Cancel</button>
-      <button type="button" class="danger" onclick={confirmed}>Undo</button>
+      <button type="button" class="flat" onclick={() => (asking = null)}>Cancel</button>
+      <button type="button" class="primary" onclick={confirmed}>Undo</button>
     </div>
   {/if}
 </dialog>
 
 <style>
+  .cap { display: inline-flex; align-items: center; gap: var(--s1); }
+  .flat { border: 0; background: none; box-shadow: none; clip-path: none; color: var(--text); }
   kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: 2px 4px; border: 1px solid currentColor; border-radius: 3px; opacity: .7; }
   dialog { max-width: 30rem; }
   h2 { margin-top: 0; }

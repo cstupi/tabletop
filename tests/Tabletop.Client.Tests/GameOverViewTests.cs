@@ -39,7 +39,8 @@ public class GameOverViewTests
         Assert.Equal(["End", "Continue"], m.Choices.Select(c => c.Label));
 
         var answered = GameOverView.Of(After(new AskOpened(Asked), new AskAnswered(Samples.AskId, Samples.Team1, new Chosen(GameOverChoices.Continue), false)), Game, Samples.Team1);
-        Assert.Equal((GameOverStage.Waiting, GameOverView.WaitingNote), (answered.Stage, answered.Note));
+        Assert.Equal((GameOverStage.Waiting, "Waiting for Team 2"), (answered.Stage, answered.Note));
+        Assert.Equal([Samples.Team2], answered.WaitingFor!);
         Assert.Empty(answered.Choices);
         Assert.Equal(GameOverStage.Waiting, GameOverView.Of(After(new AskOpened(Asked)), Game, null).Stage);   // a watcher has nothing to answer
     }
@@ -50,6 +51,9 @@ public class GameOverViewTests
         var m = GameOverView.Of(After(new AskOpened(Asked), new AskClosed(Samples.AskId, []), new GameEnded("4 rounds have been played. 2 to 1", [Samples.Team1])), Game, Samples.Team1);
         Assert.Equal((GameOverStage.Ended, (Guid?)null, "4 rounds have been played. 2 to 1"), (m.Stage, m.AskId, m.Reason));
         Assert.Equal("Team 1 wins", m.Result);
+        Assert.Equal("Team 1 wins", m.Headline);   // no round played in this log
+        Assert.Equal("Team 1 wins · 4 rounds", (m with { Rounds = 4 }).Headline);
+        Assert.Equal("Waiting for the other player", GameOverView.WaitingText([], new Names(Game, null)));
         Assert.Empty(m.Choices);
     }
 }

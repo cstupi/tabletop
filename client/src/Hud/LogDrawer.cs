@@ -2,17 +2,18 @@ using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Lower right: a button that opens the log above it. G toggles it. GameScreen.Layout places both through Place.</summary>
+/// <summary>Lower right: a button (`≡ Log G`, held down while open) that opens the log above it. G toggles it. GameScreen.Layout places both through Place.</summary>
 public partial class LogDrawer : Control
 {
     Session _s = null!;
     readonly PanelContainer _drawer = new() { Visible = false };
     readonly CombatLogPanel _log = new();
     public CombatLogPanel CombatLog => _log;
-    readonly Button _toggle = new() { Text = "Log (G)" };
+    readonly Button _toggle = HudBits.CapButton("log", "Log", "G", "Open or close the log");
     /// <summary>The Log button, whose height the Hud's button row takes.</summary>
     public Control Toggle => _toggle;
 
@@ -31,8 +32,12 @@ public partial class LogDrawer : Control
         inner.AddChild(_log); _log.Bind(session, view, message => Reported?.Invoke(message));
         AddChild(_drawer); AddChild(_toggle);
         _toggle.Pressed += Flip;
+        Ui.Changed += Refill;
         SetOpen(session.Settings.LogOpen);
     }
+
+    void Refill() => HudBits.Fill(_toggle, "log", "Log", "G");
+    public override void _ExitTree() => Ui.Changed -= Refill;
 
     public void Flip() { SetOpen(!_drawer.Visible); _s.UpdateSettings(x => x with { LogOpen = _drawer.Visible }); }
 
@@ -46,7 +51,7 @@ public partial class LogDrawer : Control
         if (panel is { } r && _drawer.Visible) HudPlacement.Fill(_drawer, r);
     }
 
-    void SetOpen(bool open) { _drawer.Visible = open; _log.Shown = open; _toggle.Text = open ? "Close log (G)" : "Log (G)"; OpenChanged?.Invoke(); }
+    void SetOpen(bool open) { _drawer.Visible = open; _log.Shown = open; _toggle.ToggleMode = true; _toggle.SetPressedNoSignal(open); OpenChanged?.Invoke(); }
 
     public override void _Input(InputEvent e)
     {

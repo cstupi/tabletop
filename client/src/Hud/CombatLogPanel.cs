@@ -17,7 +17,7 @@ public partial class CombatLogPanel : VBoxContainer
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
     Session _s = null!; TableView _view = null!; Action<string> _report = _ => { };
     readonly OptionButton _filter = new();
-    readonly Button _copy = new() { Text = "Copy", Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Copy the log as shown" };
+    Button _copy = null!;
     readonly CheckBox _detailed = new() { Text = "Detailed", TooltipText = "Each roll as a worked resolution: every modifier, what was ignored, every die" };
     readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -43,7 +43,11 @@ public partial class CombatLogPanel : VBoxContainer
         _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(false); };
         _detailed.ButtonPressed = s.Settings.LogDetailed;
         _detailed.Toggled += on => { _s.UpdateSettings(x => x with { LogDetailed = on }); Render(false); };
-        var top = new HBoxContainer(); _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed); top.AddChild(_copy);
+        // The head: the log's icon and name, the filter, Detailed, and Copy (the whole log as shown) as its icon.
+        var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", 10);
+        top.AddChild(HudBits.Icon("log", Ui.Accent, 18)); top.AddChild(new Label { Text = "LOG", ThemeTypeVariation = Variation.Display });
+        _copy = HudBits.IconButton("copy", "Copy the log as shown", 18); _copy.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed); top.AddChild(_copy);
         _copy.Pressed += () => DisplayServer.ClipboardSet(LogCopy.Text(_drawn, _s.Settings.LogDetailed, IsOpen));
         AddChild(top); AddChild(_scroll); _scroll.AddChild(_rows);
         // The newest entry stays in view: the bar's range changes after the rows are laid out, a frame after a render, so the jump
@@ -130,13 +134,21 @@ public partial class CombatLogPanel : VBoxContainer
                 LineEntry l => l.Text,
                 _ => "",
             };
-            var row = new HBoxContainer(); into.AddChild(row);
+            var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Pass }; row.AddThemeConstantOverride("separation", 6); into.AddChild(row);
+            // A block leads with its actor's team band (UX redesign part 2 → Log and undo).
+            if (e is ActivationBlock && _s.CombatLog is { } state && _s.Game is { } game && CombatLogRows.Band(e, state.Names, game) is var band and > 0)
+            {
+                var bar = HudBits.Band(band, 4); if (faded) bar.Modulate = Ui.Faded; row.AddChild(bar);
+            }
             var words = SelectableText(text, e.Undone, "", Toggle);
             if (faded) words.Modulate = Ui.Faded;
             if (e is ActivationBlock { Spell: { } spell } cast) words.TooltipText = SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "";
             row.AddChild(words);
-            if (e is ActivationBlock whole) AddButton(row, "Copy", () => DisplayServer.ClipboardSet(LogCopy.Activation(whole, _s.Settings.LogDetailed)));
-            if (e is not RollEntry && CombatLog.UndoHere(e, _s.IsWatching)) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
+            // Undo to here and Copy as icons at the row's right, shown while the pointer is over the row.
+            var actions = new List<Control>();
+            if (e is not RollEntry && CombatLog.UndoHere(e, _s.IsWatching)) actions.Add(AddButton(row, "undo", "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report)));
+            if (e is ActivationBlock whole) actions.Add(AddButton(row, "copy", "Copy this activation", () => DisplayServer.ClipboardSet(LogCopy.Activation(whole, _s.Settings.LogDetailed))));
+            if (actions.Count > 0) { HudBits.OnHover(row, [.. actions]); HudBits.OnHover(words, [.. actions]); }
             shown = words;
         }
         if (e is RollEntry revealed && revealed.Record.Id == _reveal) _revealed = shown;
@@ -184,7 +196,7 @@ public partial class CombatLogPanel : VBoxContainer
         var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         row.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) { row.AcceptEvent(); clicked(); } };
         var flow = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        foreach (var d in r.Dice) flow.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
+        foreach (var d in r.Dice) flow.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success), judged: d.Judged));
         Ignore(flow); row.MouseFilter = MouseFilterEnum.Pass;
         row.AddChild(SelectableText($"{(open ? "▾" : "▸")} {r.Title}", r.Undone, "", clicked)); row.AddChild(flow);
         var tail = string.Join(" · ", new[] { r.Outcome }.Concat(r.Amendments.Where(a => !a.Undone).Select(a => a.Line(CombatLog.Pip))).Where(t => t.Length > 0));
@@ -209,7 +221,7 @@ public partial class CombatLogPanel : VBoxContainer
         {
             // An unjudged die shows neither pass nor fail: a plain face and an unstyled label.
             var line = new HBoxContainer(); into.AddChild(line);
-            line.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
+            line.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success), judged: d.Judged));
             line.AddChild(SelectableText(d.Text, false, !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure, null));
         }
         foreach (var a in detailed ? [] : r.Amendments) into.AddChild(SelectableText(a.Text, a.Undone, a.Undone ? Variation.Dim : "", null));
@@ -217,10 +229,11 @@ public partial class CombatLogPanel : VBoxContainer
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (!CombatLog.UndoHere(r, _s.IsWatching)) return;
         var actions = new HBoxContainer(); into.AddChild(actions);
-        AddButton(actions, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(r.Seq), _report));
+        AddButton(actions, "undo", "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(r.Seq), _report));
     }
 
-    static void AddButton(Container row, string text, Action then) { var b = new Button { Text = text, Flat = true, ThemeTypeVariation = Variation.FlatButton }; b.Pressed += then; row.AddChild(b); }
+    /// <summary>An action on a row as its icon, the words in the tooltip.</summary>
+    static Button AddButton(Container row, string icon, string tooltip, Action then) { var b = HudBits.IconButton(icon, tooltip); b.Pressed += then; row.AddChild(b); return b; }
 
     void Highlight(LogEntry e)
     {

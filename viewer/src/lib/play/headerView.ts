@@ -95,6 +95,57 @@ export function waiting(p: Projection, n: Names, mine: readonly string[] = []): 
   return ordered.length === 0 ? null : ordered.map((e) => e.text).join(' · ');
 }
 
+/** A team's tile on the header (HeaderView.TeamTile): its score, its units in play and how many have acted this round (a dot each, filled once
+ * acted; past twelve the count), the turn mark on the active team, the player icon on mine. */
+export interface TeamTile {
+  readonly teamId: string; readonly ordinal: number; readonly name: string; readonly score: number;
+  readonly acted: number; readonly inPlay: number; readonly acting: boolean; readonly mine: boolean;
+}
+export const MAX_DOTS = 12;
+export const tileDots = (t: TeamTile): boolean => t.inPlay <= MAX_DOTS;
+export const tileCount = (t: TeamTile): string => `${t.acted}/${t.inPlay}`;
+
+/** One tile per team in ordinal order (HeaderView.Tiles). */
+export function tiles(p: Projection, game: GameInfo, n: Names, mine: readonly string[]): TeamTile[] {
+  return [...game.teams].sort((a, b) => a.ordinal - b.ordinal).map((t) => {
+    const units = [...p.units.values()].filter((u) => game.participants.some((x) => x.id === u.participantId && x.teamId === t.id)
+      && [...p.models.values()].some((m) => m.unitId === u.id && inPlay(p, m.location)));
+    return { teamId: t.id, ordinal: t.ordinal, name: n.team(t.id), score: p.scores.get(t.id) ?? 0, acted: units.filter((u) => u.actions.size > 0).length,
+      inPlay: units.length, acting: p.scheduler.activeTeamId === t.id, mine: mine.includes(t.id) };
+  });
+}
+
+/** The round on the header (HeaderView.RoundText): `Round 2`; before round 1 the phase (`Deployment`), else `Before round 1`. */
+export function roundText(round: number, phase: string | null | undefined): string {
+  if (round > 0) return `Round ${round}`;
+  return phase ? phase.charAt(0).toUpperCase() + phase.slice(1).replaceAll('-', ' ') : 'Before round 1';
+}
+
+const ACTION_ICONS = ['hold', 'advance', 'rush', 'charge'] as const;
+export type ActionIcon = (typeof ACTION_ICONS)[number] | 'activation';
+/** The icon for an activation's action word (HeaderView.ActionIcon): hold, advance, rush, charge; any other word the activation icon. */
+export function actionIcon(action: string | null | undefined): ActionIcon {
+  const word = action?.trim().toLowerCase();
+  return ACTION_ICONS.find((i) => i === word) ?? 'activation';
+}
+
+/** The header's waiting line (HeaderView.WaitLine): mine reads `Your move` in my team's colour; else the first waiting team's band and what
+ * each team waits for. */
+export interface WaitLine { readonly mine: boolean; readonly ordinal: number; readonly text: string }
+export function waitLineOf(p: Projection, game: GameInfo, n: Names, mine: readonly string[]): WaitLine | null {
+  const waits: { team: string; what: string }[] = [];
+  for (const a of [...p.openAsks.values()].sort((x, y) => byId(x.ask.id, y.ask.id)))
+    for (const t of a.ask.teams.filter((team) => !a.answers.has(team))) {
+      const what = a.ask.question.replaceAll('_', ' ');
+      if (!waits.some((w) => w.team === t && w.what === what)) waits.push({ team: t, what });
+    }
+  if (waits.length === 0) return null;
+  const ordinal = (t: string) => game.teams.find((x) => x.id === t)?.ordinal ?? 0;
+  const my = waits.find((w) => mine.includes(w.team));
+  if (my !== undefined) return { mine: true, ordinal: ordinal(my.team), text: mine.length > 1 ? `Your move · ${n.team(my.team)}` : 'Your move' };
+  return { mine: false, ordinal: ordinal(waits[0]!.team), text: waits.map((w) => `${n.team(w.team)} · ${w.what}`).join(', ') };
+}
+
 /** The header's line while deployment waits for players (WaitingForPlayers), one clause per team it waits on. */
 export function waitingForPlayers(waiting: readonly TeamWaiting[]): string | null {
   return waiting.length === 0 ? null : `Deployment waits: ${waiting.map((w) => w.text).join(' · ')}`;

@@ -53,7 +53,7 @@ describe('RosterView', () => {
   });
 
   it('wounds read as pips up to twelve, else as a count', () => {
-    const row = (left: number, max: number): RosterRow => ({ unitId: 'u', name: 'U', activated: false, left, max, offTable: false, conditions: [], inside: null, reserve: null });
+    const row = (left: number, max: number): RosterRow => ({ unitId: 'u', name: 'U', activated: false, left, max, offTable: false, conditions: [], inside: null, reserve: null, acting: false });
     expect(woundsText(row(2, 3))).toBe('●●○');
     expect(woundsText(row(12, 12))).toBe('●●●●●●●●●●●●');
     expect(woundsText(row(9, 13))).toBe('9/13');

@@ -15,11 +15,15 @@
   import type { LogFilter } from './settings';
   import { tooltip as spellTooltip } from './spellText';
   import { worked } from './workedLines';
+  import { teamColour } from '../board/palette';
+  import HudIcon from './HudIcon.svelte';
 
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
-  let { entries, filter, detailed = false, pendingUndoTo, watching, rules, reveal = null, showFilter = true, onFilter, onDetailed, onUndoTo, onTouch }: {
+  let { entries, filter, detailed = false, pendingUndoTo, watching, rules, reveal = null, showFilter = true, bandOf = () => 0, onFilter, onDetailed, onUndoTo, onTouch }: {
     entries: readonly LogEntry[]; filter: LogFilter; pendingUndoTo: number | null; watching: boolean; rules: RuleTexts;
+    /** The team ordinal whose band leads a block (logRows.bandOf); 0 for none. */
+    bandOf?: (e: LogEntry) => number;
     /** Each roll and named change as its worked lines (ClientSettings.LogDetailed). */
     detailed?: boolean;
     onDetailed?: (on: boolean) => void;
@@ -105,7 +109,7 @@
     {#each detailed ? [] : r.details as line, i (i)}<p>{line}</p>{/each}
     {#each detailed ? [] : r.dice as d, i (i)}
       <p class="die-line">
-        <span class="die" class:fail={d.judged && !d.success}>{pip(d.raw)}</span>
+        <span class="die" class:pass={d.judged && d.success} class:fail={d.judged && !d.success}>{pip(d.raw)}</span>
         <span class:ok={d.judged && d.success} class:bad={d.judged && !d.success}>{dieText(d)}</span>
       </p>
     {/each}
@@ -116,7 +120,7 @@
       <p class="flow">{#each r.applied as name (name)}<button type="button" class="flat" tabindex="-1" title={rules.textOf(name) ?? name} onmousedown={noFocus}>{name}</button>{/each}</p>
     {/if}
     {#if undoHere(r, watching)}
-      <button type="button" class="flat" tabindex="-1" onmousedown={noFocus} onclick={() => onUndoTo(r.seq)}>Undo to here</button>
+      <button type="button" class="flat icon" tabindex="-1" title="Undo to here" aria-label="Undo to here" onmousedown={noFocus} onclick={() => onUndoTo(r.seq)}><HudIcon name="undo" size={16} /></button>
     {/if}
   </div>
 {/snippet}
@@ -132,19 +136,21 @@
     <div class="roll" class:dim data-roll={e.record.id} role="button" tabindex="-1" onclick={() => pick(e)} onkeydown={() => {}}>
       <span class="words" class:struck={e.undone}>{`${open ? '▾' : '▸'} ${title(e)}`}</span>
       <span class="faces">
-        {#each e.dice as d, i (i)}<span class="die" class:fail={d.judged && !d.success}>{pip(d.raw)}</span>{/each}
+        {#each e.dice as d, i (i)}<span class="die" class:pass={d.judged && d.success} class:fail={d.judged && !d.success}>{pip(d.raw)}</span>{/each}
         {#if tail(e).length > 0}<span class="words" class:dim={dim} class:struck={e.undone}>{tail(e)}</span>{/if}
       </span>
     </div>
   {:else}
+    {@const band = bandOf(e)}
     <div class="line" class:dim>
+      {#if band > 0}<span class="band" style:--team={teamColour(band)}></span>{/if}
       <div
         class="row grow" class:struck={e.undone} role="button" tabindex="-1" data-roll={e.type === 'roll' ? e.record.id : undefined}
         title={e.type === 'block' && e.spell !== null ? spellTooltip(rules, e.spell, e.spellCost) ?? '' : ''}
         onclick={() => pick(e)} onkeydown={() => {}}
       >{rowText(e, open)}</div>
       {#if e.type !== 'roll' && undoHere(e, watching)}
-        <button type="button" class="flat" tabindex="-1" onmousedown={noFocus} onclick={() => onUndoTo(e.seq)}>Undo to here</button>
+        <button type="button" class="flat icon" tabindex="-1" title="Undo to here" aria-label="Undo to here" onmousedown={noFocus} onclick={() => onUndoTo(e.seq)}><HudIcon name="undo" size={16} /></button>
       {/if}
     </div>
   {/if}
@@ -182,7 +188,11 @@
   .line { display: flex; gap: var(--s1); align-items: baseline; }
   .line > .flat { opacity: 0; }
   .line:hover > .flat, .line > .flat:focus-visible { opacity: 1; }
-  .line > .flat { flex: none; color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
+  .line > .flat { flex: none; color: var(--text); }
+  @media (hover: none) { .line > .flat { opacity: 1; } }
+  .flat.icon { display: inline-flex; align-items: center; padding: 1px 3px; }
+  .flat.icon:hover:not(:disabled) { color: var(--accent); }
+  .band { flex: none; align-self: stretch; width: 4px; background: var(--team); }
   .row { padding: 1px var(--s1); cursor: pointer; }
   .row:hover { background: var(--rule); }
   .struck { text-decoration: line-through; }
@@ -196,11 +206,12 @@
   .faces { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; }
   .words { overflow-wrap: anywhere; }
   .die { font-size: 1.35rem; line-height: 1; }
-  .die.fail { opacity: 0.4; }
+  .die.pass { color: var(--success); }
+  .die.fail { color: var(--failure); opacity: 0.6; }
   .dim { color: var(--dim); }
   .indent { margin-left: var(--s3); padding-left: var(--s2); border-left: 1px solid var(--rule); }
   .detail p { margin: 2px 0; }
-  .detail > .flat { color: var(--link); font-size: .85rem; text-decoration: underline; text-underline-offset: .2em; }
+  .detail > .flat { color: var(--text); }
   .die-line { display: flex; gap: var(--s2); align-items: center; }
   .ok { color: var(--success); }
   .bad { color: var(--failure); }

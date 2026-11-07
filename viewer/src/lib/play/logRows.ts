@@ -1,7 +1,9 @@
 // viewer/src/lib/play/logRows.ts
 // The row text CombatLogPanel.cs and DiceTray.cs draw. Every word is the combat log's.
 
+import type { GameInfo } from '../protocol/wire.generated';
 import { blockChain, pip } from './combatLog';
+import type { Names } from './names';
 import { type DieView, type LogEntry, type RollEntry, collapsed, judged, outcome, result, successes, title } from './rollEntry';
 
 export const FILTER_LABELS: readonly string[] = ['All', 'Rolls', 'My units', 'This unit'];   // LogFilter's order
@@ -14,6 +16,14 @@ export function rowText(e: LogEntry, open: boolean): string {
     case 'roll': return `${mark} ${collapsed(e, pip)}`;
     case 'line': return e.text;
   }
+}
+
+/** CombatLogRows.Band: the team ordinal whose band leads a block's header (its actor's team); 0 for a block with no actor of a known team
+ * and any other entry. */
+export function bandOf(e: LogEntry, n: Names, game: GameInfo): number {
+  if (e.type !== 'block' || e.actor === null) return 0;
+  const team = n.teamOfUnit(e.actor);
+  return team === null ? 0 : game.teams.find((t) => t.id === team)?.ordinal ?? 0;
 }
 
 /** Undone, or past a pending undo. */
