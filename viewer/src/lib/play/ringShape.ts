@@ -120,13 +120,17 @@ function slide(r: Rect, placed: readonly Rect[], view: Rect, dir: -1 | 1): Rect 
   return null;
 }
 
-/** Each wanted rectangle, in order, kept inside the view; one that would overlap a label already placed moves up past it, or, when that
- * leaves the view, down past it from where it wanted to be. One that fits neither way stays where it wanted to be. */
+/** Each wanted rectangle kept inside the view, placed lowest on the screen first, so an outer ring's label keeps its place under its ring
+ * and an inner ring's moves up toward its own; one that would overlap a label already placed moves up past it, or, when that leaves the
+ * view, down past it from where it wanted to be. One that fits neither way stays where it wanted to be. In the wanted order. */
 export function placeRingLabels(wanted: readonly Rect[], view: Rect): Rect[] {
   const placed: Rect[] = [];
-  for (const w of wanted) {
-    const start = clampRect(w, view);
-    placed.push(slide(start, placed, view, -1) ?? slide(start, placed, view, 1) ?? start);
+  const result: Rect[] = new Array(wanted.length);
+  const order = wanted.map((_, i) => i).sort((i, j) => wanted[j]!.y - wanted[i]!.y || i - j);
+  for (const i of order) {
+    const start = clampRect(wanted[i]!, view);
+    const at = slide(start, placed, view, -1) ?? slide(start, placed, view, 1) ?? start;
+    placed.push(at); result[i] = at;
   }
-  return placed;
+  return result;
 }

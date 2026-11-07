@@ -96,9 +96,24 @@ public class RingLabelsTests
     {
         var a = RingLabels.Under((640, 400), 120, 30); var b = RingLabels.Under((650, 405), 100, 30);
         var placed = RingLabels.Place([a, b], View);
-        Assert.Equal(a, placed[0]);
+        Assert.Equal(b, placed[1]);                                         // the lower keeps its place
         Assert.False(placed[0].Overlaps(placed[1]));
-        Assert.True(placed[1].Bottom <= placed[0].Y);                       // moved up, toward the ring
+        Assert.True(placed[0].Bottom <= placed[1].Y);                       // the other moved up, toward its ring
+    }
+
+    [Fact]
+    public void The_label_lowest_on_the_screen_keeps_its_place_and_the_ones_above_stack_up_in_order()
+    {
+        // Two rings about one unit: the inner ring's label wants a place just above the outer ring's. Whatever order they come in, the outer
+        // keeps its place under its ring and the inner moves up, toward its own ring: reading down, inner then outer.
+        var inner = RingLabels.Under((640, 445), 80, 40); var outer = RingLabels.Under((640, 470), 80, 40);
+        foreach (var order in new[] { new[] { inner, outer }, new[] { outer, inner } })
+        {
+            var placed = RingLabels.Place(order, View);
+            var (i, o) = order[0] == inner ? (placed[0], placed[1]) : (placed[1], placed[0]);
+            Assert.Equal(outer, o);
+            Assert.True(i.Bottom <= o.Y);
+        }
     }
 
     [Fact]
@@ -106,7 +121,7 @@ public class RingLabelsTests
     {
         var placed = RingLabels.Place([new HudRect(600, 0, 100, 30), new HudRect(610, 5, 100, 30), new HudRect(1250, -20, 100, 30)], View);
         Assert.False(placed[0].Overlaps(placed[1]));
-        Assert.True(placed[1].Y >= placed[0].Bottom);
+        Assert.All(placed, p => Assert.True(p.Y >= 0 && p.Bottom <= View.Bottom));
         Assert.Equal(new HudRect(1180, 0, 100, 30), placed[2]);
         for (var i = 0; i < placed.Count; i++)
             for (var j = i + 1; j < placed.Count; j++) Assert.False(placed[i].Overlaps(placed[j]));

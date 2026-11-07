@@ -25,18 +25,19 @@ public static class RingLabels
     /// <summary>The rectangle a label of this size wants under its anchor, centred on it.</summary>
     public static HudRect Under((float X, float Y) anchor, float w, float h) => new(anchor.X - w / 2, anchor.Y + Gap, w, h);
 
-    /// <summary>Each wanted rectangle, in order, kept inside the view; one that would overlap a label already placed moves up past it, or, when
-    /// that leaves the view, down past it from where it wanted to be. One that fits neither way stays where it wanted to be.</summary>
+    /// <summary>Each wanted rectangle kept inside the view, placed lowest on the screen first, so an outer ring's label keeps its place under
+    /// its ring and an inner ring's moves up toward its own; one that would overlap a label already placed moves up past it, or, when that
+    /// leaves the view, down past it from where it wanted to be. One that fits neither way stays where it wanted to be. In the wanted order.</summary>
     public static IReadOnlyList<HudRect> Place(IReadOnlyList<HudRect> wanted, HudRect view)
     {
-        var placed = new List<HudRect>();
-        foreach (var w in wanted)
+        var placed = new List<HudRect>(); var result = new HudRect[wanted.Count];
+        foreach (var i in Enumerable.Range(0, wanted.Count).OrderByDescending(i => wanted[i].Y).ThenBy(i => i))
         {
-            var start = Clamp(w, view);
+            var start = Clamp(wanted[i], view);
             var up = Slide(start, placed, view, -1);
-            placed.Add(up is { } u ? u : Slide(start, placed, view, +1) ?? start);
+            placed.Add(result[i] = up is { } u ? u : Slide(start, placed, view, +1) ?? start);
         }
-        return placed;
+        return result;
     }
 
     static HudRect Clamp(HudRect r, HudRect view) => r with

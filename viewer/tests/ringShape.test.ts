@@ -43,17 +43,27 @@ describe('RingLabels', () => {
     expect(ringAnchor([], view)).toBeNull();
   });
 
-  it('two labels at one anchor are placed apart, the second above the first', () => {
+  it('two labels at one anchor are placed apart, the lower keeping its place and the other above it', () => {
     const a = labelUnder({ x: 640, y: 400 }, 120, 30), b = labelUnder({ x: 650, y: 405 }, 100, 30);
     const [p, q] = placeRingLabels([a, b], view);
-    expect(p).toEqual(a);
+    expect(q).toEqual(b);
     expect(overlaps(p!, q!)).toBe(false);
-    expect(q!.y + q!.h).toBeLessThanOrEqual(p!.y);
+    expect(p!.y + p!.h).toBeLessThanOrEqual(q!.y);
+  });
+
+  it('the label lowest on the screen keeps its place and the ones above stack up in order, whatever order they come in', () => {
+    const inner = labelUnder({ x: 640, y: 445 }, 80, 40), outer = labelUnder({ x: 640, y: 470 }, 80, 40);
+    for (const order of [[inner, outer], [outer, inner]]) {
+      const placed = placeRingLabels(order, view);
+      const [i, o] = order[0] === inner ? [placed[0]!, placed[1]!] : [placed[1]!, placed[0]!];
+      expect(o).toEqual(outer);
+      expect(i.y + i.h).toBeLessThanOrEqual(o.y);
+    }
   });
 
   it('labels at the top go down, and one past the edge comes inside', () => {
     const placed = placeRingLabels([{ x: 600, y: 0, w: 100, h: 30 }, { x: 610, y: 5, w: 100, h: 30 }, { x: 1250, y: -20, w: 100, h: 30 }], view);
-    expect(placed[1]!.y).toBeGreaterThanOrEqual(placed[0]!.y + placed[0]!.h);
+    for (const p of placed) expect(p.y >= 0 && p.y + p.h <= view.y + view.h).toBe(true);
     expect(placed[2]).toEqual({ x: 1180, y: 0, w: 100, h: 30 });
     for (let i = 0; i < placed.length; i++) for (let j = i + 1; j < placed.length; j++) expect(overlaps(placed[i]!, placed[j]!)).toBe(false);
   });
