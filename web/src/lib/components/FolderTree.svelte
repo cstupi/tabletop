@@ -44,10 +44,10 @@
   <li draggable={!n.folder.shared} ondragstart={(e) => { e.stopPropagation(); dragging = n.folder.id; }} ondragover={(e) => { e.preventDefault(); e.stopPropagation(); if (carriesAssets(e)) over = n.folder.id; }} ondragleave={() => over === n.folder.id && (over = null)} ondrop={(e) => drop(e, n.folder.id)}>
     <button class="folder quiet" class:selected={selected === n.folder.id} class:over={over === n.folder.id} aria-current={selected === n.folder.id ? 'true' : undefined} onclick={() => onselect(n.folder.id)}><Icon name="folder" />{n.folder.name} <small class="num">({n.folder.assetIds.length})</small>{#if n.folder.shared}{' '}<span class="tag">shared</span>{/if}</button>
     <span class="tools">
-      <button class="icon-btn" title="New sub-folder" aria-label="New sub-folder in {n.folder.name}" onclick={() => create(n.folder.id)}><Icon name="plus" size="1.1em" /></button>
+      <button class="icon-btn" title="Add a sub-folder" aria-label="New sub-folder in {n.folder.name}" onclick={() => create(n.folder.id)}><Icon name="plus" size="1.1em" /></button>
       <button class="icon-btn" title="Rename" aria-label="Rename {n.folder.name}" onclick={() => rename(n.folder)}><Icon name="edit" size="1.1em" /></button>
       {#if !n.folder.shared}<button class="icon-btn" title="Move" aria-label="Move {n.folder.name}" aria-expanded={moving === n.folder.id} onclick={() => (moving = moving === n.folder.id ? null : n.folder.id)}><Icon name="move" size="1.1em" /></button>{/if}
-      <button class="icon-btn" title="Delete folder and sub-folders (assets stay)" aria-label="Delete {n.folder.name}" onclick={() => confirm(`Delete "${n.folder.name}" and its sub-folders? Assets are kept.`) && ondelete(n.folder.id)}><Icon name="close" size="1.1em" /></button>
+      <button class="icon-btn danger" title="Delete the folder and its sub-folders; the models stay" aria-label="Delete {n.folder.name}" onclick={() => confirm(`Delete "${n.folder.name}" and its sub-folders? Assets are kept.`) && ondelete(n.folder.id)}><Icon name="close" size="1.1em" /></button>
     </span>
     {#if n.folder.shared}<p class="note"><small>{#if username}Players open it with your username, <strong>{username}</strong>.{:else}Set a username on the <a href="/account">Account</a> page to share it.{/if}</small></p>{/if}
     {#if moving === n.folder.id}

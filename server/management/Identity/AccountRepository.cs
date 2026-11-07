@@ -36,7 +36,8 @@ public sealed class AccountRepository(Database db) : IAccountRepository
     public async Task<IReadOnlyList<string>> BlobKeys(Guid accountId)
     {
         await using var c = await db.Open();
-        return (await c.QueryAsync<string>("select s3_key from blob where owner_id = @accountId", new { accountId })).ToList();
+        return (await c.QueryAsync<string>(@"select s3_key from blob where owner_id = @accountId
+            union all select distinct thumbnail_key from asset where owner_id = @accountId and thumbnail_key is not null", new { accountId })).ToList();
     }
 
     public async Task<IReadOnlyList<Guid>> HostedGameIds(Guid accountId)

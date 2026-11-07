@@ -13,17 +13,17 @@ public static class AssetCopies
     public sealed record Outcome(IReadOnlyList<(Guid Source, Guid Copy)> Copies, bool PendingConflict = false);
 
     private sealed record Source(Guid Id, string Name, string Kind, string Hash, string Key, long ByteSize, string ContentType, double Scale,
-        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB);
+        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB, string? Thumb);
 
     /// <summary>Per source asset that is uploaded: an asset row of the caller's with the source's name, kind, scale, orientation, modelled
-    /// base and volumes, and a blob row naming the source's S3 key unless the caller has the hash uploaded (a pending row takes the
+    /// base, thumbnail key and volumes, and a blob row naming the source's S3 key unless the caller has the hash uploaded (a pending row takes the
     /// source's key, size and content type). The quota is checked over all the copies at once; a refusal throws AssetQuotaExceeded.
     /// The sources are read for share: a concurrent delete of one waits, then sees the copy's blob row naming the key.</summary>
     public static async Task<Outcome> Copy(NpgsqlConnection c, DbTransaction tx, Guid callerId, IReadOnlyCollection<Guid> sourceIds, AssetQuota quota)
     {
         var found = (await c.QueryAsync<Source>(@"select a.id as Id, a.name as Name, a.kind as Kind, a.blob_hash as Hash, b.s3_key as Key,
                 b.byte_size as ByteSize, b.content_type as ContentType, a.scale::float8 as Scale, a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw,
-                a.orientation_roll::float8 as Roll, a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB
+                a.orientation_roll::float8 as Roll, a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB, a.thumbnail_key as Thumb
             from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash
             where a.id = any(@ids) and b.uploaded order by a.id for share of a, b", new { ids = sourceIds.ToArray() }, tx)).ToList();
 
@@ -52,9 +52,9 @@ public static class AssetCopies
         foreach (var s in found)
         {
             var id = Guid.CreateVersion7();
-            await c.ExecuteAsync(@"insert into asset (id, owner_id, blob_hash, name, kind, scale, orientation_pitch, orientation_yaw, orientation_roll, modelled_base_shape, modelled_base_a, modelled_base_b)
-                values (@id, @callerId, @hash, @name, @kind, @scale, @p, @y, @r, @shape, @a, @b)",
-                new { id, callerId, hash = s.Hash, name = s.Name, kind = s.Kind, scale = s.Scale, p = s.Pitch, y = s.Yaw, r = s.Roll, shape = s.Shape, a = s.BaseA, b = s.BaseB }, tx);
+            await c.ExecuteAsync(@"insert into asset (id, owner_id, blob_hash, name, kind, scale, orientation_pitch, orientation_yaw, orientation_roll, modelled_base_shape, modelled_base_a, modelled_base_b, thumbnail_key)
+                values (@id, @callerId, @hash, @name, @kind, @scale, @p, @y, @r, @shape, @a, @b, @thumb)",
+                new { id, callerId, hash = s.Hash, name = s.Name, kind = s.Kind, scale = s.Scale, p = s.Pitch, y = s.Yaw, r = s.Roll, shape = s.Shape, a = s.BaseA, b = s.BaseB, thumb = s.Thumb }, tx);
             var volumes = await c.QueryAsync<VolumeRow>($"select {VolumeRow.Columns} from asset_volume where asset_id = @source order by id", new { source = s.Id }, tx);
             foreach (var v in volumes.Select(v => v with { Id = Guid.CreateVersion7() }))
                 await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})",

@@ -13,13 +13,16 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`, `UNIT_SCALES`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (eight declarations, `defaultVolume`).
 - `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
 - `src/lib/library/` `folders.ts` (`moveTargets`), `selection.ts` (multi-select: `click`, `selectAll`, `keepOnly`), `bulk.ts` (`uploadTarget`,
-  `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`), `offers.ts` (`playerContext`, `filterPlayers`, `offerSummary`, `STATE_LABELS`, `alreadyHeld`, `appendPage`), `shared.ts` (`usernameProblem`, `sharedFolders`, `copySummary`).
+  `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`), `offers.ts` (`playerContext`, `filterPlayers`, `offerSummary`, `STATE_LABELS`, `stateChip`, `alreadyHeld`, `appendPage`), `shared.ts` (`usernameProblem`, `sharedFolders`, `copySummary`).
 - `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
 - `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport`), `patches.ts` (`PatchArmyRequest` builders), `folder.ts` (`pickerAssets`,
   `loadFolder`, `saveFolder`: the army page's mesh pickers list one library folder and its sub-folders, plus the mesh a picker already
   holds; the choice is the army's, shared by every picker on the page and kept in `localStorage` under `tabletop.armyFolder.<armyId>`).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `OfferDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `LibraryTabs`, `Icon`
-  (paths in `icons.ts`), `ThemeSwitch`.
+  (paths in `icons.ts`), `ThemeSwitch` (the two theme swatch tiles), `Menu` (a thing's ▸ menu), `Thumb` (an asset's thumbnail, else its icon).
+- `src/lib/armies/cards.ts` `systemName`, `meshPips`, `meshLine`, `slotRows`, `statBadges`: the army cards and the army page's unit cards.
+- `src/lib/thumbnail/` `frame.ts` (`thumbnailView`, `THUMBNAIL_SIZE`), `render.ts` (`renderThumbnail`, `sendThumbnail`: three.js
+  offscreen, WebP or PNG, `PUT /v1/assets/{id}/thumbnail`).
 - `src/lib/theme/theme.ts` `THEMES`, `resolveTheme`, `loadTheme`, `saveTheme`, `applyTheme` (`tabletop.theme` in `localStorage`).
 - `src/themes.css` the client's two themes as tokens and `@font-face`; `src/app.css` base, shell, panels, controls, states.
 - `static/` `theme-init.js` (sets `data-theme` before first paint), `themes/<id>/fonts/` (the client's OFL fonts, `LICENSES.md`),
@@ -28,6 +31,11 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 
 ## How it works
 
+- Shared vocabulary in `app.css`: `.cards`/`.card` (title row, facts, one primary action at `.foot`), `.tiles`/`.tile`, `.chip`
+  and `.chip.status-*`, `kbd`, `.pips`, `.quiet-band`, `.thumb`, `.menu`. A thing's rare actions go in its `Menu`, not in a
+  row of buttons. The header holds the tabs and one menu on the account name (Account, theme swatches, Log out).
+- Thumbnails: the upload dialog renders one after confirm and the asset page when the asset has none or its scale or
+  orientation is saved; lists carry `thumbnail` (presigned, 60 min). Assets without one draw their kind icon.
 - Library: an upload is filed into the folder open in the tree (the dialog's "Adds to", changeable); tiles multi-select (checkbox,
   Ctrl/Cmd-click, Shift range, Space, long-press) for add/move to a folder (picker or drag onto the tree), remove from folder and delete,
   through management's bulk endpoints.
@@ -38,6 +46,8 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   tool and a line naming the username (or pointing to the Account page), and offers **Make a Shared folder** when there is none;
   filing into it is the library's add/move. `/library/shared?user=<username>` (tab **Shared by players**) opens a player's Shared
   folder: its tree, the folder's models with **Preview**, tick boxes and **Copy selected**, **Copy folder**, **Into folder**.
+- Live check on a dev port other than 5173: MinIO's CORS refuses the browser's presigned PUT, so drive the upload with Chromium
+  started with `--disable-web-security` (Playwright), or upload over HTTP from a script.
 - Upload: `classifyFiles` sorts the drop into STLs, one GLB or one image. `UploadDialog` runs `convertInWorker` (a module Web Worker over `convert`).
 - `convert` order: parse, merge, weld, recentre on the footprint, decimate to a triangle budget, creased normals, export GLB, then analysis (bounds, supports, `Proposal`, terrain `Volume`).
 - `guess.ts` proposes millimetres (`scale = mmToInches(1)`) and an up axis: `y` when the model is tallest along Y, else `z`. Y-up gets `pitch: 90`.
@@ -69,7 +79,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `cd web && npm run check`: `svelte-kit sync` and `svelte-check`.
 - `cd web && npm run build`: static output to `web/build`, SPA fallback `index.html`. Production builds set `TABLETOP_BLOB_ORIGIN`
   (the presigned URLs' origin) for the CSP; Caddy serves `web/build` (`deploy/README.md`).
-- An army shows its `edition` (`'3.5'` or `'3.6'`, from `ArmySummary`/`Army` in `src/lib/api/types.ts`) in the armies table and on the army page; an import takes no edition from the page: the server stamps `ArmyEditions.Served`. The page encodes no rule-set name.
+- An army shows its `edition` (`'3.5'` or `'3.6'`, from `ArmySummary`/`Army` in `src/lib/api/types.ts`) as a chip on its card and on the army page; an import takes no edition from the page: the server stamps `ArmyEditions.Served`. The page encodes no rule-set name.
 - `web/Dockerfile` (context: repo root, build arg `TABLETOP_BLOB_ORIGIN`): the same build served by Caddy on :8080 with SPA
   fallback and the `frame-ancestors` header (`web/Caddyfile`), plus the viewer's hosted build (`npm run build:hosted` in `viewer/`)
   at `/viewer/` with its own CSP header; the home-server stack's `web` service. Base image `caddy:2.11-alpine` (2.10 answered 206 to a

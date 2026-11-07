@@ -59,13 +59,11 @@
       <button type="button" onclick={signUp} disabled={!!busy || !emailOk || !password}>Create account</button>
       <button type="button" class="quiet" onclick={forgot} disabled={!!busy || !emailOk}>Forgot password</button>
     </div>
-    <p><small>Create account signs up with the email and password above. Forgot password emails a reset link to that address.</small></p>
   </form>
 {:else if methodId === null}
   <form class="stack" onsubmit={submit(sendCode)}>
     <label>Email <input type="email" bind:value={email} autocomplete="email" required /></label>
     <div class="actions"><button type="submit" class="primary" disabled={!!busy || !emailOk}>Send code</button></div>
-    <p><small>No password needed. A new address gets a new account.</small></p>
   </form>
 {:else}
   <form class="stack" onsubmit={submit(verifyCode)}>

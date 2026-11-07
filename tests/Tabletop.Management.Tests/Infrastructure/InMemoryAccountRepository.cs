@@ -39,7 +39,8 @@ public sealed class InMemoryAccountRepository(InMemoryRows rows) : IAccountRepos
 
     public Task<IReadOnlyList<string>> BlobKeys(Guid accountId)
     {
-        lock (rows.Gate) return Task.FromResult<IReadOnlyList<string>>(rows.Blobs.Where(b => b.Key.Owner == accountId).Select(b => b.Value.Key).ToList());
+        lock (rows.Gate) return Task.FromResult<IReadOnlyList<string>>(rows.Blobs.Where(b => b.Key.Owner == accountId).Select(b => b.Value.Key)
+            .Concat(rows.Assets.Values.Where(a => a.Owner == accountId && a.ThumbnailKey is not null).Select(a => a.ThumbnailKey!).Distinct()).ToList());
     }
 
     public Task<IReadOnlyList<Guid>> HostedGameIds(Guid accountId)

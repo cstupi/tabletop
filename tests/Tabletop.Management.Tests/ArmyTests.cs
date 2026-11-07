@@ -151,6 +151,7 @@ public class ArmyTests : IClassFixture<ManagementFactory>
         Assert.Equal("Daemons", patched.Name);
         Assert.Equal(special, u.Models[0].AssetId); Assert.Equal(Base.Circle(1.57), u.Models[0].Base); Assert.Equal(2.0, u.Models[0].Height);
         Assert.All(u.Models.Skip(1), m => Assert.Equal(mesh, m.AssetId));
+        Assert.Equal(u.Models.Count, (await c.GetJson<Page<ArmySummary>>("/v1/armies")).Items.Single(a => a.Id == army.Id).Meshes);
         var cleared = await c.PatchJson<Army>($"/v1/armies/{army.Id}", new PatchArmyRequest(null, null, [new SlotPatch(unit.Models[0].Id, null, true, null, null)]));
         Assert.Null(cleared.Units.Single(x => x.Id == unit.Id).Models[0].AssetId);
     }

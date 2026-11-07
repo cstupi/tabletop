@@ -10,6 +10,9 @@ public interface IBlobStore
     static string StagingKey(Guid ownerId, Guid assetId) => $"{StagingPrefix}{ownerId}/{assetId}";
     /// <summary>The server's own copy of a staged upload while confirm verifies it; no presigned URL names it.</summary>
     static string HeldKey(Guid ownerId, Guid assetId) => StagingKey(ownerId, assetId) + ".held";
+    /// <summary>Where one upload of an asset's thumbnail is kept: a new picture is a new key, so an object a copy's <c>thumbnail_key</c>
+    /// names never changes under it.</summary>
+    static string ThumbnailKey(Guid assetId, string sha256) => $"thumbs/{assetId}/{sha256}";
 
     /// <summary>A server-side write, for bytes the server made itself (the starter miniatures).</summary>
     Task Put(string key, byte[] bytes, string contentType, CancellationToken ct = default);

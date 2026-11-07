@@ -211,7 +211,6 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
   .site-nav .links { order: 3; width: 100%; justify-content: space-between; flex-wrap: nowrap; gap: var(--s1) var(--s3); }
   .site-nav .links a { min-width: 0; }   /* one row: the account name gives way, with an ellipsis */
   .site-nav .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .site-nav .account-name { min-width: 0; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* Sci-fi focus: the clip hides an outline, so the control's own frame turns light and doubles. */
@@ -221,3 +220,58 @@ dialog::backdrop { background: #05080CB3; backdrop-filter: blur(2px); }
   *, ::before, ::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   :where([data-theme='fantasy']) :where(button, .button):active:not(:disabled) { transform: none; }
 }
+
+/* The shared vocabulary (UX redesign index → Shared vocabulary): card, tile, chip, key cap, pips, quiet band, the ▸ menu, thumbnails. */
+.cards { display: grid; gap: var(--s4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin: 0 0 var(--s5); padding: 0; list-style: none; }
+.panel.card, .card { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); min-width: 0; }
+:where([data-theme='fantasy']) .panel.card { padding: calc(var(--s4) + 4px); }
+.card > .title { display: flex; align-items: center; gap: var(--s2); min-width: 0; margin: 0; }
+.card > .title :where(h2, h3) { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.05rem; }
+.card > .foot { display: flex; align-items: center; gap: var(--s2); margin-top: auto; padding-top: var(--s2); }
+.card > .foot > .end { margin-left: auto; }
+.card .facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); color: var(--dim); margin: 0; }
+.card :where(.icon) { color: var(--accent); }
+:where([data-theme='fantasy']) .card :where(.icon) { color: var(--wood); }
+.card :where(button, .button) :where(.icon) { color: inherit; }
+
+.chip { display: inline-flex; align-items: center; gap: var(--s1); padding: 0 .55em; min-height: 1.5em; border: 1px solid currentColor; border-radius: .8em;
+  font-family: var(--font-num); font-weight: var(--num-weight); font-size: .75rem; line-height: 1.4; color: var(--accent); white-space: nowrap; flex: none; }
+.chip.status-lobby, .chip.status-ended, .chip.status-declined, .chip.status-withdrawn { color: var(--dim); }
+.chip.status-setup, .chip.status-waiting { color: var(--warning); }
+.chip.status-playing { color: var(--accent); }
+.chip.status-accepted { color: var(--success); }
+:where([data-theme='fantasy']) .chip { color: var(--wood); }
+:where([data-theme='fantasy']) .chip.status-waiting { color: var(--warning); }
+:where([data-theme='fantasy']) .chip.status-accepted { color: var(--success); }
+:where([data-theme='fantasy']) .chip:is(.status-declined, .status-withdrawn) { color: var(--dim); }
+
+kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; padding: 0 .35em; margin-left: auto; border: 1px solid currentColor; border-radius: 3px;
+  font-family: var(--font-num); font-size: .75em; line-height: 1.5; opacity: .8; }
+
+.tiles { display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); }
+.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); min-height: 4.5rem; padding: var(--s2); text-align: center; white-space: normal; }
+.tile.wide { flex-direction: row; justify-content: flex-start; min-height: 3rem; text-align: left; }
+
+.pips { display: inline-flex; gap: 3px; vertical-align: middle; }
+.pips > span { width: .6rem; height: .6rem; border-radius: 50%; border: 1.5px solid var(--accent); }
+.pips > span.on { background: var(--accent); }
+:where([data-theme='fantasy']) .pips > span { border-color: var(--wood); }
+:where([data-theme='fantasy']) .pips > span.on { background: var(--wood); }
+
+.quiet-band { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); color: var(--dim); border-left: 3px solid var(--rule); background: var(--rule); }
+
+/* Thumbnails: the picture management stores for a mesh, or the kind icon on the same square. */
+.thumb { display: inline-grid; place-items: center; flex: none; width: var(--thumb, 3rem); height: var(--thumb, 3rem); overflow: hidden; background: var(--view-bg); border: 1px solid var(--rule); }
+.thumb img { width: 100%; height: 100%; object-fit: contain; }
+.thumb :where(.icon) { color: var(--accent); opacity: .85; }
+:where([data-theme='fantasy']) .thumb { border-radius: 4px; }
+:where([data-theme='fantasy']) .thumb :where(.icon) { color: var(--wood); }
+
+/* A ▸ menu on the thing it acts on: <details class="menu"><summary>…</summary><div class="menu-list">buttons</div></details>. */
+.menu { position: relative; display: inline-block; }
+.menu > summary { list-style: none; cursor: pointer; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; gap: var(--s1); min-width: 12rem; padding: var(--s2);
+  background: var(--panel-solid); color: var(--text); border: 1px solid var(--panel-border); box-shadow: 0 6px 18px #0006; --focus: var(--accent); }
+.menu-list > :where(button, .button) { justify-content: flex-start; width: 100%; }
+:where([data-theme='fantasy']) .menu-list { border: 2px solid var(--wood); border-radius: 4px; background: var(--panel); color: var(--text); }

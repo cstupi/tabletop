@@ -13,10 +13,11 @@
   import type { UpAxis } from '$lib/mesh/guess';
   import { terrainVolume } from '$lib/mesh/bounds';
   import { classifyFiles, type Intake } from '$lib/upload/intake';
-  import { STAGE_LABELS, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
+  import { STAGE_LABELS, stepStates, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
   import { circle } from '$lib/units/bases';
   import { GLB_DEFAULTS } from '$lib/mesh/size';
   import { formatBytes, MAX_NAME, nameProblem, sizeProblem } from '$lib/validation';
+  import { sendThumbnail } from '$lib/thumbnail/render';
 
   /** `folderId`: the folder selected in the Library when the dialog opens; each upload is filed there unless the user picks another or none. */
   let { open, onclose, onuploaded, folders = [], folderId = null }: { open: boolean; onclose: () => void; onuploaded: (o: UploadOutcome) => void; folders?: FolderDto[]; folderId?: Guid | null } = $props();
@@ -109,6 +110,8 @@
       const volume = kind === 'terrain' && meshBounds ? terrainVolume(meshBounds, { scale, orientation }) : undefined;
       outcome = await upload({ name: name.trim(), kind, contentType, bytes, scale, orientation, modelledBase: kind === 'miniature' ? base : null, volume },
         (s: UploadStage) => (uploadStage = s), (a, total) => (sent = { sent: a, total }));
+      // the library tile's picture, from the bytes just sent, before the dialog says done
+      if (contentType === 'model/gltf-binary') await sendThumbnail(outcome.asset.id, bytes, scale, orientation);
       filed = null; fileError = null;
       const into = target ? targets.find((t) => t.id === target) : undefined;
       if (into) {
@@ -176,10 +179,15 @@
         {#if tooBig}<p role="alert">{tooBig}</p>{/if}
         {#if !numbersOk}<p role="alert">Scale must be a number above zero, and the orientation numbers.</p>{/if}
         {#if stage === 'uploading' && uploadStage}
-          <div role="status">
-            <p>{STAGE_LABELS[uploadStage]}{#if uploadStage === 'put' && sent}: {Math.floor((100 * sent.sent) / Math.max(sent.total, 1))}% of {formatBytes(sent.total)}{/if}…</p>
-            {#if uploadStage === 'put'}<progress max={sent?.total ?? 1} value={sent?.sent ?? 0}></progress>{/if}
-          </div>
+          {@const stages = (kind === 'terrain' ? ['hash', 'create', 'put', 'confirm', 'volumes'] : ['hash', 'create', 'put', 'confirm']) as UploadStage[]}
+          <ol class="stepper" role="status">
+            {#each stages as s, i (s)}
+              {@const state = stepStates(stages, uploadStage)[i]}
+              <li class={state}><span class="mark">{#if state === 'done'}<Icon name="ready" size="1.2em" />{:else}<span class="num">{i + 1}</span>{/if}</span>
+                <span>{STAGE_LABELS[s]}{#if s === 'put' && state === 'current' && sent}{' '}<span class="num">{Math.floor((100 * sent.sent) / Math.max(sent.total, 1))}%</span>{/if}
+                  {#if s === 'put' && state === 'current'}<progress max={sent?.total ?? 1} value={sent?.sent ?? 0}></progress>{/if}</span></li>
+            {/each}
+          </ol>
         {/if}
         <div class="actions">
           <button type="submit" class="primary" disabled={stage === 'uploading' || !numbersOk || !!nameError || !!tooBig || (kind !== 'texture' && !previewed)}>{stage === 'uploading' ? 'Uploading…' : 'Confirm and upload'}</button>
@@ -211,4 +219,10 @@
   .drop.over { border-style: solid; background: var(--panel-solid); }
   :global([data-theme='fantasy']) .drop { border-color: var(--wood); border-radius: 4px; }
   progress { width: 100%; }
+  .stepper { list-style: none; padding: 0; margin: var(--s3) 0; display: grid; gap: var(--s2); }
+  .stepper li { display: grid; grid-template-columns: 1.6rem 1fr; align-items: center; gap: var(--s2); color: var(--dim); }
+  .stepper li.current, .stepper li.done { color: var(--text); }
+  .stepper .mark { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border: 1px solid currentColor; border-radius: 50%; font-size: .8rem; }
+  .stepper li.done .mark { border-color: transparent; color: var(--success); }
+  .stepper li.current .mark { color: var(--accent); }
 </style>

@@ -451,6 +451,12 @@ Management's `029_shared_folders.sql` ([shared folders](superpowers/specs/2026-1
 
 A copy is an offer's accepted copy: an `asset` and a `blob` row of the copier's whose `s3_key` names the sharer's object.
 
+### An asset may name a thumbnail object
+
+Management's `030_asset_thumbnail.sql`: `asset.thumbnail_key text null`, indexed where set. The uploader's browser renders a
+small PNG or WebP of a mesh asset and `PUT /v1/assets/{id}/thumbnail` stores it at `thumbs/{asset id}/{sha256}`, a new key per picture, so an object never changes once written. A copy takes its
+source's key, as its `blob` row takes the source's `s3_key`; the object is deleted only when no `asset` row names it.
+
 ### `account` records whether its starter meshes were seeded
 
 `starter_seeded_at timestamptz null`, arriving as management's `003_account_starter.sql`. Null means the
@@ -477,7 +483,7 @@ style, and is the same value as `Tabletop.Content.DeploymentZone.Shape`. The sty
 ### Deleting an account is application logic
 
 Its armies, assets, blobs, folders and layouts cascade downward normally; of its blobs' S3 objects,
-only those no other account's `blob` row names (an accepted copy, or a copy from a Shared folder) are deleted; its offers, blocks and `shared_copy` rows cascade. But
+only those no other account's `blob` row names (an accepted copy, or a copy from a Shared folder) are deleted, and of its assets' thumbnail objects those no other `asset` row names; its offers, blocks and `shared_copy` rows cascade. But
 [accounts](superpowers/specs/2026-08-29-accounts-design.md) requires deleting **every game it
 hosted** (`game.created_by`), which reaches *upward* to the game and then back down to other
 people's participants and into the game schema's event log, and **leaving every game it joined**

@@ -9,11 +9,13 @@
   import BasePicker from '$lib/components/BasePicker.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import LibraryTabs from '$lib/components/LibraryTabs.svelte';
+  import Thumb from '$lib/components/Thumb.svelte';
   import OfferDialog from '$lib/components/OfferDialog.svelte';
   import { filterAssets } from '$lib/library/folders';
   import { ASSET_DRAG, folderOptions, holdersIn, runBulk, uploadTarget, type BulkOutcome } from '$lib/library/bulk';
   import { clear, click, keepOnly, NONE, selectAll, type Selection } from '$lib/library/selection';
   import { baseLabel } from '$lib/units/bases';
+  import { inchesToMm, round } from '$lib/units/units';
   import { ASSET_QUOTA, formatBytes, libraryUsage } from '$lib/validation';
 
   let username = $state<string | null>(null);
@@ -136,6 +138,8 @@
     if (ids.length === 0) { error = 'Only uploaded assets can be offered.'; return; }
     offering = { what: ids.length === 1 ? names(ids) : plural(ids.length), assetIds: ids, folderId: null };
   }
+  /** `25 mm`, or `120 × 92 mm` for an oval or a rectangle. */
+  const baseSize = (b: Base) => b.shape === 'circle' ? `${round(inchesToMm(b.a), 1)} mm` : `${round(inchesToMm(b.a), 1)} × ${round(inchesToMm(b.b), 1)} mm`;
   function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && count > 0 && !uploading && !offering) { selection = clear(); done = null; } }
 </script>
 
@@ -172,7 +176,6 @@
           <span class="end">{#if count < shown.length}<button class="quiet" disabled={busy} onclick={() => (selection = selectAll(selection, order))}>Select all {shown.length}</button>{/if}<button class="quiet" disabled={busy} onclick={() => { selection = clear(); done = null; }}>Clear</button></span>
         {:else}
           <button class="quiet" onclick={() => (selection = selectAll(selection, order))}>Select all {shown.length}</button>
-          <small class="hint">Tick tiles, Ctrl-click, Shift-click a range, or long-press, to move, offer or delete several at once.</small>
         {/if}
       </div>
     {/if}
@@ -194,13 +197,19 @@
             <a class="tile" href="/library/{a.id}" draggable="true" onclick={(e) => onTileClick(e, a.id)} onkeydown={(e) => onTileKey(e, a.id, i)}
               ondragstart={(e) => onDragStart(e, a.id)} onpointerdown={(e) => onPointerDown(e, a.id)} onpointerup={cancelPress} onpointercancel={cancelPress} onpointermove={onPointerMove}
               oncontextmenu={(e) => { if (pressed) e.preventDefault(); }}>
-              <Icon name={a.kind} size="1.75rem" /><span><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}</small></span></a>
+              <Thumb url={a.thumbnail} icon={a.kind} size="100%" alt="" />
+              <span class="label"><strong>{a.name}</strong>
+                <small class="meta"><span title={a.kind}><Icon name={a.kind} size="1.1em" label={a.kind} /></span>{#if a.modelledBase}<span title={baseLabel(a.modelledBase)}><Icon name="base" size="1.1em" />{baseSize(a.modelledBase)}</span>{/if}{#if !a.uploaded}<span class="warn"><Icon name="warning" size="1.1em" />upload incomplete</span>{/if}</small></span></a>
           </div></div>
         {/each}
       </div>
     {/if}
     {#if !loading}
-      <p class="usage"><small>Using {usage.assets} of {ASSET_QUOTA.assets} assets and {formatBytes(usage.bytes)} of {formatBytes(ASSET_QUOTA.bytes)}.{#if nearQuota} <strong>Nearly full: delete assets you no longer use to make room.</strong>{/if}</small></p>
+      {@const fill = Math.max(usage.assets / ASSET_QUOTA.assets, usage.bytes / ASSET_QUOTA.bytes)}
+      <div class="usage" class:near={nearQuota}>
+        <span class="meter" role="meter" aria-label="Library space" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fill * 100)}><span style:width="{Math.min(fill, 1) * 100}%"></span></span>
+        <small><span class="num">{formatBytes(usage.bytes)}</span> of {formatBytes(ASSET_QUOTA.bytes)} · <span class="num">{usage.assets}</span> of {ASSET_QUOTA.assets}{#if nearQuota}{' · '}nearly full{/if}</small>
+      </div>
     {/if}
   </section>
 </div>
@@ -215,16 +224,25 @@
   .selbar { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) 0; min-height: 2.75rem }
   .selbar.active { position: sticky; top: 0; z-index: 2; background: var(--panel-solid); padding: var(--s2) var(--s3); margin: var(--s2) calc(-1 * var(--s3)) 0; border-bottom: 2px solid var(--accent) }
   .selbar .end { display: inline-flex; gap: var(--s2); margin-left: auto }
-  .hint { color: var(--dim) }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--s3); margin: var(--s4) 0 }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(10.5rem, 40%), 1fr)); gap: var(--s3); margin: var(--s4) 0 }
   .row, .cell { display: block; position: relative; height: 100% }
   .check { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; width: 1.35rem; height: 1.35rem; margin: 0; cursor: pointer }
-  .tile { display: flex; gap: var(--s3); align-items: flex-start; height: 100%; padding: var(--s3); padding-right: calc(var(--s3) + 1.6rem); color: var(--text); text-decoration: none; border: 1px solid var(--rule); background: var(--panel-solid); overflow-wrap: anywhere; -webkit-touch-callout: none; user-select: none }
+  .tile { display: flex; flex-direction: column; gap: var(--s2); height: 100%; padding: var(--s2); color: var(--text); text-decoration: none; border: 1px solid var(--rule); background: var(--panel-solid); overflow-wrap: anywhere; -webkit-touch-callout: none; user-select: none }
   .tile :global(.icon) { color: var(--accent) }
+  :global([data-theme='fantasy']) .tile :global(.icon) { color: var(--wood) }
+  .tile > :global(.thumb) { aspect-ratio: 1; height: auto }
+  .label { display: flex; flex-direction: column; gap: var(--s1); padding: 0 var(--s1) var(--s1) }
+  .meta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); color: var(--dim) }
+  .meta > span { display: inline-flex; align-items: center; gap: var(--s1) }
+  .warn { color: var(--warning) }
   .tile:hover { border-color: var(--accent); color: var(--text) }
   .on .tile { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); background: var(--rule) }
   :global([data-theme='fantasy']) .tile { border-radius: 4px; background: #F1E6CA; border-color: #4A2F1B55 }
   :global([data-theme='fantasy']) .on .tile { border-color: var(--wood); box-shadow: inset 0 0 0 2px var(--wood); background: #E6D3A8 }
   :global([data-theme='scifi']) .tile { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px) }
-  .usage { margin-bottom: 0 }
+  .usage { display: flex; flex-direction: column; gap: var(--s1); margin: 0 }
+  .meter { display: block; height: 6px; background: var(--rule); overflow: hidden }
+  .meter > span { display: block; height: 100%; background: var(--accent) }
+  .near .meter > span { background: var(--warning) }
+  :global([data-theme='fantasy']) .meter > span { background: var(--wood) }
 </style>

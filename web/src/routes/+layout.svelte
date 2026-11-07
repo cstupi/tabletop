@@ -8,6 +8,7 @@
   import { loginHref } from '$lib/session/redirect';
   import { REPLAYS_URL } from '$lib/replays';
   import Icon from '$lib/components/Icon.svelte';
+  import Menu from '$lib/components/Menu.svelte';
   import ThemeSwitch from '$lib/components/ThemeSwitch.svelte';
 
   let { children } = $props();
@@ -37,12 +38,17 @@
         <a href="/download" aria-current={current('/download')}><Icon name="download" /><span class="label">Download</span></a>
         <!-- The viewer is a separate static app, not a route here: a full page load. -->
         <a href={REPLAYS_URL} data-sveltekit-reload><Icon name="replay" /><span class="label">Play</span></a>
-        <a href="/account" aria-current={current('/account')}><Icon name="account" /><span class="visually-hidden">Account: </span><span class="account-name">{session.account?.name ?? '…'}</span></a>
       </span>
     {/if}
     <span class="push"></span>
-    <ThemeSwitch />
-    {#if session.token}<button onclick={logout}><Icon name="logout" /><span class="label">Log out</span></button>{/if}
+    <!-- one menu: the account (its page and Log out) and the theme -->
+    <Menu label={session.token ? `Account: ${session.account?.name ?? ''}` : 'Theme'} icon="caret" text={session.token ? (session.account?.name ?? '…') : undefined}>
+      {#if session.token}
+        <a class="button" href="/account" aria-current={current('/account')}><Icon name="account" />Account</a>
+      {/if}
+      <ThemeSwitch />
+      {#if session.token}<button onclick={logout}><Icon name="logout" />Log out</button>{/if}
+    </Menu>
   </nav>
 </header>
 <main id="main" tabindex="-1">

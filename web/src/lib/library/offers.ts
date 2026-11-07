@@ -28,7 +28,9 @@ export function offerSummary(o: OfferDto): string {
   return o.assets.length === 0 ? `${o.folder ? `Folder ${o.folder} · ` : ''}deleted` : `${what} · ${bytes}`;
 }
 
-export const STATE_LABELS: Record<OfferState, string> = { open: 'Waiting', accepted: 'Accepted', declined: 'Declined', withdrawn: 'Withdrawn' };
+export const STATE_LABELS: Record<OfferState, string> = { open: 'waiting', accepted: 'accepted', declined: 'declined', withdrawn: 'withdrawn' };
+/** The status chip's class for an offer's state: an open offer is waiting. */
+export const stateChip = (s: OfferState): string => `chip status-${s === 'open' ? 'waiting' : s}`;
 
 /** The offered assets whose bytes the recipient already has (same hash). */
 export function alreadyHeld(o: OfferDto, mine: AssetDto[]): Set<string> {

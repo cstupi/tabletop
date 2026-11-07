@@ -38,7 +38,7 @@ public sealed class InMemorySharedRepository(InMemoryRows rows) : ISharedReposit
             var assets = filed.Select(f => f.Asset).Distinct().Order().Select(id =>
             {
                 var a = rows.Assets[id]; var b = rows.Blobs[(a.Owner, a.Hash)];
-                return new SharedAssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, a.Scale, a.Orientation, a.ModelledBase);
+                return new SharedAssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, a.Scale, a.Orientation, a.ModelledBase, a.ThumbnailKey);
             }).ToList();
             return Task.FromResult<SharedLibraryDto?>(new SharedLibraryDto(account.Username!, account.Name, folders, assets));
         }

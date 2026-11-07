@@ -10,6 +10,7 @@
   import VolumeEditor from '$lib/components/VolumeEditor.svelte';
   import ScaleOrientation from '$lib/components/ScaleOrientation.svelte';
   import { describeGlb } from '$lib/mesh/convert';
+  import { sendThumbnail } from '$lib/thumbnail/render';
   import type { Bounds } from '$lib/mesh/types';
   import Icon from '$lib/components/Icon.svelte';
   import { formatBytes, MAX_NAME, nameProblem } from '$lib/validation';
@@ -34,6 +35,8 @@
         if (!response.ok) { error = `The mesh could not be downloaded (${response.status}). Reload to try again.`; return; }
         const bytes = new Uint8Array(await response.arrayBuffer()); if (t !== loadToken) return;
         glb = bytes; bounds = (await describeGlb(bytes)).bounds;
+        // An asset uploaded before thumbnails existed (or a starter mesh) gets one the first time its owner opens it.
+        if (!a.thumbnail) void sendThumbnail(a.id, bytes, a.scale, a.orientation);
       }
     } catch (e) { if (t === loadToken) { error = errorMessage(e); if (!asset) loadFailed = true; } }
     finally { if (t === loadToken) downloading = false; }
@@ -45,7 +48,13 @@
     e.preventDefault();
     if (nameError || !numbersOk) return;
     busy = true; error = null; saved = false;
-    try { asset = await api.assets.patch(id, { name: name.trim(), scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }); name = asset.name; saved = true; }
+    try {
+      const before = asset;
+      asset = await api.assets.patch(id, { name: name.trim(), scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }); name = asset.name; saved = true;
+      // a new scale or orientation is a new picture
+      const o = before?.orientation;
+      if (glb && (before?.scale !== scale || !o || o.pitch !== orientation.pitch || o.yaw !== orientation.yaw || o.roll !== orientation.roll)) void sendThumbnail(id, glb, scale, orientation);
+    }
     catch (err) { error = errorMessage(err); } finally { busy = false; }
   }
   let offering = $state(false);

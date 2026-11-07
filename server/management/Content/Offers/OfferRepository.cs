@@ -14,7 +14,7 @@ public sealed class OfferRepository(Database db) : IOfferRepository
 
     private sealed record OfferRow(Guid Id, string State, Guid SharerId, string SharerName, Guid RecipientId, string RecipientName, string? Folder, DateTime CreatedAt, DateTime? DecidedAt);
     private sealed record AssetRow(Guid OfferId, Guid Id, string Name, string Kind, string Hash, long ByteSize, string ContentType, double Scale,
-        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB);
+        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB, string? Thumb);
 
     private static DateTimeOffset Utc(DateTime t) => new(DateTime.SpecifyKind(t, DateTimeKind.Utc));
 
@@ -103,14 +103,14 @@ public sealed class OfferRepository(Database db) : IOfferRepository
             from share_offer o join account s on s.id = o.sharer_id join account r on r.id = o.recipient_id where o.id = any(@ids)", new { ids = ids.ToArray() }, tx);
         var assets = (await c.QueryAsync<AssetRow>(@"select oa.offer_id as OfferId, a.id as Id, a.name as Name, a.kind as Kind, a.blob_hash as Hash, b.byte_size as ByteSize,
                 b.content_type as ContentType, a.scale::float8 as Scale, a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw, a.orientation_roll::float8 as Roll,
-                a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB
+                a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB, a.thumbnail_key as Thumb
             from share_offer_asset oa join asset a on a.id = oa.asset_id join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash
             where oa.offer_id = any(@ids) and b.uploaded order by a.id", new { ids = ids.ToArray() }, tx)).ToLookup(a => a.OfferId);
         var byId = offers.ToDictionary(o => o.Id);
         return ids.Where(byId.ContainsKey).Select(id => byId[id]).Select(o => new OfferDto(o.Id, Enum.Parse<OfferState>(o.State, true), o.SharerId, o.SharerName, o.RecipientId,
             o.RecipientName, o.Folder, Utc(o.CreatedAt), o.DecidedAt is { } d ? Utc(d) : null,
             assets[o.Id].Select(a => new OfferAssetDto(a.Id, a.Name, AssetRules.Kind(a.Kind), a.Hash, a.ByteSize, a.ContentType, a.Scale, new Orientation(a.Pitch, a.Yaw, a.Roll),
-                a.Shape is null ? null : new Base(AssetRules.Shape(a.Shape), a.BaseA!.Value, a.BaseB!.Value))).ToList())).ToList();
+                a.Shape is null ? null : new Base(AssetRules.Shape(a.Shape), a.BaseA!.Value, a.BaseB!.Value), a.Thumb)).ToList())).ToList();
     }
 
     public async Task<IReadOnlyList<OfferDto>> Sent(Guid sharerId, Http.Keyset page)

@@ -14,8 +14,13 @@ public static class SharedEndpoints
     {
         var g = app.MapGroup("/v1/shared/{username}").RequireAuthorization();
 
-        g.MapGet("", async (string username, ISharedRepository shared) =>
-            Limits.Username(username) is null && await shared.Browse(username) is { } view ? Results.Ok(view) : Problems.NotFound());
+        g.MapGet("", async (string username, ISharedRepository shared, IBlobStore blobs) =>
+        {
+            if (Limits.Username(username) is not null || await shared.Browse(username) is not { } view) return Problems.NotFound();
+            var assets = new List<SharedAssetDto>(view.Assets.Count);
+            foreach (var a in view.Assets) assets.Add(a.ThumbnailKey is null ? a : a with { Thumbnail = await ThumbnailLimits.Url(blobs, a.ThumbnailKey) });
+            return Results.Ok(view with { Assets = assets });
+        });
 
         g.MapGet("/assets/{assetId:guid}/download", async (string username, Guid assetId, ISharedRepository shared, IBlobStore blobs) =>
             Limits.Username(username) is null && await shared.BlobKey(username, assetId) is { } key

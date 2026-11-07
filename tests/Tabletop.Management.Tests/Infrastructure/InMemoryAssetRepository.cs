@@ -10,7 +10,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
     private AssetDto Dto(Guid id, InMemoryRows.AssetRow a)
     {
         var b = rows.Blobs[(a.Owner, a.Hash)];
-        return new AssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, b.Uploaded, a.Scale, a.Orientation, a.ModelledBase);
+        return new AssetDto(id, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, b.Uploaded, a.Scale, a.Orientation, a.ModelledBase, a.ThumbnailKey);
     }
 
     /// <summary>check ((kind = 'miniature') = (modelled_base_shape is not null))</summary>
@@ -66,7 +66,7 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             var next = new InMemoryRows.AssetRow
             {
                 Owner = a.Owner, Hash = a.Hash, Name = p.Name ?? a.Name, Kind = a.Kind, Scale = p.Scale ?? a.Scale,
-                Orientation = p.Orientation ?? a.Orientation, ModelledBase = p.ModelledBase ?? a.ModelledBase, Volumes = a.Volumes,
+                Orientation = p.Orientation ?? a.Orientation, ModelledBase = p.ModelledBase ?? a.ModelledBase, Volumes = a.Volumes, ThumbnailKey = a.ThumbnailKey,
             };
             Check(next);
             rows.Assets[id] = next;
@@ -81,6 +81,17 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             if (!rows.Blobs.TryGetValue((ownerId, hash), out var b)) return Task.FromResult(false);
             b.Uploaded = true;
             return Task.FromResult(true);
+        }
+    }
+
+    public Task<(bool Found, string? Previous)> SetThumbnail(Guid ownerId, Guid id, string key)
+    {
+        lock (rows.Gate)
+        {
+            if (!rows.Assets.TryGetValue(id, out var a) || a.Owner != ownerId) return Task.FromResult<(bool, string?)>((false, null));
+            var previous = a.ThumbnailKey;
+            a.ThumbnailKey = key;
+            return Task.FromResult<(bool, string?)>((true, previous));
         }
     }
 
@@ -112,7 +123,8 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
 
     public Task<IReadOnlyList<string>> Unreferenced(IReadOnlyList<string> keys)
     {
-        lock (rows.Gate) return Task.FromResult<IReadOnlyList<string>>(keys.Distinct().Where(k => !rows.Blobs.Values.Any(b => b.Key == k)).ToList());
+        lock (rows.Gate) return Task.FromResult<IReadOnlyList<string>>(keys.Distinct()
+            .Where(k => !rows.Blobs.Values.Any(b => b.Key == k) && !rows.Assets.Values.Any(a => a.ThumbnailKey == k)).ToList());
     }
 
     public Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId)

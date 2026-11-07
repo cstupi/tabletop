@@ -14,7 +14,7 @@ public static class AssetEndpoints
         var g = app.MapGroup("/v1/assets").RequireAuthorization();
 
         // kind binds as a string: the minimal-API enum binder is case-sensitive, and the wire spelling is lowercase ("miniature").
-        g.MapGet("", async (ClaimsPrincipal user, IAssetRepository assets, int? limit, Guid? after, string? kind) =>
+        g.MapGet("", async (ClaimsPrincipal user, IAssetRepository assets, IBlobStore blobs, int? limit, Guid? after, string? kind) =>
         {
             AssetKind? k = null;
             if (kind is not null)
@@ -23,7 +23,10 @@ public static class AssetEndpoints
                 k = parsed;
             }
             var page = Keyset.Parse(limit, after);
-            return Results.Ok(Page<AssetDto>.Of(await assets.List(CurrentAccount.Id(user), page, k), page.Limit, a => a.Id));
+            var listed = await assets.List(CurrentAccount.Id(user), page, k);
+            var items = new List<AssetDto>(listed.Count);
+            foreach (var a in listed) items.Add(await WithThumbnail(blobs, a));
+            return Results.Ok(Page<AssetDto>.Of(items, page.Limit, a => a.Id));
         });
 
         g.MapPost("", async (ClaimsPrincipal user, CreateAssetRequest r, IAssetRepository assets, IBlobStore blobs) =>
@@ -48,8 +51,10 @@ public static class AssetEndpoints
             return Results.Created($"/v1/assets/{asset.Id}", new CreateAssetResponse(asset, url));
         });
 
-        g.MapGet("/{id:guid}", async (ClaimsPrincipal user, Guid id, IAssetRepository assets) =>
-            await assets.Get(CurrentAccount.Id(user), id) is { } a ? Results.Ok(a) : Problems.NotFound());
+        g.MapGet("/{id:guid}", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
+            await assets.Get(CurrentAccount.Id(user), id) is { } a ? Results.Ok(await WithThumbnail(blobs, a)) : Problems.NotFound());
+
+        g.MapPut("/{id:guid}/thumbnail", PutThumbnail);
 
         g.MapPatch("/{id:guid}", async (ClaimsPrincipal user, Guid id, PatchAssetRequest p, IAssetRepository assets) =>
         {
@@ -65,9 +70,7 @@ public static class AssetEndpoints
         g.MapDelete("/{id:guid}", async (ClaimsPrincipal user, Guid id, IAssetRepository assets, IBlobStore blobs) =>
         {
             var owner = CurrentAccount.Id(user);
-            var (found, orphaned) = await assets.Delete(owner, id);
-            if (!found) return Problems.NotFound();
-            await blobs.Delete(orphaned is null ? [IBlobStore.StagingKey(owner, id)] : [orphaned, IBlobStore.StagingKey(owner, id)]);
+            if (!await Delete(owner, id, assets, blobs)) return Problems.NotFound();
             return Results.NoContent();
         });
 
@@ -78,10 +81,7 @@ public static class AssetEndpoints
             List<Guid> done = [], notFound = [];
             foreach (var id in r.AssetIds.Distinct())
             {
-                var (found, orphaned) = await assets.Delete(owner, id);
-                if (!found) { notFound.Add(id); continue; }
-                await blobs.Delete(orphaned is null ? [IBlobStore.StagingKey(owner, id)] : [orphaned, IBlobStore.StagingKey(owner, id)]);
-                done.Add(id);
+                if (await Delete(owner, id, assets, blobs)) done.Add(id); else notFound.Add(id);
             }
             return Results.Ok(new BulkAssetsResponse(done, notFound));
         });
@@ -111,6 +111,57 @@ public static class AssetEndpoints
                 if (VolumeProblem(v) is { } bad) return Problems.Unprocessable(bad);
             return Results.Ok(await assets.PutVolumes(id, volumes));
         });
+    }
+
+    /// <summary>Deletes the asset, its staging object, its file when no blob row names it any more, and its thumbnail when no asset
+    /// names that.</summary>
+    private static async Task<bool> Delete(Guid owner, Guid id, IAssetRepository assets, IBlobStore blobs)
+    {
+        var thumbnail = (await assets.Get(owner, id))?.ThumbnailKey;
+        var (found, orphaned) = await assets.Delete(owner, id);
+        if (!found) return false;
+        List<string> keys = [IBlobStore.StagingKey(owner, id)];
+        if (orphaned is not null) keys.Add(orphaned);
+        if (thumbnail is not null) keys.AddRange(await assets.Unreferenced([thumbnail]));
+        await blobs.Delete(keys);
+        return true;
+    }
+
+    private static async Task<AssetDto> WithThumbnail(IBlobStore blobs, AssetDto a) =>
+        a.ThumbnailKey is null ? a : a with { Thumbnail = await ThumbnailLimits.Url(blobs, a.ThumbnailKey) };
+
+    /// <summary>The uploader's browser renders the thumbnail: a PNG or WebP of a mesh asset with its bytes uploaded, checked by its header
+    /// and stored at a key of its own; the picture it replaces goes unless a copy names it.</summary>
+    private static async Task<IResult> PutThumbnail(ClaimsPrincipal user, Guid id, HttpRequest request, IAssetRepository assets, IBlobStore blobs)
+    {
+        var type = request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
+        if (type is null || !ThumbnailLimits.ContentTypes.Contains(type))
+            return Results.Problem(title: "Unsupported media type", detail: "A thumbnail is image/png or image/webp.", statusCode: StatusCodes.Status415UnsupportedMediaType);
+        var owner = CurrentAccount.Id(user);
+        var asset = await assets.Get(owner, id);
+        if (asset is null) return Problems.NotFound();
+        if (!asset.Uploaded) return Problems.Conflict("Not confirmed yet.");
+        if (asset.Kind == AssetKind.Texture) return Problems.Conflict("A texture is its own picture.");
+        using var buffer = new MemoryStream();
+        var chunk = new byte[16384];
+        for (int n; (n = await request.Body.ReadAsync(chunk)) > 0;)
+        {
+            buffer.Write(chunk, 0, n);
+            if (buffer.Length > ThumbnailLimits.Bytes) return Problems.Unprocessable($"A thumbnail is at most {ThumbnailLimits.Bytes >> 10} KiB.");
+        }
+        var bytes = buffer.ToArray();
+        var info = await ImageHeader.Read((first, last) => Task.FromResult(bytes[(int)first..(int)Math.Min(last + 1, bytes.Length)]), 0, bytes.Length);
+        if (info is null || info.ContentType != type) return Problems.Unprocessable($"The body is not a {type} image.");
+        if (info.Width is <= 0 or > ThumbnailLimits.Side || info.Height is <= 0 or > ThumbnailLimits.Side)
+            return Problems.Unprocessable($"A thumbnail is at most {ThumbnailLimits.Side} × {ThumbnailLimits.Side} pixels.");
+        // A fresh key per picture: a copy names the object it was made with, which stays as it is until no asset names it.
+        var key = IBlobStore.ThumbnailKey(id, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+        await blobs.Put(key, bytes, type);
+        var (found, previous) = await assets.SetThumbnail(owner, id, key);
+        if (previous is not null && previous != key) await blobs.Delete(await assets.Unreferenced([previous]));
+        if (found) return Results.NoContent();
+        await blobs.Delete(await assets.Unreferenced([key]));
+        return Problems.NotFound();
     }
 
     /// <summary>The staged bytes are copied to a key no URL names, hashed and checked there, and only then copied to the content

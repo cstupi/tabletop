@@ -9,6 +9,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import LibraryTabs from '$lib/components/LibraryTabs.svelte';
   import MeshPreview from '$lib/components/MeshPreview.svelte';
+  import Thumb from '$lib/components/Thumb.svelte';
   import { folderOptions } from '$lib/library/bulk';
   import { buildTree, filterAssets, type FolderNode } from '$lib/library/folders';
   import { copySummary, sharedFolders, usernameProblem } from '$lib/library/shared';
@@ -86,16 +87,16 @@
 <h1>Library</h1>
 <LibraryTabs current="shared" />
 <form class="open" onsubmit={open}>
-  <label>Username <input bind:value={typed} maxlength={32} autocomplete="off" aria-invalid={!!(typed && problem)} aria-describedby="user-help" /></label>
+  <label>Username <input bind:value={typed} maxlength={32} autocomplete="off" placeholder="A player's username" aria-invalid={!!(typed && problem)} aria-describedby="user-help" /></label>
   <button type="submit" class="primary" disabled={!!problem}>Open</button>
-  <small id="user-help" class="dim">{typed && problem ? problem : 'A player\'s username opens their Shared folder.'}</small>
+  {#if typed && problem}<small id="user-help" class="dim">{problem}</small>{/if}
 </form>
 {#if done}<p class="notice" role="status">{done}</p>{/if}
 {#if error}<p role="alert">{error}</p>{/if}
 {#if loading}
   <p class="loading" role="status">Loading…</p>
 {:else if view}
-  <h2>{view.name} <small class="dim">· {view.username}</small></h2>
+  <h2 class="owner"><Icon name="player" />{view.name} <small class="dim">· {view.username}</small></h2>
   <div class="layout">
     <nav class="panel" aria-label="Shared folders"><ul class="tree">{#each tree as n (n.folder.id)}{@render node(n)}{/each}</ul></nav>
     <section class="panel stack" aria-label="Shared models">
@@ -105,12 +106,12 @@
         <button class="primary" disabled={busy || picked.size === 0} onclick={() => copy({ assetIds: [...picked] })}><Icon name="plus" />Copy selected{#if picked.size}{' '}({picked.size}){/if}</button>
       </div>
       {#if shown.length === 0}
-        <div class="empty"><p>No models in this folder.</p></div>
+        <div class="empty"><Icon name="mesh" size="2rem" /><p>No models</p></div>
       {:else}
         <ul class="assets" aria-label="Models">
           {#each shown as a (a.id)}
             <li><input type="checkbox" checked={picked.has(a.id)} aria-label="Select {a.name}" disabled={busy} onchange={() => toggle(a.id)} />
-              <Icon name={a.kind} size="1.25rem" /><span class="name"><strong>{a.name}</strong>{' '}<small class="dim">{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{' · '}{formatBytes(a.byteSize)}</small></span>
+              <Thumb url={a.thumbnail} icon={a.kind} size="2.75rem" /><span class="name"><strong>{a.name}</strong>{' '}<small class="dim">{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{' · '}{formatBytes(a.byteSize)}</small></span>
               <button class="quiet" aria-pressed={preview?.asset.id === a.id} onclick={() => show(a)}>Preview</button></li>
           {/each}
         </ul>
@@ -145,4 +146,5 @@
   .view > p { margin: auto; padding: var(--s5) }
   .view img { max-width: 100%; max-height: 24rem; margin: auto }
   .dim { color: var(--dim) }
+  .owner { display: flex; align-items: center; gap: var(--s2) }
 </style>

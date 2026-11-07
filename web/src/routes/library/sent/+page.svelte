@@ -3,8 +3,10 @@
   import { api } from '$lib/api/client';
   import { errorMessage } from '$lib/api/errors';
   import type { Guid, OfferDto } from '$lib/api/types';
+  import Icon from '$lib/components/Icon.svelte';
   import LibraryTabs from '$lib/components/LibraryTabs.svelte';
-  import { appendPage, day, offerSummary, STATE_LABELS } from '$lib/library/offers';
+  import Thumb from '$lib/components/Thumb.svelte';
+  import { appendPage, day, offerSummary, STATE_LABELS, stateChip } from '$lib/library/offers';
 
   const PAGE = 50;
   let offers = $state<OfferDto[]>([]); let next = $state<Guid | undefined>(); let loading = $state(true); let more = $state(false);
@@ -39,30 +41,31 @@
 {#if loading}
   <p class="loading" role="status">Loading…</p>
 {:else if offers.length === 0}
-  <div class="empty"><p>You have not offered anything. Select models or a folder in your library and choose Offer.</p></div>
+  <div class="empty"><Icon name="offer" size="2.5rem" /><p>No offers</p></div>
 {:else}
-  <div class="panel scroll-x">
-    <table>
-      <thead><tr><th scope="col">To</th><th scope="col">What</th><th scope="col">Sent</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
-      <tbody>
-        {#each offers as o (o.id)}
-          <tr>
-            <td>{o.recipientName}</td>
-            <td>{offerSummary(o)}</td>
-            <td>{day(o.createdAt)}</td>
-            <td class:open={o.state === 'open'}>{STATE_LABELS[o.state]}{#if o.decidedAt && o.state !== 'open'}{' '}<small class="dim">{day(o.decidedAt)}</small>{/if}</td>
-            <td>{#if o.state === 'open'}<button class="quiet" disabled={busy === o.id} onclick={() => withdraw(o)}>Withdraw</button>{/if}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+  <ul class="cards" aria-label="Sent offers">
+    {#each offers as o (o.id)}
+      <li class="panel card">
+        <div class="title"><Icon name="player" size="1.4rem" /><h2>{o.recipientName}</h2><span class={stateChip(o.state)}>{STATE_LABELS[o.state]}</span></div>
+        <p class="facts">{offerSummary(o)}</p>
+        {#if o.assets.length}
+          <ul class="thumbs" aria-label="Offered models">
+            {#each o.assets.slice(0, 6) as a (a.id)}<li title={a.name}><Thumb url={a.thumbnail} icon={a.kind} size="3.25rem" alt={a.name} /></li>{/each}
+            {#if o.assets.length > 6}<li class="more num">+{o.assets.length - 6}</li>{/if}
+          </ul>
+        {/if}
+        <div class="foot">
+          <small class="dim">{day(o.createdAt)}{#if o.decidedAt && o.state !== 'open'}{' → '}{day(o.decidedAt)}{/if}</small>
+          {#if o.state === 'open'}<span class="end"><button disabled={busy === o.id} onclick={() => withdraw(o)}>Withdraw</button></span>{/if}
+        </div>
+      </li>
+    {/each}
+  </ul>
   {#if next}<button disabled={more} onclick={loadMore}>{more ? 'Loading…' : 'More'}</button>{/if}
-  <p><small class="dim">Copies a player accepted stay theirs if you withdraw or delete your own.</small></p>
 {/if}
 <style>
-  table { width: 100%; border-collapse: collapse }
-  th, td { text-align: left; padding: var(--s2) var(--s3); border-bottom: 1px solid var(--rule); overflow-wrap: anywhere }
-  .open { color: var(--accent) }
+  .title h2 { flex: 1 }
+  .thumbs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s1) }
+  .more { align-self: center; color: var(--dim); padding: 0 var(--s2) }
   .dim { color: var(--dim) }
 </style>

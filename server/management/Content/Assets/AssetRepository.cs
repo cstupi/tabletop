@@ -8,15 +8,15 @@ namespace Tabletop.Management.Content.Assets;
 public sealed class AssetRepository(Database db) : IAssetRepository
 {
     private sealed record Row(Guid Id, Guid OwnerId, string Name, string Kind, string BlobHash, long ByteSize, string ContentType, bool Uploaded, double Scale,
-        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB)
+        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB, string? ThumbnailKey)
     {
         public AssetDto ToDto() => new(Id, Name, AssetRules.Kind(Kind), BlobHash, ByteSize, ContentType, Uploaded, Scale, new Orientation(OrientationPitch, OrientationYaw, OrientationRoll),
-            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value));
+            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value), ThumbnailKey);
     }
 
     private const string Select = @"select a.id as Id, a.owner_id as OwnerId, a.name as Name, a.kind as Kind, a.blob_hash as BlobHash, b.byte_size as ByteSize, b.content_type as ContentType,
         b.uploaded as Uploaded, a.scale::float8 as Scale, a.orientation_pitch::float8 as OrientationPitch, a.orientation_yaw::float8 as OrientationYaw, a.orientation_roll::float8 as OrientationRoll,
-        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB
+        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB, a.thumbnail_key as ThumbnailKey
         from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash";
 
     public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
@@ -76,6 +76,14 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         return await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash }) == 1;
     }
 
+    public async Task<(bool Found, string? Previous)> SetThumbnail(Guid ownerId, Guid id, string key)
+    {
+        await using var c = await db.Open();
+        var row = await c.QuerySingleOrDefaultAsync<(Guid Id, string? Previous)>(@"update asset a set thumbnail_key = @key from asset old
+            where a.id = @id and a.owner_id = @ownerId and old.id = a.id returning a.id, old.thumbnail_key", new { id, ownerId, key });
+        return row.Id == Guid.Empty ? (false, null) : (true, row.Previous);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)
     {
         await using var c = await db.Open();
@@ -108,7 +116,8 @@ public sealed class AssetRepository(Database db) : IAssetRepository
     {
         if (keys.Count == 0) return [];
         await using var c = await db.Open();
-        var named = (await c.QueryAsync<string>("select distinct s3_key from blob where s3_key = any(@keys)", new { keys = keys.ToArray() })).ToHashSet();
+        var named = (await c.QueryAsync<string>(@"select s3_key from blob where s3_key = any(@keys)
+            union select thumbnail_key from asset where thumbnail_key = any(@keys)", new { keys = keys.ToArray() })).ToHashSet();
         return keys.Distinct().Where(k => !named.Contains(k)).ToList();
     }
 

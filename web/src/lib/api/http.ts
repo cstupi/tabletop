@@ -13,11 +13,12 @@ export function setTokenProvider(p: () => string | null) { tokenProvider = p; }
 
 async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers = new Headers({ accept: 'application/json' });
-  if (body !== undefined) headers.set('content-type', 'application/json');
+  const raw = typeof Blob !== 'undefined' && body instanceof Blob;   // a file's bytes, sent as they are under their own type
+  if (body !== undefined) headers.set('content-type', raw ? (body as Blob).type : 'application/json');
   const token = tokenProvider();
   const isAuthRoute = path.startsWith('/v1/auth/') && !(method === 'DELETE' && path === '/v1/auth/session');
   if (token && !isAuthRoute) headers.set('authorization', `Bearer ${token}`);
-  const response = await fetch(API_BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await fetch(API_BASE + path, { method, headers, body: body === undefined ? undefined : raw ? (body as Blob) : JSON.stringify(body) });
   if (response.ok) { const text = await response.text(); return (text ? JSON.parse(text) : undefined) as T; }   // 202 and 204 carry no body
   let problem: Problem = {};
   try { problem = (await response.json()) as Problem; } catch { /* no body */ }
