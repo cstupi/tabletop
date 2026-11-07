@@ -44,6 +44,39 @@ public static partial class SuiteCatalog
             PatternLog.For(run).Attacks.TryGetValue(a.Frame.FrameId, out var s)
             && (onTarget ? s.TargetGrants : s.AttackerGrants ?? []).Any(g => g.EntryName == entry);
 
+        const string MarkReachEntry = "Increased Shooting Range Mark";
+
+        /// <summary>
+        /// Increased Shooting Range Mark at the edge of its reach, a 12" rifle on a 36" × 30" table: rule unit 1 (the carrier) marks opponents
+        /// unit 1 from 6.74" and shoots opponents unit 2 (about 9" off), so the mark stays held; then rule unit 3, 18.5" from the marked unit,
+        /// is offered it only by a reach past 12" + 6"; then rule unit 2, 17.5" from it, shoots it under the mark and spends it. RangeBonus
+        /// reads both: the 17.5" shot is its evidence, a shot from 18.5" its failure.
+        /// </summary>
+        static TestGame MarkReach((string Uid, string Army) book, string quote)
+        {
+            var (marker, inside, past) = ($"{book.Army} unit 1", $"{book.Army} unit 2", $"{book.Army} unit 3");
+            return Pick(book, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, MarkReachEntry,
+                [RangeBonus(MarkReachEntry, Granted(MarkReachEntry, onTarget: true), 12, 6, quote)],
+                gunRange: 12, length: 30, units: 3, enemyUnits: 2,
+                anchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(2, 19), [2] = FromMarked(17.5, 25), [3] = FromMarked(18.5, 28) },
+                enemyAnchors: new Dictionary<int, Tabletop.Geometry.Point2> { [1] = new(2, 11), [2] = new(12, 11) },
+                more: s => s
+                    .Match(AskQuestions.Activate, (ask, _) => new[] { marker, past, inside }.Select(u => AskPicks.Activate(ask, u, "Hold")).FirstOrDefault(a => a is not null))
+                    .Match("rule_target", (ask, projection) => ask.Prompt.StartsWith(MarkReachEntry + ":", StringComparison.Ordinal)
+                        ? AskPicks.Pieces(ask, projection, "Opponents unit 1") : null)
+                    .Match("declare_targets", (ask, projection) => AskPicks.Aimed(ask, projection, shooter => shooter == marker ? "Opponents unit 2" : "Opponents unit 1")));
+        }
+
+        /// <summary>
+        /// The anchor at height y whose first model stands edge inches, base to base (p.5), from the last model of a five-model row anchored at
+        /// (2, 11): the nearest pair of the two units, with 32mm (1.26") bases 1.76" apart.
+        /// </summary>
+        static Tabletop.Geometry.Point2 FromMarked(double edge, double y)
+        {
+            var (lastX, lastY) = (2 + 4 * 1.76, 11.0);
+            return new(lastX + Math.Sqrt(Math.Pow(edge + 1.26, 2) - Math.Pow(y - lastY, 2)), y);
+        }
+
         const string BuffText = "\"pick one friendly unit within 12\", which gets ";
         const string MarkText = "\"pick one enemy unit within 18\" in line of sight, which friendly units get";
         const string DebuffText = "\"pick one enemy unit within 18\" in line of sight, which ";
@@ -83,9 +116,7 @@ public static partial class SuiteCatalog
             Overreach(Pick(Cults, "soul-snatcher-cults-increased-shooting-range-buff", Play.Shoots, "Increased Shooting Range Buff",
                 [RangeBonus("Increased Shooting Range Buff", Granted("Increased Shooting Range Buff"), 12, 6, BuffText + "+6\" range when shooting once\"")],
                 gunRange: 12, length: 30, gap: 16, enemyUnits: 2), 2, new(2, 4.25)),
-            Overreach(Pick(Dynasty, "eternal-dynasty-increased-shooting-range-mark", Play.Shoots, "Increased Shooting Range Mark",
-                [RangeBonus("Increased Shooting Range Mark", Granted("Increased Shooting Range Mark", onTarget: true), 12, 6, MarkText + " +6\" range when shooting against once\"")],
-                gunRange: 12, length: 30, gap: 16, enemyUnits: 2), 2, new(2, 4.25)),
+            MarkReach(Dynasty, MarkText + " +6\" range when shooting against once\""),
             Pick(Cults, "soul-snatcher-cults-speed-buff", Play.Moves, "Speed Buff",
                 [GrantedAllowance("Speed Buff", BuffText + "moves +2\" when using Advance actions and +4\" when using Rush/Charge actions once\"", ("advance", 8), ("rush", 16), ("charge", 16))],
                 units: 2, buffUnit: 2),
