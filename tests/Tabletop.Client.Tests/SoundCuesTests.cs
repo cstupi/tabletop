@@ -126,8 +126,6 @@ public class SoundCuesTests
     [Fact]
     public void A_weapon_sounds_the_same_whichever_frame_fires_it()
     {
-        Assert.Equal(SoundCues.VariantOf("Rifle"), SoundCues.VariantOf("Rifle"));
-        Assert.Equal([0, 1, 2], Enumerable.Range(0, 40).Select(i => SoundCues.VariantOf($"Weapon {i}")).Distinct().Order());
         var v1 = Played(Hits(Shooting(Rifle1), 3)).First().Variant;
         var v2 = Played(Hits(Shooting(Rifle2), 3)).First().Variant;   // another model's rifle
         Assert.Equal(SoundCues.VariantOf("Rifle"), v1);
@@ -343,6 +341,35 @@ public class SoundCuesTests
         Assert.Equal("shoot-3", SoundCues.File(Cue.Shoot, 2));
         Assert.Equal("cast-friendly", SoundCues.File(Cue.CastFriendly, 0));
         Assert.Equal("wound", SoundCues.File(Cue.Wound, 0));
-        Assert.Equal(13, Enum.GetValues<Cue>().Sum(SoundCues.Variants));
+        Assert.Equal("shoot-5", SoundCues.File(Cue.Shoot, SoundCues.Flame));
+        Assert.Equal(15, Enum.GetValues<Cue>().Sum(SoundCues.Variants));
+    }
+
+    [Theory]
+    [InlineData("Plasma Rifle", SoundCues.Plasma), InlineData("Fusion Pistol", SoundCues.Plasma), InlineData("Plasma Cannon", SoundCues.Plasma)]
+    [InlineData("Lascannon", SoundCues.Las), InlineData("Laser Rifle", SoundCues.Las), InlineData("Gauss Rifle", SoundCues.Las), InlineData("Arc Rifle", SoundCues.Las)]
+    [InlineData("Heavy Flamer", SoundCues.Flame), InlineData("Fireballs", SoundCues.Flame), InlineData("Flamethrower", SoundCues.Flame)]
+    [InlineData("Missile Launcher", SoundCues.Heavy), InlineData("Autocannon", SoundCues.Ballistic), InlineData("Battle Cannon", SoundCues.Heavy), InlineData("Rocket Pod", SoundCues.Heavy)]
+    [InlineData("Rifle", SoundCues.Ballistic), InlineData("Heavy Rifle", SoundCues.Ballistic), InlineData("Assault Rifle", SoundCues.Ballistic), InlineData("Spore Gun", SoundCues.Ballistic), InlineData("Pistol", SoundCues.Ballistic)]
+    public void A_weapon_sounds_by_its_group_read_off_the_words_of_its_name(string weapon, int variant) =>
+        Assert.Equal(variant, SoundCues.VariantOf(weapon));
+
+    [Fact]
+    public void A_volleys_dice_carry_their_frame_hit_and_units_for_the_tables_effects()
+    {
+        var attack = Shooting(Rifle1);
+        var played = Played(Hits(attack, 3, 2));
+        var shots = played.Where(c => c.Volley).ToList();
+        Assert.Equal([true, true, false], shots.Select(c => c.Hit));
+        Assert.All(shots, c => { Assert.Equal(attack, c.Frame); Assert.Equal(Squad, c.Actor); Assert.Equal(Orcs, c.Target); });
+        Assert.Equal(attack, played.Single(c => c.Cue == Cue.Impact).Frame);
+    }
+
+    [Fact]
+    public void A_wound_cue_names_every_model_wounded_or_removed_in_its_segment()
+    {
+        var wound = Played(Step(Id(), new WoundsSet(A, 1), new WoundsSet(B, 1)), Step(Id(), new ModelsMoved([Shelve(O)]))).Single(c => c.Cue == Cue.Wound);
+        Assert.Equal([A, B], wound.Wounded);
+        Assert.Equal([O], wound.Removed);
     }
 }

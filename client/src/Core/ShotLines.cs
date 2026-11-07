@@ -3,8 +3,9 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>A laser to draw: from a shooting model at half its height to the point of the target model the server saw.</summary>
-public sealed record Shot(Guid ShooterUnitId, Guid ShooterModelId, Point3 From, Point3 To);
+/// <summary>A shot to draw: from a shooting model at half its height to the point of the target model the server saw, in its attack
+/// frame (the frame whose `hit` roll sounds its volley); Foot, the height the target model stands at.</summary>
+public sealed record Shot(Guid ShooterUnitId, Guid ShooterModelId, Point3 From, Point3 To, Guid FrameId = default, Guid TargetModelId = default, double Foot = 0);
 
 /// <summary>
 /// The lasers a shooting group fires, read off the server's aims as its `determine-attacks` step completes in an attack-sequence frame under a
@@ -30,7 +31,7 @@ public static class ShotLines
             if (p.Models.GetValueOrDefault(shooter) is not { Location: OnTable } from || p.Models.GetValueOrDefault(target) is not { Location: OnTable } to) continue;
             var points = LineOfSight.TargetPoints(Placed(to)).ToList();
             if (point < 0 || point >= points.Count) continue;
-            shots.Add(new Shot(unit, shooter, Chest(from), points[point]));
+            shots.Add(new Shot(unit, shooter, Chest(from), points[point], step.FrameId, target, ((OnTable)to.Location).Placement.Position.Z));
         }
         return shots;
     }

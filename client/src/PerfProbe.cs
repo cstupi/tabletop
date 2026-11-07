@@ -10,7 +10,8 @@ namespace Tabletop;
 /// A development build's frame recorder (spec 2026-10-25-performance-and-network.md → The Godot client): with
 /// <c>TABLETOP_PERF_OUT</c> set, one CSV row per frame of frame time, the viewports' measured render times, Godot's monitors (draw calls,
 /// objects, primitives, nodes, video memory), the managed heap, allocation and collections, and the session's batches. <c>TABLETOP_PERF_GAME</c> enters that game at start (<c>TABLETOP_PERF_REPLAY=1</c> as a
-/// replay); <c>TABLETOP_PERF_SECONDS</c> quits after that long; <c>TABLETOP_PERF_BENCH</c> runs <see cref="Bench"/>; <see cref="Triggers"/> lets a script mark and photograph. A release build
+/// replay, which <c>TABLETOP_PERF_REPLAY_FROM</c> moves to that position and <c>TABLETOP_PERF_REPLAY_STEP</c> plays forward an action
+/// every that many seconds, animated; <c>TABLETOP_PERF_ZOOM</c> sets the table camera's distance as it moves); <c>TABLETOP_PERF_SECONDS</c> quits after that long; <c>TABLETOP_PERF_BENCH</c> runs <see cref="Bench"/>; <see cref="Triggers"/> lets a script mark and photograph. A release build
 /// never reads them.
 /// </summary>
 public partial class PerfProbe : Node
@@ -27,6 +28,7 @@ public partial class PerfProbe : Node
     readonly List<(Rid Rid, Viewport Node)> _viewports = new();
     string _screen = "";
     Bench? _bench;
+    int? _replayFrom; double _replayStep, _nextStep = 8, _played;
 
     public override void _Ready()
     {
@@ -35,6 +37,8 @@ public partial class PerfProbe : Node
         _out.WriteLine("frame,wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench,compiles_canvas,compiles_mesh,compiles_surface,compiles_draw,compiles_spec");
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_SECONDS"), CultureInfo.InvariantCulture, out var s)) _quitAfter = s;
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_BENCH"), CultureInfo.InvariantCulture, out var b)) _bench = new Bench(b);
+        if (int.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_REPLAY_FROM"), out var from)) _replayFrom = from;
+        if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_REPLAY_STEP"), CultureInfo.InvariantCulture, out var step)) _replayStep = step;
         var session = Main.Instance.Session;
         session.EventsApplied += e => { _batches++; _events += e.Count; };
         GetTree().NodeAdded += n => { if (n is SubViewport v) Measure(v); };
@@ -71,6 +75,7 @@ public partial class PerfProbe : Node
         if (_frames++ % 30 == 0) _screen = GetParent()?.GetChildren().LastOrDefault(c => c is not PerfProbe && c is not Godot.Timer)?.Name.ToString() ?? "";
         var size = GetWindow().Size;
         var bench = _bench?.Step(this, (now - _start) / 1e6) ?? "";
+        DriveReplay(_played += delta);
         if (_frames % 3 == 0) Triggers();
         if (bench.Length == 0) bench = _mark;
         _row.Clear().Append(CultureInfo.InvariantCulture, $"{_frames},").Append(CultureInfo.InvariantCulture,
@@ -87,6 +92,30 @@ public partial class PerfProbe : Node
     }
 
     public override void _ExitTree() => _out.Dispose();
+
+    void Zoom()
+    {
+        if (float.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_ZOOM"), CultureInfo.InvariantCulture, out var zoom))
+            foreach (var view in GetTree().Root.FindChildren("*", "", true, false).OfType<TableView>()) view.Camera.Distance = zoom;
+    }
+
+    /// <summary>On the game's clock (a movie's fixed frame rate included), from 8 s after start (the table loaded): the replay moved to <c>TABLETOP_PERF_REPLAY_FROM</c>, then an action forward,
+    /// animated as the replay bar's A› plays it, every <c>TABLETOP_PERF_REPLAY_STEP</c> seconds.</summary>
+    void DriveReplay(double seconds)
+    {
+        var session = Main.Instance.Session;
+        if (session.Replay is not { } replay || seconds < _nextStep) return;
+        if (_replayFrom is { } from)
+        {
+            session.SeekReplay(Math.Min(from, replay.Count)); _replayFrom = null; _nextStep = seconds + 2;
+            Zoom();
+            return;
+        }
+        if (_replayStep <= 0 || replay.AtEnd) return;
+        Zoom();
+        session.SeekReplay(replay.Next(ReplayUnit.Action), animate: true);
+        _nextStep = seconds + _replayStep;
+    }
 
     /// <summary>
     /// From <c>TABLETOP_PERF_BENCH</c> seconds after start, the table as it stands under one change at a time, each held for

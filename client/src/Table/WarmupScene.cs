@@ -10,7 +10,7 @@ namespace Tabletop.Client.Table;
 /// table viewport is, with the table's lights and environment, every kind of thing a table draws, made by the same code a game
 /// uses: the board and the table under it, every built-in terrain mesh dressed in its grains, models in each state (hitbox, ring,
 /// highlight, warning, ghost) with a miniature of each kind of glTF material (<see cref="WarmupGlb"/>), markers, zones, a move area,
-/// rulers, sight and hover lines, laser glows, the Shaken ring and the floating labels. Each Quality is applied in turn and drawn a
+/// rulers, sight and hover lines, the battle effects' flashes, bolts, sparks and beams, the Shaken ring and the floating labels. Each Quality is applied in turn and drawn a
 /// few frames, so its shaders and pipelines compile here. The built-in meshes' templates and the prints stay loaded for the game.
 /// </summary>
 public partial class WarmupScene : Node
@@ -124,7 +124,7 @@ public partial class WarmupScene : Node
         var region = new MoveRegionNode(); _root.AddChild(region); region.Show([new Point2(14, 4), new Point2(20, 4), new Point2(20, 8), new Point2(14, 8)], Palette.Hovered);
         var ruler = new RulerNode(); _root.AddChild(ruler); ruler.Show(new Point3(14, 10, 0.1), new Point3(20, 10, 0.1), new RulerReadout(6, 2, false), Palette.Selected);
         var lines = new MeshInstance3D { Mesh = LineMesh.Of([(new Vector3(14, 0.5f, -6), new Vector3(20, 0.5f, -6), Palette.Hovered)]), MaterialOverride = LineMesh.Material() }; _root.AddChild(lines);
-        var beam = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.05f, BottomRadius = 0.05f, Height = 4 }, MaterialOverride = Lasers.Glow(Palette.Team(0), 0.6f), Position = new Vector3(22, 1, -4) }; _root.AddChild(beam);
+        foreach (var fx in BattleFx.WarmupNodes()) { fx.Position += new Vector3(22, 1, -4); _root.AddChild(fx); }
         var shaken = ModelMarkNodes.Ring(Base.Circle(1)); shaken.Position = new Vector3(22, 0.05f, -2); _root.AddChild(shaken);
         var dots = ModelMarkNodes.Dots(3, Palette.WoundDot); dots.Position = new Vector3(22, 2, -2); _root.AddChild(dots);
         foreach (var (fixedSize, depth) in new[] { (true, true), (false, true), (false, false) })

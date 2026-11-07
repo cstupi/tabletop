@@ -23,6 +23,10 @@ public partial class TableView : Node3D
     public IReadOnlyList<WorldVolume> Volumes { get; private set; } = [];
     /// <summary>Ids whose nodes Redraw leaves where they are: a drop the server has not answered, a drag in hand.</summary>
     public Func<Guid, bool> IsHeld { get; set; } = _ => false;
+    /// <summary>A model's node a batch of events takes off the table: true when the callee took it out of the model layer (a removed model
+    /// falls, BattleFx); false drops it at once. Not asked on a new board.</summary>
+    public Func<PieceNode, bool>? Removing { get; set; }
+    bool _redrawingEvents;
     /// <summary>The selected piece's id, which setup edits (its volumes draw in full while setup edits it).</summary>
     public Func<Guid?> Selected { get; set; } = () => null;
 
@@ -60,7 +64,7 @@ public partial class TableView : Node3D
         _meshes = new MeshLoader(Main.Instance.Cache, session.Management, session.GameId!.Value);
         _meshes.RefreshManifest();
         _status = session.Game?.Status;
-        _onBoard = Redraw; _onEvents = _ => Redraw();
+        _onBoard = Redraw; _onEvents = _ => { _redrawingEvents = true; try { Redraw(); } finally { _redrawingEvents = false; } };
         // The manifest lists the game's assets by who has picked what; it is fetched again when play starts, when every army is in.
         _onGame = () => { var status = _session.Game?.Status; if (status == GameStatus.Playing && _status != GameStatus.Playing) _meshes.RefreshManifest(); _status = status; };
         session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard; session.GameChanged += _onGame;
@@ -149,7 +153,8 @@ public partial class TableView : Node3D
     {
         var nodes = parent.GetChildren().OfType<TNode>().ToDictionary(n => n.Id);
         var diff = BoardDiff.Of(nodes.ToDictionary(kv => kv.Key, kv => kv.Value.Drawn), items, id, sameShape);
-        foreach (var key in diff.Removed) Drop(nodes[key]);
+        foreach (var key in diff.Removed)
+            if (!(_redrawingEvents && nodes[key] is PieceNode piece && Removing?.Invoke(piece) == true)) Drop(nodes[key]);
         foreach (var item in diff.Reshaped) if (!IsHeld(id(item))) { Drop(nodes[id(item)]); Add(item); }
         foreach (var item in diff.Kept) if (!IsHeld(id(item))) { var n = nodes[id(item)]; n.Drawn = item; place(n, item); }
         foreach (var item in diff.Added) Add(item);

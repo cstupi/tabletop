@@ -2,12 +2,23 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>The table's sounds (spec 2026-10-24-sound-effects → Cues). Shoot has three variants; the rest one each.</summary>
+/// <summary>The table's sounds (spec 2026-10-24-sound-effects → Cues). Shoot has a variant per weapon group (<see cref="SoundCues.VariantOf"/>); the rest one each.</summary>
 public enum Cue { Shoot, Impact, Miss, Melee, Whiff, Block, Wound, CastFriendly, CastEnemy, Fizzle, Move }
 
 /// <summary>A cue to play Delay seconds after its batch arrives. Variant picks among a cue's files; Pitch scales its playback rate and
-/// VolumeDb its level. Volley: one die's sound of a volley, which plays on the volley voices.</summary>
-public sealed record CueAt(Cue Cue, double Delay, int Variant = 0, double Pitch = 1, double VolumeDb = 0, bool Volley = false);
+/// VolumeDb its level. Volley: one die's sound of a volley, which plays on the volley voices. What the table's effects
+/// (<see cref="BattleEffects"/>) draw on the same clock: Frame, the attack frame a volley's die or a result belongs to; Hit, whether
+/// that die hit; Actor and Target, the frame's attacking unit and its first target unit; Wounded and Removed, the models a Wound cue
+/// stands for (every wound and removal of its segment).</summary>
+public sealed record CueAt(Cue Cue, double Delay, int Variant = 0, double Pitch = 1, double VolumeDb = 0, bool Volley = false)
+{
+    public Guid? Frame { get; init; }
+    public bool Hit { get; init; }
+    public Guid? Actor { get; init; }
+    public Guid? Target { get; init; }
+    public IReadOnlyList<Guid> Wounded { get; init; } = [];
+    public IReadOnlyList<Guid> Removed { get; init; } = [];
+}
 
 /// <summary>
 /// Spec 2026-10-24-sound-effects → Cues: the cues a batch of live events plays, in log order. A `hit` roll under `shooting` is a volley:
@@ -52,10 +63,29 @@ public sealed class SoundCues
         _ => 0.4,
     };
 
-    public static int Variants(Cue cue) => cue == Cue.Shoot ? 3 : 1;
+    /// <summary>The shot variants, by weapon group: the files shoot-1 to shoot-5.</summary>
+    public const int Plasma = 0, Ballistic = 1, Las = 2, Heavy = 3, Flame = 4;
 
-    /// <summary>A weapon's shot variant, from its name: the same weapon sounds the same in every game.</summary>
-    public static int VariantOf(string weapon) => (int)(Fnv(System.Text.Encoding.UTF8.GetBytes(weapon), 0) % (uint)Variants(Cue.Shoot));
+    public static int Variants(Cue cue) => cue == Cue.Shoot ? 5 : 1;
+
+    /// <summary>Each weapon group's words, in the order they are tried: a word of the name that starts with one of them.</summary>
+    static readonly (int Variant, string[] Words)[] Groups =
+    [
+        (Plasma, ["plasma", "fusion", "melta", "disintegrat", "psy", "warp", "flux", "graviton"]),
+        (Las, ["las", "laser", "beam", "ray", "lance", "gauss", "ion", "particle", "shock", "lightning", "tesla", "arc", "volt"]),
+        (Flame, ["flame", "fire", "burn", "incinerat", "inferno", "napalm", "torch", "blaze", "pyre", "scorch"]),
+        (Heavy, ["cannon", "launcher", "missile", "rocket", "mortar", "artillery", "howitzer", "grenade", "bomb", "siege", "demolish", "quake"]),
+    ];
+
+    /// <summary>A weapon's shot variant, from the words of its name (Plasma Rifle, Lascannon, Heavy Flamer, Missile Launcher), else
+    /// Ballistic: the same weapon sounds the same in every game.</summary>
+    public static int VariantOf(string weapon)
+    {
+        var words = System.Text.RegularExpressions.Regex.Split(weapon.ToLowerInvariant(), "[^a-z]+").Where(w => w.Length > 0).ToList();
+        foreach (var (variant, starts) in Groups)
+            if (words.Any(w => starts.Any(w.StartsWith))) return variant;
+        return Ballistic;
+    }
 
     /// <summary>The file a cue's variant plays, in content/sounds without its .wav.</summary>
     public static string File(Cue cue, int variant) => cue switch
@@ -81,13 +111,21 @@ public sealed class SoundCues
         if (silent || batch.Count == 0 || batch.Any(e => e.Payload is Undone)) { Seed(p); return []; }
         var cues = new List<CueAt>(); var segment = 0;
         double Next(bool volley) => cues.Count == 0 ? 0 : cues[^1].Delay + (volley && cues[^1].Volley ? GroupGap : Gap(cues[^1].Cue));
-        void Add(Cue c)
+        void Add(Cue c, Guid? frame = null, Guid? wounded = null, Guid? removed = null)
         {
-            if (cues.Skip(segment).Any(x => x.Cue == c && !x.Volley)) return;
-            cues.Add(new CueAt(c, Next(false)));
+            var at = cues.FindIndex(segment, x => x.Cue == c && !x.Volley);
+            if (at < 0)
+            {
+                var f = frame is { } id ? Frame(id) : null;
+                cues.Add(new CueAt(c, Next(false)) { Frame = frame, Actor = f?.Context.ActorUnitId, Target = f?.Context.TargetUnitIds.FirstOrDefault() is { } t && t != Guid.Empty ? t : null });
+                at = cues.Count - 1;
+            }
+            if (wounded is { } w && !cues[at].Wounded.Contains(w)) cues[at] = cues[at] with { Wounded = [.. cues[at].Wounded, w] };
+            if (removed is { } r && !cues[at].Removed.Contains(r)) cues[at] = cues[at] with { Removed = [.. cues[at].Removed, r] };
         }
-        void Volley(IReadOnlyList<Cue> dice, Guid frame, int variant)
+        void Volley(IReadOnlyList<Cue> dice, IReadOnlyList<bool> hits, Guid frame, int variant)
         {
+            var context = Frame(frame)?.Context; var target = context?.TargetUnitIds.FirstOrDefault() is { } t && t != Guid.Empty ? t : (Guid?)null;
             var n = Math.Min(dice.Count, MaxVolleySounds); var interval = Interval(n); var start = Next(true); var id = frame.ToByteArray();
             for (var i = 0; i < n; i++)
             {
@@ -95,7 +133,8 @@ public sealed class SoundCues
                 double U(uint salt) => Fnv(id, (uint)i * 4 + salt) / (double)uint.MaxValue;
                 var jitter = i == 0 ? 0 : (2 * U(1) - 1) * Math.Min(VolleyJitter, interval / 4);
                 if (i == n - 1) jitter = -Math.Abs(jitter);   // the last never starts past the cap
-                cues.Add(new CueAt(dice[die], start + i * interval + jitter, variant, 1 + (2 * U(2) - 1) * PitchSpread, -VolumeSpreadDb * U(3), Volley: true));
+                cues.Add(new CueAt(dice[die], start + i * interval + jitter, variant, 1 + (2 * U(2) - 1) * PitchSpread, -VolumeSpreadDb * U(3), Volley: true)
+                    { Frame = frame, Hit = hits[die], Actor = context?.ActorUnitId, Target = target });
             }
             segment = cues.Count;
         }
@@ -105,15 +144,16 @@ public sealed class SoundCues
             switch (roll.Roll)
             {
                 case "hit" when roll.Dice.Count > 0 && Kind() is { } kind:
-                    if (kind.Sequence == MeleeSeq) { Volley(roll.Dice.Select(d => d.Success ? Cue.Melee : Cue.Whiff).ToList(), frame, 0); break; }
+                    var each = roll.Dice.Select(d => d.Success).ToList();
+                    if (kind.Sequence == MeleeSeq) { Volley(roll.Dice.Select(d => d.Success ? Cue.Melee : Cue.Whiff).ToList(), each, frame, 0); break; }
                     var weapon = Frame(frame)?.Context.WeaponIds is [var first, ..] ? names.Weapon(first) : null;
-                    Volley(Enumerable.Repeat(Cue.Shoot, roll.Dice.Count).ToList(), frame, VariantOf(weapon ?? frame.ToString()));
-                    Add(hits > 0 ? Cue.Impact : Cue.Miss);
+                    Volley(Enumerable.Repeat(Cue.Shoot, roll.Dice.Count).ToList(), each, frame, weapon is null ? Ballistic : VariantOf(weapon));
+                    Add(hits > 0 ? Cue.Impact : Cue.Miss, frame);
                     break;
                 case "defense" when roll.Dice.Count > 0:
                     // A blocked die may still set off extra wounds (`+1 wound`): only a roll with neither failures nor those is all blocked.
                     var through = hits < roll.Dice.Count || roll.Dice.Any(d => d.Triggered?.Any(t => t.EndsWith(" wound") || t.EndsWith(" wounds")) == true);
-                    Add(through ? Cue.Wound : Cue.Block);
+                    Add(through ? Cue.Wound : Cue.Block, frame);
                     break;
                 case Casting when roll.Dice.Count > 0 && hits == 0: Add(Cue.Fizzle); break;
             }
@@ -141,11 +181,11 @@ public sealed class SoundCues
                 if (change is ModelsMoved moved)
                 {
                     if (moved.Moves.Any(m => m.To is OnTable)) Add(Cue.Move);
-                    if (moved.Moves.Any(m => m.From is OnTable && m.To is OnShelf)) Add(Cue.Wound);
+                    foreach (var m in moved.Moves.Where(m => m.From is OnTable && m.To is OnShelf)) Add(Cue.Wound, removed: m.ModelId);
                 }
                 else if (change is WoundsSet w)
                 {
-                    if (w.Wounds > _wounds.GetValueOrDefault(w.ModelId)) Add(Cue.Wound);
+                    if (w.Wounds > _wounds.GetValueOrDefault(w.ModelId)) Add(Cue.Wound, wounded: w.ModelId);
                     _wounds[w.ModelId] = w.Wounds;
                 }
             }

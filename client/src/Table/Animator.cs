@@ -7,7 +7,7 @@ namespace Tabletop.Client.Table;
 /// <summary>The queue between the projection and the renderer. The projection is already current; this only paces what the table plays out.</summary>
 public sealed class Animator : IDisposable
 {
-    readonly Session _s; readonly TableView _view; readonly TableInput _input; readonly AnimationQueue _queue = new();
+    readonly Session _s; readonly TableView _view; readonly TableInput _input; readonly AnimationQueue _queue = new(); readonly GlidePlan _plan = new();
     readonly Action<IReadOnlyList<GameEvent>> _onEvents; readonly Action _onBoard; readonly List<Tween> _tweens = new();
     bool _busy, _disposed; int _generation;
     /// <summary>Each event as it plays; with Animate off, a whole batch at once.</summary>
@@ -19,6 +19,7 @@ public sealed class Animator : IDisposable
         _onEvents = events => { _queue.Enqueue(events); Pump(); };
         _onBoard = Drop;
         s.EventsApplied += _onEvents; s.BoardChanged += _onBoard;
+        if (s.Projection is { } p) _plan.Seed(p);
     }
 
     /// <summary>Session outlives the table: the subscriptions come off when the panels go.</summary>
@@ -30,6 +31,7 @@ public sealed class Animator : IDisposable
     {
         foreach (var t in _tweens) if (GodotObject.IsInstanceValid(t)) t.Kill();
         _tweens.Clear(); _queue.Clear(); _generation++; _busy = false;
+        if (_s.Projection is { } p) _plan.Seed(p);
         if (GodotObject.IsInstanceValid(_view)) _view.Redraw();
     }
 
@@ -53,25 +55,37 @@ public sealed class Animator : IDisposable
         foreach (var e in _queue.Take(_s.Settings.Animate))
         {
             Played?.Invoke(e);
+            var planned = _plan.Of(e, id => _s.Projection?.Models.GetValueOrDefault(id)?.UnitId);
+            _plan.Observe(e);
             // The player's own drops are already on the table where they put them: consume the holds, and glide only the rest.
             var relocations = AnimationQueue.Relocations(e);
-            var others = relocations.Where(r => !_input.ConsumeOwn(r)).ToList();
+            var others = relocations.Where(r => !_input.ConsumeOwn(r)).ToHashSet();
             if (others.Count != relocations.Count) redraw = true;
             if (!_s.Settings.Animate) continue;
-            var glides = others.Where(r => r.To is OnTable).Select(r => (Relocation: r, Node: _view.PieceAt(r.ModelId)!))
+            var glides = planned.Where(g => others.Contains(g.Move)).Select(g => (Glide: g, Node: _view.PieceAt(g.Move.ModelId)!))
                 .Where(g => g.Node is not null && g.Node.IsInsideTree()).ToList();
             if (glides.Count == 0) continue;
             if (redraw) { _view.Redraw(); redraw = false; }   // first, so it does not put the gliding pieces back at their destinations
             // Every model the event moved glides at once; the next event waits for the last of them.
             _busy = true; var generation = _generation; var left = glides.Count;
-            foreach (var (relocation, node) in glides)
+            foreach (var (glide, node) in glides)
             {
                 // The table has already redrawn the piece at its destination, so the glide starts from where it was.
-                if (relocation.From is OnTable from) node.Position = WorldFrame.ToGodot(from.Placement.Position);
-                var tween = node.CreateTween(); _tweens.Add(tween); tween.TweenProperty(node, "position", WorldFrame.ToGodot(((OnTable)relocation.To).Placement.Position), 0.4);
+                var to = ((OnTable)glide.Move.To).Placement; var end = WorldFrame.ToGodot(to.Position); var endYaw = WorldFrame.Radians(to.Yaw);
+                var (start, startYaw) = glide.Move.From is OnTable { Placement: var from } ? (WorldFrame.ToGodot(from.Position), WorldFrame.Radians(from.Yaw)) : (end, endYaw);
+                void At(float u)
+                {
+                    if (!GodotObject.IsInstanceValid(node)) return;
+                    var p = GlideCurve.At(glide, u);
+                    node.Position = start + (end - start) * (float)p.Along + Vector3.Up * (float)p.Lift;
+                    node.Rotation = new Vector3(0, Mathf.LerpAngle(startYaw, endYaw, (float)p.Turn), 0);
+                }
+                At(0);
+                var tween = node.CreateTween(); _tweens.Add(tween);
+                tween.TweenMethod(Callable.From<float>(At), 0f, 1f, glide.Seconds);
                 tween.TweenCallback(Callable.From(() => { if (--left == 0) Done(generation); }));
             }
-            _view.GetTree().CreateTimer(0.6).Timeout += () => Done(generation);
+            _view.GetTree().CreateTimer(glides.Max(g => g.Glide.Seconds) + 0.2).Timeout += () => Done(generation);
             return;   // one event at a time while animating
         }
         if (redraw) _view.Redraw();

@@ -20,6 +20,16 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     Color? _warning;
     Node3D? _ring;
     Base _footprint = Base.Circle(1);
+    Vector3 _jolt;
+
+    /// <summary>Moves what the model draws by <paramref name="offset"/> off its placement, the node itself staying put: a recoil, a jab,
+    /// a shake. Zero puts it back.</summary>
+    public void SetJolt(Vector3 offset)
+    {
+        var delta = offset - _jolt; _jolt = offset;
+        if (delta == Vector3.Zero) return;
+        foreach (var c in GetChildren()) if (c is Node3D n) n.Position += delta;
+    }
 
     public void SetBody(Base b, double height)
     {
@@ -28,7 +38,7 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         var h = (float)height;
         _proxy = new MeshInstance3D { Mesh = Palette.Body(b, height), Position = new Vector3(0, h / 2, 0), MaterialOverride = Palette.Translucent(_base) };
         if (b.Shape == BaseShape.Oval) _proxy.Scale = new Vector3((float)b.B, 1, (float)b.A);   // oval length along facing (+Y wire = −Z Godot)
-        AddChild(_proxy);
+        AddChild(_proxy); _proxy.Position += _jolt;
     }
 
     public void SetMesh(Node3D? scene)
@@ -36,7 +46,7 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         _mesh?.QueueFree(); _mesh = scene;
         if (scene is null) return;
         if (_ghost) Ghostly(scene);
-        AddChild(scene); Apply();
+        AddChild(scene); scene.Position += _jolt; Apply();
     }
 
     /// <summary>
@@ -98,7 +108,7 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         _proxy.MaterialOverride = Palette.Translucent(look == PieceProxy.Solid ? _base : _base with { A = 0.12f });
         if (look != PieceProxy.RingOnly) { _ring?.QueueFree(); _ring = null; return; }
         var ringMaterial = Palette.Unshaded(_base with { A = 1 });
-        if (_ring is null) AddChild(_ring = Palette.BaseRing(_footprint, ringMaterial));
+        if (_ring is null) { AddChild(_ring = Palette.BaseRing(_footprint, ringMaterial)); _ring.Position += _jolt; }
         else foreach (var n in _ring.GetChildren()) if (n is MeshInstance3D m) m.MaterialOverride = ringMaterial;
     }
 
