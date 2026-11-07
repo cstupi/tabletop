@@ -77,6 +77,17 @@ public sealed class PostgresRepositoryContractTests : RepositoryContract, IClass
     protected override Task SeedGameTable(Guid gameId, Guid textureAssetId) =>
         Execute("insert into management.table_state (id, game_id, width, length, texture_asset_id) values (@id, @gameId, 72, 48, @textureAssetId)", new { id = Guid.CreateVersion7(), gameId, textureAssetId });
 
+    protected override async Task SeedTeam(Guid gameId, Guid accountId, int ordinal)
+    {
+        var id = Guid.CreateVersion7();
+        await Execute("insert into management.team (id, game_id, ordinal) values (@id, @gameId, @ordinal)", new { id, gameId, ordinal });
+        await Execute("update management.participant set team_id = @id where game_id = @gameId and account_id = @accountId", new { id, gameId, accountId });
+    }
+
+    protected override Task SeedProgress(Guid gameId, Tabletop.Protocol.GameProgress progress) =>
+        Execute("update management.game set round = @round, acting_team = @acting, waiting_on = @waiting, outcome = @outcome where id = @gameId",
+            new { gameId, round = progress.Round, acting = progress.ActingTeam, waiting = progress.WaitingOn.ToArray(), outcome = progress.Outcome?.ToArray() });
+
     protected override Task BackdateBlob(Guid ownerId, string hash, TimeSpan age) =>
         Execute("update management.blob set created_at = created_at - @age where owner_id = @ownerId and hash = @hash", new { ownerId, hash, age });
 }

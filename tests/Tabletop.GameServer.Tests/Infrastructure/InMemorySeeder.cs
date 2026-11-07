@@ -95,4 +95,6 @@ public sealed class InMemorySeeder : IRowSeeder
         GameRows.InsertTable(new TableRow(null, ownerId, layout));
         return Task.FromResult(layout);
     }
+
+    public Task<GameProgress?> ProgressOfAsync(Guid gameId) => Task.FromResult(GameRows.ProgressOf(gameId));
 }

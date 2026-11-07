@@ -1,5 +1,6 @@
 <!-- viewer/src/lib/games/GamesPage.svelte -->
-<!-- HomeScreen's list: the account's games (open, replay, leave, end, delete), the open games to join, and Create game. -->
+<!-- HomeScreen (UX redesign part 1 → Home, homeView.ts): my games as cards banded in their status colour with the state line, the primary
+     action and a ▸ menu; the open games as rows with Join; my ended games folded until Ended too; New game, the name filter and refresh. -->
 <script lang="ts">
   import CreateGameDialog from './CreateGameDialog.svelte';
   import Loading from '../components/Loading.svelte';
@@ -7,9 +8,8 @@
   import { listGames, type GameSummary } from '../live/games';
   import type { Auth } from '../shell/auth';
   import { hrefOf } from '../shell/route';
-  import { listsOf } from './listModel';
-  import { rowActionsOf } from './rowActions';
-  import { STATUS_LABEL, ago, mainActionOf, playersLine, ruleSetLine } from './present';
+  import { ACTION_LABEL, homeListsOf, type HomeAction, type HomeCard } from './homeView';
+  import { STATUS_LABEL, ago } from './present';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
   let { auth }: { auth: Auth } = $props();
@@ -22,10 +22,12 @@
   let busy: string | null = $state(null);
   let creating = $state(false);
   let showAll = $state(false);
+  let search = $state('');
+  let endedToo = $state(false);
   let confirming: { title: string; text: string; ok: string; run: () => Promise<void> } | null = $state(null);
   let confirmDialog: HTMLDialogElement | undefined = $state();
 
-  const lists = $derived(listsOf(games));
+  const lists = $derived(homeListsOf(games, me, search, endedToo));
   const admin = $derived(auth.access === 'admin');
 
   async function reload() {
@@ -37,12 +39,17 @@
     loaded = true;
   }
   $effect(() => { void reload(); });
+  $effect(() => {
+    const onFocus = () => { if (loaded && busy === null) void reload(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  });
 
   $effect(() => {
     if (confirming !== null) confirmDialog?.showModal(); else confirmDialog?.close();
   });
 
-  /** Runs one action on a row, then reloads the lists. */
+  /** Runs one action on a game, then reloads the lists. */
   async function act(game: GameSummary, work: () => Promise<void>) {
     busy = game.id; error = null;
     try { await work(); } catch (e) { error = (e as Error).message; }
@@ -58,10 +65,24 @@
   function ask(title: string, text: string, ok: string, work: () => Promise<void>) {
     confirming = { title, text, ok, run: work };
   }
-  const leave = (g: GameSummary) => ask('Leave this game?', `Leave ${g.name}? Your seat and the army you brought go.`, 'Leave', () => api.leaveGame(g.id));
-  const end = (g: GameSummary) => ask('End this game?', `${g.name} ends for every player.`, 'End game', () => api.endGame(g.id));
-  const remove = (g: GameSummary) => ask('Delete this game?',
-    `${g.name} and its whole log are deleted for every player. This cannot be undone.`, 'Delete', () => api.deleteGame(g.id));
+
+  function run(card: HomeCard, action: HomeAction) {
+    const g = card.game;
+    switch (action) {
+      case 'replay': window.location.hash = hrefOf({ page: 'replay', gameId: g.id }); break;
+      case 'leave': ask('Leave this game?', `Leave ${g.name}? Your seat and the army you brought go.`, 'Leave', () => api.leaveGame(g.id)); break;
+      case 'end': ask('End this game?', `${g.name} ends for every player.`, 'End game', () => api.endGame(g.id)); break;
+      case 'delete': ask('Delete this game?', `${g.name} and its whole log are deleted for every player. This cannot be undone.`, 'Delete', () => api.deleteGame(g.id)); break;
+      default: void open(g);
+    }
+  }
+
+  function picked(card: HomeCard, event: Event) {
+    const select = event.currentTarget as HTMLSelectElement;
+    const action = select.value as HomeAction | '';
+    select.value = '';
+    if (action !== '') run(card, action);
+  }
 
   async function confirmed() {
     const pending = confirming;
@@ -76,70 +97,91 @@
   }
 </script>
 
-{#snippet row(game: GameSummary, joinable: boolean)}
-  {@const can = rowActionsOf(game, me)}
-  {@const main = mainActionOf(game)}
-  <li class="row">
-    <div class="what">
-      <span class="name">{game.name}</span>
-      <span class="meta">
-        <span class="chip {game.status}">{STATUS_LABEL[game.status]}</span>
-        {#if ruleSetLine(game) !== null}<span class="chip">{ruleSetLine(game)}</span>{/if}
-        <span>{playersLine(game.participantNames)}</span>
-        <span class="dim">{ago(game.createdAt)}</span>
-      </span>
-    </div>
-    <div class="acts">
-      {#if joinable}
-        <button class="small" disabled={busy !== null} onclick={() => open(game)}>Join</button>
-      {:else if main.replay}
-        <a class="button primary small" href={hrefOf({ page: 'replay', gameId: game.id })}><Icon name="replay" />Replay</a>
-      {:else}
-        <button class="primary small" disabled={busy !== null} onclick={() => open(game)}>{main.label}</button>
-        {#if can.canReplay}<a class="button small" href={hrefOf({ page: 'replay', gameId: game.id })} title="Replay from the start">Replay</a>{/if}
-      {/if}
-      {#if !joinable}
-        {#if can.canEnd}<button class="small" disabled={busy !== null} onclick={() => end(game)}>End</button>{/if}
-        {#if can.canDelete}<button class="danger small" disabled={busy !== null} onclick={() => remove(game)}>Delete</button>
-        {:else}<button class="quiet" disabled={busy !== null} onclick={() => leave(game)}>Leave</button>{/if}
-      {/if}
-    </div>
+{#snippet status(g: GameSummary, edition: string)}
+  <span class="status {g.status}"><span class="mark" aria-hidden="true"></span>{STATUS_LABEL[g.status].toUpperCase()}{#if edition !== ''}<span class="sep">·</span>{edition}{/if}</span>
+{/snippet}
+
+{#snippet players(c: HomeCard)}
+  <span class="players" title={(c.game.participantNames ?? []).join(', ')}>
+    <Icon name="account" size="1em" /><span class="names">{c.players.length === 0 ? 'No players' : c.players.join('   ')}</span>
+    {#if c.morePlayers > 0}<span class="dim">+{c.morePlayers}</span>{/if}
+  </span>
+{/snippet}
+
+{#snippet menu(c: HomeCard)}
+  {#if c.menu.length > 0}
+    <select class="menu" aria-label="More" title="More" disabled={busy !== null} onchange={(e) => picked(c, e)}>
+      <option value="">▸</option>
+      {#each c.menu as a (a)}<option value={a}>{ACTION_LABEL[a]}</option>{/each}
+    </select>
+  {/if}
+{/snippet}
+
+{#snippet primary(c: HomeCard, filled: boolean)}
+  <button class="small {filled ? 'primary' : ''}" disabled={busy !== null} onclick={() => run(c, c.primary)}>
+    {#if c.primary === 'replay'}<Icon name="replay" />{:else if c.primary === 'join'}<Icon name="plus" />{/if}{ACTION_LABEL[c.primary]}
+  </button>
+{/snippet}
+
+{#snippet row(c: HomeCard)}
+  <li class="row band-{c.game.status}">
+    {@render status(c.game, c.edition)}
+    <span class="name" title={c.game.name}>{c.game.name}</span>
+    {@render players(c)}
+    <span class="when dim">{c.game.status === 'ended' ? c.state : ago(c.game.createdAt)}</span>
+    {@render primary(c, false)}
+    {@render menu(c)}
   </li>
 {/snippet}
 
 <div class="doc"><div class="inner">
-  <div class="page-head">
-    <h1>Play</h1>
-    <div class="actions">
-      <button class="primary" onclick={() => (creating = true)}><Icon name="plus" />Create game</button>
-      <button onclick={reload}>Refresh</button>
-    </div>
+  <div class="toolbar">
+    <button class="primary" onclick={() => (creating = true)}><Icon name="plus" />New game</button>
+    <span class="grow"></span>
+    <input type="search" placeholder="name" aria-label="Filter by name" bind:value={search} />
+    <button class="quiet" title="Refresh the list" aria-label="Refresh" onclick={reload}><Icon name="replay" /></button>
+    <label class="check"><input type="checkbox" bind:checked={endedToo} />Ended too</label>
   </div>
   {#if error !== null}<p role="alert">{error}</p>{/if}
 
   {#if !loaded}
     <Loading text="Loading games…" inline />
   {:else}
-    <section class="panel">
-      <h2>Your games</h2>
-      {#if lists.mine.length === 0}
-        <div class="empty"><Icon name="objective" size="2rem" /><p>No games yet. Create one, or join an open game below.</p></div>
-      {:else}
-        <ul class="rows">{#each lists.mine as game (game.id)}{@render row(game, false)}{/each}</ul>
-      {/if}
-    </section>
+    <h2>Your games</h2>
+    {#if lists.yours.length === 0}
+      <p class="dim">{search === '' ? 'No games yet' : 'No game of yours matches'}</p>
+    {:else}
+      <ul class="cards">
+        {#each lists.yours as c (c.game.id)}
+          <li class="card band-{c.game.status}">
+            {@render status(c.game, c.edition)}
+            <span class="title" title={c.game.name}>{c.game.name}</span>
+            {@render players(c)}
+            <span class="state" class:warn={c.stateWarns}>{c.state}</span>
+            <div class="foot">{@render primary(c, true)}<span class="grow"></span>{@render menu(c)}</div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
 
-    <section class="panel">
-      <h2>Open games</h2>
-      {#if lists.open.length === 0}
-        <p class="dim">No games are waiting for players.</p>
+    <h2>Open games</h2>
+    {#if lists.open.length === 0}
+      <p class="dim">None</p>
+    {:else}
+      <ul class="rows">{#each lists.open as c (c.game.id)}{@render row(c)}{/each}</ul>
+    {/if}
+
+    {#if endedToo}
+      <h2>Ended</h2>
+      {#if lists.ended.length === 0}
+        <p class="dim">None</p>
       {:else}
-        <ul class="rows">{#each lists.open as game (game.id)}{@render row(game, true)}{/each}</ul>
+        <ul class="rows">{#each lists.ended as c (c.game.id)}{@render row(c)}{/each}</ul>
       {/if}
-    </section>
+    {/if}
 
     {#if admin}
-      <section class="panel">
+      <section class="panel all">
         <div class="head">
           <h2>All games</h2>
           <button class="small" aria-pressed={showAll} onclick={() => (showAll = !showAll)}>{showAll ? 'Hide' : 'Show'} ({games.length})</button>
@@ -147,12 +189,11 @@
         {#if showAll}
           <ul class="rows">
             {#each games as game (game.id)}
-              <li class="row">
-                <div class="what">
-                  <span class="name">{game.name}</span>
-                  <span class="meta"><span class="chip {game.status}">{STATUS_LABEL[game.status]}</span>{#if ruleSetLine(game) !== null}<span class="chip">{ruleSetLine(game)}</span>{/if}<span>{playersLine(game.participantNames)}</span><span class="dim">{ago(game.createdAt)}</span></span>
-                </div>
-                <div class="acts"><a class="button small" href={hrefOf({ page: 'replay', gameId: game.id })}>Watch</a></div>
+              <li class="row band-{game.status}">
+                {@render status(game, '')}
+                <span class="name">{game.name}</span>
+                <span class="when dim">{ago(game.createdAt)}</span>
+                <a class="button small" href={hrefOf({ page: 'replay', gameId: game.id })}>Watch</a>
               </li>
             {/each}
           </ul>
@@ -178,17 +219,45 @@
 </dialog>
 
 <style>
-  .page-head h1 { margin-bottom: var(--s4); }
-  .page-head .actions { margin: 0 0 var(--s4); }
+  .inner { --lobby: var(--dim); --setup: var(--warning); --playing: var(--accent); --ended: var(--dim); }
+  .toolbar { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s5); flex-wrap: wrap; }
+  .toolbar input[type='search'] { width: 14rem; }
+  .grow { flex: 1; }
+  .check { display: inline-flex; align-items: center; gap: var(--s2); white-space: nowrap; }
+  h2 { margin-top: var(--s5); letter-spacing: .06em; text-transform: uppercase; font-size: .9rem; }
+
+  .band-lobby { --band: var(--lobby); } .band-setup { --band: var(--setup); } .band-playing { --band: var(--playing); } .band-ended { --band: var(--ended); }
+  .status { display: inline-flex; align-items: center; gap: var(--s2); color: var(--band); font-size: .85rem; letter-spacing: .04em; white-space: nowrap; }
+  .status .sep { opacity: .7; }
+  .mark { width: .8rem; height: .8rem; border-radius: 50%; border: 2px solid var(--band); box-sizing: border-box; flex: none; }
+  .status.setup .mark { background: linear-gradient(90deg, transparent 50%, var(--band) 50%); }
+  .status.playing .mark { background: var(--band); }
+  .status.ended .mark { border: 0; border-radius: 0; width: .8rem; height: .45rem; border-left: 2px solid var(--band); border-bottom: 2px solid var(--band); transform: rotate(-45deg) translate(1px, -1px); }
+
+  .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--s4); }
+  .card { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; padding: var(--s4) var(--s4) var(--s4) calc(var(--s4) + 6px);
+    background: var(--panel-solid); border: 1px solid color-mix(in srgb, var(--band) 55%, transparent); border-left: 6px solid var(--band); }
+  .title { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .players { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+  .players .names { overflow: hidden; text-overflow: ellipsis; white-space: pre; min-width: 0; }
+  .state { color: var(--dim); }
+  .state.warn { color: var(--warning); }
+  .foot { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s1); }
+
+  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+  .row { display: grid; grid-template-columns: 9.5rem minmax(8rem, 2fr) minmax(6rem, 2fr) 7.5rem auto 2.75rem; align-items: center; gap: var(--s3);
+    padding: var(--s2) var(--s3); background: var(--panel-solid); border-left: 4px solid var(--band); }
+  .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .when { text-align: right; white-space: nowrap; }
+  .menu { width: 2.75rem; min-height: 2rem; padding: 0 var(--s2); }
+  .all { margin-top: var(--s6); }
+  .all .row { grid-template-columns: 9.5rem 1fr 7.5rem auto; }
   .head { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
   .head h2 { margin: 0; }
-  .rows { list-style: none; margin: 0; padding: 0; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); padding: var(--s3) 0; border-top: 1px solid var(--rule); }
-  .row:first-child { border-top: 0; }
-  .what { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
-  .name { font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); color: var(--text); font-size: .95rem; }
-  .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s2); flex: none; }
   dialog { max-width: 28rem; }
   dialog .actions { justify-content: flex-end; margin-bottom: 0; }
+  @media (max-width: 40rem) {
+    .row { grid-template-columns: 1fr auto; }
+    .row .status, .row .players, .row .when { grid-column: 1 / -1; }
+  }
 </style>

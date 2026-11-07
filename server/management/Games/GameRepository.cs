@@ -21,7 +21,8 @@ public sealed class GameRepository(Database db) : IGameRepository
     // CreatedAt comes back as DateTime (Npgsql's CLR type for timestamptz), not DateTimeOffset: Dapper picks a
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
     // is built afterwards.
-    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames, bool Joined, string? RuleSet);   // Array: the reader reports text[] as System.Array
+    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames, bool Joined, string? RuleSet,
+        int Teams, int TeamsReady, int? Round, int? ActingTeam, Array WaitingOn, Array? Outcome);   // Array: the reader reports text[] as System.Array
     private static readonly IReadOnlyDictionary<string, SchedulerShape> Shapes = new Dictionary<string, SchedulerShape> { ["player-turn"] = SchedulerShape.PlayerTurn, ["alternating-activation"] = SchedulerShape.AlternatingActivation };
     private static string Wire(SchedulerShape s) => Shapes.First(kv => kv.Value == s).Key;
 
@@ -84,11 +85,16 @@ public sealed class GameRepository(Database db) : IGameRepository
             array(select a.name from (select distinct on (p.account_id) p.account_id, p.id from participant p where p.game_id = g.id order by p.account_id, p.id) p
                   join account a on a.id = p.account_id order by p.id) as ParticipantNames,
             exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer) as Joined,
-            (select pr.name from properties pr where pr.content_hash = g.properties_hash) as RuleSet
+            (select pr.name from properties pr where pr.content_hash = g.properties_hash) as RuleSet,
+            (select count(*) from team t where t.game_id = g.id)::int as Teams,
+            (select count(*) from team t where t.game_id = g.id and exists(select 1 from participant p where p.team_id = t.id and p.army_id is not null))::int as TeamsReady,
+            g.round as Round, g.acting_team as ActingTeam, g.waiting_on as WaitingOn, g.outcome as Outcome
             from game g where (@after::uuid is null or g.id < @after::uuid)
               and (not @joinedOnly or exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer))
             order by g.id desc limit @limit", new { after = page.After, limit = page.Limit, viewer, joinedOnly });
-        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList(), r.Joined, r.RuleSet)).ToList();
+        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants,
+            r.ParticipantNames.Cast<string>().ToList(), r.Joined, r.RuleSet, r.Teams, r.TeamsReady,
+            r.Round is { } round ? new GameProgress(round, r.ActingTeam, r.WaitingOn.Cast<Guid>().ToList(), r.Outcome?.Cast<int>().ToList()) : null)).ToList();
     }
 
     public async Task<GameInfo?> Get(Guid id)

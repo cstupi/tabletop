@@ -35,6 +35,10 @@ public abstract partial class RepositoryContract
     protected abstract Task PickArmy(Guid gameId, Guid accountId, Guid armyId);
     protected abstract Task FreezeArmy(Guid gameId, Guid accountId, ArmySnapshot snapshot);
     protected abstract Task SeedGameTable(Guid gameId, Guid textureAssetId);
+    /// <summary>A team at this ordinal, with the account's participant rows on it (the game server's PickTeam).</summary>
+    protected abstract Task SeedTeam(Guid gameId, Guid accountId, int ordinal);
+    /// <summary>The progress columns as the game server's WriteProgressAsync writes them.</summary>
+    protected abstract Task SeedProgress(Guid gameId, GameProgress progress);
     /// <summary>Moves the blob row's created_at back by age, as time passing would.</summary>
     protected abstract Task BackdateBlob(Guid ownerId, string hash, TimeSpan age);
 

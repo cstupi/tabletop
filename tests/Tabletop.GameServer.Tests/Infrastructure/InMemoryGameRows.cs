@@ -202,6 +202,17 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
         return Task.CompletedTask;
     }
 
+    readonly Dictionary<Guid, GameProgress> _progress = new();
+
+    public Task WriteProgressAsync(Guid gameId, GameProgress progress, CancellationToken ct)
+    {
+        lock (_gate) if (_games.ContainsKey(gameId)) _progress[gameId] = progress;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The progress columns as last written; null before any write.</summary>
+    public GameProgress? ProgressOf(Guid gameId) { lock (_gate) return _progress.GetValueOrDefault(gameId); }
+
     public Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct)
     {
         lock (_gate)

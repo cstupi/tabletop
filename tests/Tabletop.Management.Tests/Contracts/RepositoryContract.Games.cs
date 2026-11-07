@@ -66,6 +66,31 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Game_list_counts_teams_ready_and_carries_the_progress_the_game_server_wrote()
+    {
+        var hash = await NewProperties();
+        var (a, b) = (await NewAccount("A"), await NewAccount("B"));
+        var game = (await Games.Create(a, GameRequest(hash)))!.Id;
+        await Games.Join(game, b);
+        var row = (await Games.List(new Keyset(50, null), a)).Single(g => g.Id == game);
+        Assert.Equal((0, 0), (row.Teams, row.TeamsReady));
+        Assert.Null(row.Progress);
+
+        await SeedTeam(game, a, 1);
+        await SeedTeam(game, b, 2);
+        var army = SmallArmy();
+        await Armies.Insert(a, army);
+        await PickArmy(game, a, army.Id);
+        row = (await Games.List(new Keyset(50, null), a)).Single(g => g.Id == game);
+        Assert.Equal((2, 1), (row.Teams, row.TeamsReady));
+
+        await SeedProgress(game, new GameProgress(3, 2, [b], null));
+        Assert.True(new GameProgress(3, 2, [b], null).SameAs((await Games.List(new Keyset(50, null), b)).Single(g => g.Id == game).Progress));
+        await SeedProgress(game, new GameProgress(4, null, [], [1]));
+        Assert.True(new GameProgress(4, null, [], [1]).SameAs((await Games.List(new Keyset(50, null), b)).Single(g => g.Id == game).Progress));
+    }
+
+    [Fact]
     public async Task Game_join_is_one_row_at_any_status_and_the_last_leave_ends_the_game()
     {
         var hash = await NewProperties();

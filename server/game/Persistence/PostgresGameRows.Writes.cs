@@ -15,6 +15,17 @@ public sealed partial class PostgresGameRows
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task WriteProgressAsync(Guid gameId, GameProgress progress, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("update management.game set round = $2, acting_team = $3, waiting_on = $4, outcome = $5 where id = $1");
+        cmd.Parameters.AddWithValue(gameId);
+        cmd.Parameters.AddWithValue(progress.Round);
+        cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)progress.ActingTeam ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Integer });
+        cmd.Parameters.Add(new NpgsqlParameter { Value = progress.WaitingOn.ToArray(), NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid });
+        cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)progress.Outcome?.ToArray() ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Integer });
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     public async Task RepinPropertiesAsync(Guid gameId, string hash, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand("update management.game set properties_hash = $2 where id = $1 and status <> 'ended'");

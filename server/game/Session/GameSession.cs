@@ -61,9 +61,10 @@ public sealed partial class GameSession
         return RunAsync(async () =>
         {
             if (Play is null) return 0;
-            if (Play.Projection.Ended is not null) { if (Info.Status == GameStatus.Playing) await MarkEndedAsync(); return 0; }
+            if (Play.Projection.Ended is not null) { if (Info.Status == GameStatus.Playing) await MarkEndedAsync(); await WriteProgressAsync(); return 0; }
             if (Info.Status != GameStatus.Playing && Play.Projection.LastSeq == 0) return 0;   // ended during setup: never played, nothing to advance
             await RunToRestAsync([], null, null);
+            await WriteProgressAsync();
             return 0;
         });
     }
@@ -214,7 +215,22 @@ public sealed partial class GameSession
         if (staged.Count == 0) return true;
         await BroadcastFactsIfChangedAsync();
         if (!endedBefore && Play.Projection.Ended is not null && Info.Status == GameStatus.Playing) await MarkEndedAsync();
+        await WriteProgressAsync();
         return true;
+    }
+
+    /// <summary>The progress last written by this session; null until the first write after hydration.</summary>
+    private GameProgress? _progressWritten;
+
+    /// <summary>The game row's progress columns (management's game list), when they differ from what this session last wrote. A failed
+    /// write is logged and left: the next run of the log writes it again.</summary>
+    private async Task WriteProgressAsync()
+    {
+        if (Play is null) return;
+        var progress = GameProgress.Of(Play.Projection, Info);
+        if (progress.SameAs(_progressWritten)) return;
+        try { await _services.Rows.WriteProgressAsync(GameId, progress, CancellationToken.None); _progressWritten = progress; }
+        catch (Exception ex) { _log.LogWarning(ex, "Game {GameId}: the progress write failed; the next run retries.", GameId); }
     }
 
     /// <summary>Seq assigned here, the batch applied and staged. Returns the fault reason when the server's own event does not apply to its own

@@ -78,7 +78,10 @@ public sealed class InMemoryGameRepository(InMemoryRows rows) : IGameRepository
                 {
                     var seated = Seated(g.Key);
                     var accounts = seated.Select(p => p.AccountId).Distinct().ToList();   // an account holding several teams is one participant to the browser
-                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList(), accounts.Contains(viewer), RuleSetName(g.Value.PropertiesHash));
+                    var teams = rows.Teams.Where(t => t.GameId == g.Key).ToList();
+                    var ready = teams.Count(t => seated.Any(p => p.TeamId == t.Id && p.ArmyId is not null));
+                    return new GameSummary(g.Key, g.Value.Name, g.Value.Status, g.Value.CreatedBy, g.Value.CreatedAt, accounts.Count, accounts.Select(a => rows.Accounts[a].Name).ToList(), accounts.Contains(viewer),
+                        RuleSetName(g.Value.PropertiesHash), teams.Count, ready, g.Value.Progress);
                 }).ToList());
     }
 

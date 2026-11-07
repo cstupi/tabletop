@@ -347,6 +347,15 @@ absent key read as that option's default, so `'{}'` is the core game. The game s
 on `set_configuration`, in `lobby` and `setup` only; management reads it and creation leaves the default. It arrives as management's
 `010_optional_rules.sql`.
 
+### A game carries where it stands
+
+`game.round int`, `game.acting_team int`, `game.waiting_on uuid[] not null default '{}'` and `game.outcome int[]` are where a game in
+play stands, for the game list ([UX redesign part 1 → Home](superpowers/specs/2026-11-07-ux-redesign-1-client-shell.md)): the round,
+the acting team's ordinal, the accounts an open Ask waits on, and once ended the winners' ordinals (one wins, several draw, none is no
+result). The game server writes them (`IGameRows.WriteProgressAsync`, `GameProgress.Of` over the projection) after each run of the log
+and at hydration, when they differ from its last write; management only lists them. `round` is null until the first write: a game in
+lobby or setup, or one not hydrated since `029_game_progress.sql`.
+
 ### An army book is a row, and lists its spells
 
 `book (properties_hash, uid, name, version)`, keyed `(properties_hash, uid)` and cascading from `properties`, is one
