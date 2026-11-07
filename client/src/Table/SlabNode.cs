@@ -12,17 +12,38 @@ public partial class SlabNode : Node3D
     const float Thickness = 1f;
     /// <summary>Inches per pixel of a board print and of the table's wood, and the relief a full height rise stands for.</summary>
     const float BoardPixel = 12f / 1024, WoodPixel = 24f / 1024, BoardRelief = 0.05f, WoodRelief = 0.01f;
-    const string TableWood = "res://content/table/wood.png";
+    /// <summary>The table's wood: packed, with its height in alpha like a board print.</summary>
+    public const string TableWood = "res://content/table/wood.png";
     static readonly Shader BoardShader = GD.Load<Shader>("res://content/shaders/board.gdshader"), TableShader = GD.Load<Shader>("res://content/shaders/table.gdshader");
     MeshInstance3D? _mesh, _table;
     int _version;
 
     /// <summary>The board and the table for a size and print. The prints load off the main thread; the slab drawn before stays until
-    /// the new one is built. Completes when it is drawn, or when a later call replaced it.</summary>
-    public async Task Set(TableSize size, VisualRef texture)
+    /// the new one is built. A built-in print not on hand is fetched (counted in <paramref name="progress"/>), the board drawn untextured
+    /// meanwhile. Completes when it is drawn, or when a later call replaced it.</summary>
+    public async Task Set(TableSize size, VisualRef texture, Core.AssetProgress? progress = null)
     {
         var version = ++_version;
-        var print = texture.IsBuiltin ? await PrintTextures.LoadAsync(Core.BuiltinContent.TextureFile(texture.Builtin!), BoardRelief / BoardPixel) : null;
+        if (!texture.IsBuiltin) { await Draw(size, null, version); return; }
+        var path = Core.BuiltinCatalog.TexturePath(texture.Builtin!);
+        if (Core.BuiltinContent.File(path) is { } file) { await Draw(size, file, version); return; }
+        var key = $"builtin:{path}";
+        progress?.Started(key);
+        try
+        {
+            await Draw(size, null, version);
+            var fetched = await Core.BuiltinContent.FileAsync(path);
+            if (version == _version) await Draw(size, fetched, version);
+        }
+        finally { progress?.Finished(key); }
+    }
+
+    /// <summary>The board with this print file (the shader warm-up's); null draws it untextured.</summary>
+    public Task SetPrint(TableSize size, string? printFile) => Draw(size, printFile, ++_version);
+
+    async Task Draw(TableSize size, string? printFile, int version)
+    {
+        var print = printFile is null ? null : await PrintTextures.LoadAsync(printFile, BoardRelief / BoardPixel);
         var wood = await PrintTextures.LoadAsync(TableWood, WoodRelief / WoodPixel);
         if (version != _version || !IsInstanceValid(this)) return;
         _mesh?.QueueFree(); _table?.QueueFree();

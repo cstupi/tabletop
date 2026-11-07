@@ -16,8 +16,8 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     /// <summary>The editor's import default: normals within this angle merge while a level of detail is simplified.</summary>
     const float LodNormalMergeAngle = 60;
     readonly Dictionary<string, Task<Node3D?>> _templates = new();
-    /// <summary>The built-in meshes' templates, shared by every game and the shader warm-up: a built-in file never changes, so it is parsed
-    /// once per run. Never freed.</summary>
+    /// <summary>The built-in meshes' templates, shared by every game and the shader warm-up: a built-in file (a content hash or a packed
+    /// file) never changes, so it is parsed once per run. Freed at exit.</summary>
     static readonly Dictionary<string, Task<Node3D?>> Builtins = new();
     /// <summary>The files this table is loading, for the loading strip ("Loading models 3 of 12").</summary>
     public AssetProgress Progress { get; } = new();
@@ -97,24 +97,29 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         finally { _inFlight.Release(); }
     }
 
-    public async Task<Node3D?> LoadBuiltinAsync(string name, Volume? fit = null)
+    /// <summary>A built-in piece's mesh, fitted to <paramref name="fit"/>. A file not on hand is fetched by the catalog's hash
+    /// (<see cref="BuiltinContent.FileAsync"/>) unless <paramref name="fetch"/> is false; null when it cannot be had, and TerrainNode
+    /// keeps its proxies visible.</summary>
+    public async Task<Node3D?> LoadBuiltinAsync(string name, Volume? fit = null, bool fetch = true)
     {
-        var file = BuiltinContent.TerrainMeshFile(name);
-        // A served catalog's mesh is a cached blob (BuiltinSync downloaded it), preflighted in Template like any asset; else
-        // the packed res:// file. That path is passed through unchanged: GltfDocument reads it with Godot's FileAccess, so it
-        // works from the editor and from an exported .pck alike, which GlobalizePath would not. A missing file returns null,
-        // and TerrainNode keeps its proxies visible.
-        if (file is null || !Godot.FileAccess.FileExists(file)) return null;
-        var ready = Builtins.TryGetValue(file, out var t) && t.IsCompleted;
-        if (!ready) Progress.Started(file);
+        if (BuiltinContent.MeshPathOf(name) is not { } path) return null;
+        // A cached blob is preflighted in Template like any asset; a packed res:// file (a development run) is passed through
+        // unchanged: GltfDocument reads it with Godot's FileAccess, which GlobalizePath would not.
+        var file = BuiltinContent.File(path);
+        if (file is null && !fetch) return null;
+        var ready = file is not null && Builtins.TryGetValue(file, out var t) && t.IsCompleted;
+        var key = $"builtin:{path}";
+        if (!ready) Progress.Started(key);
         Node3D? scene;
         try
         {
+            file ??= await BuiltinContent.FileAsync(path);
+            if (file is null || !Godot.FileAccess.FileExists(file)) return null;
             scene = await Build(file, 1, BuiltinContent.MeshOrientation, builtin: true);
             if (scene is null) return null;
             await TerrainLook.ApplyAsync(scene);
         }
-        finally { if (!ready) Progress.Finished(file); }
+        finally { if (!ready) Progress.Finished(key); }
         if (_disposed) { scene.QueueFree(); return null; }
         if (fit is null) return scene;
         // One mesh serves a group of built-ins (Task 6), so it is authored in the unit box — table-frame x and y in
@@ -147,8 +152,8 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     {
         var parsed = await Task.Run(() =>
         {
-            // A cached blob may predate the server's checks or be hostile: Godot sees it only after GlbPreflight. Built-ins
-            // (res://) ship in the build.
+            // A cached blob may predate the server's checks or be hostile: Godot sees it only after GlbPreflight. A res:// file
+            // ships in the build.
             if (!path.StartsWith("res://", StringComparison.Ordinal))
             {
                 string? refusal;

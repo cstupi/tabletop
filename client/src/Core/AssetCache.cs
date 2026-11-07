@@ -13,13 +13,55 @@ public sealed class AssetTooLargeException(long cap) : Exception($"Download exce
     public long Cap { get; } = cap;
 }
 
-/// <summary>Blobs by SHA-256 on disk. Fetched once per machine; the same mesh in two games is one download.</summary>
+/// <summary>Blobs by SHA-256 on disk, outside the install folder: fetched once per machine, so the same mesh in two games, or a
+/// built-in file a client update did not change, is one download. A blob's last-write time is its last use (<see cref="Resolve"/>,
+/// <see cref="FetchAsync(string, Uri, long, CancellationToken)"/>), which <see cref="Evict"/> reads.</summary>
 public sealed class AssetCache(string root, HttpClient http)
 {
     readonly SemaphoreSlim _gate = new(4, 4);
 
     public string PathFor(string hash) => Path.Combine(root, $"{hash}.bin");
     public bool Has(string hash) => File.Exists(PathFor(hash));
+
+    /// <summary>The blob's path for a load, marking it used; null when it is not held.</summary>
+    public string? Resolve(string hash)
+    {
+        var path = PathFor(hash);
+        if (!File.Exists(path)) return null;
+        Touch(path);
+        return path;
+    }
+
+    static void Touch(string path)
+    {
+        try { File.SetLastWriteTimeUtc(path, DateTime.UtcNow); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }   // in use or read-only: the use goes unrecorded
+    }
+
+    public const long EvictAbove = 1L << 30, EvictTo = 768L << 20;
+
+    /// <summary>At start: over <paramref name="above"/> bytes of blobs, deletes the least recently used until under <paramref name="to"/>,
+    /// never one <paramref name="keep"/> names; a <c>.part</c> file older than a day goes too. Returns the blobs deleted.</summary>
+    public int Evict(IReadOnlySet<string> keep, long above = EvictAbove, long to = EvictTo)
+    {
+        if (!Directory.Exists(root)) return 0;
+        var dir = new DirectoryInfo(root);
+        foreach (var part in dir.EnumerateFiles("*.part"))
+            if (DateTime.UtcNow - part.LastWriteTimeUtc > TimeSpan.FromDays(1)) try { part.Delete(); } catch (IOException) { }
+        var blobs = dir.EnumerateFiles("*.bin").ToList();
+        var total = blobs.Sum(b => b.Length);
+        if (total <= above) return 0;
+        var deleted = 0;
+        foreach (var blob in blobs.OrderBy(b => b.LastWriteTimeUtc))
+        {
+            if (total <= to) break;
+            if (keep.Contains(Path.GetFileNameWithoutExtension(blob.Name))) continue;
+            var length = blob.Length;   // Delete invalidates the FileInfo
+            try { blob.Delete(); total -= length; deleted++; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return deleted;
+    }
 
     public const long MeshCap = 64L << 20, TextureCap = 16L << 20;
 
@@ -32,8 +74,8 @@ public sealed class AssetCache(string root, HttpClient http)
     /// it throws <see cref="AssetTooLargeException"/> and keeps nothing.</summary>
     public async Task<string> FetchAsync(string hash, Uri url, long maxBytes, CancellationToken ct)
     {
+        if (Resolve(hash) is { } held) return held;
         var path = PathFor(hash);
-        if (File.Exists(path)) return path;
         Directory.CreateDirectory(root);
         var part = Path.Combine(root, $"{hash}.{Guid.CreateVersion7():N}.part");
         await _gate.WaitAsync(ct);

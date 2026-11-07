@@ -151,10 +151,10 @@ download per machine. Ordering is by distance to the camera at request time, thr
 queue with two downloads in flight. `Pump` dequeues whichever waiting item is nearest, not the one
 it was called for, so a camera move lets later-requested nearer pieces overtake. Nothing goes
 through Godot's editor import: `.glb` files never appear in the project, only in `user://cache/`,
-which is why an asset can arrive mid-game. Built-in content is the other half of that split: it
-ships inside the build and loads from `res://content/builtin/`, read out of the export's `.pck`
-with no hash, no manifest entry, no presigned URL and no cache write. Adding a built-in means
-shipping a new client build.
+which is why an asset can arrive mid-game. Built-in meshes and board prints come the same way,
+by the hash in the built-in catalog and its presigned URL (`BuiltinSync.FileAsync`), into the same
+cache, with no manifest entry; a development run reads them from `res://content/builtin/` instead.
+Adding a built-in needs a release, not a new client build.
 
 `MeshLoader.Orient` is the only place the mesh convention is written on the client. It must change
 together with the web app's `toWorld`/`eulerFor` if the convention ever does. Another

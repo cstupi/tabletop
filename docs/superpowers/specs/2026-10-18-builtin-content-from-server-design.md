@@ -2,7 +2,8 @@
 
 Owner decision, 2026-10-17: the built-in content (the terrain catalog, its meshes and the table textures) is published
 with each server release and cached on the client, so new or improved built-in terrain reaches players without a client
-update. A release busts the client's cache by carrying a new catalog version.
+update. A release busts the client's cache by carrying a new catalog version. The client export carries the catalog but not
+the files, which a client fetches by hash when a table needs them (spec `2026-11-07-assets-on-demand-and-client-releases-design.md`).
 
 ## Source of truth
 
@@ -28,9 +29,10 @@ update. A release busts the client's cache by carrying a new catalog version.
 - An entry is one volume: `kind` `solid` or `area`, `footprint` `circle` (`a` the radius) or `rect` (`a` width, `b`
   length), base at 0, `top` its height, `declarations` from the seven `TerrainDeclarations`, optional `notes`. `mesh` names
   one of `meshes`; `MeshLoader` fits that mesh to the entry's volume.
-- The client embeds the file (`BuiltinContent.Packed`), and the export packs the meshes and textures under
-  `res://content/builtin/`. That is the catalog a client uses before its first fetch, offline, and against a server with
-  nothing published.
+- The client embeds the file (`BuiltinContent.Packed`): ids, kinds and volumes, no hashes. That is the catalog a client
+  uses before its first fetch and against a server with nothing published. The export excludes `content/builtin/terrain/`
+  and `content/builtin/textures/` (`export_presets.cfg`, `exclude_filter`); a development run reads them from
+  `res://content/builtin/`.
 - Nothing in the rules engine reads the catalog. Placing a built-in copies its volume into the placement
   (`BuiltinContent.Place`, `TerrainPlacement.Volumes`); the draft, layouts and the game's table carry those copies, so a
   catalog change never alters a placed piece or a game in progress. A placed piece's mesh is looked up by its `mesh` id
@@ -49,8 +51,8 @@ skip):
    "files": { "terrain/hill.glb": { "sha256": "…", "size": 51234 }, "textures/grass.png": { "sha256": "…", "size": 80211 } }
    ```
 
-2. Upload each file to `builtin/<sha256>`, then the catalog to `builtin/catalog.json` (`no-cache`), so the catalog never
-   names a missing object. Content addressing makes a re-upload of an unchanged file a no-op in effect, and leaves the
+2. Upload each file to `builtin/<sha256>` (`Cache-Control: public, max-age=31536000, immutable`), then the catalog to
+   `builtin/catalog.json` (`no-cache`), so the catalog never names a missing object. Content addressing makes a re-upload of an unchanged file a no-op in effect, and leaves the
    objects an older catalog names in place.
 
 The upload uses the release publisher (`RELEASE_S3_*`), the same path and container as the client zips; on docker1 it
@@ -75,15 +77,26 @@ laid out like `client/content/builtin/` (a test publish).
 - `BuiltinCatalog.Parse` reads the repo file, the published file and the response alike, and refuses a catalog that
   names an unknown mesh, a duplicate id, an unknown kind or declaration, a non-positive size, a label over 64 or notes
   over 500 characters, or (with `files`) a mesh or texture without a file entry.
-- `BuiltinContent.Catalog` is the catalog in use, the packed one at start. `BuiltinContent.File(path)` is the cached
-  blob when the catalog lists the path and `AssetCache` holds its hash, else `res://content/builtin/<path>`.
+- `BuiltinContent.Catalog` is the catalog in use, the packed one at start. `BuiltinContent.File(path)` is the cached blob
+  when the catalog in use lists the path and `AssetCache` holds its hash; else, in a build that packs it (development; Godot
+  finds `res://content/builtin/<path>`), that res:// path; else null, which means fetch it.
 - `BuiltinSync` keeps `<user dir>/builtin.json` (the catalog without URLs):
-  - At start it loads that file and uses it when every file it names is in the cache.
+  - At start the client uses that file when it parses (missing files are fetched on demand), else the packed catalog.
   - `ManagementClient` raises `BuiltinVersionSeen` for each response's header. While signed in, a version different from
-    the one in use starts one sync: fetch `/v1/builtin`, download the files whose hash is not in `AssetCache` (hash-checked,
-    mesh 64 MB and texture 16 MB caps), then use the new catalog on the main thread; entries it no longer lists are gone
-    from setup. The file is written only when every download succeeded, so a failed one is retried at the next notice of
-    that version (at most once a minute). A failure keeps the catalog in use.
+    the one in use starts one sync: fetch `/v1/builtin`, write `builtin.json`, use the new catalog on the main thread;
+    entries it no longer lists are gone from setup. It downloads no file. A failure keeps the catalog in use and the version
+    is retried at its next notice, at most once a minute.
+  - `BuiltinSync.FileAsync(path)` fetches a file not on hand: the hash and URL from the last `/v1/builtin` answer, fetched
+    again (one `CoalescedRefresh`, at most once per 5 s) when there is none, it lacks the path or its URLs have lapsed;
+    `AssetCache.FetchAsync` hash-checks it under the mesh 64 MB or texture 16 MB cap. Requests for one path share one download.
+- A table's built-in files count in its `AssetProgress` with its user meshes (the loading curtain and strip). Until a mesh
+  lands the piece draws its volumes; the slab draws untextured until its print lands, and the curtain waits for it
+  (`TableView.SlabReady`). A piece placed in setup fetches its mesh then; the setup lists need no files.
+- The shader warm-up draws only built-in files on hand, and dresses a stand-in in each surface grain so the terrain
+  materials compile without them; its board uses the table's wood when no print is on hand.
+- `AssetCache` is outside the install folder, so a client update keeps it. A use (`AssetCache.Resolve` for a load, a
+  finished or cached `FetchAsync`) sets the blob's last-write time; at start, over 1 GB, the least recently used blobs go
+  until under 768 MB, never one the catalog in use names, and `.part` files older than a day go too.
 - `BuiltinContent.Changed` redraws: `TableView` reloads every built-in terrain mesh and the slab texture, `SetupToolbar`
   refills its texture and terrain lists. The random table lists as unplaced no piece the catalog lacks: management's embedded catalog is the repo's, and a piece it lacks comes back in `unlisted`.
 - A cached mesh is a downloaded blob: `MeshLoader` runs `GlbPreflight` on it like any asset. A cached texture passes

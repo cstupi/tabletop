@@ -12,7 +12,8 @@ public sealed record BuiltinFile(string Sha256, long Size, Uri? Url = null);
 /// <summary>
 /// The built-in content: terrain, its meshes, the table textures (spec 2026-10-18-builtin-content-from-server-design.md).
 /// One shape for <c>client/content/builtin/catalog.json</c>, the published <c>builtin/catalog.json</c> (plus <c>version</c>
-/// and <c>files</c>) and <c>GET /v1/builtin</c> (plus each file's <c>url</c>). The packed catalog has no version and no files.
+/// and <c>files</c>) and <c>GET /v1/builtin</c> (plus each file's <c>url</c> and <c>expiresAt</c>). The packed catalog has no version
+/// and no files.
 /// </summary>
 public sealed partial class BuiltinCatalog
 {
@@ -22,6 +23,8 @@ public sealed partial class BuiltinCatalog
     public IReadOnlyDictionary<string, BuiltinTerrain> Terrain { get; }
     /// <summary>By path under <c>client/content/builtin/</c>: <see cref="MeshPath"/> and <see cref="TexturePath"/>.</summary>
     public IReadOnlyDictionary<string, BuiltinFile> Files { get; }
+    /// <summary>When the files' URLs lapse (a served catalog only).</summary>
+    public DateTimeOffset? ExpiresAt => _dto.ExpiresAt;
     readonly Dto _dto;
 
     BuiltinCatalog(Dto dto, string? version, IReadOnlyList<string> meshes, IReadOnlyList<string> textures, IReadOnlyDictionary<string, BuiltinTerrain> terrain, IReadOnlyDictionary<string, BuiltinFile> files)
@@ -29,15 +32,13 @@ public sealed partial class BuiltinCatalog
 
     public static string MeshPath(string mesh) => $"terrain/{mesh}.glb";
     public static string TexturePath(string texture) => $"textures/{texture}.png";
+    /// <summary>The download cap for a file by its path: a texture's, else a mesh's.</summary>
+    public static long CapFor(string path) => path.StartsWith("textures/", StringComparison.Ordinal) ? AssetCache.TextureCap : AssetCache.MeshCap;
 
-    /// <summary>Every file the catalog names, with the download cap for its kind.</summary>
-    public IEnumerable<(string Path, BuiltinFile File, long Cap)> Downloads =>
-        Meshes.Select(m => (MeshPath(m), AssetCache.MeshCap)).Concat(Textures.Select(t => (TexturePath(t), AssetCache.TextureCap)))
-            .Where(x => Files.ContainsKey(x.Item1)).Select(x => (x.Item1, Files[x.Item1], x.Item2));
-
-    /// <summary>The cached blob when this catalog lists the path and the cache holds its hash, else the packed file.</summary>
-    public string FileFor(string path, AssetCache? cache) =>
-        Files.TryGetValue(path, out var f) && cache is not null && cache.Has(f.Sha256) ? cache.PathFor(f.Sha256) : $"res://content/builtin/{path}";
+    /// <summary>The cached blob (marked used) when this catalog lists the path and the cache holds its hash; else the packed file when
+    /// this build <paramref name="packs"/> it (a development build); else null, which means fetch it.</summary>
+    public string? FileFor(string path, AssetCache? cache, Func<string, bool> packs) =>
+        Files.TryGetValue(path, out var f) && cache?.Resolve(f.Sha256) is { } blob ? blob : packs(path) ? $"res://content/builtin/{path}" : null;
 
     /// <summary>A placement of a built-in: the volumes are copied on add, so the draft is self-contained and a later catalog never
     /// changes a placed piece (docs/schema.md → A terrain placement names a built-in or an asset).</summary>
@@ -47,7 +48,7 @@ public sealed partial class BuiltinCatalog
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, WriteIndented = true };
 
     /// <summary>The catalog without download URLs, for <c>builtin.json</c> in the user dir.</summary>
-    public string ToJson() => JsonSerializer.Serialize(_dto with { Files = _dto.Files?.ToDictionary(kv => kv.Key, kv => kv.Value with { Url = null }) }, Json);
+    public string ToJson() => JsonSerializer.Serialize(_dto with { ExpiresAt = null, Files = _dto.Files?.ToDictionary(kv => kv.Key, kv => kv.Value with { Url = null }) }, Json);
 
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,63}$")] private static partial Regex Name();
     [GeneratedRegex("^[0-9a-f]{64}$")] private static partial Regex Sha256();
@@ -84,6 +85,6 @@ public sealed partial class BuiltinCatalog
         return list;
     }
 
-    sealed record Dto(string? Version, List<string>? Meshes, List<string>? Textures, JsonElement? Terrain, Dictionary<string, FileDto>? Files);
+    sealed record Dto(string? Version, List<string>? Meshes, List<string>? Textures, JsonElement? Terrain, Dictionary<string, FileDto>? Files, DateTimeOffset? ExpiresAt);
     sealed record FileDto(string? Sha256, long Size, Uri? Url);
 }

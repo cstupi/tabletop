@@ -36,45 +36,56 @@ public class BuiltinCatalogTests
         Assert.Equal(new Volume(VolumeKind.Area, Footprint.Rect(4, 6), new Point2(0, 0), new Yaw(0), 0, 0.5, TerrainDeclarations.Impassable | TerrainDeclarations.Dangerous, null), c.Terrain["pond"].Volume);
         Assert.Equal(("Pond", "hill"), (c.Terrain["pond"].Label, c.Terrain["pond"].Mesh));
         Assert.Equal(new BuiltinFile(Hash('a'), 10, new Uri("http://blobs/m")), c.Files["terrain/hill.glb"]);
-        Assert.Equal([("terrain/hill.glb", AssetCache.MeshCap), ("textures/grass.png", AssetCache.TextureCap)], c.Downloads.Select(d => (d.Path, d.Cap)));
     }
 
     [Fact]
-    public void The_saved_form_drops_urls_and_reads_back_the_same()
+    public void The_saved_form_drops_urls_and_their_expiry_and_reads_back_the_same()
     {
-        var c = BuiltinCatalog.Parse(Catalog(url: "http://blobs").ToJsonString());
+        var j = Catalog(url: "http://blobs"); j["expiresAt"] = "2026-11-07T12:15:00Z";
+        var c = BuiltinCatalog.Parse(j.ToJsonString());
+        Assert.Equal(new DateTimeOffset(2026, 11, 7, 12, 15, 0, TimeSpan.Zero), c.ExpiresAt);
         var json = c.ToJson();
         Assert.DoesNotContain("http://blobs", json);
+        Assert.DoesNotContain("expiresAt", json);
         var back = BuiltinCatalog.Parse(json);
         Assert.Equal(c.Version, back.Version);
         Assert.Equal(c.Terrain, back.Terrain);
         Assert.Equal(new BuiltinFile(Hash('a'), 10), back.Files["terrain/hill.glb"]);
+        Assert.Null(back.ExpiresAt);
     }
 
+    static readonly Func<string, bool> Packed = _ => true, NotPacked = _ => false;
+
     [Fact]
-    public void A_packed_catalog_has_no_version_and_resolves_to_res_paths()
+    public void A_packed_catalog_has_no_version_and_resolves_to_res_paths_only_in_a_build_that_packs_them()
     {
         var c = BuiltinCatalog.Parse(Catalog(version: null).ToJsonString());
         Assert.Null(c.Version);
         Assert.Empty(c.Files);
-        Assert.Equal("res://content/builtin/terrain/hill.glb", c.FileFor("terrain/hill.glb", null));
+        Assert.Equal("res://content/builtin/terrain/hill.glb", c.FileFor("terrain/hill.glb", null, Packed));
+        Assert.Null(c.FileFor("terrain/hill.glb", null, NotPacked));
     }
 
     [Fact]
-    public void A_listed_file_resolves_to_the_cache_once_held_and_to_the_packed_file_before()
+    public void A_listed_file_resolves_to_the_cache_once_held_else_to_the_packed_file_else_to_nothing()
     {
         var dir = Directory.CreateTempSubdirectory("tabletop-builtin").FullName;
         try
         {
             var cache = new AssetCache(dir, new HttpClient());
             var c = BuiltinCatalog.Parse(Catalog().ToJsonString());
-            Assert.Equal("res://content/builtin/terrain/hill.glb", c.FileFor("terrain/hill.glb", cache));
+            Assert.Equal("res://content/builtin/terrain/hill.glb", c.FileFor("terrain/hill.glb", cache, Packed));
+            Assert.Null(c.FileFor("terrain/hill.glb", cache, NotPacked));
             File.WriteAllBytes(cache.PathFor(Hash('a')), [1]);
-            Assert.Equal(cache.PathFor(Hash('a')), c.FileFor("terrain/hill.glb", cache));
-            Assert.Equal("res://content/builtin/textures/grass.png", c.FileFor("textures/grass.png", cache));
+            Assert.Equal(cache.PathFor(Hash('a')), c.FileFor("terrain/hill.glb", cache, NotPacked));
+            Assert.Equal("res://content/builtin/textures/grass.png", c.FileFor("textures/grass.png", cache, Packed));
         }
         finally { Directory.Delete(dir, true); }
     }
+
+    [Fact]
+    public void A_path_caps_by_its_kind()
+        => Assert.Equal((AssetCache.MeshCap, AssetCache.TextureCap), (BuiltinCatalog.CapFor("terrain/hill.glb"), BuiltinCatalog.CapFor("textures/grass.png")));
 
     [Fact]
     public void Placing_copies_the_catalogs_volume()

@@ -62,14 +62,13 @@ public class BuiltinContentTests
         Assert.Contains("desert", BuiltinContent.Textures);
         Assert.Equal(["objective-ring"], BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
-        Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
         // Every piece names one of the catalog's meshes: 33 files for 38 pieces, shared only by the same terrain at other sizes.
         Assert.Equal(33, BuiltinContent.TerrainMeshGroups.Count);
-        Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(BuiltinContent.TerrainMeshFile(t.Name), BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
-        Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
-        Assert.Equal("res://content/builtin/terrain/sludge-canal.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
-        Assert.Equal("res://content/builtin/terrain/death-marsh.glb", BuiltinContent.TerrainMeshFile("death-marsh"));
-        Assert.Null(BuiltinContent.TerrainMeshFile("no-such-piece"));
+        Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(BuiltinContent.MeshPathOf(t.Name), BuiltinContent.TerrainMeshGroups.Select(BuiltinCatalog.MeshPath)));
+        Assert.Equal("terrain/hill.glb", BuiltinContent.MeshPathOf("steep-hill"));
+        Assert.Equal("terrain/sludge-canal.glb", BuiltinContent.MeshPathOf("sludge-stream"));
+        Assert.Equal("terrain/death-marsh.glb", BuiltinContent.MeshPathOf("death-marsh"));
+        Assert.Null(BuiltinContent.MeshPathOf("no-such-piece"));
     }
 
     [Fact]
@@ -115,13 +114,13 @@ public class BuiltinContentTests
         }
     }
 
-    /// <summary>MeshLoader reads a built-in mesh raw (FileAccess, GltfDocument.AppendFromFile), not through ResourceLoader. An
-    /// export ships an imported file only as its import, so each mesh must be imported as Keep File to reach the .pck as-is.</summary>
+    /// <summary>A development run reads a built-in mesh raw from res:// (FileAccess, GltfDocument.AppendFromFile), not through
+    /// ResourceLoader, so each mesh must be imported as Keep File.</summary>
     [Fact]
-    public void Every_built_in_mesh_ships_raw_in_the_export()
+    public void Every_built_in_mesh_is_kept_raw()
     {
         var client = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../client"));
-        foreach (var file in BuiltinContent.Packed.Meshes.Select(m => BuiltinContent.Packed.FileFor(BuiltinCatalog.MeshPath(m), null)))
+        foreach (var file in BuiltinContent.Packed.Meshes.Select(m => BuiltinContent.Packed.FileFor(BuiltinCatalog.MeshPath(m), null, _ => true)!))
         {
             var path = Path.Combine(client, file["res://".Length..]);
             Assert.True(File.Exists(path), $"{file} is missing");
@@ -174,8 +173,8 @@ public class BuiltinContentTests
     [Fact]
     public void Rect_hills_draw_the_square_plateau()
     {
-        Assert.EndsWith("hill-rect.glb", BuiltinContent.TerrainMeshFile("hill-small"));
-        Assert.EndsWith("dunes.glb", BuiltinContent.TerrainMeshFile("small-dunes"));
+        Assert.EndsWith("hill-rect.glb", BuiltinContent.MeshPathOf("hill-small"));
+        Assert.EndsWith("dunes.glb", BuiltinContent.MeshPathOf("small-dunes"));
         Assert.Contains("hill-rect", BuiltinContent.TerrainMeshGroups);
     }
 }

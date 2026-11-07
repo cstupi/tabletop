@@ -51,6 +51,73 @@ public class AssetCacheTests : IDisposable
         Assert.Empty(Directory.GetFiles(_dir, "*.part"));
     }
 
+    /// <summary>A blob of <paramref name="size"/> bytes, last used <paramref name="ago"/> before now.</summary>
+    string Blob(AssetCache cache, char c, int size, TimeSpan ago)
+    {
+        var hash = new string(c, 64);
+        File.WriteAllBytes(cache.PathFor(hash), new byte[size]);
+        File.SetLastWriteTimeUtc(cache.PathFor(hash), DateTime.UtcNow - ago);
+        return hash;
+    }
+
+    [Fact]
+    public void Resolving_a_held_blob_marks_it_used()
+    {
+        var cache = new AssetCache(_dir, new HttpClient());
+        var hash = Blob(cache, 'a', 1, TimeSpan.FromDays(9));
+        Assert.Null(cache.Resolve(new string('b', 64)));
+        Assert.Equal(cache.PathFor(hash), cache.Resolve(hash));
+        Assert.True(File.GetLastWriteTimeUtc(cache.PathFor(hash)) > DateTime.UtcNow - TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Fetching_a_held_blob_marks_it_used()
+    {
+        var cache = new AssetCache(_dir, new HttpClient(new BytesHandler(Glb)));
+        var hash = Hash(Glb);
+        await File.WriteAllBytesAsync(cache.PathFor(hash), Glb);
+        File.SetLastWriteTimeUtc(cache.PathFor(hash), DateTime.UtcNow - TimeSpan.FromDays(9));
+        await cache.FetchAsync(hash, new Uri("http://localhost:9000/never"), CancellationToken.None);
+        Assert.True(File.GetLastWriteTimeUtc(cache.PathFor(hash)) > DateTime.UtcNow - TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public void Under_the_limit_eviction_deletes_no_blob()
+    {
+        var cache = new AssetCache(_dir, new HttpClient());
+        Blob(cache, 'a', 40, TimeSpan.FromDays(30)); Blob(cache, 'b', 40, TimeSpan.FromDays(1));
+        Assert.Equal(0, cache.Evict(new HashSet<string>(), above: 100, to: 50));
+        Assert.Equal(2, Directory.GetFiles(_dir, "*.bin").Length);
+    }
+
+    [Fact]
+    public void Over_the_limit_eviction_deletes_the_least_recently_used_until_under_the_target_and_never_a_kept_one()
+    {
+        var cache = new AssetCache(_dir, new HttpClient());
+        var oldest = Blob(cache, 'a', 30, TimeSpan.FromDays(40));
+        var kept = Blob(cache, 'b', 30, TimeSpan.FromDays(30));
+        var old = Blob(cache, 'c', 30, TimeSpan.FromDays(20));
+        var recent = Blob(cache, 'd', 30, TimeSpan.FromDays(10));
+        var newest = Blob(cache, 'e', 30, TimeSpan.FromDays(1));
+        Assert.Equal(2, cache.Evict(new HashSet<string> { kept }, above: 100, to: 90));
+        Assert.Equal([kept, recent, newest], [.. new[] { oldest, kept, old, recent, newest }.Where(cache.Has)]);
+    }
+
+    [Fact]
+    public void Eviction_deletes_part_files_older_than_a_day()
+    {
+        var cache = new AssetCache(_dir, new HttpClient());
+        var stale = Path.Combine(_dir, $"{new string('a', 64)}.x.part"); var fresh = Path.Combine(_dir, $"{new string('b', 64)}.y.part");
+        File.WriteAllBytes(stale, [1]); File.WriteAllBytes(fresh, [1]);
+        File.SetLastWriteTimeUtc(stale, DateTime.UtcNow - TimeSpan.FromHours(25));
+        cache.Evict(new HashSet<string>());
+        Assert.Equal([fresh], Directory.GetFiles(_dir, "*.part"));
+    }
+
+    [Fact]
+    public void Eviction_of_a_missing_cache_does_nothing()
+        => Assert.Equal(0, new AssetCache(Path.Combine(_dir, "none"), new HttpClient()).Evict(new HashSet<string>()));
+
     [Fact]
     public void Caps_follow_the_asset_kind()
     {

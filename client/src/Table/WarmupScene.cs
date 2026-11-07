@@ -8,7 +8,8 @@ namespace Tabletop.Client.Table;
 /// <summary>
 /// The shader warm-up's table (spec 2026-10-25-loading-design.md → Shader warm-up): in a viewport of its own, set up as the game's
 /// table viewport is, with the table's lights and environment, every kind of thing a table draws, made by the same code a game
-/// uses: the board and the table under it, every built-in terrain mesh dressed in its grains, models in each state (hitbox, ring,
+/// uses: the board and the table under it, every built-in terrain mesh on hand (cached or packed; it fetches none) dressed in its
+/// grains, a stand-in dressed in each grain for a release's first start with none on hand, models in each state (hitbox, ring,
 /// highlight, warning, ghost) with a miniature of each kind of glTF material (<see cref="WarmupGlb"/>), markers, zones, a move area,
 /// rulers, sight and hover lines, laser glows, the Shaken ring and the floating labels. Each Quality is applied in turn and drawn a
 /// few frames, so its shaders and pipelines compile here. The built-in meshes' templates and the prints stay loaded for the game.
@@ -19,10 +20,11 @@ public partial class WarmupScene : Node
     SubViewport _viewport = null!; DirectionalLight3D _key = null!; Godot.Environment _environment = null!;
     Node3D _root = null!;
 
-    /// <summary>The bar's steps: each built-in terrain mesh as it loads, the rest of the table, then each Quality.</summary>
+    /// <summary>The bar's steps: each built-in terrain mesh on hand as it loads, the rest of the table, then each Quality.</summary>
     public async Task Run(GraphicsQuality current, Action<LoadingLine> progress)
     {
-        var names = BuiltinContent.Terrain.GroupBy(t => t.Value.Mesh).Select(g => g.First().Key).ToList();
+        var names = BuiltinContent.Terrain.GroupBy(t => t.Value.Mesh).Select(g => g.First().Key)
+            .Where(n => BuiltinContent.File(BuiltinContent.MeshPathOf(n)!) is not null).ToList();
         var steps = names.Count + 1; var done = 0;
         void Step() => progress(GraphicsWarmup.Line(++done, steps));
         progress(GraphicsWarmup.Line(0, steps));
@@ -67,11 +69,14 @@ public partial class WarmupScene : Node
     async Task Build(IReadOnlyList<string> names, Action step)
     {
         var slab = new SlabNode(); _root.AddChild(slab);
-        var board = slab.Set(new TableSize(24, 16), VisualRef.OfBuiltin(BuiltinContent.Textures.FirstOrDefault() ?? "grass"));
+        // The board shader needs a print: a built-in one on hand, else the table's wood, which draws through the same shader.
+        var print = BuiltinContent.Textures.Select(t => BuiltinContent.File(BuiltinCatalog.TexturePath(t))).FirstOrDefault(f => f is not null);
+        var board = slab.SetPrint(new TableSize(24, 16), print ?? SlabNode.TableWood);
 
         // Every built-in terrain mesh, one terrain of each, dressed as a game dresses it; then a terrain piece's hitboxes.
         var meshes = new MeshLoader(Main.Instance.Cache, Main.Instance.Session.Management, Guid.Empty);
-        var terrain = await Task.WhenAll(names.Select(async n => { var scene = await meshes.LoadBuiltinAsync(n); step(); return scene; }));
+        var terrain = (await Task.WhenAll(names.Select(async n => { var scene = await meshes.LoadBuiltinAsync(n, fetch: false); step(); return scene; })))
+            .Concat(await Dressed()).ToList();
         var i = 0;
         foreach (var scene in terrain)
         {
@@ -145,6 +150,31 @@ public partial class WarmupScene : Node
         row.AddChild(new PanelContainer { ThemeTypeVariation = Theming.Variation.Badge, CustomMinimumSize = new Vector2(20, 20) });
         row.AddChild(new PanelContainer { ThemeTypeVariation = Theming.Variation.DieFace, CustomMinimumSize = new Vector2(20, 20) });
         await board;
+    }
+
+    /// <summary>Vertex-coloured miniatures dressed as built-in terrain is (TerrainLook), one per grain by a material name of that family,
+    /// foliage also cut out, so the dressed materials compile with no built-in mesh on hand.</summary>
+    static async Task<IReadOnlyList<Node3D?>> Dressed()
+    {
+        var png = Image.CreateEmpty(2, 2, false, Image.Format.Rgba8); png.Fill(new Color(0.5f, 0.5f, 0.45f));
+        var bytes = png.SavePngToBuffer();
+        var dressed = new List<Node3D?>();
+        foreach (var (variant, word) in new[] { (WarmupGlb.Variant.VertexColour, "rock"), (WarmupGlb.Variant.VertexColour, "dirt"), (WarmupGlb.Variant.VertexColour, "leaf"),
+                     (WarmupGlb.Variant.CutOut, "leaf"), (WarmupGlb.Variant.VertexColour, "bark"), (WarmupGlb.Variant.VertexColour, "metal") })
+        {
+            if (Miniature(variant, bytes) is not { } scene) continue;
+            Rename(scene, word);
+            await TerrainLook.ApplyAsync(scene);
+            dressed.Add(scene);
+        }
+        return dressed;
+    }
+
+    static void Rename(Node node, string name)
+    {
+        if (node is MeshInstance3D { Mesh: { } mesh })
+            for (var i = 0; i < mesh.GetSurfaceCount(); i++) if (mesh.SurfaceGetMaterial(i) is { } m) m.ResourceName = name;
+        foreach (var child in node.GetChildren()) Rename(child, name);
     }
 
     /// <summary>One warm-up miniature, imported as a player's file is and settled the same way (MeshLoader).</summary>

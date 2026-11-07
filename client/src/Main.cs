@@ -37,11 +37,20 @@ public partial class Main : Node
         ApplyGraphics(start: true);
         Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); ApplyGraphics(start: false); };
         Cache = new AssetCache(data.Cache, Http);
-        // Built-in content: the saved server catalog when complete, else the packed one; a release's new version syncs while signed in.
+        // Built-in content: the saved server catalog, else the packed one; a release's new version syncs while signed in. Its files come
+        // from the cache, from res:// where this build packs them (a development run), else on demand.
         BuiltinContent.Cache = Cache;
+        BuiltinContent.Packs = path => Godot.FileAccess.FileExists($"res://content/builtin/{path}") || ResourceLoader.Exists($"res://content/builtin/{path}");
         var builtins = new BuiltinSync(data.Builtin, Cache, management.GetBuiltin, () => BuiltinContent.Catalog,
             catalog => _dispatcher.Post(() => { BuiltinContent.Use(catalog); GD.Print($"built-in content {catalog.Version}"); }));
+        BuiltinContent.Sync = builtins;
         if (builtins.LoadCached() is { } saved) BuiltinContent.Use(saved);
+        var keep = BuiltinContent.Catalog.Files.Values.Select(f => f.Sha256).ToHashSet();
+        _ = Task.Run(() =>
+        {
+            try { if (Cache.Evict(keep) is > 0 and var n) GD.Print($"asset cache: evicted {n} files"); }
+            catch (Exception e) { GD.PushWarning($"asset cache eviction: {e.Message}"); }
+        });
         management.BuiltinVersionSeen += version => { if (management.Jwt is not null) _ = builtins.Notice(version); };
         Session.PhaseChanged += () => _dispatcher.Post(Route);
         var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };

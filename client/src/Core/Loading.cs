@@ -44,7 +44,7 @@ public static class LoadingView
     public static LoadingLine Graphics(int done, int total) => new(PreparingGraphics, done, total);
 }
 
-/// <summary>The models and terrain meshes a table is loading, by file: each counted once per wave, a wave ending when every one started
+/// <summary>The models, terrain meshes and built-in files (a board print among them) a table is loading, by file: each counted once per wave, a wave ending when every one started
 /// has finished (loaded or failed), so a late army's models count from one again. Main thread only.</summary>
 public sealed class AssetProgress
 {
