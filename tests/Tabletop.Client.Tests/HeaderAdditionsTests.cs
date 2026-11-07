@@ -29,6 +29,7 @@ public class HeaderAdditionsTests
         var n = new Names(TableUx.Game, p);
         Assert.Equal("Team 2 activating: Orcs · Charge", HeaderView.ActivationLine(p, TableUx.Game, n, TableUx.T1));
         Assert.Equal("Orcs · Charge", HeaderView.ActivationLine(p, TableUx.Game, n, TableUx.T2));
+        Assert.Equal("Orcs · Charge", HeaderView.ActivationLine(p, TableUx.Game, n, TableUx.T1, HeaderFit.Compact));   // the acting tile's ▶ says whose
         Assert.Null(HeaderView.ActivationLine(TableUx.After(TableUx.Deploy), TableUx.Game, n, TableUx.T1));
     }
 }

@@ -57,14 +57,14 @@ export function objectives(p: Projection): { markerId: string; teamId: string | 
 }
 
 /** "Orcs · Charge"; led by "Team 2 activating: " when the actor is not my team's (a watcher has none). */
-export function activationLine(p: Projection, game: GameInfo, n: Names, myTeam: string | null): string | null {
+export function activationLine(p: Projection, game: GameInfo, n: Names, myTeam: string | null, fit: HeaderFit = 'full'): string | null {
   const c = actionFrame(p)?.context;
   const unit = c?.actorUnitId;
   if (c === undefined || unit === undefined) return null;
   const line = c.action !== undefined ? `${n.unit(unit)} · ${c.action}` : n.unit(unit);
   const u = p.units.get(unit);
   const team = u === undefined ? undefined : game.participants.find((x) => x.id === u.participantId)?.teamId;
-  return team !== undefined && team !== myTeam ? `${n.team(team)} activating: ${line}` : line;
+  return fit === 'full' && team !== undefined && team !== myTeam ? `${n.team(team)} activating: ${line}` : line;
 }
 
 /**
@@ -115,10 +115,20 @@ export function tiles(p: Projection, game: GameInfo, n: Names, mine: readonly st
   });
 }
 
+/** HeaderFit: how much the header's lines draw to fit; compact draws the step strip's marks without their words but for the current step's,
+ *  tight also the round as its number. */
+export type HeaderFit = 'full' | 'compact' | 'tight';
+
 /** The round on the header (HeaderView.RoundText): `Round 2`; before round 1 the phase (`Deployment`), else `Before round 1`. */
-export function roundText(round: number, phase: string | null | undefined): string {
-  if (round > 0) return `Round ${round}`;
+export function roundText(round: number, phase: string | null | undefined, fit: HeaderFit = 'full'): string {
+  if (round > 0) return fit === 'tight' ? `${round}` : `Round ${round}`;
   return phase ? phase.charAt(0).toUpperCase() + phase.slice(1).replaceAll('-', ' ') : 'Before round 1';
+}
+
+/** HeaderView.StepText: a step's mark (✓ done, ● current, ○ to come) and label; past full only the current step keeps its label. */
+export function stepText(item: OutlineItem, fit: HeaderFit): string {
+  const mark = item.state === 'done' ? '✓' : item.state === 'current' ? '●' : '○';
+  return fit === 'full' || item.state === 'current' ? `${mark} ${item.label}` : mark;
 }
 
 const ACTION_ICONS = ['hold', 'advance', 'rush', 'charge'] as const;

@@ -1,6 +1,6 @@
 <!-- viewer/src/lib/play/HeaderBar.svelte -->
 <!-- HeaderBar.cs as the play page's top bar (UX redesign part 2 → Header): the round; the acting unit with its action's icon and the step
-     strip, or after the end the result as a button that reopens the Game over modal; the waiting line (`Your move` in my team's colour, else
+     strip (marks only but the current step's under 640 px, HeaderFit), or after the end the result as a button that reopens the Game over modal; the waiting line (`Your move` in my team's colour, else
      the hourglass and the waiting team's band). At the right one tile per team (band, name, score, a dot per unit in play filled once it has
      acted, ▶ on the active team, the player icon on mine; right-click: the team menu) and the objectives by who holds them. -->
 <script lang="ts">
@@ -9,7 +9,7 @@
   import { playingAs } from '../lobby/seats';
   import type { Projection } from '../live/apply';
   import { notActivatedText, ruleSetText } from './headerText';
-  import { actionIcon, activationLine, headerOf, objectives, roundText, tileCount, tileDots, tiles, waitLineOf, REPLAYING, WATCHING, waitingForPlayers } from './headerView';
+  import { actionIcon, activationLine, headerOf, objectives, roundText, stepText, tileCount, tileDots, tiles, waitLineOf, REPLAYING, WATCHING, waitingForPlayers, type HeaderFit } from './headerView';
   import { Names } from './names';
   import { isWatching, waitHolds, waitingTeams } from './waiting';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
@@ -20,6 +20,10 @@
     onGameOver: () => void; onTeamMenu: (teamId: string, at: { x: number; y: number }) => void; replaying?: boolean;
   } = $props();
 
+  // HeaderFit by the status column's width: a narrow bar draws the step strip's marks without their words but for the current step's.
+  let stateWidth = $state(0);
+  const fit = $derived<HeaderFit>(stateWidth > 0 && stateWidth < 640 ? 'compact' : 'full');
+
   // The projection is mutated in place, so every line is read again from each new connection state, not from `shown`'s identity.
   const v = $derived.by(() => {
     const game = snap.game;
@@ -29,7 +33,7 @@
     const quiet = waitingForPlayers(deploying) ?? (replaying ? REPLAYING : isWatching(snap) ? WATCHING : null);
     return {
       game, names, model: headerOf(shown, game, names), tiles: tiles(shown, game, names, myTeams), chips: objectives(shown),
-      activation: activationLine(shown, game, names, actingTeam), quiet, wait: quiet === null ? waitLineOf(shown, game, names, myTeams) : null,
+      activation: activationLine(shown, game, names, actingTeam, fit), quiet, wait: quiet === null ? waitLineOf(shown, game, names, myTeams) : null,
       round: roundText(shown.scheduler.round, shown.scheduler.round === 0 ? shown.scheduler.phase : null),
       as: playingAs(game, myTeams, actingTeam),
     };
@@ -40,7 +44,7 @@
 {#if v !== null && (v.game.status === 'playing' || v.game.status === 'ended')}
   {@const { game, names, model } = v}
   <header class="bar" aria-label="Game status">
-    <div class="state">
+    <div class="state" bind:clientWidth={stateWidth}>
       <p class="turn" title={ruleSetText(game)}>
         <span class="round"><HudIcon name="round" size={18} />{v.round}</span>
         {#if v.as !== null}<span class="chip">{v.as}</span>{/if}
@@ -52,7 +56,7 @@
         {:else if model.activeUnit !== null}
           <span class="who"><span class="act"><HudIcon name={actionIcon(model.action)} size={16} /></span>{v.activation ?? model.activeUnit}</span>
           {#each model.outline as item, i (i)}
-            <span class="step {item.state}">{item.state === 'done' ? '✓' : item.state === 'current' ? '●' : '○'} {item.label}</span>
+            <span class="step {item.state}" title={item.label}>{stepText(item, fit)}</span>
           {/each}
         {/if}
       </p>

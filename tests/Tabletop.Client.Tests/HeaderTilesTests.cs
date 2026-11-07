@@ -44,6 +44,31 @@ public class HeaderTilesTests
         Assert.Equal("Before round 1", HeaderView.RoundText(0, null));
     }
 
+    [Fact]
+    public void A_tight_header_reads_the_round_as_its_number_and_keeps_the_phase()
+    {
+        Assert.Equal("4", HeaderView.RoundText(4, null, HeaderFit.Tight));
+        Assert.Equal("Round 4", HeaderView.RoundText(4, null, HeaderFit.Compact));
+        Assert.Equal("Deployment", HeaderView.RoundText(0, "deployment", HeaderFit.Tight));
+    }
+
+    [Fact]
+    public void A_compact_step_strip_draws_only_the_mark_but_for_the_current_step()
+    {
+        OutlineItem done = new("Pick target", OutlineState.Done), current = new("Target moves", OutlineState.Current), next = new("Melee", OutlineState.Next);
+        Assert.Equal(["✓ Pick target", "● Target moves", "○ Melee"], new[] { done, current, next }.Select(i => HeaderView.StepText(i, HeaderFit.Full)));
+        Assert.Equal(["✓", "● Target moves", "○"], new[] { done, current, next }.Select(i => HeaderView.StepText(i, HeaderFit.Compact)));
+        Assert.Equal(["✓", "● Target moves", "○"], new[] { done, current, next }.Select(i => HeaderView.StepText(i, HeaderFit.Tight)));
+    }
+
+    [Fact]
+    public void Each_fit_is_tighter_than_the_one_before_until_the_last()
+    {
+        Assert.Equal(HeaderFit.Compact, HeaderView.Tighter(HeaderFit.Full));
+        Assert.Equal(HeaderFit.Tight, HeaderView.Tighter(HeaderFit.Compact));
+        Assert.Null(HeaderView.Tighter(HeaderFit.Tight));
+    }
+
     static readonly Guid AskId = Guid.CreateVersion7();
     static Projection Waiting(params Guid[] teams) => TableUx.After(TableUx.Deploy,
         new AskOpened(new Ask(AskId, "remove_casualties", "Remove casualties", teams, new Confirmation(), false, false, null, null)));

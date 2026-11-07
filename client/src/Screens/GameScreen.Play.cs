@@ -153,7 +153,11 @@ public partial class GameScreen
         var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
         var replayH = Shows(_replay) ? _replay!.GetCombinedMinimumSize().Y : HudLayout.ReplayH;   // its three rows in the theme's font: the left column ends above it
         // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
-        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision) || Shows(_waiting), Shows(_dice), logOpen, Shows(_replay)), buttonH, replayH);
+        var visible = new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision) || Shows(_waiting), Shows(_dice), logOpen, Shows(_replay));
+        // The header draws the fullest fit for its slot's width, then its slot takes the height that fit draws at: the right column starts below it.
+        if (Shows(_header)) _header!.FitTo(HudLayout.Of(w, _hud.Size.Y, visible, buttonH, replayH)[HudPart.Header].W);
+        var headerH = Shows(_header) ? _header!.GetCombinedMinimumSize().Y : HudLayout.HeaderH;
+        var r = HudLayout.Of(w, _hud.Size.Y, visible, buttonH, replayH, headerH);
         if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
         PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);

@@ -4,6 +4,11 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 public enum OutlineState { Done, Current, Next }
+
+/// <summary>How much the header's lines draw to fit its slot (UX redesign part 2 → Header): Full; Compact, the step strip's marks without
+/// their words but for the current step's, the objectives as bare icons and the tiles without `VP`; Tight, also the round as its number
+/// and the objectives on the second line.</summary>
+public enum HeaderFit { Full, Compact, Tight }
 public sealed record OutlineItem(string Label, OutlineState State);
 
 /// <summary>
@@ -45,8 +50,18 @@ public static class HeaderView
         }).ToList();
 
     /// <summary>The round on the header: `Round 2`; before round 1 the phase (`Deployment`), else `Before round 1`.</summary>
-    public static string RoundText(int round, string? phase) =>
-        round > 0 ? $"Round {round}" : phase is { Length: > 0 } ? RosterView.Words(phase) : "Before round 1";
+    public static string RoundText(int round, string? phase, HeaderFit fit = HeaderFit.Full) =>
+        round > 0 ? fit == HeaderFit.Tight ? $"{round}" : $"Round {round}" : phase is { Length: > 0 } ? RosterView.Words(phase) : "Before round 1";
+
+    /// <summary>A step of the strip: its mark (✓ done, ● current, ○ to come) and label; past Full only the current step keeps its label.</summary>
+    public static string StepText(OutlineItem item, HeaderFit fit)
+    {
+        var mark = item.State switch { OutlineState.Done => "✓", OutlineState.Current => "●", _ => "○" };
+        return fit == HeaderFit.Full || item.State == OutlineState.Current ? $"{mark} {item.Label}" : mark;
+    }
+
+    /// <summary>The next tighter fit, or null past Tight.</summary>
+    public static HeaderFit? Tighter(HeaderFit fit) => fit == HeaderFit.Tight ? null : fit + 1;
 
     static readonly string[] ActionIcons = ["hold", "advance", "rush", "charge"];
     /// <summary>The theme icon for an activation's action word (the option label after its colon, or the frame's action): hold, advance, rush,
@@ -101,13 +116,14 @@ public static class HeaderView
     public static IReadOnlyList<(Guid MarkerId, Guid? TeamId)> Objectives(Projection p) =>
         p.Board.Table.Markers.Select(m => (m.Id, p.Control.TryGetValue(m.Id, out var t) ? t : (Guid?)null)).ToList();
 
-    /// <summary>"Orcs · Charge"; led by "Team 2 activating: " when the actor is not my team's (a watcher has none).</summary>
-    public static string? ActivationLine(Projection p, GameInfo game, Names n, Guid? myTeam)
+    /// <summary>"Orcs · Charge"; led by "Team 2 activating: " when the actor is not my team's (a watcher has none), at Full only: past it the
+    /// acting team's tile carries the ▶.</summary>
+    public static string? ActivationLine(Projection p, GameInfo game, Names n, Guid? myTeam, HeaderFit fit = HeaderFit.Full)
     {
         if (ActionFrame(p)?.Context is not { ActorUnitId: { } unit } c) return null;
         var line = c.Action is { } a ? $"{n.Unit(unit)} · {a}" : n.Unit(unit);
         var team = p.Units.GetValueOrDefault(unit) is { } u ? game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId : null;
-        return team is { } t && t != myTeam ? $"{n.Team(t)} activating: {line}" : line;
+        return fit == HeaderFit.Full && team is { } t && t != myTeam ? $"{n.Team(t)} activating: {line}" : line;
     }
 
     /// <summary>

@@ -106,6 +106,20 @@ public class HudLayoutTests
         Assert.Equal(112, HudLayout.Of(w, h, new HudVisible(true, true, false, false, false, true), replayH: 90)[HudPart.Replay].H);   // never below 112
     }
 
+    /// <summary>A header taller than 96 px (three lines in the theme's font): its slot is as tall as it is, and a part below it starts M under it.</summary>
+    [Theory, MemberData(nameof(Sizes))]
+    public void The_header_slot_takes_the_header_s_actual_height(int w, int h)
+    {
+        foreach (var v in All())
+        {
+            var r = HudLayout.Of(w, h, v, headerH: 130.4f);
+            Assert.Equal(131, r[HudPart.Header].H);
+            foreach (var part in new[] { HudPart.Decision, HudPart.Dice, HudPart.LogPanel })
+                if (r.TryGetValue(part, out var x) && x.SpansX(r[HudPart.Header])) Assert.True(x.Y >= r[HudPart.Header].Bottom + 8, $"{w}x{h} {v}: {part} {x} under the header");
+        }
+        Assert.Equal(96, HudLayout.Of(w, h, new HudVisible(true, true, true, true, false), headerH: 60)[HudPart.Header].H);   // never below 96
+    }
+
     [Theory, MemberData(nameof(Sizes))]
     public void The_undo_button_sits_left_of_the_log_button_in_its_row(int w, int h)
     {

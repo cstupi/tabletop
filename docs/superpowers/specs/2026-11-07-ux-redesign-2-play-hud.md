@@ -47,6 +47,10 @@ Size: M (`HeaderView` gains the tiles' data; `HeaderBar` redrawn).
 - Line 3: the waiting line with the hourglass and the waiting team's band. When the Ask is mine the line reads `▶ Your move` in my team's
   colour and the decision box's title band lights; the orange goes.
 - After the end: line 1 keeps the tiles with the final scores; line 2 `✓ Game over · Team 1 wins`, a button that reopens the modal.
+- Every line is one line. Each of the first two draws the fullest `HeaderFit` its slot holds: Compact drops the step strip's words but
+  the current step's (each step's word its tooltip), the `Team 2 activating:` lead (the ▶ tile says whose), `VP` and the objectives'
+  chip frames; Tight also reads the round as its number (`⟳ 3`), and moves the objectives to line 2 only when line 1 still overflows.
+  Line 3 is cut with an ellipsis, the whole line its tooltip. `HudLayout`'s header slot takes the lines' actual height.
 
 ## Roster
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actionIcon, roundText, tileCount, tileDots, tiles, waitLineOf, type TeamTile } from '../src/lib/play/headerView';
+import { actionIcon, roundText, stepText, tileCount, tileDots, tiles, waitLineOf, type OutlineItem, type TeamTile } from '../src/lib/play/headerView';
 import { Names } from '../src/lib/play/names';
 import type { EventPayload } from '../src/lib/protocol/wire.generated';
 import { P1, TEAM1, TEAM2, askOf, at, boardOf, projectionOf, sample } from './play';
@@ -25,6 +25,13 @@ describe('HeaderView tiles (HeaderView.Tiles)', () => {
   it('the action word names its icon and the round its line', () => {
     expect(['Hold', 'Advance', 'rush', 'Charge', 'Shoot', null].map(actionIcon)).toEqual(['hold', 'advance', 'rush', 'charge', 'activation', 'activation']);
     expect([roundText(2, null), roundText(0, 'deployment'), roundText(0, null)]).toEqual(['Round 2', 'Deployment', 'Before round 1']);
+  });
+
+  it('a tight header reads the round as its number and a compact step strip only the mark but for the current step', () => {
+    expect([roundText(4, null, 'tight'), roundText(4, null, 'compact'), roundText(0, 'deployment', 'tight')]).toEqual(['4', 'Round 4', 'Deployment']);
+    const items: OutlineItem[] = [{ label: 'Pick target', state: 'done' }, { label: 'Target moves', state: 'current' }, { label: 'Melee', state: 'next' }];
+    expect(items.map((i) => stepText(i, 'full'))).toEqual(['✓ Pick target', '● Target moves', '○ Melee']);
+    expect(items.map((i) => stepText(i, 'compact'))).toEqual(['✓', '● Target moves', '○']);
   });
 
   it('the waiting line is my move in my colour, else the waiting team with what it does', () => {

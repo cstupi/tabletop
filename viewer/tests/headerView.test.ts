@@ -119,6 +119,7 @@ describe('HeaderView', () => {
     const n = new Names(s.game, p);
     expect(activationLine(p, s.game, n, TEAM1)).toBe('Team 2 activating: Rivals · Charge');
     expect(activationLine(p, s.game, n, TEAM2)).toBe('Rivals · Charge');
+    expect(activationLine(p, s.game, n, TEAM1, 'compact')).toBe('Rivals · Charge');
     expect(activationLine(after(), s.game, n, TEAM1)).toBeNull();
     expect(gameOf().teams).toHaveLength(2);
   });

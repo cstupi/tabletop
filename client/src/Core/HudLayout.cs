@@ -24,8 +24,9 @@ public static class HudLayout
 
     /// <summary>The slots. buttonH is the undo and log buttons' actual height (a theme's button face may be taller than 36 px), never under LogButtonH.
     /// replayH is the replay bar's actual height (three rows in the theme's font may be taller than 112 px), never under ReplayH: the left
-    /// column ends M above it. While the log is open it holds the latest roll, so the dice tray takes no slot.</summary>
-    public static IReadOnlyDictionary<HudPart, HudRect> Of(float w, float h, HudVisible v, float buttonH = LogButtonH, float replayH = ReplayH)
+    /// column ends M above it. headerH is the header's actual height (its lines in the theme's font), never under HeaderH: the right column
+    /// starts M below it. While the log is open it holds the latest roll, so the dice tray takes no slot.</summary>
+    public static IReadOnlyDictionary<HudPart, HudRect> Of(float w, float h, HudVisible v, float buttonH = LogButtonH, float replayH = ReplayH, float headerH = HeaderH)
     {
         var r = new Dictionary<HudPart, HudRect>();
         v = v with { Dice = v.Dice && !v.LogOpen };
@@ -33,7 +34,7 @@ public static class HudLayout
         var corner = r[HudPart.Corner] = new(M, M, Column, CornerH);
         var toasts = r[HudPart.Toasts] = new(w - M - ToastW, M, ToastW, ToastH);
         float bandL = M + Column + M, bandR = toasts.X - M, hw = Math.Min(HeaderW, bandR - bandL);
-        var header = r[HudPart.Header] = new(Math.Max(bandL, Math.Min(MathF.Floor(w / 2 - hw / 2), bandR - hw)), M, hw, HeaderH);
+        var header = r[HudPart.Header] = new(Math.Max(bandL, Math.Min(MathF.Floor(w / 2 - hw / 2), bandR - hw)), M, hw, MathF.Ceiling(Math.Max(HeaderH, headerH)));
         float top = corner.Bottom + M, colH = h - M - top - (v.Replay ? rh + M : 0), half = MathF.Floor((colH - M) / 2);
         if (v.Replay) r[HudPart.Replay] = new(M, h - M - rh, Column, rh);
         if (v.Roster) r[HudPart.Roster] = new(M, top, Column, v.UnitCard ? half : colH);
