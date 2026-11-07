@@ -95,7 +95,7 @@ Concurrency, ordering and lifecycle hazards:
   (`Animator` in `Dispose`, which `GameScreen.FreePlayPanels` calls), so a screen swap or the end of play leaves
   no handler behind. A new subscriber that skips the detach reintroduces the fault.
 - `GameScreen.Rebuild` runs on every `GameChanged` and `PhaseChanged`, and frees and re-creates
-  every `TeamPanel`, the `LobbyPanel` and the `SetupToolbar`. Any lobby edit by any participant
+  the `SidePanelHead` with its team columns, the `LobbyPanel` and the `SetupToolbar`. Any lobby edit by any participant
   destroys the setup toolbar mid-interaction, losing its selection and any open field. The play
   Hud is built once (`ShowPlayPanels` returns while `_header` is set). The setup toolbar is not guarded.
 - `AskViewModel.Mine` orders open Asks by `Ask.Id`, a v7 GUID, so "the current Ask" is

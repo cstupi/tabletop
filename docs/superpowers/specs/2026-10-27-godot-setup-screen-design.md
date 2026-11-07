@@ -15,26 +15,25 @@ the same order with the same words.
 | Objective markers | some games |
 | Clear terrain, Add my terrain | some setups |
 | Table size, surface, deployment zones and swap, Load and Save layout | rarely |
-| Teams, players and armies | in the lobby; in setup only to check |
+| Teams, players and armies | in the lobby; in setup to check, in the head's compact team columns |
 | Selected piece: facing, ⟲/⟳, Remove | every piece turned or removed by card |
 | Selected piece: scale, mesh swap, my asset, Reset volumes, volume kind, footprint, heights, declarations, notes | rarely |
 
 ## Side panel
 
-The side panel is a column 360 px wide: a fixed head and a body that scrolls under it.
+In setup the side panel is a column 360 px wide: a fixed head and a body that scrolls under it. The lobby has no table and fills the
+window with the team columns and Game settings (spec `2026-11-07-lobby-and-setup-redesign-design.md`).
 
-- **Head**, never scrolled: the phase (`Lobby` or `Setup`), then the one main action: the creator's **Start setup** in the lobby, **End
-  setup** in setup (with the count of pieces off the table it will remove); anyone else reads what they wait for.
-- **Body**: sections under headings that fold (▾ open, ▸ closed); a heading carries its count.
-  - Setup: **Terrain** (open), **Objectives**, **Table**, **Deployment zones**, **Layouts**, **Game settings**, **Players**, in that order,
-    the rest closed. A section opened or closed stays so for the rest of the game screen, across rebuilds.
-  - Lobby: **Players** and **Game settings**, both open.
+- **Head**, never scrolled: `Setup`, the creator's **End setup** (with the count of pieces off the table it will remove), the Still to do
+  lines, then the compact team columns (spec `2026-11-07-lobby-and-setup-redesign-design.md` → Setup).
+- **Body**: sections under headings that fold (▾ open, ▸ closed); a heading carries its count: **Terrain** (open), **Objectives**,
+  **Table**, **Deployment zones**, **Layouts**, **Game settings**, in that order, the rest closed. A section opened or closed stays so for
+  the rest of the game screen, across rebuilds.
 - **Terrain**: a search field, then the built-in catalog grouped by what a piece does (Blocks line of sight, Impassable, Dangerous,
   Cover, Difficult, Open ground: a piece's group is the first of these it carries), each group sorted by name; a click on a row adds that
-  piece beside the table; a row's tooltip says what it does. The list scrolls inside a box sized to the window, so the headings below it
-  stay in view at 1280×720. Under it: Random table with its planet, Add my terrain…, Clear terrain (asked first).
-- Headings: `Terrain 17/64`, `Objectives 0/32`, `Table 72 × 48" · Grass`, `Deployment zones`, `Layouts`, `Game settings`, `Players 2`.
-- Players holds the team buttons, the Players list, my army pickers, the team cards and Leave game.
+  piece beside the table; a row's tooltip says what it does. The list scrolls inside a box sized to what the window and the head leave. Under it: Random table with its planet, Add my terrain…, Clear terrain (asked first).
+- Headings: `Terrain 17/64`, `Objectives 0/32`, `Table 72 × 48" · Grass`, `Deployment zones`, `Layouts`, `Game settings`.
+- Game settings ends with Leave game.
 
 ## Terrain card
 
@@ -51,7 +50,7 @@ Mesh and Volumes keep their state from piece to piece. In play the card stays re
 ## Where it lives
 
 - `client/src/Core/`: `TerrainGroups` (the grouped, searched catalog and a piece's words, as the browser's `terrainGroups.ts`),
-  `SetupFolds` (each section's heading, order and open state), `SetupHead` (the head's phase, action and note), `SetupLayout` (the
-  terrain list's height for a window height).
-- `client/src/Panels/`: `SidePanelHead`, `SetupToolbar`, `LobbyPanel`, `Fold` (a heading over a body, over `SetupFolds`).
+  `SetupFolds` (each section's heading, order and open state), `SetupHead` (the head's phase, action and Still to do lines),
+  `SetupLayout` (the terrain list's height for a window and head height), `TeamColumns`.
+- `client/src/Panels/`: `SidePanelHead`, `TeamColumnsPanel`, `SetupToolbar`, `LobbyPanel`, `Fold` (a heading over a body, over `SetupFolds`).
 - Every edit is the one `SetupEdits` or `LobbyEdits` builds today; no new message.

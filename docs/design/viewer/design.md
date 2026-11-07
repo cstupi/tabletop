@@ -610,23 +610,24 @@ page it loads the geometry for the zones, so it lives in `replay/`, outside the 
 
 `GamePage` puts a header strip over every state: back to the games, the game's name and status chip, the connection while it is
 not connected, Leave game (lobby and setup, not for a watcher), and in setup the creator's **End setup** (`endSetupText`, counting
-off-slab pieces) or, for everyone else, what they wait for (`header.ts`). The play spec (`2026-10-25-play-ui-design.md`) settles the
+off-slab pieces) or, for everyone else, "Ann ends setup" (`header.ts`). The play spec (`2026-10-25-play-ui-design.md`) settles the
 layouts.
 
-The lobby (`LobbyPage`) fills the window: the teams scroll on the left, the Game panel stays whole on the right. A team card
-(`TeamCards`, models from `lobbyPage.ts`) lists its players with their armies, my army picker on a team I hold, and my one team
-action (Join team, Leave team, or held by another account, with LobbyView's reason as its title); the creator gets a placing control
-on every player; the players without a team have a card of their own with Watch instead. The Game panel is the creator's form
-(name, activation, enforcement with what it does, the optional rules and their preset); Apply changes and Undo appear only while
-the form differs from the game (`configChanged`), and **Start setup** is the primary action at its foot, disabled until they are
-applied. Everyone else sees the settings in words (`settingsSummary`) and who they wait for (`waitingFor`, naming the creator).
+The lobby (`LobbyPage`, spec `2026-11-07-lobby-and-setup-redesign-design.md`) fills the window: a head with the creator's **Start
+setup** (disabled while the settings form has unapplied changes) and the Still to do lines (`stillToDo`), the team columns on the
+left, the Game settings panel on the right. `TeamColumns.svelte` over `teamColumns.ts` (a port of Godot's `TeamColumns`) draws a
+column per team in its colour, then Watching: each player with their army and the game's edition, my row with my army picker, a
+row's ▸ `<select>` of moves and HTML drag and drop onto another column (`moveTo`), Join (and Also play this side) at a column's
+foot, Watch on Watching, the creator's + Add team. The Game settings panel is the creator's form (name, rule set, activation,
+enforcement with what it does, the optional rules and their preset); Apply changes and Undo appear only while the form differs from
+the game (`configChanged`). Everyone else sees the settings in words (`settingsSummary`).
 
 Setup (`SetupPage`) is a grid: the tools sidebar (18rem), the board, and the selected piece's card (20rem) when a terrain piece or
 marker is selected, an overlay drawer below 70rem. `SetupTools` holds collapsible sections: Table (size, surface), Terrain (a search
 box over the catalog, grouped by what a piece does: blocks line of sight, impassable, dangerous, cover, difficult, open ground, in
 that order; a click adds the piece beside the table; Your library loads the account's terrain into the same list; Clear terrain),
-Objectives, Deployment zones (rulebook style names, swap two teams' zones), Layouts (predefined, a random table by planet, the
-account's own, Save) and Players (the team cards in one column: lobby edits stay open in setup). A refusal shows as a banner over
+Objectives, Deployment zones (rulebook style names, swap two teams' zones) and Layouts (predefined, a random table by planet, the
+account's own, Save), under the Still to do lines and the compact team columns (lobby edits stay open in setup). A refusal shows as a banner over
 the top of the board. Ids never show: textures, zone styles, meshes and declarations are named in words (`terrainGroups.ts`,
 `DECLARATION_WORDS`).
 
@@ -716,7 +717,7 @@ connection state: the projection is mutated in place, so a derivation keyed on i
 | `connection/gameConnection.ts` | `connectGame(options): GameConnection`: the participant socket (sends, refusals, queue of 16, reconnect, `Reauth`, resync) |
 | `game/` | `GamePage.svelte` (the header strip over the lobby, setup or play), `header` (`headerOf`: the strip's title, status, connection, Leave, End setup or the wait), `sendEdit`, `Confirm.svelte` |
 | `play/` | ports of Godot core files, one module each (`names`, `logText`, `ruleTexts`, `spellText`, `askView`, `headerView`, `waiting`, `decisionView`, `deployView`, `targetAssignment`, `casualtyPick`, `sealedReveals`, `gameOverView`), `settings`, `scene` (`sceneOfPlay`), `keys`, `decisionBox` (`DecisionBox`: the controller, `DecisionPanel`, `MoveHooks`), the moves (`contactCheck`, `violations`, `moveRuler`, `commitHold`, `ghostStash`, `formation`, `pendingDrops`, `markerLocks`, `modelDrag`, `handMove`, `moveOverlays`, `playDrag`), the combat log and card (`combatLog`, `undo`, `unitCard`, `selectionView`, `hoverView`, `enemyStrip`), around the board (`rosterView`, `rollOffBanners`, `headerText`, `rangeRings`, `sightKey`, `sightSummary`, `sightCheck`, `menuModel`, `menus`), `PlayPage.svelte`, `DecisionBox.svelte`, `GameOverModal.svelte`, `InfoColumn.svelte`, `HeaderBar.svelte`, `Roster.svelte`, `Banner.svelte`, `PieceMenu.svelte`, `WaitingPanel.svelte` |
-| `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `lobbyPage` (`teamCards`, `unassigned`, `settingsSummary`, `configChanged`, `waitingFor`, `creatorName`, the activation and enforcement words), `LobbyPage.svelte`, `TeamCards.svelte` |
+| `lobby/` | `seats`, `lobbyView`, `rulesOptions` (ports of Godot's `Seats`, `LobbyView`, `RulesOptions`), `teamColumns` (a port of `TeamColumns`), `lobbyPage` (`settingsSummary`, `configChanged`, the activation and enforcement words), `LobbyPage.svelte`, `TeamColumns.svelte`, `TeamIcon.svelte` |
 | `setup/` | `catalog`, `limits`, `edits`, `terrainCard`, `layouts`, `terrainGroups` (`terrainGroups`, `matches`, `terrainSummary`, `textureLabel`, `zoneStyleLabel`), `SetupDrag` (`drag.ts`), `SetupPage.svelte`, `SetupTools.svelte`, `TerrainCard.svelte`, `PieceMenu.svelte`, `LayoutsSection.svelte` |
 
 | `game/` | `GamePage.svelte`, `sendEdit`, `Confirm.svelte` |

@@ -33,7 +33,7 @@ public partial class SetupToolbar : VBoxContainer
     public override void _Ready()
     {
         var s = _session = Main.Instance.Session;
-        var sections = SetupFolds.Order(GameStatus.Setup).Where(f => f is not (SetupFold.Game or SetupFold.Players))
+        var sections = SetupFolds.Order(GameStatus.Setup).Where(f => f is not SetupFold.Game)
             .ToDictionary(f => f, f => Add(new Fold(_folds, f, GameStatus.Setup, () => SetupFolds.Title(f, s.Draft, s.Game))));
         var showTexture = BuildTable(s, sections[SetupFold.Table].Body);
         BuildTerrain(s, sections[SetupFold.Terrain].Body);
@@ -64,14 +64,14 @@ public partial class SetupToolbar : VBoxContainer
 
     Fold Add(Fold fold) { AddChild(fold); _foldsShown.Add(fold); return fold; }
 
-    /// <summary>The terrain list's height for this window (SetupLayout), set again when the window changes size.</summary>
-    public void FitList(float windowHeight) { if (IsInstanceValid(_terrain)) _terrain.CustomMinimumSize = new Vector2(0, (float)SetupLayout.TerrainListHeight(windowHeight)); }
+    /// <summary>The terrain list's height for this window and head (SetupLayout), set again when either changes size.</summary>
+    public void FitList(float windowHeight, float headHeight) { if (IsInstanceValid(_terrain)) _terrain.CustomMinimumSize = new Vector2(0, (float)SetupLayout.TerrainListHeight(windowHeight, headHeight)); }
 
     void BuildTerrain(Session s, VBoxContainer body)
     {
         body.AddChild(_search = new LineEdit { PlaceholderText = "Search terrain", ClearButtonEnabled = true, SizeFlagsHorizontal = SizeFlags.ExpandFill });
         body.AddChild(_terrain = new ItemList { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutoHeight = false, SameColumnWidth = true });
-        FitList(GetViewport().GetVisibleRect().Size.Y);
+        FitList(GetViewport().GetVisibleRect().Size.Y, 110);
         _search.TextChanged += _ => FillTerrain();
         // A click on a piece adds it beside the table; a group's title does nothing.
         _terrain.ItemClicked += (index, _, button) =>

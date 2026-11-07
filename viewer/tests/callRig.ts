@@ -6,7 +6,8 @@ import type { ConnectionState, SendOutcome } from '../src/lib/connection/gameCon
 import type { Geometry } from '../src/lib/geometry';
 import { Applier } from '../src/lib/live/apply';
 import { armyFromCreate, createTeam, endSetup, startSetup, watch } from '../src/lib/lobby/lobbyEdits';
-import { armySeats, pickArmy, place, teamChoices } from '../src/lib/lobby/lobbyView';
+import { armySeats, pickArmy } from '../src/lib/lobby/lobbyView';
+import { columnsOf, moveTo } from '../src/lib/lobby/teamColumns';
 import { configurationOf } from '../src/lib/lobby/rulesOptions';
 import { acting, teamsOf } from '../src/lib/lobby/seats';
 import { mine as myAsk } from '../src/lib/play/askView';
@@ -142,8 +143,8 @@ export function decisionsOf(c: CallCase, st: ConnectionState, log: CallLogFiles)
     }
   } else {
     if (want.includes('button')) {
-      const t = teamChoices(game, pid, c.creator === true)[c.choice.team]!;
-      out.button = { text: t.text, enabled: t.enabled, leave: t.edit.kind === 'leave_team' };
+      const j = columnsOf(game, pid, c.creator === true)[c.choice.column]!.join;
+      out.button = j === null ? null : { text: j.text, enabled: j.edit !== null, why: j.why };
     }
     if (want.includes('lines')) {
       const w = waited(st, c.choice.dropPlayers, c.choice.dropArmies, parsed(log).board);
@@ -258,12 +259,16 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
   const draws = (d: number[]): (() => number) => { const q = [...d]; return () => q.shift()!; };
   const piece = (id: string) => draft.terrain.find((t) => t.id === id)!;
   switch (x.control as string) {
-    case 'teamButton': { const t = teamChoices(game, pid, c.creator === true)[x.team]!; return t.enabled ? t.edit : null; }
+    case 'columnJoin': return columnsOf(game, pid, c.creator === true)[x.column]!.join?.edit ?? null;
+    case 'columnAlsoPlay': return columnsOf(game, pid, c.creator === true)[x.column]!.alsoPlay;
+    case 'columnMove': {
+      const team = x.team < 0 ? null : [...game.teams].sort((a, b) => a.ordinal - b.ordinal)[x.team]!.id;
+      return moveTo(game, pid, c.creator === true, x.participantId, team);
+    }
     case 'watch': return watch();
     case 'createTeam': return createTeam();
     case 'startSetup': return startSetup();
     case 'endSetup': return endSetup();
-    case 'place': return place(game, x.participantId, x.choice);
     case 'armySeat': { const seats = armySeats(game, pid); return x.seat < seats.length ? pickArmy(seats[x.seat]!, x.armyId) : null; }
     case 'createArmy': return armyFromCreate(x.armyId);
     case 'waitingJoin': case 'waitingArmy': {

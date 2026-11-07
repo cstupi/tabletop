@@ -9,20 +9,17 @@ no turn. Two people dragging the same piece is settled by whoever drops last, an
 other's drag through presence. The server answers every setup edit with a `BoardMessage` carrying
 the whole draft, and every lobby edit with a `GameInfoMessage`. The client has no local merge to do.
 
-`LobbyPanel` covers the seven lobby edits: `CreateTeam`, `PickTeam` (one more team; `null` meaning watch),
-`LeaveTeam`, `PickArmy` (one picker per team held), `SetConfiguration` pre-filled with the current values, and, for the creator only,
-`StartSetup` and `EndSetup`. The creator's two buttons are absent for anyone else, who reads what
-they wait for (`LobbyView.WaitingForCreator`). The configuration is shown to everyone and editable by
-the creator alone; for anyone else its controls are disabled with `LobbyView.CreatorOnly` as label and
-tooltip. A seat line (`LobbyView.Seat`) says which team I am on, or that I have none and will watch
-once play starts. `LobbyView.Teams` makes the team buttons: `Join team N` on an empty team (one more team when I play
-one: self-play), `Leave team N` on mine, and a team another participant holds named `Team N: {holders}`, disabled with
-"ask the creator to place you on it", except for the creator, who may join it. The game name is held
-to 64 characters (`TextLimits`). The Players list (`LobbyView.Players`) shows every participant, teamless
-ones included, with their team or "No team"; for the creator each row is a team picker (No team, then
-the teams by ordinal) sending `PickTeam(teamId, participantId)` (`LobbyView.Place`), the server's path
-for putting a second player on a held team. A forged edit is refused with `NotPermitted`, so the UI is a
-convenience over a server rule rather than the rule itself. A Leave game button (the game screen's confirm, then `Session.LeaveAsync`) gives the seat up from lobby and setup. The "End setup" button notes how many placements are still off the slab, because the
+The lobby and setup send seven lobby edits (spec `2026-11-07-lobby-and-setup-redesign-design.md`). `TeamColumnsPanel`, over
+`TeamColumns`, draws a column per team and one for Watching: a column's Join is `PickTeam` (moving my one seat with
+`PickTeam(team, seat)`, taking a team when I hold none, adding one when I hold several), Also play this side `PickTeam(team)`
+(self-play), Watch `PickTeam(null)`; a row's ▸ menu and a row dragged onto a column send `PickTeam(target, participant)`, offered to
+the creator for any row and to a player for their own, never onto a team the server would refuse; the creator's + Add team is
+`CreateTeam`; my row's picker is `PickArmy` (one per team held). `LobbyPanel` is Game settings: `SetConfiguration` pre-filled with
+the current values, shown to everyone and editable by the creator alone (for anyone else its controls are disabled with
+`LobbyView.CreatorOnly` as tooltip); the game name is held to 64 characters (`TextLimits`). `SidePanelHead` holds the creator's
+`StartSetup` and `EndSetup` and the Still to do lines (`TeamColumns.StillToDo`) everyone reads. A forged edit is refused with
+`NotPermitted`, so the UI is a convenience over a server rule rather than the rule itself. A Leave game button (the game screen's
+confirm, then `Session.LeaveAsync`) at the foot of Game settings gives the seat up from lobby and setup. The "End setup" button notes how many placements are still off the slab, because the
 end-setup command deletes those rows before flipping.
 
 `SetupToolbar` covers the fourteen setup edits: table size and texture; add built-in terrain, add

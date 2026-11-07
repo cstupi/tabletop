@@ -1,6 +1,7 @@
 <!-- viewer/src/lib/lobby/LobbyPage.svelte -->
-<!-- The lobby (LobbyPanel.cs's edits): the teams on the left, the Game panel on the right with the creator's settings and Start setup
-     at its foot; everyone else sees the settings in words and what they wait for. Every control is one edit Godot sends. -->
+<!-- The lobby (spec 2026-11-07-lobby-and-setup-redesign-design.md): a head with the creator's Start setup and Still to do, the team columns
+     across the page, the Game panel on the right with the creator's settings; everyone else sees the settings in words. Every control is
+     one edit Godot sends. -->
 <script lang="ts">
   import type { Api } from '../api/client';
   import { nameProblem } from '../api/names';
@@ -8,19 +9,19 @@
   import type { ConnectionState, GameConnection } from '../connection/gameConnection';
   import { sendEdit } from '../game/send';
   import type { Edit, Enforcement, SchedulerShape } from '../protocol/wire.generated';
-  import { createTeam, startSetup } from './lobbyEdits';
-  import { seatLine } from './lobbyView';
-  import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL, configChanged, settingsSummary, waitingFor } from './lobbyPage';
+  import { startSetup } from './lobbyEdits';
+  import { ENFORCEMENT_HINT, ENFORCEMENT_LABEL, SHAPE_LABEL, configChanged, settingsSummary } from './lobbyPage';
   import { CUSTOM, configurationOf, presetOf, valueOf } from './rulesOptions';
   import { isCreator } from './seats';
-  import TeamCards from './TeamCards.svelte';
+  import { stillToDo } from './teamColumns';
+  import TeamColumns from './TeamColumns.svelte';
+  import TeamIcon from './TeamIcon.svelte';
 
   let { connection, snap, api }: { connection: GameConnection; snap: ConnectionState; api: Api } = $props();
 
   const game = $derived(snap.game!);
   const creator = $derived(isCreator(game, snap.participantId));
   const catalog = $derived(snap.options);
-  const participant = $derived(game.participants.some((p) => p.id === snap.participantId));
 
   let problem: string | null = $state(null);
   let armies: ArmySummary[] = $state([]);
@@ -52,7 +53,7 @@
 
   const preset = $derived(presetOf(catalog, chosen));
   const changed = $derived(configChanged(game, catalog, name, shape, enforcement, chosen, hash));
-  const waiting = $derived(waitingFor(game, creator));
+  const todo = $derived(stillToDo(game, creator));
 
   async function send(edit: Edit) { problem = await sendEdit(connection, edit); }
 
@@ -80,22 +81,23 @@
   <div class="inner">
     <section class="teams" aria-label="Teams">
       <div class="head">
-        <h2>Teams</h2>
-        {#if participant}<button class="small" onclick={() => send(createTeam())}>Add team</button>{/if}
+        <h2>Lobby</h2>
+        {#if creator}
+          <button class="primary start" disabled={changed} title={changed ? 'Apply or undo your changes first' : ''}
+            onclick={() => send(startSetup())}>Start setup</button>
+        {/if}
       </div>
-      <p class="seat">{seatLine(game, snap.participantId)}</p>
+      <ul class="todo" aria-label="Still to do">
+        {#each todo as line (line.text)}
+          <li class:missing={line.missing}>{#if line.missing}<TeamIcon name="warning" size={16} />{/if}{line.text}</li>
+        {/each}
+      </ul>
       {#if problem !== null}<p role="alert">{problem} <button class="quiet" onclick={() => (problem = null)}>Dismiss</button></p>{/if}
-      {#if game.teams.length === 0}
-        <div class="panel empty">
-          <p>No teams yet. Add one for each side of the table.</p>
-          {#if participant}<button class="primary" onclick={() => send(createTeam())}>Add team</button>{/if}
-        </div>
-      {/if}
-      <TeamCards {snap} {armies} {creator} {send} />
+      <TeamColumns {snap} {armies} {send} />
     </section>
 
     <aside class="panel settings" aria-label="Game">
-      <h2>Game</h2>
+      <h2>Game settings</h2>
       {#if creator}
         <form id="game-settings" class="body" onsubmit={apply}>
           <label>Name <input bind:value={name} maxlength="64" placeholder="Game name" /></label>
@@ -134,24 +136,20 @@
             </fieldset>
           {/if}
         </form>
-        <div class="foot">
-          {#if changed}
+        {#if changed}
+          <div class="foot">
             <div class="apply">
               <button type="submit" form="game-settings">Apply changes</button>
               <button type="button" class="quiet" onclick={revert}>Undo</button>
             </div>
-          {/if}
-          <button class="primary start" disabled={changed} title={changed ? 'Apply or undo your changes first' : ''}
-            onclick={() => send(startSetup())}>Start setup</button>
-          <small>Everyone can then lay out the table; you end setup to start the game.</small>
-        </div>
+          </div>
+        {/if}
       {:else}
         <dl class="body">
           {#each settingsSummary(game, catalog) as item (item.label)}
             <div><dt>{item.label}</dt><dd>{item.value}</dd></div>
           {/each}
         </dl>
-        {#if waiting !== null}<p class="notice waiting" role="status">{waiting}</p>{/if}
       {/if}
     </aside>
   </div>
@@ -160,7 +158,7 @@
 <style>
   /* Wide: the teams scroll on their own and the Game panel stays whole, its Start setup always in view. Narrow: one scrolling column. */
   .lobby { min-height: 0; }
-  .inner { height: 100%; max-width: 80rem; margin: 0 auto; padding: var(--s5) var(--s4); display: grid; grid-template-columns: minmax(0, 1fr) 22rem; grid-template-rows: minmax(0, 1fr);
+  .inner { height: 100%; max-width: 110rem; margin: 0 auto; padding: var(--s5) var(--s4); display: grid; grid-template-columns: minmax(0, 1fr) 22rem; grid-template-rows: minmax(0, 1fr);
     gap: var(--s5); align-items: start; }
   .teams { max-height: 100%; overflow-y: auto; padding-right: var(--s1); }
   .settings { max-height: 100%; display: flex; flex-direction: column; }
@@ -171,9 +169,12 @@
     .inner { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
     .teams, .settings { max-height: none; overflow: visible; }
   }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s2); }
+  .head { display: flex; align-items: center; gap: var(--s5); margin-bottom: var(--s3); }
   .head h2 { margin: 0; }
-  .seat { margin: 0 0 var(--s4); color: var(--text); }
+  .start { min-width: 12rem; }
+  .todo { list-style: none; margin: 0 0 var(--s5); padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); color: var(--accent); }
+  .todo li { display: inline-flex; align-items: center; gap: var(--s1); }
+  .todo li.missing { color: var(--warning); }
   .settings { margin: 0; }
   form { display: flex; flex-direction: column; gap: var(--s3); }
   label { display: flex; flex-direction: column; align-items: stretch; gap: var(--s1); margin: 0; color: var(--dim); font-size: .95rem; }
@@ -183,12 +184,9 @@
   fieldset { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s3); }
   .apply { display: flex; align-items: center; gap: var(--s3); }
   .foot { flex: none; display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--rule); }
-  .start { width: 100%; }
-  .foot small { color: var(--dim); }
   dl { margin: 0; display: flex; flex-direction: column; }
   dl > div { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s2) 0; border-top: 1px solid var(--rule); }
   dl > div:first-child { border-top: 0; padding-top: 0; }
   dt { color: var(--dim); }
   dd { margin: 0; text-align: right; }
-  .waiting { margin: var(--s4) 0 0; }
 </style>
