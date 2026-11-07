@@ -11,6 +11,7 @@ public sealed partial class GameSession
     /// <summary>The connect sequence (client shell → The connection and the projection), in one mailbox turn so no event slips between the log and live delivery.</summary>
     public Task ConnectAsync(ISessionClient client) => RunAsync(async () =>
     {
+        ThrowIfRetired();
         // Hydration read the participant rows once and management's join and leave write them whenever they like, so a participant
         // this session has never seen re-reads them first: Welcome carries their row (client shell → Welcome names the connecting
         // participant), TeamOf finds their team, and the lobby edits that look themselves up find them too. In lobby and setup every
@@ -26,6 +27,7 @@ public sealed partial class GameSession
     /// apart from the participants so nothing that reads a client's ParticipantId (lobby, presence, asks) meets it.</summary>
     public Task WatchAsync(ISessionClient client) => RunAsync(async () =>
     {
+        ThrowIfRetired();
         if (Faulted) { await client.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted"); return; }
         await SendStateAsync(client, Guid.Empty, new HashSet<Guid>());
         _watchers.Add(client);

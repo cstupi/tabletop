@@ -78,7 +78,8 @@ public class ZonesInPlayTests
         await c.SendAsync(Edit(new CreateTeam()));
         var zones = (await c.ExpectAsync<BoardMessage>()).Board.Table.Zones;
         Assert.Equal(ZoneStyles.ShapesOf(ZoneStyles.FreeForAll), zones.Select(z => z.Shape));
-        Assert.Equal(4, db.GameRows.DraftOf(seeded.GameId)!.Zones.Count);
+        // The board goes out before the draft row is written (setup phase → The draft is the row), so the row is waited for.
+        await Wait.UntilAsync(() => db.GameRows.DraftOf(seeded.GameId)!.Zones.Count == 4, "the corners never reached the draft row");
 
         await c.SendAsync(Edit(new SetZoneStyle(ZoneStyles.FreeForAll, ["free-for-all/2", "free-for-all/1", "free-for-all/3", "free-for-all/4"])));
         var chosen = (await c.ExpectAsync<BoardMessage>()).Board.Table.Zones;

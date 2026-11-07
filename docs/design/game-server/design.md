@@ -264,7 +264,9 @@ Three consequences:
   endpoint, so refusing commands at `ended` would make the flag one-way in fact while being
   reversible in the model.
 - **A game leaves memory with its last socket.** `ReleaseIfEmptyAsync` removes it and drains it.
-  The next socket hydrates again. Nothing keeps a game warm and nothing reaps abandoned ones.
+  The next socket hydrates again. Emptiness is decided in the session's mailbox
+  (`GameSession.RetireIfEmptyAsync`): a connect already queued there keeps the game, and a connect
+  queued after the decision gets `SessionDrainedException`, on which the handshake hydrates again. Nothing keeps a game warm and nothing reaps abandoned ones.
   Every reconnect re-reads and re-applies the whole log, which grows with the game.
 
 `StartAsync` starts the loop, then runs `RunToRestAsync` with no events of its own if `Play` is
