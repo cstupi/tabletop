@@ -224,7 +224,7 @@
   .selbar { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding: var(--s2) 0; min-height: 2.75rem }
   .selbar.active { position: sticky; top: 0; z-index: 2; background: var(--panel-solid); padding: var(--s2) var(--s3); margin: var(--s2) calc(-1 * var(--s3)) 0; border-bottom: 2px solid var(--accent) }
   .selbar .end { display: inline-flex; gap: var(--s2); margin-left: auto }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: var(--s3); margin: var(--s4) 0 }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(10.5rem, 40%), 1fr)); gap: var(--s3); margin: var(--s4) 0 }
   .row, .cell { display: block; position: relative; height: 100% }
   .check { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; width: 1.35rem; height: 1.35rem; margin: 0; cursor: pointer }
   .tile { display: flex; flex-direction: column; gap: var(--s2); height: 100%; padding: var(--s2); color: var(--text); text-decoration: none; border: 1px solid var(--rule); background: var(--panel-solid); overflow-wrap: anywhere; -webkit-touch-callout: none; user-select: none }

@@ -170,7 +170,9 @@
   .slot-name { overflow-wrap: anywhere }
   .cell { display: inline-flex; align-items: center; gap: var(--s1); min-width: 0; flex-wrap: wrap }
   .cell :global(.icon) { color: var(--dim) }
-  .mesh :global(select) { max-width: 100% }
+  .mesh :global(.picker) { min-width: 0; max-width: 100% }
+  .mesh :global(select) { max-width: 100%; min-width: 0 }
+  .base { flex-wrap: nowrap; min-width: max-content }
   .base :global(input[type='number']) { width: 4.5rem }
   .tall { flex-wrap: nowrap }
   input.height { width: 5.5rem }
@@ -180,7 +182,9 @@
   .per[aria-expanded='true'] .chev { transform: rotate(90deg) }
   @media (max-width: 60rem) {
     .slot { grid-template-columns: auto minmax(0, 1fr); }
+    .mesh, .mesh :global(.picker), .mesh :global(select) { width: 100% }
     .slot > .cell { grid-column: 2 }
+    .base { flex-wrap: wrap; min-width: 0 }
     .folder { margin-left: 0 }
   }
 </style>
