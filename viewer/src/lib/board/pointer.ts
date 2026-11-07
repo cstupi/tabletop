@@ -54,15 +54,16 @@ export function step(
       const dx = input.screen.x - state.screen.x;
       const dy = input.screen.y - state.screen.y;
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return stay;
-      // Shift+drag from anywhere draws a box when the board's driver takes it (play's model picks); else Shift drags as before.
-      if (state.mods.shift && takesBox(state.at, state.mods)) {
-        return { state: { kind: 'boxing', from: state.at }, effects: [{ type: 'boxMove', from: state.at, at: input.at }] };
-      }
+      // A press on what the driver drags drags it (with Shift, play's driver takes only one model of my team, held alone); else Shift+drag
+      // draws a box when the driver takes it (play's model picks); else the board pans.
       if (state.hit !== null && takesDrag(state.hit, state.at, state.mods)) {
         return {
           state: { kind: 'dragging', last: input.at },
           effects: [{ type: 'dragStart', at: state.at, mods: state.mods }, { type: 'dragMove', at: input.at, mods: input.mods }],
         };
+      }
+      if (state.mods.shift && takesBox(state.at, state.mods)) {
+        return { state: { kind: 'boxing', from: state.at }, effects: [{ type: 'boxMove', from: state.at, at: input.at }] };
       }
       return { state: { kind: 'panning', last: input.screen }, effects: [{ type: 'pan', dx, dy }] };
     }

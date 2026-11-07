@@ -241,6 +241,27 @@ describe('PlayDrags', () => {
       expect(r.selection).toEqual({ pieceId: r.squad.id, modelIds: [] });
     });
 
+    it('a Shift drag on my model holds it alone, the rest of the unit standing; on an enemy or a marker it is no drag (the page boxes)', () => {
+      const r = rig({ squad: 3 });
+      const [a, b, c] = r.ids as [string, string, string];
+      r.box.render();
+      const shift = { ...NO_MODIFIERS, shift: true };
+      r.drags.shiftClick(a); r.drags.shiftClick(c);
+      expect(r.drags.onDragStart(model(b), { x: 12, y: 10 }, shift)).toBe(true);
+      expect(r.drags.held!.ids).toEqual([b]);
+      expect(r.selection).toEqual({ pieceId: r.squad.id, modelIds: [b] });          // b was not picked: the picks start over with it
+      r.drags.onDragMove({ x: 12, y: 20 }, shift);
+      r.drags.onDragEnd({ x: 12, y: 20 }, shift);
+      const moved = (r.sent[0] as unknown as { moves: { modelId: string }[] }).moves.map((m) => m.modelId);
+      expect(moved).toEqual([b]);
+      r.drags.shiftClick(a);                                                         // picks b, a
+      expect(r.drags.onDragStart(model(a), { x: 10, y: 10 }, shift)).toBe(true);
+      expect(r.drags.held!.ids).toEqual([a]);
+      expect(r.drags.picks.modelIds).toEqual([b, a]);                                // a was picked: the picks stay
+      r.drags.onDragEnd({ x: 10, y: 10 }, shift);
+      expect(r.drags.onDragStart(model(r.rival), { x: 40, y: 30 }, shift)).toBe(false);
+    });
+
     it('in a move Ask the picks are what a drag holds, and a new Ask or Esc clears them', () => {
       const r = rig({ squad: 3 });
       const [a] = r.ids as [string, string, string];

@@ -86,19 +86,20 @@ describe('the pointer state machine', () => {
     ]);
   });
 
-  it('a Shift press moved past the threshold boxes from the press, on a model or empty table, when the driver takes boxes', () => {
+  it('a Shift press moved past the threshold boxes from the press, on empty table or a hit the driver will not drag, when the driver takes boxes', () => {
     const shift = { ...NO_MODIFIERS, shift: true };
     const sdown = (x: number): PointerInput => ({ type: 'down', screen: { x: x * 10, y: 0 }, at: { x, y: 0 }, button: 0, mods: shift });
     for (const from of [1, 20]) {
-      const { effects, state } = run([sdown(from), move(from + 2), up(from + 3)], always, always);
+      const { effects, state } = run([sdown(from), move(from + 2), up(from + 3)], never, always);
       expect(effects).toEqual([
         { type: 'boxMove', from: { x: from, y: 0 }, at: { x: from + 2, y: 0 } },
         { type: 'boxEnd', from: { x: from, y: 0 }, at: { x: from + 3, y: 0 } },
       ]);
       expect(state).toEqual(IDLE_POINTER);
     }
-    expect(run([sdown(1), move(3), { type: 'cancel' }], always, always).effects.at(-1)).toEqual({ type: 'boxCancel' });
+    expect(run([sdown(1), move(3), { type: 'cancel' }], never, always).effects.at(-1)).toEqual({ type: 'boxCancel' });
     expect(run([sdown(1), move(3)], always).effects[0]!.type).toBe('dragStart');      // no box taker: Shift drags as before
+    expect(run([sdown(1), move(3)], always, always).effects[0]!.type).toBe('dragStart'); // a hit the driver drags with Shift: one model in hand, no box
     expect(run([down(1), move(3)], always, always).effects[0]!.type).toBe('dragStart');  // no Shift: no box
   });
 });

@@ -1,6 +1,6 @@
 // viewer/src/lib/play/modelPicks.ts
 // Ports ModelPicks (client/src/Core/ModelPicks.cs), members camelCased: the picked models (in-game UX spec → Moves, Picking models), one
-// unit's, in pick order. Shift+click toggles a model, a Shift+drag box adds the models inside it, and a pick naming another unit starts over
+// unit's, in pick order. Shift+click toggles a model, a Shift+drag from my model holds it alone, a Shift+drag box from anywhere else adds the models inside it, and a pick naming another unit starts over
 // with that unit. A plain drag on a picked model holds the picks; one on any other model holds its whole unit and clears them. Immutable:
 // every change returns the next picks. Godot boxes base centres on screen; the browser's board is top-down, so here they are table inches.
 
@@ -15,6 +15,15 @@ export interface PickBox { readonly from: XY; readonly to: XY }
 
 export function boxContains(box: PickBox, x: number, y: number): boolean {
   return x >= Math.min(box.from.x, box.to.x) && x <= Math.max(box.from.x, box.to.x) && y >= Math.min(box.from.y, box.to.y) && y <= Math.max(box.from.y, box.to.y);
+}
+
+/** ShiftGesture: what a Shift press is (in-game UX spec → Moves: "Shift (held): one model: click selects, drag moves"): a click when it
+ *  comes up before travelling a drag's distance; once it travels, holdOne when it was pressed on a model of my team, else box. */
+export type ShiftGesture = 'click' | 'box' | 'holdOne';
+
+/** ModelPicks.ShiftPress. */
+export function shiftPress(onMyModel: boolean, travelled: boolean): ShiftGesture {
+  return !travelled ? 'click' : onMyModel ? 'holdOne' : 'box';
 }
 
 export class ModelPicks {
@@ -71,6 +80,11 @@ export class ModelPicks {
    *  picked; else every model of its unit. */
   held(pressedModelId: string, unitModelIds: readonly string[]): readonly string[] {
     return this.contains(pressedModelId) ? unitModelIds.filter((m) => this.contains(m)) : unitModelIds;
+  }
+
+  /** The picks after a Shift+drag holds this model alone: kept when it is picked, else that model alone. */
+  shiftHeld(unitId: string, modelId: string): ModelPicks {
+    return this.unitId === unitId && this.contains(modelId) ? this : new ModelPicks(unitId, [modelId]);
   }
 
   /** The picks after a plain press on this model: kept when it is picked, cleared when it is not. */

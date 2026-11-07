@@ -14,7 +14,7 @@ import type { MoveBoxHooks } from './decisionBox.move';
 import { handMarks, handMoveCommand, markerMove, mayDrag } from './handMove';
 import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
-import { ModelPicks, type PickBox, type PickCandidate } from './modelPicks';
+import { ModelPicks, shiftPress, type PickBox, type PickCandidate } from './modelPicks';
 import { allowanceOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
 import { read } from './moveRuler';
 import { Names } from './names';
@@ -154,18 +154,21 @@ export class PlayDrags {
   }
 
   /** OnLeftDown: a click on a placement point is the box's; a pick answers and neither selects nor drags; the rest checks MayDrag. */
-  onDragStart(hit: BoardHit, at: XY, _mods: Modifiers = { shift: false, ctrl: false, alt: false }): boolean {
+  onDragStart(hit: BoardHit, at: XY, mods: Modifiers = { shift: false, ctrl: false, alt: false }): boolean {
     const st = this.#deps.state(), p = st.projection, game = st.game, box = this.#deps.box();
     if (p === null || game === null || box === null || box.placementPoint !== null) return false;
+    // Shift+drag: one model of my team held alone; from anywhere else the page boxes (shiftPress).
+    if (mods.shift && (hit.kind !== 'model' || shiftPress(this.#mine(hit.id), true) !== 'holdOne')) return false;
     if (hit.kind === 'model') {
       const unit = p.models.get(hit.id)?.unitId;
       if (box.eligible.has(hit.id) || (unit !== undefined && box.eligible.has(unit))) return false;
       const drag = this.#models();
       if (drag === null || unit === undefined) return false;
       // A press on a picked model holds the picks; on any other model the whole unit, and the picks clear (ModelPicks.pressed, held).
-      const picks = this.picks.pressed(hit.id);
+      // A Shift press holds the model alone, and the picks keep it or start over with it (ModelPicks.shiftHeld).
+      const picks = mods.shift ? this.picks.shiftHeld(unit, hit.id) : this.picks.pressed(hit.id);
       const unitModels = [...p.models.values()].filter((m) => m.unitId === unit && (m.location.kind === 'table' || box.ghosts.has(m.id))).map((m) => m.id);
-      const held = drag.start(p, hit.id, at, picks.isEmpty ? null : picks.held(hit.id, unitModels), box.proposing, box.ghosts);
+      const held = drag.start(p, hit.id, at, mods.shift ? [hit.id] : picks.isEmpty ? null : picks.held(hit.id, unitModels), box.proposing, box.ghosts);
       const proposing = held.ids.every((id) => box.proposing.has(id));
       if (held.ids.length === 0 || !mayDrag({ kind: 'models', ids: held.ids }, isWatching(st), box.proposing, game.enforcement, game.status, p, this.#deps.locks)) {
         drag.cancel();

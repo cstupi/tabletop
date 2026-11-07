@@ -29,6 +29,31 @@ public class ModelPicksTests
     }
 
     [Fact]
+    public void A_shift_press_that_comes_up_unmoved_is_a_click_wherever_it_was_pressed()
+    {
+        Assert.Equal(ShiftGesture.Click, ModelPicks.ShiftPress(onMyModel: true, travelled: false));
+        Assert.Equal(ShiftGesture.Click, ModelPicks.ShiftPress(onMyModel: false, travelled: false));
+    }
+
+    [Fact]
+    public void A_shift_press_that_travels_from_my_model_holds_that_model_alone_and_from_anywhere_else_boxes()
+    {
+        Assert.Equal(ShiftGesture.HoldOne, ModelPicks.ShiftPress(onMyModel: true, travelled: true));
+        Assert.Equal(ShiftGesture.Box, ModelPicks.ShiftPress(onMyModel: false, travelled: true));   // empty table, terrain, an enemy model
+    }
+
+    [Fact]
+    public void A_shift_drag_keeps_the_picks_holding_its_model_and_else_starts_over_with_it_alone()
+    {
+        var picks = ModelPicks.None.Toggle(U1, A).Toggle(U1, B);
+        Assert.Same(picks, picks.ShiftHeld(U1, A));
+        Assert.Equal([C], picks.ShiftHeld(U1, C).ModelIds);
+        Assert.Equal((Guid?)U2, picks.ShiftHeld(U2, D).UnitId);
+        Assert.Equal([D], picks.ShiftHeld(U2, D).ModelIds);
+        Assert.Equal([A], ModelPicks.None.ShiftHeld(U1, A).ModelIds);
+    }
+
+    [Fact]
     public void A_box_takes_the_models_whose_base_centre_is_inside_it_either_way_it_was_drawn()
     {
         var candidates = new[] { new PickCandidate(A, U1, 10, 10), new PickCandidate(B, U1, 20, 20), new PickCandidate(C, U1, 50, 50) };

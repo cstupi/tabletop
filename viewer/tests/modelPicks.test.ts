@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ModelPicks, type PickCandidate } from '../src/lib/play/modelPicks';
+import { ModelPicks, shiftPress, type PickCandidate } from '../src/lib/play/modelPicks';
 
 const c = (modelId: string, unitId: string, x: number, y: number): PickCandidate => ({ modelId, unitId, x, y });
 const a1 = c('a1', 'A', 1, 1), a2 = c('a2', 'A', 2, 1), a3 = c('a3', 'A', 3, 1);
@@ -57,5 +57,20 @@ describe('ModelPicks', () => {
     expect(ModelPicks.of(p.selection('A')).modelIds).toEqual(['a1']);
     expect(ModelPicks.of({ pieceId: 'A', modelIds: [] })).toBe(ModelPicks.none);
     expect(ModelPicks.of(null)).toBe(ModelPicks.none);
+  });
+
+  it('a Shift press unmoved is a click; travelled from my model it holds that model alone, from anywhere else it boxes', () => {
+    expect(shiftPress(true, false)).toBe('click');
+    expect(shiftPress(false, false)).toBe('click');
+    expect(shiftPress(true, true)).toBe('holdOne');
+    expect(shiftPress(false, true)).toBe('box');
+  });
+
+  it('a Shift drag keeps the picks holding its model, else starts over with it alone', () => {
+    const p = ModelPicks.none.toggle('A', 'a1').toggle('A', 'a2');
+    expect(p.shiftHeld('A', 'a1')).toBe(p);
+    expect(p.shiftHeld('A', 'a3').modelIds).toEqual(['a3']);
+    expect([p.shiftHeld('B', 'b1').unitId, p.shiftHeld('B', 'b1').modelIds]).toEqual(['B', ['b1']]);
+    expect(ModelPicks.none.shiftHeld('A', 'a1').modelIds).toEqual(['a1']);
   });
 });
