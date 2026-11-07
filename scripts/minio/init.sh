@@ -27,8 +27,9 @@ esac
 echo "bucket $S3_BUCKET ready; service user $S3_APP_ACCESS_KEY holds $policy"
 
 # The release publisher (scripts/release-client upload and builtin), when S3_RELEASE_ACCESS_KEY is set: Put under releases/
-# and builtin/ only. The service user above already reads both (GetObject on the bucket's objects), which GET /v1/client/latest
-# and GET /v1/builtin need.
+# and builtin/, and Get on releases/latest.json (release-client compares its source with the commit's to skip an unchanged
+# client). The service user above already reads both (GetObject on the bucket's objects), which GET /v1/client/latest and
+# GET /v1/builtin need.
 if [ -n "${S3_RELEASE_ACCESS_KEY:-}" ]; then
   : "${S3_RELEASE_SECRET_KEY:?}"
   release_policy="${S3_BUCKET}-releases"
@@ -36,7 +37,8 @@ if [ -n "${S3_RELEASE_ACCESS_KEY:-}" ]; then
 {
   "Version": "2012-10-17",
   "Statement": [
-    { "Effect": "Allow", "Action": ["s3:PutObject"], "Resource": ["arn:aws:s3:::${S3_BUCKET}/releases/*", "arn:aws:s3:::${S3_BUCKET}/builtin/*"] }
+    { "Effect": "Allow", "Action": ["s3:PutObject"], "Resource": ["arn:aws:s3:::${S3_BUCKET}/releases/*", "arn:aws:s3:::${S3_BUCKET}/builtin/*"] },
+    { "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::${S3_BUCKET}/releases/latest.json"] }
   ]
 }
 EOF

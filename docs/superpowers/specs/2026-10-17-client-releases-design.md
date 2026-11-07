@@ -50,6 +50,7 @@ writes under it. `UploadSweep` lists only `staging/`.
   "date": "2026-10-17T12:00:00Z",
   "notes": "the tag annotation, else the CHANGELOG.md section for the version, else empty",
   "protocolVersion": 4,
+  "source": "the client's source fingerprint, 64 hex",
   "platforms": {
     "windows": { "key": "releases/1.2.0/tabletop-1.2.0-windows-x86_64.zip", "size": 120000000, "sha256": "…" },
     "linux":   { "key": "releases/1.2.0/tabletop-1.2.0-linux-x86_64.zip",   "size": 80000000,  "sha256": "…" },
@@ -58,7 +59,7 @@ writes under it. `UploadSweep` lists only `staging/`.
 }
 ```
 
-`sha256` is lower-case hex of the zip. Upload order: the zips, then `X.Y.Z/manifest.json`, then `latest.json`, so
+`sha256` is lower-case hex of the zip. `source` is the client's source fingerprint at the tag (Publishing). Upload order: the zips, then `X.Y.Z/manifest.json`, then `latest.json`, so
 `latest.json` never names a missing object.
 
 ## Publishing
@@ -67,6 +68,16 @@ writes under it. `UploadSweep` lists only `staging/`.
   export holds its .NET assemblies, since Godot exits 0 when the C# step fails), `package` (zips, sizes, hashes,
   manifest; notes from `notes`: the tag annotation, else the `CHANGELOG.md` section) and `upload` (`aws s3 cp --endpoint-url`, from `RELEASE_S3_ENDPOINT`, `RELEASE_S3_BUCKET`,
   `RELEASE_S3_ACCESS_KEY`, `RELEASE_S3_SECRET_KEY`).
+- A client is published only when the client changed. Its source fingerprint (`scripts/release-client source`) is one
+  SHA-256 over `git ls-tree -r <commit>` of `client/` (without `client/content/builtin/`), `libs/Tabletop.Geometry/`,
+  `libs/Tabletop.Content/`, `libs/Tabletop.Protocol/`, `Directory.Build.props`, `global.json`, `scripts/release-client` and
+  `scripts/client-build/`, none of their `*.md`. `build` and `all` first read the published `releases/latest.json` (on the
+  host with `aws`, else in the upload container, with the publisher's key); when its `source` equals the commit's they print
+  `client unchanged since <version>: not published`, write `<out>/unchanged.txt` and skip export, package and upload, and
+  `scripts/release` skips the home upload. `latest.json` and the Download page keep the earlier version. `--force-client`
+  (`scripts/release`; `RELEASE_FORCE_CLIENT=1` for `release-client`) publishes anyway; a `latest.json` without `source`,
+  or one that cannot be read, publishes. The built-in content publishes on every release and is not part of the
+  fingerprint; a server-only release never raises `TABLETOP_MIN_CLIENT_VERSION`.
 - `.github/workflows/release.yml` runs on a pushed `v*.*.*` tag: build and tests, the sim's in-process rules suite,
   the web checks, then `scripts/release-client` with Godot 4.7.2 .NET and its export templates (cached).
 - `scripts/release` runs the same from a clone on the server host, then builds and installs the web app and deploys the
@@ -78,7 +89,8 @@ writes under it. `UploadSweep` lists only `staging/`.
   in a second container given `RELEASE_S3_*` at run time and joined to `RELEASE_S3_NETWORK`. The home server uploads on
   its internal backend network straight to its MinIO (`http://tabletop-s3:9000`), so the publisher's key never leaves
   that host. `--deploy home` uploads after the deploy, since the deploy starts MinIO and creates the publisher.
-- Re-running a release for the same version overwrites its objects; nothing else changes.
+- Re-running a release for the same version overwrites its objects (with `--force-client` once that version is the published
+  one); nothing else changes.
 
 ## Serving
 
@@ -99,7 +111,7 @@ Every version stays under `releases/X.Y.Z/` until an operator deletes it (`aws s
 ## Access
 
 - Management's service user reads `releases/*` through its existing object policy (Get on the bucket's objects).
-- The publisher's credentials need Put on `releases/*` only (and `builtin/*`, which it also publishes: spec
-  `2026-10-18-builtin-content-from-server-design.md`). Self-hosted MinIO: `scripts/minio/init.sh` creates a
+- The publisher's credentials need Put on `releases/*` (and `builtin/*`, which it also publishes: spec
+  `2026-10-18-builtin-content-from-server-design.md`) and Get on `releases/latest.json`. Self-hosted MinIO: `scripts/minio/init.sh` creates a
   `<bucket>-releases` policy and a user for it when `RELEASE_S3_ACCESS_KEY` is set in `prod.env`. S3 or R2: a token scoped to the
   bucket with object write.

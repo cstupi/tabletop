@@ -7,8 +7,11 @@
 #   scripts/release-client package <version> <out>   zips, sizes, SHA-256 and <out>/manifest.json (notes: RELEASE_NOTES_FILE,
 #                                                    default <out>/notes.txt)
 #   scripts/release-client upload  <version> <out>   the zips, releases/<version>/manifest.json, then releases/latest.json
-#   scripts/release-client build   <version> <out>   export, notes, package
-#   scripts/release-client all     <version> <out>   build, then upload
+#   scripts/release-client build   <version> <out>   export, notes, package; nothing when the client is unchanged (below)
+#   scripts/release-client all     <version> <out>   build, then upload; nothing when the client is unchanged
+#   scripts/release-client unchanged <version> <out> exit 0 and print the published version when releases/latest.json's source is
+#                                                    RELEASE_CLIENT_SOURCE (default this commit's), else exit 1
+#   scripts/release-client source [<commit>]         the client's source fingerprint at the commit (default HEAD)
 #   scripts/release-client builtin <version> <out>   the built-in content (spec 2026-10-18-builtin-content-from-server-design.md):
 #                                                    <out>/builtin/catalog.json (client/content/builtin/catalog.json plus version
 #                                                    and each file's sha256 and size), each file to builtin/<sha256>, then
@@ -24,7 +27,15 @@
 # RELEASE_S3_NETWORK when set (e.g. tabletop-home_backend, whose MinIO is http://tabletop-s3:9000). The export container
 # resolves through TABLETOP_DNS_1/TABLETOP_DNS_2 (default 1.1.1.1, 9.9.9.9) for NuGet. The host needs docker and git only.
 #
-# export checks each pack (scripts/pck-files) for the built-in terrain meshes and texture imports, and fails without them.
+# Client releases only on client changes (spec docs/superpowers/specs/2026-11-07-assets-on-demand-and-client-releases-design.md):
+# the source fingerprint is one SHA-256 over git ls-tree of the client's inputs (client_source); package writes it to the manifest
+# as "source". build and all first read the published releases/latest.json (on the host with aws, else in the upload container, so
+# the publisher's key stays where RELEASE_S3_* is); when its source is this commit's they print "client unchanged since <version>:
+# not published", write <out>/unchanged.txt (the published version) and stop. RELEASE_FORCE_CLIENT=1 publishes anyway; a
+# latest.json without source, or one that cannot be read, publishes.
+#
+# export checks each pack (scripts/pck-files) lacks the built-in terrain meshes and textures (fetched on demand by the client),
+# and fails when one is there.
 # export needs GODOT (default: godot on PATH, Godot 4.7.2 .NET with its export templates), dotnet, and TABLETOP_WEB_URL (the web
 # app's public origin, which the build reaches management and the game socket through). upload needs aws and RELEASE_S3_ENDPOINT,
 # RELEASE_S3_BUCKET, RELEASE_S3_ACCESS_KEY, RELEASE_S3_SECRET_KEY; RELEASE_S3_REGION (default us-east-1; R2 takes auto) and
@@ -86,21 +97,53 @@ export_builds() {   # <version> <out>
   done
 }
 
-check_pack() {   # <platform> <out>: the export's pack holds the built-in content the client reads at run time
-  local p=$1 out=$2 pck listing f want missing=()
+client_source() {   # [<commit>]: SHA-256 over git ls-tree of the client's inputs; the built-in content and *.md are not inputs
+  local commit=${1:-HEAD}
+  git -C "$root" rev-parse -q --verify "$commit^{commit}" >/dev/null || die "no commit $commit"
+  git -C "$root" -c core.quotepath=off ls-tree -r "$commit" -- client libs/Tabletop.Geometry libs/Tabletop.Content libs/Tabletop.Protocol \
+      Directory.Build.props global.json scripts/release-client scripts/client-build \
+    | awk -F'\t' '$2 !~ /^client\/content\/builtin\// && $2 !~ /\.md$/' | sha256sum | cut -d' ' -f1
+}
+
+published_unchanged() {   # <out>: prints the published version and exits 0 when latest.json's source is RELEASE_CLIENT_SOURCE
+  local prefix=${RELEASE_S3_PREFIX:-releases} latest theirs
+  need aws "install the AWS CLI v2"; need jq; check_s3
+  [[ -n "${RELEASE_CLIENT_SOURCE:-}" ]] || die "RELEASE_CLIENT_SOURCE is not set"
+  export AWS_ACCESS_KEY_ID="$RELEASE_S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$RELEASE_S3_SECRET_KEY" AWS_DEFAULT_REGION="${RELEASE_S3_REGION:-us-east-1}"
+  export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+  latest=$(aws --endpoint-url "$RELEASE_S3_ENDPOINT" s3 cp --only-show-errors "s3://$RELEASE_S3_BUCKET/$prefix/latest.json" - 2>/dev/null) \
+    || { echo "release-client: cannot read $prefix/latest.json" >&2; return 1; }
+  theirs=$(jq -r '.source // empty' <<< "$latest" 2>/dev/null) || theirs=""
+  [[ -n "$theirs" && "$theirs" == "$RELEASE_CLIENT_SOURCE" ]] || return 1
+  jq -r '.version' <<< "$latest"
+}
+
+client_changed() {   # <out>: 0 to publish; 1 (with <out>/unchanged.txt) when the published client has this source
+  local out=$1 published
+  rm -f "$out/unchanged.txt"
+  if [[ "${RELEASE_FORCE_CLIENT:-}" == 1 ]]; then echo "release-client: RELEASE_FORCE_CLIENT=1: publishing the client"; return 0; fi
+  if ! published=$(unchanged_step "$out"); then echo "release-client: no published client with source ${RELEASE_CLIENT_SOURCE:0:12}: publishing"; return 0; fi
+  echo "release-client: client unchanged since $published: not published"
+  [[ "${DRY_RUN:-}" == 1 ]] || printf '%s\n' "$published" > "$out/unchanged.txt"
+  return 1
+}
+
+check_pack() {   # <platform> <out>: the export's pack lacks the built-in meshes and textures, which the client fetches on demand
+  local p=$1 out=$2 pck listing f name shipped=()
   if [[ $p == macos ]]; then
     pck="$out/macos/Tabletop.pck"
     unzip -p "$out/macos/Tabletop.zip" 'Tabletop.app/Contents/Resources/Tabletop.pck' > "$pck" || die "the macOS export has no Tabletop.pck"
   else pck="$out/$p/Tabletop.pck"; fi
   listing=$("$root/scripts/pck-files" "$pck") || die "cannot read $pck"
   [[ $p == macos ]] && rm -f "$pck"
-  # MeshLoader reads the terrain meshes raw (Keep File imports); SlabNode loads the textures through ResourceLoader (their .import).
-  for f in "$root"/client/content/builtin/terrain/*.glb "$root"/client/content/builtin/textures/*.png; do
-    want=${f#"$root/client/"}; [[ $want == *.png ]] && want+=.import
-    grep -qxF "$want" <<< "$listing" || missing+=("$want")
+  # The files themselves, and a texture's import (.godot/imported/<name>.png-<md5 of its res:// path>.*).
+  shipped=($(grep -E '^content/builtin/(terrain|textures)/' <<< "$listing" || true))
+  for f in "$root"/client/content/builtin/textures/*.png; do
+    name=$(basename "$f")
+    shipped+=($(grep -F ".godot/imported/$name-$(printf '%s' "res://${f#"$root/client/"}" | md5sum | cut -d' ' -f1)." <<< "$listing" || true))
   done
-  (( ${#missing[@]} == 0 )) || die "the $p export's pack is missing built-in content: ${missing[*]}"
-  echo "release-client: pack ok: $p ($(wc -l <<< "$listing") files, built-in content present)"
+  (( ${#shipped[@]} == 0 )) || die "the $p export's pack holds built-in content the client fetches on demand: ${shipped[*]}"
+  echo "release-client: pack ok: $p ($(wc -l <<< "$listing") files, no built-in meshes or textures)"
 }
 
 release_notes() {   # <version> <out>: <out>/notes.txt from the tag's annotation, else CHANGELOG.md's section, else empty
@@ -136,8 +179,10 @@ package_builds() {   # <version> <out>
   notes=""; if [[ -f "$notes_file" ]]; then notes=$(cat "$notes_file"); fi
   local protocol; protocol=$(sed -nE 's/.*const int Current = ([0-9]+);.*/\1/p' "$root/libs/Tabletop.Protocol/ProtocolVersion.cs")
   [[ -n "$protocol" ]] || die "cannot read ProtocolVersion.Current"
+  local source=${RELEASE_CLIENT_SOURCE:-}
+  [[ -n "$source" ]] || source=$(client_source)
   printf '%s\n' "${entries[@]}" | jq -s --arg v "$version" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg notes "$notes" --argjson protocol "$protocol" \
-    '{version: $v, date: $date, notes: $notes, protocolVersion: $protocol, platforms: add}' > "$out/manifest.json"
+    --arg source "$source" '{version: $v, date: $date, notes: $notes, protocolVersion: $protocol, source: $source, platforms: add}' > "$out/manifest.json"
   echo "release-client: $out/manifest.json"; jq -r '.platforms | to_entries[] | "  \(.key)  \(.value.size) bytes  \(.value.sha256)"' "$out/manifest.json"
 }
 
@@ -209,7 +254,7 @@ container_build() {   # <step: export|package|build> <version> <out>
   else git -C "$root" ls-files -z --cached --others --exclude-standard > "$out/.sources"; fi
   run docker run --rm -u "$owner" --dns "${TABLETOP_DNS_1:-1.1.1.1}" --dns "${TABLETOP_DNS_2:-9.9.9.9}" \
     -v "$root:/src:ro" -v "$out:/out" -v "$root/build/nuget:/nuget" -e NUGET_PACKAGES=/nuget -v "$root/build/godot-cache:/godot-cache" \
-    -e RELEASE_CLIENT_IN_CONTAINER=1 -e TABLETOP_WEB_URL -e RELEASE_S3_PREFIX \
+    -e RELEASE_CLIENT_IN_CONTAINER=1 -e TABLETOP_WEB_URL -e RELEASE_S3_PREFIX -e RELEASE_CLIENT_SOURCE \
     "$image" /src/scripts/release-client "$step" "$version" /out
   run rm -f "$out/.sources"
 }
@@ -224,6 +269,17 @@ container_upload() {   # <version> <out>: the credentials pass by name (-e NAME)
   run docker run --rm -u "$owner" "${net[@]}" -v "$root:/src:ro" -v "$out:/out:ro" -e RELEASE_CLIENT_IN_CONTAINER=1 \
     -e RELEASE_S3_ENDPOINT -e RELEASE_S3_BUCKET -e RELEASE_S3_ACCESS_KEY -e RELEASE_S3_SECRET_KEY -e RELEASE_S3_REGION -e RELEASE_S3_PREFIX \
     "$image" /src/scripts/release-client upload "$version" /out
+}
+
+container_unchanged() {   # as container_upload, nothing mounted writable; the published version on stdout
+  local net=()
+  check_s3
+  builder_image >&2
+  if [[ -n "${RELEASE_S3_NETWORK:-}" ]]; then net=(--network "$RELEASE_S3_NETWORK")
+  else net=(--dns "${TABLETOP_DNS_1:-1.1.1.1}" --dns "${TABLETOP_DNS_2:-9.9.9.9}"); fi
+  docker run --rm -u "$owner" "${net[@]}" -v "$root:/src:ro" -e RELEASE_CLIENT_IN_CONTAINER=1 -e RELEASE_CLIENT_SOURCE \
+    -e RELEASE_S3_ENDPOINT -e RELEASE_S3_BUCKET -e RELEASE_S3_ACCESS_KEY -e RELEASE_S3_SECRET_KEY -e RELEASE_S3_REGION -e RELEASE_S3_PREFIX \
+    "$image" /src/scripts/release-client unchanged 0.0.0 /tmp
 }
 
 container_builtin() {   # <version> <out>: as container_upload, the output writable for builtin/catalog.json
@@ -241,6 +297,7 @@ container_builtin() {   # <version> <out>: as container_upload, the output writa
 
 container=0
 if [[ "${1:-}" == --in-container ]]; then container=1; shift; fi
+if [[ "${1:-}" == source ]]; then [[ $# -le 2 ]] || die "usage: scripts/release-client source [<commit>]"; client_source "${2:-HEAD}"; exit 0; fi
 if [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]]; then container=0
 elif [[ $container == 0 && "${1:-}" == builtin ]]; then
   for tool in aws jq sha256sum; do command -v $tool >/dev/null 2>&1 || { container=1; echo "release-client: $tool not found; publishing the built-in content from the builder container ($image)"; break; }; done
@@ -248,9 +305,16 @@ elif [[ $container == 0 ]] && ! command -v "${GODOT:-godot}" >/dev/null 2>&1; th
   container=1; echo "release-client: ${GODOT:-godot} not found; running in the builder container ($image)"
 fi
 
-[[ $# -eq 3 ]] || die "usage: scripts/release-client [--in-container] export|notes|package|build|upload|all|builtin <version> <out>"
+[[ $# -eq 3 ]] || die "usage: scripts/release-client [--in-container] export|notes|package|build|upload|all|builtin|unchanged <version> <out> | source [<commit>]"
 check_version "$2"
 mkdir -p "$3"; out="$(cd "$3" && pwd)"
+# The published latest.json: read in the upload container in container mode, else here.
+unchanged_step() { if [[ $container == 1 ]]; then container_unchanged; else published_unchanged "$1"; fi; }
+if [[ -z "${RELEASE_CLIENT_IN_CONTAINER:-}" ]]; then
+  # The fingerprint is taken here, where git is; the builder container gets it through the environment.
+  case "$1" in package|build|all|unchanged) export RELEASE_CLIENT_SOURCE=${RELEASE_CLIENT_SOURCE:-$(client_source)} ;; esac
+  case "$1" in build|all) client_changed "$out" || exit 0 ;; esac
+fi
 if [[ $container == 1 ]]; then
   case "$1" in
     export|package|build) container_build "$1" "$2" "$out" ;;
@@ -258,6 +322,7 @@ if [[ $container == 1 ]]; then
     upload) container_upload "$2" "$out" ;;
     all) container_build build "$2" "$out"; container_upload "$2" "$out" ;;
     builtin) container_builtin "$2" "$out" ;;
+    unchanged) container_unchanged ;;
     *) die "unknown step '$1'" ;;
   esac
   exit 0
@@ -271,5 +336,6 @@ case "$1" in
   build) export_builds "$2" "$out"; [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]] || release_notes "$2" "$out"; package_builds "$2" "$out" ;;
   all) export_builds "$2" "$out"; release_notes "$2" "$out"; package_builds "$2" "$out"; upload_builds "$2" "$out" ;;
   builtin) builtin_publish "$2" "$out" ;;
+  unchanged) published_unchanged "$out" ;;
   *) die "unknown step '$1'" ;;
 esac

@@ -3,8 +3,8 @@
 # build and install the web app and the viewer (/viewer/), deploy the servers, publish the built-in content. The client steps are scripts/release-client, which the GitHub release
 # workflow runs too. Spec: docs/superpowers/specs/2026-10-17-client-releases-design.md; operator guide: deploy/README.md.
 #
-#   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--skip-builtin]
-#                   [--tests] [--dry-run]
+#   scripts/release [--version vX.Y.Z] [--deploy docker|home|systemd|none] [--env-file PATH] [--skip-client] [--force-client]
+#                   [--skip-builtin] [--tests] [--dry-run]
 #
 # --version     the tag to release; default the v*.*.* tag on HEAD. The script fetches origin's tags and runs the tag's own
 #               copy of itself from a clean worktree of the tag (build/source), so the clone's checkout and local
@@ -15,6 +15,9 @@
 # --env-file    the settings, KEY=VALUE lines; the environment wins over the file. Default /etc/tabletop/prod.env; for home,
 #               home.env in the clone if present, else /etc/tabletop/home.env.
 # --skip-client no client export or upload: on the host with Godot, else (and always for home) in the builder container.
+#               Without it the client is published only when its source fingerprint differs from the published latest.json's
+#               (scripts/release-client; a server-only release keeps the players' client and the Download page's version).
+# --force-client publish the client even when its source is the published one.
 # --skip-builtin no built-in content publish (scripts/release-client builtin: the terrain catalog, meshes and textures to
 #               builtin/ in the blob store, which clients fetch when its version changes; spec
 #               docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md). It runs after the deploy, with the
@@ -48,11 +51,12 @@ while [[ $# -gt 0 ]]; do
     --deploy) deploy=${2:?--deploy needs docker, home, systemd or none}; shift 2 ;;
     --env-file) env_file=${2:?--env-file needs a path}; shift 2 ;;
     --skip-client) skip_client=1; shift ;;
+    --force-client) export RELEASE_FORCE_CLIENT=1; shift ;;
     --skip-builtin) skip_builtin=1; shift ;;
     --tests) skip_tests=0; shift ;;
     --skip-tests) skip_tests=1; shift ;;
     --dry-run) dry=1; shift ;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -296,7 +300,8 @@ case $deploy in
     await "$prefix-minio-init" "done"
     for c in postgres minio management game web; do await "$prefix-$c" healthy; done
     run "${compose[@]}" ps
-    if [[ $skip_client == 0 ]]; then
+    if [[ $skip_client == 0 && -f "$out/unchanged.txt" ]]; then echo "client unchanged since $(cat "$out/unchanged.txt"): not uploaded"
+    elif [[ $skip_client == 0 ]]; then
       step "Client upload (${RELEASE_S3_ENDPOINT}${RELEASE_S3_NETWORK:+, network $RELEASE_S3_NETWORK})"
       DRY_RUN=$dry "$root/scripts/release-client" "${client_args[@]}" upload "$version" "$out"
     fi ;;
@@ -332,7 +337,9 @@ step "Done"
 echo "v$version (${head:0:12})"
 [[ $skip_tests == 1 ]] && echo "  tests:   none (CI tests main; --tests runs them here)" || echo "  tests:   build, unit suite, rules suite, check-client, web and viewer checks and tests"
 [[ $skip_builtin == 1 ]] && echo "  builtin: skipped" || echo "  builtin: s3://${RELEASE_S3_BUCKET:-?}/builtin/catalog.json, version $version"
-[[ $skip_client == 1 ]] && echo "  client:  skipped" || echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"
+if [[ $skip_client == 1 ]]; then echo "  client:  skipped"
+elif [[ -f "$out/unchanged.txt" ]]; then echo "  client:  unchanged since $(cat "$out/unchanged.txt"), not published"
+else echo "  client:  s3://${RELEASE_S3_BUCKET:-?}/${RELEASE_S3_PREFIX:-releases}/$version/ and latest.json"; fi
 if [[ $deploy == home ]]; then echo "  web:     image tabletop-web:$version (viewer under /viewer/)"
 else echo "  web:     ${TABLETOP_WEB_ROOT:-web/build (not installed)}"; fi
 echo "  servers: $deploy"

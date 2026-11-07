@@ -14,7 +14,7 @@ repo-root `docker-compose.yml` is development only.
 | `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors`; the viewer's hosted build (browser play and replay) at `/viewer/` |
 | `../scripts/postgres/roles.sh` | The database roles |
 | `../scripts/postgres/backup.sh` | `pg-backup`'s nightly `pg_dump`, keeping the newest 14 |
-| `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher (Put on `releases/*` and `builtin/*`) when `RELEASE_S3_ACCESS_KEY` is set |
+| `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher (Put on `releases/*` and `builtin/*`, Get on `releases/latest.json`) when `RELEASE_S3_ACCESS_KEY` is set |
 | `../scripts/release`, `../scripts/release-client` | Cut a release from a clone: test, publish the client, install the web app, deploy (below) |
 | `../.github/workflows/` | `release.yml` (a `vX.Y.Z` tag publishes the client) |
 
@@ -145,7 +145,7 @@ and `node:24-alpine` containers over the clone (off by default: `main` is tested
 container (Client releases, below), builds the images tagged with the version, runs `up -d`, waits on the containers' own
 states (`migrate` and `minio-init` exited 0; postgres, minio, management, game and web healthy), then uploads the client
 and publishes the built-in content (`builtin/`, same publisher and container, `--skip-builtin` skips it).
-`--skip-client` skips the client. An update is the same command after `git fetch && git checkout vX.Y.Z`.
+`--skip-client` skips the client; a client whose source is the published one is not uploaded (Releases, below). An update is the same command after `git fetch && git checkout vX.Y.Z`.
 
 **Trusted proxy.** Caddy's requests reach management from its address on `gateway_default`, so
 `TABLETOP_TRUSTED_PROXIES` is that network's subnet (`docker network inspect gateway_default -f '{{range
@@ -224,11 +224,22 @@ Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. A release i
 `GET /v1/client/latest` reads and the web app's Download page shows. Asset keys (`{owner}/{hash}`, `staging/`) never
 collide with it. Old versions stay until deleted by hand (`aws s3 rm --recursive s3://<bucket>/releases/X.Y.Z/`).
 
+A client is published only when the client changed (spec `docs/superpowers/specs/2026-11-07-assets-on-demand-and-client-releases-design.md`):
+the manifest's `source` is a fingerprint of the client's inputs at the tag (`scripts/release-client source`: `client/` without
+`content/builtin/`, the three client libs, `Directory.Build.props`, `global.json`, `scripts/release-client`,
+`scripts/client-build/`; no `*.md`). `scripts/release-client build` and `all` read the published `releases/latest.json` first
+(with the publisher's key, on the host or in the upload container) and, when its `source` matches, print `client unchanged
+since <version>: not published` and stop: `latest.json`, the Download page and the players' client keep the earlier version.
+`scripts/release --force-client` (`RELEASE_FORCE_CLIENT=1` for `release-client`) publishes anyway; a `latest.json` without
+`source`, or one the publisher cannot read, publishes.
+
 The built-in content (the terrain catalog `client/content/builtin/catalog.json`, its meshes and the table textures; spec
-`docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md`) goes to the same bucket under `builtin/`:
-each file at `builtin/<sha256>`, then `builtin/catalog.json` naming the release version. `GET /v1/builtin` serves it,
-every `/v1` response names its version (`Tabletop-Builtin-Version`), and a signed-in client fetches a new version within
-about two minutes and caches it, so improved or new built-ins reach players without a client update. Objects an older
+`docs/superpowers/specs/2026-10-18-builtin-content-from-server-design.md`) goes to the same bucket under `builtin/` on every
+release: each file at `builtin/<sha256>` (`Cache-Control: immutable`), then `builtin/catalog.json` (`no-cache`) naming the
+release version. `GET /v1/builtin` serves it, every `/v1` response names its version (`Tabletop-Builtin-Version`), and a
+signed-in client uses a new catalog within about two minutes. The client export packs the catalog but not the meshes and
+textures: a client downloads each file by hash when a table first needs it and keeps it in its cache, so a client update
+downloads nothing again and a built-in change downloads only the changed files. Objects an older
 catalog named stay; delete them by hand if ever needed (nothing references a hash once no catalog names it).
 
 Cut one:
@@ -284,11 +295,12 @@ read as compose reads it: one pair of surrounding quotes is dropped (`KEY="x"` i
 Godot release page unzipped there).
 
 **Access.** Management's service user already reads `releases/*` and `builtin/*` (Get on the bucket's objects). The
-publisher needs Put on `releases/*` and `builtin/*` only:
+publisher needs Put on `releases/*` and `builtin/*` and Get on `releases/latest.json` only:
 
 - MinIO (profile `minio`): set `RELEASE_S3_ACCESS_KEY` and `RELEASE_S3_SECRET_KEY` in `prod.env`; `minio-init` creates
-  the policy `<bucket>-releases` (`s3:PutObject` on `arn:aws:s3:::<bucket>/releases/*` and `.../builtin/*`) and attaches it
-  to that user. `minio-init` runs on every `up`, so a deploy updates an existing publisher's policy before the publish.
+  the policy `<bucket>-releases` (`s3:PutObject` on `arn:aws:s3:::<bucket>/releases/*` and `.../builtin/*`, `s3:GetObject`
+  on `.../releases/latest.json`) and attaches it to that user. Until a deploy has updated the policy the read is refused
+  and the client publishes. `minio-init` runs on every `up`, so a deploy updates an existing publisher's policy before the publish.
 - S3: an IAM user with that statement. R2: an API token with Object Read & Write on the bucket (R2 tokens do not scope
   to a prefix).
 
