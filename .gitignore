@@ -49,3 +49,6 @@ Thumbs.db
 
 # The export presets are checked in; export credentials never are.
 !client/export_presets.cfg
+
+# Session handoff, local only. Never committed.
+/docs/handoff.md

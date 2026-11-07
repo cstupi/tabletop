@@ -4,7 +4,7 @@ A virtual tabletop for One Page Rules (Grimdark Future v3.5.1 and v3.6.0, chosen
 two .NET 10 servers. The rules run only on the game server. The client renders and measures, and there is no offline
 mode.
 
-`docs/handoff.md` says where things stand and what to pick up next. Each module folder has its own `AGENTS.md` with the
+`docs/handoff.md` (local, git-ignored) says where things stand and what to pick up next. Each module folder has its own `AGENTS.md` with the
 specifics.
 
 ## Where things are
@@ -73,7 +73,7 @@ drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver 
 
 | Path | What |
 | --- | --- |
-| `docs/handoff.md` | Current state and next steps |
+| `docs/handoff.md` | Current state and next steps (local, git-ignored) |
 | `docs/shipped.md` | What each batch built, with the owner's rulings |
 | `docs/design/README.md` | System design and vocabulary; `docs/design/<module>/design.md` per module |
 | `docs/architecture.md` | Cross-cutting decisions and why |
