@@ -233,7 +233,12 @@ public partial class CombatLogPanel : VBoxContainer
     }
 
     /// <summary>An action on a row as its icon, the words in the tooltip.</summary>
-    static Button AddButton(Container row, string icon, string tooltip, Action then) { var b = HudBits.IconButton(icon, tooltip); b.Pressed += then; row.AddChild(b); return b; }
+    /// <summary>A row's hover action: the icon at 22 px in a hit area of at least 28 px.</summary>
+    static Button AddButton(Container row, string icon, string tooltip, Action then)
+    {
+        var b = HudBits.IconButton(icon, tooltip, 22); b.CustomMinimumSize = new Vector2(28, 28); b.IconAlignment = HorizontalAlignment.Center; b.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        b.Pressed += then; row.AddChild(b); return b;
+    }
 
     void Highlight(LogEntry e)
     {

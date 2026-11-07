@@ -120,7 +120,7 @@
       <p class="flow">{#each r.applied as name (name)}<button type="button" class="flat" tabindex="-1" title={rules.textOf(name) ?? name} onmousedown={noFocus}>{name}</button>{/each}</p>
     {/if}
     {#if undoHere(r, watching)}
-      <button type="button" class="flat icon" tabindex="-1" title="Undo to here" aria-label="Undo to here" onmousedown={noFocus} onclick={() => onUndoTo(r.seq)}><HudIcon name="undo" size={16} /></button>
+      <button type="button" class="flat icon" tabindex="-1" title="Undo to here" aria-label="Undo to here" onmousedown={noFocus} onclick={() => onUndoTo(r.seq)}><HudIcon name="undo" size={22} /></button>
     {/if}
   </div>
 {/snippet}
@@ -150,7 +150,7 @@
         onclick={() => pick(e)} onkeydown={() => {}}
       >{rowText(e, open)}</div>
       {#if e.type !== 'roll' && undoHere(e, watching)}
-        <button type="button" class="flat icon" tabindex="-1" title="Undo to here" aria-label="Undo to here" onmousedown={noFocus} onclick={() => onUndoTo(e.seq)}><HudIcon name="undo" size={16} /></button>
+        <button type="button" class="flat icon" tabindex="-1" title="Undo to here" aria-label="Undo to here" onmousedown={noFocus} onclick={() => onUndoTo(e.seq)}><HudIcon name="undo" size={22} /></button>
       {/if}
     </div>
   {/if}
@@ -190,7 +190,7 @@
   .line:hover > .flat, .line > .flat:focus-visible { opacity: 1; }
   .line > .flat { flex: none; color: var(--text); }
   @media (hover: none) { .line > .flat { opacity: 1; } }
-  .flat.icon { display: inline-flex; align-items: center; padding: 1px 3px; }
+  .flat.icon { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: 3px; }
   .flat.icon:hover:not(:disabled) { color: var(--accent); }
   .band { flex: none; align-self: stretch; width: 4px; background: var(--team); }
   .row { padding: 1px var(--s1); cursor: pointer; }
