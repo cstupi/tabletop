@@ -20,6 +20,15 @@ public static class SetupEdits
 
     public static AddTerrain AddBuiltin(string name, TableSize size, Func<double> random) => new(BuiltinContent.Place(name, Beside(size, random), new Yaw(0)));
 
+    /// <summary>A tile dropped on the table (spec 2026-11-07-ux-redesign-1-client-shell.md → Setup): the piece where it lands, as a lifted
+    /// setup drag lands (DragBodies.Piece): at the drop when its footprint enters no Impassable piece, else at the nearest spot that does not.</summary>
+    public static AddTerrain DropBuiltin(string name, IReadOnlyList<TerrainPlacement> terrain, Point2 at)
+    {
+        var piece = BuiltinContent.Place(name, new Point3(at.X, at.Y, 0), new Yaw(0));
+        var end = DragBodies.Piece([.. terrain, piece], piece.Id, new Placement(piece.Position, piece.Yaw), at, free: false, level: null);
+        return new(piece with { Position = end.Lands });
+    }
+
     public static AddTerrain AddAsset(Guid assetId, IReadOnlyList<Volume> volumes, TableSize size, Func<double> random) =>
         new(new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(assetId), Beside(size, random), new Yaw(0), 1, Fresh(volumes)));
 

@@ -43,6 +43,7 @@ public sealed class ManagementClient(HttpClient http, Uri baseUrl)
     public Task<RandomTable> RandomTable(RandomTableRequest request) => Post<RandomTable>("/v1/layouts/random", request);
     public Task<IReadOnlyList<TableState>> BuiltinLayouts() => Get<IReadOnlyList<TableState>>("/v1/layouts/builtin");
     public Task<TableState> SaveLayout(TableState layout) => Post<TableState>("/v1/layouts", layout);
+    public Task DeleteLayout(Guid id) => Send(HttpMethod.Delete, $"/v1/layouts/{id}", null, false);
     public Task<Manifest> GetManifest(Guid gameId) => Get<Manifest>($"/v1/games/{gameId}/assets");
     public Task<Page<AssetDto>> ListAssets(AssetKind kind, Guid? after) => Get<Page<AssetDto>>($"/v1/assets?limit=200&kind={kind.ToString().ToLowerInvariant()}" + (after is null ? "" : $"&after={after}"));
     public Task<IReadOnlyList<TerrainVolume>> GetAssetVolumes(Guid assetId) => Get<IReadOnlyList<TerrainVolume>>($"/v1/assets/{assetId}/volumes");

@@ -37,6 +37,9 @@ export interface BoardInteraction {
   onContextMenu?(hit: BoardHit | null, at: Point, screen: Point, mods?: Modifiers): void;
   /** Keys while the canvas has focus (it is focusable); true when handled. Escape cancels a drag before this is asked. */
   onKey?(key: string, mods: Modifiers): boolean;
+  /** HTML drag and drop onto the board (setup's terrain tiles): whether this drag may land, and the drop at its table point. */
+  acceptsDrop?(types: readonly string[]): boolean;
+  onDrop?(data: DataTransfer, at: Point): void;
 }
 
 /** Drawn after the scene, in table inches: ghosts, landing rings, rulers, rings. */

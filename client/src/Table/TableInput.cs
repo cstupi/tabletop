@@ -147,6 +147,9 @@ public partial class TableInput : Node
         return (WorldFrame.FromGodot(hit ?? ground ?? Vector3.Zero), best);
     }
 
+    /// <summary>The table surface under a point of the table's viewport: where a terrain tile dropped there lands from.</summary>
+    public Point3? TableAt(Vector2 screen) => OnPlane(screen, 0);
+
     /// <summary>The camera ray against the horizontal plane at wire height z (Godot y): where a drag follows the cursor, whatever stands in the way. Null when the ray never reaches it.</summary>
     Point3? OnPlane(Vector2 screen, double z)
     {

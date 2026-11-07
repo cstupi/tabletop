@@ -16,7 +16,9 @@
   import type { Edit } from '../protocol/wire.generated';
   import { type Catalog, loadCatalog, nameOf } from './catalog';
   import { SetupDrag, type Held } from './drag';
-  import { removeFromDraft, setupMenu, turnInDraft, type MenuItem, TERRAIN_TURN } from './edits';
+  import { dropBuiltin, removeFromDraft, setupMenu, turnInDraft, type MenuItem, TERRAIN_TURN } from './edits';
+  import { cannotAddTerrain } from './limits';
+  import { TILE_TYPE } from './setupPanel';
   import PieceMenu from './PieceMenu.svelte';
   import SetupTools from './SetupTools.svelte';
   import TerrainCard from './TerrainCard.svelte';
@@ -123,6 +125,13 @@
       }
       return false;
     },
+    // A terrain tile dragged from the sidebar lands where it is dropped (SetupEdits.DropBuiltin).
+    acceptsDrop: (types) => types.includes(TILE_TYPE) && geometry !== null && catalog !== null && draft !== null && cannotAddTerrain(draft) === null,
+    onDrop(data, at) {
+      const entry = catalog?.terrain.get(data.getData(TILE_TYPE));
+      if (entry === undefined || draft === null || geometry === null) return;
+      void send(dropBuiltin(geometry, entry, draft.terrain, at));
+    },
   };
 
   async function runMenu(item: MenuItem) {
@@ -142,7 +151,7 @@
 <div class="setup" class:carded>
   <aside class="tools" aria-label="Setup tools">
     {#if draft !== null && catalog !== null}
-      <SetupTools {draft} {catalog} {api} {snap} {creator} {send} {report} />
+      <SetupTools {draft} {catalog} {api} {snap} {creator} {geometry} {send} {report} />
     {/if}
     <p class="help dim">Drag terrain and markers. <kbd>Q</kbd> <kbd>E</kbd> turn, <kbd>Del</kbd> removes, right-click for more.</p>
   </aside>

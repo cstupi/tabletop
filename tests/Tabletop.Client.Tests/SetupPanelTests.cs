@@ -84,7 +84,7 @@ public class SetupPanelTests
         Assert.Equal($"Terrain {table.Terrain.Count}/64", SetupFolds.Title(SetupFold.Terrain, table, game));
         Assert.Equal($"Objectives {table.Markers.Count}/32", SetupFolds.Title(SetupFold.Objectives, table, game));
         Assert.Equal($"Table {table.Size.Width} × {table.Size.Length}\" · Grass", SetupFolds.Title(SetupFold.Table, table, game));
-        Assert.Equal("Deployment zones", SetupFolds.Title(SetupFold.Zones, table, game));
+        Assert.Equal(table.Zones.Count == 0 ? "Zones" : $"Zones · {SetupWords.ZoneStyle(ZoneDiagram.StyleOf(table.Zones)!)}", SetupFolds.Title(SetupFold.Zones, table, game));
         Assert.Equal("Layouts", SetupFolds.Title(SetupFold.Layouts, table, game));
         Assert.Equal("Game settings", SetupFolds.Title(SetupFold.Game, table, game));
         Assert.Equal("Terrain", SetupFolds.Title(SetupFold.Terrain, null, null));
@@ -108,10 +108,10 @@ public class SetupPanelTests
     }
 
     [Theory]
-    [InlineData(720, 110, 160)]
-    [InlineData(1080, 110, 520)]
-    [InlineData(1080, 300, 330)]
-    [InlineData(400, 110, 160)]
+    [InlineData(720, 110, 280)]
+    [InlineData(1080, 110, 640)]
+    [InlineData(1080, 300, 450)]
+    [InlineData(400, 110, 180)]
     [InlineData(2160, 110, 640)]
     public void The_terrain_list_fills_what_the_window_leaves_the_head_and_headings(double window, double head, double list) =>
         Assert.Equal(list, SetupLayout.TerrainListHeight(window, head));

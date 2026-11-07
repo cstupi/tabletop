@@ -134,6 +134,12 @@
     onlostpointercapture={() => { if (pointer.kind === 'dragging' || pointer.kind === 'boxing') feed({ type: 'cancel' }); }}
     onpointerleave={() => { hovered = undefined; }}
     oncontextmenu={(e) => e.preventDefault()}
+    ondragover={(e) => { if (e.dataTransfer !== null && interaction?.acceptsDrop?.([...e.dataTransfer.types]) === true) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+    ondrop={(e) => {
+      if (e.dataTransfer === null || interaction?.acceptsDrop?.([...e.dataTransfer.types]) !== true) return;
+      e.preventDefault();
+      interaction.onDrop?.(e.dataTransfer, toTable(current, scene.table, local(e)));
+    }}
     onkeydown={(e) => {
       if (e.key === 'Escape' && (pointer.kind === 'dragging' || pointer.kind === 'boxing')) { e.preventDefault(); feed({ type: 'cancel' }); return; }
       if (interaction?.onKey?.(e.key, modsOf(e)) === true) e.preventDefault();

@@ -125,7 +125,7 @@ public partial class DecisionBox : PanelContainer
             var mid = new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);   // a pick by any team of mine is placed
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; }
             _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
-            if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) { _title.Text = string.Join("\n", waiting.Select(w => w.Text)); _hint.Text = ""; }
+            if (mid is null && _s.WaitingTeams is { Count: > 0 }) { _title.Text = ""; _hint.Text = ""; }   // the waiting columns hold the slot (WaitingPanel)
             else if (mid is null) { _title.Text = HeaderView.Waiting(p, names, _s.MyTeamIds) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
             else if (_deployUnit is null) StartDeploy(mid, names);
             return;

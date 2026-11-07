@@ -99,6 +99,12 @@ export const tableSize = (width: number, length: number): SetTableSize => ({ kin
 export const texture = (builtin: string): SetTexture => ({ kind: 'set_texture', texture: { builtin } });
 export const addBuiltin = (entry: BuiltinTerrain, size: TableSize, random?: () => number): AddTerrain =>
   ({ kind: 'add_terrain', placement: placeBuiltin(entry, beside(size, random), { degrees: 0 }) });
+/** A tile dropped on the board (SetupEdits.DropBuiltin): the piece where a lifted setup drag lands it, clear of Impassable pieces. */
+export const dropBuiltin = (geometry: Geometry, entry: BuiltinTerrain, terrain: readonly TerrainPlacement[], at: { x: number; y: number }): AddTerrain => {
+  const placement = placeBuiltin(entry, { x: at.x, y: at.y, z: 0 }, { degrees: 0 });
+  const end = geometry.landPiece([...terrain, placement], placement.id, { position: placement.position, yaw: placement.yaw }, at);
+  return { kind: 'add_terrain', placement: { ...placement, position: end.lands } };
+};
 /** The asset's volumes under new ids, scale 1 (the asset's own scale is already in its mesh and volumes). */
 export const addAsset = (assetId: string, volumes: readonly Volume[], size: TableSize, random?: () => number): AddTerrain =>
   ({ kind: 'add_terrain', placement: placeAsset(assetId, volumes.map((volume) => ({ id: crypto.randomUUID(), volume })), beside(size, random)) });

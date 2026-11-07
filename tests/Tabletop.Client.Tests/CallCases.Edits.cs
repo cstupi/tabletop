@@ -221,6 +221,11 @@ public static partial class CallCases
         yield return E("size", "terrain", Obj(("width", 60), ("length", 44)), _ => SetupEdits.TableSize(60, 44));
         yield return E("texture", "terrain", Obj(("builtin", "desert")), _ => SetupEdits.Texture("desert"));
         yield return E("addBuiltin", "terrain", Obj(("name", "ruin"), ("draws", J(draws))), s => SetupEdits.AddBuiltin("ruin", s.Draft!.Size, Draw(draws)));
+        // A tile dropped on the table: onto a standing piece, so the landing moves it clear when that piece is Impassable.
+        var under = terrain.Board.Table.Terrain.FirstOrDefault(t => t.Volumes.Any(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable))) ?? piece;
+        var at = new Point2(under.Position.X, under.Position.Y);
+        yield return E("dropBuiltin", "terrain", Obj(("name", "large-sight-blocker"), ("x", at.X), ("y", at.Y)),
+            s => SetupEdits.DropBuiltin("large-sight-blocker", s.Draft!.Terrain, at));
         var assetDraws = new[] { 0.0, 0.99 };
         yield return E("addAsset", "terrain", Obj(("assetId", S(AssetId)), ("volumes", J(new[] { ruin.Volume })), ("draws", J(assetDraws))),
             s => SetupEdits.AddAsset(AssetId, [ruin.Volume], s.Draft!.Size, Draw(assetDraws)));
