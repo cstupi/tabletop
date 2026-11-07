@@ -85,7 +85,7 @@ the weapons table. Size: M.
 │  Rifle ×4            24"    1   –   –          │
 │  Plasma Pistol ×1    12"    1   2   –          │
 │  RULES  ⟨Furious⟩ ⟨Tough(3)⟩                    │    chips with hover text, as today
-│  ⚠ Shaken: may only Hold (p.10)                │    the Ask's note, as today
+│  ⚠ Shaken: may only Hold                       │    the Ask's note, as today
 └─────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +123,7 @@ overlay (`⌨` at the card's corner opens it on this Ask's keys).
 │  ┌ Red unit 2  ●●○ ─────────────────────────┐    │
 │  │ [ ⏸ Hold ⁵ ] [ ➔ Advance ⁶ ] …            │    numbering continues across groups, as the keys do
 │  └─────────────────────────────────────────┘    │
-│  ⚠ Red unit 2 is Shaken: may only Hold (p.10)   │   the option's Note once, under its group
+│  ⚠ Red unit 2 is Shaken: may only Hold          │   the option's Note once, under its group
 │  [ End phase ]                                  │   the `act_or_end_phase` extra option, flat
 └─────────────────────────────────────────────────┘
 ```

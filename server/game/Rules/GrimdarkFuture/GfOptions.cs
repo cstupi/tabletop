@@ -19,17 +19,14 @@ public sealed record GfOptions(GfSightMethod LineOfSight, GfUnitSightBlocking Un
 
     const string UnitSightBlockingKey = "unit_sight_blocking", LineOfSightKey = "line_of_sight", MeleeSeparationKey = "melee_separation";
 
-    /// <summary>The 3.5.1 catalog.</summary>
-    public static RulesOptionCatalog Catalog { get; } = CatalogOf(GfEdition.V351);
-
-    /// <summary>The options, their book names and the edition's pages, and their values in display order; the first value is the default.</summary>
-    public static RulesOptionCatalog CatalogOf(GfEdition edition) => new(
+    /// <summary>The options, their book names and their values in display order; the first value is the default. Both editions offer the same.</summary>
+    public static RulesOptionCatalog Catalog { get; } = new(
     [
-        new RulesOption(UnitSightBlockingKey, "Unit sight blocking", "p.5",
+        new RulesOption(UnitSightBlockingKey, "Unit sight blocking",
             [new RulesOptionValue("per_model", "Each model blocks"), new RulesOptionValue("perimeter", "Each unit's perimeter blocks")], "per_model"),
-        new RulesOption(LineOfSightKey, "Line of sight method", edition.HybridSightPage,
+        new RulesOption(LineOfSightKey, "Line of sight method",
             [new RulesOptionValue("core", "Core line of sight"), new RulesOptionValue("hybrid_true", "Hybrid True Line of Sight")], "core"),
-        new RulesOption(MeleeSeparationKey, "Melee separation", "p.10",
+        new RulesOption(MeleeSeparationKey, "Melee separation",
             [new RulesOptionValue("on", "Separate units by 1\""), new RulesOptionValue("off", "Units stay in contact")], "on"),
     ],
     [new RulesPreset("Core rules", new Dictionary<string, string>(), null)]);

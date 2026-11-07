@@ -25,7 +25,7 @@ public sealed record GfEdition(
     bool DefenderChoice,                                          // attack-sequence asks the defender's `attacked` choice (Versatile Defense) before the roll to hit
     int? HeroAuraTough,                                           // S10
     bool IndirectNeedsHold,                                       // S12
-    double ScoutReach, double ScoutClearance, string ScoutPage,   // S13
+    double ScoutReach, double ScoutClearance,                     // S13
     double VanguardClearance,                                     // Fanatic, Vanguard "over 9" away from non-Vanguard enemy units"; 0 none
     bool AircraftTransportUnreachable,                            // S15
     bool PlacedUnitsHoldNoObjectives,                             // Spawn / Split "can't seize or contest objectives on the round they are placed"
@@ -35,7 +35,6 @@ public sealed record GfEdition(
     bool AttackRangeRecorded,                                     // determine-attacks records `range_hundredths`, which a morale test after shooting reads ("when shot from over 9\" away")
     bool HasParry,                                                // Parry's roll opens resolve-hits under a melee (GfParry); 3.6 books carry the rule
     double SideBattleLong, double SideBattleShort,                // M1
-    string HybridSightPage,
     string? ArtilleryNote,
     string? CumbersomeNote)
 {
@@ -61,7 +60,7 @@ public sealed record GfEdition(
         DefenderChoice: false,
         HeroAuraTough: null,
         IndirectNeedsHold: false,
-        ScoutReach: 12, ScoutClearance: 0, ScoutPage: "p.14",
+        ScoutReach: 12, ScoutClearance: 0,
         VanguardClearance: 0,
         AircraftTransportUnreachable: false,
         PlacedUnitsHoldNoObjectives: false,
@@ -71,8 +70,7 @@ public sealed record GfEdition(
         AttackRangeRecorded: false,
         HasParry: false,
         SideBattleLong: 0.75, SideBattleShort: 0.625,
-        HybridSightPage: "p.56",
-        ArtilleryNote: "Artillery: may only use Hold actions (p.13)",
+        ArtilleryNote: "Artillery: may only use Hold actions",
         CumbersomeNote: null);
 
     public static GfEdition V360 { get; } = new(
@@ -97,7 +95,7 @@ public sealed record GfEdition(
         DefenderChoice: true,
         HeroAuraTough: 9,
         IndirectNeedsHold: true,
-        ScoutReach: 9, ScoutClearance: 9, ScoutPage: "3.6.0 p.15",
+        ScoutReach: 9, ScoutClearance: 9,
         VanguardClearance: 9,
         AircraftTransportUnreachable: true,
         PlacedUnitsHoldNoObjectives: true,
@@ -107,9 +105,8 @@ public sealed record GfEdition(
         AttackRangeRecorded: true,
         HasParry: true,
         SideBattleLong: 2.0 / 3, SideBattleShort: 0.75,
-        HybridSightPage: "3.6.0 p.58",
         ArtilleryNote: null,
-        CumbersomeNote: "Cumbersome: may only use Hold or Advance actions, and can't shoot when moving (3.6.0 p.14)");
+        CumbersomeNote: "Cumbersome: may only use Hold or Advance actions, and can't shoot when moving");
 
     public static GfEdition Of(GameState state) => Of(state.Info.GameRules);
 

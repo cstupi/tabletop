@@ -15,6 +15,8 @@ terrain. Builds on the in-game UX spec
   rings, a turn banner, camera follow.
 - The camera moves with WASD, not only orbits one fixed point.
 - Models and terrain collide: nothing is ever inside anything else, models stand on hills, terrain rests on terrain.
+- UI text carries no rulebook page citations (owner ruling 2026-11-07: "we dont need page citations in the ui"): refusals,
+  notes, log lines and option labels state the rule without "(p.7)".
 
 ## Parts
 

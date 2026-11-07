@@ -84,7 +84,7 @@ public static class PropertiesJson
             // Anything else on a spell would be applied nowhere, so it is an authoring error rather than a silent no-op.
             if (spell) foreach (var f in e.Effects.Where(f => f.Kind is not EffectKind.AddHit and not EffectKind.TakeTest and not EffectKind.RemoveSpellTokens && f.Duration != EffectDuration.Once))
                 problems.Add($"{e.Name}: a spell's effect is add_hit, take_test, remove_spell_tokens or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
-            if (spell && e.Targeting?.LineOfSight == false) problems.Add($"{e.Name}: a spell's target is in line of sight (p.13)");
+            if (spell && e.Targeting?.LineOfSight == false) problems.Add($"{e.Name}: a spell's target is in line of sight");
             // A pick entry (army-book rules spec → the pick): a model entry whose once rows are granted to the unit it picks before attacking.
             if (!spell && e.Targeting is { } pick)
             {

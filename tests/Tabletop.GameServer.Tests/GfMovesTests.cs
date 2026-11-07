@@ -46,7 +46,7 @@ public class GfMovesTests
         var refused = Assert.IsType<Refused>(outcome);
         Assert.Equal(RefusalReason.Illegal, refused.Reason);
         // The player reads the rule, not the Ask's question name; distances to a tenth.
-        Assert.StartsWith("the unit moved in or through difficult terrain, so no model may move more than 6\" (p.11); ", refused.Detail);
+        Assert.StartsWith("the unit moved in or through difficult terrain, so no model may move more than 6\"; ", refused.Detail);
         Assert.Matches(@" moved \d+\.\d""$", refused.Detail);
         var ask = sim.AskFor(Samples.Team1);
         Assert.Equal(GfNames.DifficultCapRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, ask,

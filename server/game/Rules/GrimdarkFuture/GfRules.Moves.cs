@@ -28,7 +28,7 @@ public sealed partial class GrimdarkFutureRules
         if (answer is not SelectedPieces { PieceIds: var ids }) return null;
         foreach (var id in ids)
             if (state.Projection.Units.TryGetValue(id, out var unit) && Lookup.ContainerOf(state, id) is { } c && state.Projection.Models.TryGetValue(c, out var holder))
-                return new(GfNames.DeployInsideRule, $"{unit.Definition.Name} is inside {state.Projection.Units[holder.UnitId].Definition.Name} and deploys with it (p.15)");
+                return new(GfNames.DeployInsideRule, $"{unit.Definition.Name} is inside {state.Projection.Units[holder.UnitId].Definition.Name} and deploys with it");
         return null;
     }
 

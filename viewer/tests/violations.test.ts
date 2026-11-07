@@ -29,11 +29,11 @@ describe('Violations', () => {
   it('with a subject, a mark reads as a sentence naming the first model with it; the board\'s labels keep the words', () => {
     const v = new Violations((id) => (id === C ? null : id.toUpperCase()));
     v.measure([A, B, C], marks({ [A]: 'within 1" of Orcs', [B]: 'within 1" of Orcs', [C]: 'overlaps a base' }));
-    expect(v.marked).toEqual(marks({ [A]: 'A would end within 1" of Orcs (p.7)', [B]: 'A would end within 1" of Orcs (p.7)', [C]: 'overlaps a base' }));
+    expect(v.marked).toEqual(marks({ [A]: 'A would end within 1" of Orcs', [B]: 'A would end within 1" of Orcs', [C]: 'overlaps a base' }));
     expect(v.labels([B, A, C])).toEqual([{ modelId: B, reason: 'within 1" of Orcs' }, { modelId: C, reason: 'overlaps a base' }]);
-    v.refused([C], 'C would be placed outside its deployment zone (p.6)');
+    v.refused([C], 'C would be placed outside its deployment zone');
     v.measure([C], marks({}));
-    expect(v.marked.get(C)).toBe('C would be placed outside its deployment zone (p.6)');
+    expect(v.marked.get(C)).toBe('C would be placed outside its deployment zone');
   });
 
   it('a refusal marks its models with the server\'s reason until one of them moves', () => {

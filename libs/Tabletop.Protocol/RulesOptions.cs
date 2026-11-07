@@ -1,7 +1,7 @@
 namespace Tabletop.Protocol;
 
 /// <summary>
-/// A ruleset's optional rules, as data for the lobby (optional-rules spec → Wire). Keys, values, labels and pages are the ruleset's;
+/// A ruleset's optional rules, as data for the lobby (optional-rules spec → Wire). Keys, values and labels are the ruleset's;
 /// nothing outside it reads their meaning.
 /// </summary>
 public sealed record RulesOptionCatalog(IReadOnlyList<RulesOption> Options, IReadOnlyList<RulesPreset> Presets)
@@ -9,8 +9,8 @@ public sealed record RulesOptionCatalog(IReadOnlyList<RulesOption> Options, IRea
     public static RulesOptionCatalog Empty { get; } = new([], []);
 }
 
-/// <summary>One option: its map key, the book's name and page, its values in display order, and the value an absent key reads as.</summary>
-public sealed record RulesOption(string Key, string Label, string Page, IReadOnlyList<RulesOptionValue> Values, string Default);
+/// <summary>One option: its map key, the book's name, its values in display order, and the value an absent key reads as. The UI carries no page citations.</summary>
+public sealed record RulesOption(string Key, string Label, IReadOnlyList<RulesOptionValue> Values, string Default);
 
 public sealed record RulesOptionValue(string Value, string Label);
 

@@ -31,7 +31,7 @@ public class GfCumbersome36Tests
         if (rulesId == RuleSets.Gf360)
         {
             Assert.Equal(["Hold", "Advance"], actions);
-            Assert.Equal("Cumbersome: may only use Hold or Advance actions, and can't shoot when moving (3.6.0 p.14)", note);
+            Assert.Equal("Cumbersome: may only use Hold or Advance actions, and can't shoot when moving", note);
         }
         else
         {

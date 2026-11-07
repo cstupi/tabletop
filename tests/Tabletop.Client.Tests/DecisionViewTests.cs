@@ -134,7 +134,7 @@ public class DecisionViewTests
         Assert.Null(DecisionView.UnitNamed([Samples.Unit, Guid.CreateVersion7()], p));          // a piece that is no unit or model
     }
 
-    const string ShakenNote = "Shaken: must spend this activation being idle (p.10)";
+    const string ShakenNote = "Shaken: must spend this activation being idle";
 
     [Fact]
     public void A_unit_s_note_shows_once_after_its_buttons_and_an_unnoted_unit_shows_none()

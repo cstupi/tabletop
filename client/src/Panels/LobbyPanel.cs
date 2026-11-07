@@ -117,7 +117,7 @@ public partial class LobbyPanel : VBoxContainer
         }
         foreach (var option in catalog.Options)
         {
-            into.AddChild(new Label { Text = $"{option.Label} ({option.Page})", AutowrapMode = TextServer.AutowrapMode.WordSmart });
+            into.AddChild(new Label { Text = option.Label, AutowrapMode = TextServer.AutowrapMode.WordSmart });
             var button = new OptionButton(); foreach (var v in option.Values) button.AddItem(v.Label);
             button.Select(option.Values.ToList().FindIndex(v => v.Value == chosen[option.Key]));
             button.ItemSelected += i => { chosen[option.Key] = option.Values[(int)i].Value; ShowPreset(); };

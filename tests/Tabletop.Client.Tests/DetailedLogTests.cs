@@ -12,7 +12,7 @@ public class DetailedLogTests
     static readonly RoundStarted Round1 = new(1, [Samples.Team1, Samples.Team2], []);
     static Die D(int raw, int modified, bool success) => new(raw, modified, success);
 
-    static IReadOnlyList<LogEntry> Block(params StepCompleted[] steps)
+    internal static IReadOnlyList<LogEntry> Block(params StepCompleted[] steps)
     {
         var a = new EventApplier(Samples.Board, Samples.Game);
         EventPayload[] history = [Round1, new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Enemy], [Rifle], "Hold")), .. steps];
@@ -78,7 +78,7 @@ public class DetailedLogTests
             "  rolled   6  3",
             "  final    3  0",
             "  blocks   ✓  ·",
-            "  a 6 always succeeds, a 1 always fails (p.5)",
+            "  a 6 always succeeds, a 1 always fails",
             "  = 1 blocked, 1 wound",
         ], roll.Worked);
     }

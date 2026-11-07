@@ -264,15 +264,15 @@ cover), `GameSession.Facts` (`SightQuery`) and `GfAttack.Aims` (where a shot's b
 // libs/Tabletop.Protocol/RulesOptions.cs
 public sealed record RulesOptionCatalog(IReadOnlyList<RulesOption> Options, IReadOnlyList<RulesPreset> Presets)
 { public static RulesOptionCatalog Empty { get; } = new([], []); }
-public sealed record RulesOption(string Key, string Label, string Page, IReadOnlyList<RulesOptionValue> Values, string Default);
+public sealed record RulesOption(string Key, string Label, IReadOnlyList<RulesOptionValue> Values, string Default);
 public sealed record RulesOptionValue(string Value, string Label);
 public sealed record RulesPreset(string Name, IReadOnlyDictionary<string, string> OptionalRules, Enforcement? Enforcement);
 // libs/Tabletop.Protocol/Wire.cs
 public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage { public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty; }
 ```
 
-Labels and pages are the book's (`"Hybrid True Line of Sight"`, `"p.56"`), written once in `GfOptions` and sent as
-data. `GameSession.Connect.cs` sends `Info`'s ruleset catalog in `Welcome`. `GameSession.Lobby.cs` refuses a
+Labels are the book's (`"Hybrid True Line of Sight"`), written once in `GfOptions` and sent as data; UI text carries no
+page citations. `GameSession.Connect.cs` sends `Info`'s ruleset catalog in `Welcome`. `GameSession.Lobby.cs` refuses a
 `SetConfiguration` whose `IGameRules.OptionProblems` is non-empty, `RefusalReason.Unknown` with the problems as
 detail, before `SetConfigurationAsync`. `ProtocolVersion` goes up.
 
@@ -285,7 +285,7 @@ so the catalog has the one preset. The lobby shows the preset whose map equals t
 ### Lobby
 
 `client/src/Panels/LobbyPanel.cs`'s configuration section gains a preset `OptionButton` and one `OptionButton` per
-catalog option, labelled `Label (Page)`, built from `Welcome.Options`; *Apply configuration* sends the map with the
+catalog option, labelled with its `Label`, built from `Welcome.Options`; *Apply configuration* sends the map with the
 rest of `SetConfiguration`. Picking a preset sets the option buttons (and enforcement when the preset names one).
 The matching and map building are Godot-free in `client/src/Core/RulesOptions.cs`, tested in
 `tests/Tabletop.Client.Tests`. `client/src/Screens/HomeScreen.cs` creates the game as today; management cannot

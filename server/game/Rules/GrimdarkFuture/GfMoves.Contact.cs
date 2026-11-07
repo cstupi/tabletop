@@ -52,12 +52,12 @@ public static partial class GfMoves
         {                                                                                  // a model answered where it stands has not moved
             var (name, unit, at) = (p.Models[m.ModelId].Slot.Name, p.Models[m.ModelId].UnitId, landed[m.ModelId]);
             if (everyone.Any(o => o.Id != m.ModelId && Overlap.Bases(at, o.At)))
-                return new(GfNames.MoveOverlapRule, $"{name} would be placed on another model's base: models may never be placed in physically impossible locations (p.7)");
+                return new(GfNames.MoveOverlapRule, $"{name} would be placed on another model's base: models may never be placed in physically impossible locations");
             if (!passesModels && region is not null && Battlefield.Placed(state, m.ModelId) is { } start
                 && Route(state, region, start, at.Placement.Position.Horizontal, standing.Select(o => o.At).ToList()).CrossesModels)
-                return new(GfNames.MoveThroughModelsRule, $"{name} would move through another model: models may never move through other models or units (p.7)");
+                return new(GfNames.MoveThroughModelsRule, $"{name} would move through another model: models may never move through other models or units");
             if (separation is { } gap && everyone.Any(o => o.UnitId != unit && !separationExempt.Contains(o.UnitId) && Distance.BodyToBody(at, o.At) < gap - 1e-6))
-                return new(GfNames.MoveSeparationRule, $"{name} would end within {gap:0.#}\" of another unit's model: models may never be within 1\" of models from other units (p.7)");
+                return new(GfNames.MoveSeparationRule, $"{name} would end within {gap:0.#}\" of another unit's model: models may never be within 1\" of models from other units");
         }
         return null;
     }

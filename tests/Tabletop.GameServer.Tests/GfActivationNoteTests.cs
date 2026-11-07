@@ -38,11 +38,11 @@ public class GfActivationNoteTests
         var state = State([plain, aircraft, artillery, immobile, shaken], [Unit("Enemy", "4+", "4+", [], 1, [])], x1: -12, x2: 12);
         state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null, new ConditionSet(TestGames.UnitSubject(shaken.Id), GfNames.Shaken, true), null));
         var options = Offered(state, Tabletop.Protocol.Tests.Samples.Team1);
-        Assert.Equal("No Charge: no enemy unit within charge distance (p.7)", NoteOf(options, plain.Id));
-        Assert.Equal("Aircraft: may only use Advance actions, even if Shaken (p.13)", NoteOf(options, aircraft.Id));
-        Assert.Equal("Artillery: may only use Hold actions (p.13)", NoteOf(options, artillery.Id));
-        Assert.Equal("Immobile: may only use Hold actions (p.14)", NoteOf(options, immobile.Id));
-        Assert.Equal("Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation (p.10)", NoteOf(options, shaken.Id));
+        Assert.Equal("No Charge: no enemy unit within charge distance", NoteOf(options, plain.Id));
+        Assert.Equal("Aircraft: may only use Advance actions, even if Shaken", NoteOf(options, aircraft.Id));
+        Assert.Equal("Artillery: may only use Hold actions", NoteOf(options, artillery.Id));
+        Assert.Equal("Immobile: may only use Hold actions", NoteOf(options, immobile.Id));
+        Assert.Equal("Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation", NoteOf(options, shaken.Id));
     }
 
     [Fact]

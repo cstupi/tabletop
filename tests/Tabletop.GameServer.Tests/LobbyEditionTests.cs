@@ -63,7 +63,7 @@ public class LobbyEditionTests
         await using var late = await TestClient.OpenAsync(f);
         var welcome = await late.ConnectAsync(g.Participants[1].AccountId, g.GameId);
         Assert.Equal(Json(GrimdarkFutureRules.V360.OptionCatalog), Json(welcome.Options));
-        Assert.NotEqual(Json(GrimdarkFutureRules.V351.OptionCatalog), Json(welcome.Options));
+        Assert.Equal(new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75), welcome.Zones);   // both editions offer one catalog; the legs tell them apart
     }
 
     [Fact]

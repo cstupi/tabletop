@@ -42,7 +42,7 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>p.7: "Players must activate one unit that has not been activated yet". A pass to an activate Ask, which is open only while the team holds a legal activation.</summary>
     static AnswerBreachFound? PassBreach(Ask ask, AskAnswer answer) =>
         answer is Passed && ask.FrameId is null && ask.Question == AskQuestions.Activate
-            ? new(GfNames.ActivationRequiredRule, "a team with an unactivated unit must activate one (p.7)")
+            ? new(GfNames.ActivationRequiredRule, "a team with an unactivated unit must activate one")
             : null;
 
     /// <summary>
@@ -55,7 +55,7 @@ public sealed partial class GrimdarkFutureRules
     public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows) =>
         ActivationChoices(state, props, unit, actionRows).Actions;
 
-    /// <summary>ActionsFor with the reason the set is limited, in the book's words and page, for AskOption.Note; null when nothing limits it.</summary>
+    /// <summary>ActionsFor with the reason the set is limited, in the book's words, for AskOption.Note; null when nothing limits it.</summary>
     public static (IReadOnlyList<string> Actions, string? Note) ActivationChoices(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows)
     {
         if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return (actionRows.Where(a => a == Advance).ToList(), AircraftNote);
@@ -77,10 +77,10 @@ public sealed partial class GrimdarkFutureRules
             : (actionRows, null);
     }
 
-    public const string AircraftNote = "Aircraft: may only use Advance actions, even if Shaken (p.13)";
-    public const string ShakenNote = "Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation (p.10)";
-    public const string ImmobileNote = "Immobile: may only use Hold actions (p.14)";
-    public const string NoChargeNote = "No Charge: no enemy unit within charge distance (p.7)";
+    public const string AircraftNote = "Aircraft: may only use Advance actions, even if Shaken";
+    public const string ShakenNote = "Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation";
+    public const string ImmobileNote = "Immobile: may only use Hold actions";
+    public const string NoChargeNote = "No Charge: no enemy unit within charge distance";
 
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch
     {

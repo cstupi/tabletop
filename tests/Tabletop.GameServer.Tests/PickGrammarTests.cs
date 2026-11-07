@@ -54,7 +54,7 @@ public class PickGrammarTests
         Assert.Contains("Loose: a once row belongs to a spell or a pick entry", Problems(loose));
         var blind = new EntryDocument("Blind", CatalogKind.Spell, false, null, 1, null, "Blind.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12, LineOfSight: false),
             [Grant("Stealth", EffectSubject.Self)]);
-        Assert.Contains("Blind: a spell's target is in line of sight (p.13)", PropertiesJson.Validate(TestProperties.CoreDocument with
+        Assert.Contains("Blind: a spell's target is in line of sight", PropertiesJson.Validate(TestProperties.CoreDocument with
         {
             Entries = [.. TestProperties.CoreDocument.Entries, blind], Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("blind-book", "Blind", null, ["Blind"])],
         }));

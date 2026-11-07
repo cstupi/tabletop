@@ -51,10 +51,10 @@ export function words(c: Contact, separation: number | undefined, unitName: (id:
  *  a contact's stay as they are. */
 export function sentence(words: string, subject: string): string {
   switch (words) {
-    case 'overlaps a base': return `${subject} would be placed on another model's base (p.7)`;
-    case 'path crosses a model': return `${subject} would move through another model (p.7)`;
-    case 'ends in impassable terrain': return `${subject} would end its move in impassable terrain (p.11, p.7)`;
-    default: return words.startsWith('within ') ? `${subject} would end ${words}${words.startsWith('within 1"') ? ' (p.7)' : ''}` : words;
+    case 'overlaps a base': return `${subject} would be placed on another model's base`;
+    case 'path crosses a model': return `${subject} would move through another model`;
+    case 'ends in impassable terrain': return `${subject} would end its move in impassable terrain`;
+    default: return words.startsWith('within ') ? `${subject} would end ${words}` : words;
   }
 }
 

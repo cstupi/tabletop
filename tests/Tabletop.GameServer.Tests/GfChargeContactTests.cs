@@ -120,7 +120,7 @@ public class GfChargeContactTests
         Assert.Equal(GfNames.ChargeContactRule, breach.Rule);
         var refused = Assert.IsType<Refused>(Answer(sim, none));
         Assert.Equal(RefusalReason.Illegal, refused.Reason);
-        Assert.Equal("no charging model reached base contact with Berserkers: charging models must move to get into base contact with an enemy model from the target unit (p.9)", refused.Detail);
+        Assert.Equal("no charging model reached base contact with Berserkers: charging models must move to get into base contact with an enemy model from the target unit", refused.Detail);
         Assert.IsType<Refused>(Answer(sim, new Destinations([At(sim, charger.Models[0].Id, 24, 24)])));
         Assert.IsType<Refused>(Answer(sim, new Passed()));
     }

@@ -7,8 +7,8 @@ public class LobbyEditsTests
 {
     static readonly RulesOptionCatalog Catalog = new(
     [
-        new RulesOption("a", "Option A", "p.1", [new RulesOptionValue("x", "X"), new RulesOptionValue("y", "Y")], "x"),
-        new RulesOption("b", "Option B", "p.2", [new RulesOptionValue("on", "On"), new RulesOptionValue("off", "Off")], "on"),
+        new RulesOption("a", "Option A", [new RulesOptionValue("x", "X"), new RulesOptionValue("y", "Y")], "x"),
+        new RulesOption("b", "Option B", [new RulesOptionValue("on", "On"), new RulesOptionValue("off", "Off")], "on"),
     ], []);
 
     [Fact]

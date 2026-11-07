@@ -11,7 +11,7 @@ const game = (participants: Participant[], status: GameInfo['status'] = 'lobby')
   enforcement: 'warn', waitsBetweenSteps: false, teams: [{ id: T2, ordinal: 2 }, { id: T1, ordinal: 1 }], participants, optionalRules: {},
 });
 const catalog: RulesOptionCatalog = {
-  options: [{ key: 'sight', label: 'Unit sight blocking', page: 'p.5', default: 'each', values: [{ value: 'each', label: 'Each model blocks' }, { value: 'none', label: 'Nothing blocks' }] }],
+  options: [{ key: 'sight', label: 'Unit sight blocking', default: 'each', values: [{ value: 'each', label: 'Each model blocks' }, { value: 'none', label: 'Nothing blocks' }] }],
   presets: [],
 } as unknown as RulesOptionCatalog;
 

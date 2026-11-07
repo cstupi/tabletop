@@ -97,7 +97,7 @@ public class LobbyTests
         var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
         var creator = await TestClient.OpenAsync(factory);
         var welcome = await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
-        Assert.Contains(welcome.Options.Options, o => o is { Key: "line_of_sight", Page: "p.56" });                         // the ruleset's catalog, for the lobby
+        Assert.Contains(welcome.Options.Options, o => o is { Key: "line_of_sight", Label: "Line of sight method" });                         // the ruleset's catalog, for the lobby
         var map = new Dictionary<string, string> { ["line_of_sight"] = "hybrid_true", ["melee_separation"] = "off" };
         await creator.SendAsync(Edit(new SetConfiguration("Saturday", seeded.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, false, map)));
         Assert.Equal(map.OrderBy(kv => kv.Key), (await creator.ExpectAsync<GameInfoMessage>()).Game.OptionalRules.OrderBy(kv => kv.Key));

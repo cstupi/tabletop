@@ -59,7 +59,7 @@ public static class WorkedLines
         else if (t is { } target) lines.Add($"  target {target}+" + (net != 0 ? $", roll {Signed(net)}" : ""));
         lines.AddRange(Dice(e, net));
         if (t is { } th && r.RequiredRaw is null && e.Dice.Any(d => d.Raw == 6 && d.Success && d.Modified < th || d.Raw == 1 && !d.Success && d.Modified >= th))
-            lines.Add("  a 6 always succeeds, a 1 always fails (p.5)");
+            lines.Add("  a 6 always succeeds, a 1 always fails");
         foreach (var a in e.Amendments.Where(a => !a.Undone))
             for (var i = 0; i < a.Replaced.Count; i++)
             {

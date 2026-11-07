@@ -107,7 +107,7 @@ describe('DecisionView', () => {
     expect(unitNamed([s.squad.id, newId()], p)).toBeNull();
   });
 
-  const SHAKEN = 'Shaken: must spend this activation being idle (p.10)';
+  const SHAKEN = 'Shaken: must spend this activation being idle';
 
   it('a unit\'s note shows once after its buttons and an unnoted unit shows none', () => {
     const other = newId();

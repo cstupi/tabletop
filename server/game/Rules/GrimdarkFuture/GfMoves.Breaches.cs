@@ -59,7 +59,7 @@ public static partial class GfMoves
         var limit = Math.Min(region.Allowance, cap);
         foreach (var (id, start, to) in starts)
             if (Route(state, region, start, to, standing, limit) is { } check && check.Distance > limit + 1e-6)
-                return new(GfNames.DifficultCapRule, $"the unit moved in or through difficult terrain, so no model may move more than {limit:0.#}\"{(cap < GfNames.DifficultCap - 1e-6 ? " more" : "")} (p.11); {state.Projection.Models[id].Slot.Name} moved {check.Distance:0.0}\"");
+                return new(GfNames.DifficultCapRule, $"the unit moved in or through difficult terrain, so no model may move more than {limit:0.#}\"{(cap < GfNames.DifficultCap - 1e-6 ? " more" : "")}; {state.Projection.Models[id].Slot.Name} moved {check.Distance:0.0}\"");
         return null;
     }
 
@@ -116,14 +116,14 @@ public static partial class GfMoves
             if (m.From is Inside from)
             {
                 if (ExitPlacement(state, m.ModelId, from.ContainerId, to.Placement, region.Containment?.ExitWithin ?? GfNames.ExitWithin) is null)
-                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {region.Containment?.ExitWithin ?? GfNames.ExitWithin:0.#}\" of the transport, on the table and clear of impassable terrain (p.15, p.7, p.11)");
+                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {region.Containment?.ExitWithin ?? GfNames.ExitWithin:0.#}\" of the transport, on the table and clear of impassable terrain");
                 continue;
             }
             // A placement from the shelf (GfReserves: "fully within 6" of it") is held to the region's anchor as a disembark is to its transport.
             if (m.From is OnShelf && region.Containment is { ExitingId: { } anchor, ExitWithin: { } reach })
             {
                 if (ExitPlacement(state, m.ModelId, anchor, to.Placement, reach) is null)
-                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {reach:0.#}\" of {state.Projection.Models[anchor].Slot.Name}, on the table and clear of impassable terrain (p.7, p.11)");
+                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {reach:0.#}\" of {state.Projection.Models[anchor].Slot.Name}, on the table and clear of impassable terrain");
                 continue;
             }
             if (Battlefield.Placed(state, m.ModelId) is not { } start) continue;
@@ -131,13 +131,13 @@ public static partial class GfMoves
             if (start.Placement.Position.Horizontal.DistanceTo(destination) <= 1e-6) continue;
             var check = Movement.Check(start, destination, region.Allowance, impassable, [], null, size);
             if (check.LeavesTable && Table.ContainsBase(size, start))
-                return new(GfNames.MoveOffTableRule, $"{name} would leave the table: models may never move outside of the battlefield (p.7)");
+                return new(GfNames.MoveOffTableRule, $"{name} would leave the table: models may never move outside of the battlefield");
             if (check.CrossesImpassable)
-                return new(GfNames.MoveImpassableRule, $"{name} would move through impassable terrain (p.11)");
+                return new(GfNames.MoveImpassableRule, $"{name} would move through impassable terrain");
             if (LandsInImpassable(state, m.ModelId, to.Placement, landing))
-                return new(GfNames.MoveImpassableRule, $"{name} would end its move in impassable terrain (p.11, p.7)");
+                return new(GfNames.MoveImpassableRule, $"{name} would end its move in impassable terrain");
             if (check.Distance > region.Allowance + 1e-6)
-                return new(GfNames.MoveAllowanceRule, $"{name} moved {check.Distance:0.##}\", more than the {region.Allowance:0.#}\" allowed (p.7)");
+                return new(GfNames.MoveAllowanceRule, $"{name} moved {check.Distance:0.##}\", more than the {region.Allowance:0.#}\" allowed");
         }
         return null;
     }
@@ -160,7 +160,7 @@ public static partial class GfMoves
             var required = Minimum(state, start, minimum, to);
             var moved = start.Placement.Position.Horizontal.DistanceTo(to);
             if (moved < required - 1e-6)
-                return new(GfNames.AircraftMinimumRule, $"an Aircraft must move at least {required:0.#}\" (p.13), and {state.Projection.Models[id].Slot.Name} moved {moved:0.##}\"");
+                return new(GfNames.AircraftMinimumRule, $"an Aircraft must move at least {required:0.#}\", and {state.Projection.Models[id].Slot.Name} moved {moved:0.##}\"");
         }
         return null;
     }

@@ -127,7 +127,7 @@
                 </select>
               </label>
               {#each catalog.options as option (option.key)}
-                <label><span class="lt">{option.label} <span class="page">{option.page}</span></span>
+                <label><span class="lt">{option.label}</span>
                   <select value={chosen[option.key] ?? option.default} onchange={(e) => { chosen = { ...chosen, [option.key]: e.currentTarget.value }; }}>
                     {#each option.values as v (v.value)}<option value={v.value}>{v.label}</option>{/each}
                   </select>
@@ -180,7 +180,6 @@
   label { display: flex; flex-direction: column; align-items: stretch; gap: var(--s1); margin: 0; color: var(--dim); font-size: .95rem; }
   label :global(input), label select { width: 100%; color: var(--text); font-size: 1rem; }
   label small { font-size: .85rem; }
-  .page { color: var(--dim); font-size: .8rem; }
   fieldset { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s3); }
   .apply { display: flex; align-items: center; gap: var(--s3); }
   .foot { flex: none; display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--rule); }

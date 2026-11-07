@@ -29,7 +29,7 @@ public static partial class GfMoves
         if (chargers.Any(c => Gap(landed.GetValueOrDefault(c.Id, c.Start), targets) <= GfNames.ChargeContactGrace + Touching)) return null;
         if (ChargeFormation(state, region, chargers, targets) is null) return null;
         var name = p.Units.GetValueOrDefault(p.Models[contact.First(p.Models.ContainsKey)].UnitId)?.Definition.Name ?? "the target";
-        return new(GfNames.ChargeContactRule, $"no charging model reached base contact with {name}: charging models must move to get into base contact with an enemy model from the target unit (p.9)");
+        return new(GfNames.ChargeContactRule, $"no charging model reached base contact with {name}: charging models must move to get into base contact with an enemy model from the target unit");
     }
 
     /// <summary>

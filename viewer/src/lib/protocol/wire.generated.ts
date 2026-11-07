@@ -627,7 +627,6 @@ export interface RoundStarted {
 export interface RulesOption {
   readonly key: string;
   readonly label: string;
-  readonly page: string;
   readonly values: readonly RulesOptionValue[];
   readonly default: string;
 }

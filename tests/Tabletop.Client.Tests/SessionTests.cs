@@ -45,7 +45,7 @@ public class SessionTests : IDisposable
     public async Task A_rules_options_message_replaces_the_catalog_zone_legs_and_terrain_words()
     {
         var sock = await ConnectedAtPlaying();
-        var next = new RulesOptionCatalog([new RulesOption("a", "A", "1", [new RulesOptionValue("off", "Off")], "off")], []);
+        var next = new RulesOptionCatalog([new RulesOption("a", "A", [new RulesOptionValue("off", "Off")], "off")], []);
         var legs = new Tabletop.Geometry.ZoneLegs(2.0 / 3, 0.75);
         var words = new Dictionary<string, string> { ["see_in_and_out"] = "Dense" };
         sock.Deliver(new RulesOptionsMessage(next) { Zones = legs, TerrainWords = words, MarkerRange = 4 });

@@ -104,7 +104,7 @@ public class AskTests
         var plain = new AskOption("u/Hold", "Hold", [unit]);
         Assert.Null(plain.Note);
         Assert.DoesNotContain("note", WireJson.Serialize<LegalSet>(new Options([plain])));
-        var noted = plain with { Note = "Immobile: may only use Hold actions (p.14)" };
+        var noted = plain with { Note = "Immobile: may only use Hold actions" };
         var back = Assert.IsType<Options>(WireJson.Deserialize<LegalSet>(WireJson.Serialize<LegalSet>(new Options([noted])))).Choices.Single();
         Assert.Equal(noted.Note, back.Note);
     }

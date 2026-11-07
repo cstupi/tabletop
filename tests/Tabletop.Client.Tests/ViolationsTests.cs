@@ -68,13 +68,13 @@ public class ViolationsTests
     {
         var v = new Violations { Subject = id => id == A ? "APC 1" : id == B ? "APC 2" : null };
         v.Measure([A, B, C], new Dictionary<Guid, string> { [A] = "within 1\" of Orcs", [B] = "within 1\" of Orcs", [C] = "overlaps a base" });
-        Assert.Equal("APC 1 would end within 1\" of Orcs (p.7)", v.Marked[A]);
-        Assert.Equal("APC 1 would end within 1\" of Orcs (p.7)", v.Marked[B]);
+        Assert.Equal("APC 1 would end within 1\" of Orcs", v.Marked[A]);
+        Assert.Equal("APC 1 would end within 1\" of Orcs", v.Marked[B]);
         Assert.Equal("overlaps a base", v.Marked[C]);
         Assert.Equal([(B, "within 1\" of Orcs"), (C, "overlaps a base")], v.Labels([B, A, C]));
-        v.Refused([C], "C would be placed outside its deployment zone (p.6)");
+        v.Refused([C], "C would be placed outside its deployment zone");
         v.Measure([C], new Dictionary<Guid, string>());
-        Assert.Equal("C would be placed outside its deployment zone (p.6)", v.Marked[C]);
+        Assert.Equal("C would be placed outside its deployment zone", v.Marked[C]);
     }
 
     [Fact]

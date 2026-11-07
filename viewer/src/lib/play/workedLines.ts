@@ -55,7 +55,7 @@ export function worked(e: RollEntry): string[] {
   else if (t !== undefined) lines.push(`  target ${t}+` + (net !== 0 ? `, roll ${signed(net)}` : ''));
   lines.push(...dice(e, net));
   if (t !== undefined && r.requiredRaw === undefined && e.dice.some((d) => (d.raw === 6 && d.success && d.modified < t) || (d.raw === 1 && !d.success && d.modified >= t)))
-    lines.push('  a 6 always succeeds, a 1 always fails (p.5)');
+    lines.push('  a 6 always succeeds, a 1 always fails');
   for (const a of e.amendments.filter((x) => !x.undone))
     for (let i = 0; i < a.replaced.length; i++) {
       const which = a.indexes !== null && i < a.indexes.length ? `die ${a.indexes[i]! + 1}: ` : '';

@@ -47,7 +47,7 @@ public class GfCoherencyTests
         var away = At(sim, unit.Models[1].Id, 21, 27.7);   // 1.74" from its partner
         Assert.Equal(GfNames.MoveCoherencyRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations([away]))?.Rule);
         var refused = Assert.IsType<Refused>(Answer(sim, away));
-        Assert.Equal("Veterans would end out of coherency: all models in a unit must stay within 1\" of at least one other model and within 9\" of all other models (p.7)", refused.Detail);
+        Assert.Equal("Veterans would end out of coherency: all models in a unit must stay within 1\" of at least one other model and within 9\" of all other models", refused.Detail);
     }
 
     [Fact]

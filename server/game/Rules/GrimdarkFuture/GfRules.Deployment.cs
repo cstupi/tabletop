@@ -50,9 +50,9 @@ public sealed partial class GrimdarkFutureRules
             // Re-Deployment's units "deploy them again": within the zone, in the Scouts phase as before it.
             var again = p.Units[model.UnitId].Conditions.Contains(GfAmbush.ReDeployed);
             if ((p.Scheduler.Phase == Deployment || again) && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, legs))
-                return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it (p.6)");
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed outside its deployment zone: units deploy fully within it");
             if (p.Scheduler.Phase == Scouts && !again && !ZoneStyles.BaseFullyWithin(zone.Shape, table.Size, placed, edition.ScoutReach, legs))
-                return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond {edition.ScoutReach}\" of its deployment zone: Scouts deploy fully within {edition.ScoutReach}\" of it ({edition.ScoutPage})");
+                return new(DeployZoneRule, $"{model.Slot.Name} would be placed beyond {edition.ScoutReach}\" of its deployment zone: Scouts deploy fully within {edition.ScoutReach}\" of it");
         }
         return null;
     }
@@ -81,7 +81,7 @@ public sealed partial class GrimdarkFutureRules
                 && !GfAmbush.Carries(state, o.UnitId, Scout)
                 && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= edition.ScoutClearance + 1e-6);
             if (near)
-                return new(ScoutDistanceRule, $"{model.Slot.Name} would be placed within {edition.ScoutClearance}\" of a non-Scout enemy unit: Scouts deploy over {edition.ScoutClearance}\" away from them ({edition.ScoutPage})");
+                return new(ScoutDistanceRule, $"{model.Slot.Name} would be placed within {edition.ScoutClearance}\" of a non-Scout enemy unit: Scouts deploy over {edition.ScoutClearance}\" away from them");
         }
         return null;
     }
@@ -139,7 +139,7 @@ public sealed partial class GrimdarkFutureRules
                 var kept = GfAmbush.Kept(state, near.UnitId, reach);
                 return new(AmbushDistanceRule, kept > reach
                     ? $"{model.Slot.Name} would be placed within {kept}\" of an enemy unit with Repel Ambushers: Ambushers set up over 12\" away from it"
-                    : $"{model.Slot.Name} would be placed within {reach}\" of an enemy unit: Ambushers deploy over {reach}\" away from enemy units (p.13)");
+                    : $"{model.Slot.Name} would be placed within {reach}\" of an enemy unit: Ambushers deploy over {reach}\" away from enemy units");
             }
         }
         return null;

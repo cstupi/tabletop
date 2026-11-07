@@ -44,7 +44,7 @@ public class GfScout36Tests
 
     [Theory]
     [InlineData(RuleSets.Gf351, null)]
-    [InlineData(RuleSets.Gf360, "beyond 9\" of its deployment zone: Scouts deploy fully within 9\" of it (3.6.0 p.15)")]
+    [InlineData(RuleSets.Gf360, "beyond 9\" of its deployment zone: Scouts deploy fully within 9\" of it")]
     public void A_scout_deploys_within_nine_inches_of_its_zone_under_3_6(string rulesId, string? refused)
     {
         var (h, scout) = ScoutPicked(enemyScout: false);

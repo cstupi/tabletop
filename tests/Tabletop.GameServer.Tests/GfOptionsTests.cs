@@ -41,10 +41,10 @@ public class GfOptionsTests
         var catalog = GrimdarkFutureRules.Instance.OptionCatalog;
         Assert.Equal(
         [
-            ("unit_sight_blocking", "Unit sight blocking", "p.5", "per_model", "per_model,perimeter"),
-            ("line_of_sight", "Line of sight method", "p.56", "core", "core,hybrid_true"),
-            ("melee_separation", "Melee separation", "p.10", "on", "on,off"),
-        ], catalog.Options.Select(o => (o.Key, o.Label, o.Page, o.Default, string.Join(",", o.Values.Select(v => v.Value)))));
+            ("unit_sight_blocking", "Unit sight blocking", "per_model", "per_model,perimeter"),
+            ("line_of_sight", "Line of sight method", "core", "core,hybrid_true"),
+            ("melee_separation", "Melee separation", "on", "on,off"),
+        ], catalog.Options.Select(o => (o.Key, o.Label, o.Default, string.Join(",", o.Values.Select(v => v.Value)))));
         Assert.Contains(catalog.Options.SelectMany(o => o.Values), v => v.Label == "Hybrid True Line of Sight");
         Assert.Equal([("Core rules", 0, (Enforcement?)null)], catalog.Presets.Select(p => (p.Name, p.OptionalRules.Count, p.Enforcement)));
         Assert.Empty(GrimdarkFutureRules.Instance.OptionProblems(Map(("melee_separation", "off"))));

@@ -57,11 +57,11 @@ describe('contactCheck', () => {
   });
 
   it('a sentence names the model, as the server\'s reasons do', () => {
-    expect(sentence('within 1" of Storm Troopers', 'APC 1')).toBe('APC 1 would end within 1" of Storm Troopers (p.7)');
+    expect(sentence('within 1" of Storm Troopers', 'APC 1')).toBe('APC 1 would end within 1" of Storm Troopers');
     expect(sentence('within 9" of Orcs', 'APC 1')).toBe('APC 1 would end within 9" of Orcs');
-    expect(sentence('overlaps a base', 'APC 1')).toBe('APC 1 would be placed on another model\'s base (p.7)');
-    expect(sentence('path crosses a model', 'APC 1')).toBe('APC 1 would move through another model (p.7)');
-    expect(sentence('ends in impassable terrain', 'APC 1')).toBe('APC 1 would end its move in impassable terrain (p.11, p.7)');
+    expect(sentence('overlaps a base', 'APC 1')).toBe('APC 1 would be placed on another model\'s base');
+    expect(sentence('path crosses a model', 'APC 1')).toBe('APC 1 would move through another model');
+    expect(sentence('ends in impassable terrain', 'APC 1')).toBe('APC 1 would end its move in impassable terrain');
     expect(sentence('something else', 'APC 1')).toBe('something else');
   });
 });

@@ -50,10 +50,10 @@ public class GameTests
     public void Welcome_carries_the_rulesets_option_catalog()
     {
         var catalog = new RulesOptionCatalog(
-            [new RulesOption("line_of_sight", "Line of sight method", "p.56", [new RulesOptionValue("core", "Core"), new RulesOptionValue("hybrid_true", "Hybrid True Line of Sight")], "core")],
+            [new RulesOption("line_of_sight", "Line of sight method", [new RulesOptionValue("core", "Core"), new RulesOptionValue("hybrid_true", "Hybrid True Line of Sight")], "core")],
             [new RulesPreset("Core rules", new Dictionary<string, string>(), null)]);
         var back = (Welcome)WireJson.Deserialize(WireJson.Serialize(new Welcome(Guid.CreateVersion7(), Samples.Game) { Options = catalog }));
-        Assert.Equal(("line_of_sight", "p.56", 2, "Core rules"), (back.Options.Options[0].Key, back.Options.Options[0].Page, back.Options.Options[0].Values.Count, back.Options.Presets[0].Name));
+        Assert.Equal(("line_of_sight", "Line of sight method", 2, "Core rules"), (back.Options.Options[0].Key, back.Options.Options[0].Label, back.Options.Options[0].Values.Count, back.Options.Presets[0].Name));
         Assert.Empty(((Welcome)WireJson.Deserialize(WireJson.Serialize(new Welcome(Guid.CreateVersion7(), Samples.Game)))).Options.Options);
     }
 

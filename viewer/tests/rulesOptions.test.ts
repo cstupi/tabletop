@@ -4,8 +4,8 @@ import type { GameInfo, RulesOptionCatalog } from '../src/lib/protocol/wire.gene
 
 const catalog: RulesOptionCatalog = {
   options: [
-    { key: 'a', label: 'A', page: '1', default: 'off', values: [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }] },
-    { key: 'b', label: 'B', page: '2', default: 'x', values: [{ value: 'x', label: 'X' }, { value: 'y', label: 'Y' }] },
+    { key: 'a', label: 'A', default: 'off', values: [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }] },
+    { key: 'b', label: 'B', default: 'x', values: [{ value: 'x', label: 'X' }, { value: 'y', label: 'Y' }] },
   ],
   presets: [{ name: 'Core', optionalRules: {} }, { name: 'Wild', optionalRules: { a: 'on', b: 'y' } }],
 };

@@ -28,7 +28,7 @@ public static class Samples
 
     public static readonly LegalSet[] LegalSets =
     [
-        new Options([new AskOption("a", "Advance", [Unit]), new AskOption("h", "Hold", [Unit], "Immobile: may only use Hold actions (p.14)")]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
+        new Options([new AskOption("a", "Advance", [Unit]), new AskOption("h", "Hold", [Unit], "Immobile: may only use Hold actions")]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
         new PieceSelection([Model], 1, 1),                                                                  // model grain: a Takedown's target (p.14)
         new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2),
         new Assignment([new AskOption("g1", "Rifles", [Model]), new AskOption("g2", "Pistols", [Model])], [Unit, Container], 2,
@@ -87,7 +87,7 @@ public static class Samples
     [
         new Connect("jwt", Guid.CreateVersion7(), ProtocolVersion.Current), new CommandMessage(Guid.CreateVersion7(), Commands[0]),
         new EditMessage(Guid.CreateVersion7(), Edits[0]), new Welcome(P1, Game), new GameInfoMessage(Game),
-        new RulesOptionsMessage(new RulesOptionCatalog([new RulesOption("line_of_sight", "Line of sight method", "3.6.0 p.58", [new RulesOptionValue("core", "Core line of sight")], "core")],
+        new RulesOptionsMessage(new RulesOptionCatalog([new RulesOption("line_of_sight", "Line of sight method", [new RulesOptionValue("core", "Core line of sight")], "core")],
             [new RulesPreset("Core rules", new Dictionary<string, string>(), null)])),
         new BoardMessage(Board),
         new EventsMessage([new GameEvent(1, P1, Events[0], null), new GameEvent(2, null, Events[5], "outside the legal set")]),

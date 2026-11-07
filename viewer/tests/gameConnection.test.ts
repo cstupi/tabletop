@@ -72,7 +72,7 @@ describe('GameConnection', () => {
   it('rules_options replaces the catalog, zone legs and terrain words', async () => {
     const h = harness();
     const s = await welcomed(h, setupWelcome);
-    const next = { options: [{ key: 'a', label: 'A', page: '1', default: 'off', values: [{ value: 'off', label: 'Off' }] }], presets: [] };
+    const next = { options: [{ key: 'a', label: 'A', default: 'off', values: [{ value: 'off', label: 'Off' }] }], presets: [] };
     const zones = { sideBattleLong: 2 / 3, sideBattleShort: 0.75 };
     s.deliver({ kind: 'rules_options', options: next, zones, terrainWords: { see_in_and_out: 'Dense' }, markerRange: 4 });
     expect(h.conn.state).toMatchObject({ options: next, zones, terrainWords: { see_in_and_out: 'Dense' }, markerRange: 4 });

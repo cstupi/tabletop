@@ -37,7 +37,7 @@ public class GfDeploymentZoneTests
         h.Answer(0, new SelectedPieces([a[0]]));
         var name = h.P.Units[a[0]].Definition.Models[0].Name;
         var refused = Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, a[0], 10, 6), team: 0));          // B's zone
-        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed outside its deployment zone: units deploy fully within it (p.6)", refused.Message);
+        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed outside its deployment zone: units deploy fully within it", refused.Message);
         Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, a[0], 10, 36.2), team: 0));                       // straddles the zone's edge
         h.Dispatch(At(h, a[0], 10, 40), team: 0);
         Assert.Equal(h.Teams[1], h.Open.Teams.Single());
@@ -93,7 +93,7 @@ public class GfDeploymentZoneTests
         h.Answer(0, new SelectedPieces([a[1]]));
         var name = h.P.Units[a[1]].Definition.Models[0].Name;
         var refused = Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, a[1], 30, 20), team: 0));        // 16" from the zone
-        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed beyond 12\" of its deployment zone: Scouts deploy fully within 12\" of it (p.14)", refused.Message);
+        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed beyond 12\" of its deployment zone: Scouts deploy fully within 12\" of it", refused.Message);
         h.Dispatch(At(h, a[1], 30, 26), team: 0);                                                                        // outside the zone, within 12" of it
         Assert.Equal(1, h.P.Scheduler.Round);
     }
@@ -130,7 +130,7 @@ public class GfDeploymentZoneTests
         var (h, ambusher) = AmbusherPicked(Enforcement.Strict);
         var name = h.P.Units[ambusher].Definition.Models[0].Name;
         var refused = Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, ambusher, 10, 12), team: 0));     // 8" between centres of B's model
-        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed within 9\" of an enemy unit: Ambushers deploy over 9\" away from enemy units (p.13)", refused.Message);
+        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed within 9\" of an enemy unit: Ambushers deploy over 9\" away from enemy units", refused.Message);
         Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, ambusher, 10, 4 + AmbushDistance + 1), team: 0));   // centres 10" apart: the bases close the gap to under 9"
         h.Dispatch(At(h, ambusher, 40, 24), team: 0);
         Assert.DoesNotContain(SetAside, h.P.Units[ambusher].Conditions);

@@ -34,10 +34,10 @@ public static class ContactCheck
     /// are not a contact's stay as they are.</summary>
     public static string Sentence(string words, string subject) => words switch
     {
-        "overlaps a base" => $"{subject} would be placed on another model's base (p.7)",
-        "path crosses a model" => $"{subject} would move through another model (p.7)",
-        "ends in impassable terrain" => $"{subject} would end its move in impassable terrain (p.11, p.7)",
-        _ when words.StartsWith("within ", StringComparison.Ordinal) => $"{subject} would end {words}{(words.StartsWith("within 1\"", StringComparison.Ordinal) ? " (p.7)" : "")}",
+        "overlaps a base" => $"{subject} would be placed on another model's base",
+        "path crosses a model" => $"{subject} would move through another model",
+        "ends in impassable terrain" => $"{subject} would end its move in impassable terrain",
+        _ when words.StartsWith("within ", StringComparison.Ordinal) => $"{subject} would end {words}",
         _ => words,
     };
 

@@ -16,7 +16,7 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>The core book gives the rule no heading; p.59 calls the same count "Mission Length".</summary>
     public const string MissionLength = "mission_length";
 
-    public static string MissionLengthDetail(int roundsPlayed) => $"{roundsPlayed} rounds have been played: the game ends after {FinalRound} (p.7)";
+    public static string MissionLengthDetail(int roundsPlayed) => $"{roundsPlayed} rounds have been played: the game ends after {FinalRound}";
 
     /// <summary>The winners and the standing are read after round 4's seizures: the round-end step runs before BeginRound proposes round 5 (objectives spec → Where the seize runs).</summary>
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) =>

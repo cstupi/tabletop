@@ -30,7 +30,7 @@ public static partial class GfMoves
                 : Battlefield.Placed(state, id)).OfType<PlacedModel>().ToList();
             if (Coherent(after)) continue;
             var name = p.Units.GetValueOrDefault(unit)?.Definition.Name ?? "the unit";
-            return new(GfNames.MoveCoherencyRule, $"{name} would end out of coherency: all models in a unit must stay within {GfNames.CoherencyChain:0.#}\" of at least one other model and within {GfNames.CoherencySpread:0.#}\" of all other models (p.7)");
+            return new(GfNames.MoveCoherencyRule, $"{name} would end out of coherency: all models in a unit must stay within {GfNames.CoherencyChain:0.#}\" of at least one other model and within {GfNames.CoherencySpread:0.#}\" of all other models");
         }
         return null;
     }
