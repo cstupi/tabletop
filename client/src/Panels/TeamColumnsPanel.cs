@@ -158,7 +158,7 @@ public partial class TeamColumnsPanel : HFlowContainer
         // My picker: always in the lobby; in setup only while my seat has no army.
         if (m.MyArmy is { } seat && (!_compact || seat.ArmyId is null))
         {
-            var picker = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, FitToLongestItem = false, TooltipText = seat.Label };
+            var picker = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, FitToLongestItem = false, TooltipText = seat.Label };
             picker.AddItem(TeamColumns.NoArmy);
             army.AddChild(picker); _pickers.Add((seat, picker));
         }
