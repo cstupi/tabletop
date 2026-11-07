@@ -46,4 +46,13 @@ Before: `/tmp/claude-1000/ux-audit/12-play.png`, `13-play-unit-card.png`, `14-pl
 
 ## Results
 
-(filled in at the end)
+| Check | Result |
+| --- | --- |
+| `dotnet build` | 0 errors |
+| `dotnet test tests/Tabletop.Client.Tests` | 1049 passed |
+| `./scripts/check-client` | empty |
+| `cd viewer && npm run check && npm test` | 0 errors; 1814 passed, 6 skipped |
+| Screenshots | Godot: Sci-fi 1280×720 in play with a unit selected and the game over modal, Fantasy 1280×720 and 1920×1080 with the log open; viewer: Sci-fi 1280×720, Fantasy 1920×1080. Header, roster, card, log, tray, undo and log buttons and game over as the mockups; no part overlaps. |
+
+Not done: the viewer's unit card has no eye (the board has no camera to centre); the viewer has no per-activation Copy (none before); toasts
+and floating results keep their look (outside this plan's files).

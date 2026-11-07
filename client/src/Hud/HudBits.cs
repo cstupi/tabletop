@@ -25,13 +25,15 @@ public static class HudBits
         SizeFlagsVertical = Control.SizeFlags.Fill,
     };
 
-    /// <summary>A key cap: the key boxed in the chip's frame, in dim text.</summary>
-    public static PanelContainer KeyCap(string key)
+    /// <summary>A key cap: the key boxed in the chip's frame, in dim text (or the given ink, faded: on a button face).</summary>
+    public static PanelContainer KeyCap(string key, Color? ink = null)
     {
         var cap = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         var box = Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() as StyleBoxFlat;
-        if (box is not null) { box.BorderColor = Ui.DimText; box.ContentMarginTop = box.ContentMarginBottom = 0; box.ContentMarginLeft = box.ContentMarginRight = 5; cap.AddThemeStyleboxOverride("panel", box); }
-        cap.AddChild(new Label { Text = key, ThemeTypeVariation = Variation.Dim, MouseFilter = Control.MouseFilterEnum.Ignore });
+        if (box is not null) { box.BorderColor = ink is { } i ? i with { A = 0.6f } : Ui.DimText; box.ContentMarginTop = box.ContentMarginBottom = 0; box.ContentMarginLeft = box.ContentMarginRight = 5; cap.AddThemeStyleboxOverride("panel", box); }
+        var label = new Label { Text = key, ThemeTypeVariation = Variation.Dim, MouseFilter = Control.MouseFilterEnum.Ignore };
+        if (ink is { } c) label.AddThemeColorOverride("font_color", c with { A = 0.75f });
+        cap.AddChild(label);
         return cap;
     }
 
@@ -52,9 +54,12 @@ public static class HudBits
         foreach (var edge in new[] { "margin_left", "margin_right" }) pad.AddThemeConstantOverride(edge, 10);
         foreach (var edge in new[] { "margin_top", "margin_bottom" }) pad.AddThemeConstantOverride(edge, 6);
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 8); pad.AddChild(row);
-        row.AddChild(Icon(icon, Ui.Text, 18));
-        row.AddChild(new Label { Text = word, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
-        row.AddChild(KeyCap(key));
+        // The button face's own text colour: the theme's button text, which reads on a dark face (Fantasy) and a light one alike.
+        var ink = Ui.Of(Ui.Current.ButtonText);
+        row.AddChild(Icon(icon, ink, 18));
+        var text = new Label { Text = word, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
+        text.AddThemeColorOverride("font_color", ink); row.AddChild(text);
+        row.AddChild(KeyCap(key, ink));
         b.AddChild(pad);
         pad.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         pad.MinimumSizeChanged += () => b.CustomMinimumSize = pad.GetCombinedMinimumSize();
