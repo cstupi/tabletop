@@ -1,5 +1,5 @@
 <!-- viewer/src/lib/replay/ReplayBar.svelte -->
-<!-- ReplayBar.cs: the replay's controls at the page's foot (replayBarView.ts). Labelled icon buttons back by round, turn, action and step
+<!-- ReplayBar.cs: the replay's controls at the page's foot (replayBarView.ts). The REPLAY title, labelled icon buttons back by round, turn, action and step
      around Play/Pause and forward by step, action, turn and round; the scrubber over the whole log with a tick at each round's start;
      the speed; the caption, the position's block header. Space plays and pauses, the arrows step, Home and End jump. -->
 <script lang="ts">
@@ -25,6 +25,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="replay-bar" role="toolbar" aria-label="Replay controls">
+  <div class="title"><HudIcon name="replay" size={18} /><span>Replay</span></div>
   <div class="steps">
     {#each BACK as b (b.unit)}
       <button type="button" class="flat step" title={b.tip} aria-label={b.tip} disabled={bar.position === 0} onclick={() => player.step(b.unit, true)}>
@@ -61,6 +62,7 @@
 
 <style>
   .replay-bar { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s4); background: var(--panel-solid); border-top: 1px solid var(--rule); }
+  .title { display: flex; align-items: center; gap: var(--s2); color: var(--accent); font-family: var(--display, inherit); text-transform: uppercase; letter-spacing: .06em; font-size: .9rem; }
   .steps { display: flex; align-items: stretch; justify-content: center; gap: var(--s1); flex-wrap: wrap; }
   .step, .play { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 3.4rem; padding: var(--s1) var(--s2); }
   .step span, .play span { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }

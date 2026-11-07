@@ -6,7 +6,7 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Hud;
 
 /// <summary>
-/// The replay's controls (client design → Replay; UX redesign part 2 → Replay bar), at the left column's foot: labelled icon buttons back
+/// The replay's controls (client design → Replay; UX redesign part 2 → Replay bar), at the left column's foot: the REPLAY title, labelled icon buttons back
 /// by round, turn, action and step, Play/Pause, then forward by step, action, turn and round (ReplayBarView); a scrubber over the whole log
 /// with a tick at each round's start; the speed; the caption, the position's block header. A step or play animates as play does; a jump or
 /// the scrubber redraws at the new position. Playing stops at the end of an ended game and waits there for a running one's next events.
@@ -18,13 +18,16 @@ public partial class ReplayBar : PanelContainer
     readonly ReplayClock _clock = new();
     Button _play = null!; HSlider _scrub = null!; OptionButton _speed = null!; Label _caption = null!; RoundTicks _ticks = null!;
     readonly List<(Button Button, string Icon)> _icons = [];
-    Action<RenderCause>? _onFrame; Action? _onTheme;
+    Action<RenderCause>? _onFrame; Action? _onTheme; TextureRect _titleIcon = null!; Label _titleWord = null!;
 
     public void Bind(Session session)
     {
         _s = session;
         MouseFilter = MouseFilterEnum.Stop;
         var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", 6); AddChild(rows);
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 8); rows.AddChild(title);
+        title.AddChild(_titleIcon = HudBits.Icon("replay", Ui.Accent, 18));
+        title.AddChild(_titleWord = new Label { Text = "REPLAY", ThemeTypeVariation = Variation.Display }); _titleWord.AddThemeColorOverride("font_color", Ui.Accent);
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center }; buttons.AddThemeConstantOverride("separation", 2); rows.AddChild(buttons);
         foreach (var b in ReplayBarView.Back) buttons.AddChild(Step(b));
         buttons.AddChild(_play = Btn("Play", "play", "Play the game forward one step at a time", TogglePlay));
@@ -42,7 +45,11 @@ public partial class ReplayBar : PanelContainer
         rows.AddChild(_caption = new Label { HorizontalAlignment = HorizontalAlignment.Center, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Game)) != 0) Render(); };
         session.Frame.Render += _onFrame;
-        _onTheme = () => { foreach (var (b, icon) in _icons) { b.Icon = Ui.Icon(icon); Tint(b); } };
+        _onTheme = () =>
+        {
+            foreach (var (b, icon) in _icons) { b.Icon = Ui.Icon(icon); Tint(b); }
+            _titleIcon.Texture = Ui.Icon("replay"); _titleIcon.Modulate = Ui.Accent; _titleWord.AddThemeColorOverride("font_color", Ui.Accent);
+        };
         Ui.Changed += _onTheme;
         Render();
     }
