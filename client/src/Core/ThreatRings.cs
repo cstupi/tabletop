@@ -11,10 +11,10 @@ public static class ThreatRings
         var models = p.Models.Values.Where(m => m.UnitId == unitId && m.Location is OnTable)
             .Select(m => (m.Id, Placed: new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement))).ToList();
         var rings = new List<RangeRing>();
-        if (threat.Charge is { } charge && models.Count > 0) rings.Add(new(charge, $"Charge {Inches(charge)}", RangeOutline.Of(models.Select(m => m.Placed).ToList(), charge)));
+        if (threat.Charge is { } charge && models.Count > 0) rings.Add(new(charge, $"Charge {Inches(charge)}", RangeOutline.Of(models.Select(m => m.Placed).ToList(), charge), RingKind.Charge));
         if (threat.ShootMove is { } move)
             foreach (var reach in models.Where(m => threat.Ranges.ContainsKey(m.Id)).GroupBy(m => move + threat.Ranges[m.Id]))
-                rings.Add(new(reach.Key, $"Shoot {Inches(reach.Key)}", RangeOutline.Of(reach.Select(m => m.Placed).ToList(), reach.Key)));
+                rings.Add(new(reach.Key, $"Shoot {Inches(reach.Key)}", RangeOutline.Of(reach.Select(m => m.Placed).ToList(), reach.Key), RingKind.Shoot));
         return rings.OrderBy(r => r.Inches).ToList();
     }
 

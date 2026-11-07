@@ -5,7 +5,7 @@ public static class UiThemes
     public const string DefaultId = "scifi";
     const string F = "res://content/themes/fantasy", S = "res://content/themes/scifi";
     static Rgba H(string hex) => Rgba.Hex(hex);
-    static Dictionary<string, string> IconsIn(string dir) => new[] { "activated", "objective", "shaken", "fatigued", "settings", "team", "player", "army", "watch", "warning", "ready", "editing" }.ToDictionary(n => n, n => $"{dir}/icons/{n}.svg", StringComparer.OrdinalIgnoreCase);
+    static Dictionary<string, string> IconsIn(string dir) => new[] { "activated", "objective", "shaken", "fatigued", "settings", "team", "player", "army", "watch", "warning", "ready", "editing", "charge", "shoot" }.ToDictionary(n => n, n => $"{dir}/icons/{n}.svg", StringComparer.OrdinalIgnoreCase);
     public static UiTheme Fantasy { get; } = new("fantasy", "Fantasy",
         H("#C9B68E"), H("#E9DBB8"), H("#4A2F1B"), H("#2B2118"), H("#6E5E48"), H("#F3EAD3"),
         H("#8C6A2F"), H("#3F6B2A"), H("#8E2A1E"), H("#A3561A"),

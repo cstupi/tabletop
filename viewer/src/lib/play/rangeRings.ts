@@ -4,11 +4,13 @@
 // none. The label is the printed value; a rule that changes a range is not shown.
 
 import type { Overlay } from '../board/interaction';
-import { drawLabel } from '../board/labelPlacement';
+import { measureOf, viewportWidthOf } from '../board/labelPlacement';
 import { placed, type Geometry, type Placement, type Segment } from '../geometry';
 import type { ModelInPlay, Projection } from '../live/apply';
+import { labelUnder, placeRingLabels, ringAnchor, ringLook, ringShapeOf, type Rect, type RingKind, type RingShape } from './ringShape';
 
-export interface RangeRing { readonly inches: number; readonly label: string; readonly segments: readonly Segment[] }
+/** `kind` is what the ring measures, which sets its look (`ringLook`): a printed range (V), or a threat's charge or shooting reach. */
+export interface RangeRing { readonly inches: number; readonly label: string; readonly segments: readonly Segment[]; readonly kind: RingKind }
 
 /** `24"` is 24; `-`, 0 and none are melee (null). */
 export function inches(printed: string | null | undefined): number | null {
@@ -41,7 +43,7 @@ export function rangeRingsOf(g: Geometry, p: Projection, unitId: string): RangeR
     if (r !== undefined && d !== null && !printed.has(d)) printed.set(d, r);
   }
   return [...printed].sort((a, b) => a[0] - b[0])
-    .map(([d, label]) => ({ inches: d, label: label.trim(), segments: g.rangeOutline(carriers.filter((c) => c.ranges.has(d)).map((c) => c.at), d) }));
+    .map(([d, label]) => ({ inches: d, label: label.trim(), segments: g.rangeOutline(carriers.filter((c) => c.ranges.has(d)).map((c) => c.at), d), kind: 'range' as const }));
 }
 
 const samePlacement = (a: Placement, b: Placement): boolean =>
@@ -65,24 +67,75 @@ export class RangeRingCache {
   }
 }
 
-/** The rings' outlines and each label at the outline's far edge (RangeRingNode). */
-export const ringsOverlay = (rings: readonly RangeRing[], colour: string): Overlay => (ctx, project) => {
-  ctx.save();
-  ctx.lineWidth = 2;
-  ctx.font = '600 13px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  for (const r of rings) {
-    if (r.segments.length === 0) continue;
-    ctx.strokeStyle = colour;
-    ctx.beginPath();
-    for (const s of r.segments) { const a = project(s.a), b = project(s.b); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
-    ctx.stroke();
-    const far = r.segments.reduce((best, s) => (s.a.y > best.y ? s.a : best), r.segments[0]!.a);
-    const at = project(far);
-    ctx.lineWidth = 3;
-    drawLabel(ctx, r.label, { x: at.x, y: at.y - 4 }, colour, { lineHeight: 16, grow: 'up', halo: 'rgba(0, 0, 0, 0.85)' });
+/** One set of rings in one colour: the hovered enemy's threat, or my selected unit's ranges. */
+export interface RingLayer { readonly rings: readonly RangeRing[]; readonly colour: string }
+
+const shapes = new WeakMap<RangeRing, RingShape>();
+function shapeOf(r: RangeRing): RingShape {
+  let s = shapes.get(r);
+  if (s === undefined) { s = ringShapeOf(r.segments); shapes.set(r, s); }
+  return s;
+}
+
+const LABEL_FONT = '600 14px system-ui, sans-serif';
+const LABEL_H = 24, ICON = 14, PAD = 8, ICON_GAP = 6;
+
+function viewportHeightOf(ctx: CanvasRenderingContext2D): number {
+  const canvas = (ctx as { canvas?: { height?: unknown } }).canvas;
+  const height = typeof canvas?.height === 'number' ? canvas.height : Number.POSITIVE_INFINITY;
+  const scale = typeof ctx.getTransform === 'function' ? ctx.getTransform()?.d : undefined;
+  return height / (typeof scale === 'number' && scale > 0 ? scale : 1);
+}
+
+/** The kind's icon in a box ICON wide, its top left at (x, y): a crosshair for shooting and ranges, two crossed blades for a charge. */
+function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot', x: number, y: number): void {
+  const c = ICON / 2;
+  ctx.beginPath();
+  if (icon === 'shoot') {
+    ctx.arc(x + c, y + c, c * 0.6, 0, 2 * Math.PI);
+    ctx.moveTo(x + c, y); ctx.lineTo(x + c, y + c * 0.55); ctx.moveTo(x + c, y + ICON); ctx.lineTo(x + c, y + ICON - c * 0.55);
+    ctx.moveTo(x, y + c); ctx.lineTo(x + c * 0.55, y + c); ctx.moveTo(x + ICON, y + c); ctx.lineTo(x + ICON - c * 0.55, y + c);
+  } else {
+    ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + ICON - 3, y + ICON - 3); ctx.moveTo(x + ICON - 1, y + 1); ctx.lineTo(x + 3, y + ICON - 3);
+    ctx.moveTo(x + ICON - 5, y + ICON - 2); ctx.lineTo(x + ICON - 2, y + ICON - 5); ctx.moveTo(x + 5, y + ICON - 2); ctx.lineTo(x + 2, y + ICON - 5);
   }
+  ctx.stroke();
+}
+
+/** RangeRingNode: each ring's area filled in its kind's opacity of the colour (even-odd, so a hole stays open), its outline 2.5–3 px over a
+ * dark halo, and a pill label (icon and words in the colour) under the outline's point lowest on the canvas; the labels of every layer are
+ * kept apart and inside the canvas (`placeRingLabels`), in layer order. */
+export const ringsOverlay = (layers: readonly RingLayer[]): Overlay => (ctx, project) => {
+  ctx.save();
+  const labels: { text: string; icon: 'charge' | 'shoot'; colour: string; at: { x: number; y: number } }[] = [];
+  const view: Rect = { x: 0, y: 0, w: viewportWidthOf(ctx), h: viewportHeightOf(ctx) };
+  for (const { rings, colour } of layers) for (const r of rings) {
+    if (r.segments.length === 0) continue;
+    const look = ringLook(r.kind), shape = shapeOf(r);
+    ctx.beginPath();
+    for (const loop of shape.loops) {
+      loop.forEach((q, i) => { const s = project(q); if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y); });
+      ctx.closePath();
+    }
+    ctx.globalAlpha = look.fillAlpha; ctx.fillStyle = colour; ctx.fill('evenodd');
+    ctx.globalAlpha = 1; ctx.lineJoin = 'round';
+    ctx.lineWidth = look.lineWidth + 2; ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'; ctx.stroke();
+    ctx.lineWidth = look.lineWidth; ctx.strokeStyle = colour; ctx.stroke();
+    const at = ringAnchor(shape.candidates.map(project), view, 8);
+    if (at !== null) labels.push({ text: r.label, icon: look.icon, colour, at });
+  }
+  ctx.font = LABEL_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const measure = measureOf(ctx);
+  const placed = placeRingLabels(labels.map((l) => labelUnder(l.at, PAD + ICON + ICON_GAP + measure(l.text) + PAD, LABEL_H)), view);
+  labels.forEach((l, i) => {
+    const b = placed[i]!;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(b.x, b.y, b.w, b.h, 6); else ctx.rect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = 'rgba(12, 16, 22, 0.88)'; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = l.colour; ctx.stroke();
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; drawIcon(ctx, l.icon, b.x + PAD, b.y + (b.h - ICON) / 2);
+    ctx.fillStyle = l.colour; ctx.fillText(l.text, b.x + PAD + ICON + ICON_GAP, b.y + b.h / 2 + 1);
+  });
   ctx.restore();
 };
 

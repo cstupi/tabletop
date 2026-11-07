@@ -22,7 +22,7 @@ export function threatRingsOf(g: Geometry, p: Projection, unitId: string, threat
   const models = onTable(p, unitId);
   const rings: RangeRing[] = [];
   if (threat.charge != null && models.length > 0)
-    rings.push({ inches: threat.charge, label: `Charge ${inchesText(threat.charge)}`, segments: g.rangeOutline(models.map((c) => placed(c.model.slot, c.placement)), threat.charge) });
+    rings.push({ inches: threat.charge, label: `Charge ${inchesText(threat.charge)}`, segments: g.rangeOutline(models.map((c) => placed(c.model.slot, c.placement)), threat.charge), kind: 'charge' });
   if (threat.shootMove != null) {
     const reaches = new Map<number, Carrier[]>();
     for (const c of models) {
@@ -31,7 +31,7 @@ export function threatRingsOf(g: Geometry, p: Projection, unitId: string, threat
       const d = threat.shootMove + range;
       reaches.set(d, [...(reaches.get(d) ?? []), c]);
     }
-    for (const [d, carriers] of reaches) rings.push({ inches: d, label: `Shoot ${inchesText(d)}`, segments: g.rangeOutline(carriers.map((c) => placed(c.model.slot, c.placement)), d) });
+    for (const [d, carriers] of reaches) rings.push({ inches: d, label: `Shoot ${inchesText(d)}`, segments: g.rangeOutline(carriers.map((c) => placed(c.model.slot, c.placement)), d), kind: 'shoot' });
   }
   return rings.sort((a, b) => a.inches - b.inches);
 }

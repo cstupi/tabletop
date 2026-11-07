@@ -1,7 +1,10 @@
 using System.Globalization; using Tabletop.Content; using Tabletop.Geometry; using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
-public sealed record RangeRing(double Inches, string Label, IReadOnlyList<(Point2 A, Point2 B)> Segments);
+/// <summary>What a ring measures: a weapon's printed range (V), or a threat's charge or shooting reach. Its look follows (<see cref="RingLook"/>).</summary>
+public enum RingKind { Range, Charge, Shoot }
+
+public sealed record RangeRing(double Inches, string Label, IReadOnlyList<(Point2 A, Point2 B)> Segments, RingKind Kind = RingKind.Range);
 
 /// <summary>Spec → Range rings: per distinct printed Range, the union outline of the rings at that distance from the base edge of each model on the table
 /// carrying a weapon of that range. No Range, "-" or 0 is melee and draws none. The label is the printed value; a rule that changes a range is not shown.</summary>

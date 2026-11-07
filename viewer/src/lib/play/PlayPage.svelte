@@ -31,7 +31,7 @@
   import WaitingPanel from './WaitingPanel.svelte';
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
-  import { RangeRingCache, ringsOverlay } from './rangeRings';
+  import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
   import { ThreatRingCache, ofAnotherTeam } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
@@ -220,25 +220,30 @@
 
   // D4: range rings for my selected unit when V has them on (RangeRingNode).
   const ringCache = new RangeRingCache();
-  const ringsDrawn = $derived.by((): Overlay | null => {
+  const rangeLayer = $derived.by((): RingLayer | null => {
     const p = shown, game = snap?.game, unit = selection?.pieceId;
     if (!settings.rangeRings || geometry === null || p === null || game == null || unit === undefined) return null;
     const u = p.units.get(unit);
     const team = u === undefined ? undefined : game.participants.find((x) => x.id === u.participantId)?.teamId;
     if (team === undefined || team !== actingTeam) return null;                  // mine only
     const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
-    return ringsOverlay(ringCache.of(geometry, p, unit), teamColour(ordinal));
+    return { rings: ringCache.of(geometry, p, unit), colour: teamColour(ordinal) };
   });
 
   // The hovered unit of another team's threat rings (RangeRingNode, ThreatRings), from the server's ModelFacts.threats, whatever V says.
   const threatCache = new ThreatRingCache();
-  const threatDrawn = $derived.by((): Overlay | null => {
+  const threatLayer = $derived.by((): RingLayer | null => {
     const p = shown, game = snap?.game, unit = hoveredUnit, threat = unit == null ? undefined : snap?.threats.get(unit);
     if (geometry === null || p === null || game == null || unit == null || threat === undefined || !ofAnotherTeam(game, p, teams, unit)) return null;
     const u = p.units.get(unit)!;
     const team = game.participants.find((x) => x.id === u.participantId)?.teamId;
     const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
-    return ringsOverlay(threatCache.of(geometry, p, unit, threat), teamColour(ordinal));
+    return { rings: threatCache.of(geometry, p, unit, threat), colour: teamColour(ordinal) };
+  });
+  // Both layers in one overlay, so their labels are kept apart; the threat's labels place first.
+  const ringsDrawn = $derived.by((): Overlay | null => {
+    const layers = [threatLayer, rangeLayer].filter((l): l is RingLayer => l !== null);
+    return layers.length === 0 ? null : ringsOverlay(layers);
   });
 
   // D4: the sight check — L held with a unit selected, or the shooter of my open target pick, over the hovered unit.
@@ -399,7 +404,7 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(threatDrawn === null ? [] : [threatDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
     {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
     <div class="float banner"><Banner {connection} /></div>
