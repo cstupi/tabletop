@@ -57,7 +57,7 @@ The lobby has no table (commit 660288cf): the page is the whole window under the
   **Needs a player**, **Needs an army** (players, none with an army; `WaitingForPlayers`' rule, read off the lobby rows). The column's left
   edge and border are the team's colour.
 - Its players, one row each with generous spacing: the player icon in the team's colour, the name, `(you)` on my rows (lit faintly in the
-  accent colour); under the name the army icon and `Army name · 3.6` (the edition is the game's: the server refuses and clears an army of
+  accent colour; compact columns drop `(you)`, the lit row says it); under the name the army icon and `Army name · 3.6` (the edition is the game's: the server refuses and clears an army of
   another edition), or *no army yet*, in the warning colour when the team has no army, dim when a teammate brings one. My own row holds my
   army picker in place of the army line.
 - At its foot one button, **Join**, in a column I am not in. Joining moves my seat when I hold one team (`PickTeam(team, my seat)`: the seat

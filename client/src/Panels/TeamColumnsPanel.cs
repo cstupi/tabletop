@@ -140,7 +140,7 @@ public partial class TeamColumnsPanel : HFlowContainer
             TooltipText = m.Name, MouseFilter = MouseFilterEnum.Pass });
         var editing = Icon("editing", Ui.Accent, 16); editing.Visible = false; editing.TooltipText = "Editing the table"; editing.MouseFilter = MouseFilterEnum.Pass;
         top.AddChild(editing); _editing[m.ParticipantId] = editing;
-        if (m.You) top.AddChild(new Label { Text = TeamColumns.You, ThemeTypeVariation = Variation.Accent });
+        if (m.You && !_compact) top.AddChild(new Label { Text = TeamColumns.You, ThemeTypeVariation = Variation.Accent });   // compact: the lit row says it
         if (m.Moves.Count > 0)
         {
             var menu = new MenuButton { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Move", FocusMode = FocusModeEnum.None };

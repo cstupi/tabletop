@@ -65,7 +65,7 @@
             <div class="name">
               <span class="player"><TeamIcon name="player" size={compact ? 16 : 22} /></span>
               <span class="text">{m.name}</span>
-              {#if m.you}<span class="you-tag">{YOU}</span>{/if}
+              {#if m.you && !compact}<span class="you-tag">{YOU}</span>{/if}
               {#if m.moves.length > 0}
                 <select class="move" aria-label={`Move ${m.name}`} value=""
                   onchange={(e) => { const i = Number(e.currentTarget.value); e.currentTarget.value = ''; if (!Number.isNaN(i)) void send(m.moves[i]!.edit); }}>
