@@ -11,7 +11,10 @@ public static class ThemeBuilder
         var t = new Godot.Theme { DefaultFont = FontOf(u.Body), DefaultFontSize = u.Body.Size };
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
         StyleBox panel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel), C(u.PanelBorder), s.BorderWidth);
-        foreach (var type in new[] { "PanelContainer", "Panel", "TooltipPanel", "PopupPanel", "PopupMenu", "AcceptDialog", "TabContainer" }) t.SetStylebox("panel", type, panel);
+        foreach (var type in new[] { "PanelContainer", "Panel", "AcceptDialog", "TabContainer" }) t.SetStylebox("panel", type, panel);
+        // A popup floats over other controls: its panel is opaque, or the text under it reads through a translucent panel colour.
+        StyleBox popup = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), s.BorderWidth);
+        foreach (var type in new[] { "TooltipPanel", "PopupPanel", "PopupMenu" }) t.SetStylebox("panel", type, popup);
         StyleBox Btn(float light) { var b = Box(s.ButtonNinePatch, s.ButtonMargin, s, C(u.Background).Lightened(light), C(u.PanelBorder), s.BorderWidth); if (b is StyleBoxTexture x) x.ModulateColor = light >= 0 ? Grey.Lightened(light) : Grey.Darkened(-light); return b; }
         foreach (var (state, light) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f), ("disabled", -0.2f) }) t.SetStylebox(state, "Button", Btn(light));
         t.SetStylebox("focus", "Button", new StyleBoxEmpty()); t.SetStylebox("tab_selected", "TabContainer", Btn(0.3f)); t.SetStylebox("tab_unselected", "TabContainer", Btn(0f)); t.SetStylebox("tab_hovered", "TabContainer", Btn(0.15f));
