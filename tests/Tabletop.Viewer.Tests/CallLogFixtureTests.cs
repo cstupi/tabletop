@@ -21,7 +21,7 @@ public class CallLogFixtureTests
         ("transport", () => Suite("core-transport-run")),
         ("passengers", () => Suite("core-transport-deploy")),
         ("selfplay", () => Suite("core-self-play") with { RoundCap = 2 }),
-        ("gameover", () => ScenarioCatalog.Get("final-round-warn")),
+        ("gameover", () => ScenarioCatalog.Get("final-round-warn") with { WaitsBetweenSteps = true }),
         ("casting", () => ScenarioCatalog.Get("casting")),
         ("objectives", () => ScenarioCatalog.Get("objectives") with { RoundCap = 2 }),
     ];
@@ -65,7 +65,9 @@ public class CallLogFixtureTests
             && events.Any(e => e.Payload is AskClosed c && c.Answers.Any(a => a.Answer is Destinations d && d.Moves.Any(m => m.From is Inside))),
         "passengers" => Changes(events).Any(c => c is ModelsMoved m && m.Moves.Any(r => r.From is OnShelf && r.To is Inside)),
         "selfplay" => welcome.Game.Participants.Where(p => p.TeamId is not null).GroupBy(p => p.AccountId).Any(g => g.Select(p => p.TeamId).Distinct().Count() == 2),
-        "gameover" => events.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.GameOver }),
+        // The step gate's Confirm is the calls' only "confirm" case: no player game sets WaitsBetweenSteps, and the roll-off no longer gates without it.
+        "gameover" => events.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.GameOver })
+            && events.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.Confirm, Ask.Legal: Confirmation }),
         "casting" => events.Any(e => e.Payload is AskOpened { Ask.Legal: TokenSpend }),
         "objectives" => board.Table.Markers.Any(m => m.Kind == MarkerKind.Objective),
         _ => false,
