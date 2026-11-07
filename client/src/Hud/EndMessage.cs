@@ -26,7 +26,7 @@ public partial class EndMessage : Control
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session;
-        SetAnchorsPreset(LayoutPreset.FullRect);
+        SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Stop;                                         // modal: the backdrop takes every click that misses the panel
         Visible = false;
         var centre = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; centre.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(centre);

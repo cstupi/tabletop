@@ -16,7 +16,7 @@ public partial class GameScreen : Control
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!, _sideColumn = null!; MarginContainer _sideHead = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup, _head; WaitingPanel? _waiting; readonly List<TeamPanel> _teams = new(); bool _wasWaiting;
     readonly SetupFolds _folds = new();   // the sections' open state outlives each rebuild
-    Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
+    SubViewportContainer _tableBox = null!; Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
@@ -24,7 +24,7 @@ public partial class GameScreen : Control
     {
         _session = Main.Instance.Session;
         var root = new HBoxContainer(); root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
-        var viewportContainer = new SubViewportContainer { Stretch = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
+        var viewportContainer = _tableBox = new SubViewportContainer { Stretch = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
         var viewport = new SubViewport { HandleInputLocally = true }; viewportContainer.AddChild(viewport); root.AddChild(viewportContainer);
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
@@ -125,6 +125,11 @@ public partial class GameScreen : Control
         if (game is null) return;
         var playing = game.Status is GameStatus.Playing or GameStatus.Ended;
         _sideColumn.Visible = !playing || _wasWaiting;                      // play is the table to the edges (spec → Layout), once deployment can begin
+        // The lobby has no table to edit: its panel takes the whole window, below the corner's line; setup puts the table back.
+        var lobbyOnly = game.Status == GameStatus.Lobby;
+        _tableBox.Visible = !lobbyOnly;
+        _sideColumn.SizeFlagsHorizontal = lobbyOnly ? SizeFlags.ExpandFill : SizeFlags.Fill;
+        _sideHead.AddThemeConstantOverride("margin_top", (int)(lobbyOnly ? HudLayout.M + HudLayout.CornerH + HudLayout.M : HudLayout.M));
         if (_wasWaiting) { if (_waiting is null) _side.AddChild(_waiting = new WaitingPanel()); else _waiting.Refresh(); }
         if (!playing)
         {

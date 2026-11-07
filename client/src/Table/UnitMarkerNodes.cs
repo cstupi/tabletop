@@ -13,7 +13,7 @@ public partial class UnitMarkerNodes : Control
 
     public void Bind(Session session, TableView view, TableInput input)
     {
-        _s = session; _view = view; _input = input; SetAnchorsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
+        _s = session; _view = view; _input = input; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Facts)) != 0) Render(); }; _onTheme = () => { Theme = Ui.Theme; Clear(); Render(); };
         _onSelection = Render; _onHover = u => { _hovered = u; Render(); };
         session.Frame.Render += _onFrame; Ui.Changed += _onTheme; input.SelectionChanged += _onSelection; input.HoveredUnitChanged += _onHover; _onTheme();

@@ -11,7 +11,7 @@ public partial class FloatingText : Control
 
     public void Bind(Session session, TableView view)
     {
-        _s = session; _view = view; SetAnchorsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
+        _s = session; _view = view; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
         if (session.Projection is { } p) _results.Seed(p);
         _onEvents = batch => { if (_s.Projection is { } q) foreach (var (seq, r) in _results.OnBatch(batch, q, _s.CatchingUp)) _pending[seq] = r; };
         _onBoard = () => { _results.OnBoard(); _pending.Clear(); };
