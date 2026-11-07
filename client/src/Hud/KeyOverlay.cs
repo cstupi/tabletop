@@ -1,58 +1,80 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
+using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Centre: every hotkey and what it does. F1 or ? opens and closes it; Esc closes it.</summary>
+/// <summary>
+/// Centre: the keys (UX redesign part 2 → Key overlay, KeyOverlayView): the open Ask's keys first, then Camera, Measure and Table, as key caps
+/// in captioned groups. F1 or ? opens and closes it, as does <see cref="Request"/> (the decision card's ⌨); any other key closes it.
+/// </summary>
 public partial class KeyOverlay : PanelContainer
 {
-    static readonly (string Key, string Does)[] Rows =
-    [
-        ("1–9", "pick the numbered option in the decision box"),
-        ("1–5, while holding a unit", "arrange it in that many rows"),
-        ("W A S D", "move the camera across the table"),
-        ("Q / E", "hold to turn each held model or the held terrain piece (Shift: slower), or the held rows; otherwise orbit the camera"),
-        ("Enter", "confirm the decision: commit, fire, remove"),
-        ("C", "stop the move here (cast or pick), when the move box offers it"),
-        ("Esc", "cancel, innermost first: a drag, the target assignments, the selection"),
-        ("Shift (held)", "click picks a model, drag boxes models"),
-        ("PageDown / PageUp (while holding)", "lower or raise the held models or terrain piece one surface; above the highest, lifted over everything again"),
-        ("Alt (while dragging)", "place freely: no lifting, sliding, stopping or allowance"),
-        ("L (held)", "sight check on the hovered unit"),
-        ("M", "measure tool: click, then click again (or drag) to fix the line"),
-        ("Ctrl (held)", "ruler from the point under the cursor as Ctrl goes down to the cursor; letting go removes it"),
-        ("H", "measure 2D (across the table) or 3D (through the height, with Δh); remembered"),
-        ("P", "ping"),
-        ("Tab / Shift+Tab", "next / previous of my units not yet activated"),
-        ("Space", "glide the camera to the active unit, else the selected one"),
-        ("R", "collapse or expand the roster"),
-        ("V", "range rings for my selected unit"),
-        ("B", "show or hide the model hitboxes: off, a model with a mesh draws only the mesh and its base ring; remembered"),
-        ("Shift+B", "show or hide the terrain hitboxes: off, terrain with a mesh draws only the mesh; remembered"),
-        ("Ctrl+Z", "undo the last action, whoever took it"),
-        ("G", "open or close the log"),
-        ("Delete / Backspace", "in setup: remove the selected terrain piece or marker"),
-        ("Home / End", "camera top-down / level"),
-        ("F1 or ?", "this overlay"),
-    ];
+    /// <summary>Opens the overlay from a control (the decision card's ⌨).</summary>
+    public static void Request() => Requested?.Invoke();
+    static event Action? Requested;
+
+    Session _s = null!;
+    readonly HBoxContainer _columns = new();
+    Action? _onRequest, _onTheme;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
+        _s = session;
         SetAnchorsAndOffsetsPreset(LayoutPreset.Center, LayoutPresetMode.Minsize);
         GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Both;
-        Visible = false;
-        var grid = new GridContainer { Columns = 2 }; AddChild(grid);
-        foreach (var (key, does) in Rows) { grid.AddChild(new Label { Text = key }); grid.AddChild(new Label { Text = does }); }
+        Visible = false; MouseFilter = MouseFilterEnum.Stop;
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 14); AddChild(box);
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 10); box.AddChild(title);
+        title.AddChild(HudBits.Icon("key", 28, Ui.Accent));
+        title.AddChild(new Label { Text = "KEYS", ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center });
+        _columns.AddThemeConstantOverride("separation", 40); box.AddChild(_columns);
+        _onRequest = () => { if (IsInsideTree()) Open(); }; Requested += _onRequest;
+        _onTheme = () => { if (Visible) Build(); }; Ui.Changed += _onTheme;
+    }
+
+    public override void _ExitTree() { Requested -= _onRequest; Ui.Changed -= _onTheme; }
+
+    void Open() { Build(); Visible = true; }
+
+    /// <summary>The groups for the Ask open now: the first column is the Ask's (or Camera), the rest stack in the second.</summary>
+    void Build()
+    {
+        foreach (var c in _columns.GetChildren()) { _columns.RemoveChild(c); c.QueueFree(); }
+        AskMode? mode = null; string? title = null; var stoppable = false;
+        if (_s.Projection is { } p && _s.Game is { } game && !_s.IsWatching && AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds) is { } mine)
+        {
+            mode = mine.Mode; title = mine.Ask.Prompt;
+            stoppable = mine.Ask.Legal is MoveRegion m && DecisionView.StopLabel(p, m) is not null;
+        }
+        var groups = KeyOverlayView.Of(mode, title, stoppable);
+        var first = new VBoxContainer(); var rest = new VBoxContainer();
+        first.AddThemeConstantOverride("separation", 18); rest.AddThemeConstantOverride("separation", 18);
+        _columns.AddChild(first); _columns.AddChild(rest);
+        for (var i = 0; i < groups.Count; i++) (i == 0 ? first : rest).AddChild(Group(groups[i], now: i == 0 && mode is not null));
+    }
+
+    static Control Group(KeyGroup g, bool now)
+    {
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 6);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 8); box.AddChild(head);
+        head.AddChild(HudBits.Icon(g.Icon, 20, now ? Ui.Accent : Ui.DimText));
+        head.AddChild(new Label { Text = g.Title.ToUpperInvariant(), ThemeTypeVariation = now ? Variation.Accent : Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
+        var grid = new GridContainer { Columns = 2 }; grid.AddThemeConstantOverride("h_separation", 14); grid.AddThemeConstantOverride("v_separation", 6); box.AddChild(grid);
+        foreach (var row in g.Rows)
+        {
+            var keys = HudBits.KeyCaps(row.Keys); keys.Alignment = BoxContainer.AlignmentMode.End; grid.AddChild(keys);
+            grid.AddChild(new Label { Text = row.Does, VerticalAlignment = VerticalAlignment.Center });
+        }
+        return box;
     }
 
     public override void _Input(InputEvent e)
     {
-        switch (IntentOf(e, GetViewport()))
-        {
-            case Intent.KeyOverlay: Visible = !Visible; GetViewport().SetInputAsHandled(); break;
-            case Intent.Cancel when Visible: Visible = false; GetViewport().SetInputAsHandled(); break;
-        }
+        if (IntentOf(e, GetViewport()) == Intent.KeyOverlay) { if (Visible) Visible = false; else Open(); GetViewport().SetInputAsHandled(); }
+        else if (Visible && e is InputEventKey { Pressed: true, Echo: false }) { Visible = false; GetViewport().SetInputAsHandled(); }
     }
 
     /// <summary>A key press to its intent. HotKey carries the Godot names, so the keycode converts by name. Nothing while a

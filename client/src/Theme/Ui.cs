@@ -9,6 +9,8 @@ public static class Variation
     public const string Badge = nameof(Badge), Chip = nameof(Chip), DieFace = nameof(DieFace), DieMiss = nameof(DieMiss), FlatButton = nameof(FlatButton);
     public const string Banner = nameof(Banner), BannerDetail = nameof(BannerDetail), Dim = nameof(Dim), Accent = nameof(Accent), Success = nameof(Success),
         Failure = nameof(Failure), Warning = nameof(Warning), Display = nameof(Display), Numerals = nameof(Numerals), Mono = nameof(Mono);
+    /// <summary>A key cap (UX redesign → Shared vocabulary): the key boxed, in the monospace face.</summary>
+    public const string KeyCap = nameof(KeyCap);
 }
 
 /// <summary>The current UiTheme, its built Godot theme, and its colours and icons as Godot types.</summary>
@@ -64,6 +66,33 @@ public static class Ui
     {
         var b = new StyleBoxFlat { BgColor = mine ? Accent with { A = 0.10f } : Accent with { A = 0 } };
         b.SetCornerRadiusAll(Math.Min(Current.Shape.CornerRadius, 4)); b.ContentMarginLeft = b.ContentMarginRight = 8; b.ContentMarginTop = b.ContentMarginBottom = 6;
+        return b;
+    }
+
+    /// <summary>A terrain effect's chip (TerrainEffects): its colour faintly behind, a border in it.</summary>
+    public static StyleBoxFlat EffectChip(Rgba colour)
+    {
+        var c = Of(colour);
+        var b = new StyleBoxFlat { BgColor = c with { A = 0.2f }, BorderColor = c, CornerDetail = 6 };
+        b.SetBorderWidthAll(1); b.SetCornerRadiusAll(Math.Max(3, Math.Min(Current.Shape.CornerRadius, 8)));
+        b.ContentMarginLeft = 6; b.ContentMarginRight = 10; b.ContentMarginTop = b.ContentMarginBottom = 3;
+        return b;
+    }
+
+    /// <summary>A card's title band: a thick left edge in the colour (a team's, or a terrain piece's strongest effect).</summary>
+    public static StyleBoxFlat EdgeBand(Color edge)
+    {
+        var b = new StyleBoxFlat { BgColor = edge with { A = 0.12f }, BorderColor = edge };
+        b.BorderWidthLeft = 6; b.ContentMarginLeft = 12; b.ContentMarginRight = 8; b.ContentMarginTop = b.ContentMarginBottom = 4;
+        return b;
+    }
+
+    /// <summary>A floating panel over the table (the terrain hover): the theme's panel, opaque, with an accent border.</summary>
+    public static StyleBoxFlat FloatingPanel()
+    {
+        var b = new StyleBoxFlat { BgColor = Of(Current.Panel) with { A = 0.97f }, BorderColor = Of(Current.PanelBorder), CornerDetail = 6 };
+        b.SetBorderWidthAll(Math.Max(1, Current.Shape.BorderWidth)); b.SetCornerRadiusAll(Current.Shape.CornerRadius); b.SetContentMarginAll(12);
+        b.ShadowColor = Background with { A = 0.5f }; b.ShadowSize = 6;
         return b;
     }
 

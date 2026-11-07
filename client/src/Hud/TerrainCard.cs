@@ -67,7 +67,7 @@ public partial class TerrainCard : VBoxContainer
     {
         var status = _s.Game?.Status; var selected = _input.Selected?.PieceId;
         var table = TerrainCardContent.TableOf(status, _s.Draft, _s.Projection);
-        object? content = (object?)TerrainCardContent.Of(table, status, selected, _s.TerrainWords) ?? MarkerCardContent.Of(table, status, selected);
+        object? content = (object?)TerrainCardContent.Of(table, status, selected, _s.TerrainWords, _s.TerrainRules) ?? MarkerCardContent.Of(table, status, selected);
         Visible = content is not null;
         if (Equals(content, _content)) return;
         var scroll = content is TerrainCardContent t && _content is TerrainCardContent was && was.PieceId == t.PieceId ? _card.ScrollVertical : 0;
@@ -83,19 +83,41 @@ public partial class TerrainCard : VBoxContainer
 
     void RenderTerrain(TerrainCardContent c, TerrainPlacement t)
     {
-        _body.AddChild(Wrap(c.Name));
-        if (c.Editable) { RenderPieceEdits(c, t); return; }
-        _body.AddChild(Wrap(c.Source, Variation.Dim));
-        var badges = new HFlowContainer(); _body.AddChild(badges);
-        if (c.Height.Length > 0) badges.AddChild(Badge($"Height {c.Height}"));
-        badges.AddChild(Badge($"Facing {c.Facing}°")); if (c.Scale != 1) badges.AddChild(Badge($"Scale ×{TerrainLabel.Inches(c.Scale)}"));
-        foreach (var (v, i) in c.Volumes.Select((v, i) => (v, i)))
+        if (c.Editable) { _body.AddChild(Wrap(c.Name)); RenderPieceEdits(c, t); return; }
+        RenderEffects(c);
+    }
+
+    /// <summary>
+    /// Play (owner, 2026-11-07: "when terrain is SELECTED during play it should better show the effects"): a band in the piece's strongest
+    /// effect's colour with its name and height, then each effect as a large icon in its colour, its word and the server's sentence of what it
+    /// does to a unit (Session.TerrainRules); the table tints each volume in the same colour while the piece is selected. A piece of several
+    /// volumes lists each with its tint, then facing and scale, dim.
+    /// </summary>
+    void RenderEffects(TerrainCardContent c)
+    {
+        var all = c.Effects.Aggregate(Tabletop.Geometry.TerrainDeclarations.None, (d, e) => d | e.Flag);
+        var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.EdgeBand(Ui.Of(TerrainEffects.Primary(all).Colour))); _body.AddChild(band);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); band.AddChild(head);
+        head.AddChild(new Label { Text = c.Name, ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
+        if (c.Height.Length > 0) head.AddChild(new Label { Text = $"{c.Height} high", ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
+        var rows = new VBoxContainer(); rows.AddThemeConstantOverride("separation", 10); _body.AddChild(rows);
+        foreach (var e in c.Effects)
         {
-            _body.AddChild(new HSeparator());
-            _body.AddChild(Wrap($"Volume {i + 1} · {v.Kind} · {v.Footprint} · {v.Heights}"));
-            _body.AddChild(Flow(v.Declarations.Select(d => Chip(d))));
-            if (v.Notes is { } notes) _body.AddChild(Wrap(notes, Variation.Dim));
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 12); rows.AddChild(row);
+            var icon = HudBits.Icon(e.Icon, 36, Ui.Of(e.Colour)); icon.SizeFlagsVertical = SizeFlags.ShrinkBegin; row.AddChild(icon);
+            var words = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; words.AddThemeConstantOverride("separation", 0); row.AddChild(words);
+            var word = new Label { Text = e.Word }; word.AddThemeColorOverride("font_color", Ui.Of(e.Colour).Lerp(Ui.Text, 0.35f)); word.AddThemeFontSizeOverride("font_size", 20); words.AddChild(word);
+            if (e.Rule is { } rule) words.AddChild(Wrap(rule));
         }
+        if (c.Volumes.Count > 1)
+            foreach (var (v, i) in c.Volumes.Select((v, i) => (v, i)))
+            {
+                var line = new HBoxContainer(); line.AddThemeConstantOverride("separation", 8); _body.AddChild(line);
+                var swatch = new PanelContainer { CustomMinimumSize = new Vector2(14, 14), SizeFlagsVertical = SizeFlags.ShrinkCenter }; swatch.AddThemeStyleboxOverride("panel", Ui.EffectChip(v.Colour)); line.AddChild(swatch);
+                line.AddChild(Wrap($"{v.Heights} · {string.Join(", ", v.Declarations)}", Variation.Dim));
+            }
+        foreach (var v in c.Volumes) if (v.Notes is { } notes) _body.AddChild(Wrap(notes, Variation.Dim));
+        _body.AddChild(Wrap(c.Scale != 1 ? $"Facing {c.Facing}° · Scale ×{TerrainLabel.Inches(c.Scale)}" : $"Facing {c.Facing}°", Variation.Dim));
     }
 
     /// <summary>
@@ -192,10 +214,8 @@ public partial class TerrainCard : VBoxContainer
 
     static SpinBox Spin(double value, double max, Action<double> changed) { var sb = new SpinBox { MinValue = 0, MaxValue = max, Step = 0.25, Value = value, CustomMinimumSize = new Vector2(70, 0) }; sb.ValueChanged += v => changed(v); return sb; }
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
-    static PanelContainer Chip(string text) { var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip }; chip.AddChild(new Label { Text = text }); return chip; }
     static PanelContainer Badge(string text) { var badge = new PanelContainer { ThemeTypeVariation = Variation.Badge }; badge.AddChild(new Label { Text = text }); return badge; }
     static Label Wrap(string text, string variation = "") =>
         new() { Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-    static HFlowContainer Flow(IEnumerable<Control> items) { var flow = new HFlowContainer(); foreach (var c in items) flow.AddChild(c); return flow; }
     static void Clear(Node box) { foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); } }
 }

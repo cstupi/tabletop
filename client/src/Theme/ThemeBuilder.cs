@@ -56,6 +56,9 @@ public static class ThemeBuilder
         Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, 4));
         Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, 2));
         Variant(t, Variation.DieMiss, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Failure), 2, 2));
+        var cap = Flat(s, C(u.Background) with { A = 0.85f }, C(u.DimText), 1, 0); cap.SetCornerRadiusAll(Math.Min(4, Math.Max(2, s.CornerRadius)));
+        cap.ContentMarginLeft = cap.ContentMarginRight = 7; cap.ContentMarginTop = 1; cap.ContentMarginBottom = 2; cap.BorderWidthBottom = 2;
+        Variant(t, Variation.KeyCap, "PanelContainer", "panel", cap);
         foreach (var (v, c) in new[] { (Variation.Dim, u.DimText), (Variation.Accent, u.Accent), (Variation.Success, u.Success), (Variation.Failure, u.Failure), (Variation.Warning, u.Warning) }) LabelVariant(t, v, c: C(c));
         LabelVariant(t, Variation.Display, u.Display); LabelVariant(t, Variation.Mono, UiThemes.Mono, C(u.Text)); LabelVariant(t, Variation.Numerals, u.Numerals, C(u.Dice.Mark)); LabelVariant(t, Variation.Banner, u.Display with { Size = 48 }, C(u.Accent));
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
