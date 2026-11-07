@@ -52,11 +52,16 @@ public partial class DecisionBox
             if (pick.AnswersAtOnce) { Done(); return; }
             Refresh();
         }
-        foreach (var shelved in DeployView.OffTable(p, eligible))
+        var offTable = DeployView.OffTable(p, eligible);
+        foreach (var shelved in offTable)
         {
             var key = _numbered.FirstOrDefault(n => n.OptionId == shelved.ToString()).Key;
             Add(Row(shelved, key, names, () => Toggle(shelved)));
         }
+        // A unit on the table (a charge's target, a spell's): a tile with its name and team band beside the glowing unit, so the card is
+        // never an empty box (UX redesign part 2 → Pick a unit).
+        if (offTable.Count == 0)
+            foreach (var unit in eligible.Where(p.Units.ContainsKey)) Add(Row(unit, 0, names, () => Toggle(unit)));
         _onNumber = option => { if (Guid.TryParse(option, out var id) && eligible.Contains(id)) Toggle(id); };
         _input.Eligible = eligible.ToHashSet();
         _onTarget = clicked => { if (AskAnswers.Resolve(p, clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
