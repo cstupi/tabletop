@@ -48,8 +48,8 @@ public sealed class ReplayTimeline(Board board, GameInfo game, IReadOnlyList<Gam
     /// <summary>
     /// The positions a unit stops at, ascending, from 0 to the log's length. Step: before each player input (an event a participant's
     /// command wrote, after one the engine or another participant wrote), so a step shows an input and everything the rules did with it.
-    /// Action: before each action frame starts (a sequence with an action, none open). Turn and Round: just after each turn_started and
-    /// round_started, so the header already names it.
+    /// Action: just after each action frame ends (a sequence with an action, none open, finished or abandoned), so the table, the roster
+    /// and the caption show the same action done. Turn and Round: just after each turn_started and round_started, so the header already names it.
     /// </summary>
     public static IReadOnlyList<int> Stops(IReadOnlyList<GameEvent> log, ReplayUnit unit)
     {
@@ -68,9 +68,9 @@ public sealed class ReplayTimeline(Board board, GameInfo game, IReadOnlyList<Gam
             if (unit == ReplayUnit.Action)
                 switch (e.Payload)
                 {
-                    case SequenceStarted { Context.Action: not null } s when action is null: action = (s.FrameId, e.Seq); stop = i; break;
-                    case SequenceFinished f when action?.Frame == f.FrameId: action = null; break;
-                    case SequenceAbandoned a when action?.Frame == a.FrameId: action = null; break;
+                    case SequenceStarted { Context.Action: not null } s when action is null: action = (s.FrameId, e.Seq); break;
+                    case SequenceFinished f when action?.Frame == f.FrameId: action = null; stop = i + 1; break;
+                    case SequenceAbandoned a when action?.Frame == a.FrameId: action = null; stop = i + 1; break;
                     case Undone u when action?.Seq > u.ToSeq: action = null; break;
                 }
             if (stop is { } s2 && s2 > stops[^1]) stops.Add(s2);

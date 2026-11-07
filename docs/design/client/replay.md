@@ -26,7 +26,7 @@ shows its `Undone to:` line. Forward applies the next events to the same applier
 | Unit | Stops |
 | --- | --- |
 | Step | before each player input: an event a participant's command wrote, after one the engine or another participant wrote (`GameEvent.Actor`). A step shows an input and everything the rules did with it. |
-| Action | before each action frame starts: a `sequence_started` with an action while none is open; an undo back past an open one closes it. |
+| Action | just after each action frame ends: the `sequence_finished` or `sequence_abandoned` of a `sequence_started` with an action while none was open; an undo back past an open one closes it with no stop. The table, the roster and the caption then show the same action done. |
 | Turn | just after each `turn_started`, so the header names the turn. |
 | Round | just after each `round_started`. |
 

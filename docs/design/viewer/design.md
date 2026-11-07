@@ -590,7 +590,7 @@ game and log:
 
 - `replay/replayTimeline.ts` ports `ReplayTimeline`: position counts the events applied (0 is the board as setup left it), forward
   applies the next events to one `Applier`, backward rebuilds; `replayStops(log, unit)` gives the stops by step (before each run of one
-  participant's events), action (before each action frame opens), turn and round (just after each `turn_started`, `round_started`);
+  participant's events), action (just after each action frame ends), turn and round (just after each `turn_started`, `round_started`);
   the caption reads `Round 2 · 140 of 2210`. The log is read on every call, so a running game's events extend it.
 - `replay/replayClock.ts` ports `ReplayClock` (a step every 1.5 s over the speed: 0.5×, 1×, 2×, 4×, 8×) and `replay/replayPlayer.ts` the
   replay bar's logic (`ReplayBar.cs`): a step button pauses and jumps, Play from the end of an ended game starts from 0, playing pauses

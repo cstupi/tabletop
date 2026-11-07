@@ -23,11 +23,11 @@ public class ReplayTimelineTests
             E(2, new TurnStarted(Samples.Team1)),                           // 1
             E(3, new ScoreSet(Samples.Team1, 1), Samples.P1),               // 2: step
             E(4, new ScoreSet(Samples.Team1, 2), Samples.P1),               // 3
-            E(5, Action(a)),                                                // 4: action
+            E(5, Action(a)),                                                // 4
             E(6, Action(nested)),                                           // 5: nested, not an action stop
-            E(7, new SequenceFinished(a)),                                  // 6
+            E(7, new SequenceFinished(a)),                                  // 6: the action ends, a stop after it
             E(8, new ScoreSet(Samples.Team1, 3), Other),                    // 7: step
-            E(9, Action(b)),                                                // 8: action
+            E(9, Action(b)),                                                // 8: never finishes
             E(10, new Undone(4), Samples.P1),                               // 9: step; back before the action
             E(11, new RoundStarted(2, [Samples.Team1], [])),                // 10
             E(12, new TurnStarted(Samples.Team1)),                          // 11
@@ -78,7 +78,7 @@ public class ReplayTimelineTests
     {
         var log = Log();
         Assert.Equal([0, 2, 7, 9, 12], ReplayTimeline.Stops(log, ReplayUnit.Step));
-        Assert.Equal([0, 4, 8, 12], ReplayTimeline.Stops(log, ReplayUnit.Action));
+        Assert.Equal([0, 7, 12], ReplayTimeline.Stops(log, ReplayUnit.Action));
         Assert.Equal([0, 2, 12], ReplayTimeline.Stops(log, ReplayUnit.Turn));
         Assert.Equal([0, 1, 11, 12], ReplayTimeline.Stops(log, ReplayUnit.Round));
         Assert.Equal([0], ReplayTimeline.Stops([], ReplayUnit.Step));
@@ -88,8 +88,9 @@ public class ReplayTimelineTests
     public void An_undo_back_before_an_open_action_lets_the_next_one_stop()
     {
         Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7();
-        List<GameEvent> log = [E(1, new ScoreSet(Samples.Team1, 1)), E(2, Action(a)), E(3, new Undone(1), Samples.P1), E(4, Action(b))];
-        Assert.Equal([0, 1, 3, 4], ReplayTimeline.Stops(log, ReplayUnit.Action));
+        List<GameEvent> log = [E(1, new ScoreSet(Samples.Team1, 1)), E(2, Action(a)), E(3, new Undone(1), Samples.P1), E(4, Action(b)), E(5, new SequenceFinished(a)),
+            E(6, new SequenceFinished(b)), E(7, new ScoreSet(Samples.Team1, 2))];
+        Assert.Equal([0, 6, 7], ReplayTimeline.Stops(log, ReplayUnit.Action));
     }
 
     [Fact]
@@ -100,7 +101,7 @@ public class ReplayTimelineTests
         Assert.Equal(2, t.Next(ReplayUnit.Step));
         t.Seek(7);
         Assert.Equal((2, 9), (t.Previous(ReplayUnit.Step), t.Next(ReplayUnit.Step)));
-        Assert.Equal((4, 8), (t.Previous(ReplayUnit.Action), t.Next(ReplayUnit.Action)));
+        Assert.Equal((0, 12), (t.Previous(ReplayUnit.Action), t.Next(ReplayUnit.Action)));
         Assert.Equal((1, 11), (t.Previous(ReplayUnit.Round), t.Next(ReplayUnit.Round)));
         t.Seek(12);
         Assert.Equal(12, t.Next(ReplayUnit.Round));
@@ -115,8 +116,9 @@ public class ReplayTimelineTests
         var round = ReplayTimeline.Stops(log, ReplayUnit.Round);
         Assert.IsType<RoundStarted>(log[round[1] - 1].Payload);
         var actions = ReplayTimeline.Stops(log, ReplayUnit.Action);
-        Assert.Equal("Charge", Assert.IsType<SequenceStarted>(log[actions[1]].Payload).Context.Action);
-        Assert.Equal(3, actions.Count);                                     // the board, the charge, the end: the strike-back and morale are inside it
+        var charge = Assert.IsType<SequenceFinished>(log[actions[1] - 1].Payload).FrameId;   // the stop is just after the charge's frame ends
+        Assert.Equal("Charge", log.Select(e => e.Payload).OfType<SequenceStarted>().Single(s => s.FrameId == charge).Context.Action);
+        Assert.Equal(2, actions.Count);                                     // the board and the charge's end, which ends the log: the strike-back and morale are inside it
         var steps = ReplayTimeline.Stops(log, ReplayUnit.Step);
         Assert.All(steps.Skip(1).SkipLast(1), s => Assert.NotNull(log[s].Actor));
         Assert.True(steps.Count > 3, $"{steps.Count} steps");

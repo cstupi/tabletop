@@ -74,9 +74,9 @@ export class ReplayTimeline {
 
 /**
  * The positions a unit stops at, ascending, from 0 to the log's length. Step: before each player input (an event a participant's command
- * wrote, after one the engine or another participant wrote), so a step shows an input and everything the rules did with it. Action: before
- * each action frame starts (a sequence with an action, none open). Turn and round: just after each turn_started and round_started, so the
- * header already names it.
+ * wrote, after one the engine or another participant wrote), so a step shows an input and everything the rules did with it. Action: just
+ * after each action frame ends (a sequence with an action, none open, finished or abandoned), so the board and the caption show the same
+ * action done. Turn and round: just after each turn_started and round_started, so the header already names it.
  */
 export function replayStops(log: readonly GameEvent[], unit: ReplayUnit): number[] {
   const stops = [0];
@@ -88,8 +88,8 @@ export function replayStops(log: readonly GameEvent[], unit: ReplayUnit): number
     if (unit === 'step') stop = e.actor !== undefined && (i === 0 || log[i - 1]!.actor !== e.actor) ? i : null;
     else if (unit === 'turn') stop = p.kind === 'turn_started' ? i + 1 : null;
     else if (unit === 'round') stop = p.kind === 'round_started' ? i + 1 : null;
-    else if (p.kind === 'sequence_started' && p.context.action !== undefined && action === null) { action = { frame: p.frameId, seq: e.seq }; stop = i; }
-    else if ((p.kind === 'sequence_finished' || p.kind === 'sequence_abandoned') && action?.frame === p.frameId) action = null;
+    else if (p.kind === 'sequence_started' && p.context.action !== undefined && action === null) action = { frame: p.frameId, seq: e.seq };
+    else if ((p.kind === 'sequence_finished' || p.kind === 'sequence_abandoned') && action?.frame === p.frameId) { action = null; stop = i + 1; }
     else if (p.kind === 'undone' && action !== null && action.seq > p.toSeq) action = null;
     if (stop !== null && stop > stops[stops.length - 1]!) stops.push(stop);
   }

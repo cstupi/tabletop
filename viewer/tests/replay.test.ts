@@ -23,13 +23,14 @@ describe('replayStops (ReplayTimeline.Stops)', () => {
     expect(replayStops(log, 'turn')).toEqual([0, 2, 4]);
   });
 
-  it('stops before each action frame; nested frames and an undo past the open one are handled', () => {
+  it('stops just after each action frame ends; nested frames and an undo past the open one are handled', () => {
     const start = (seq: number, frameId: string, action?: string) => ev(seq, { kind: 'sequence_started', frameId, context: action === undefined ? {} : { action } } as never);
     const log = [
       start(1, 'f1', 'Hold'), start(2, 'n1'), ev(3, { kind: 'sequence_finished', frameId: 'n1' } as never), ev(4, { kind: 'sequence_finished', frameId: 'f1' } as never),
-      start(5, 'f2', 'Advance'), ev(6, { kind: 'undone', toSeq: 4 } as never), start(7, 'f3', 'Rush'),
+      start(5, 'f2', 'Advance'), ev(6, { kind: 'undone', toSeq: 4 } as never), start(7, 'f3', 'Rush'), ev(8, { kind: 'sequence_finished', frameId: 'f2' } as never),
+      ev(9, { kind: 'sequence_finished', frameId: 'f3' } as never), ev(10, { kind: 'turn_ended' }),
     ];
-    expect(replayStops(log, 'action')).toEqual([0, 4, 6, 7]);
+    expect(replayStops(log, 'action')).toEqual([0, 4, 9, 10]);
   });
 
   it('runs over a recorded game: every unit ascends from 0 to the whole log', () => {
