@@ -17,7 +17,7 @@ public sealed class InMemoryFolderRepository(InMemoryRows rows) : IFolderReposit
     {
         lock (rows.Gate)
             return Task.FromResult<IReadOnlyList<FolderDto>>(rows.Folders.Where(f => f.Value.Owner == ownerId).OrderBy(f => f.Key)
-                .Select(f => new FolderDto(f.Key, f.Value.ParentId, f.Value.Name, rows.Filed.Where(x => x.FolderId == f.Key).Select(x => x.AssetId).ToList())).ToList());
+                .Select(f => new FolderDto(f.Key, f.Value.ParentId, f.Value.Name, rows.Filed.Where(x => x.FolderId == f.Key).Select(x => x.AssetId).ToList(), f.Value.Shared)).ToList());
     }
 
     public Task<int> Count(Guid ownerId)
@@ -37,12 +37,24 @@ public sealed class InMemoryFolderRepository(InMemoryRows rows) : IFolderReposit
         }
     }
 
+    public Task<FolderDto> CreateShared(Guid ownerId)
+    {
+        lock (rows.Gate)
+        {
+            rows.RequireAccount(ownerId);
+            if (!rows.Folders.Any(f => f.Value.Owner == ownerId && f.Value.Shared))
+                rows.Folders.Add(rows.NextId(), new InMemoryRows.FolderRow { Owner = ownerId, Name = "Shared", Shared = true });
+            var (id, row) = rows.Folders.Single(f => f.Value.Owner == ownerId && f.Value.Shared);
+            return Task.FromResult(new FolderDto(id, null, row.Name, rows.Filed.Where(x => x.FolderId == id).Select(x => x.AssetId).ToList(), true));
+        }
+    }
+
     public Task<(bool Found, bool Valid)> Patch(Guid ownerId, Guid id, FolderRequest r)
     {
         lock (rows.Gate)
         {
             if (!Owns(ownerId, id)) return Task.FromResult((false, false));
-            if (r.ParentId is { } p && (p == id || !Owns(ownerId, p) || IsBelow(ancestor: id, candidate: p))) return Task.FromResult((true, false));
+            if (r.ParentId is { } p && (p == id || rows.Folders[id].Shared || !Owns(ownerId, p) || IsBelow(ancestor: id, candidate: p))) return Task.FromResult((true, false));
             var f = rows.Folders[id];
             f.Name = r.Name;
             f.ParentId = r.ParentId;

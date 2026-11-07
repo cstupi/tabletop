@@ -18,6 +18,7 @@ public abstract partial class RepositoryContract
     protected abstract IAccountRepository Accounts { get; }
     protected abstract IAssetRepository Assets { get; }
     protected abstract Tabletop.Management.Content.Offers.IOfferRepository Offers { get; }
+    protected abstract Tabletop.Management.Content.Shared.ISharedRepository Shared { get; }
     protected abstract IFolderRepository Folders { get; }
     protected abstract IArmyRepository Armies { get; }
     protected abstract ILayoutRepository Layouts { get; }

@@ -15,7 +15,7 @@ namespace Tabletop.Management.Tests;
 /// </summary>
 public sealed class InMemoryRows
 {
-    public sealed class AccountRow { public required string Name; public bool StarterSeeded; }
+    public sealed class AccountRow { public required string Name; public string? Username; public bool StarterSeeded; }
     public sealed class BlobRow { public required string Key; public long ByteSize; public required string ContentType; public bool Uploaded; public DateTimeOffset CreatedAt = DateTimeOffset.UtcNow; }
     public sealed class AssetRow
     {
@@ -23,7 +23,7 @@ public sealed class InMemoryRows
         public double Scale; public Orientation Orientation; public Base? ModelledBase;
         public List<TerrainVolume> Volumes = [];
     }
-    public sealed class FolderRow { public required Guid Owner; public Guid? ParentId; public required string Name; }
+    public sealed class FolderRow { public required Guid Owner; public Guid? ParentId; public required string Name; public bool Shared; }
     public sealed class ArmyRow { public required Guid Owner; public required Army Army; }
     public sealed class LayoutRow { public required Guid Owner; public required TableState State; }
     public sealed record PropertiesRow(string Name, string GameRules, DateTimeOffset SeededAt);
@@ -140,6 +140,44 @@ public sealed class InMemoryRows
             if (!Games.ContainsKey(gameId)) throw new InvalidOperationException($"foreign key violation: no game {gameId}");
             GameTables[gameId] = table;
         }
+    }
+
+    /// <summary>AssetCopies.Copy: (source, copy) per uploaded source, ascending by source id; null on a pending conflict, nothing
+    /// written; a quota refusal throws AssetQuotaExceeded. The caller holds Gate.</summary>
+    public List<(Guid Source, Guid Copy)>? CopyAssets(Guid callerId, IEnumerable<Guid> sourceIds, AssetQuota quota)
+    {
+        RequireAccount(callerId);
+        var sources = sourceIds.Distinct().Where(id => Assets.TryGetValue(id, out var a) && Blobs[(a.Owner, a.Hash)].Uploaded).Order().Select(id => (Id: id, Row: Assets[id])).ToList();
+        var hashes = sources.Select(s => s.Row.Hash).ToHashSet();
+        bool Mine(string hash) => Blobs.TryGetValue((callerId, hash), out var b) && b.Uploaded;
+        bool PendingOnSource((Guid Owner, string Hash) k, BlobRow b) => k.Owner == callerId && !b.Uploaded && hashes.Contains(k.Hash);
+        string SourceType(string hash) { var s = sources.First(x => x.Row.Hash == hash).Row; return Blobs[(s.Owner, s.Hash)].ContentType; }
+        if (Assets.Values.Any(a => a.Owner == callerId && hashes.Contains(a.Hash) && !Mine(a.Hash) && !AssetRules.ContentTypes[a.Kind].Contains(SourceType(a.Hash))))
+            return null;
+        if (Assets.Values.Count(a => a.Owner == callerId) + sources.Count > quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
+        var added = sources.Where(s => !Mine(s.Row.Hash)).DistinctBy(s => s.Row.Hash).Sum(s => Blobs[(s.Row.Owner, s.Row.Hash)].ByteSize);
+        if (Blobs.Where(b => b.Key.Owner == callerId && !PendingOnSource(b.Key, b.Value)).Sum(b => b.Value.ByteSize) + added > quota.Bytes)
+            throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+
+        foreach (var (_, s) in sources.DistinctBy(s => s.Row.Hash))
+        {
+            var source = Blobs[(s.Owner, s.Hash)];
+            if (!Blobs.TryGetValue((callerId, s.Hash), out var mine))
+                Blobs.Add((callerId, s.Hash), new BlobRow { Key = source.Key, ByteSize = source.ByteSize, ContentType = source.ContentType, Uploaded = true });
+            else if (!mine.Uploaded) { mine.Key = source.Key; mine.ByteSize = source.ByteSize; mine.ContentType = source.ContentType; mine.Uploaded = true; }
+        }
+        var copies = new List<(Guid, Guid)>();
+        foreach (var (sourceId, s) in sources)
+        {
+            var id = NextId();
+            Assets.Add(id, new AssetRow
+            {
+                Owner = callerId, Hash = s.Hash, Name = s.Name, Kind = s.Kind, Scale = s.Scale, Orientation = s.Orientation, ModelledBase = s.ModelledBase,
+                Volumes = s.Volumes.Select(v => new TerrainVolume(NextId(), v.Volume)).ToList(),
+            });
+            copies.Add((sourceId, id));
+        }
+        return copies;
     }
 
     /// <summary>delete from asset: cascades its volumes, filings and offer rows.</summary>

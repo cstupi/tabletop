@@ -121,37 +121,10 @@ public sealed class InMemoryOfferRepository(InMemoryRows rows) : IOfferRepositor
             rows.RequireAccount(callerId);
             if (!(rows.Offers.TryGetValue(offerId, out var offer) && Visible(callerId, offer))) return Task.FromResult(new AcceptResult([], OfferMissing: true));
             if (folderId is { } f && !(rows.Folders.TryGetValue(f, out var folder) && folder.Owner == callerId)) return Task.FromResult(new AcceptResult([], FolderMissing: true));
-            var sources = offer.AssetIds.Where(Uploaded).Order().Select(id => rows.Assets[id]).ToList();
-            var hashes = sources.Select(s => s.Hash).ToHashSet();
-            bool Mine(string hash) => rows.Blobs.TryGetValue((callerId, hash), out var b) && b.Uploaded;
-            bool PendingOnSource((Guid Owner, string Hash) k, InMemoryRows.BlobRow b) => k.Owner == callerId && !b.Uploaded && hashes.Contains(k.Hash);
-            if (rows.Assets.Values.Any(a => a.Owner == callerId && hashes.Contains(a.Hash) && !Mine(a.Hash)
-                    && !AssetRules.ContentTypes[a.Kind].Contains(sources.First(s => s.Hash == a.Hash) is var s ? rows.Blobs[(s.Owner, s.Hash)].ContentType : "")))
-                return Task.FromResult(new AcceptResult([], PendingConflict: true));
-            if (rows.Assets.Values.Count(a => a.Owner == callerId) + sources.Count > quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
-            var added = sources.Where(s => !Mine(s.Hash)).DistinctBy(s => s.Hash).Sum(s => rows.Blobs[(s.Owner, s.Hash)].ByteSize);
-            if (rows.Blobs.Where(b => b.Key.Owner == callerId && !PendingOnSource(b.Key, b.Value)).Sum(b => b.Value.ByteSize) + added > quota.Bytes)
-                throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
-
-            foreach (var s in sources.DistinctBy(s => s.Hash))
-            {
-                var source = rows.Blobs[(s.Owner, s.Hash)];
-                if (!rows.Blobs.TryGetValue((callerId, s.Hash), out var mine))
-                    rows.Blobs.Add((callerId, s.Hash), new InMemoryRows.BlobRow { Key = source.Key, ByteSize = source.ByteSize, ContentType = source.ContentType, Uploaded = true });
-                else if (!mine.Uploaded) { mine.Key = source.Key; mine.ByteSize = source.ByteSize; mine.ContentType = source.ContentType; mine.Uploaded = true; }
-            }
-            var copied = new List<Guid>();
-            foreach (var s in sources)
-            {
-                var id = rows.NextId();
-                rows.Assets.Add(id, new InMemoryRows.AssetRow
-                {
-                    Owner = callerId, Hash = s.Hash, Name = s.Name, Kind = s.Kind, Scale = s.Scale, Orientation = s.Orientation, ModelledBase = s.ModelledBase,
-                    Volumes = s.Volumes.Select(v => new Tabletop.Content.TerrainVolume(rows.NextId(), v.Volume)).ToList(),
-                });
-                if (folderId is { } into) rows.Filed.Add((id, into));
-                copied.Add(id);
-            }
+            var copies = rows.CopyAssets(callerId, offer.AssetIds, quota);
+            if (copies is null) return Task.FromResult(new AcceptResult([], PendingConflict: true));
+            if (folderId is { } into) foreach (var (_, id) in copies) rows.Filed.Add((id, into));
+            var copied = copies.Select(x => x.Copy).ToList();
             offer.State = "accepted"; offer.DecidedAt = DateTimeOffset.UtcNow;
             return Task.FromResult(new AcceptResult(copied));
         }

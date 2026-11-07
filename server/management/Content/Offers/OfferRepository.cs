@@ -15,8 +15,6 @@ public sealed class OfferRepository(Database db) : IOfferRepository
     private sealed record OfferRow(Guid Id, string State, Guid SharerId, string SharerName, Guid RecipientId, string RecipientName, string? Folder, DateTime CreatedAt, DateTime? DecidedAt);
     private sealed record AssetRow(Guid OfferId, Guid Id, string Name, string Kind, string Hash, long ByteSize, string ContentType, double Scale,
         double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB);
-    private sealed record Source(Guid Id, string Name, string Kind, string Hash, string Key, long ByteSize, string ContentType, double Scale,
-        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB);
 
     private static DateTimeOffset Utc(DateTime t) => new(DateTime.SpecifyKind(t, DateTimeKind.Utc));
 
@@ -164,51 +162,14 @@ public sealed class OfferRepository(Database db) : IOfferRepository
             return new AcceptResult([], OfferMissing: true);
         if (folderId is not null && !await c.ExecuteScalarAsync<bool>("select exists (select 1 from folder where id = @folderId and owner_id = @callerId)", new { folderId, callerId }, tx))
             return new AcceptResult([], FolderMissing: true);
-        // for share: a concurrent delete of a source waits for this copy, then sees the copy's blob row naming the key.
-        var found = (await c.QueryAsync<Source>(@"select a.id as Id, a.name as Name, a.kind as Kind, a.blob_hash as Hash, b.s3_key as Key,
-                b.byte_size as ByteSize, b.content_type as ContentType, a.scale::float8 as Scale, a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw,
-                a.orientation_roll::float8 as Roll, a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB
-            from share_offer_asset oa join asset a on a.id = oa.asset_id join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash
-            where oa.offer_id = @offerId and b.uploaded order by a.id for share of a, b", new { offerId }, tx)).ToList();
-
-        var hashes = found.Select(s => s.Hash).Distinct().ToArray();
-        // A pending row of the caller's for a source hash carries a declared, unverified size and content type: it is replaced by the
-        // source's below, so the quota counts the source's size in its place, and its asset rows must be of a kind the bytes fit.
-        var mine = (await c.QueryAsync<(string Hash, bool Uploaded)>("select hash, uploaded from blob where owner_id = @callerId and hash = any(@hashes)",
-            new { callerId, hashes }, tx)).ToDictionary(r => r.Hash, r => r.Uploaded);
-        var pending = mine.Where(m => !m.Value).Select(m => m.Key).ToArray();
-        var pendingKinds = await c.QueryAsync<(string Hash, string Kind)>("select distinct blob_hash, kind from asset where owner_id = @callerId and blob_hash = any(@pending)",
-            new { callerId, pending }, tx);
-        var contentType = found.DistinctBy(s => s.Hash).ToDictionary(s => s.Hash, s => s.ContentType);
-        if (pendingKinds.Any(p => !AssetRules.ContentTypes[AssetRules.Kind(p.Kind)].Contains(contentType[p.Hash]))) return new AcceptResult([], PendingConflict: true);
-
-        var (assets, bytes) = await c.QuerySingleAsync<(int, long)>(@"select (select count(*) from asset where owner_id = @callerId)::int,
-            (select coalesce(sum(byte_size), 0) from blob where owner_id = @callerId and not (not uploaded and hash = any(@pending)))::bigint", new { callerId, pending }, tx);
-        if (assets + found.Count > quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
-        if (bytes + found.Where(s => !mine.GetValueOrDefault(s.Hash)).DistinctBy(s => s.Hash).Sum(s => s.ByteSize) > quota.Bytes) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
-
-        foreach (var s in found.DistinctBy(s => s.Hash))
-            await c.ExecuteAsync(@"insert into blob (owner_id, hash, s3_key, byte_size, content_type, uploaded) values (@callerId, @hash, @key, @size, @ct, true)
-                on conflict (owner_id, hash) do update set s3_key = excluded.s3_key, byte_size = excluded.byte_size, content_type = excluded.content_type, uploaded = true
-                where not blob.uploaded",
-                new { callerId, hash = s.Hash, key = s.Key, size = s.ByteSize, ct = s.ContentType }, tx);
-        var copied = new List<Guid>();
-        foreach (var s in found)
-        {
-            var id = Guid.CreateVersion7();
-            await c.ExecuteAsync(@"insert into asset (id, owner_id, blob_hash, name, kind, scale, orientation_pitch, orientation_yaw, orientation_roll, modelled_base_shape, modelled_base_a, modelled_base_b)
-                values (@id, @callerId, @hash, @name, @kind, @scale, @p, @y, @r, @shape, @a, @b)",
-                new { id, callerId, hash = s.Hash, name = s.Name, kind = s.Kind, scale = s.Scale, p = s.Pitch, y = s.Yaw, r = s.Roll, shape = s.Shape, a = s.BaseA, b = s.BaseB }, tx);
-            var volumes = await c.QueryAsync<VolumeRow>($"select {VolumeRow.Columns} from asset_volume where asset_id = @source order by id", new { source = s.Id }, tx);
-            foreach (var v in volumes.Select(v => v with { Id = Guid.CreateVersion7() }))
-                await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})",
-                    new { AssetId = id, v.Id, v.Kind, v.Footprint, v.DimA, v.DimB, v.OffsetX, v.OffsetY, v.Yaw, v.Bottom, v.Top, v.Impassable, v.BlocksLos, v.SeeInOut, v.Cover, v.Difficult, v.Dangerous, v.DangerousRushCharge, v.Steep, v.Notes }, tx);
-            if (folderId is not null) await c.ExecuteAsync("insert into asset_folder (asset_id, folder_id) values (@id, @folderId)", new { id, folderId }, tx);
-            copied.Add(id);
-        }
+        var offered = (await c.QueryAsync<Guid>("select asset_id from share_offer_asset where offer_id = @offerId", new { offerId }, tx)).ToList();
+        var outcome = await AssetCopies.Copy(c, tx, callerId, offered, quota);
+        if (outcome.PendingConflict) return new AcceptResult([], PendingConflict: true);
+        if (folderId is not null)
+            foreach (var (_, id) in outcome.Copies) await c.ExecuteAsync("insert into asset_folder (asset_id, folder_id) values (@id, @folderId)", new { id, folderId }, tx);
         await c.ExecuteAsync("update share_offer set state = 'accepted', decided_at = now() where id = @offerId", new { offerId }, tx);
         await tx.CommitAsync();
-        return new AcceptResult(copied);
+        return new AcceptResult(outcome.Copies.Select(x => x.Copy).ToList());
     }
 
     public async Task<bool> Decline(Guid recipientId, Guid offerId, bool block)

@@ -3,14 +3,15 @@ using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Identity;
 
-public sealed record AccountRow(Guid Id, string Name);
+/// <summary>An account as its owner sees it. <c>Username</c>: the lookup key for the account's Shared folder, null until set.</summary>
+public sealed record AccountRow(Guid Id, string Name, string? Username = null);
 
 public sealed class AccountRepository(Database db) : IAccountRepository
 {
     public async Task<AccountRow?> Get(Guid id)
     {
         await using var c = await db.Open();
-        return await c.QuerySingleOrDefaultAsync<AccountRow>("select id as Id, name as Name from account where id = @id", new { id });
+        return await c.QuerySingleOrDefaultAsync<AccountRow>("select id as Id, name as Name, username as Username from account where id = @id", new { id });
     }
 
     public async Task Insert(Guid id, string name)
@@ -23,6 +24,13 @@ public sealed class AccountRepository(Database db) : IAccountRepository
     {
         await using var c = await db.Open();
         return await c.ExecuteAsync("update account set name = @name where id = @id", new { id, name }) == 1;
+    }
+
+    public async Task<UsernameResult> SetUsername(Guid id, string? username)
+    {
+        await using var c = await db.Open();
+        try { return await c.ExecuteAsync("update account set username = @username where id = @id", new { id, username }) == 1 ? UsernameResult.Set : UsernameResult.Missing; }
+        catch (Npgsql.PostgresException e) when (e.SqlState == Npgsql.PostgresErrorCodes.UniqueViolation) { return UsernameResult.Taken; }
     }
 
     public async Task<IReadOnlyList<string>> BlobKeys(Guid accountId)

@@ -8,7 +8,9 @@ public interface IFolderRepository
     Task<int> Count(Guid ownerId);
     /// <summary>Null when the parent is not the owner's.</summary>
     Task<FolderDto?> Create(Guid ownerId, FolderRequest r);
-    /// <summary>Found is false for another owner's folder; Valid is false for a parent that is not the owner's, is the folder itself, or sits below it.</summary>
+    /// <summary>The owner's Shared folder: made (top level, named Shared) when they have none. The caller checks the folder cap first.</summary>
+    Task<FolderDto> CreateShared(Guid ownerId);
+    /// <summary>Found is false for another owner's folder; Valid is false for a parent that is not the owner's, is the folder itself, or sits below it, and for any parent of the Shared folder.</summary>
     Task<(bool Found, bool Valid)> Patch(Guid ownerId, Guid id, FolderRequest r);
     /// <summary>Deletes the folder and every folder below it. Assets stay.</summary>
     Task<bool> Delete(Guid ownerId, Guid id);
