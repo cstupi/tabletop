@@ -67,7 +67,8 @@ public partial class HeaderBar : PanelContainer
             string.Join(",", m.Outline), quiet, wait?.ToString(), m.Result, HeaderView.RuleSetLine(game!)]);
         if (key == _drawn) return;
         _drawn = key;
-        HudBits.Clear(_top); HudBits.Clear(_tiles); HudBits.Clear(_activation); HudBits.Clear(_waiting);
+        // The tiles box, the gear and the Game over button are kept nodes the lines re-add: taken out, never freed.
+        Detach(_top, _tiles, _settings); Detach(_activation, _gameOver); HudBits.Clear(_tiles); HudBits.Clear(_waiting);
 
         // Line 1: the round, the tiles, the objectives, the gear.
         var roundBox = new HBoxContainer { TooltipText = HeaderView.RuleSetLine(game!), MouseFilter = MouseFilterEnum.Stop };
@@ -123,6 +124,11 @@ public partial class HeaderBar : PanelContainer
             _waiting.AddChild(HudBits.Icon("wait", Ui.DimText, 16));
             _waiting.AddChild(Wrapping(other.Text, ""));
         }
+    }
+
+    static void Detach(Node box, params Node[] kept)
+    {
+        foreach (var c in box.GetChildren()) { box.RemoveChild(c); if (!kept.Contains(c)) c.QueueFree(); }
     }
 
     /// <summary>A team's tile: its band down the left edge, the name, the score, the activation dots, mine's player icon and the active
