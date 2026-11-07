@@ -28,6 +28,9 @@ public sealed partial class GameSession
     private readonly ILogger _log;
     private Task? _loop;
     private bool _drained;
+    /// <summary>Set in the mailbox by RetireIfEmptyAsync: the registry is releasing this session, so a join queued behind that turn is told the
+    /// session is gone (SessionDrainedException) and hydrates again, instead of landing on a session about to be drained.</summary>
+    private bool _retired;
 
     public GameSession(Guid gameId, GameInfo info, IGameRules rules, TableState? draft, GameState? play, IRulesEngine? engine, SessionServices services)
     {
@@ -122,7 +125,18 @@ public sealed partial class GameSession
         return seat is null ? new Actor(client.ParticipantId, null) : new Actor(seat.Id, seat.TeamId);
     }
 
-    public Task AttachAsync(ISessionClient client) => RunAsync(() => AttachCoreAsync(client));
+    public Task AttachAsync(ISessionClient client) => RunAsync(() => { ThrowIfRetired(); return AttachCoreAsync(client); });
+
+    /// <summary>A join that runs after the registry retired this session: the handshake hydrates again on SessionDrainedException.</summary>
+    private void ThrowIfRetired() { if (_retired) throw new SessionDrainedException(); }
+
+    /// <summary>The registry's release decision, taken in the mailbox so a join queued before it counts: true, and no join is taken after,
+    /// when no socket is attached or the session has faulted. A drained session is already gone.</summary>
+    public async Task<bool> RetireIfEmptyAsync()
+    {
+        try { return await RunAsync(() => Task.FromResult(_retired = Faulted || _clients.Count + _watchers.Count == 0)); }
+        catch (SessionDrainedException) { return true; }
+    }
 
     /// <summary>An account may hold several sockets on one game (two windows playing both sides); AccountSockets caps them, closing the oldest.
     /// The newcomer gets everyone else's current presence.</summary>

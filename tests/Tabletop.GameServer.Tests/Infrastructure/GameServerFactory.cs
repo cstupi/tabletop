@@ -38,6 +38,10 @@ public class GameServerFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
+        // A test that runs a real Kestrel (UseKestrel()) binds an ephemeral loopback port, never appsettings.json's 5200, which the compose game
+        // server holds. UseKestrel(port) is not used: it sets the address while Program.Main's app.Run() is already starting Kestrel on its own
+        // thread, and when Kestrel binds first it takes the configured endpoint, or the factory's address write throws.
+        builder.UseSetting("Kestrel:Endpoints:Http:Url", "http://127.0.0.1:0");
         builder.ConfigureServices(services =>
         {
             services.AddSingleton(new GameServerOptions

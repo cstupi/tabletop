@@ -63,11 +63,13 @@ public sealed class SessionRegistry(SessionServices services)
         throw new InvalidOperationException("shutting down");
     }
 
-    /// <summary>When the last socket goes, the game leaves memory; the next socket hydrates it again. Nothing is lost: the log and the rows hold everything.</summary>
+    /// <summary>When the last socket goes, the game leaves memory; the next socket hydrates it again. Nothing is lost: the log and the rows hold everything.
+    /// The session decides it is empty in its own mailbox, so a socket whose connect is already queued keeps the game, and one queued after
+    /// the decision hydrates again.</summary>
     public async Task ReleaseIfEmptyAsync(GameSession session)
     {
         using var _ = await EnterAsync(session.GameId, CancellationToken.None);
-        if (session.Clients.Count + session.Watchers.Count > 0 && !session.Faulted) return;
+        if (!await session.RetireIfEmptyAsync()) return;
         lock (_live) if (_live.TryGetValue(session.GameId, out var s) && s == session) _live.Remove(session.GameId);
         await session.DrainAsync("released");
     }

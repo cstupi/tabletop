@@ -40,7 +40,7 @@ public class SocketCompressionTests
     public async Task A_client_offering_deflate_gets_it_with_server_context_takeover_and_frames_round_trip()
     {
         using var factory = GameServerFactory.WithoutScheduler(db);
-        factory.UseKestrel(0);
+        factory.UseKestrel();
         factory.StartServer();
         var seeded = await db.SeedGameAsync(GameStatus.Playing, teams: 2);
         await db.SeedTableStateAsync(seeded.GameId);
@@ -68,7 +68,7 @@ public class SocketCompressionTests
     public async Task A_client_offering_nothing_gets_no_extension()
     {
         using var factory = new GameServerFactory(db);
-        factory.UseKestrel(0);
+        factory.UseKestrel();
         factory.StartServer();
         using var socket = Offering(null);
         await socket.ConnectAsync(SocketUri(factory), CancellationToken.None);

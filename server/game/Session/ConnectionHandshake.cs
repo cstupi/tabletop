@@ -75,7 +75,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
             {
                 try { await Join(game); }
                 // ReleaseIfEmptyAsync can take the game's gate between the hydrate above and this connect — the previous
-                // socket's departure emptying the session under this one. Nothing is lost, because the log and the rows hold
+                // socket's departure emptying the session under this one, retired in its mailbox ahead of this connect. Nothing is lost, because the log and the rows hold
                 // everything: hydrating again returns the instance that replaced it. Once more only, and not while shutting down.
                 catch (SessionDrainedException)
                 {
