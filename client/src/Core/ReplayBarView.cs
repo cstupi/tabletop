@@ -35,7 +35,7 @@ public static class ReplayBarView
     {
         var ticks = new List<ReplayTick>();
         for (var i = 0; i < log.Count; i++)
-            if (log[i].Payload is RoundStarted r) ticks.Add(new ReplayTick((double)(i + 1) / log.Count, r.Round));
+            if (log[i].Payload is RoundStarted { Round: > 0 } r) ticks.Add(new ReplayTick((double)(i + 1) / log.Count, r.Round));
         return ticks;
     }
 

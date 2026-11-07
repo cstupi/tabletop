@@ -54,9 +54,11 @@ Every unit also stops at 0 and at the end.
 `ReplayBar` (`src/Hud/`) takes the left column's foot (`HudPart.Replay`, 420 × 112; the roster and unit card
 share what is left above it).
 
-- Buttons: back and forward by round (`«R`, `R»`), turn (`«T`, `T»`), action (`‹A`, `A›`) and step (`‹`, `›`),
-  and Play/Pause. A forward step or action plays out as play does; a turn, a round and anything backward jump.
+- Buttons (`ReplayBarView`): icon buttons labelled Round, Turn, Action and Step, back on the left of Play/Pause and
+  forward on its right. A forward step or action plays out as play does; a turn, a round and anything backward jump.
 - Play steps forward one step every `ReplayClock.StepSeconds` (1.5 s) divided by the speed (0.5×, 1×, 2×, 4×,
   8×), animated up to 1×. At the end of an ended game it pauses, and Play starts again from the beginning; at the
   end of a running game it waits for the next events.
-- The scrubber spans the whole log and jumps where it is dragged. The caption reads `Round 2 · 140 of 2210`.
+- The scrubber spans the whole log and jumps where it is dragged, with a tick and the round's number at each round's start
+  (`ReplayBarView.Ticks`); its tooltip reads `140 of 2210`. The caption is the latest live action's block header with the round
+  spelled out (`Round 2 · Team 1 · Red unit 1 · Charge → Blue unit 2`), else `Round 2` or `Before round 1`.

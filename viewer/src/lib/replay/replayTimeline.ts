@@ -26,6 +26,8 @@ export class ReplayTimeline {
   }
 
   get count(): number { return this.#source().length; }
+  /** The whole log the replay runs over. */
+  get source(): readonly GameEvent[] { return this.#source(); }
   get position(): number { return this.#at.log.length; }
   get atEnd(): boolean { return this.position >= this.count; }
   get projection(): Projection { return this.#at.projection; }

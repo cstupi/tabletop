@@ -23,6 +23,7 @@
   import type { LogFilter } from '../play/settings';
   import UnitCard from '../play/UnitCard.svelte';
   import ReplayBar from './ReplayBar.svelte';
+  import { replayCaption, replayTicks } from './replayBarView';
   import { ReplayPlayer } from './replayPlayer';
   import { ReplayTimeline } from './replayTimeline';
   import { replayCardOf, replayHeaderOf, terrainNamer, unitSelection } from './replayView';
@@ -130,6 +131,13 @@
     const log = cache.of(player.timeline.shown, null, game, projection);
     return filterEntries(log.entries, logFilter, () => false, selectedUnit);
   });
+  /** The bar's caption, the position's block header over the whole log, and a tick per round over the source. */
+  const caption = $derived.by(() => {
+    void version;
+    if (player === null || game === null || projection === null) return '';
+    return replayCaption(cache.of(player.timeline.shown, null, game, projection).entries, projection.scheduler.round);
+  });
+  const ticks = $derived.by(() => { void version; return player === null ? [] : replayTicks(player.timeline.source); });
   const loading = $derived(snap === null || (snap.board === null && snap.closeReason === null));
 
   function select(hit: { kind: string; id: string } | null): void {
@@ -195,7 +203,7 @@
   </div>
 
   {#if player !== null && bar !== null}
-    <ReplayBar {player} {bar} />
+    <ReplayBar {player} {bar} {ticks} {caption} />
   {/if}
 </div>
 

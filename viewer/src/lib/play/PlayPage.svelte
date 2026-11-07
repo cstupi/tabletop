@@ -37,7 +37,8 @@
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
   import { sceneOfPlay } from './scene';
-  import { terrainHoverOverlay, terrainHoverText } from './terrainHover';
+  import { terrainHoverOf } from './terrainHover';
+  import TerrainHoverPanel from './TerrainHoverPanel.svelte';
   import packedCatalog from '@builtin-catalog';
   import { loadCatalog, nameOf, parseCatalog, type Catalog } from '../setup/catalog';
   import { selectedModels, type Selection } from './selectionView';
@@ -358,11 +359,9 @@
 
   // --- D3 helpers: what the card and the log hand back to the page ---
   /** The table lights the selection and what a clicked log row touched. */
-  /** HoverLabels.DrawTerrain: the hovered terrain piece's label, not the selected one's. */
-  const terrainDrawn = $derived.by(() => {
-    const lines = shown === null ? null : terrainHoverText(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null, snap?.terrainWords);
-    return lines === null || scene === null || hoveredTerrain === null ? null : terrainHoverOverlay(scene, hoveredTerrain, lines);
-  });
+  /** HoverLabels.DrawTerrain: the hovered terrain piece's panel beside the pointer, not the selected one's. */
+  const terrainHover = $derived(shown === null ? null : terrainHoverOf(shown.board.table, catalog, hoveredTerrain, selection?.pieceId ?? null, snap?.terrainWords));
+  let stagePointer = $state({ x: 0, y: 0 });
   const drawnSelection = $derived(touchedIds.size === 0 ? selected : new Set([...selected, ...touchedIds]));
   const infoEligible = $derived.by(() => { void panel; return box?.eligible ?? new Set<string>(); });
   function changeSettings(change: (s: PlaySettings) => PlaySettings): void { settings = change(settings); saveSettings(browserStorage(), settings); }
@@ -400,13 +399,14 @@
     <div class="top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
     <div class="roster"><Roster {snap} {shown} myTeam={actingTeam} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
   {/if}
-  <div class="stage">
+  <div class="stage" role="presentation" onpointermove={(e) => { const r = e.currentTarget.getBoundingClientRect(); stagePointer = { x: e.clientX - r.left, y: e.clientY - r.top }; }}>
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
     {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
+    {#if terrainHover !== null}<TerrainHoverPanel hover={terrainHover} at={stagePointer} />{/if}
     <div class="float banner"><Banner {connection} /></div>
     {#if pending !== null || problem !== null}
       <div class="float foot">

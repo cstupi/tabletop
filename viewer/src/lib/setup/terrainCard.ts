@@ -5,14 +5,19 @@
 import { declarationsOf } from '../live/project';
 import type { GameStatus, TableState, TerrainPlacement, Volume, Yaw } from '../protocol/wire.generated';
 import { nameOf, type Catalog } from './catalog';
+import { effectRows, primaryEffect, type TerrainEffectRow, type TerrainRules } from '../play/terrainEffects';
 
 export interface CardVolume {
   readonly id: string; readonly kind: string; readonly footprint: string; readonly heights: string;
   readonly declarations: readonly string[]; readonly notes: string | null;
+  /** The volume's tint: its strongest effect's colour (terrainEffects primaryEffect). */
+  readonly colour: string;
 }
 export interface TerrainCard {
   readonly pieceId: string; readonly name: string; readonly source: string; readonly facing: number; readonly scale: number;
   readonly height: string; readonly volumes: readonly CardVolume[]; readonly editable: boolean;
+  /** Every effect any volume carries, with the server's sentence of what it does to a unit (ConnectionState.terrainRules). */
+  readonly effects: readonly TerrainEffectRow[];
 }
 export interface MarkerCard { readonly pieceId: string; readonly name: string; readonly diameter: string; readonly label: string | null }
 
@@ -43,7 +48,8 @@ const kindWord = (kind: string): string => kind.charAt(0).toUpperCase() + kind.s
 const inPlay = (status: GameStatus | null): boolean => status === 'setup' || status === 'playing' || status === 'ended';
 
 /** The selected piece's card when it is a terrain piece on the table, in setup or play. */
-export function terrainCardOf(t: TableState | null, status: GameStatus | null, selected: string | null, catalog: Catalog, terrainWords?: TerrainWords | null): TerrainCard | null {
+export function terrainCardOf(t: TableState | null, status: GameStatus | null, selected: string | null, catalog: Catalog, terrainWords?: TerrainWords | null,
+  terrainRules?: TerrainRules | null): TerrainCard | null {
   if (!inPlay(status) || selected === null) return null;
   const piece = t?.terrain.find((p) => p.id === selected);
   if (piece === undefined) return null;
@@ -55,12 +61,13 @@ export function terrainCardOf(t: TableState | null, status: GameStatus | null, s
     const words = declarationWords(terrainWords).filter(([name]) => set.has(name)).map(([, word]) => word);
     return {
       id: tv.id, kind: kindWord(tv.volume.kind), footprint: footprintOf(tv.volume, piece.scale), heights: heightsOf(piece, tv.volume),
-      declarations: words.length === 0 ? ['Open'] : words, notes: tv.volume.notes ?? null,
+      declarations: words.length === 0 ? ['Open'] : words, notes: tv.volume.notes ?? null, colour: primaryEffect([...set]).colour,
     };
   });
   return {
     pieceId: piece.id, name: nameOf(piece, catalog), source, facing: facingOf(piece.yaw), scale: piece.scale, height, volumes,
     editable: status === 'setup',
+    effects: effectRows([...new Set(piece.volumes.flatMap((tv) => declarationsOf(tv.volume.declarations)))], terrainWords, terrainRules),
   };
 }
 

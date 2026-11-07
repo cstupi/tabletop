@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import packed from '@builtin-catalog';
-import type { Scene } from '../src/lib/board/frame';
-import { terrainHoverOverlay, terrainHoverText } from '../src/lib/play/terrainHover';
+import { effectOf } from '../src/lib/play/terrainEffects';
+import { terrainHoverOf } from '../src/lib/play/terrainHover';
 import { terrainLabelOf } from '../src/lib/play/terrainLabel';
 import type { TableState, TerrainPlacement, TerrainVolume } from '../src/lib/protocol/wire.generated';
 import { parseCatalog } from '../src/lib/setup/catalog';
@@ -42,23 +42,22 @@ describe('TerrainLabel', () => {
   });
 });
 
-describe('the terrain hover label', () => {
+describe('the terrain hover panel', () => {
   const forest = piece({ builtin: 'forest' }, [v(0, 6, 'blocks_line_of_sight, see_in_and_out, cover, difficult')]);
 
-  it('shows the hovered piece, never the selected one, nor anything when nothing is hovered', () => {
-    expect(terrainHoverText(tableOf(forest), catalog, 'p1', null)).toEqual(['Forest · Cover, Difficult, Blocks line of sight, See in and out · 0–6"']);
-    expect(terrainHoverText(tableOf(forest), catalog, 'p1', 'p1')).toBeNull();
-    expect(terrainHoverText(tableOf(forest), catalog, null, null)).toBeNull();
-    expect(terrainHoverText(tableOf(forest), catalog, 'gone', null)).toBeNull();
+  it('names the hovered piece, its height and one chip per effect in the label\'s order, never for the selected piece', () => {
+    const hover = terrainHoverOf(tableOf(forest), catalog, 'p1', null, { blocks_line_of_sight: 'Sight blocking' })!;
+    expect(hover).toMatchObject({ name: 'Forest', height: '0–6"' });
+    expect(hover.effects.map((e) => e.word)).toEqual(['Cover', 'Difficult', 'Sight blocking', 'See in and out']);
+    expect(hover.effects[0]!.colour).toBe(effectOf('cover').colour);
+    expect(terrainHoverOf(tableOf(forest), catalog, 'p1', 'p1')).toBeNull();
+    expect(terrainHoverOf(tableOf(forest), catalog, null, null)).toBeNull();
+    expect(terrainHoverOf(tableOf(forest), catalog, 'gone', null)).toBeNull();
   });
 
-  it('draws each line centred over the piece, above its top edge', () => {
-    const scene = { terrain: [{ id: 'p1', volumeId: 'v', label: 'Forest', kind: 'area', declarations: [], bottom: 0, top: 6,
-      shape: { kind: 'polygon', points: [{ x: 10, y: 10 }, { x: 20, y: 10 }, { x: 20, y: 20 }, { x: 10, y: 20 }] } }] } as unknown as Scene;
-    const drawn: { text: string; x: number; y: number }[] = [];
-    const ctx = { save() {}, restore() {}, strokeText() {}, fillText(text: string, x: number, y: number) { drawn.push({ text, x, y }); } } as unknown as CanvasRenderingContext2D;
-    terrainHoverOverlay(scene, 'p1', ['a', 'b'])(ctx, (p) => ({ x: p.x * 10, y: p.y * 10 }), 10);
-    expect(drawn).toEqual([{ text: 'a', x: 150, y: 78 }, { text: 'b', x: 150, y: 94 }]);
+  it('reads Open for a piece with no declaration', () => {
+    const p = piece({ assetId: 'a' }, [v(0, 1, 'none')]);
+    expect(terrainHoverOf(tableOf(p), catalog, 'p1', null)!.effects.map((e) => [e.word, e.icon])).toEqual([['Open', 'open-ground']]);
   });
 });
 
@@ -68,5 +67,12 @@ describe('the play terrain card', () => {
     const card = terrainCardOf(tableOf(buildings), 'playing', 'p1', catalog)!;
     expect(card).toMatchObject({ name: 'Group of Small Buildings', editable: false, height: '0–4"' });
     expect(card.volumes[0]!.declarations).toEqual(['Impassable', 'Blocks line of sight']);
+  });
+
+  it('leads with the piece\'s effects, each with the server\'s sentence, and tints each volume by its strongest effect', () => {
+    const buildings = piece({ builtin: 'small-buildings' }, [v(0, 4, 'impassable, blocks_line_of_sight'), v(0, 1, 'none')]);
+    const card = terrainCardOf(tableOf(buildings), 'playing', 'p1', catalog, null, { impassable: 'Units may not move through it.' })!;
+    expect(card.effects.map((e) => [e.word, e.rule])).toEqual([['Impassable', 'Units may not move through it.'], ['Blocks line of sight', null]]);
+    expect(card.volumes.map((x) => x.colour)).toEqual([effectOf('impassable').colour, '#8B93A1']);
   });
 });

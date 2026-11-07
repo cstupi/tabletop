@@ -42,7 +42,7 @@ public partial class ReplayBar : PanelContainer
         rows.AddChild(_caption = new Label { HorizontalAlignment = HorizontalAlignment.Center, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Game)) != 0) Render(); };
         session.Frame.Render += _onFrame;
-        _onTheme = () => { foreach (var (b, icon) in _icons) b.Icon = Ui.Icon(icon); };
+        _onTheme = () => { foreach (var (b, icon) in _icons) { b.Icon = Ui.Icon(icon); Tint(b); } };
         Ui.Changed += _onTheme;
         Render();
     }
@@ -58,9 +58,18 @@ public partial class ReplayBar : PanelContainer
             IconAlignment = HorizontalAlignment.Center, VerticalIconAlignment = VerticalAlignment.Top, ExpandIcon = false, CustomMinimumSize = new Vector2(42, 0) };
         b.AddThemeFontSizeOverride("font_size", 12);
         b.AddThemeConstantOverride("icon_max_width", 22);
+        Tint(b);
         b.Pressed += pressed;
         _icons.Add((b, icon));
         return b;
+    }
+
+    /// <summary>The white icons in the theme's text colour, the accent when pressed or hovered, dim when disabled.</summary>
+    static void Tint(Button b)
+    {
+        foreach (var state in new[] { "icon_normal_color", "icon_focus_color" }) b.AddThemeColorOverride(state, Ui.Text);
+        foreach (var state in new[] { "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color" }) b.AddThemeColorOverride(state, Ui.Accent);
+        b.AddThemeColorOverride("icon_disabled_color", Ui.DimText);
     }
 
     Button Step(ReplayStepButton s) => Btn(s.Label, s.Icon, s.Tip, () =>

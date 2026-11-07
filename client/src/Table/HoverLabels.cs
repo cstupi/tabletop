@@ -19,6 +19,8 @@ public partial class HoverLabels : Node3D
     readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
     readonly PanelContainer _terrainPanel = new() { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
     TerrainHover? _terrainShown;
+    /// <summary>The terrain panel's layer, in the window over the Hud: a panel inside the table's viewport would sit under the Hud's parts.</summary>
+    readonly CanvasLayer _overHud = new() { Layer = 20 };
     readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: pick models", Visible = false };
     Guid? _hovered, _marker, _terrain;
     Action<Guid?>? _onHover, _onMarker, _onTerrain; Action? _onChanged, _onSelection, _onTheme; Action<RenderCause>? _onFrame;
@@ -26,7 +28,8 @@ public partial class HoverLabels : Node3D
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _view = view; _input = input;
-        AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_lock); AddChild(_layer); _layer.AddChild(_shift); _layer.AddChild(_terrainPanel);
+        AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_lock); AddChild(_layer); _layer.AddChild(_shift);
+        _overHud.AddChild(_terrainPanel); GetTree().Root.CallDeferred(Node.MethodName.AddChild, _overHud);
         _onTheme = () => { _terrainShown = null; DrawTerrain(); }; Ui.Changed += _onTheme;
         _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onTerrain = id => { _terrain = id; DrawTerrain(); };
         _onSelection = Draw;
@@ -41,6 +44,7 @@ public partial class HoverLabels : Node3D
     {
         if (_s is null) return;
         _s.Frame.Render -= _onFrame; Ui.Changed -= _onTheme;
+        if (IsInstanceValid(_overHud)) _overHud.QueueFree();
         if (IsInstanceValid(_input))
         {
             _input.HoveredUnitChanged -= _onHover; _input.HoveredMarkerChanged -= _onMarker; _input.SelectionChanged -= _onSelection; _input.EligibleChanged -= _onChanged;
@@ -59,7 +63,7 @@ public partial class HoverLabels : Node3D
     /// <summary>Below and right of the cursor, kept inside the view: left of it near the right edge, above it near the foot.</summary>
     void PlaceTerrainPanel()
     {
-        var view = GetViewport().GetVisibleRect().Size; var mouse = GetViewport().GetMousePosition(); var size = _terrainPanel.Size;
+        var root = GetTree().Root; var view = root.GetVisibleRect().Size; var mouse = root.GetMousePosition(); var size = _terrainPanel.Size;
         var x = mouse.X + 22 + size.X > view.X ? mouse.X - 16 - size.X : mouse.X + 22;
         var y = mouse.Y + 22 + size.Y > view.Y ? mouse.Y - 16 - size.Y : mouse.Y + 22;
         _terrainPanel.Position = new Vector2(Math.Max(4, x), Math.Max(4, y));
@@ -116,7 +120,7 @@ public partial class HoverLabels : Node3D
         var head = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; head.AddThemeConstantOverride("separation", 12); box.AddChild(head);
         head.AddChild(new Label { Text = hover.Name, ThemeTypeVariation = Variation.Display });
         if (hover.Height.Length > 0) head.AddChild(new Label { Text = hover.Height, ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
-        var chips = new HFlowContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(0, 0) }; chips.AddThemeConstantOverride("h_separation", 6); chips.AddThemeConstantOverride("v_separation", 6); box.AddChild(chips);
+        var chips = new HFlowContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(hover.Effects.Count > 1 ? 300 : 0, 0) }; chips.AddThemeConstantOverride("h_separation", 6); chips.AddThemeConstantOverride("v_separation", 6); box.AddChild(chips);
         foreach (var e in hover.Effects) chips.AddChild(HudBits.EffectChip(e));
         PlaceTerrainPanel();
     }

@@ -46,14 +46,15 @@ export function withAlpha(colour: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${+(a * alpha).toFixed(3)})`;
 }
 
-export interface TerrainStyle { readonly fill: string; readonly stroke: string; readonly width: number }
+export interface TerrainStyle { readonly fill: string; readonly stroke: string; readonly width: number; readonly picked: string }
 
-/** A solid piece reads as a body (a denser fill, a firm edge); an area as ground (a light wash, a thinner edge). Hue: its first declaration. */
+/** A solid piece reads as a body (a denser fill, a firm edge); an area as ground (a light wash, a thinner edge); a selected piece is filled
+ * strongly. Hue: its strongest effect (terrainEffects primaryEffect). */
 export function terrainStyle(kind: string, declarations: readonly string[]): TerrainStyle {
   const hue = terrainStroke(declarations);
   return kind === 'solid'
-    ? { fill: withAlpha(hue, 0.34), stroke: withAlpha(hue, 0.95), width: 2 }
-    : { fill: withAlpha(hue, 0.16), stroke: withAlpha(hue, 0.7), width: 1.25 };
+    ? { fill: withAlpha(hue, 0.34), stroke: withAlpha(hue, 0.95), width: 2, picked: withAlpha(hue, 0.6) }
+    : { fill: withAlpha(hue, 0.16), stroke: withAlpha(hue, 0.7), width: 1.25, picked: withAlpha(hue, 0.5) };
 }
 
 /** Pixels per inch from which terrain and marker names show on the board without a selection. */

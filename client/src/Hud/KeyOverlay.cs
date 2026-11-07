@@ -26,20 +26,21 @@ public partial class KeyOverlay : PanelContainer
         SetAnchorsAndOffsetsPreset(LayoutPreset.Center, LayoutPresetMode.Minsize);
         GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Both;
         Visible = false; MouseFilter = MouseFilterEnum.Stop;
+        AddThemeStyleboxOverride("panel", Ui.FloatingPanel());
         var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 14); AddChild(box);
         var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 10); box.AddChild(title);
         title.AddChild(HudBits.Icon("key", 28, Ui.Accent));
         title.AddChild(new Label { Text = "KEYS", ThemeTypeVariation = Variation.Display, VerticalAlignment = VerticalAlignment.Center });
-        _columns.AddThemeConstantOverride("separation", 40); box.AddChild(_columns);
+        _columns.AddThemeConstantOverride("separation", 36); box.AddChild(_columns);
         _onRequest = () => { if (IsInsideTree()) Open(); }; Requested += _onRequest;
-        _onTheme = () => { if (Visible) Build(); }; Ui.Changed += _onTheme;
+        _onTheme = () => { AddThemeStyleboxOverride("panel", Ui.FloatingPanel()); if (Visible) Build(); }; Ui.Changed += _onTheme;
     }
 
     public override void _ExitTree() { Requested -= _onRequest; Ui.Changed -= _onTheme; }
 
-    void Open() { Build(); Visible = true; }
+    void Open() { Build(); Visible = true; ResetSize(); SetAnchorsAndOffsetsPreset(LayoutPreset.Center, LayoutPresetMode.Minsize); }
 
-    /// <summary>The groups for the Ask open now: the first column is the Ask's (or Camera), the rest stack in the second.</summary>
+    /// <summary>The groups for the Ask open now, one column each, side by side.</summary>
     void Build()
     {
         foreach (var c in _columns.GetChildren()) { _columns.RemoveChild(c); c.QueueFree(); }
@@ -50,15 +51,12 @@ public partial class KeyOverlay : PanelContainer
             stoppable = mine.Ask.Legal is MoveRegion m && DecisionView.StopLabel(p, m) is not null;
         }
         var groups = KeyOverlayView.Of(mode, title, stoppable);
-        var first = new VBoxContainer(); var rest = new VBoxContainer();
-        first.AddThemeConstantOverride("separation", 18); rest.AddThemeConstantOverride("separation", 18);
-        _columns.AddChild(first); _columns.AddChild(rest);
-        for (var i = 0; i < groups.Count; i++) (i == 0 ? first : rest).AddChild(Group(groups[i], now: i == 0 && mode is not null));
+        for (var i = 0; i < groups.Count; i++) _columns.AddChild(Group(groups[i], now: i == 0 && mode is not null));
     }
 
     static Control Group(KeyGroup g, bool now)
     {
-        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 6);
+        var box = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkBegin }; box.AddThemeConstantOverride("separation", 8);
         var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 8); box.AddChild(head);
         head.AddChild(HudBits.Icon(g.Icon, 20, now ? Ui.Accent : Ui.DimText));
         head.AddChild(new Label { Text = g.Title.ToUpperInvariant(), ThemeTypeVariation = now ? Variation.Accent : Variation.Dim, VerticalAlignment = VerticalAlignment.Center });

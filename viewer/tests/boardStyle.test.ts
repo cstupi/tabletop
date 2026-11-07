@@ -23,8 +23,8 @@ describe('terrain', () => {
   it('fills a solid piece denser than an area, in its first declaration\'s hue', () => {
     const solid = terrainStyle('solid', ['impassable']);
     const area = terrainStyle('area', ['cover']);
-    expect(solid.fill).toBe('rgba(255, 107, 92, 0.34)');
-    expect(area.fill).toBe('rgba(109, 223, 124, 0.16)');
+    expect(solid.fill).toBe('rgba(210, 69, 90, 0.34)');
+    expect(area.fill).toBe('rgba(79, 184, 106, 0.16)');
     expect(solid.width).toBeGreaterThan(area.width);
   });
 
