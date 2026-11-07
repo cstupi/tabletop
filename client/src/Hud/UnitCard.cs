@@ -103,32 +103,67 @@ public partial class UnitCard : VBoxContainer
         RenderStrip(p, game, _names, _sheet);
     }
 
-    /// <summary>Note: why my open choice limits this unit (AskOption.Note), under its chips; null shows nothing.</summary>
+    /// <summary>The card (UX redesign part 2 → Unit card): the band and the name alone, with the eye that centres the camera on the unit; a pip
+    /// per model and the count note; Quality and Defense as badges with their icons and the state chips with theirs; the limited-choice note
+    /// (why my open choice limits this unit, AskOption.Note), the model groups, the weapons and the rules.</summary>
     void RenderCard(UnitCardContent c)
     {
         var m = c.Sheet; var note = c.Note;
         Clear(_body);
-        _body.AddChild(new ColorRect { Color = Palette.Team(c.Team), CustomMinimumSize = new Vector2(0, 4) });
-        _body.AddChild(Wrap($"{m.Name} · {m.Alive}/{m.Size} models · Wounds {c.WoundsLeft}/{c.WoundsMax}"));
-        var badges = new HBoxContainer(); _body.AddChild(badges);
-        badges.AddChild(Badge($"Quality {m.Quality ?? "-"}")); badges.AddChild(Badge($"Defense {m.Defense ?? "-"}"));
-        _body.AddChild(Flow(m.Chips.Select(StatusChip)));
-        if (note is not null) _body.AddChild(Wrap(note, Variation.Warning));
-        foreach (var group in c.Groups) _body.AddChild(GroupRow(group, c.Marked(group)));
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 10); _body.AddChild(title);
+        title.AddChild(HudBits.Band(c.Team));
+        var name = new Label { Text = m.Name, ThemeTypeVariation = Variation.Display, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        if (c.Team > 0) name.AddThemeColorOverride("font_color", Ui.Team(c.Team));
+        title.AddChild(name);
+        var eye = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None, TooltipText = "Centre the camera on this unit",
+            Icon = Ui.Icon("watch"), Text = Ui.Icon("watch") is null ? "◉" : "", ExpandIcon = false, SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        var unit = m.UnitId; eye.Pressed += () => _input.Focus(unit);
+        title.AddChild(eye);
+
+        var count = new HBoxContainer(); count.AddThemeConstantOverride("separation", 10); _body.AddChild(count);
+        var pips = new Label { Text = c.Pips }; if (c.Team > 0) pips.AddThemeColorOverride("font_color", Ui.Team(c.Team));
+        count.AddChild(pips);
+        count.AddChild(Wrap(c.CountNote, Variation.Dim));
+
+        var state = new HFlowContainer(); state.AddThemeConstantOverride("h_separation", 8); state.AddThemeConstantOverride("v_separation", 4); _body.AddChild(state);
+        state.AddChild(Stat("quality", "Q", m.Quality, "Quality")); state.AddChild(Stat("defense", "D", m.Defense, "Defense"));
+        foreach (var chip in m.Chips) state.AddChild(StatusChip(chip));
+        if (note is not null) _body.AddChild(Wrap($"⚠ {note}", Variation.Warning));
+        if (c.Groups.Count > 0)
+        {
+            _body.AddChild(Caption("Models"));
+            foreach (var group in c.Groups) _body.AddChild(GroupRow(group, c.Marked(group), c.Team));
+        }
         if (m.Weapons.Count > 0) _body.AddChild(WeaponTable(m.Weapons));
-        _body.AddChild(Flow(m.Rules.Select(RuleChip)));
+        if (m.Rules.Count > 0) { _body.AddChild(Caption("Rules")); _body.AddChild(Flow(m.Rules.Select(RuleChip))); }
     }
 
-    /// <summary>One row per group of like models (ModelGroup.Line), a joined hero's marked; a group with none standing dimmed.
-    /// A click selects the group's next standing model after the selected one, so repeated clicks cycle through it. A row holding a
-    /// picked model (a Shift+click, a Shift+drag, a row click) is framed as a chip.</summary>
-    Control GroupRow(ModelGroup group, bool marked)
+    static Label Caption(string text) => new() { Text = text.ToUpperInvariant(), ThemeTypeVariation = Variation.Dim };
+
+    /// <summary>A stat badge: the theme's icon and `Q 4+`, the stat's word in the tooltip.</summary>
+    static PanelContainer Stat(string icon, string letter, string? value, string word)
     {
-        var row = new HBoxContainer();
+        var badge = new PanelContainer { ThemeTypeVariation = Variation.Badge, TooltipText = $"{word} {value ?? "-"}", MouseFilter = MouseFilterEnum.Stop };
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 6); badge.AddChild(row);
+        row.AddChild(HudBits.Icon(icon, Ui.Accent, 16));
+        row.AddChild(new Label { Text = $"{letter} {value ?? "-"}" });
+        return badge;
+    }
+
+    /// <summary>One row per group of like models: its pips, its name (ModelGroup.Name) and, when a model has more than one wound, the
+    /// group's wound pips and count; a joined hero's marked; a group with none standing dimmed. A click selects the group's next standing
+    /// model after the selected one, so repeated clicks cycle through it. A row holding a picked model (a Shift+click, a Shift+drag, a row
+    /// click) is framed as a chip.</summary>
+    Control GroupRow(ModelGroup group, bool marked, int team)
+    {
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 8);
         Control outer = row;
         if (marked) { var frame = new PanelContainer { ThemeTypeVariation = Variation.Chip }; frame.AddChild(row); outer = frame; }
+        var pips = new Label { Text = group.Pips, CustomMinimumSize = new Vector2(56, 0) };
+        if (team > 0) pips.AddThemeColorOverride("font_color", Ui.Team(team));
+        row.AddChild(pips);
         if (group.Hero) row.AddChild(Badge("Hero"));
-        var b = new Button { Text = group.Title, TooltipText = group.Line, Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true,
+        var b = new Button { Text = group.Name, TooltipText = group.Line, Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true,
             Disabled = group.Standing.Count == 0, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         if (group.Standing.Count == 0) row.Modulate = Ui.Faded;
         b.Pressed += () =>
@@ -137,14 +172,19 @@ public partial class UnitCard : VBoxContainer
             if (group.Next(selected) is { } id) ModelPicked?.Invoke(id);
         };
         row.AddChild(b);
-        if (group.Wounds is { } wounds) row.AddChild(new Label { Text = wounds });
+        if (group.WoundPips is { } wounds)
+        {
+            row.AddChild(new Label { Text = wounds, TooltipText = "Wounds left" });
+            row.AddChild(new Label { Text = group.WoundCount, ThemeTypeVariation = Variation.Dim });
+        }
         return outer;
     }
 
     static GridContainer WeaponTable(IReadOnlyList<SheetWeapon> weapons)
     {
-        var grid = new GridContainer { Columns = 5 };
-        foreach (var h in new[] { "Weapon", "Range", "Attacks", UnitSheet.ApLabel, "Rules" }) grid.AddChild(new Label { Text = h, ThemeTypeVariation = Variation.Dim });
+        var grid = new GridContainer { Columns = 5 }; grid.AddThemeConstantOverride("h_separation", 14);
+        foreach (var (h, tip) in new[] { ("Weapon", ""), ("Range", ""), ("A", "Attacks"), (UnitSheet.ApLabel, ""), ("Rules", "") })
+            grid.AddChild(new Label { Text = h.ToUpperInvariant(), ThemeTypeVariation = Variation.Dim, TooltipText = tip, MouseFilter = tip.Length > 0 ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore });
         foreach (var w in weapons)
         {
             grid.AddChild(Wrap(w.Count > 1 ? $"{w.Name} ×{w.Count}" : w.Name));
@@ -156,12 +196,9 @@ public partial class UnitCard : VBoxContainer
     }
 
     static Control RuleChip(SheetRule r) => Chip(r.NotAutomated ? $"{r.Label} (not automated)" : r.Label, r.NotAutomated ? Variation.Dim : "", Tooltip(r));
-    static Control StatusChip(SheetChip c) => c.Kind switch
-    {
-        ChipKind.Condition => Chip(c.Text, Variation.Warning, icon: c.Condition is { } name ? Ui.Icon(name) : null),
-        ChipKind.Activated => Chip(c.Text, Variation.Dim),
-        _ => Chip(c.Text, ""),
-    };
+    /// <summary>A state chip: its icon (UnitCardContent.ChipIcon) and its words (ChipText); the whole chip text in the tooltip.</summary>
+    static Control StatusChip(SheetChip c) => Chip(UnitCardContent.ChipText(c), c.Kind switch { ChipKind.Condition => Variation.Warning, ChipKind.Activated => Variation.Dim, _ => "" },
+        c.Text, UnitCardContent.ChipIcon(c) is { } icon ? Ui.Icon(icon) : null);
     static string Tooltip(SheetRule r) => !string.IsNullOrEmpty(r.Text) ? r.Text : r.NotAutomated ? "Not automated: no rule text." : "";
     /// <summary>A chip: the optional icon and the label, the label in the given Label variation ("" for none).</summary>
     static PanelContainer Chip(string text, string variation, string tooltip = "", Texture2D? icon = null)
@@ -186,7 +223,11 @@ public partial class UnitCard : VBoxContainer
         if (_hovered is not { } h || !p.Units.ContainsKey(h) || !EnemyStrip.Shows(p, game, _s.MyTeamId, mine.UnitId, h)) return;
         var m = EnemyStrip.Of(mine, UnitSheet.Of(p, names, h, _s.Rules, _s.MaxWounds), HoverView.Of(p, game, names, h, mine.UnitId, _s.MaxWounds)?.Distance);
         Clear(_stripBody);
-        _stripBody.AddChild(Wrap(m.Name));
+        var band = SheetFocus.TeamOf(p, game, h)?.Ordinal ?? 0;
+        var strip = new StyleBoxFlat { BgColor = Ui.Background with { A = 0.9f }, BorderColor = band > 0 ? Ui.Team(band) : Ui.DimText };
+        strip.BorderWidthLeft = 6; strip.SetContentMarginAll(8); strip.ContentMarginLeft = 14; _strip.AddThemeStyleboxOverride("panel", strip);
+        var name = Wrap(m.Name, Variation.Display); if (band > 0) name.AddThemeColorOverride("font_color", Ui.Team(band));
+        _stripBody.AddChild(name);
         _stripBody.AddChild(Wrap($"Defense {m.Defense ?? "-"} · {m.Alive} alive" + (m.Distance is { } d ? $" · {d:0.0}\"" : "")));
         foreach (var r in m.Ranges)
             _stripBody.AddChild(Wrap($"{r.Weapon} {r.Range}{(r.Within switch { true => " within", false => " beyond", null => "" })}", r.Within switch { true => Variation.Success, false => Variation.Warning, null => "" }));

@@ -11,9 +11,9 @@ public class TurnBannersTests
     public void A_turn_banner_only_when_the_team_changes()
     {
         var t = new TurnBanners();
-        Assert.Equal(new Banner[] { new("Round 2", 1.5), new("Team 1's turn", 1.0) }, t.OnBatch(B(new RoundStarted(2, [TableUx.T1, TableUx.T2], []), new TurnStarted(TableUx.T1)), N, true, false));
+        Assert.Equal(new Banner[] { new("Round 2", 1.5), new("Team 1's turn", 1.0, Team: 1) }, t.OnBatch(B(new RoundStarted(2, [TableUx.T1, TableUx.T2], []), new TurnStarted(TableUx.T1)), N, true, false));
         Assert.Empty(t.OnBatch(B(new TurnStarted(TableUx.T1)), N, true, false));
-        Assert.Equal("Team 2's turn", t.OnBatch(B(new TurnStarted(TableUx.T2)), N, true, false).Single().Text);
+        Assert.Equal(("Team 2's turn", 2), t.OnBatch(B(new TurnStarted(TableUx.T2)), N, true, false).Single() is var b ? (b.Text, b.Team) : default);
         Assert.Empty(t.OnBatch(B(new TurnStarted(TableUx.T1)), N, false, false));                     // off: nothing shown, the team still tracked
         Assert.Empty(t.OnBatch(B(new TurnStarted(TableUx.T1), new RoundStarted(0, [], [])), N, true, false));   // round 0 is deployment
     }

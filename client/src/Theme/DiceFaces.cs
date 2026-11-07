@@ -3,17 +3,27 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Theming;
 
-/// <summary>One die as a themed face: a face texture or a numeral, then the modified value when it differs.</summary>
+/// <summary>One die as a themed face: a face texture or a numeral, then the modified value when it differs. A judged pass is framed in the
+/// success colour, a fail in the failure colour; an unjudged die in the face's own.</summary>
 public static class DiceFaces
 {
-    public static Control Of(Die d)
+    public static Control Of(Die d, int size = 28, bool judged = false)
     {
-        var face = new PanelContainer { ThemeTypeVariation = d.Success ? Variation.DieFace : Variation.DieMiss, CustomMinimumSize = new(28, 28), Modulate = d.Success ? Colors.White : Missed };
+        var face = new PanelContainer { ThemeTypeVariation = d.Success ? Variation.DieFace : Variation.DieMiss, CustomMinimumSize = new(size, size), Modulate = d.Success ? Colors.White : Missed };
+        if (judged && d.Success && Ui.Theme.GetStylebox("panel", Variation.DieFace).Duplicate() is StyleBoxFlat pass)
+        {
+            pass.BorderColor = Ui.Success; pass.SetBorderWidthAll(2); face.AddThemeStyleboxOverride("panel", pass);
+        }
         var row = new HBoxContainer();
         face.AddChild(row);
         if (Ui.Current.Dice.FaceTexture(d.Raw) is { } path)
-            row.AddChild(new TextureRect { Texture = GD.Load<Texture2D>(path), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new(24, 24) });
-        else row.AddChild(Numeral(d.Raw.ToString()));
+            row.AddChild(new TextureRect { Texture = GD.Load<Texture2D>(path), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new(size - 4, size - 4) });
+        else
+        {
+            var n = Numeral(d.Raw.ToString());
+            if (size > 28) n.AddThemeFontSizeOverride("font_size", Ui.Current.Numerals.Size * size / 28);
+            row.AddChild(n);
+        }
         if (d.Modified != d.Raw) row.AddChild(Numeral($"→{d.Modified}"));
         return face;
     }

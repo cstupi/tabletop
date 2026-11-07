@@ -20,7 +20,8 @@ public static class RollOffBanners
         if (placed.Count == 0) return null;
         var rolls = placed.Select(t => (Team: t, Faces: Faces(values, t.Ordinal))).Where(r => r.Faces.Count > 0).ToList();
         var detail = rolls.Count == 0 ? null : string.Join(" · ", rolls.Select(r => $"{n.Team(r.Team.Id)} rolled {string.Join(", ", r.Faces)}"));
-        return new Banner($"{n.Team(placed[0].Id)} goes first", Seconds, detail);
+        return new Banner($"{n.Team(placed[0].Id)} goes first", Seconds, detail, placed[0].Ordinal,
+            rolls.Count == 0 ? null : rolls.Select(r => new BannerPart(r.Team.Ordinal, $"{n.Team(r.Team.Id)} rolled {string.Join(", ", r.Faces)}")).ToList());
     }
 
     static string Place(int k) => $"place_{k}";

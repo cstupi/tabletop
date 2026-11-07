@@ -3,24 +3,40 @@ namespace Tabletop.Client.Core;
 
 /// <summary>Inside: the name of the unit whose model holds this one (passengers spec: the roster's "in {Transport}"), else null. Reserve: the unit is
 /// held off the table until a property places it (ReserveOf), else null.</summary>
-public sealed record RosterRow(Guid UnitId, string Name, bool Activated, int Left, int Max, bool OffTable, IReadOnlyList<string> Conditions, string? Inside = null, string? Reserve = null)
+public sealed record RosterRow(Guid UnitId, string Name, bool Activated, int Left, int Max, bool OffTable, IReadOnlyList<string> Conditions, string? Inside = null, string? Reserve = null,
+    bool Acting = false)
 {
+    /// <summary>The row's mark: ○ may still act, ✓ activated, — off the table.</summary>
+    public RosterMark Mark => OffTable ? RosterMark.OffTable : Activated ? RosterMark.Activated : RosterMark.MayAct;
+
     /// <summary>By value, the conditions in order: the roster redraws a row only when what it shows changed.</summary>
     public bool Equals(RosterRow? other) => other is not null && UnitId == other.UnitId && Name == other.Name && Activated == other.Activated && Left == other.Left
-        && Max == other.Max && OffTable == other.OffTable && Inside == other.Inside && Reserve == other.Reserve && Conditions.SequenceEqual(other.Conditions);
+        && Max == other.Max && OffTable == other.OffTable && Acting == other.Acting && Inside == other.Inside && Reserve == other.Reserve && Conditions.SequenceEqual(other.Conditions);
     public override int GetHashCode() => HashCode.Combine(UnitId, Activated, Left, Conditions.Count);
 }
-public sealed record RosterTeam(Guid TeamId, string Name, int Ordinal, IReadOnlyList<RosterRow> Rows);
+public enum RosterMark { MayAct, Activated, OffTable }
+/// <summary>Mine: a team the account holds (★ you).</summary>
+public sealed record RosterTeam(Guid TeamId, string Name, int Ordinal, IReadOnlyList<RosterRow> Rows, bool Mine = false);
 
-/// <summary>The roster (spec → Army roster) from the projection only, without Bookkeeping's conditions: my team first, the rest by ordinal, units in army order. Left is wounds left over
+/// <summary>The roster (spec → Army roster) from the projection only, without Bookkeeping's conditions: my team first, the rest by ordinal, rows
+/// sorted (Sorted) units that may act, then activated, then off the table, each by name; the active unit's row is Acting. Left is wounds left over
 /// models not removed (UnitSheet's Removed: on the shelf with every wound taken); off table is no model on the table, nor inside a container on it.</summary>
 public static class RosterView
 {
-    public static IReadOnlyList<RosterTeam> Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyDictionary<Guid, int> maxWounds) =>
-        game.Teams.OrderBy(t => t.Id == myTeam ? 0 : 1).ThenBy(t => t.Ordinal).Select(t => new RosterTeam(t.Id, n.Team(t.Id), t.Ordinal,
-            p.Units.Values.Where(u => game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id)).Select(u => Row(p, u, maxWounds)).ToList())).ToList();
+    /// <summary>mine: every team the account holds, each marked Mine; absent, the acted-for team alone.</summary>
+    public static IReadOnlyList<RosterTeam> Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyDictionary<Guid, int> maxWounds, IReadOnlyCollection<Guid>? mine = null)
+    {
+        var acting = HeaderView.ActionFrame(p)?.Context.ActorUnitId;
+        return game.Teams.OrderBy(t => t.Id == myTeam ? 0 : 1).ThenBy(t => t.Ordinal).Select(t => new RosterTeam(t.Id, n.Team(t.Id), t.Ordinal,
+            Sorted(p.Units.Values.Where(u => game.Participants.Any(x => x.Id == u.ParticipantId && x.TeamId == t.Id)).Select(u => Row(p, u, maxWounds, acting))),
+            mine?.Contains(t.Id) ?? t.Id == myTeam)).ToList();
+    }
 
-    static RosterRow Row(Projection p, UnitInPlay u, IReadOnlyDictionary<Guid, int> maxWounds)
+    /// <summary>May act, then activated, then off the table; each by name (ordinal, case-insensitive), stable on a tie.</summary>
+    public static IReadOnlyList<RosterRow> Sorted(IEnumerable<RosterRow> rows) =>
+        rows.OrderBy(r => r.Mark).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+    static RosterRow Row(Projection p, UnitInPlay u, IReadOnlyDictionary<Guid, int> maxWounds, Guid? acting)
     {
         var models = p.Models.Values.Where(m => m.UnitId == u.Id).Select(m => (M: m, Max: maxWounds.GetValueOrDefault(m.Id, 1))).ToList();
         var left = models.Where(x => !(x.M.Location is OnShelf && x.M.Wounds >= x.Max)).Sum(x => Math.Max(0, x.Max - x.M.Wounds));
@@ -28,7 +44,7 @@ public static class RosterView
         bool OnTable(ModelInPlay m) => m.Location is OnTable || (m.Location is Inside i && p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnTable);
         return new(u.Id, u.Definition.Name, u.Actions.Count > 0, left, models.Sum(x => x.Max), !models.Any(x => OnTable(x.M)),
             u.Conditions.Concat(models.SelectMany(x => x.M.Conditions)).Where(Bookkeeping.Shown).Distinct().Order(StringComparer.Ordinal).ToList(),
-            holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u));
+            holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u), u.Id == acting);
     }
 
     /// <summary>"Reserve: {property} ({unit})" for a unit the army holds off the table (every model on the shelf) until that property, held at a model or a unit of the same army,
@@ -50,7 +66,7 @@ public static class RosterView
         for (var t = 0; t < after.Count; t++)
         {
             var (a, b) = (before[t], after[t]);
-            if (a.TeamId != b.TeamId || a.Name != b.Name || a.Ordinal != b.Ordinal || a.Rows.Count != b.Rows.Count) return null;
+            if (a.TeamId != b.TeamId || a.Name != b.Name || a.Ordinal != b.Ordinal || a.Mine != b.Mine || a.Rows.Count != b.Rows.Count) return null;
             for (var r = 0; r < b.Rows.Count; r++)
             {
                 if (a.Rows[r].UnitId != b.Rows[r].UnitId) return null;

@@ -16,6 +16,16 @@ public sealed record ModelGroup(string Label, string Loadout, bool Hero, int Ali
     /// <summary>`Wounds 9/12`, beside the title so a long loadout never clips it; null for one-wound models.</summary>
     public string? Wounds => ShowsWounds ? $"Wounds {WoundsLeft}/{WoundsMax}" : null;
 
+    /// <summary>One pip per model of the group, filled alive; past twelve `alive/size`.</summary>
+    public string Pips => UnitCardContent.PipsOf(Alive, Size);
+
+    /// <summary>The row's words: the label, then what sets the group apart.</summary>
+    public string Name => Label + (Loadout.Length > 0 ? $" · {Loadout}" : "");
+
+    /// <summary>The group's wounds as pips when a model has more than one, else null.</summary>
+    public string? WoundPips => ShowsWounds ? UnitCardContent.PipsOf(WoundsLeft, WoundsMax) : null;
+    public string WoundCount => $"{WoundsLeft}/{WoundsMax}";
+
     /// <summary>The whole row: the title and the wounds, the row's tooltip.</summary>
     public string Line => Title + (Wounds is { } w ? $" · {w}" : "");
 
@@ -44,6 +54,34 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     public IReadOnlyList<ModelGroup> Groups { get; } = Group(Sheet.Models);
     public int WoundsLeft => Groups.Sum(g => g.WoundsLeft);
     public int WoundsMax => Groups.Sum(g => g.WoundsMax);
+
+    /// <summary>One pip per model in card order, filled while it stands; past twelve `alive/size`.</summary>
+    public string Pips => Sheet.Models.Count <= RosterPipsMax ? string.Concat(Sheet.Models.Select(m => m.Removed ? "○" : "●")) : $"{Sheet.Alive}/{Sheet.Size}";
+
+    /// <summary>`5 models · 2 wounds left on Sergeant`: the count of standing models, then the wounds left when a standing model has more than
+    /// one (on that model by name when it is the only one, else summed).</summary>
+    public string CountNote
+    {
+        get
+        {
+            var count = Sheet.Alive == 1 ? "1 model" : $"{Sheet.Alive} models";
+            var tough = Sheet.Models.Where(m => !m.Removed && m.Max > 1).ToList();
+            if (tough.Count == 0) return count;
+            var left = tough.Sum(m => m.Left);
+            var wounds = left == 1 ? "1 wound left" : $"{left} wounds left";
+            return tough.Count == 1 ? $"{count} · {wounds} on {tough[0].Label}" : $"{count} · {wounds}";
+        }
+    }
+
+    const int RosterPipsMax = 12;
+    public static string PipsOf(int left, int max) => max <= RosterPipsMax ? RosterView.Pips(left, max) : $"{left}/{max}";
+
+    /// <summary>A state chip's words: the activated chip names only its actions (its icon says activated).</summary>
+    public static string ChipText(SheetChip c) => c.Kind == ChipKind.Activated && c.Text.StartsWith(ActivatedPrefix, StringComparison.Ordinal) ? c.Text[ActivatedPrefix.Length..] : c.Text;
+    const string ActivatedPrefix = "Activated: ";
+
+    /// <summary>The theme icon a state chip leads with: activated, the condition's own; null for the rest.</summary>
+    public static string? ChipIcon(SheetChip c) => c.Kind switch { ChipKind.Activated => "activated", ChipKind.Condition => c.Condition, _ => null };
 
     /// <summary>The group holds a picked model: its row is marked.</summary>
     public bool Marked(ModelGroup group) => Picked is { Count: > 0 } picked && group.Standing.Any(picked.Contains);

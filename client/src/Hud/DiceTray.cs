@@ -6,14 +6,15 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Bottom centre, above the decision box (GameScreen.Layout places it): the latest roll as the combat log's collapsed entry (client UX spec → Dice tray).
+/// <summary>Right column, above the decision box (GameScreen.Layout places it): the latest roll (UX redesign part 2 → Dice tray): the dice icon and
+/// the roll's title, then its faces at 40 px framed pass or fail and the result in the outcome's colour.
 /// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling, changing in place each frame.</summary>
 public partial class DiceTray : PanelContainer
 {
     const double TumbleSeconds = 0.4;
     Session _s = null!;
     readonly Button _line = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton };
-    readonly HFlowContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };   // wraps inside the tray's slot
+    readonly VBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };   // the title line over the faces, which wrap inside the tray's slot
     readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
     RollEntry? _shown; double _tumble; readonly List<Control> _tumbling = [];
     Action<RenderCause>? _onFrame; Action? _onTheme;
@@ -74,19 +75,26 @@ public partial class DiceTray : PanelContainer
         _line.TooltipText = r.Collapsed(CombatLog.Pip);
         foreach (var c in _row.GetChildren()) { _row.RemoveChild(c); c.QueueFree(); }
         _tumbling.Clear();
-        if (r.DieLabels is { Count: > 0 }) { Add(new Label { Text = r.Collapsed(CombatLog.Pip) }); return; }   // a roll-off: the team words go between the faces
-        Add(new Label { Text = r.Title });
+        // The title line: the dice icon and the roll's words; a roll-off's words carry its team labels between the faces.
+        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 8);
+        title.AddChild(HudBits.Icon("dice", Ui.Accent, 18));
+        var rollOff = r.DieLabels is { Count: > 0 };
+        title.AddChild(new Label { Text = rollOff ? r.Collapsed(CombatLog.Pip) : r.Title, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        Add(title);
+        if (rollOff) return;
+        var faces = new HFlowContainer(); faces.AddThemeConstantOverride("h_separation", 6); Add(faces);
+        void Face(Control c) { Ignore(c); faces.AddChild(c); }
         foreach (var d in r.Dice)
         {
             var face = settled ? d.Raw : _faces.Next(1, 7);
-            // An unjudged die shows neither pass nor fail, so it is drawn as a plain (unfaded) face.
-            var c = DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, d.Modified, !(r.Judged && d.Judged) || d.Success));
-            Add(c);
+            // An unjudged die shows neither pass nor fail, so it is drawn as a plain (unfaded) face; a judged one framed pass or fail.
+            var c = DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, d.Modified, !(r.Judged && d.Judged) || d.Success), 40, settled && r.Judged && d.Judged);
+            Face(c);
             if (!settled) _tumbling.Add(c);
         }
         // An unjudged roll has no pass or fail, so no result label; a roll-off whose dice no team labels may still name the winner.
-        if (settled && r.Judged) Add(new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Dim });
-        else if (settled && r.Outcome.Length > 0) Add(new Label { Text = r.Outcome });
+        if (settled && r.Judged) Face(new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Failure, SizeFlagsVertical = SizeFlags.ShrinkCenter });
+        else if (settled && r.Outcome.Length > 0) Face(new Label { Text = r.Outcome, SizeFlagsVertical = SizeFlags.ShrinkCenter });
     }
 
     void Add(Control c) { Ignore(c); _row.AddChild(c); }

@@ -1,8 +1,16 @@
 using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
-/// <summary>One banner: its line, how long it stays, and a smaller second line (the roll-off's rolls) or null.</summary>
-public sealed record Banner(string Text, double Seconds, string? Detail = null);
+/// <summary>One banner: its line, how long it stays, a smaller second line (the roll-off's rolls) or null, the team ordinal whose band and
+/// icon lead it (0: none), and the second line split per team (each team's roll in its colour). Equal by value, parts in order.</summary>
+public sealed record Banner(string Text, double Seconds, string? Detail = null, int Team = 0, IReadOnlyList<BannerPart>? Parts = null)
+{
+    public bool Equals(Banner? o) => o is not null && Text == o.Text && Seconds == o.Seconds && Detail == o.Detail && Team == o.Team
+        && (Parts ?? []).SequenceEqual(o.Parts ?? []);
+    public override int GetHashCode() => HashCode.Combine(Text, Seconds, Detail, Team);
+}
+/// <summary>A team's piece of a banner's second line.</summary>
+public sealed record BannerPart(int Team, string Text);
 
 /// <summary>Spec → Turn banner: "Round n" on RoundStarted from round 1, "Team k's turn" on a TurnStarted whose team differs from the previous TurnStarted's.
 /// A batch while Session is catching up, a batch with an undo, and a disabled banner show nothing but still track the team.</summary>
@@ -21,7 +29,7 @@ public sealed class TurnBanners
             switch (e.Payload)
             {
                 case RoundStarted { Round: > 0 } r: shown.Add(new($"Round {r.Round}", RoundSeconds)); break;
-                case TurnStarted t when t.TeamId != _lastTeam: _lastTeam = t.TeamId; shown.Add(new($"{n.Team(t.TeamId)}'s turn", TurnSeconds)); break;
+                case TurnStarted t when t.TeamId != _lastTeam: _lastTeam = t.TeamId; shown.Add(new($"{n.Team(t.TeamId)}'s turn", TurnSeconds, Team: n.Teams.FirstOrDefault(x => x.Id == t.TeamId)?.Ordinal ?? 0)); break;
             }
         var silent = catchingUp || !enabled || batch.Any(e => e.Payload is Undone);
         return silent ? [] : shown;

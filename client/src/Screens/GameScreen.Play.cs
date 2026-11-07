@@ -32,7 +32,7 @@ public partial class GameScreen
 
         // Hud parts, bottom of the input order first: the end message and the key overlay are added last and hear keys first.
         _hud.AddChild(_header = new HeaderBar()); _header.Bind(_session, Table, Input);
-        _hud.AddChild(_roster = new Roster()); _roster.Bind(_session);
+        _hud.AddChild(_roster = new Roster()); _roster.Bind(_session, Input);
         _hud.AddChild(_card = new UnitCard()); _card.Bind(_session, Table, Input);
         _hud.AddChild(_decision = new DecisionBox()); _decision.Bind(_session, Table, Input);
         _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input);
