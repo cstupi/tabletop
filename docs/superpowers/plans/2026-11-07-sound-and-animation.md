@@ -105,7 +105,7 @@ Core (Godot-free, unit-tested):
   a small overshoot and settle.
 - `BattleEffects` (`Core/BattleEffects.cs`): from a batch's cues (`SoundCues`) and shots (`ShotLines`, with the attack frame) the
   timed effects, on the sound's clock: per volley die a `Muzzle` (the shooting model, round robin over the frame's shots) and a
-  tracer that lands after its flight time (by weapon group's speed, at most 0.3 s) as a `Strike` (die hit) or a `Puff` (miss,
+  tracer that lands after its flight time (by weapon group's speed, at most 0.35 s) as a `Strike` (die hit) or a `Puff` (miss,
   scattered around the target point); per melee die a `Jab` (an attacker toward the nearest target model) with a `Strike` on a hit;
   at a Wound cue a `Shake` on each wounded model and a `Fall` for each removed one; at a Block cue a `Deflect` spark on the
   target unit.

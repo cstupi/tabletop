@@ -131,7 +131,7 @@ The table draws the same cues on the same clock (`Core/BattleEffects`, `Table/Ba
 
 | Cue | Effect |
 | --- | --- |
-| Shoot, per die | the frame's shots round robin: a muzzle flash in the weapon group's colour and a recoil on the shooter, a tracer flying at the group's speed (las 600"/s, ballistic 260, plasma 140, heavy 110, flame 45, at most 0.3 s; a flamer's is rolling puffs of fire), then a strike (flash and sparks) on the target model for a hit, or a puff of dust 0.7–1.8" beyond it, within 35° of the line of fire, for a miss |
+| Shoot, per die | the frame's shots round robin: a muzzle flash in the weapon group's colour and a recoil on the shooter, a tracer flying at the group's speed (las 600"/s, ballistic 140, plasma 80, heavy 70, flame 40, at most 0.35 s; a flamer's is rolling puffs of fire), then a strike (flash and sparks) on the target model for a hit, or a puff of dust 0.7–1.8" beyond it, within 35° of the line of fire, for a miss |
 | Melee, Whiff, per die | the attacking unit's next model jabs 0.4" at the nearest target model; a Melee strikes it when the jab reaches |
 | Block | a pale flash and sparks off a model of the target unit |
 | Wound | each wounded model shakes for 0.32 s under a red flash; each removed model, kept standing until then, topples 85° to a side of its own, sinks and fades over 1.1 s |

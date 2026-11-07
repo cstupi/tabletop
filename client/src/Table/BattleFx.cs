@@ -132,13 +132,16 @@ public partial class BattleFx : Node3D
         SoundCues.Plasma => Plasma, SoundCues.Las => Las, SoundCues.Flame => Flame, _ => Ballistic,
     };
 
-    static float SizeOf(int variant) => variant switch { SoundCues.Heavy => 1.6f, SoundCues.Plasma => 1.0f, SoundCues.Flame => 1.1f, SoundCues.Las => 0.55f, _ => 0.75f };
+    static float SizeOf(int variant) => variant switch { SoundCues.Heavy => 2.6f, SoundCues.Plasma => 1.7f, SoundCues.Flame => 1.7f, SoundCues.Las => 1.0f, _ => 1.3f };
 
     void Muzzle(FxAt fx)
     {
         var from = WorldFrame.ToGodot(fx.From!.Value); var dir = (WorldFrame.ToGodot(fx.To!.Value) - from).Normalized();
         var colour = ColourOf(fx.Variant); var size = SizeOf(fx.Variant);
-        Flash(from + dir * 0.35f, colour, size, BattleEffects.MuzzleSeconds * (fx.Variant == SoundCues.Heavy ? 2.5 : 1.5));
+        var seconds = BattleEffects.MuzzleSeconds * (fx.Variant == SoundCues.Heavy ? 2.5 : 1.5);
+        // Out in front of the body, so the hitbox does not veil it.
+        Flash(from + dir * 0.9f, colour, size, seconds);
+        Flash(from + dir * 0.8f, Colors.White, size * 0.4f, seconds * 0.7);
         if (fx.Model is { } id && _view.PieceAt(id) is { } shooter)
         {
             var kick = -dir with { Y = 0 } * (fx.Variant == SoundCues.Heavy ? 0.25f : 0.12f);
@@ -172,11 +175,13 @@ public partial class BattleFx : Node3D
         AddChild(bolt);
         bolt.Basis = new Basis(new Quaternion(Vector3.Up, dir));
         var streak = fx.Variant == SoundCues.Las ? Math.Min(length, 6f) : Math.Min(length * 0.35f, 1.6f);
-        var thick = fx.Variant switch { SoundCues.Heavy => 2.2f, SoundCues.Plasma => 2.6f, SoundCues.Las => 0.8f, _ => 1f };
+        var thick = fx.Variant switch { SoundCues.Heavy => 3.2f, SoundCues.Plasma => 3.4f, SoundCues.Las => 1.3f, _ => 1.7f };
+        // The streak runs behind its head and never back past the muzzle.
         Run(Math.Max(fx.Seconds, 0.06), u =>
         {
-            var head = from + (to - from) * u; bolt.Position = head - dir * streak / 2;
-            bolt.Scale = new Vector3(thick, streak, thick); bolt.Transparency = fx.Variant == SoundCues.Las ? u : 0;
+            var travelled = length * u; var shown = Math.Max(0.3f, Math.Min(streak, travelled));
+            bolt.Position = from + dir * (Math.Max(travelled, shown) - shown / 2);
+            bolt.Scale = new Vector3(thick, shown, thick); bolt.Transparency = fx.Variant == SoundCues.Las ? u : 0;
         }, bolt.QueueFree);
     }
 
@@ -187,15 +192,16 @@ public partial class BattleFx : Node3D
         else if (Pair(fx) is { Target: { } target } pair) { at = Chest(target); from = pair.Attacker is { } attacker ? Chest(attacker) : at + Vector3.Up; }
         else return;
         var colour = fx.To is null ? Spark : ColourOf(fx.Variant); var size = fx.To is null ? 0.8f : SizeOf(fx.Variant) * 1.2f;
-        Flash(at, colour, size, 0.14);
-        Flash(at, Blood, size * 0.7f, 0.22);
+        Flash(at, colour, size, 0.16);
+        Flash(at, Colors.White, size * 0.4f, 0.1);
+        Flash(at, Blood, size * 0.8f, 0.26);
         Sparks(at, (from - at).Normalized(), Spark, fx.Variant == SoundCues.Heavy ? 10 : 6, fx.Index);
         if (fx.Variant == SoundCues.Heavy && fx.To is not null) Puff(at with { Y = Math.Max(0, at.Y - 1) }, fx.Index, 1.8f);
     }
 
     void Puff(Vector3 at, int seed, float size = 1)
     {
-        var dust = Billboard(Dust, 0.6f); AddChild(dust);
+        var dust = Billboard(Dust, 0.9f); AddChild(dust);
         Run(BattleEffects.PuffSeconds, u =>
         {
             dust.Position = at + Vector3.Up * (0.15f + 0.6f * u) * size; dust.Scale = Vector3.One * (0.35f + 1.1f * Ease(u)) * size;
@@ -314,7 +320,7 @@ public partial class BattleFx : Node3D
     void Flash(Vector3 at, Color colour, float size, double seconds)
     {
         var flash = Billboard(colour, size); flash.Position = at; AddChild(flash);
-        Run(seconds, u => { flash.Scale = Vector3.One * (0.6f + 0.8f * Mathf.Sqrt(u)); flash.Transparency = Ease(u); }, flash.QueueFree);
+        Run(seconds, u => { flash.Scale = Vector3.One * size * (0.6f + 0.8f * Mathf.Sqrt(u)); flash.Transparency = Ease(u); }, flash.QueueFree);
     }
 
     /// <summary>Sparks thrown out about <paramref name="away"/> on computed arcs, fading as they fall.</summary>
@@ -348,7 +354,7 @@ public partial class BattleFx : Node3D
 
     static readonly QuadMesh FlashMesh = new() { Size = Vector2.One };
     static readonly CapsuleMesh BoltMesh = new() { Radius = 0.05f, Height = 1, RadialSegments = 6, Rings = 1 };
-    static readonly BoxMesh SparkMesh = new() { Size = new Vector3(0.035f, 0.22f, 0.035f) };
+    static readonly BoxMesh SparkMesh = new() { Size = new Vector3(0.05f, 0.32f, 0.05f) };
     static readonly CylinderMesh BeamMesh = new() { TopRadius = 0.025f, BottomRadius = 0.025f, Height = 1, RadialSegments = 6, Rings = 1 };
     static readonly Dictionary<Color, StandardMaterial3D> Glows = new(), Flashes = new();
     static GradientTexture2D? _soft;
@@ -378,7 +384,7 @@ public partial class BattleFx : Node3D
         return Flashes[c] = new StandardMaterial3D
         {
             AlbedoColor = c, AlbedoTexture = Soft, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled, BlendMode = c == Dust ? BaseMaterial3D.BlendModeEnum.Mix : BaseMaterial3D.BlendModeEnum.Add,
+            BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled, BillboardKeepScale = true, BlendMode = c == Dust ? BaseMaterial3D.BlendModeEnum.Mix : BaseMaterial3D.BlendModeEnum.Add,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled, NoDepthTest = false,
         };
     }
@@ -391,5 +397,7 @@ public partial class BattleFx : Node3D
         yield return new MeshInstance3D { Mesh = BoltMesh, MaterialOverride = Glow(Plasma), Position = new Vector3(2, 0, 0), Transparency = 0.2f };
         yield return new MeshInstance3D { Mesh = SparkMesh, MaterialOverride = Glow(Spark), Position = new Vector3(3, 0, 0), Transparency = 0.2f };
         yield return new MeshInstance3D { Mesh = BeamMesh, MaterialOverride = Glow(Palette.Team(0)), Position = new Vector3(4, 0, 0), Transparency = 0.6f };
+        // A falling model fades its body: the proxy drawn see-through by its instance's transparency.
+        yield return new MeshInstance3D { Mesh = Palette.Body(Tabletop.Geometry.Base.Circle(1), 1), MaterialOverride = Palette.Translucent(Palette.Proxy), Position = new Vector3(5, 0, 0), Transparency = 0.5f };
     }
 }

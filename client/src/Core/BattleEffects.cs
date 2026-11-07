@@ -31,7 +31,7 @@ public sealed record FxAt(Fx Kind, double Delay, double Seconds)
 /// </summary>
 public static class BattleEffects
 {
-    public const double MaxFlight = 0.3, MuzzleSeconds = 0.08, StrikeSeconds = 0.45, PuffSeconds = 0.7, JabSeconds = 0.24,
+    public const double MaxFlight = 0.35, MuzzleSeconds = 0.08, StrikeSeconds = 0.45, PuffSeconds = 0.7, JabSeconds = 0.24,
         DeflectSeconds = 0.3, ShakeSeconds = 0.32, FallSeconds = 1.1;
     /// <summary>A melee strike lands this far into its jab: when the jab reaches the target.</summary>
     public const double JabContact = 0.4;
@@ -41,7 +41,7 @@ public static class BattleEffects
     /// <summary>A weapon group's tracer speed, inches a second: a las bolt is all but instant, a flamer's gout slow.</summary>
     public static double Speed(int variant) => variant switch
     {
-        SoundCues.Las => 600, SoundCues.Plasma => 140, SoundCues.Heavy => 110, SoundCues.Flame => 45, _ => 260,
+        SoundCues.Las => 600, SoundCues.Plasma => 80, SoundCues.Heavy => 70, SoundCues.Flame => 40, _ => 140,
     };
 
     public static double Flight(Shot s, int variant) => Math.Min(MaxFlight, Distance(s.From, s.To) / Speed(variant));
