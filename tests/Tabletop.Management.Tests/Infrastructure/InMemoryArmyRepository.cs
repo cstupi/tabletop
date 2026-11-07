@@ -47,7 +47,8 @@ public sealed class InMemoryArmyRepository(InMemoryRows rows) : IArmyRepository
             return Task.FromResult<IReadOnlyList<ArmySummary>>(rows.Armies
                 .Where(a => a.Value.Owner == ownerId && (page.After is null || a.Key.CompareTo(page.After.Value) > 0))
                 .OrderBy(a => a.Key).Take(page.Limit)
-                .Select(a => new ArmySummary(a.Key, a.Value.Army.Name, a.Value.Army.GameSystem, a.Value.Army.Source, a.Value.Army.Units.Count, a.Value.Army.Units.Sum(u => u.Models.Count), a.Value.Army.Edition))
+                .Select(a => new ArmySummary(a.Key, a.Value.Army.Name, a.Value.Army.GameSystem, a.Value.Army.Source, a.Value.Army.Units.Count, a.Value.Army.Units.Sum(u => u.Models.Count), a.Value.Army.Edition,
+                    a.Value.Army.Units.Sum(u => u.Models.Count(m => m.AssetId is not null))))
                 .ToList());
     }
 
