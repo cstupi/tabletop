@@ -79,7 +79,8 @@ public partial class UnitCard : VBoxContainer
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
-        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, _s.Settings.MutedWindowKinds, u));
+        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, _s.Settings.MutedWindowKinds, u),
+            _input.Selected is { } sel && sel.PieceId == u ? sel.ModelIds : null);
         if (content != _content)
         {
             // The same unit's card keeps its place in the scroll; another unit's starts at the top.
@@ -113,16 +114,19 @@ public partial class UnitCard : VBoxContainer
         badges.AddChild(Badge($"Quality {m.Quality ?? "-"}")); badges.AddChild(Badge($"Defense {m.Defense ?? "-"}"));
         _body.AddChild(Flow(m.Chips.Select(StatusChip)));
         if (note is not null) _body.AddChild(Wrap(note, Variation.Warning));
-        foreach (var group in c.Groups) _body.AddChild(GroupRow(group));
+        foreach (var group in c.Groups) _body.AddChild(GroupRow(group, c.Marked(group)));
         if (m.Weapons.Count > 0) _body.AddChild(WeaponTable(m.Weapons));
         _body.AddChild(Flow(m.Rules.Select(RuleChip)));
     }
 
     /// <summary>One row per group of like models (ModelGroup.Line), a joined hero's marked; a group with none standing dimmed.
-    /// A click selects the group's next standing model after the selected one, so repeated clicks cycle through it.</summary>
-    Control GroupRow(ModelGroup group)
+    /// A click selects the group's next standing model after the selected one, so repeated clicks cycle through it. A row holding a
+    /// picked model (a Shift+click, a Shift+drag, a row click) is framed as a chip.</summary>
+    Control GroupRow(ModelGroup group, bool marked)
     {
         var row = new HBoxContainer();
+        Control outer = row;
+        if (marked) { var frame = new PanelContainer { ThemeTypeVariation = Variation.Chip }; frame.AddChild(row); outer = frame; }
         if (group.Hero) row.AddChild(Badge("Hero"));
         var b = new Button { Text = group.Title, TooltipText = group.Line, Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true,
             Disabled = group.Standing.Count == 0, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -134,7 +138,7 @@ public partial class UnitCard : VBoxContainer
         };
         row.AddChild(b);
         if (group.Wounds is { } wounds) row.AddChild(new Label { Text = wounds });
-        return row;
+        return outer;
     }
 
     static GridContainer WeaponTable(IReadOnlyList<SheetWeapon> weapons)

@@ -34,6 +34,20 @@ public class UnitCardContentTests
         Assert.NotEqual(before, new UnitCardContent(Sheet(), 1, "Shaken: may only Idle."));
     }
 
+    [Fact]
+    public void A_group_holding_a_picked_model_is_marked_and_a_change_of_picks_is_a_change()
+    {
+        var models = new[] { M(Ids[0], "Warrior", 1, 1, false, "w", ["Rifle"]), M(Ids[1], "Warrior", 1, 1, false, "w", ["Rifle"]),
+            M(Ids[2], "Sergeant", 1, 1, false, "s", ["Pistol"]) };
+        var none = new UnitCardContent(Sheet(models: models), 1, null);
+        Assert.All(none.Groups, g => Assert.False(none.Marked(g)));
+        var picked = new UnitCardContent(Sheet(models: models), 1, null, [Ids[1]]);
+        Assert.Equal([true, false], picked.Groups.Select(picked.Marked));
+        Assert.NotEqual(none, picked);
+        Assert.Equal(picked, new UnitCardContent(Sheet(models: models), 1, null, [Ids[1]]));
+        Assert.NotEqual(picked, new UnitCardContent(Sheet(models: models), 1, null, [Ids[2]]));
+    }
+
     /// <summary>Eight warriors, one more with a Field Doctor upgrade, and a sergeant with a plasma pistol; two warriors removed.</summary>
     [Fact]
     public void Like_models_group_and_each_group_names_only_what_sets_it_apart()

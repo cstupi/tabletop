@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupLine, groupTitle, groupWounds, nextModel, sameCard, unitCardOf } from '../src/lib/play/unitCard';
+import { groupLine, groupMarked, groupTitle, groupWounds, nextModel, sameCard, unitCardOf } from '../src/lib/play/unitCard';
 import type { SheetModel, UnitSheetModel } from '../src/lib/play/unitSheet';
 import { newId } from './play';
 
@@ -34,6 +34,14 @@ describe('UnitCardContent', () => {
     expect(sameCard(before, unitCardOf(sheet({ weaponRule: 'AP(2)' }), 1, null))).toBe(false);
     expect(sameCard(before, unitCardOf(sheet(), 2, null))).toBe(false);
     expect(sameCard(before, unitCardOf(sheet(), 1, 'Shaken: may only Idle.'))).toBe(false);
+  });
+
+  it('a group holding a picked model is marked', () => {
+    const models = [m(ids[0]!, 'Warrior', 1, 1, false, 'w', ['Rifle']), m(ids[1]!, 'Warrior', 1, 1, false, 'w', ['Rifle']), m(ids[2]!, 'Sergeant', 1, 1, false, 's', ['Pistol'])];
+    const c = unitCardOf(sheet({ models }), 1, null);
+    expect(c.groups.map((g) => groupMarked(g, []))).toEqual([false, false]);
+    expect(c.groups.map((g) => groupMarked(g, [ids[1]!]))).toEqual([true, false]);
+    expect(c.groups.map((g) => groupMarked(g, [ids[2]!]))).toEqual([false, true]);
   });
 
   // Eight warriors, one more with a Field Doctor upgrade, and a sergeant with a plasma pistol; two warriors removed.
