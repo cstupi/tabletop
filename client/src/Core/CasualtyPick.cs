@@ -38,10 +38,6 @@ public sealed class CasualtyPick
     public string Title => OneEach ? $"Remove {Required} {(Required == 1 ? "model" : "models")}"
         : $"Assign {_legal.Amount} {(_legal.Amount == 1 ? "wound" : "wounds")}" + (_legal.MaxTargets == 1 ? " to one model" : "");
 
-    public string Hint => OneEach ? "Click a model to remove it · Click again or right-click: put it back · Auto: fill the rest · Enter: confirm"
-        : _legal.MaxTargets == 1 ? "Click a model: +1, once full: put back · Another model: move there · Right-click: −1 · Auto: fill · Enter: confirm"
-        : "Click a model: +1, once full: put back · Right-click: −1 · Auto: fill the rest · Enter: confirm";
-
     public string Status => $"{Chosen} of {Required} chosen";
 
     /// <summary>Wounds left; a model the facts do not name takes one.</summary>

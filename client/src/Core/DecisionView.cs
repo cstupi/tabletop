@@ -3,12 +3,12 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 /// <summary>
-/// What the decision box shows (in-game UX spec → Decision box): the first open Ask addressed to my team, its numbered entries
-/// (keys 1–9, then 0 for entries past nine), and the hint line; with nothing addressed to me, no Ask. The waiting line is
-/// HeaderView.Waiting's, which the box shows then.
+/// What the decision box shows (UX redesign part 2 → Decision box): the first open Ask addressed to my team and its numbered entries
+/// (keys 1–9, then 0 for entries past nine); with nothing addressed to me, no Ask, and the box draws DecisionCard.Quiet's bands.
+/// The keys are caps on the buttons; there is no hint line.
 /// </summary>
 public sealed record DecisionModel(Ask? Ask, AskMode? Mode, string Title, IReadOnlyList<(int Key, string Label, string OptionId)> Numbered,
-    string Hint, bool AutoPass = false);
+    bool AutoPass = false);
 
 /// <summary>One line of a choice list: an option's button, or (Option null) the note under a unit's buttons.</summary>
 public sealed record ChoiceRow(AskOption? Option, string? Note);
@@ -21,11 +21,11 @@ public static class DecisionView
     public static DecisionModel Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyCollection<string> muted)
     {
         var mine = AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal));
-        if (mine is null) return new DecisionModel(null, null, "", [], "");
+        if (mine is null) return new DecisionModel(null, null, "", []);
         var ask = mine.Ask;
         var numbered = Numbered(ask, n);
         var title = ask.Legal is Allocation a ? $"Remove {a.Amount}" : ask.Prompt;
-        return new DecisionModel(ask, mine.Mode, title, numbered, Hint(p, ask, numbered), mine.AutoPass);
+        return new DecisionModel(ask, mine.Mode, title, numbered, mine.AutoPass);
     }
 
     static IReadOnlyList<(int Key, string Label, string OptionId)> Numbered(Ask ask, Names n)
@@ -92,25 +92,5 @@ public static class DecisionView
     /// <summary>The stop button of a move that may stop (MoveRegion.Stoppable, p.13 Caster "at any point before attacking"): the window after the
     /// stop offers a cast when a moving model holds spell tokens, else whatever else it offers. Null when the move cannot stop.</summary>
     public static string? StopLabel(Projection p, MoveRegion m) =>
-        !m.Stoppable ? null : m.ModelIds.Any(id => p.Models.GetValueOrDefault(id)?.SpellTokens > 0) ? "Cast a spell" : "Stop here to use a rule";
-
-    static string Hint(Projection p, Ask ask, IReadOnlyList<(int Key, string Label, string OptionId)> numbered)
-    {
-        var keyed = numbered.Count(x => x.Key > 0);
-        var keys = keyed == 1 ? "1" : $"1–{keyed}";
-        return ask.Legal switch
-        {
-            Options when keyed == 0 => "",
-            Options o => $"{keys}: pick" + (o.Choices.Any(c => c.Pieces.Count > 0) ? " · click a glowing unit" : ""),
-            PieceSelection when DeployQuestions.Contains(ask.Question) => $"{keys}: pick a unit to deploy",
-            PieceSelection s => $"Click a glowing {(s.Eligible.Count > 0 && p.Models.ContainsKey(s.Eligible[0]) ? "model" : "unit")}"
-                                + (s.Max > 1 ? " · Enter: done" : ""),
-            MoveRegion m => "Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · " + (StopLabel(p, m) is { } stop ? $"C: {char.ToLowerInvariant(stop[0])}{stop[1..]} · " : "") + "Esc: reset",
-            Assignment => "Click a target · Click a chip: that group alone · Enter: fire · Esc: clear",
-            Allocation => "Click a model: +1 · Right-click: −1 · Auto: fill the rest · Enter: confirm",
-            TokenSpend => "Set the tokens per caster · Enter: spend",
-            Confirmation => $"Enter: {AskViewModel.ConfirmLabel(ask)}",
-            _ => "",
-        };
-    }
+        !m.Stoppable ? null : m.ModelIds.Any(id => p.Models.GetValueOrDefault(id)?.SpellTokens > 0) ? "Cast here" : "Stop here";
 }

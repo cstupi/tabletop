@@ -9,21 +9,32 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>The right column, above the undo and log buttons: the first open Ask addressed to my team (AskViewModel.Mine), or what
-/// the game is waiting on. Buttons, Enter, Esc, 1–9 and table clicks answer it; the hint line under it lists the keys that apply.
-/// The controls scroll once the box reaches the top of its slot; the title, notes and hint stay in view.</summary>
+/// <summary>The right column, above the undo and log buttons: the first open Ask addressed to my team (AskViewModel.Mine) as a card (UX redesign
+/// part 2 → Decision box): a title band in my team's colour with the Ask's icon, the body per mode, the actions at the foot with their key caps;
+/// or, with nothing of mine open, a quiet band per team the game waits on. Buttons, Enter, Esc, 1–9 and table clicks answer it. The body's
+/// controls scroll once the card reaches the top of its slot; the band, the notes and the foot stay in view.</summary>
 public partial class DecisionBox : PanelContainer
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly VBoxContainer _controls = new();
-    /// <summary>"Playing as Team 2" over the Ask, for a client that holds several teams (Seats.PlayingAs).</summary>
-    readonly Label _seat = new() { ThemeTypeVariation = Variation.Accent };
-    readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart },
-        _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _revealLabel = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    /// <summary>The card's title band: the Ask's icon, its title in the display font, the unit it is about, "Team 2" for a client holding several, ⌨.</summary>
+    readonly PanelContainer _band = new();
+    readonly TextureRect _icon = DecisionTiles.Icon(null, 22);
+    readonly Label _title = new() { ThemeTypeVariation = Variation.Display, Uppercase = true, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill },
+        _seat = new() { VerticalAlignment = VerticalAlignment.Center };
+    readonly Button _keys = new() { FocusMode = FocusModeEnum.None, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Keys (F1)", ExpandIcon = true, CustomMinimumSize = new Vector2(28, 28) };
+    readonly Label _prompt = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart },
+        _refusalLabel = new() { ThemeTypeVariation = Variation.Failure, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    readonly HFlowContainer _reveal = new(), _foot = new();
+    readonly VBoxContainer _quiet = new(), _body = new();
+    readonly MarginContainer _inset = new();
     MoveRegionNode? _region;
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
-    Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _revealed, _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
+    Guid? _renderedAsk, _answering, _lastCommand, _refusalAsk; string? _refusal, _refusalDetail; readonly SealedReveals _reveals = new();
+    IReadOnlyList<IReadOnlyList<RevealChip>>? _revealed; IReadOnlyList<IReadOnlyList<RevealChip>>? _revealDrawn;
+    /// <summary>The card's head as drawn, and the quiet bands' key: a render redraws them only on a change.</summary>
+    (CardHead? Head, int Ordinal) _head; string _quietKey = "";
     /// <summary>The Ask and placement the picked models were made under: a change clears them.</summary>
     (Guid? Ask, Guid? Deploy) _picksFor;
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
@@ -34,6 +45,9 @@ public partial class DecisionBox : PanelContainer
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action<RenderCause>? _onFrame; Action<Refused>? _onRefused;
     Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<IReadOnlyList<(Guid Id, Geometry.Point3 At)>>? _onDragged; Action<Guid>? _onUnitClicked; Action<IReadOnlyList<Guid>>? _onPickedUp; Action? _onSelection;
+
+    /// <summary>The card's ⌨: the screen opens the key overlay.</summary>
+    public event Action? KeysRequested;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
     partial void RenderPicks(AskView mine, Projection p, Names names);
@@ -47,12 +61,23 @@ public partial class DecisionBox : PanelContainer
     {
         _s = s; _view = view; _input = input;
         CustomMinimumSize = new Vector2(420, 0);
-        var box = new VBoxContainer(); AddChild(box);
+        ThemeTypeVariation = Variation.Card;
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 0); AddChild(box);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); _band.AddChild(head);
+        _keys.Icon = Ui.Icon("key"); _keys.Pressed += () => KeysRequested?.Invoke();
+        foreach (var c in new Control[] { _icon, _title, _seat, _keys }) head.AddChild(c);
         // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
         var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
-        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; inset.AddChild(_controls); _scroll.AddChild(inset);
-        foreach (var c in new Control[] { _seat, _title, _revealLabel, _note, _scroll, _refusalLabel, _hint }) box.AddChild(c);
+        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _controls.AddThemeConstantOverride("separation", 10); inset.AddChild(_controls); _scroll.AddChild(inset);
+        foreach (var side in new[] { "left", "right", "top", "bottom" }) _inset.AddThemeConstantOverride($"margin_{side}", 16);
+        _body.AddThemeConstantOverride("separation", 12); _inset.AddChild(_body);
+        _foot.AddThemeConstantOverride("h_separation", 10); _foot.AddThemeConstantOverride("v_separation", 8);
+        _reveal.AddThemeConstantOverride("h_separation", 8); _reveal.AddThemeConstantOverride("v_separation", 6);
+        foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _foot }) _body.AddChild(c);
+        _quiet.AddThemeConstantOverride("separation", 6);
+        foreach (var c in new Control[] { _band, _inset, _quiet }) box.AddChild(c);
         _controls.MinimumSizeChanged += QueueFit;                                  // a ScrollContainer reports no content height
+        Ui.Changed += Restyle;
         view.AddChild(_region = new MoveRegionNode());
         _onEvents = Reveal; _onFrame = _ => Render();   // the batch for the sealed reveal; the render once per frame, on every cause
         _onRefused = r =>
@@ -72,6 +97,7 @@ public partial class DecisionBox : PanelContainer
 
     public override void _ExitTree()
     {
+        Ui.Changed -= Restyle;
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.Frame.Render -= _onFrame; _s.RefusedReceived -= _onRefused;
         if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelsDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; _input.SelectionChanged -= _onSelection; }
@@ -79,12 +105,15 @@ public partial class DecisionBox : PanelContainer
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
     }
 
+    /// <summary>A theme change: the head and the bands are drawn again in the new theme's colours and icons.</summary>
+    void Restyle() { _keys.Icon = Ui.Icon("key"); var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null; }
+
     /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
     public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Bottom(this, slot); }
 
     void QueueFit() { if (_fitQueued) return; _fitQueued = true; Callable.From(() => { _fitQueued = false; Fit(); }).CallDeferred(); }
 
-    /// <summary>The controls' height, or what the slot leaves after the title, notes, hint and the panel's chrome. A change raises this
+    /// <summary>The controls' height, or what the slot leaves after the band, the notes, the foot and the card's chrome. A change raises this
     /// part's MinimumSizeChanged, and the screen places it again. Whole pixels: a box container sums its children's minimums as
     /// integers, so a fractional height (a slot from an odd window height) reads back as different chrome every pass and never settles.</summary>
     void Fit()
@@ -94,18 +123,76 @@ public partial class DecisionBox : PanelContainer
         _scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_controls.GetCombinedMinimumSize().Y, slot.H - chrome))));
     }
 
+    /// <summary>The card's frame: the card's panel with no inset (the band runs edge to edge and the body takes its own 16 px), or nothing
+    /// while only quiet bands show.</summary>
+    bool? _framed;
+    void Frame(bool card)
+    {
+        if (card == _framed) return;
+        _framed = card;
+        if (!card) { AddThemeStyleboxOverride("panel", new StyleBoxEmpty()); return; }
+        var b = (StyleBox)Ui.Theme.GetStylebox("panel", Variation.Card).Duplicate(); b.SetContentMarginAll(0);   // the theme's: this control's own override would answer first
+        AddThemeStyleboxOverride("panel", b);
+    }
+
+    /// <summary>The title band for this head, in the answering team's colour.</summary>
+    void Head(CardHead head, int ordinal)
+    {
+        if (_head == (head, ordinal)) return;
+        _head = (head, ordinal);
+        _band.AddThemeStyleboxOverride("panel", Ui.TeamBand(ordinal, compact: true));
+        var on = Ui.OnBand(ordinal);
+        _icon.Texture = Ui.Icon(head.Icon); _icon.Visible = _icon.Texture is not null; _icon.SelfModulate = on;
+        _title.Text = head.Subject is { } subject ? $"{head.Title} · {subject}" : head.Title;
+        foreach (var l in new[] { _title, _seat }) l.AddThemeColorOverride("font_color", on);
+        foreach (var name in new[] { "icon_normal_color", "icon_hover_color", "icon_pressed_color" }) _keys.AddThemeColorOverride(name, on);
+        _prompt.Text = head.Prompt ?? "";
+    }
+
+    int MyOrdinal => _s.Game?.Teams.FirstOrDefault(t => t.Id == (_answering ?? _s.MyTeamId))?.Ordinal ?? 1;
+
     /// <summary>The refusal or send error has its own label, set (not appended) on every render, so N renders show it once.</summary>
     void Render()
     {
         RenderAsk();
         if ((_renderedAsk, _deployUnit) != _picksFor) { _picksFor = (_renderedAsk, _deployUnit); _input.ClearPicks(); }   // a new Ask or placement, or the end of one, clears the picked models
         _refusalLabel.Text = _refusal ?? ""; _refusalLabel.Visible = _refusal is not null;
-        _hint.Visible = _hint.Text != ""; _title.Visible = _title.Text != ""; _note.Visible = _note.Text != "";   // an empty label still takes a line
-        _seat.Text = _title.Text != "" && _renderedAsk is not null || _deployUnit is not null ? Seats.PlayingAs(_s.Game!, _s.MyTeamIds, _s.MyTeamId) ?? "" : "";
+        var card = _head.Head is not null;
+        _band.Visible = card;
+        _prompt.Visible = card && _prompt.Text != ""; _note.Visible = _note.Text != "";   // an empty label still takes a line
+        _seat.Text = card ? Seats.PlayingAs(_s.Game!, _s.MyTeamIds, _s.MyTeamId) is not null ? $"Team {MyOrdinal}" : "" : "";
         _seat.Visible = _seat.Text != "";
-        _revealLabel.Text = _revealed ?? ""; _revealLabel.Visible = _revealed is not null;
-        Visible = _title.Text != "" || _note.Text != "" || _refusal is not null || _revealed is not null;
+        DrawReveal();
+        _foot.Visible = _foot.GetChildCount() > 0;
+        _scroll.Visible = _controls.GetChildCount() > 0;
+        var body = card || _refusal is not null || _revealed is not null || _note.Text != "";
+        _inset.Visible = body;
+        Frame(card || body && _quiet.GetChildCount() == 0);
+        _quiet.Visible = !card && _quiet.GetChildCount() > 0;
+        Visible = card || body || _quiet.Visible;
     }
+
+    /// <summary>Each team's choice in a sealed Ask's reveal: its band and the chip.</summary>
+    void DrawReveal()
+    {
+        if (ReferenceEquals(_revealDrawn, _revealed)) return;
+        _revealDrawn = _revealed;
+        foreach (var c in _reveal.GetChildren()) { _reveal.RemoveChild(c); c.QueueFree(); }
+        foreach (var chip in (_revealed ?? []).SelectMany(r => r)) _reveal.AddChild(DecisionTiles.Band(chip.Ordinal, chip.Team, chip.Choice));
+        _reveal.Visible = _reveal.GetChildCount() > 0;
+    }
+
+    /// <summary>The quiet bands: one per team the game waits on, redrawn only when they change.</summary>
+    void Quiet(IReadOnlyList<(int Ordinal, string Team, string Doing)> bands)
+    {
+        var key = string.Join("|", bands);
+        if (key == _quietKey) return;
+        _quietKey = key;
+        foreach (var c in _quiet.GetChildren()) { _quiet.RemoveChild(c); c.QueueFree(); }
+        foreach (var (ordinal, team, doing) in bands) _quiet.AddChild(DecisionTiles.Band(ordinal, team, doing));
+    }
+
+    void ClearHead() { _head = default; _prompt.Text = ""; }
 
     void RenderAsk()
     {
@@ -113,60 +200,63 @@ public partial class DecisionBox : PanelContainer
         if (p is null || game is null || game.Status != GameStatus.Playing)
         {
             if (_s.Phase == SessionPhase.Reconnecting) KeepGhosts();
-            Reset(); _renderedAsk = null; _title.Text = _note.Text = _hint.Text = ""; return;
+            Reset(); _renderedAsk = null; ClearHead(); _note.Text = ""; Quiet([]); return;
         }
         var fresh = _reveals.Drain();                                           // every reveal since the last render, in order
-        if (fresh.Count > 0) _revealed = string.Join("\n", fresh);
+        if (fresh.Count > 0) _revealed = fresh;
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
         if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         var names = new Names(game, p);
         if (mine is null)
         {
             var mid = new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);   // a pick by any team of mine is placed
-            if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; }
+            if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; ClearHead(); }
             _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
-            if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) { _title.Text = string.Join("\n", waiting.Select(w => w.Text)); _hint.Text = ""; }
-            else if (mid is null) { _title.Text = HeaderView.Waiting(p, names, _s.MyTeamIds) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
-            else if (_deployUnit is null) StartDeploy(mid, names);
+            if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) Quiet(waiting.Select(w => (w.Ordinal, $"Team {w.Ordinal}", w.HasPlayer ? "no army" : "waiting for a player")).ToList());
+            else if (mid is null) Quiet(DecisionCard.Quiet(p, game, _s.MyTeamIds).Select(b => (b.Ordinal, b.Mine ? "Your move" : b.Team, b.Doing)).ToList());
+            else { Quiet([]); if (_deployUnit is null) StartDeploy(mid, names); }
             return;
         }
+        Quiet([]);
         if (_renderedAsk == mine.Ask.Id) return;
         var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
         if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
-        _title.Text = model.Title; _hint.Text = model.Hint; _numbered = model.Numbered;
+        _numbered = model.Numbered;
+        Head(DecisionCard.Head(mine.Ask, p, names), MyOrdinal);
         Glow(mine.Highlights);
         if (model.AutoPass && _refusal is null)   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
         {
-            Send(mine.Ask, new Passed()); _note.Text = $"auto-passed (muted: {mine.Ask.WindowKind})";
-            Add(Btn("Unmute", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!))));
+            Send(mine.Ask, new Passed()); _note.Text = $"Auto-passed: {mine.Ask.WindowKind!.Replace('_', ' ')}";
+            Foot(DecisionTiles.Action("Unmute", "", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!))));
             return;
         }
         switch (mine.Mode)
         {
-            case AskMode.Choose: RenderChoose(mine); break;
+            case AskMode.Choose: RenderChoose(mine, p, game, names); break;
             case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); RestoreMove(mine.Ask.Id); ApplyVerdict(); break;
             case AskMode.TokenSpend: RenderSpend(mine, p, names); break;
             case AskMode.Confirm:                                               // "Continue" for a step gate, "End the round" at the round boundary
                 _onEnter = () => Send(mine.Ask, new Confirmed());
-                Add(Btn($"{AskViewModel.ConfirmLabel(mine.Ask)} (Enter)", _onEnter));
+                Foot(DecisionTiles.Action(AskViewModel.ConfirmLabel(mine.Ask), DecisionCard.Enter, _onEnter, primary: true, icon: "ready"));
                 break;
             default: RenderPicks(mine, p, names); break;                       // PickPieces, Assign, Allocate
         }
-        if (mine.Ask.AllowPass) Add(Btn("Pass", () => Send(mine.Ask, new Passed())));
-        if (mine.Ask.WindowKind is { } kind) Add(Btn($"Mute '{kind}' windows", () => _s.UpdateSettings(x => x.Mute(kind))));
+        if (mine.Ask.AllowPass) Foot(DecisionTiles.Action(mine.Ask.Question == AskQuestions.ActOrEndPhase ? "End phase" : "Pass", "", () => Send(mine.Ask, new Passed())));
+        if (mine.Ask.WindowKind is { } kind) Foot(DecisionTiles.Action($"Mute {kind.Replace('_', ' ')}", "", () => _s.UpdateSettings(x => x.Mute(kind))));
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 
     /// <summary>
-    /// Numbered options. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate: one
-    /// option per unit and action) is not a pick: the click selects its unit as any click does, and the box narrows to that unit's
-    /// options, renumbered from 1, until another unit is clicked, or Esc or Tab past the last unit clears the selection and widens it again.
+    /// Option tiles. An activation's options are grouped by unit (DecisionCard.Groups), its pips and team edge, its note once under it; any other
+    /// Ask's options are one row of tiles. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate:
+    /// one option per unit and action) is not a pick: the click selects its unit as any click does, and the card narrows to that unit's group,
+    /// renumbered from 1, until another unit is clicked, or Esc or Tab past the last unit clears the selection and widens it again.
     /// </summary>
-    void RenderChoose(AskView mine)
+    void RenderChoose(AskView mine, Projection p0, GameInfo game, Names names)
     {
         var options = (Options)mine.Ask.Legal; var all = options.Choices;
-        var list = new VBoxContainer(); Add(list);
+        var list = new VBoxContainer(); list.AddThemeConstantOverride("separation", 10); Add(list);
         var narrowed = false;
         var full = _numbered;
         void Show(IReadOnlyList<AskOption> shown, IReadOnlyList<(int Key, string Label, string OptionId)> numbered)
@@ -175,20 +265,20 @@ public partial class DecisionBox : PanelContainer
             if (_lit is not null) Light(null);
             foreach (var c in list.GetChildren()) { list.RemoveChild(c); c.QueueFree(); }
             _numbered = numbered;
-            foreach (var row in DecisionView.Rows(shown))
+            var p = _s.Projection ?? p0;
+            foreach (var group in DecisionCard.Groups(mine.Ask, shown, numbered, p, game, names, _s.MaxWounds))
             {
-                if (row.Option is not { } c)
+                var grid = DecisionTiles.Grid(group.Tiles.Count);
+                foreach (var tile in group.Tiles)
                 {
-                    list.AddChild(new Label { Text = row.Note, ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
-                    continue;
+                    var t = tile;
+                    var b = DecisionTiles.Tile(t, () => Send(mine.Ask, new Chosen(t.OptionId)));
+                    if (mine.Ask.Question == "cast" && SpellText.OfOption(_s.Rules, t.OptionId, t.Label) is { } tip) b.TooltipText = tip;
+                    b.MouseEntered += () => Light(t.Pieces);
+                    b.MouseExited += () => Light(null);
+                    grid.AddChild(b);
                 }
-                var key = _numbered.FirstOrDefault(n => n.OptionId == c.Id).Key;
-                var b = Btn(key > 0 ? $"{key}. {c.Label}" : c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
-                if (mine.Ask.Question == "cast" && SpellText.OfOption(_s.Rules, c.Id, c.Label) is { } tip) b.TooltipText = tip;
-                var pieces = c.Pieces;
-                b.MouseEntered += () => Light(pieces);
-                b.MouseExited += () => Light(null);
-                list.AddChild(b);
+                list.AddChild(group.Unit is null && group.Note is null ? grid : DecisionTiles.Group(group, grid));
             }
         }
         Show(all, full);
@@ -225,7 +315,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>Whether a model glows for the open Ask: GameScreen puts the glow back where the selection leaves a model.</summary>
     public bool Glows(PieceNode n) => _glow.Contains(n.ModelId) || _glow.Contains(n.UnitId);
 
-    /// <summary>The pieces lit by the option button under the pointer, the rest of the Ask's glow dark so the hovered unit stands out
+    /// <summary>The pieces lit by the tile under the pointer, the rest of the Ask's glow dark so the hovered unit stands out
     /// among others of the same name, and the hover label of the one unit they name (TableInput.HoverUnit); null puts the Ask's glow back.</summary>
     IReadOnlyList<Guid>? _lit;
     void Light(IReadOnlyList<Guid>? pieces)
@@ -243,19 +333,26 @@ public partial class DecisionBox : PanelContainer
     }
 
     /// <summary>
-    /// p.13: "may spend any number of spell tokens", capped per model by what that model holds. So one box per model, each
-    /// bounded by its own maximum, and no total. SpendableBy drops the other team's spenders, which the map carries because
-    /// the window addresses both.
+    /// p.13: "may spend any number of spell tokens", capped per model by what that model holds. So one stepper per model, each
+    /// bounded by its own maximum, and no total, beside the caster's name and pips of its tokens. SpendableBy drops the other team's spenders,
+    /// which the map carries because the window addresses both.
     /// </summary>
     void RenderSpend(AskView mine, Projection p, Names names)
     {
         var spendable = AskViewModel.SpendableBy(p, _s.Game!, _s.MyTeamId!.Value, (TokenSpend)mine.Ask.Legal);
-        var spends = spendable.ToDictionary(kv => kv.Key, kv => new SpinBox { MinValue = 0, MaxValue = kv.Value, Prefix = names.Piece(kv.Key) });
-        foreach (var sp in spends.Values) Add(sp);
+        var spends = new Dictionary<Guid, SpinBox>();
+        foreach (var (id, max) in spendable)
+        {
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 10);
+            row.AddChild(new Label { Text = names.Piece(id), SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart, VerticalAlignment = VerticalAlignment.Center });
+            row.AddChild(DecisionTiles.Pips(RosterView.Pips(p.Models.GetValueOrDefault(id)?.SpellTokens ?? max, p.Models.GetValueOrDefault(id)?.SpellTokens ?? max), MyOrdinal));
+            var spin = new SpinBox { MinValue = 0, MaxValue = max }; row.AddChild(spin); spends[id] = spin;
+            Add(row);
+        }
         void Spend() => Send(mine.Ask, AskAnswers.Spent(spends.ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)));
         _onEnter = Spend;
-        Add(Btn("Spend (Enter)", Spend));
-        if (mine.AnsweredTeams.Count > 0) Add(new Label { Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered")) });
+        Foot(DecisionTiles.Action("Spend", DecisionCard.Enter, Spend, primary: true, icon: "cast"));
+        if (mine.AnsweredTeams.Count > 0) _note.Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered"));
     }
 
     public override void _Input(InputEvent e)
@@ -322,15 +419,17 @@ public partial class DecisionBox : PanelContainer
         if (_view is not null && IsInstanceValid(_view)) _view.ClearExitGhosts();
     }
 
-    /// <summary>Unhook, and the box's controls and the table's highlights with it.</summary>
+    /// <summary>Unhook, and the card's controls and the table's highlights with it.</summary>
     void Reset()
     {
         Unhook(); _numbered = [];
-        foreach (var c in _controls.GetChildren()) { _controls.RemoveChild(c); c.QueueFree(); }
+        foreach (var parent in new Node[] { _controls, _foot }) foreach (var c in parent.GetChildren()) { parent.RemoveChild(c); c.QueueFree(); }
         if (_view is not null && IsInstanceValid(_view)) foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null);
     }
 
-    void SetButtons(bool disabled) { foreach (var b in _controls.FindChildren("*", "BaseButton", true, false).OfType<BaseButton>()) b.Disabled = disabled; }
+    void SetButtons(bool disabled) { foreach (var parent in new Node[] { _controls, _foot }) foreach (var b in parent.FindChildren("*", "BaseButton", true, false).OfType<BaseButton>()) b.Disabled = disabled; }
+    /// <summary>Into the card's body, which scrolls.</summary>
     void Add(Control c) => _controls.AddChild(c);
-    static Button Btn(string text, Action a) { var b = new Button { Text = text, FocusMode = FocusModeEnum.None }; b.Pressed += a; return b; }
+    /// <summary>Into the card's foot: its actions, the primary first.</summary>
+    void Foot(Control c) => _foot.AddChild(c);
 }

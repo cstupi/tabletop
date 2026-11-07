@@ -121,7 +121,6 @@ public class CasualtyPickTests
     {
         var c = new CasualtyPick(new Allocation([M1, M2, M3], 7), new Dictionary<Guid, int> { [M1] = 1, [M2] = 1, [M3] = 1 });
         Assert.Equal((true, "Remove 3 models", "0 of 3 chosen"), (c.OneEach, c.Title, c.Status));
-        Assert.StartsWith("Click a model to remove it", c.Hint);
         var tough = new CasualtyPick(new Allocation([M1, M2], 2), new Dictionary<Guid, int> { [M1] = 1, [M2] = 3 });
         Assert.Equal((false, "Assign 2 wounds"), (tough.OneEach, tough.Title));
     }

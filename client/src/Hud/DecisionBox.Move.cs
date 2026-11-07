@@ -27,7 +27,7 @@ public partial class DecisionBox
     {
         if (legal.ModelIds.Count == 0) return;                                      // nothing to move; the server closes the Ask
         var lead = p.Models[legal.ModelIds[0]];
-        double? allowance = null;
+        double? allowance = null, minimum = null; Action<AllowanceBar>? setBar = null;
         var body = BodyOf(p, lead.Id);
         var ordinal = _s.Game?.Teams.FirstOrDefault(t => t.Id == _s.MyTeamId)?.Ordinal ?? 1;
         _input.Proposing.Clear(); foreach (var id in legal.ModelIds) _input.Proposing.Add(id);
@@ -40,8 +40,9 @@ public partial class DecisionBox
             (_exitWithin, _volumes, _size) = (within, _view.Volumes, _view.Size);
             _region!.Show(MoveRuler.ExitRegion(body, new PlacedModel(BodyOf(p, containerId), at.Placement), legal, _volumes, _size), Palette.Team(ordinal));
             var fromShelf = MoveRuler.IsShelfPlacement(legal, p);                   // a Spawn or Split reserve: placed around its anchor model, the Ask's prompt says what
-            _note.Text = fromShelf ? "Drag them into place, then commit."   // the title is the Ask's prompt
-                : $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
+            var unitName = names.Unit(lead.UnitId);
+            Head(fromShelf ? new CardHead("army", "Place", unitName, ask.Prompt)        // the Ask's prompt says what is placed
+                : new CardHead("advance", "Disembark", unitName, $"Fully within {DecisionCard.Inches(within)} of {names.Piece(containerId)}"), MyOrdinal);
             _input.Allowance = null; _input.Proposed = null; _input.Region = null;
             void StartExit()
             {
@@ -60,8 +61,6 @@ public partial class DecisionBox
         else
         {
             if (lead.Location is not OnTable) { Unhook(); return; }
-            var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
-            var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
             // The Ask's Allowance is already what this segment has left (GfMoves reduces it by the distance a cast-split move used): never subtract `used` again.
             var remaining = Math.Max(0, legal.Allowance); allowance = remaining;
             // Each model's own region from where it stands: the lead's shows first, then each pickup's held models'.
@@ -70,10 +69,9 @@ public partial class DecisionBox
             ShowRegions([lead.Id]);
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red. Where the table
             // has no room for it, the least is as far as the table allows in the direction the model goes (MoveRegions.Minimum).
-            var minimum = regions.Minimum(lead.Id);
-            _note.Text = minimum is not { } must ? $"Move up to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely."
-                : must < legal.MinDistance ? $"Move as far as the table allows, up to {remaining:0.0}\", in a straight line · Alt: place freely."
-                : $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely.";
+            // The bar's mark is that least; the bar reads the farthest ghost's path over the allowance, or the cap once it holds.
+            minimum = regions.Minimum(lead.Id);
+            Add(DecisionTiles.Bar(out setBar));
             _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _input.Proposed = _proposed; _view.Snap(legal.ModelIds); }
@@ -92,16 +90,17 @@ public partial class DecisionBox
         }
         void Commit() => Relocate(false);
         _onEnter = Commit;
-        var commit = Btn("Commit move (Enter)", Commit); Add(commit);
+        // Any ghost out of range is counted and each contact named, only while it holds; under strict the commit and the stop wait until none is.
+        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
+        var commit = DecisionTiles.Action("Commit", DecisionCard.Enter, Commit, primary: true, icon: "ready"); Foot(commit);
         Button? stop = null;
         if (legal.Stoppable && !MoveRuler.IsDisembark(legal))
         {
             void Stop() => Relocate(true);
             _onStop = Stop;
-            Add(stop = Btn($"{DecisionView.StopLabel(p, legal)} (C)", Stop));
+            var word = DecisionView.StopLabel(p, legal)!;
+            Foot(stop = DecisionTiles.Action(word, DecisionCard.Stop, Stop, icon: word.StartsWith("Cast", StringComparison.Ordinal) ? "cast" : "hold"));
         }
-        // Any ghost out of range is counted and each contact named; under strict the commit and the stop wait until none is.
-        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
@@ -112,6 +111,7 @@ public partial class DecisionBox
             var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
             _input.Violations.Measure(legal.ModelIds, ContactCheck.Words(ContactCheck.Move(p, legal, placed, _view.Volumes, _view.Size, unit), legal.Separation, names.Unit));
             _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MarkedOf(legal.ModelIds));
+            if (unit is { } cap) setBar?.Invoke(DecisionCard.Bar(readouts, cap, minimum));
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null && !RepeatsRefusal(_gate.Reason);
         };
@@ -124,7 +124,7 @@ public partial class DecisionBox
     {
         IReadOnlyList<Guid> enterable = legal.Containment?.Enterable ?? [];
         if (enterable.Count == 0) return;
-        _note.Text += $" Or click a container in reach to embark: {string.Join(", ", enterable.Select(names.Piece))}.";
+        _note.Text = $"Click to embark: {string.Join(", ", enterable.Select(names.Piece))}";
         _input.Eligible = enterable.ToHashSet();
         _onTarget = clicked =>
         {
@@ -225,8 +225,7 @@ public partial class DecisionBox
     void StartDeploy(MidDeploy mid, Names names)
     {
         _deployUnit = mid.UnitId;
-        _title.Text = $"Place the models of {names.Unit(mid.UnitId)}";
-        _hint.Text = "Click the table where the unit goes";
+        Head(new CardHead("army", "Place", names.Unit(mid.UnitId), "Click the table where the unit goes"), MyOrdinal);
         var unit = mid.UnitId;
         _input.PlacementPoint = at => DropDeploy(unit, at);                        // its own slot: a menu point pick cannot take it
         if (_stash.Take(unit) is { } kept && _s.Projection is { } p)                // the placement a reconnect interrupted, for the models still on the shelf
@@ -252,12 +251,12 @@ public partial class DecisionBox
         _deployAt = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
         _input.Proposing.Clear(); foreach (var r in layout) _input.Proposing.Add(r.ModelId);
         _view.ShowGhosts(layout);
-        _hint.Text = "Drag to place · Shift: pick models · 1–5 while holding: rows · Enter: place · Esc: clear";
+        if (_head.Head is { } head) Head(head with { Prompt = null }, _head.Ordinal);   // the ghosts are down: the card is the Place button
         _onEnter = PlaceDeploy;
         _onCancel = () => { Reset(); Render(); return true; };                    // Reset drops _deployUnit, so Render arms a fresh click
-        var place = Btn("Place (Enter)", PlaceDeploy); Add(place);
-        // A ghost on another model's base is named; under strict Place waits until none is.
+        // A ghost on another model's base is named, only while it holds; under strict Place waits until none is.
         var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
+        var place = DecisionTiles.Action("Place", DecisionCard.Enter, PlaceDeploy, primary: true, icon: "ready"); Foot(place);
         _regate = () =>
         {
             if (_deployAt is not { } at || _s.Projection is not { } p || _s.Game is not { } game || !IsInstanceValid(place)) return;

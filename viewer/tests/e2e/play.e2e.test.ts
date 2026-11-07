@@ -32,7 +32,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, the decision bo
       const addressed = open.teams.includes(t1.id) ? boxA : boxB;
       const other = addressed === boxA ? boxB : boxA;
       expect(other.panel.visible).toBe(true);
-      expect(addressed.panel.title).not.toBe('');
+      expect(addressed.panel.head).not.toBeNull();
 
       // A refusal shows the server's words over the same Ask: an answer outside the legal set, sent as the box sends one.
       const bogus = await (addressed === boxA ? a : b).sendCommand({
@@ -46,7 +46,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, the decision bo
 
       // Answer the way a player does: the deploy pick is numbered, and its key sends the unit; the server closes the Ask.
       expect(open.question).toBe('deploy');
-      expect(addressed.panel.hint).toBe('1–3: pick a unit to deploy');
+      expect(addressed.panel.controls.filter((c) => c.kind === 'row').map((c) => c.kind === 'row' && c.key)).toEqual(['1', '2', '3']);
       expect(addressed.number(1)).toBe(true);
       await until('the Ask to close', () => !a.state.projection!.openAsks.has(open.id));
       expect(a.state.projection!.lastSeq).toBeGreaterThan(firstSeq);

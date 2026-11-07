@@ -11,12 +11,13 @@ import type { Enforcement, ModelRelocation, MoveRegion, Placement, Point3, Yaw }
 import type { AskView } from './askView';
 import { allWords, move as contactsOfMove, placement as contactsOfPlacement } from './contactCheck';
 import { CommitHold } from './commitHold';
-import { type Control, type DecisionBox, type MoveHooks } from './decisionBox';
+import { button, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
+import { barOf, ENTER, inches, STOP } from './decisionCard';
 import { stopLabel } from './decisionView';
 import { around, layout, type MidDeploy } from './deployView';
 import { GhostStash } from './ghostStash';
 import type { Held } from './modelDrag';
-import { gate as gateOf, isDisembark, isShelfPlacement, read, usedInFrame, type MoveGate, type RulerReadout } from './moveRuler';
+import { gate as gateOf, isDisembark, isShelfPlacement, read, type MoveGate, type RulerReadout } from './moveRuler';
 import type { Names } from './names';
 import type { PendingDrops } from './pendingDrops';
 import type { Violations } from './violations';
@@ -41,9 +42,7 @@ export type MoveBoxHooks = MoveHooks & {
   region(): MoveRegion | null;
 };
 
-const fixed = (n: number): string => n.toFixed(1);
 const xy = (p: { x: number; y: number }): XY => ({ x: p.x, y: p.y });
-const button = (id: string, label: string, disabled = false): Control => ({ kind: 'button', id, label, disabled });
 const reasonOf = (text: string | null): Control => ({ kind: 'reason', id: 'reason', text: text ?? '' });
 
 /** DecisionBox.Resolve: what a table click names in a list of model ids: the clicked id itself, or the model of the clicked unit. */
@@ -109,7 +108,6 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     if (lead === undefined) return;
     const size = p.board.table.size;
     let allowance: number | null = null;
-    let note = '';
     let start: () => void;
     box.proposing = new Set(legal.modelIds);
     if (isDisembark(legal)) {
@@ -124,8 +122,9 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       const at = container.location.placement;
       const within = legal.containment!.exitWithin ?? 0;
       const fromShelf = isShelfPlacement(legal, p);                       // a Spawn or Split reserve: the Ask's prompt says what is placed
-      note = fromShelf ? 'Drag them into place, then commit.'
-        : `Disembark: place every model fully within ${fixed(within)}" of ${n.piece(containerId)}. Drag them out, then commit.`;
+      const unitName = n.unit(lead.unitId);
+      box.setHead(fromShelf ? { icon: 'army', title: 'Place', subject: unitName, prompt: ask.prompt }   // the Ask's prompt says what is placed
+        : { icon: 'advance', title: 'Disembark', subject: unitName, prompt: `Fully within ${inches(within)} of ${n.piece(containerId)}` });
       start = () => {
         box.ghosts.clear();
         for (const r of around(legal.modelIds.map((id) => p.models.get(id)!), at, container.slot.base, size, legal.separation))
@@ -133,14 +132,10 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       };
     } else {
       if (lead.location.kind !== 'table') { box.proposing = new Set(); return; }
-      const frame = ask.frameId === undefined ? undefined : p.stack.find((f) => f.id === ask.frameId);
-      const used = frame === undefined ? 0 : usedInFrame(frame, lead.id);
       // The Ask's allowance is already what this segment has left: never subtract `used` again.
       const remaining = Math.max(0, legal.allowance);
       allowance = remaining;
       minimum = legal.minDistance ?? null;
-      note = legal.minDistance === undefined ? `Move up to ${fixed(remaining)}" (used ${fixed(used)}") · Alt: place freely.`
-        : `Move ${fixed(legal.minDistance)}" to ${fixed(remaining)}" (used ${fixed(used)}") · Alt: place freely.`;
       rings = { ids: [lead.id], legal, p };
       // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
       start = () => {
@@ -151,8 +146,9 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     moving = { legal, p, allowance };
     start();
     box.handlers.onCancel = () => { start(); deps.violations.clear(); regate?.(); return true; };
-    note += offerEmbark(box, ask, legal, p, n);
-    box.setTexts({ note });
+    box.setTexts({ note: offerEmbark(box, ask, legal, p, n) });
+    // The bar: the farthest ghost over the allowance, a mark at the least; the words `Move up to 12"` go.
+    if (allowance !== null) box.add({ kind: 'bar', id: 'bar', bar: null });
 
     const relocate = (continues: boolean): void => {
       if (!current.allowed) return;
@@ -167,15 +163,15 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       deps.drops?.add(token, moves);
     };
     box.handlers.onEnter = () => relocate(false);
-    box.add(button('commit', 'Commit move (Enter)'), () => relocate(false));
+    box.add(reasonOf(null));
+    box.add(button('commit', 'Commit', ENTER, true, 'ready'), () => relocate(false));
     const ids = ['commit'];
     const stop = legal.stoppable && !isDisembark(legal) ? stopLabel(p, legal) : null;
     if (stop !== null) {
       box.handlers.onStop = () => relocate(true);
-      box.add(button('stop', `${stop} (C)`), () => relocate(true));
+      box.add(button('stop', stop, STOP, false, stop.startsWith('Cast') ? 'cast' : 'hold'), () => relocate(true));
       ids.push('stop');
     }
-    box.add(reasonOf(null));
     // Any ghost out of range is counted and each contact named; under strict the commit and the stop wait until none is.
     let current: MoveGate = { allowed: true, reason: null };
     regate = () => {
@@ -189,6 +185,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       if (g !== null)
         deps.violations.measure(legal.modelIds, allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)));
       current = gateOf(readouts, deps.enforcement(), marked(legal.modelIds));
+      if (allowance !== null) box.replace('bar', { kind: 'bar', id: 'bar', bar: barOf(readouts, allowance, minimum) });
       show(box, current, ids);
     };
     regate();
@@ -228,7 +225,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
         moves: legal.modelIds.map((id): ModelRelocation => ({ modelId: id, from: p.models.get(id)!.location, to: { kind: 'inside', containerId: container } })),
       });
     };
-    return ` Or click a container in reach to embark: ${enterable.map((id) => n.piece(id)).join(', ')}.`;
+    return `Click to embark: ${enterable.map((id) => n.piece(id)).join(', ')}`;
   }
 
   // ---- deployment placement ----
@@ -236,7 +233,7 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
   function startDeploy(box: DecisionBox, mid: MidDeploy, n: Names): void {
     const unit = mid.unitId;
     box.deployUnit = unit;
-    box.setTexts({ title: `Place the models of ${n.unit(unit)}`, hint: 'Click the table where the unit goes' });
+    box.setHead({ icon: 'army', title: 'Place', subject: n.unit(unit), prompt: 'Click the table where the unit goes' });
     box.placementPoint = (at) => dropDeploy(box, unit, at);                // its own slot: a menu point pick cannot take it
     const p = box.host.state().projection;
     const kept = stash.take(unit);
@@ -262,7 +259,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     box.ghosts.clear();
     for (const r of placed) if (r.to.kind === 'table') box.ghosts.set(r.modelId, r.to.placement);
     box.proposing = new Set(placed.map((r) => r.modelId));
-    box.setTexts({ hint: 'Drag to place · Shift: pick models · 1–5 while holding: rows · Enter: place · Esc: clear' });
+    const head = box.head;
+    if (head !== null) box.setHead({ ...head, prompt: null });          // the ghosts are down: the card is the Place button
     let current: MoveGate = { allowed: true, reason: null };
     const place = (): void => {
       const st = box.host.state();
@@ -275,8 +273,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     };
     box.handlers.onEnter = place;
     box.handlers.onCancel = () => { box.rebuild(); return true; };          // the rebuild drops the deploy unit, so the render arms a fresh click
-    box.add(button('place', 'Place (Enter)'), place);
     box.add(reasonOf(null));
+    box.add(button('place', 'Place', ENTER, true, 'ready'), place);
     // A ghost on another model's base is named; under strict Place waits until none is.
     regate = () => {
       const st = box.host.state();

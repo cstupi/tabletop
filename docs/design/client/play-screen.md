@@ -97,7 +97,7 @@ panel's height never goes negative. The unit card's slot starts 8 px below the r
 (`HudLayout.Below`), so a roster collapsed by R gives the card the column back; the terrain card takes the same slot, and outside play, with no roster, the whole column; the roster's half stays its ceiling. `UnitCard.Place` sizes the card to its
 content, capped by its slot, and anchors it to the slot's bottom; `Roster.Place` sizes its scroll list to its content,
 capped by its slot, against the slot's top, since a `ScrollContainer` reports no content height. `DecisionBox.Place` does the
-same for its controls against the slot's bottom: the title, notes, refusal and hint stay in view and the controls scroll.
+same for its controls against the slot's bottom: the title band, notes, refusal and foot stay in view and the body scrolls.
 
 `Toasts` stacks the newest three messages top right in every status, each removed after 4 s. `KeyOverlay` is centred on
 the window and sits outside the frame. `EndMessage` stays a full-screen backdrop.
@@ -105,14 +105,15 @@ the window and sits outside the frame. `EndMessage` stays a full-screen backdrop
 ## The decision box
 
 One box, in the right column above the undo and log buttons, rendering whatever Ask is currently addressed to the player's
-team through `DecisionView`, with the keys that apply in a hint line under it; with nothing addressed to me it
-shows the waiting line. It keys on the legal set, never on the question name, so a new ruleset question needs no new
-branch.
+team through `DecisionView` and `DecisionCard` as a card (spec `2026-11-07-ux-redesign-2-play-hud.md` → Decision box): a title
+band in the answering team's colour with the Ask's icon, the body per mode, and the actions at the foot with their key caps; with
+nothing addressed to me it shows a quiet band per team the game waits on. It keys on the legal set; the question name chooses
+only the card's icon and words, so a new ruleset question needs no new branch.
 
 ```mermaid
 flowchart TD
   mine["AskViewModel.Mine(projection, game, myTeam, muted)"]
-  none["nothing addressed to me<br/>-> WaitingFor renders 'Waiting for Team N'"]
+  none["nothing addressed to me<br/>-> DecisionCard.Quiet: a band per waiting team"]
   legal{"AskMode = ModeOf(ask.Legal)"}
   choose["Choose: Options<br/>-> Chosen(optionId)"]
   pick["PickPieces: PieceSelection<br/>-> SelectedPieces"]

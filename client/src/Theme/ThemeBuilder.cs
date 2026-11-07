@@ -61,7 +61,33 @@ public static class ThemeBuilder
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
         LabelVariant(t, Variation.BannerDetail, u.Display with { Size = 24 }, C(u.Text));
         t.SetColor("font_outline_color", Variation.BannerDetail, C(u.Background)); t.SetConstant("outline_size", Variation.BannerDetail, 4);
+        Vocabulary(t, u);
         return t;
+    }
+
+    /// <summary>The shared vocabulary: key cap, card, quiet band, tile, and a card's one lit button.</summary>
+    static void Vocabulary(Godot.Theme t, UiTheme u)
+    {
+        var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
+        StyleBoxFlat Pad(StyleBoxFlat b, int x, int y) { b.ContentMarginLeft = b.ContentMarginRight = x; b.ContentMarginTop = b.ContentMarginBottom = y; return b; }
+        var cap = Pad(Flat(s, C(u.Background) with { A = 0.35f }, C(u.DimText), 1, 0), 5, 1); cap.SetCornerRadiusAll(3);
+        LabelVariant(t, Variation.KeyCap, u.Numerals with { Size = Math.Max(11, u.Body.Size - 4) }, C(u.DimText)); t.SetStylebox("normal", Variation.KeyCap, cap);
+        Variant(t, Variation.Card, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 1 }, C(u.PanelBorder), Math.Max(1, s.BorderWidth), 16));
+        Variant(t, Variation.Quiet, "PanelContainer", "panel", Pad(Flat(s, C(u.Panel) with { A = 0.8f }, C(u.PanelBorder) with { A = 0.5f }, 1, 0), 12, 8));
+        t.SetTypeVariation(Variation.Tile, "Button");
+        foreach (var (state, bg, edge) in new[] { ("normal", C(u.Background), C(u.PanelBorder)), ("hover", C(u.Background).Lerp(C(u.Accent), 0.18f), C(u.Accent)),
+                     ("pressed", C(u.Background).Lerp(C(u.Accent), 0.32f), C(u.Accent)), ("disabled", C(u.Background) with { A = 0.5f }, C(u.PanelBorder) with { A = 0.5f }) })
+            t.SetStylebox(state, Variation.Tile, Pad(Flat(s, bg with { A = Math.Max(bg.A, 0.5f) }, edge, 1, 0), 10, 8));
+        t.SetStylebox("focus", Variation.Tile, new StyleBoxEmpty());
+        foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Tile, C(u.Text));
+        t.SetColor("font_disabled_color", Variation.Tile, C(u.DimText));
+        t.SetTypeVariation(Variation.Primary, "Button");
+        foreach (var (state, shade) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f) })
+            t.SetStylebox(state, Variation.Primary, Pad(Flat(s, C(u.Accent).Lightened(shade), C(u.Accent).Lightened(shade), 1, 0), 14, 7));
+        t.SetStylebox("disabled", Variation.Primary, Pad(Flat(s, C(u.Accent) with { A = 0.22f }, C(u.Accent) with { A = 0.4f }, 1, 0), 14, 7));
+        t.SetStylebox("focus", Variation.Primary, new StyleBoxEmpty());
+        foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color" }) t.SetColor(name, Variation.Primary, C(u.Background) with { A = 1 });
+        t.SetColor("font_disabled_color", Variation.Primary, C(u.Text) with { A = 0.5f });
     }
 
     /// <summary>A square box outline in the colour, filled inside when on: the check box's icon at the body text's size.</summary>

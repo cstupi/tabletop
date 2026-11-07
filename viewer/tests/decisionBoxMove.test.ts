@@ -8,7 +8,7 @@ const answerOf = (c: unknown) => (c as { answer: { kind: string; moves: { modelI
 const contact = (modelId: string, kind: Contact['kind'] = 'on_base'): Contact => ({ modelId, kind });
 
 describe('the move Ask', () => {
-  it('a move from the table proposes each model where it stands and notes the allowance and what was used', () => {
+  it('a move from the table proposes each model where it stands and draws the allowance as a bar', () => {
     const r = moveRig();
     const [a, b] = r.ids as [string, string];
     r.applier.projection.stack.push({
@@ -19,23 +19,24 @@ describe('the move Ask', () => {
     r.openMove(region({ modelIds: [a, b] }), { frameId: 'f1' });
     expect([...r.box.ghosts]).toEqual([[a, at(10, 10)], [b, at(12, 10)]]);
     expect([...r.box.proposing]).toEqual([a, b]);
-    expect(r.panel.note).toBe('Move up to 6.0" (used 5.0") · Alt: place freely.');
+    expect(r.panel.note).toBe('');
+    expect(r.control('bar')).toMatchObject({ kind: 'bar', bar: { text: '0" of 6"', over: false, minimumFraction: null } });
     expect(r.hooks.allowance()).toEqual([{ centre: { x: 10, y: 10 }, radius: 6 }]);
     r.hooks.picked([b]);
     expect(r.hooks.allowance()).toEqual([{ centre: { x: 10, y: 10 }, radius: 6 }, { centre: { x: 12, y: 10 }, radius: 6 }]);
-    expect(r.panel.controls.map((c) => ('label' in c ? c.label : c.kind))).toContain('Commit move (Enter)');
+    expect(r.control('commit')).toMatchObject({ label: 'Commit', key: '⏎', primary: true });
   });
 
-  it('a minimum distance notes the range', () => {
+  it('a minimum distance marks the bar', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, allowance: 36, minDistance: 30 }));
-    expect(r.panel.note).toBe('Move 30.0" to 36.0" (used 0.0") · Alt: place freely.');
+    expect(r.control('bar')).toMatchObject({ bar: { text: '0" of 36"', minimumFraction: 30 / 36 } });
   });
 
-  it('a shelf placement rings the anchor and notes the prompt', () => {
+  it('a shelf placement rings the anchor and carries the prompt', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.reserveIds, allowance: 0, separation: 1, passesModels: true, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
-    expect(r.panel.note).toBe('Drag them into place, then commit.');
+    expect(r.panel.head).toMatchObject({ icon: 'army', title: 'Place', prompt: 'Advance' });
     expect(r.box.ghosts.size).toBe(2);
     for (const g of r.box.ghosts.values()) expect(Math.hypot(g.position.x - 20, g.position.y - 10)).toBeCloseTo(2 + 1 + 0.5, 6);   // the anchor's half, the separation, the model's half
     expect(r.hooks.allowance()).toEqual([]);
@@ -45,7 +46,7 @@ describe('the move Ask', () => {
     const r = moveRig();
     for (const id of r.ids) r.applier.projection.models.get(id)!.location = { kind: 'inside', containerId: r.truck };
     r.openMove(region({ modelIds: r.ids, allowance: 0, containment: { enterable: [], exitingId: r.truck, exitWithin: 6 } }));
-    expect(r.panel.note).toBe('Disembark: place every model fully within 6.0" of Truck (Truck). Drag them out, then commit.');
+    expect(r.panel.head).toMatchObject({ title: 'Disembark', prompt: 'Fully within 6" of Truck (Truck)' });
     expect(r.box.ghosts.size).toBe(2);
     expect(r.control('stop')).toBeUndefined();
   });
@@ -151,7 +152,7 @@ describe('the move Ask', () => {
   it('the stop sends continues true', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, stoppable: true }));
-    expect(r.panel.controls.map((c) => ('label' in c ? c.label : ''))).toContain('Stop here to use a rule (C)');
+    expect(r.control('stop')).toMatchObject({ label: 'Stop here', key: 'C' });
     expect(r.box.stop()).toBe(true);
     expect(answerOf(r.sent[0]).continues).toBe(true);
   });
@@ -159,7 +160,7 @@ describe('the move Ask', () => {
   it('a click on an enterable container answers Inside for every model', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, containment: { enterable: [r.truck] } }));
-    expect(r.panel.note).toBe('Move up to 6.0" (used 0.0") · Alt: place freely. Or click a container in reach to embark: Truck (Truck).');
+    expect(r.panel.note).toBe('Click to embark: Truck (Truck)');
     expect([...r.box.eligible]).toEqual([r.truck]);
     r.box.target(r.rival);
     expect(r.sent).toHaveLength(0);

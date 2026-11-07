@@ -22,16 +22,15 @@ function placed(over: Parameters<typeof moveRig>[0] = {}) {
 describe('deploy placement', () => {
   it('a mid-deploy pick asks for a click and the click lays the unit out', () => {
     const r = armed();
-    expect(r.panel.title).toBe('Place the models of Reserve');
-    expect(r.panel.hint).toBe('Click the table where the unit goes');
+    expect(r.panel.head).toEqual({ icon: 'army', title: 'Place', subject: 'Reserve', prompt: 'Click the table where the unit goes' });
     expect(r.box.deployUnit).toBe(r.reserve.id);
     expect(r.panel.visible).toBe(true);
     expect(r.box.placeAt({ x: 30, y: 20, z: 0 })).toBe(true);
     expect([...r.box.ghosts.keys()]).toEqual(r.reserveIds);
     for (const g of r.box.ghosts.values()) expect(Math.hypot(g.position.x - 30, g.position.y - 20)).toBeLessThan(2);
     expect([...r.box.proposing]).toEqual(r.reserveIds);
-    expect(r.panel.hint).toBe('Drag to place · Shift: pick models · 1–5 while holding: rows · Enter: place · Esc: clear');
-    expect(r.control('place')).toMatchObject({ label: 'Place (Enter)', disabled: false });
+    expect(r.panel.head?.prompt).toBeNull();
+    expect(r.control('place')).toMatchObject({ label: 'Place', key: '⏎', disabled: false });
     expect(r.box.placeAt({ x: 1, y: 1, z: 0 })).toBe(false);                   // the pick is spent: no second click
   });
 
@@ -40,7 +39,7 @@ describe('deploy placement', () => {
     for (const id of r.reserveIds) r.applier.projection.models.get(id)!.location = { kind: 'table', placement: at(5, 5) };   // no model left on the shelf
     expect(r.box.placeAt({ x: 30, y: 20, z: 0 })).toBe(true);
     expect(r.box.ghosts.size).toBe(0);
-    expect(r.panel.hint).toBe('Click the table where the unit goes');
+    expect(r.panel.head?.prompt).toBe('Click the table where the unit goes');
     expect(r.box.placementPoint).not.toBeNull();
   });
 
@@ -96,7 +95,7 @@ describe('deploy placement', () => {
     await tick();
     expect(r.panel.refusal).toBe('Could not place the models: socket closed');
     expect(r.box.ghosts.size).toBe(0);
-    expect(r.panel.hint).toBe('Click the table where the unit goes');
+    expect(r.panel.head?.prompt).toBe('Click the table where the unit goes');
   });
 
   it('Esc clears the ghosts and asks for a click again', () => {
@@ -104,7 +103,7 @@ describe('deploy placement', () => {
     r.box.dragged(r.reserveIds[0]!, at(31, 21));
     expect(r.box.cancel()).toBe(true);
     expect(r.box.ghosts.size).toBe(0);
-    expect(r.panel.hint).toBe('Click the table where the unit goes');
+    expect(r.panel.head?.prompt).toBe('Click the table where the unit goes');
     expect(r.box.deployUnit).toBe(r.reserve.id);
     expect(r.box.placementPoint).not.toBeNull();
     expect(r.control('place')).toBeUndefined();
@@ -129,7 +128,7 @@ describe('deploy placement', () => {
     ];
     const r = moveRig({ participantId: P3, participants });
     r.openDeployPick();
-    expect(r.panel.title).toBe('Place the models of Reserve');
+    expect(r.panel.head?.title).toBe('Place');
     expect(r.box.placeAt({ x: 30, y: 20, z: 0 })).toBe(true);
     r.box.enter();
     expect(r.sent).toHaveLength(1);

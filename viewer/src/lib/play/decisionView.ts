@@ -1,11 +1,11 @@
 // viewer/src/lib/play/decisionView.ts
-// client/src/Core/DecisionView.cs: what the decision box shows (in-game UX spec → Decision box): the first open Ask addressed to my team,
-// its numbered entries (keys 1–9, then 0 for entries past nine), and the hint line; with nothing addressed to me, no Ask. The waiting line
-// is headerView's `waiting`, which the box shows then.
+// client/src/Core/DecisionView.cs: what the decision box shows (UX redesign part 2 → Decision box): the first open Ask addressed to my
+// team and its numbered entries (keys 1–9, then 0 for entries past nine); with nothing addressed to me, no Ask, and the box draws
+// decisionCard's quiet bands. The keys are caps on the buttons; there is no hint line.
 
 import type { Projection } from '../live/apply';
 import type { Ask, AskOption, GameInfo, MoveRegion, Options } from '../protocol/wire.generated';
-import { mine as myAsk, confirmLabel, type AskMode } from './askView';
+import { mine as myAsk, type AskMode } from './askView';
 import { DEPLOY_QUESTIONS } from './deployView';
 import type { Names } from './names';
 
@@ -14,18 +14,18 @@ const KEYED = 9;
 export interface Numbered { readonly key: number; readonly label: string; readonly optionId: string }   // key 0: past nine
 export interface DecisionModel {
   readonly ask: Ask | null; readonly mode: AskMode | null; readonly title: string; readonly numbered: readonly Numbered[];
-  readonly hint: string; readonly autoPass: boolean;
+  readonly autoPass: boolean;
 }
 /** One line of a choice list: an option's button, or (option null) the note under a unit's buttons. */
 export interface ChoiceRow { readonly option: AskOption | null; readonly note: string | null }
 
 export function decisionOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, muted: ReadonlySet<string>): DecisionModel {
   const mine = myAsk(p, game, myTeam, muted);
-  if (mine === null) return { ask: null, mode: null, title: '', numbered: [], hint: '', autoPass: false };
+  if (mine === null) return { ask: null, mode: null, title: '', numbered: [], autoPass: false };
   const ask = mine.ask;
   const numbered = numberedOf(ask, n);
   const title = ask.legal.kind === 'allocation' ? `Remove ${ask.legal.amount}` : ask.prompt;
-  return { ask, mode: mine.mode, title, numbered, hint: hintOf(p, ask, numbered), autoPass: mine.autoPass };
+  return { ask, mode: mine.mode, title, numbered, autoPass: mine.autoPass };
 }
 
 function numberedOf(ask: Ask, n: Names): Numbered[] {
@@ -101,28 +101,5 @@ export function noteOf(p: Projection, game: GameInfo, myTeam: string | null, mut
  */
 export function stopLabel(p: Projection, m: MoveRegion): string | null {
   if (!m.stoppable) return null;
-  return m.modelIds.some((id) => (p.models.get(id)?.spellTokens ?? 0) > 0) ? 'Cast a spell' : 'Stop here to use a rule';
-}
-
-function hintOf(p: Projection, ask: Ask, numbered: readonly Numbered[]): string {
-  const keyed = numbered.filter((x) => x.key > 0).length;
-  const keyText = keyed === 1 ? '1' : `1–${keyed}`;
-  const l = ask.legal;
-  switch (l.kind) {
-    case 'options':
-      if (keyed === 0) return '';
-      return `${keyText}: pick${l.choices.some((c) => c.pieces.length > 0) ? ' · click a glowing unit' : ''}`;
-    case 'pieces':
-      if (DEPLOY_QUESTIONS.includes(ask.question)) return `${keyText}: pick a unit to deploy`;
-      return `Click a glowing ${l.eligible.length > 0 && p.models.has(l.eligible[0]!) ? 'model' : 'unit'}${l.max > 1 ? ' · Enter: done' : ''}`;
-    case 'move_region': {
-      const stop = stopLabel(p, l);
-      return `Drag to move · Shift: pick models · 1–5 while holding: rows · Q/E: turn · Enter: commit · ${stop !== null ? `C: ${stop[0]!.toLowerCase()}${stop.slice(1)} · ` : ''}Esc: reset`;
-    }
-    case 'assignment': return 'Click a target · Click a chip: that group alone · Enter: fire · Esc: clear';
-    case 'allocation': return 'Click a model: +1 · Right-click: −1 · Auto: fill the rest · Enter: confirm';
-    case 'token_spend': return 'Set the tokens per caster · Enter: spend';
-    case 'confirmation': return `Enter: ${confirmLabel(ask)}`;
-    default: return '';
-  }
+  return m.modelIds.some((id) => (p.models.get(id)?.spellTokens ?? 0) > 0) ? 'Cast here' : 'Stop here';
 }
