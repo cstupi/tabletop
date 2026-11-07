@@ -55,8 +55,8 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     public int WoundsLeft => Groups.Sum(g => g.WoundsLeft);
     public int WoundsMax => Groups.Sum(g => g.WoundsMax);
 
-    /// <summary>One pip per model in card order, filled while it stands; past twelve `alive/size`.</summary>
-    public string Pips => Sheet.Models.Count <= RosterPipsMax ? string.Concat(Sheet.Models.Select(m => m.Removed ? "○" : "●")) : $"{Sheet.Alive}/{Sheet.Size}";
+    /// <summary>One pip per model, survivors first as the models row and the roster draw them; past twelve `alive/size`.</summary>
+    public string Pips => Sheet.Models.Count <= RosterPipsMax ? RosterView.Pips(Sheet.Models.Count(m => !m.Removed), Sheet.Models.Count) : $"{Sheet.Alive}/{Sheet.Size}";
 
     /// <summary>`5 models · 2 wounds left on Sergeant`: the count of standing models, then the wounds left when a standing model has more than
     /// one (on that model by name when it is the only one, else summed).</summary>

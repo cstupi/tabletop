@@ -16,11 +16,19 @@ public class UnitCardPipsTests
     {
         var c = Card(M("Warrior", 1, 1, false, "w", "Rifle"), M("Warrior", 1, 1, false, "w", "Rifle"), M("Warrior", 0, 1, true, "w", "Rifle"),
             M("Sergeant", 2, 3, false, "s", "Plasma Pistol"));
-        Assert.Equal("●●○●", c.Pips);
+        Assert.Equal("●●●○", c.Pips);
         Assert.Equal("3 models · 2 wounds left on Sergeant", c.CountNote);
         var sgt = c.Groups[1];
         Assert.Equal(("●", "Sergeant · Plasma Pistol", "●●○", "2/3"), (sgt.Pips, sgt.Name, sgt.WoundPips, sgt.WoundCount));
         Assert.Equal(("●●○", "Warrior", (string?)null), (c.Groups[0].Pips, c.Groups[0].Name, c.Groups[0].WoundPips));
+    }
+
+    [Fact]
+    public void The_pips_put_survivors_first_as_the_models_row_and_the_roster_do()
+    {
+        var c = Card(M("Warrior", 0, 1, true, "w"), M("Warrior", 0, 1, true, "w"), M("Warrior", 0, 1, true, "w"), M("Warrior", 0, 1, true, "w"),
+            M("Sergeant", 1, 1, false, "s"));
+        Assert.Equal("●○○○○", c.Pips);
     }
 
     [Fact]

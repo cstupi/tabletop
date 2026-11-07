@@ -40,9 +40,11 @@ export const groupName = (g: ModelGroup): string => g.label + (g.loadout.length 
 export const groupWoundPips = (g: ModelGroup): string | null => (showsWounds(g) ? pipsOf(g.woundsLeft, g.woundsMax) : null);
 export const groupWoundCount = (g: ModelGroup): string => `${g.woundsLeft}/${g.woundsMax}`;
 
-/** UnitCardContent.Pips: one pip per model in card order, filled while it stands; past twelve `alive/size`. */
-export const cardPips = (c: UnitCardContent): string =>
-  c.sheet.models.length <= MAX_PIPS ? c.sheet.models.map((m) => (m.removed ? '○' : '●')).join('') : `${c.sheet.alive}/${c.sheet.size}`;
+/** UnitCardContent.Pips: one pip per model, survivors first as the models row and the roster draw them; past twelve `alive/size`. */
+export const cardPips = (c: UnitCardContent): string => {
+  const standing = c.sheet.models.filter((m) => !m.removed).length, n = c.sheet.models.length;
+  return n <= MAX_PIPS ? '●'.repeat(standing) + '○'.repeat(n - standing) : `${c.sheet.alive}/${c.sheet.size}`;
+};
 
 /** UnitCardContent.CountNote: `5 models · 2 wounds left on Sergeant`. */
 export function countNote(c: UnitCardContent): string {

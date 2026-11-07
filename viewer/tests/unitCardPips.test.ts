@@ -15,11 +15,17 @@ describe('UnitCardContent pips', () => {
   it('pips per model and a note naming the one tough model\'s wounds', () => {
     const c = card(m('Warrior', 1, 1, false, 'w', 'Rifle'), m('Warrior', 1, 1, false, 'w', 'Rifle'), m('Warrior', 0, 1, true, 'w', 'Rifle'),
       m('Sergeant', 2, 3, false, 's', 'Plasma Pistol'));
-    expect(cardPips(c)).toBe('●●○●');
+    expect(cardPips(c)).toBe('●●●○');
     expect(countNote(c)).toBe('3 models · 2 wounds left on Sergeant');
     const sgt = c.groups[1]!;
     expect([groupPips(sgt), groupName(sgt), groupWoundPips(sgt), groupWoundCount(sgt)]).toEqual(['●', 'Sergeant · Plasma Pistol', '●●○', '2/3']);
     expect([groupPips(c.groups[0]!), groupName(c.groups[0]!), groupWoundPips(c.groups[0]!)]).toEqual(['●●○', 'Warrior', null]);
+  });
+
+  it('the pips put survivors first as the models row and the roster do', () => {
+    const c = card(m('Warrior', 0, 1, true, 'w'), m('Warrior', 0, 1, true, 'w'), m('Warrior', 0, 1, true, 'w'), m('Warrior', 0, 1, true, 'w'),
+      m('Sergeant', 1, 1, false, 's'));
+    expect(cardPips(c)).toBe('●○○○○');
   });
 
   it('the note is the count alone without tough models and sums several', () => {
