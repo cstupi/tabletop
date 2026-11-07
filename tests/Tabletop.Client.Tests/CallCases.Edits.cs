@@ -114,21 +114,28 @@ public static partial class CallCases
                 return TableCase("edit/" + control, log, status, creator, choice, s => build(s) is { } e ? EditMsg(e) : null, $"{status.ToString().ToLowerInvariant()} {who} {suffix}".Trim(), decide);
             }
             var game = Log(log).Game;
-            for (var i = 0; i < game.Teams.Count; i++)
+            // The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md): each column's Join and Also play this side, Watching last.
+            for (var i = 0; i <= game.Teams.Count; i++)
             {
                 var index = i;
-                yield return E("teamButton", Obj(("team", index)), s => LobbyView.Teams(s.Game, s.ParticipantId, creator)[index] is { Enabled: true } t ? t.Edit : null, $"team {index + 1}",
-                    (s, d) => { var t = LobbyView.Teams(s.Game, s.ParticipantId, creator)[index]; d["button"] = Obj(("text", t.Text), ("enabled", t.Enabled), ("leave", t.Leave)); });
+                yield return E("columnJoin", Obj(("column", index)), s => TeamColumns.Of(s.Game, s.ParticipantId, creator)[index].Join?.Edit, $"column {index + 1}",
+                    (s, d) => d["button"] = TeamColumns.Of(s.Game, s.ParticipantId, creator)[index].Join is { } j ? Obj(("text", j.Text), ("enabled", j.Enabled), ("why", j.Why)) : null);
+                if (index < game.Teams.Count)
+                    yield return E("columnAlsoPlay", Obj(("column", index)), s => TeamColumns.Of(s.Game, s.ParticipantId, creator)[index].AlsoPlay, $"column {index + 1}");
             }
+            // A row's move: to each team by ordinal, and to Watching (-1); a target the viewer may not send it to sends nothing.
+            foreach (var row in game.Participants.Select(p => p.Id).Distinct().Take(2))
+                for (var t = -1; t < game.Teams.Count; t++)
+                {
+                    var (target, column) = (row, t);
+                    yield return E("columnMove", Obj(("participantId", S(target)), ("team", column)),
+                        s => TeamColumns.MoveTo(s.Game, s.ParticipantId, creator, target, column < 0 ? null : s.Game.Teams.OrderBy(x => x.Ordinal).ElementAt(column).Id),
+                        $"{S(target)[^4..]} to {column}");
+                }
             yield return E("watch", Obj(), _ => LobbyEdits.Watch());
             yield return E("createTeam", Obj(), _ => LobbyEdits.CreateTeam());
             if (status == GameStatus.Lobby && creator)
             {
-                foreach (var choice in new[] { 0, 2 })
-                {
-                    var target = game.Participants[0].Id;
-                    yield return E("place", Obj(("participantId", S(target)), ("choice", choice)), s => LobbyView.Place(s.Game, target, choice), $"choice {choice}");
-                }
                 yield return E("startSetup", Obj(), _ => LobbyEdits.StartSetup());
                 yield return E("configure", Obj(("name", "  Friday  "), ("shape", "player-turn"), ("enforcement", "strict")), s => Configure(s), "");
                 yield return E("configureHash", Obj(("name", "  Friday  "), ("shape", "player-turn"), ("enforcement", "strict"), ("propertiesHash", "other-hash")), s => Configure(s, "other-hash"), "");

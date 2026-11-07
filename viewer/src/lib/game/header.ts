@@ -7,7 +7,7 @@ import type { Edit, GameStatus } from '../protocol/wire.generated';
 import { ruleSetText } from '../play/headerText';
 import { STATUS_LABEL } from '../games/present';
 import { endSetupText } from '../lobby/lobbyView';
-import { waitingFor } from '../lobby/lobbyPage';
+import { creatorName } from '../lobby/teamColumns';
 import { endSetup } from '../lobby/lobbyEdits';
 
 export const WATCHER_ID = '00000000-0000-0000-0000-000000000000';
@@ -51,7 +51,7 @@ export function headerOf(snap: ConnectionState | null, creator: boolean): Header
     ruleSet: game === null ? null : ruleSetText(game),
     connection: snap === null ? CONNECTION.connecting : CONNECTION[snap.phase],
     primary,
-    waiting: game === null || watcher || status !== 'setup' ? null : waitingFor(game, creator),
+    waiting: game === null || watcher || status !== 'setup' || creator ? null : `${creatorName(game)} ends setup`,
     canLeave: early && !watcher,
   };
 }

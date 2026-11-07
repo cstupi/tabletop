@@ -14,7 +14,7 @@ public partial class GameScreen : Control
     public TableView Table { get; private set; } = null!;
     public TableInput Input { get; private set; } = null!;
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!, _sideColumn = null!; MarginContainer _sideHead = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
-    Control? _lobby, _setup, _head; WaitingPanel? _waiting; readonly List<TeamPanel> _teams = new(); bool _wasWaiting;
+    Control? _lobby, _setup, _head; WaitingPanel? _waiting; bool _wasWaiting;
     readonly SetupFolds _folds = new();   // the sections' open state outlives each rebuild
     SubViewportContainer _tableBox = null!; Control _hud = null!; TerrainCard? _terrainCard; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     LoadingCurtain _curtain = null!; LoadingPanel _strip = null!; readonly LoadingGate _stripGate = new(TimeSpan.FromMilliseconds(200)); bool _entered;
@@ -51,7 +51,7 @@ public partial class GameScreen : Control
         _hud.AddChild(_toasts = new Toasts());
         _hud.AddChild(_strip = new LoadingPanel { Strip = true, Visible = false });
         _onLayout = QueueLayout;
-        _hud.Resized += _onLayout; _sideColumn.Resized += _onLayout; _sideColumn.VisibilityChanged += _onLayout;
+        _hud.Resized += _onLayout; _sideColumn.Resized += _onLayout; _sideColumn.VisibilityChanged += _onLayout; _sideHead.Resized += _onLayout;   // the head grows with its team columns: the terrain list follows
         _corner.MinimumSizeChanged += QueueLayout; _toasts.MinimumSizeChanged += QueueLayout;   // children of the screen: they die with it
         // A Hud button that keeps the focus would be pressed by Space, the camera key: buttons give it straight back.
         _onFocus = c => { if (c is BaseButton) c.ReleaseFocus(); };
@@ -68,7 +68,7 @@ public partial class GameScreen : Control
         }
         Input.SelectionChanged += ShowSelection;
         // A late army arrives as a board after the game info: the waiting panel follows the board, and goes when the board ends the wait.
-        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); RefreshAll(); } } };
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
         _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
         // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
         _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred(); };
@@ -103,6 +103,7 @@ public partial class GameScreen : Control
         Ui.Changed -= _onTheme;
         if (IsInstanceValid(_hud)) _hud.Resized -= _onLayout;
         if (IsInstanceValid(_sideColumn)) { _sideColumn.Resized -= _onLayout; _sideColumn.VisibilityChanged -= _onLayout; }
+        if (IsInstanceValid(_sideHead)) _sideHead.Resized -= _onLayout;
         if (_session is null) return;
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.Frame.Render -= _onFrame;
@@ -117,7 +118,6 @@ public partial class GameScreen : Control
     {
         var game = _session.Game;
         ShowStatus();
-        foreach (var t in _teams) t.QueueFree(); _teams.Clear();
         _lobby?.QueueFree(); _setup?.QueueFree(); _head?.QueueFree(); _lobby = _setup = _head = null;
         _wasWaiting = game is not null && _session.WaitingTeams.Count > 0;
         // The waiting panel is kept and refreshed, not rebuilt: a game update that leaves its lines alone keeps an open army dropdown open.
@@ -133,13 +133,20 @@ public partial class GameScreen : Control
         if (_wasWaiting) { if (_waiting is null) _side.AddChild(_waiting = new WaitingPanel()); else _waiting.Refresh(); }
         if (!playing)
         {
-            // Setup's sections first, then Game settings and Players; the team cards inside Players.
+            // The head: the phase, Start or End setup, Still to do, and in setup the compact team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md).
             _sideHead.AddChild(_head = new SidePanelHead());
-            if (game.Status == GameStatus.Setup) _side.AddChild(_setup = new SetupToolbar(this, _folds));
-            var lobby = new LobbyPanel { Leave = ConfirmLeave, Folds = _folds }; _side.AddChild(_lobby = lobby);
-            foreach (var team in game.Teams) { var panel = new TeamPanel(team); _teams.Add(panel); lobby.TeamCards.AddChild(panel); }
+            var settings = new LobbyPanel { Leave = ConfirmLeave, Folds = _folds };
+            if (game.Status == GameStatus.Setup) { _side.AddChild(_setup = new SetupToolbar(this, _folds)); _side.AddChild(_lobby = settings); }
+            else
+            {
+                // The lobby: the team columns across the window, Game settings in a column of its own on the right.
+                var page = new HBoxContainer(); page.AddThemeConstantOverride("separation", 32);
+                page.AddChild(new TeamColumnsPanel(compact: false) { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkBegin });
+                settings.CustomMinimumSize = new Vector2(380, 0); settings.SizeFlagsVertical = SizeFlags.ShrinkBegin;
+                page.AddChild(settings);
+                _side.AddChild(_lobby = page);
+            }
         }
-        RefreshTeams();
         ShowPlayPanels(playing);
     }
 
@@ -151,17 +158,14 @@ public partial class GameScreen : Control
         QueueLayout();   // a clipped label's minimum does not follow its text
     }
 
-    /// <summary>A theme switch: the team panels' and the table's team colours, and the undo button's theme, which its CanvasLayer does not
-    /// inherit. Nothing is recreated, so the lobby's and the setup toolbar's input survives; the Hud parts re-render themselves.</summary>
+    /// <summary>A theme switch: the table's team colours, and the undo button's theme, which its CanvasLayer does not inherit. Nothing is
+    /// recreated, so the setup toolbar's input survives; the Hud parts and the team columns re-render themselves.</summary>
     void OnTheme()
     {
-        foreach (var t in _teams) if (IsInstanceValid(t)) t.Recolour();
         if (_session.GameId is not null) Table.Redraw();   // the table is bound only for a game
         if (_undo is not null && IsInstanceValid(_undo)) _undo.Theme = Ui.Theme;
     }
 
-    /// <summary>Teams now; the selection once every other handler of this frame's render has run, since the decision box clears highlights when it renders.</summary>
-    void RefreshAll() { RefreshTeams(); Callable.From(ShowSelection).CallDeferred(); }
 
     /// <summary>The selected unit's models lit and its name and model count in the status area. The Ask's own highlights are put back where the selection leaves them.</summary>
     void ShowSelection()
@@ -175,8 +179,6 @@ public partial class GameScreen : Control
         if (p is null) return;
         foreach (var id in SelectionView.Models(p, Input.Selected)) if (Table.PieceAt(id) is { } n && IsInstanceValid(n)) { n.SetHighlight(Palette.Picked); _lit.Add(id); }
     }
-
-    void RefreshTeams() { foreach (var t in _teams) if (IsInstanceValid(t)) t.Refresh(_session); }
 
     partial void ShowPlayPanels(bool playing);
 }

@@ -1,12 +1,15 @@
 <!-- viewer/src/lib/setup/SetupTools.svelte -->
-<!-- The setup sidebar (SetupToolbar.cs's closed set of edits): Table, Terrain (a search over the catalog, grouped), Objectives, Zones,
-     Layouts and Players, each a collapsible section. Anyone may use every control; each sends one edit Godot sends. -->
+<!-- The setup sidebar (SetupToolbar.cs's closed set of edits): Still to do and the compact team columns on top (spec
+     2026-11-07-lobby-and-setup-redesign-design.md), then Table, Terrain (a search over the catalog, grouped), Objectives, Zones and Layouts,
+     each a collapsible section. Anyone may use every control; each sends one edit Godot sends. -->
 <script lang="ts">
   import type { Api } from '../api/client';
   import type { ArmySummary, AssetDto } from '../api/types';
   import type { ConnectionState } from '../connection/gameConnection';
   import Confirm, { type Question } from '../game/Confirm.svelte';
-  import TeamCards from '../lobby/TeamCards.svelte';
+  import TeamColumns from '../lobby/TeamColumns.svelte';
+  import TeamIcon from '../lobby/TeamIcon.svelte';
+  import { stillToDo } from '../lobby/teamColumns';
   import type { Edit, TableState } from '../protocol/wire.generated';
   import type { BuiltinTerrain, Catalog } from './catalog';
   import { ZONE_STYLES, addAsset as addAssetEdit, addBuiltin as addBuiltinEdit, clearTerrain, objective, swapZones, tableSize, texture, zones } from './edits';
@@ -78,6 +81,17 @@
 </script>
 
 <div class="tools">
+  {#if snap.game !== null}
+    <div class="teams">
+      <ul class="todo" aria-label="Still to do">
+        {#each stillToDo(snap.game, creator) as line (line.text)}
+          <li class:missing={line.missing}>{#if line.missing}<TeamIcon name="warning" size={14} />{/if}{line.text}</li>
+        {/each}
+      </ul>
+      <TeamColumns {snap} {armies} {send} compact />
+    </div>
+  {/if}
+
   <details class="section" open>
     <summary><span>Table</span><span class="meta">{draft.size.width} × {draft.size.length}"</span></summary>
     <div class="body">
@@ -174,12 +188,6 @@
     <div class="body"><LayoutsSection {draft} {api} {send} {report} /></div>
   </details>
 
-  {#if snap.game !== null}
-    <details class="section">
-      <summary><span>Players</span><span class="meta">{snap.game.participants.length}</span></summary>
-      <div class="body"><TeamCards {snap} {armies} {creator} {send} compact /></div>
-    </details>
-  {/if}
 </div>
 
 <Confirm bind:ask={asking} />
@@ -187,6 +195,10 @@
 <style>
   .tools { display: flex; flex-direction: column; }
   .section { border-bottom: 1px solid var(--rule); }
+  .teams { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3) var(--s3) var(--s4); border-bottom: 1px solid var(--rule); }
+  .todo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; color: var(--accent); font-size: .9rem; }
+  .todo li { display: flex; align-items: center; gap: var(--s1); }
+  .todo li.missing { color: var(--warning); }
   summary { display: flex; align-items: center; gap: var(--s2); padding: var(--s3) var(--s4); cursor: pointer; list-style: none;
     font-family: var(--font-display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-tracking);
     font-size: .85rem; color: var(--accent); user-select: none; }

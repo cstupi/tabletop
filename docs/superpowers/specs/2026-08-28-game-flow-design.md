@@ -45,8 +45,9 @@ it. Scoring, objectives and the game's end stay per team.
   each player's move.
 - Menu edits (the override path) stay open to every player of the game, as before.
 
-Joining a team that already has a player is the creator's to do: the creator places a participant
-on a held team from the Players list, and the lobby tells everyone else to ask the creator.
+Joining a team that already has a player is the creator's to do: the creator moves a participant
+onto a held team in the lobby's team columns (spec `2026-11-07-lobby-and-setup-redesign-design.md`), and
+everyone else sees that team's Join disabled with the reason.
 One person may also hold several teams, an army each (*One account, several teams*, below).
 
 ### Teams are frozen at the flip, and a team is a slot

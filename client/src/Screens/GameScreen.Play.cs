@@ -146,7 +146,7 @@ public partial class GameScreen
         _layoutQueued = false;
         if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
         var w = _hud.Size.X - (IsInstanceValid(_sideColumn) && _sideColumn.Visible && _tableBox.Visible ? _sideColumn.Size.X : 0);   // the lobby's panel fills the window
-        if (_setup is SetupToolbar tools && IsInstanceValid(tools)) tools.FitList(_hud.Size.Y);   // the terrain list fills what the window leaves
+        if (_setup is SetupToolbar tools && IsInstanceValid(tools)) tools.FitList(_hud.Size.Y, _sideHead.Size.Y);   // the terrain list fills what the window and the head leave
         if (IsInstanceValid(_sideHead)) _sideHead.AddThemeConstantOverride("margin_right", DecisionBox.ScrollGap + (int)_sidePanel.GetVScrollBar().Size.X);   // the head's right edge on the body's
         var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
         var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;

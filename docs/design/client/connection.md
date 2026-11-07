@@ -112,7 +112,7 @@ flowchart TD
   pred["ProjectTo(seq)<br/>undo prediction"]
   draft["Draft : TableState<br/>setup only"]
   presence["PresenceTable<br/>by participant"]
-  view["TableView, the Hud parts, TeamPanel"]
+  view["TableView, the Hud parts, TeamColumnsPanel"]
 
   frames -- "events" --> applier
   applier --> proj
