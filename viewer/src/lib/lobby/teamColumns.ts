@@ -127,3 +127,7 @@ export function stillToDo(game: GameInfo, creator: boolean): ToDoLine[] {
   }
   return lines;
 }
+
+/** A column folded to one line for setup's head (TeamColumns.Line): "Name · Army", "Name · no army yet" while the team has none, else the name. */
+export const columnLine = (column: TeamColumn): string => column.members.length === 0 ? 'No players yet'
+  : column.members.map((m) => m.army !== null ? `${m.name} · ${m.army}` : m.noArmyWarns ? `${m.name} · ${NO_ARMY}` : m.name).join(', ');

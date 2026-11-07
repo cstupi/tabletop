@@ -29,6 +29,10 @@ public partial class GameScreen : Control
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
         viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
+        // A setup terrain tile dragged from the side panel lands where it is dropped on the table (SetupToolbar.DropTile).
+        viewportContainer.SetDragForwarding(Callable.From((Vector2 _) => default(Variant)),
+            Callable.From((Vector2 at, Variant data) => TileOf(data) is not null && _setup is SetupToolbar && Input.TableAt(at) is not null),
+            Callable.From((Vector2 at, Variant data) => { if (TileOf(data) is { } name && _setup is SetupToolbar tools && Input.TableAt(at) is { } p) tools.DropTile(name, new Tabletop.Geometry.Point2(p.X, p.Y)); }));
         var overlay = new PresenceOverlay(); Table.AddChild(overlay);
         // The side column: a fixed head (the phase and Start or End setup) over a body that scrolls (spec 2026-10-27-godot-setup-screen-design.md).
         _sideColumn = new VBoxContainer { CustomMinimumSize = new Vector2(360, 0) }; root.AddChild(_sideColumn);
@@ -90,13 +94,18 @@ public partial class GameScreen : Control
         var entry = LoadingView.Entry(new EntryState(_session.Phase, _session.Game?.Status, _session.Draft is not null, _session.Projection is not null,
             _session.CatchingUp, _session.GameId is null || Table.SlabReady, _entered));
         if (entry is null && _session.Phase == SessionPhase.Connected) _entered = true;
-        _curtain.Set(entry);
+        _curtain.Set(entry, CurtainHead.Of(_session.Game));
         var meshes = _session.GameId is null ? null : Table.MeshProgress;
         var strip = LoadingView.Strip(_session.Phase, _entered, meshes?.Done ?? 0, meshes?.Total ?? 0);
         var shown = _stripGate.Update(strip is not null, TimeSpan.FromMilliseconds(Time.GetTicksMsec()));
         if (strip is not null) _strip.Set(strip);
         if (shown != _strip.Visible) { _strip.Visible = shown; QueueLayout(); }
     }
+
+    /// <summary>The catalog name a dragged terrain tile carries, else null.</summary>
+    static string? TileOf(Variant data) =>
+        data.VariantType == Variant.Type.String && data.AsString() is var text && text.StartsWith(TerrainTileButton.DragPrefix, StringComparison.Ordinal)
+            ? text[TerrainTileButton.DragPrefix.Length..] : null;
 
     public override void _ExitTree()
     {
@@ -124,17 +133,22 @@ public partial class GameScreen : Control
         if (!_wasWaiting) { _waiting?.QueueFree(); _waiting = null; }
         if (game is null) return;
         var playing = game.Status is GameStatus.Playing or GameStatus.Ended;
-        _sideColumn.Visible = !playing || _wasWaiting;                      // play is the table to the edges (spec → Layout), once deployment can begin
+        _sideColumn.Visible = !playing;                                     // play is the table to the edges (spec → Layout); waiting for players is the decision slot's
         // The lobby has no table to edit: its panel takes the whole window, below the corner's line; setup puts the table back.
         var lobbyOnly = game.Status == GameStatus.Lobby;
         _tableBox.Visible = !lobbyOnly;
         _sideColumn.SizeFlagsHorizontal = lobbyOnly ? SizeFlags.ExpandFill : SizeFlags.Fill;
         _sideHead.AddThemeConstantOverride("margin_top", (int)(lobbyOnly ? HudLayout.M + HudLayout.CornerH + HudLayout.M : HudLayout.M));
-        if (_wasWaiting) { if (_waiting is null) _side.AddChild(_waiting = new WaitingPanel()); else _waiting.Refresh(); }
+        if (_wasWaiting)
+        {
+            if (_waiting is null) { _hud.AddChild(_waiting = new WaitingPanel()); _waiting.MinimumSizeChanged += QueueLayout; }
+            else _waiting.Refresh();
+            QueueLayout();
+        }
         if (!playing)
         {
             // The head: the phase, Start or End setup, Still to do, and in setup the compact team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md).
-            _sideHead.AddChild(_head = new SidePanelHead());
+            _sideHead.AddChild(_head = new SidePanelHead { Folds = _folds });
             var settings = new LobbyPanel { Leave = ConfirmLeave, Folds = _folds };
             if (game.Status == GameStatus.Setup) { _side.AddChild(_setup = new SetupToolbar(this, _folds)); _side.AddChild(_lobby = settings); }
             else

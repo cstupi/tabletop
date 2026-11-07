@@ -5,24 +5,48 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
 
-/// <summary>A heading that shows and hides the body under it (▾ open, ▸ closed), its state kept in the game screen's <see cref="SetupFolds"/>.</summary>
+/// <summary>A section heading that shows and hides the body under it: the section's icon, its title with its facts, room for the section's
+/// one action (<see cref="Actions"/>), and ▸ closed or ▾ open at the right. Its state is kept in the game screen's <see cref="SetupFolds"/>.</summary>
 public partial class Fold : VBoxContainer
 {
     readonly Button _head;
+    readonly Label _arrow;
     readonly Func<string> _title;
     public VBoxContainer Body { get; } = new();
+    /// <summary>The heading row's right end, before the arrow: a section's own action (+ Objective) goes here.</summary>
+    public HBoxContainer Actions { get; } = new();
 
     public Fold(SetupFolds folds, SetupFold fold, GameStatus status, Func<string> title)
     {
         _title = title;
         var open = folds.IsOpen(fold, status);
-        _head = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = open, Alignment = HorizontalAlignment.Left, FocusMode = FocusModeEnum.None };
+        AddThemeConstantOverride("separation", 6);
+        var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 6); AddChild(row);
+        _head = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = open, Alignment = HorizontalAlignment.Left,
+            FocusMode = FocusModeEnum.None, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };
+        if (SetupFolds.Icon(fold) is { } key)
+        {
+            _head.Icon = Ui.Icon(key);
+            _head.AddThemeConstantOverride("icon_max_width", 20);
+            foreach (var state in new[] { "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color", "icon_focus_color" })
+                _head.AddThemeColorOverride(state, Ui.Accent);
+        }
         _head.Toggled += on => { Body.Visible = on; folds.Set(fold, on, status); Refresh(); };
+        row.AddChild(_head);
+        Actions.AddThemeConstantOverride("separation", 4); row.AddChild(Actions);
+        row.AddChild(_arrow = new Label { ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ShrinkCenter });
         Body.Visible = open;
-        AddChild(_head); AddChild(Body);
+        Body.AddThemeConstantOverride("separation", 8);
+        AddChild(Body);
         Refresh();
     }
 
     /// <summary>The heading again, for a count that changed.</summary>
-    public void Refresh() { if (IsInstanceValid(_head)) _head.Text = $"{(_head.ButtonPressed ? "▾" : "▸")} {_title()}"; }
+    public void Refresh()
+    {
+        if (!IsInstanceValid(_head)) return;
+        var title = _title(); var cut = title.IndexOfAny("0123456789·".ToCharArray());
+        _head.Text = cut < 0 ? title.ToUpperInvariant() : title[..cut].ToUpperInvariant() + title[cut..]; _head.TooltipText = title;
+        _arrow.Text = _head.ButtonPressed ? "▾" : "▸";
+    }
 }

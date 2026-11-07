@@ -26,6 +26,16 @@ public sealed class SetupFolds
 
     public void Set(SetupFold fold, bool open, GameStatus status) => _chosen[(fold, status)] = open;
 
+    /// <summary>The head's team lines opened into the compact columns (▸ on the head); closed, a line a team.</summary>
+    public bool TeamsOpen { get; set; }
+
+    /// <summary>The heading's icon key in the theme's icons.</summary>
+    public static string? Icon(SetupFold fold) => fold switch
+    {
+        SetupFold.Terrain => "terrain", SetupFold.Objectives => "objective", SetupFold.Table => "table", SetupFold.Zones => "zone",
+        SetupFold.Layouts => "layout", SetupFold.Game => "settings", _ => null,
+    };
+
     static bool Default(SetupFold fold, GameStatus status) => status switch
     {
         GameStatus.Setup => fold is SetupFold.Terrain,
@@ -39,7 +49,7 @@ public sealed class SetupFolds
         SetupFold.Objectives => draft is null ? "Objectives" : $"Objectives {draft.Markers.Count}/{SetupLimits.Markers}",
         SetupFold.Table => draft is null ? "Table"
             : $"Table {draft.Size.Width} × {draft.Size.Length}\"{(draft.Texture.Builtin is { } t ? $" · {SetupWords.Texture(t)}" : "")}",
-        SetupFold.Zones => "Deployment zones",
+        SetupFold.Zones => draft is null || ZoneDiagram.StyleOf(draft.Zones) is not { } style ? "Zones" : $"Zones · {SetupWords.ZoneStyle(style)}",
         SetupFold.Layouts => "Layouts",
         SetupFold.Game => "Game settings",
         SetupFold.PieceMesh => "Mesh",
@@ -66,11 +76,23 @@ public static class SetupHead
     };
 }
 
-/// <summary>Spec → Side panel: the terrain list's height, what the window leaves after the head (its compact team columns included), the
-/// Terrain section's other controls and the closed headings under it, between 160 and 640 px.</summary>
+/// <summary>Spec 2026-11-07-ux-redesign-1-client-shell.md → Setup: the terrain tile box's height, what the window leaves after the head (its team
+/// lines included) and the Terrain section's other controls (heading, Random table, search, legend, My terrain and Clear), between two rows of
+/// tiles and 640 px. The closed headings under it scroll into view with the body.</summary>
 public static class SetupLayout
 {
-    public const double Reserved = 450, MinList = 160, MaxList = 640;
+    public const double Reserved = 330, MinList = 180, MaxList = 640;
 
     public static double TerrainListHeight(double windowHeight, double headHeight) => Math.Clamp(windowHeight - headHeight - Reserved, MinList, MaxList);
+}
+
+/// <summary>An objective's row in the Objectives section: its label and where it stands.</summary>
+public sealed record ObjectiveRow(Guid Id, string Label, string Position);
+
+public static class ObjectiveRows
+{
+    /// <summary>The draft's objectives in order; one without a label is "Objective n" by its place in the list.</summary>
+    public static IReadOnlyList<ObjectiveRow> Of(TableState? draft) => draft is null ? [] : draft.Markers.Where(m => m.Kind == MarkerKind.Objective)
+        .Select((m, i) => new ObjectiveRow(m.Id, string.IsNullOrWhiteSpace(m.Label) ? $"Objective {i + 1}" : m.Label!,
+            $"({m.Position.X.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}, {m.Position.Y.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)})")).ToList();
 }

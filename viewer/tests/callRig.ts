@@ -30,7 +30,7 @@ import { Violations } from '../src/lib/play/violations';
 import { waitingLines, waitingTeams } from '../src/lib/play/waiting';
 import { dropEdit } from '../src/lib/setup/drag';
 import {
-  addAsset, addBuiltin, clearTerrain, objective, overrideVolume, removeMarker, removeTerrain, resetVolumes, scale, setupMenu, swapAsset,
+  addAsset, addBuiltin, clearTerrain, dropBuiltin, objective, overrideVolume, removeMarker, removeTerrain, resetVolumes, scale, setupMenu, swapAsset,
   swapBuiltin, swapZones, tableSize, texture, withBottom, withDeclaration, withFootprint, withKind, withNotes, withTop, zones,
 } from '../src/lib/setup/edits';
 import { loadEdit, randomEdit } from '../src/lib/setup/layouts';
@@ -293,6 +293,7 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
     case 'size': return tableSize(x.width, x.length);
     case 'texture': return texture(x.builtin);
     case 'addBuiltin': return addBuiltin(entry(x.name), draft.size, draws(x.draws));
+    case 'dropBuiltin': return dropBuiltin(g, entry(x.name), draft.terrain, { x: x.x, y: x.y });
     case 'addAsset': return addAsset(x.assetId, x.volumes, draft.size, draws(x.draws));
     case 'random': return randomEdit(draft, { seed: 0, terrain: x.terrain, unplaced: [], unlisted: [] });
     case 'clear': return clearTerrain(draft);

@@ -153,7 +153,7 @@ public partial class GameScreen
         var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
         var replayH = Shows(_replay) ? _replay!.GetCombinedMinimumSize().Y : HudLayout.ReplayH;   // its three rows in the theme's font: the left column ends above it
         // The unit card and the terrain card share the slot: SheetFocus names no unit while terrain is selected.
-        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision), Shows(_dice), logOpen, Shows(_replay)), buttonH, replayH);
+        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card) || Shows(_terrainCard), Shows(_decision) || Shows(_waiting), Shows(_dice), logOpen, Shows(_replay)), buttonH, replayH);
         if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
         PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
@@ -167,6 +167,7 @@ public partial class GameScreen
             if (Shows(_terrainCard)) _terrainCard!.Place(cardSlot);
         }
         if (Shows(_decision)) _decision!.Place(r[HudPart.Decision]);
+        if (Shows(_waiting)) HudPlacement.Bottom(_waiting!, r[HudPart.Decision]);   // waiting for players: the team columns in the decision slot
         if (Shows(_replay)) _replay!.Place(r[HudPart.Replay]);
         if (Shows(_dice) && r.TryGetValue(HudPart.Dice, out var slot))   // the open log covers the tray: HudLayout gives it no slot
         {
@@ -197,7 +198,7 @@ public partial class GameScreen
     HudRect AboveBottomStack(HudRect panel)
     {
         float? top = null;
-        foreach (var part in new Control?[] { _decision, _dice })
+        foreach (var part in new Control?[] { _decision, _waiting, _dice })
             if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) top = Math.Min(top ?? float.MaxValue, part.Position.Y);
         var bottom = top is { } t ? t - HudLayout.M : panel.Bottom;
         return panel with { H = Math.Clamp(bottom - panel.Y, 0, HudLayout.LogMaxH) };

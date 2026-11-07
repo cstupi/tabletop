@@ -140,6 +140,11 @@ public static class TeamColumns
         return lines;
     }
 
+    /// <summary>A column folded to one line for setup's head (spec 2026-11-07-ux-redesign-1-client-shell.md → Setup): each member as "Name · Army",
+    /// "Name · no army yet" while the team has no army, a teammate without one as the name alone; "No players yet" for an empty team.</summary>
+    public static string Line(TeamColumn column) => column.Members.Count == 0 ? "No players yet"
+        : string.Join(", ", column.Members.Select(m => m.Army is { } army ? $"{m.Name} · {army}" : m.NoArmyWarns ? $"{m.Name} · {NoArmy}" : m.Name));
+
     /// <summary>The participants whose presence selects or holds a piece: who is editing the table now.</summary>
     public static IReadOnlySet<Guid> Editing(IEnumerable<Presence> presences) =>
         presences.Where(p => p.Selection is not null || p.Placements.Count > 0).Select(p => p.ParticipantId).ToHashSet();

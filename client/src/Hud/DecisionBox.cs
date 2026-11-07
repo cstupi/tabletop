@@ -212,7 +212,7 @@ public partial class DecisionBox : PanelContainer
             var mid = new[] { _s.MyTeamId }.Concat(_s.MyTeamIds.Select(t => (Guid?)t)).Select(t => DeployView.MidDeploy(p, _s.Log, t)).FirstOrDefault(m => m is not null);   // a pick by any team of mine is placed
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; ClearHead(); }
             _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
-            if (mid is null && _s.WaitingTeams is { Count: > 0 } waiting) Quiet(waiting.Select(w => (w.Ordinal, $"Team {w.Ordinal}", w.HasPlayer ? "no army" : "waiting for a player")).ToList());
+            if (mid is null && _s.WaitingTeams is { Count: > 0 }) Quiet([]);   // the waiting columns hold the slot (WaitingPanel)
             else if (mid is null) Quiet(DecisionCard.Quiet(p, game, _s.MyTeamIds).Select(b => (b.Ordinal, b.Mine ? "Your move" : b.Team, b.Doing)).ToList());
             else { Quiet([]); if (_deployUnit is null) StartDeploy(mid, names); }
             return;

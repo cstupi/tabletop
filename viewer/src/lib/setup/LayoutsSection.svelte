@@ -1,12 +1,12 @@
 <!-- viewer/src/lib/setup/LayoutsSection.svelte -->
-<!-- Layouts: the predefined tables, a random table by planet, and the account's own layouts, each loaded as one ReplaceDraft (asked
-     first); Save as; Delete (the spec's addition: Godot has none). -->
+<!-- Layouts: the predefined tables and the account's own layouts, each loaded as one ReplaceDraft (asked
+     first); Save as; Delete. -->
 <script lang="ts">
   import type { Api } from '../api/client';
-  import type { LayoutSummary, Planet } from '../api/types';
+  import type { LayoutSummary } from '../api/types';
   import Confirm, { type Question } from '../game/Confirm.svelte';
   import type { Edit, TableState } from '../protocol/wire.generated';
-  import { PLANETS, loadEdit, randomEdit, randomRequest, randomSummary, saveRequest } from './layouts';
+  import { loadEdit, saveRequest } from './layouts';
 
   let { draft, api, send, report }: {
     draft: TableState; api: Api; send: (edit: Edit) => Promise<void>; report: (text: string | null) => void;
@@ -15,8 +15,6 @@
   let predefined: TableState[] = $state([]);
   let saved: LayoutSummary[] = $state([]);
   let name = $state('');
-  let planet: Planet = $state('generic');
-  let busy = $state(false);
   let asking: Question | null = $state(null);
 
   async function reload() {
@@ -38,18 +36,6 @@
     try { await api.deleteLayout(l.id); } catch (e) { report((e as Error).message); }
     await reload();
   }, true);
-
-  async function randomTable() {
-    busy = true;
-    report(null);
-    try {
-      // The server rolls and lays the table, balanced across the teams; the draft keeps its size, texture, markers and zones.
-      const answer = await api.randomTable(randomRequest(draft, planet));
-      await send(randomEdit(draft, answer));
-      if (answer.unplaced.length > 0 || answer.unlisted.length > 0) report(randomSummary(answer));
-    } catch (e) { report((e as Error).message); }
-    busy = false;
-  }
 
   async function save(event: SubmitEvent) {
     event.preventDefault();
@@ -77,13 +63,6 @@
     <li class="dim">None published.</li>
   {/each}
 </ul>
-
-<h4>Random table</h4>
-<div class="inline">
-  <select aria-label="Planet" bind:value={planet}>{#each PLANETS as p (p.planet)}<option value={p.planet}>{p.label}</option>{/each}</select>
-  <button class="small" disabled={busy} onclick={randomTable}>{busy ? 'Rolling…' : 'Roll'}</button>
-</div>
-<small class="dim">Replaces the terrain; size, surface, markers and zones stay.</small>
 
 <h4>Your layouts</h4>
 <ul>
@@ -115,6 +94,5 @@
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .what .dim { font-size: .8rem; }
   .inline { display: flex; gap: var(--s2); align-items: center; }
-  .inline select, .inline input { flex: 1; min-width: 0; }
-  small { font-size: .85rem; }
+  .inline input { flex: 1; min-width: 0; }
 </style>
