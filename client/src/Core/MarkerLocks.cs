@@ -24,7 +24,7 @@ public sealed class MarkerLocks
     {
         if (status is not (GameStatus.Playing or GameStatus.Ended) || !IsObjective(p, id)) return null;
         var unlock = !_unlocked.Contains(id);
-        var item = new MenuItem(unlock ? "Unlock" : "Lock", MenuInput.None, _ => null);
+        var item = new MenuItem(unlock ? "Unlock" : "Lock", MenuInput.None, _ => null) { Icon = unlock ? "unlock" : "lock" };
         _issued = (item, id, unlock);
         return item;
     }

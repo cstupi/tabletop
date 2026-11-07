@@ -54,6 +54,16 @@ public class MenusTests
     }
 
     [Fact]
+    public void Lock_remove_transport_and_undo_items_carry_their_icons()
+    {
+        var locks = new MarkerLocks(); var id = TableUx.Board.Table.Markers[0].Id;
+        Assert.Equal("unlock", locks.ItemFor(GameStatus.Playing, P, id)!.Icon);
+        Assert.Equal("remove", MenuModel.ForSetupPiece(TableUx.Board.Table, id).Single(i => i.Label == "Remove").Icon);
+        Assert.Equal("undo", MenuModel.ForUnit(P, TableUx.Reserve.Id, []).Single(i => i.Label == "Clear the action record").Icon);
+        Assert.Null(MenuModel.ForUnit(P, TableUx.Reserve.Id, []).Single(i => i.Label == "Add a condition").Icon);
+    }
+
+    [Fact]
     public void The_team_menu_is_the_teams_items_then_its_models_off_the_table()
         => Assert.Equal(Labels(MenuModel.ForTeam(TableUx.Game, P, TableUx.T1).Concat(MenuModel.OffTable(P, TableUx.T1, new Names(TableUx.Game, P)))), Labels(Menus.Team(Ctx(), TableUx.T1)));
 

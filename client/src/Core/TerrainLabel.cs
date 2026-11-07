@@ -10,12 +10,7 @@ namespace Tabletop.Client.Core;
 /// (Session.TerrainWords, from Welcome), else the label's own.</summary>
 public static class TerrainLabel
 {
-    static readonly (TerrainDeclarations Flag, string Text)[] Order =
-    [
-        (TerrainDeclarations.Cover, "Cover"), (TerrainDeclarations.Difficult, "Difficult"), (TerrainDeclarations.Dangerous, "Dangerous"),
-        (TerrainDeclarations.DangerousOnRushCharge, "Dangerous on Rush/Charge"), (TerrainDeclarations.Steep, "Steep"),
-        (TerrainDeclarations.Impassable, "Impassable"), (TerrainDeclarations.BlocksLineOfSight, "Blocks LOS"), (TerrainDeclarations.SeeInAndOut, "See in/out"),
-    ];
+    static readonly (TerrainDeclarations Flag, string Text)[] Order = TerrainEffects.All.Select(e => (e.Flag, e.Word)).ToArray();
 
     static readonly Dictionary<TerrainDeclarations, string> NameOfFlag = BuiltinTerrain.DeclarationNames.ToDictionary(n => n.Value, n => n.Key);
 
@@ -40,6 +35,18 @@ public static class TerrainLabel
         }));
     }
 
+    /// <summary>The hover panel (owner, 2026-11-07: "clearer terrain tooltips"): the piece's name, its height range on the table and one chip
+    /// per effect any of its volumes carries, in the label's order; Open alone when none carries one.</summary>
+    public static TerrainHover HoverOf(TerrainPlacement t, IReadOnlyDictionary<string, string>? words = null)
+    {
+        var all = t.Volumes.Aggregate(TerrainDeclarations.None, (d, tv) => d | tv.Volume.Declarations);
+        return new TerrainHover(NameOf(t), RangeOf(t), TerrainEffects.Rows(all, words, null));
+    }
+
+    /// <summary>The piece's height range on the table, lowest bottom to highest top, scale and elevation applied; empty with no volume.</summary>
+    public static string RangeOf(TerrainPlacement t) => t.Volumes.Count == 0 ? ""
+        : $"{Inches(t.Position.Z + t.Volumes.Min(v => v.Volume.Bottom) * t.Scale)}–{Inches(t.Position.Z + t.Volumes.Max(v => v.Volume.Top) * t.Scale)}\"";
+
     /// <summary>The built-in's label, else "Terrain".</summary>
     public static string NameOf(TerrainPlacement t) =>
         t.Mesh.Builtin is { } b && BuiltinContent.Terrain.TryGetValue(b, out var builtin) ? builtin.Label : "Terrain";
@@ -52,4 +59,11 @@ public static class TerrainLabel
     public static string HeightsOf(TerrainPlacement t, Volume v) => $"{Inches(t.Position.Z + v.Bottom * t.Scale)}–{Inches(t.Position.Z + v.Top * t.Scale)}\"";
 
     public static string Inches(double v) => v.ToString("0.#", CultureInfo.InvariantCulture);
+}
+
+/// <summary>What the hover panel over a terrain piece draws (TerrainLabel.HoverOf).</summary>
+public sealed record TerrainHover(string Name, string Height, IReadOnlyList<TerrainEffectRow> Effects)
+{
+    public bool Equals(TerrainHover? o) => o is not null && Name == o.Name && Height == o.Height && Effects.SequenceEqual(o.Effects);
+    public override int GetHashCode() => HashCode.Combine(Name, Height, Effects.Count);
 }

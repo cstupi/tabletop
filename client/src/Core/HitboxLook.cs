@@ -23,11 +23,11 @@ public static class HitboxLook
     public static PieceProxy Piece(bool showHitboxes, bool hasMesh, bool ghost) =>
         !hasMesh ? PieceProxy.Solid : showHitboxes || ghost ? PieceProxy.Faint : PieceProxy.RingOnly;
 
-    /// <summary>Terrain with a mesh shows its volumes faintly, or not at all with terrain hitboxes off; a piece being edited in setup (the
-    /// selected one, whose card edits its volumes, or one in hand) shows them at full strength either way.</summary>
+    /// <summary>Terrain with a mesh shows its volumes faintly, or not at all with terrain hitboxes off; the selected piece (in setup its card
+    /// edits the volumes, in play its card names the effects each volume's tint shows) or one in hand shows them at full strength either way.</summary>
     public static TerrainProxy Terrain(bool showTerrainHitboxes, bool hasMesh, bool editing) =>
         !hasMesh || editing ? TerrainProxy.Solid : showTerrainHitboxes ? TerrainProxy.Faint : TerrainProxy.Hidden;
 
-    /// <summary>A terrain piece is being edited when setup is open (no game in play) and it is the selected piece.</summary>
-    public static bool Editing(bool inSetup, Guid pieceId, Guid? selected) => inSetup && selected == pieceId;
+    /// <summary>The selected terrain piece, in setup or in play.</summary>
+    public static bool Selected(Guid pieceId, Guid? selected) => selected == pieceId;
 }

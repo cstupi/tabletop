@@ -12,6 +12,8 @@ public enum MenuInput { None, Integer, Text, PieceId, TablePoint, Choice }
 public sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)
 {
     public Func<string?, Edit?>? Edit { get; init; }
+    /// <summary>The theme icon the menu draws beside the label (lock, unlock, remove, army, undo); null for none.</summary>
+    public string? Icon { get; init; }
     /// <summary>A Choice item's labels; the chosen one is its input.</summary>
     public IReadOnlyList<string> Choices { get; init; } = [];
     public static MenuItem OfEdit(string label, MenuInput input, Func<string?, Edit?> edit) => new(label, input, _ => null) { Edit = edit };
@@ -31,16 +33,16 @@ public static class MenuModel
     {
         var items = new List<MenuItem>();
         foreach (var a in actionNames) items.Add(new($"Mark as having taken {a}", MenuInput.None, _ => new RecordAction(unitId, a)));
-        items.Add(new("Clear the action record", MenuInput.None, _ => new ClearActionRecord(unitId)));
+        items.Add(new("Clear the action record", MenuInput.None, _ => new ClearActionRecord(unitId)) { Icon = "undo" });
         items.Add(new("Add a condition", MenuInput.Text, s => string.IsNullOrWhiteSpace(s) ? null : new SetCondition(new Subject(SubjectKind.Unit, unitId), s.Trim(), true)));
         foreach (var c in p.Units.GetValueOrDefault(unitId)?.Conditions ?? new HashSet<string>())
-            items.Add(new($"Remove {c}", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), c, false)));
+            items.Add(new($"Remove {c}", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), c, false)) { Icon = "remove" });
         items.Add(new("Set wounds this activation", MenuInput.Integer, s => Int(s) is { } n ? new SetWoundsThisActivation(unitId, n) : null));
         if (grantable is { Count: > 0 } choices)                        // one use, the unit as its own grantor: a hand edit like any other
             items.Add(new("Add a grant", MenuInput.Choice, s => choices.FirstOrDefault(c => c.Label == s) is { } c
                 ? new AddGrant(unitId, new Grant(Guid.CreateVersion7(), c.EffectId, c.EntryName, unitId, 1)) : null) { Choices = choices.Select(c => c.Label).ToList() });
         foreach (var g in p.Units.GetValueOrDefault(unitId)?.Grants ?? [])
-            items.Add(new($"Remove grant {g.EntryName}", MenuInput.None, _ => new RemoveGrant(unitId, g.Id)));
+            items.Add(new($"Remove grant {g.EntryName}", MenuInput.None, _ => new RemoveGrant(unitId, g.Id)) { Icon = "remove" });
         var models = p.Models.Values.Where(m => m.UnitId == unitId).ToList();
         items.Add(new("Move the unit to the shelf", MenuInput.None, _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new OnShelf())).ToList())));
         return items;
@@ -57,7 +59,7 @@ public static class MenuModel
             new("Move to the shelf", MenuInput.None, _ => new MoveModels([new ModelRelocation(modelId, model.Location, new OnShelf())])),
             new("Put inside a container", MenuInput.PieceId, s => Id(s) is { } c ? new MoveModels([new ModelRelocation(modelId, model.Location, new Inside(c))]) : null),
         };
-        foreach (var c in model.Conditions) items.Add(new($"Remove {c}", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Model, modelId), c, false)));
+        foreach (var c in model.Conditions) items.Add(new($"Remove {c}", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Model, modelId), c, false)) { Icon = "remove" });
         // "move to the shelf or back", "put inside a container or take out": coming back is one relocation to OnTable,
         // and the position comes from the next click on the table (client shell -> the menu).
         if (model.Location is not OnTable)
@@ -90,7 +92,7 @@ public static class MenuModel
         if (game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId != myTeam) return [];
         var models = p.Models.Values.Where(m => m.UnitId == unitId).ToList();
         if (models.Count > 0 && models.All(m => m.Location is Inside i && p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnShelf))
-            return [new("Take out of transport", MenuInput.None, _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new OnShelf())).ToList()))];
+            return [new("Take out of transport", MenuInput.None, _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new OnShelf())).ToList())) { Icon = "army" }];
         if (models.Any(m => m.Location is not OnShelf || m.Wounds > 0)) return [];   // wounded on the shelf: removed, not waiting
         var items = new List<MenuItem>();
         if (maySetAside?.Contains(unitId) == true)
@@ -101,7 +103,7 @@ public static class MenuModel
         foreach (var c in deployInside?.GetValueOrDefault(unitId) ?? [])
             if (p.Models.GetValueOrDefault(c) is { } hull && p.Units.GetValueOrDefault(hull.UnitId) is { } transport)
                 items.Add(new($"Put in transport: {transport.Definition.Name}", MenuInput.None,
-                    _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new Inside(c))).ToList())));
+                    _ => new MoveModels(models.Select(m => new ModelRelocation(m.Id, m.Location, new Inside(c))).ToList())) { Icon = "army" });
         return items;
     }
 
@@ -114,7 +116,7 @@ public static class MenuModel
     {
         if (ask?.Legal is not MoveRegion { Containment.Enterable: { Count: > 0 } enterable } region || !region.ModelIds.Contains(modelId)) return [];
         return enterable.Where(p.Models.ContainsKey).Select(c => new MenuItem($"Board transport: {p.Units[p.Models[c].UnitId].Definition.Name}", MenuInput.None,
-            _ => new AnswerAsk(ask.Id, AskAnswers.Embark(p, region, c)))).ToList();
+            _ => new AnswerAsk(ask.Id, AskAnswers.Embark(p, region, c))) { Icon = "army" }).ToList();
     }
 
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>
@@ -154,7 +156,7 @@ public static class MenuModel
             items.Add(MenuItem.OfEdit("Turn right 15°", MenuInput.None, _ => TurnInDraft(draft, id, piece.Yaw.Degrees - TerrainTurn)));
             items.Add(MenuItem.OfEdit("Set facing…", MenuInput.Integer, s => Int(s) is { } d ? TurnInDraft(draft, id, d) : null));
         }
-        items.Add(MenuItem.OfEdit("Remove", MenuInput.None, _ => remove));
+        items.Add(MenuItem.OfEdit("Remove", MenuInput.None, _ => remove) with { Icon = "remove" });
         return items;
     }
 
@@ -172,7 +174,7 @@ public static class MenuModel
 
     /// <summary>Abandon the top frame: pops it and everything above; applied effects stay applied.</summary>
     public static IReadOnlyList<MenuItem> ForFrame(Projection p) =>
-        p.Stack.Count == 0 ? [] : [new($"Abandon {p.Stack[^1].Sequence}", MenuInput.None, _ => new AbandonSequence(p.Stack[^1].Id))];
+        p.Stack.Count == 0 ? [] : [new($"Abandon {p.Stack[^1].Sequence}", MenuInput.None, _ => new AbandonSequence(p.Stack[^1].Id)) { Icon = "undo" }];
 
     /// <summary>The action names the client has seen: every action recorded in the log and each unit's current record. The rows themselves never reach the client,
     /// and the activate Ask's option labels are display text ("{unit name}: {action}"), never parsed.</summary>
