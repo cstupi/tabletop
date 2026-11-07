@@ -60,7 +60,7 @@
 
 <section class="panel" aria-labelledby="username-heading">
   <h2 id="username-heading">Username</h2>
-  <p>Players type your username to open your Shared folder.{#if currentUsername} Yours is <strong>{currentUsername}</strong>.{/if}</p>
+  <p>Players type your username to open your Shared folder.{#if currentUsername}{' '}Yours is <strong>{currentUsername}</strong>.{/if}</p>
   <form class="stack" onsubmit={saveUsername}>
     <label>Username
       <input bind:value={username} maxlength={32} autocomplete="username" aria-invalid={!!usernameIssue} aria-describedby="username-help" oninput={() => (usernameSaved = false)} />

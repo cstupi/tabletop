@@ -49,4 +49,23 @@ ends with its tests green.
 
 ## Results
 
-(filled in after the run)
+2026-11-07, every item passed.
+
+- `dotnet test tests/Tabletop.Management.Tests`: 348 passed (the new contract tests run here over the fakes: account
+  username, Shared folder, browse, copy of models and of a nested tree, quota, caps, a copy outliving the sharer's delete,
+  the key going with the last blob row, a pending conflict; `SharedFolderTests` over HTTP).
+- E2E, `--filter "FullyQualifiedName~PostgresRepositoryContract|FullyQualifiedName~MigrationTests"` against the compose
+  Postgres: 68 passed (migration 029's username, shared-folder and table checks included).
+- `dotnet build && dotnet test`: every project passed (GameServer 1832, Client 956, Management 348, Sim 345, and the rest).
+- `cd web && npm test`: 141 passed, 1 skipped; `npm run check`: 0 errors, 0 warnings.
+- HTTP end to end: management from the worktree on 127.0.0.1:5310 (dev mode, its own database on the compose Postgres, the
+  compose MinIO), two dev accounts. Username set and refused to the other account in another case (409); 404 before a
+  Shared folder; Shared/Terrain/Walls and a private folder; three GLBs uploaded; the other account opens it by username in
+  upper case, sees the subtree's three folders and two models only, previews one (bytes equal), gets 404 for the private
+  model; copies the Terrain tree into a destination (two folders, two models, root under the destination); 404 for a private
+  folder, 422 for the owner's own; the owner deletes a source and the Shared folder: 404 to browse, the copy still downloads
+  the same bytes.
+- Screenshots (headless Chromium, the worktree's web dev server on 127.0.0.1:5320 proxying `/v1` to 5310): Shared by players
+  with a preview, the notice after Copy folder ("Added 3 models and 2 folders from Kim to From friends."), the owner's
+  Library tree, the Account page's Username section. MinIO's dev CORS admits the 5173 origins only, so the run answered the
+  presigned GETs for its origin through the browser's request routing.

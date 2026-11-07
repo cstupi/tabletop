@@ -438,6 +438,19 @@ It drops `asset.shared_at` and `asset_shared_idx` from `020_shared_assets.sql`: 
 recipient's whose `s3_key` is the sharer's `{owner}/{hash}`, so `s3_key` is not always `{owner_id}/{hash}`: every presign
 reads the column, and an S3 object is deleted only when no `blob` row names its key.
 
+### A Shared folder is a flagged folder, found by a username
+
+Management's `029_shared_folders.sql` ([shared folders](superpowers/specs/2026-11-07-shared-folders-design.md)):
+
+- `account.username text null`, `account_username_format` check `^[A-Za-z0-9_-]{3,32}$`, `account_username_idx` unique on
+  `lower(username)`: the lookup key for an account's Shared folder; `account.name` stays non-unique.
+- `folder.shared boolean not null default false`, `folder_shared_top_level` check (`not shared or parent_id is null`),
+  `folder_shared_idx` unique on `owner_id` where `shared`: at most one Shared folder per account, at the top level.
+- `shared_copy`: `id`, `copier_id` (`account`, cascading), `created_at`; indexed on `(copier_id, created_at)` for the
+  daily cap of copies from Shared folders.
+
+A copy is an offer's accepted copy: an `asset` and a `blob` row of the copier's whose `s3_key` names the sharer's object.
+
 ### `account` records whether its starter meshes were seeded
 
 `starter_seeded_at timestamptz null`, arriving as management's `003_account_starter.sql`. Null means the
@@ -464,7 +477,7 @@ style, and is the same value as `Tabletop.Content.DeploymentZone.Shape`. The sty
 ### Deleting an account is application logic
 
 Its armies, assets, blobs, folders and layouts cascade downward normally; of its blobs' S3 objects,
-only those no other account's `blob` row names (an accepted copy) are deleted; its offers and blocks cascade. But
+only those no other account's `blob` row names (an accepted copy, or a copy from a Shared folder) are deleted; its offers, blocks and `shared_copy` rows cascade. But
 [accounts](superpowers/specs/2026-08-29-accounts-design.md) requires deleting **every game it
 hosted** (`game.created_by`), which reaches *upward* to the game and then back down to other
 people's participants and into the game schema's event log, and **leaving every game it joined**

@@ -38,6 +38,8 @@ erDiagram
     ACCOUNT ||--o{ SHARE_OFFER : "is offered (recipient)"
     SHARE_OFFER }o--o{ ASSET : "names (SHARE_OFFER_ASSET)"
     ACCOUNT ||--o{ SHARE_BLOCK : "blocks a sharer"
+    ACCOUNT ||--o| FOLDER : "shares (one Shared folder)"
+    ACCOUNT ||--o{ SHARED_COPY : "copies from Shared folders"
 
     GAME ||--|{ TEAM : has
     TEAM ||--|{ PARTICIPANT : has
@@ -70,6 +72,7 @@ erDiagram
     ACCOUNT {
         uuid id
         string name
+        string username
         timestamptz starter_seeded_at
     }
     ARMY {
@@ -125,6 +128,11 @@ erDiagram
     FOLDER {
         uuid id
         string name
+        bool shared
+    }
+    SHARED_COPY {
+        uuid id
+        timestamp created_at
     }
     SHARE_OFFER {
         uuid id
@@ -271,10 +279,14 @@ render them, which creates no record on either side — a download, not a share.
 (`SHARE_OFFER`, its assets in `SHARE_OFFER_ASSET`) names a sharer, one recipient they have been in a game with, and a set
 of the sharer's assets; only the recipient sees it, while it is open. Accepting gives the recipient an `ASSET` and a
 `BLOB` of their own whose S3 key is the sharer's; the object goes only when no `BLOB` row names its key. `SHARE_BLOCK`
-hides a sharer's offers from a recipient ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)).
+hides a sharer's offers from a recipient ([shared models](superpowers/specs/2026-10-25-shared-models-design.md)). A
+**Shared folder** (`FOLDER.shared`, one per account, top level) is readable by any signed-in account that types the owner's
+`username` (unique ignoring case; `name` is not): its subtree and the uploaded assets filed there. A copy from it is the
+offers' copy; `SHARED_COPY` counts the copier's copies for the daily cap
+([shared folders](superpowers/specs/2026-11-07-shared-folders-design.md)).
 
 **`FOLDER` is the asset library's alone.** It nests, an asset can be in several, and armies
-and layouts are flat lists.
+and layouts are flat lists. An account's Shared folder is one of them, flagged.
 
 **`TABLESTATE` has two owners and one shape.** A game has one as the result of its setup
 phase; an account has any number, saved as layouts. There is no separate layout format —
