@@ -74,6 +74,7 @@ public partial class DecisionBox : PanelContainer
         _foot.AddThemeConstantOverride("h_separation", 10); _foot.AddThemeConstantOverride("v_separation", 8);
         _reveal.AddThemeConstantOverride("h_separation", 8); _reveal.AddThemeConstantOverride("v_separation", 6);
         foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _foot }) _body.AddChild(c);
+        _reveal.Visible = false;                                                    // an empty row still takes the body's separation: a gap above the first line
         _quiet.AddThemeConstantOverride("separation", 6);
         foreach (var c in new Control[] { _band, _inset, _quiet }) box.AddChild(c);
         _controls.MinimumSizeChanged += QueueFit;                                  // a ScrollContainer reports no content height
@@ -164,7 +165,7 @@ public partial class DecisionBox : PanelContainer
         _seat.Visible = _seat.Text != "";
         DrawReveal();
         _foot.Visible = _foot.GetChildCount() > 0;
-        _scroll.Visible = _controls.GetChildCount() > 0;
+        SyncScroll();
         var body = card || _refusal is not null || _revealed is not null || _note.Text != "";
         _inset.Visible = body;
         Frame(card || body && _quiet.GetChildCount() == 0);
@@ -429,7 +430,15 @@ public partial class DecisionBox : PanelContainer
 
     void SetButtons(bool disabled) { foreach (var parent in new Node[] { _controls, _foot }) foreach (var b in parent.FindChildren("*", "BaseButton", true, false).OfType<BaseButton>()) b.Disabled = disabled; }
     /// <summary>Into the card's body, which scrolls.</summary>
-    void Add(Control c) => _controls.AddChild(c);
+    /// <summary>A control added hidden (a gate line until a reason holds) shows or hides the scroll with it: an empty scroll still takes the
+    /// body's separation, a gap above the foot.</summary>
+    void Add(Control c) { _controls.AddChild(c); c.VisibilityChanged += SyncScroll; }
+
+    void SyncScroll()
+    {
+        if (!IsInstanceValid(_scroll)) return;
+        _scroll.Visible = _controls.GetChildren().OfType<Control>().Any(c => c.Visible);
+    }
     /// <summary>Into the card's foot: its actions, the primary first.</summary>
     void Foot(Control c) => _foot.AddChild(c);
 }
