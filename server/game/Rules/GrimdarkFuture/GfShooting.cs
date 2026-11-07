@@ -40,7 +40,9 @@ public static class GfShooting
         // The in-play reading: an enemy unit inside a container is still a candidate, and EligibleModels is what rules it out (or, for a fellow occupant, in).
         return ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team && Lookup.AliveModels(ctx.State, u.Id).Count > 0).Select(u => u.Id).Where(target =>
         {
-            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, unit, target, group.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
+            // Offering a target is no attack: the live set records nothing into Applied, so a once grant read here (a range Mark at a unit
+            // it does not shoot) is neither listed nor spent; the attack that follows lists and spends what it reads.
+            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, group.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
             // p.7: "Rush - Moves 12" but can't shoot", unless Quick Shot is live for this target ("This model may shoot after using Rush actions"):
             // innate, or granted against this target (army-rule hooks → Shooting after Rush). Offering reads nothing; FireGroupsStep spends it.
             if (ctx.Frame.Context.Action == GfNames.Rush && !live.Has(Side.Attacker, GfNames.QuickShot)) return false;
