@@ -24,12 +24,13 @@ public partial class GameScreen : Control
     {
         _session = Main.Instance.Session;
         var root = new HBoxContainer(); root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
-        var viewportContainer = _tableBox = new SubViewportContainer { Stretch = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
+        var viewportContainer = _tableBox = new SubViewportContainer { Stretch = true, MouseTarget = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
         var viewport = new SubViewport { HandleInputLocally = true }; viewportContainer.AddChild(viewport); root.AddChild(viewportContainer);
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
         viewportContainer.MouseExited += () => Input.ClearHover();   // the pointer over a Hud part is off the table: no hovered unit, no enemy strip
-        // A setup terrain tile dragged from the side panel lands where it is dropped on the table (SetupToolbar.DropTile).
+        // A setup terrain tile dragged from the side panel lands where it is dropped on the table (SetupToolbar.DropTile). MouseTarget
+        // makes the container itself the drop target: without it Godot looks for a Control inside the SubViewport, finds none, and refuses the drop.
         viewportContainer.SetDragForwarding(Callable.From((Vector2 _) => default(Variant)),
             Callable.From((Vector2 at, Variant data) => TileOf(data) is not null && _setup is SetupToolbar && Input.TableAt(at) is not null),
             Callable.From((Vector2 at, Variant data) => { if (TileOf(data) is { } name && _setup is SetupToolbar tools && Input.TableAt(at) is { } p) tools.DropTile(name, new Tabletop.Geometry.Point2(p.X, p.Y)); }));
