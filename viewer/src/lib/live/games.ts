@@ -18,6 +18,20 @@ export type GameSummary = {
   readonly joined: boolean;
   /** The name of the game's rule set; absent from a server that does not send it. */
   readonly ruleSet?: string;
+  /** The game's teams, and those with a participant holding an army. */
+  readonly teams?: number;
+  readonly teamsReady?: number;
+  /** Where a game in play stands, as the game server last wrote it; absent before (lobby, setup). */
+  readonly progress?: GameProgress | null;
+};
+
+/** management's `GameProgress` (libs/Tabletop.Protocol/GameProgress.cs): the round, the acting team's ordinal, the accounts an open Ask
+ *  waits on, and once ended the winners' ordinals (one wins, several draw, none is no result). */
+export type GameProgress = {
+  readonly round: number;
+  readonly actingTeam?: number | null;
+  readonly waitingOn: readonly string[];
+  readonly outcome?: readonly number[] | null;
 };
 
 /** Management leaves `next` out of the last page. */

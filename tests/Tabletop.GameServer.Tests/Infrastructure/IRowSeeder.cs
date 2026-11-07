@@ -28,4 +28,6 @@ public interface IRowSeeder
     Task<Guid> SeedTableStateAsync(Guid gameId, double width = 72, double length = 48);
     /// <summary>A saved layout: TableStateTests.Sample() named "Saved layout", owned by an account rather than a game.</summary>
     Task<TableState> SeedLayoutAsync(Guid ownerId);
+    /// <summary>The game row's progress columns as last written; null before IGameRows.WriteProgressAsync.</summary>
+    Task<GameProgress?> ProgressOfAsync(Guid gameId);
 }

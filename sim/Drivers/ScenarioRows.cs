@@ -26,6 +26,8 @@ public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRow
         return Task.CompletedTask;
     }
 
+    public Task WriteProgressAsync(Guid gameId, GameProgress progress, CancellationToken ct) => Task.CompletedTask;
+
     public Task EndGameAsync(Guid gameId, CancellationToken ct)
     {
         if (gameId == _info.Id && _info.Status == GameStatus.Playing) _info = _info with { Status = GameStatus.Ended };

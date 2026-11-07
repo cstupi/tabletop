@@ -64,6 +64,15 @@ public class GameEndTests
     }
 
     [Fact]
+    public async Task The_row_carries_the_progress_after_hydration_and_after_the_end()
+    {
+        var (session, _, clay, seeded) = await Hydrated(new EndsOnScoreEngineFactory());
+        Assert.True(new GameProgress(0, null, [], null).SameAs(await db.ProgressOfAsync(seeded.GameId)));
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(seeded.TeamIds[0], 1)));
+        Assert.Equal([], (await db.ProgressOfAsync(seeded.GameId))!.Outcome);
+    }
+
+    [Fact]
     public async Task A_crash_between_the_append_and_the_row_is_reconciled_on_hydration()
     {
         var (_, log, _, seeded) = await Hydrated(new EndsOnScoreEngineFactory(), GameStatus.Playing, new ScoreSet(Guid.CreateVersion7(), 1), new GameEnded("over", []));

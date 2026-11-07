@@ -64,15 +64,20 @@ flowchart TD
   table -- reads --> session
 ```
 
-`LoginScreen` focuses the email field; Enter moves to the password and signs in from it or from the
-code field; its buttons are disabled while a request is out, and its line says what is happening or
-`Feedback.Error`. `HomeScreen` shows `Signed in as {name}` with **Rename…** (`Session.RenameAsync`,
-`PATCH /v1/account`; the dialog's OK waits until `TextLimits.NameProblem` is null) and, while the name is
-management's default `Player-xxxx` (`TextLimits.IsDefaultName`), a line asking for a real one. The game
-list shows a disabled row for loading, no games, or no match; Join is disabled without a selection
-and while a join is out, More once every page is listed, each with the reason as tooltip; double-click
-or Enter joins. End game and Delete game (`GameRowActions`) are enabled on a game I created (End only before it has ended), each
-asked first, and the list reloads after. Create game loads the rule sets and armies first, and its OK waits for a valid name.
+`LoginScreen` is a card with a segmented choice, Password (email, password, Remember me, **Sign in** and a flat **Create account**)
+or Email me a code (email and **Send code**, then the code and **Sign in**); Enter moves from the email to the next field and signs in
+from the password or the code field; its buttons are disabled while a request is out, and a failure is a line under the field it
+concerns. Its gear opens Settings before sign-in. `HomeScreen` (UX redesign part 1 → Home) draws `HomeView`: a header with the gear
+(Settings) and the account menu (**Rename…**, `Session.RenameAsync`, `PATCH /v1/account`, the dialog's OK waiting until
+`TextLimits.NameProblem` is null; **Sign out**), a line while the name is management's default `Player-xxxx`
+(`TextLimits.IsDefaultName`); **New game**, the name filter, refresh and **Ended too**; *Your games* (every page of
+`GET /v1/games?joined=true`, not ended) as cards banded in the status colour (`HomeLook`) with the edition, three players then `+N`,
+the state line, the primary (Play, Continue, Open) and a ▸ menu (Replay on a playing game, End game and Delete game for the creator,
+Leave), each of End, Delete and Leave asked first; *Open games* (the rest of `GET /v1/games` not ended, paged with More games) as rows
+with Join; my ended games as rows with Replay while Ended too is on. The list reloads after an action and when the window comes to
+the front. Create game loads the rule sets and armies first; the name's problem shows from the first keystroke or an Enter, and
+Create game waits for a valid name; the enforcement's line (`CreateDefaults.EnforcementHint`) is under its picker; created, the lobby
+opens at once.
 The game screen's corner (`CornerLine`) reads `Connecting…`, or the game's name, clipped with an ellipsis to the corner's 420 px, then
 its status, `— watching` for a watcher and `(reconnecting, attempt N; Home stops it…)`, which never clip.
 

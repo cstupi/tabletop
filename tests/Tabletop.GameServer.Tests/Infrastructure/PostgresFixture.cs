@@ -187,6 +187,15 @@ public sealed class PostgresFixture : IAsyncLifetime, IRowSeeder
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task<GameProgress?> ProgressOfAsync(Guid gameId)
+    {
+        await using var cmd = Db.CreateCommand("select round, acting_team, waiting_on, outcome from management.game where id = $1");
+        cmd.Parameters.AddWithValue(gameId);
+        await using var r = await cmd.ExecuteReaderAsync();
+        if (!await r.ReadAsync() || r.IsDBNull(0)) return null;
+        return new GameProgress(r.GetInt32(0), r.IsDBNull(1) ? null : r.GetInt32(1), r.GetFieldValue<Guid[]>(2), r.IsDBNull(3) ? null : r.GetFieldValue<int[]>(3));
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()

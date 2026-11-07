@@ -156,6 +156,10 @@ erDiagram
         enum enforcement
         bool waits_between_steps
         jsonb optional_rules
+        int round
+        int acting_team
+        uuid[] waiting_on
+        int[] outcome
     }
     TEAM {
         uuid id

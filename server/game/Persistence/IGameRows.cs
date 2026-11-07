@@ -8,7 +8,7 @@ public sealed record OwnedArmy(Army Army, Guid OwnerId);
 /// <summary>
 /// Management's rows as this server sees them. Reads at hydration and end-setup; writes while the game is lobby or setup, a participant's team and army
 /// while deployment waits for players (WaitingForPlayers), and `game.status` once more: `playing → ended`
-/// when this server's own log ends the game (enforcement spec → The row and the broadcast). Nothing here is a join across the schema boundary: the log is IEventLog.
+/// when this server's own log ends the game (enforcement spec → The row and the broadcast), and the game's progress columns. Nothing here is a join across the schema boundary: the log is IEventLog.
 /// </summary>
 public interface IGameRows
 {
@@ -28,6 +28,10 @@ public interface IGameRows
 
     /// <summary>playing → ended, guarded on playing, so management's own end and a second call change nothing.</summary>
     Task EndGameAsync(Guid gameId, CancellationToken ct);
+
+    /// <summary>Where the game stands (round, acting team, the accounts an open Ask waits on, the outcome), for management's game list.
+    /// Written after each run of the log while the game is playing or ended; never read back by this server.</summary>
+    Task WriteProgressAsync(Guid gameId, GameProgress progress, CancellationToken ct);
 
     Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct);
     Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct);

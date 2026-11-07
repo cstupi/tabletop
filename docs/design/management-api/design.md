@@ -1235,7 +1235,7 @@ writes `builtin/`.
 | `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules, Default)[]`, one per `(GameRules, Name)`, the latest seeded; `Default` is true for the set of `RuleSets.Default` (`grimdark-future-3.6`), which the create dialogs preselect | bearer |
 | `GET /v1/properties/{hash}/rules` | → `CatalogRuleText(Name, Kind, TakesParameter, RuleText, Played)[]` by name; `404` for an unknown hash | bearer |
 | `GET /v1/properties/{hash}/grants` | → `GrantableEffect(EntryName, EffectId, Duration)[]`: the set's top-level `once`, `marker`, `spent_marker` and `one_marker` effect rows by entry then ordinal, what the client's Add a grant names in an `AddGrant`; `404` for an unknown hash | bearer |
-| `GET /v1/games?limit&after&joined` | → `Page<GameSummary>`; `GameSummary.RuleSet` is the name of the set the game is pinned to (`Grimdark Future v3.5.1`, `Grimdark Future v3.6.0`) | bearer, public |
+| `GET /v1/games?limit&after&joined` | → `Page<GameSummary>`; `GameSummary.RuleSet` is the name of the set the game is pinned to (`Grimdark Future v3.5.1`, `Grimdark Future v3.6.0`); `Teams` and `TeamsReady` count the game's teams and those with a participant holding an army; `Progress` (`GameProgress`: `Round`, `ActingTeam` ordinal, `WaitingOn` account ids, `Outcome` winners' ordinals) is what the game server last wrote on the row, null before | bearer, public |
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer, public |
 | `POST /v1/games/{id}/join` | → `GameInfo`. Joins the game, no team | bearer |

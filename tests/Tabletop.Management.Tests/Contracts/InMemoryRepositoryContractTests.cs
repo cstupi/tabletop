@@ -49,6 +49,9 @@ public sealed class InMemoryRepositoryContractTests : RepositoryContract
         return Task.CompletedTask;
     }
 
+    protected override Task SeedTeam(Guid gameId, Guid accountId, int ordinal) { _rows.SeedTeam(gameId, accountId, ordinal); return Task.CompletedTask; }
+    protected override Task SeedProgress(Guid gameId, Tabletop.Protocol.GameProgress progress) { _rows.SeedProgress(gameId, progress); return Task.CompletedTask; }
+
     protected override Task BackdateBlob(Guid ownerId, string hash, TimeSpan age)
     {
         lock (_rows.Gate) _rows.Blobs[(ownerId, hash)].CreatedAt -= age;

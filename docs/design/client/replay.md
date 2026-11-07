@@ -5,9 +5,8 @@ show the game at a chosen position in its log; nothing sent from a replay change
 
 ## Entry and exit
 
-- Home's game list marks each row the account is in (`GameSummary.Joined`, "(you)") and offers **Replay** on one
-  that is `playing` or `ended` (`GameRowActions.CanReplay`). **Games I'm in** reloads the list with
-  `GET /v1/games?joined=true`.
+- Home offers **Replay** on a game the account is in (`GameSummary.Joined`): the primary of an ended game's row (under **Ended too**)
+  and an item in a playing game's ▸ menu (`HomeView`). Home lists them from `GET /v1/games?joined=true`.
 - Replay calls `Session.ReplayAsync(gameId)`, which connects like a join but on `/ws?watch=1`: the game server
   holds that socket as a watcher whatever the account (game-server design → Watchers). An admin's replay is the
   same socket.

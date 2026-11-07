@@ -34,13 +34,16 @@ public sealed class InMemoryRows
         public required string Name; public GameStatus Status; public required string GameRules; public required string PropertiesHash;
         public SchedulerShape SchedulerShape; public Enforcement Enforcement; public bool WaitsBetweenSteps; public long RngSeed;
         public Guid CreatedBy; public DateTimeOffset CreatedAt;
+        /// <summary>The progress columns the game server writes; null before its first write.</summary>
+        public GameProgress? Progress;
     }
     public sealed class OfferRow
     {
         public required Guid Sharer; public required Guid Recipient; public string? Folder; public string State = "open";
         public DateTimeOffset CreatedAt = DateTimeOffset.UtcNow; public DateTimeOffset? DecidedAt; public List<Guid> AssetIds = [];
     }
-    public sealed class ParticipantRow { public Guid Id; public Guid GameId; public Guid AccountId; public Guid? ArmyId; public ArmySnapshot? Snapshot; }
+    public sealed class ParticipantRow { public Guid Id; public Guid GameId; public Guid AccountId; public Guid? TeamId; public Guid? ArmyId; public ArmySnapshot? Snapshot; }
+    public sealed record TeamRow(Guid Id, Guid GameId, int Ordinal);
 
     public readonly object Gate = new();
     private long _lastMillisecond;
@@ -62,6 +65,8 @@ public sealed class InMemoryRows
     public readonly List<EffectRow> Effects = new();
     public readonly Dictionary<Guid, GameRow> Games = new();
     public readonly List<ParticipantRow> Participants = new();
+    /// <summary>team: the game server's rows, seeded by tests.</summary>
+    public readonly List<TeamRow> Teams = new();
     /// <summary>A game's table_state: the draft the game server writes during setup.</summary>
     public readonly Dictionary<Guid, TableState> GameTables = new();
     public readonly List<(Guid GameId, long Seq)> GameEvents = new();
@@ -127,6 +132,21 @@ public sealed class InMemoryRows
             foreach (var p in Participants.Where(p => p.GameId == gameId && p.AccountId == accountId)) p.ArmyId = armyId;
         }
     }
+
+    /// <summary>A team row of the game at this ordinal, and the account's participant rows on it, as the game server's PickTeam writes them.</summary>
+    public void SeedTeam(Guid gameId, Guid accountId, int ordinal)
+    {
+        lock (Gate)
+        {
+            if (!Games.ContainsKey(gameId)) throw new InvalidOperationException($"foreign key violation: no game {gameId}");
+            if (Teams.Any(t => t.GameId == gameId && t.Ordinal == ordinal)) throw new InvalidOperationException($"duplicate key: team {gameId}/{ordinal}");
+            var team = new TeamRow(NextId(), gameId, ordinal);
+            Teams.Add(team);
+            foreach (var p in Participants.Where(p => p.GameId == gameId && p.AccountId == accountId)) p.TeamId = team.Id;
+        }
+    }
+
+    public void SeedProgress(Guid gameId, GameProgress progress) { lock (Gate) Games[gameId].Progress = progress; }
 
     public void FreezeArmy(Guid gameId, Guid accountId, ArmySnapshot snapshot)
     {
@@ -208,6 +228,7 @@ public sealed class InMemoryRows
     {
         Games.Remove(id);
         Participants.RemoveAll(p => p.GameId == id);
+        Teams.RemoveAll(t => t.GameId == id);
         GameTables.Remove(id);
     }
 

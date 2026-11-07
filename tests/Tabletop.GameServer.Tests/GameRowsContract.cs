@@ -126,6 +126,19 @@ public abstract class GameRowsContract
     }
 
     [Fact]
+    public async Task Progress_is_written_and_rewritten_on_the_game_row()
+    {
+        var game = await Seeder.SeedGameAsync(GameStatus.Playing);
+        Assert.Null(await Seeder.ProgressOfAsync(game.GameId));
+        var waiting = new[] { Guid.CreateVersion7(), Guid.CreateVersion7() };
+        await Rows.WriteProgressAsync(game.GameId, new GameProgress(2, 1, waiting, null), Ct);
+        Assert.True(new GameProgress(2, 1, waiting, null).SameAs(await Seeder.ProgressOfAsync(game.GameId)));
+        await Rows.WriteProgressAsync(game.GameId, new GameProgress(4, null, [], [2]), Ct);
+        Assert.True(new GameProgress(4, null, [], [2]).SameAs(await Seeder.ProgressOfAsync(game.GameId)));
+        await Rows.WriteProgressAsync(Guid.CreateVersion7(), new GameProgress(1, 1, [], null), Ct);   // no row: nothing written, nothing thrown
+    }
+
+    [Fact]
     public async Task Only_a_playing_game_is_marked_ended()
     {
         var lobby = await Seeder.SeedGameAsync(GameStatus.Lobby);
