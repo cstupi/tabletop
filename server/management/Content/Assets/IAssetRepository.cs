@@ -27,8 +27,9 @@ public interface IAssetRepository
     Task<AssetDto?> Patch(Guid ownerId, Guid id, PatchAssetRequest p);
     /// <summary>False when the owner has no blob row for the hash (the sweep deleted it).</summary>
     Task<bool> MarkUploaded(Guid ownerId, string hash);
-    /// <summary>Points the owner's asset at a thumbnail object; false when the owner has no such asset.</summary>
-    Task<bool> SetThumbnail(Guid ownerId, Guid id, string key);
+    /// <summary>Points the owner's asset at a thumbnail object; <c>Previous</c> is the key it named before (which a copy may still name).
+    /// Not found when the owner has no such asset.</summary>
+    Task<(bool Found, string? Previous)> SetThumbnail(Guid ownerId, Guid id, string key);
     /// <summary>The kind of each of these ids that is an asset of the owner with its bytes uploaded; other ids are absent.</summary>
     Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids);
     /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too, and when no blob row

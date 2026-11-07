@@ -34,7 +34,8 @@
 - Assets: `POST /v1/assets` checks the name, size cap (mesh 64 MiB, texture 16 MiB) and quota (500 assets, 1 GiB, under an account-row lock) and returns a presigned PUT (5 min) to `staging/{owner}/{assetId}`. `POST /v1/assets/{id}/confirm` copies it to a `.held` key no URL names, hashes and validates that copy (`GlbHeader.Check`, `ImageHeader.CheckTexture`, limits in `UploadLimits`), copies it to `{owner}/{hash}` and marks the blob uploaded. No user URL ever writes a content key. `GET /v1/assets/{id}/download` returns a presigned GET. Volumes: ≤ 16 per asset, bounded notes.
 - Thumbnails: `PUT /v1/assets/{id}/thumbnail` (the owner's uploaded mesh asset; body `image/png` or `image/webp`, ≤ 256 KiB and 512 × 512 by
   `ImageHeader.Read`, `ThumbnailLimits`; else 415, 422, 409 for a pending asset or a texture) stores the browser-rendered picture at
-  `thumbs/{assetId}` (`IBlobStore.ThumbnailKey`) and sets `asset.thumbnail_key`. `AssetDto`, `OfferAssetDto` and `SharedAssetDto` carry the
+  `thumbs/{assetId}/{sha256}` (`IBlobStore.ThumbnailKey`: a new key per picture, so an object a copy names never changes) and sets
+  `asset.thumbnail_key`; the replaced key goes unless a copy names it. `AssetDto`, `OfferAssetDto` and `SharedAssetDto` carry the
   key server-side only (`[JsonIgnore]`); `GET /v1/assets`, `/v1/assets/{id}`, `/v1/offers/sent`, `/v1/offers/received` and
   `GET /v1/shared/{username}` fill `thumbnail` with a presigned GET (60 min). A copy takes the source's key (`AssetCopies`); `Unreferenced`
   counts a key an asset's `thumbnail_key` names, so the object goes with the last row naming it (asset delete, `AccountDeleter` through

@@ -131,7 +131,7 @@ public static class AssetEndpoints
         a.ThumbnailKey is null ? a : a with { Thumbnail = await ThumbnailLimits.Url(blobs, a.ThumbnailKey) };
 
     /// <summary>The uploader's browser renders the thumbnail: a PNG or WebP of a mesh asset with its bytes uploaded, checked by its header
-    /// and stored at the asset's own key, which a copy of the asset made earlier names too.</summary>
+    /// and stored at a key of its own; the picture it replaces goes unless a copy names it.</summary>
     private static async Task<IResult> PutThumbnail(ClaimsPrincipal user, Guid id, HttpRequest request, IAssetRepository assets, IBlobStore blobs)
     {
         var type = request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
@@ -154,9 +154,14 @@ public static class AssetEndpoints
         if (info is null || info.ContentType != type) return Problems.Unprocessable($"The body is not a {type} image.");
         if (info.Width is <= 0 or > ThumbnailLimits.Side || info.Height is <= 0 or > ThumbnailLimits.Side)
             return Problems.Unprocessable($"A thumbnail is at most {ThumbnailLimits.Side} × {ThumbnailLimits.Side} pixels.");
-        var key = IBlobStore.ThumbnailKey(id);
+        // A fresh key per picture: a copy names the object it was made with, which stays as it is until no asset names it.
+        var key = IBlobStore.ThumbnailKey(id, Convert.ToHexStringLower(SHA256.HashData(bytes)));
         await blobs.Put(key, bytes, type);
-        return await assets.SetThumbnail(owner, id, key) ? Results.NoContent() : Problems.NotFound();
+        var (found, previous) = await assets.SetThumbnail(owner, id, key);
+        if (previous is not null && previous != key) await blobs.Delete(await assets.Unreferenced([previous]));
+        if (found) return Results.NoContent();
+        await blobs.Delete(await assets.Unreferenced([key]));
+        return Problems.NotFound();
     }
 
     /// <summary>The staged bytes are copied to a key no URL names, hashed and checked there, and only then copied to the content

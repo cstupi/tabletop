@@ -40,6 +40,9 @@ public class ThumbnailTests : IClassFixture<ManagementFactory>
 
     private async Task<byte[]> Fetch(Uri url) { using var http = _f.Blobs.Client(); return await http.GetByteArrayAsync(url); }
 
+    /// <summary>The thumbnail objects stored for the asset id.</summary>
+    private List<string> Stored(Guid assetId) => _f.Blobs.Keys.Where(k => k.StartsWith($"thumbs/{assetId}/")).ToList();
+
     [Fact]
     public async Task The_owner_puts_a_thumbnail_and_the_list_and_the_asset_carry_its_url()
     {
@@ -56,12 +59,14 @@ public class ThumbnailTests : IClassFixture<ManagementFactory>
         Assert.Equal(png, await Fetch((await c.GetJson<AssetDto>($"/v1/assets/{a.Id}")).Thumbnail!));
         Assert.DoesNotContain("thumbnailKey", await c.GetStringAsync("/v1/assets"), StringComparison.OrdinalIgnoreCase);
 
+        var first = Assert.Single(Stored(a.Id));
         var again = Png(128, 128);
         Assert.Equal(HttpStatusCode.NoContent, (await c.PutAsync($"/v1/assets/{a.Id}/thumbnail", Body(again))).StatusCode);
         Assert.Equal(again, await Fetch((await c.GetJson<AssetDto>($"/v1/assets/{a.Id}")).Thumbnail!));
+        Assert.NotEqual(first, Assert.Single(Stored(a.Id)));          // a new key; the replaced picture, named by nothing, is gone
 
         Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/v1/assets/{a.Id}")).StatusCode);
-        Assert.Null(await _f.Blobs.Size(IBlobStore.ThumbnailKey(a.Id)));
+        Assert.Empty(Stored(a.Id));
     }
 
     [Fact]
@@ -83,11 +88,11 @@ public class ThumbnailTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsync($"/v1/assets/{pending.Id}/thumbnail", Body(Png()))).StatusCode);
         var texture = await Upload(c, Png(64, 64), AssetKind.Texture, "image/png");
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsync($"/v1/assets/{texture.Id}/thumbnail", Body(Png()))).StatusCode);
-        Assert.Null(await _f.Blobs.Size(IBlobStore.ThumbnailKey(a.Id)));
+        Assert.Empty(Stored(a.Id));
     }
 
     [Fact]
-    public async Task A_shared_model_shows_its_thumbnail_and_the_copy_keeps_it_after_the_sharer_deletes()
+    public async Task A_shared_model_shows_its_thumbnail_and_the_copy_keeps_it_through_the_sharers_new_picture_and_delete()
     {
         var (aId, bId) = (Guid.CreateVersion7(), Guid.CreateVersion7());
         var a = await _f.AuthenticatedClient(aId, "Sharer"); var b = await _f.AuthenticatedClient(bId, "Copier");
@@ -101,9 +106,19 @@ public class ThumbnailTests : IClassFixture<ManagementFactory>
 
         Assert.Equal(png, await Fetch((await b.GetJson<SharedLibraryDto>($"/v1/shared/{user}")).Assets.Single().Thumbnail!));
         var copy = (await b.PostJson<CopySharedResponse>($"/v1/shared/{user}/copy", new CopySharedRequest([boss.Id], null, null))).Assets.Single();
+        async Task<byte[]> Copied() => await Fetch((await b.GetJson<Page<AssetDto>>("/v1/assets")).Items.Single(x => x.Id == copy).Thumbnail!);
+
+        // The sharer's new picture is the sharer's: the copy shows the one it was made with.
+        var redrawn = Png(200, 200);
+        Assert.Equal(HttpStatusCode.NoContent, (await a.PutAsync($"/v1/assets/{boss.Id}/thumbnail", Body(redrawn))).StatusCode);
+        Assert.Equal(redrawn, await Fetch((await a.GetJson<AssetDto>($"/v1/assets/{boss.Id}")).Thumbnail!));
+        Assert.Equal(png, await Copied());
+        Assert.Equal(2, Stored(boss.Id).Count);
+
         Assert.Equal(HttpStatusCode.NoContent, (await a.DeleteAsync($"/v1/assets/{boss.Id}")).StatusCode);
-        Assert.Equal(png, await Fetch((await b.GetJson<Page<AssetDto>>("/v1/assets")).Items.Single(x => x.Id == copy).Thumbnail!));
+        Assert.Equal(png, await Copied());
+        Assert.Single(Stored(boss.Id));
         Assert.Equal(HttpStatusCode.NoContent, (await b.DeleteAsync($"/v1/assets/{copy}")).StatusCode);
-        Assert.Null(await _f.Blobs.Size(IBlobStore.ThumbnailKey(boss.Id)));
+        Assert.Empty(Stored(boss.Id));
     }
 }

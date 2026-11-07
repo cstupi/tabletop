@@ -76,10 +76,12 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         return await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash }) == 1;
     }
 
-    public async Task<bool> SetThumbnail(Guid ownerId, Guid id, string key)
+    public async Task<(bool Found, string? Previous)> SetThumbnail(Guid ownerId, Guid id, string key)
     {
         await using var c = await db.Open();
-        return await c.ExecuteAsync("update asset set thumbnail_key = @key where id = @id and owner_id = @ownerId", new { id, ownerId, key }) == 1;
+        var row = await c.QuerySingleOrDefaultAsync<(Guid Id, string? Previous)>(@"update asset a set thumbnail_key = @key from asset old
+            where a.id = @id and a.owner_id = @ownerId and old.id = a.id returning a.id, old.thumbnail_key", new { id, ownerId, key });
+        return row.Id == Guid.Empty ? (false, null) : (true, row.Previous);
     }
 
     public async Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)

@@ -84,13 +84,14 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
         }
     }
 
-    public Task<bool> SetThumbnail(Guid ownerId, Guid id, string key)
+    public Task<(bool Found, string? Previous)> SetThumbnail(Guid ownerId, Guid id, string key)
     {
         lock (rows.Gate)
         {
-            if (!rows.Assets.TryGetValue(id, out var a) || a.Owner != ownerId) return Task.FromResult(false);
+            if (!rows.Assets.TryGetValue(id, out var a) || a.Owner != ownerId) return Task.FromResult<(bool, string?)>((false, null));
+            var previous = a.ThumbnailKey;
             a.ThumbnailKey = key;
-            return Task.FromResult(true);
+            return Task.FromResult<(bool, string?)>((true, previous));
         }
     }
 

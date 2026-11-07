@@ -454,7 +454,7 @@ A copy is an offer's accepted copy: an `asset` and a `blob` row of the copier's 
 ### An asset may name a thumbnail object
 
 Management's `030_asset_thumbnail.sql`: `asset.thumbnail_key text null`, indexed where set. The uploader's browser renders a
-small PNG or WebP of a mesh asset and `PUT /v1/assets/{id}/thumbnail` stores it at `thumbs/{asset id}`. A copy takes its
+small PNG or WebP of a mesh asset and `PUT /v1/assets/{id}/thumbnail` stores it at `thumbs/{asset id}/{sha256}`, a new key per picture, so an object never changes once written. A copy takes its
 source's key, as its `blob` row takes the source's `s3_key`; the object is deleted only when no `asset` row names it.
 
 ### `account` records whether its starter meshes were seeded
