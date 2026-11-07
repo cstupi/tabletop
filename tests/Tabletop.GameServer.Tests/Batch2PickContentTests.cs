@@ -1,9 +1,11 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
+using Tabletop.Protocol.Tests;
 using static Tabletop.GameServer.Tests.Infrastructure.Armies;
 
 namespace Tabletop.GameServer.Tests;
@@ -93,6 +95,36 @@ public class Batch2PickContentTests
         Assert.Equal((8.0, 16.0, 16.0), (StatReader.ActionDistance(l3, Side.Attacker, GfNames.Advance), StatReader.ActionDistance(l3, Side.Attacker, GfNames.Rush), StatReader.ActionDistance(l3, Side.Attacker, GfNames.Charge)));
         var (s4, a4, b4, _, _) = Granted("Speed Debuff", onA: true);
         Assert.Equal(4.0, StatReader.ActionDistance(Attack(s4, a4, b4, AttackKind.Melee), Side.Attacker, GfNames.Advance));
+    }
+
+    /// <summary>
+    /// "+6" range when shooting against once (next time the effect would apply)": a Hold whose offer reads the marked unit's range and shoots
+    /// nothing at it neither acts with the mark nor spends it, so shoot-or-not does not list it: past the reach (24" + 6") or inside it and passed.
+    /// The grant is the one pick-rule writes: on the marked unit, its caster the marking unit (a friend of the shooter).
+    /// </summary>
+    [Theory]
+    [InlineData(RuleSets.Gf351, 16.0, false)]
+    [InlineData(RuleSets.Gf360, 16.0, false)]
+    [InlineData(RuleSets.Gf351, 14.0, true)]
+    [InlineData(RuleSets.Gf360, 14.0, true)]
+    public void An_offer_that_shoots_nothing_at_the_marked_unit_lists_no_range_mark_and_keeps_it(string rules, double half, bool offered)
+    {
+        const string entry = "Increased Shooting Range Mark";
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Gun", "24\"", 1));
+        var b = Unit("B", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(rules, State([a], [b], x1: -half, x2: half));
+        var set = rules == RuleSets.Gf351 ? TestProperties.Core : TestProperties.Core36;
+        var row = set.Entry(entry)!.Effects.Single(e => e.Duration == EffectDuration.Once);
+        sim.Append([new GrantAdded(b.Id, new Grant(Guid.CreateVersion7(), row.Id, entry, a.Id, 1))]);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        if (offered)
+        {
+            Assert.Equal("shoot_or_not", sim.AskFor(Samples.Team1).Question);
+            sim.Answer(Samples.Team1, new Chosen("pass"));
+        }
+        Assert.Null(sim.AskForOrNull(Samples.Team1));
+        Assert.DoesNotContain(entry, AppliedKindsTests.Applied(sim, "shoot-or-not"));
+        Assert.Single(sim.Unit(b.Id).Grants);
     }
 
     [Fact]

@@ -76,8 +76,9 @@ It reads management's rows, owns each game's append-only event log, and hosts th
   null when none did. Each `StepContext` owns an `AppliedEntries`: a live set settled through `StepContext.Settle` records every
   effect row that applies, and a ruleset hook that changes a result adds the rule it names (`ctx.Applied.Add`). A rule that acts in
   the scheduler or in action legality (Scout, Ambush, Immobile) completes no step and is not listed; Aircraft's action restriction is
-  not listed either, but its move (p.13: +30", no terrain) is, on the move step. The rules suite reads it
-  to judge which rules fired.
+  not listed either, but its move (p.13: +30", no terrain) is, on the move step. Offering shooting targets (`GfShooting.ValidTargets`,
+  read by `shoot-or-not` and `declare-targets`) settles with no recorder: an offer is no attack, so a once grant it reads (a range Mark)
+  is neither listed nor spent there. The rules suite reads it to judge which rules fired.
 - `SequenceInterpreter` opens a "Continue: {step}" confirm Ask between steps, and before a repeat of a frame's first step, when `Info.WaitsBetweenSteps` is on, gated to the actor's team. The client never offers the flag; it serves development. Under the same flag a frame with no actor and no parent (the roll-off) is gated to every team; without it the roll-off rolls and ranks in one run (roll-off result spec). A frame waiting only on a Confirm the flag no longer asks for (a log stopped at the roll-off's gate when it opened whatever the flag said) has it closed unanswered (`SequenceInterpreter.StaleGates`, asked by `RulesEngine.Advance` while a framed Ask is open). The roll-off's ranking step writes `place_1..place_n` and `rolled_<ordinal>_<k>`, each team's faces, which the client's `RollOffBanners` shows.
 - An override command passes `MenuLimits` first: an action, or a grant's entry and effect, named in the property set; a condition 1–64 characters (free names by design); positions finite within the table's diagonal of its centre; bounded numbers.
 - An override command passes `MenuLimits` first: an action, or a grant's entry and effect, named in the property set; a condition 1–64 characters (free names by design); positions finite within the table's diagonal of its centre; bounded numbers.
