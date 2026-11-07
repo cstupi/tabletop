@@ -2,30 +2,37 @@ using Godot; using Tabletop.Client.Core; using Tabletop.Client.Theming; using Ta
 namespace Tabletop.Client.Table;
 
 /// <summary>My selected unit's range rings when V has them on (ClientSettings.RangeRings, so the choice is remembered), each labelled with its printed range;
-/// and the hovered unit of another team's threat rings (ThreatRings over Session.Threats), in its team colour, whatever V says.</summary>
+/// and the hovered unit of another team's threat rings (ThreatRings over Session.Threats), in its team colour, whatever V says. Readable rings plan:
+/// each ring fills its area in its kind's opacity (RingLook) under a screen-constant outline (RingMesh), and carries a screen-space label, the
+/// kind's icon and its words in the team colour, under the outline's point lowest on the screen (RingLabels), never over another label.</summary>
 public partial class RangeRingNode : Node3D
 {
     Session _s = null!; TableInput _input = null!;
-    readonly Layer _range = new(), _threat = new();
-    Action<RenderCause>? _onFrame; Action? _onChanged; Action<Intent>? _onIntent; Action<Guid?>? _onHover;
+    readonly Layer _threat = new(), _range = new();
+    readonly CanvasLayer _canvas = new(); readonly Control _labels = new() { MouseFilter = Control.MouseFilterEnum.Ignore };
+    Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Intent>? _onIntent; Action<Guid?>? _onHover;
     readonly RangeRingCache _rings = new(); readonly ThreatRingCache _threats = new();
+    readonly List<(float X, float Y)> _projected = new(); readonly List<HudRect> _wanted = new(); readonly List<Control> _order = new();
 
     public void Bind(Session session, TableInput input)
     {
-        _s = session; _input = input; _range.Attach(this); _threat.Attach(this);
+        _s = session; _input = input;
+        AddChild(_canvas); _canvas.AddChild(_labels); _labels.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        _threat.Attach(this, _labels); _range.Attach(this, _labels);
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Facts | RenderCause.Game)) != 0) Draw(); }; _onChanged = Draw; _onHover = _ => Draw();
+        _onTheme = () => { _labels.Theme = Ui.Theme; _threat.Forget(); _range.Forget(); Draw(); };                              // the themed team colour, font and icons
         _onIntent = i => { if (i == Intent.ToggleRangeRings) _s.UpdateSettings(x => x with { RangeRings = !x.RangeRings }); };   // SettingsChanged redraws
-        session.Frame.Render += _onFrame; session.SettingsChanged += _onChanged; Ui.Changed += _onChanged;                    // the Settings dialog's toggle; the themed team colour
-        input.SelectionChanged += _onChanged; input.IntentPressed += _onIntent; input.HoveredUnitChanged += _onHover; Draw();
+        session.Frame.Render += _onFrame; session.SettingsChanged += _onChanged; Ui.Changed += _onTheme;                       // the Settings dialog's toggle
+        input.SelectionChanged += _onChanged; input.IntentPressed += _onIntent; input.HoveredUnitChanged += _onHover; _onTheme();
     }
     public override void _ExitTree()
     {
-        Ui.Changed -= _onChanged;
+        Ui.Changed -= _onTheme;
         if (_s is null) return; _s.Frame.Render -= _onFrame; _s.SettingsChanged -= _onChanged;
         if (IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.IntentPressed -= _onIntent; _input.HoveredUnitChanged -= _onHover; }
     }
 
-    void Draw() { _range.Show(RangeWanted()); _threat.Show(ThreatWanted()); }
+    void Draw() { _threat.Show(ThreatWanted()); _range.Show(RangeWanted()); }
 
     (IReadOnlyList<RangeRing> Rings, Color Colour)? RangeWanted()
     {
@@ -42,27 +49,77 @@ public partial class RangeRingNode : Node3D
         return (_threats.Of(p, unit, threat), Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0));
     }
 
-    /// <summary>One set of outlines and labels. Rebuilds the mesh and labels only when the rings or their colour differ from what is drawn; the rings
-    /// themselves come from a cache that recomputes only when the unit, its placements (or its threat) change.</summary>
+    /// <summary>Each frame: every shown label under its ring's lowest point on the screen, then moved apart (RingLabels.Place). A frame projects
+    /// at most RingShape.Labels points per ring and builds nothing.</summary>
+    public override void _Process(double delta)
+    {
+        if (!_threat.Shown && !_range.Shown) return;
+        if (GetViewport().GetCamera3D() is not { } cam) return;
+        var size = GetViewport().GetVisibleRect().Size; var view = new HudRect(0, 0, size.X, size.Y);
+        _wanted.Clear(); _order.Clear();
+        foreach (var (candidates, label) in _threat.Labels.Concat(_range.Labels))
+        {
+            _projected.Clear();
+            foreach (var q in candidates) if (!cam.IsPositionBehind(q)) { var s = cam.UnprojectPosition(q); _projected.Add((s.X, s.Y)); }
+            if (RingLabels.Anchor(_projected, view, HudLayout.M) is not { } at) { label.Visible = false; continue; }
+            var box = label.GetCombinedMinimumSize();
+            _wanted.Add(RingLabels.Under(at, box.X, box.Y)); _order.Add(label);
+        }
+        var placed = RingLabels.Place(_wanted, view);
+        for (var i = 0; i < placed.Count; i++) { _order[i].Position = new Vector2(placed[i].X, placed[i].Y); _order[i].Size = new Vector2(placed[i].W, placed[i].H); _order[i].Visible = true; }
+    }
+
+    /// <summary>One set of rings: fill, outline and labels. Rebuilds them only when the rings or their colour differ from what is drawn; the rings
+    /// come from a cache that recomputes only when the unit, its placements (or its threat) change.</summary>
     sealed class Layer
     {
-        readonly MeshInstance3D _lines = new() { MaterialOverride = LineMesh.Material() }; readonly Node3D _labels = new();
-        (IReadOnlyList<RangeRing> Rings, Color Colour)? _drawn;      // what the mesh and labels show now
-        public void Attach(Node parent) { parent.AddChild(_lines); parent.AddChild(_labels); }
+        readonly MeshInstance3D _fill = new() { MaterialOverride = RingMesh.FillMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        readonly MeshInstance3D _line = new() { MaterialOverride = RingMesh.LineMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        readonly MeshInstance3D _behind = new() { MaterialOverride = RingMesh.BehindMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        Control _parent = null!;
+        (IReadOnlyList<RangeRing> Rings, Color Colour)? _drawn;
+        public readonly List<(Vector3[] Candidates, Control Label)> Labels = new();
+        public bool Shown => _drawn is not null;
+
+        public void Attach(Node parent, Control labels) { parent.AddChild(_fill); parent.AddChild(_line); parent.AddChild(_behind); _parent = labels; }
+        public void Forget() { Clear(); _drawn = null; }
+
+        void Clear()
+        {
+            _fill.Mesh = null; _line.Mesh = null; _behind.Mesh = null;
+            foreach (var (_, label) in Labels) label.QueueFree();
+            Labels.Clear();
+        }
 
         public void Show((IReadOnlyList<RangeRing> Rings, Color Colour)? want)
         {
             if (want is { } w && _drawn is { } d && ReferenceEquals(w.Rings, d.Rings) && w.Colour == d.Colour) return;
             if (want is null && _drawn is null) return;
-            _lines.Mesh = null; foreach (var c in _labels.GetChildren()) c.QueueFree();
-            _drawn = want;
+            Clear(); _drawn = want;
             if (want is not { } shown) return;
             var (rings, colour) = shown;
-            Vector3 At(Point2 q, double z) => WorldFrame.ToGodot(new Point3(q.X, q.Y, z));
-            _lines.Mesh = LineMesh.Of(rings.SelectMany(r => r.Segments).Select(s => (At(s.A, 0.05), At(s.B, 0.05), colour)));
-            foreach (var r in rings.Where(r => r.Segments.Count > 0))
-                _labels.AddChild(new Label3D { Text = r.Label, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 48, PixelSize = 0.01f, OutlineSize = 10, NoDepthTest = true,
-                    Modulate = colour, Position = At(r.Segments.MaxBy(s => s.A.Y).A, 0.4) });                                             // at the outline's far edge
+            var drawn = rings.Where(r => r.Segments.Count > 0).Select(r => (Ring: r, Look: RingLook.Of(r.Kind), Shape: RingShape.Of(r.Segments))).ToList();
+            _fill.Mesh = RingMesh.Fill(drawn.Select(x => (x.Shape, x.Look)).ToList(), colour);
+            _line.Mesh = _behind.Mesh = RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), colour);
+            foreach (var (ring, look, shape) in drawn)
+            {
+                var label = Label(ring.Label, look.Icon, colour); _parent.AddChild(label);
+                Labels.Add((shape.Candidates.Select(q => WorldFrame.ToGodot(new Point3(q.X, q.Y, RingMesh.LineLift))).ToArray(), label));
+            }
+        }
+
+        /// <summary>The theme's panel holding the kind's icon, tinted, and the label in the team colour.</summary>
+        static Control Label(string text, string icon, Color colour)
+        {
+            var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+            var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); panel.AddChild(row);
+            if (Ui.Icon(icon) is { } texture)
+                row.AddChild(new TextureRect { Texture = texture, SelfModulate = colour, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                    CustomMinimumSize = new Vector2(22, 22), MouseFilter = Control.MouseFilterEnum.Ignore });
+            var words = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
+            words.AddThemeColorOverride("font_color", colour);
+            row.AddChild(words);
+            return panel;
         }
     }
 }
