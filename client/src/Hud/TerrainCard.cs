@@ -83,8 +83,27 @@ public partial class TerrainCard : VBoxContainer
 
     void RenderTerrain(TerrainCardContent c, TerrainPlacement t)
     {
-        if (c.Editable) { _body.AddChild(Wrap(c.Name)); RenderPieceEdits(c, t); return; }
+        if (c.Editable) { RenderSetupHead(c, t); RenderPieceEdits(c, t); return; }
         RenderEffects(c);
+    }
+
+    /// <summary>Setup (spec 2026-11-07-ux-redesign-1-client-shell.md → Terrain and marker cards): a band in the piece's
+    /// group's colour (TerrainTiles.KindOf, the tile's) with its name, height and Remove as the danger icon at the right, then its effects as
+    /// chips, so the piece reads as its tile did.</summary>
+    void RenderSetupHead(TerrainCardContent c, TerrainPlacement t)
+    {
+        var s = _s;
+        var all = c.Effects.Aggregate(Tabletop.Geometry.TerrainDeclarations.None, (d, e) => d | e.Flag);
+        var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.EdgeBand(Ui.Of(TerrainTiles.KindOf(all).Colour))); _body.AddChild(band);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); band.AddChild(head);
+        head.AddChild(new Label { Text = c.Name, ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
+        if (c.Height.Length > 0) head.AddChild(new Label { Text = $"{c.Height} high", ThemeTypeVariation = Variation.Dim, VerticalAlignment = VerticalAlignment.Center });
+        var remove = HudBits.IconButton("remove", "Remove this piece", 20); remove.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        remove.AddThemeColorOverride("icon_normal_color", Ui.Failure); remove.AddThemeColorOverride("icon_hover_color", Ui.Failure.Lightened(0.3f));
+        remove.Pressed += () => Guarded.Send(s, SetupEdits.RemoveTerrain(t.Id)); head.AddChild(remove);
+        if (c.Effects.Count == 0) return;
+        var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", 6); chips.AddThemeConstantOverride("v_separation", 6); _body.AddChild(chips);
+        foreach (var e in c.Effects) chips.AddChild(HudBits.EffectChip(e, 16));
     }
 
     /// <summary>
@@ -121,13 +140,12 @@ public partial class TerrainCard : VBoxContainer
     }
 
     /// <summary>
-    /// Setup (spec 2026-10-27-godot-setup-screen-design.md → Terrain card): the source and height, facing (MenuModel.TurnInDraft, as the
-    /// right-click menu and Q/E) with Remove, scale; then Mesh (swap, my asset, reset volumes) and Volumes, folded as the player left them.
+    /// Setup (spec 2026-10-27-godot-setup-screen-design.md → Terrain card): facing (MenuModel.TurnInDraft, as the right-click menu and Q/E)
+    /// and scale; then Mesh (the source, swap, my asset, reset volumes) and Volumes, folded as the player left them.
     /// </summary>
     void RenderPieceEdits(TerrainCardContent c, TerrainPlacement t)
     {
         var s = _s;
-        _body.AddChild(Wrap(c.Height.Length > 0 ? $"{c.Source} · {c.Height} high" : c.Source, Variation.Dim));
         var facing = new HFlowContainer(); _body.AddChild(facing);
         void TurnTo(double degrees) { if (s.Draft is { } now && MenuModel.TurnInDraft(now, t.Id, degrees) is { } turn) Guarded.Send(s, turn); }
         facing.AddChild(new Label { Text = "Facing" });
@@ -135,13 +153,13 @@ public partial class TerrainCard : VBoxContainer
         yaw.ValueChanged += TurnTo; facing.AddChild(yaw);
         facing.AddChild(Btn($"⟲ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees + MenuModel.TerrainTurn)));
         facing.AddChild(Btn($"⟳ {MenuModel.TerrainTurn}°", () => TurnTo(t.Yaw.Degrees - MenuModel.TerrainTurn)));
-        facing.AddChild(Btn("Remove", () => Guarded.Send(s, SetupEdits.RemoveTerrain(t.Id))));
         var size = new HFlowContainer(); _body.AddChild(size);
         size.AddChild(new Label { Text = "Scale" });
         var scale = new SpinBox { MinValue = 0.25, MaxValue = 4, Step = 0.25, Value = t.Scale, Prefix = "×" }; size.AddChild(scale);
         scale.ValueChanged += v => Guarded.Send(s, SetupEdits.Scale(t.Id, v));
 
         var mesh = new Fold(_folds, SetupFold.PieceMesh, GameStatus.Setup, () => SetupFolds.Title(SetupFold.PieceMesh, null, null)); _body.AddChild(mesh);
+        mesh.Body.AddChild(Wrap(c.Source, Variation.Dim));
         var swapRow = new HFlowContainer(); mesh.Body.AddChild(swapRow);
         var swap = new OptionButton(); var names = BuiltinContent.Terrain.Keys.Order().ToList(); foreach (var n in names) swap.AddItem(n);
         if (t.Mesh.Builtin is { } b && names.IndexOf(b) is >= 0 and var at) swap.Select(at);
@@ -191,10 +209,15 @@ public partial class TerrainCard : VBoxContainer
 
     void RenderMarker(MarkerCardContent m)
     {
-        _body.AddChild(Wrap(m.Label is { } label ? $"{m.Name} · {label}" : m.Name));
-        var badges = new HFlowContainer(); _body.AddChild(badges); badges.AddChild(Badge(m.Diameter));
         var s = _s; var id = m.PieceId;
-        _body.AddChild(Btn("Remove marker", () => Guarded.Send(s, SetupEdits.RemoveMarker(id))));
+        var band = new PanelContainer(); band.AddThemeStyleboxOverride("panel", Ui.EdgeBand(Ui.Accent)); _body.AddChild(band);
+        var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); band.AddChild(head);
+        head.AddChild(HudBits.Icon("objective", Ui.Accent, 20));
+        head.AddChild(new Label { Text = m.Name, ThemeTypeVariation = Variation.Display, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
+        var remove = HudBits.IconButton("remove", "Remove this marker", 20); remove.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        remove.AddThemeColorOverride("icon_normal_color", Ui.Failure); remove.AddThemeColorOverride("icon_hover_color", Ui.Failure.Lightened(0.3f));
+        remove.Pressed += () => Guarded.Send(s, SetupEdits.RemoveMarker(id)); head.AddChild(remove);
+        _body.AddChild(Wrap(m.Label is { } label ? $"{label} · {m.Diameter}" : m.Diameter, Variation.Dim));
     }
 
     /// <summary>Setup phase -> Terrain: anyone may swap a piece's mesh for an asset from their library, and the placement keeps its
@@ -214,7 +237,6 @@ public partial class TerrainCard : VBoxContainer
 
     static SpinBox Spin(double value, double max, Action<double> changed) { var sb = new SpinBox { MinValue = 0, MaxValue = max, Step = 0.25, Value = value, CustomMinimumSize = new Vector2(70, 0) }; sb.ValueChanged += v => changed(v); return sb; }
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
-    static PanelContainer Badge(string text) { var badge = new PanelContainer { ThemeTypeVariation = Variation.Badge }; badge.AddChild(new Label { Text = text }); return badge; }
     static Label Wrap(string text, string variation = "") =>
         new() { Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
     static void Clear(Node box) { foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); } }
