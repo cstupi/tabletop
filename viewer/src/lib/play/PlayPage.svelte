@@ -32,6 +32,7 @@
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay } from './rangeRings';
+  import { ThreatRingCache, ofAnotherTeam } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
@@ -229,6 +230,17 @@
     return ringsOverlay(ringCache.of(geometry, p, unit), teamColour(ordinal));
   });
 
+  // The hovered unit of another team's threat rings (RangeRingNode, ThreatRings), from the server's ModelFacts.threats, whatever V says.
+  const threatCache = new ThreatRingCache();
+  const threatDrawn = $derived.by((): Overlay | null => {
+    const p = shown, game = snap?.game, unit = hoveredUnit, threat = unit == null ? undefined : snap?.threats.get(unit);
+    if (geometry === null || p === null || game == null || unit == null || threat === undefined || !ofAnotherTeam(game, p, teams, unit)) return null;
+    const u = p.units.get(unit)!;
+    const team = game.participants.find((x) => x.id === u.participantId)?.teamId;
+    const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
+    return ringsOverlay(threatCache.of(geometry, p, unit, threat), teamColour(ordinal));
+  });
+
   // D4: the sight check — L held with a unit selected, or the shooter of my open target pick, over the hovered unit.
   let sightHeld = $state(false);
   let sightTick = $state(0);
@@ -387,7 +399,7 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(threatDrawn === null ? [] : [threatDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay]), ...(terrainDrawn === null ? [] : [terrainDrawn])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
     {/if}
     {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
     <div class="float banner"><Banner {connection} /></div>

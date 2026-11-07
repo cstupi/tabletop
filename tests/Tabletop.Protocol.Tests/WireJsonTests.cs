@@ -85,6 +85,16 @@ public class WireJsonTests
     }
 
     [Fact]
+    public void A_unit_threat_carries_its_charge_its_shooting_move_and_each_models_range()
+    {
+        var threats = new Dictionary<Guid, UnitThreat> { [Guid.Empty] = new(null, 0, new Dictionary<Guid, double> { [Guid.Empty] = 24.5 }) };
+        var json = WireJson.Serialize(new ModelFacts(new Dictionary<Guid, int>(), null, null, threats));
+        Assert.Contains("\"threats\":{\"00000000-0000-0000-0000-000000000000\":{\"shootMove\":0,\"ranges\":{\"00000000-0000-0000-0000-000000000000\":24.5}}}", json);
+        var back = Assert.IsType<ModelFacts>(WireJson.Deserialize<SocketMessage>(json));
+        Assert.Equal((null, 0.0, 24.5), (back.Threats![Guid.Empty].Charge, back.Threats[Guid.Empty].ShootMove, back.Threats[Guid.Empty].Ranges[Guid.Empty]));
+    }
+
+    [Fact]
     public void A_sequence_without_an_outline_writes_no_outline_key()
     {
         var json = WireJson.Serialize<EventPayload>(new SequenceStarted(Guid.Empty, "hold", new SequenceContext(null, [], [], null)));

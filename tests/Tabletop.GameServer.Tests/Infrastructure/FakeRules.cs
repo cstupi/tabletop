@@ -55,6 +55,7 @@ public sealed class FakeRules : IGameRules
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => _inner.MayDeployInside(state, unitId, containerModelId, deploying);
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => DeployInsideHook?.Invoke(state) ?? _inner.DeployInside(state);
     public IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => MaySetAsideHook?.Invoke(state) ?? _inner.MaySetAside(state, properties);
+    public IReadOnlyDictionary<Guid, UnitThreat> Threats(GameState state, PropertySet properties) => _inner.Threats(state, properties);
 
     // The interpreter plan's members.
     public Func<string, Sequence>? SequenceHook { get; set; }

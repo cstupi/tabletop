@@ -31,6 +31,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     IReadOnlyDictionary<Guid, int> _maxWounds = new Dictionary<Guid, int>();
     IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();
     IReadOnlySet<Guid> _maySetAside = new HashSet<Guid>();
+    IReadOnlyDictionary<Guid, UnitThreat> _threats = new Dictionary<Guid, UnitThreat>();
 
     public SessionPhase Phase { get; private set; } = SessionPhase.LoggedOut;
     public AccountRow? Account { get; private set; }
@@ -82,6 +83,8 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside => _deployInside;
     /// <summary>The units that may be set aside before deployment now, or returned to it, from the latest ModelFacts.</summary>
     public IReadOnlySet<Guid> MaySetAside => _maySetAside;
+    /// <summary>Each unit's reach in its next activation, from the latest ModelFacts (threat range plan); an absent unit has none.</summary>
+    public IReadOnlyDictionary<Guid, UnitThreat> Threats => _threats;
     /// <summary>From a board until the join's log has arrived: the first ModelFacts after it, or an empty page (the end of setup).
     /// The server pages the log 500 events at a time, so one batch is not the whole catch-up.</summary>
     public bool CatchingUp { get; private set; }
@@ -422,6 +425,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
                 _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
                 _deployInside = f.DeployInside is { } inside ? new Dictionary<Guid, IReadOnlyList<Guid>>(inside) : new Dictionary<Guid, IReadOnlyList<Guid>>();
                 _maySetAside = new HashSet<Guid>(f.MaySetAside ?? []);
+                _threats = f.Threats is { } threats ? new Dictionary<Guid, UnitThreat>(threats) : new Dictionary<Guid, UnitThreat>();
                 CatchingUp = false;
                 RaiseFacts();
                 break;
@@ -536,6 +540,7 @@ public sealed partial class Session(ManagementClient management, IGameSocketFact
         _maxWounds = new Dictionary<Guid, int>();
         _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();
         _maySetAside = new HashSet<Guid>();
+        _threats = new Dictionary<Guid, UnitThreat>();
         CatchingUp = true;
         RaiseBoard();
     }

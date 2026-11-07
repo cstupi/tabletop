@@ -31,13 +31,19 @@ public sealed partial class GameSession
         unit.Definition.Models.Select(m => m.Id).Where(id => state.Projection.Models[id].Location is OnTable).ToList();
 
     ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)), state.Rules.DeployInside(state),
-        Engine?.Properties is { } properties ? state.Rules.MaySetAside(state, properties) : []);
+        Engine?.Properties is { } properties ? state.Rules.MaySetAside(state, properties) : [],
+        Engine?.Properties is { } props ? state.Rules.Threats(state, props) : new Dictionary<Guid, UnitThreat>());
 
     static bool Same(ModelFacts a, ModelFacts b) =>
         a.MaxWounds.Count == b.MaxWounds.Count && b.MaxWounds.All(kv => a.MaxWounds.TryGetValue(kv.Key, out var v) && v == kv.Value)
         && (a.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var x && (b.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var y
         && x.Count == y.Count && y.All(kv => x.TryGetValue(kv.Key, out var v) && v.SequenceEqual(kv.Value))
-        && (a.MaySetAside ?? []).SequenceEqual(b.MaySetAside ?? []);
+        && (a.MaySetAside ?? []).SequenceEqual(b.MaySetAside ?? [])
+        && SameThreats(a.Threats ?? new Dictionary<Guid, UnitThreat>(), b.Threats ?? new Dictionary<Guid, UnitThreat>());
+
+    static bool SameThreats(IReadOnlyDictionary<Guid, UnitThreat> a, IReadOnlyDictionary<Guid, UnitThreat> b) =>
+        a.Count == b.Count && b.All(kv => a.TryGetValue(kv.Key, out var t) && t.Charge == kv.Value.Charge && t.ShootMove == kv.Value.ShootMove
+            && t.Ranges.Count == kv.Value.Ranges.Count && kv.Value.Ranges.All(r => t.Ranges.TryGetValue(r.Key, out var v) && v == r.Value));
 
     /// <summary>On connect, once playing: every model's facts, after the log.</summary>
     private async Task SendFactsAsync(ISessionClient client)
