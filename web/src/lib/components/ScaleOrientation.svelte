@@ -21,24 +21,27 @@
 
 <fieldset><legend>Scale</legend>
   <input type="number" step="any" min="0" bind:value={scale} aria-label="Scale, inches per model unit" {disabled} /> ×
-  <span class="seg units" role="group" aria-label="The model was made in">
-    {#each Object.keys(UNIT_SCALES) as MeshUnit[] as u (u)}<button type="button" aria-pressed={scale === UNIT_SCALES[u]} onclick={() => (scale = UNIT_SCALES[u])} {disabled}>{UNIT_LABELS[u]}</button>{/each}
-  </span>
+  <div class="tiles units" role="group" aria-label="The model was made in">
+    {#each Object.keys(UNIT_SCALES) as MeshUnit[] as u (u)}<button type="button" class="tile" aria-pressed={scale === UNIT_SCALES[u]} onclick={() => (scale = UNIT_SCALES[u])} {disabled}><strong>{UNIT_LABELS[u]}</strong></button>{/each}
+  </div>
   {#if size}<p class="size" aria-live="polite">{size}</p>{/if}
   {#if suggested}<p class="suggest" role="status">That is not a miniature's size in these units; it looks like {UNIT_NAMES[suggested]}. <button type="button" onclick={() => (scale = UNIT_SCALES[suggested!])}>Use {UNIT_LABELS[suggested]}</button></p>{/if}
 </fieldset>
 <fieldset><legend>Orientation (degrees)</legend>
+  <div class="tiles axes" role="group" aria-label="Up axis">
+    <button type="button" class="tile" aria-pressed={orientation.pitch !== 90} onclick={() => orientation.pitch === 90 && standUp()} {disabled}><strong>Z up</strong></button>
+    <button type="button" class="tile" aria-pressed={orientation.pitch === 90} onclick={() => orientation.pitch !== 90 && standUp()} {disabled}><strong>Y up</strong></button>
+  </div>
   <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} {disabled} /></label>
   <label>Roll <input type="number" step="15" bind:value={orientation.roll} {disabled} /></label>
   <label>Yaw (facing) <input type="number" step="15" bind:value={orientation.yaw} {disabled} /></label>
-  <button type="button" onclick={standUp} {disabled}>Stand up / lay flat</button>
 </fieldset>
 
 <style>
   fieldset { margin: var(--s3) 0; }
   fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0; }
-  .units { vertical-align: middle; margin-left: var(--s2); }
-  .units > button { min-height: 2.25rem; }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); margin: var(--s2) 0; max-width: 22rem; }
+  .tile { min-height: 2.75rem; }
   .size, .suggest { margin: var(--s2) 0 0; }
   .suggest button { margin-left: var(--s2); }
 </style>

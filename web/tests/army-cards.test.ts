@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest';
+import type { ModelSlot, Unit } from '$lib/api/types';
+import { meshLine, meshPips, slotRows, statBadges, systemName } from '$lib/armies/cards';
+
+const slot = (over: Partial<ModelSlot> = {}): ModelSlot => ({
+  id: crypto.randomUUID(), ordinal: 0, name: 'Trooper', stats: {}, properties: [], base: { shape: 'circle', a: 1.26, b: 1.26 }, height: 1.9, weapons: [], ...over,
+});
+const unit = (models: ModelSlot[], stats: Record<string, string> = { Quality: '3+', Defense: '4+' }): Unit =>
+  ({ id: crypto.randomUUID(), ordinal: 0, name: 'Flayer Cavalry', stats, properties: [], models });
+
+describe('army cards', () => {
+  it('names the systems the import takes, and passes any other through', () => {
+    expect(systemName('grimdark-future')).toBe('Grimdark Future');
+    expect(systemName('age-of-fantasy')).toBe('Age of Fantasy');
+    expect(systemName('something-else')).toBe('something-else');
+  });
+
+  it('draws four pips: all, none, and a part rounded but never to all or none', () => {
+    expect(meshPips(13, 13)).toEqual([true, true, true, true]);
+    expect(meshPips(0, 13)).toEqual([false, false, false, false]);
+    expect(meshPips(9, 13)).toEqual([true, true, true, false]);
+    expect(meshPips(1, 40)).toEqual([true, false, false, false]);
+    expect(meshPips(39, 40)).toEqual([true, true, true, false]);
+    expect(meshPips(0, 0)).toEqual([false, false, false, false]);
+  });
+
+  it('says the mesh count in a few words', () => {
+    expect(meshLine(9, 13)).toBe('meshes 9 of 13');
+    expect(meshLine(13, 13)).toBe('all meshes');
+    expect(meshLine(0, 13)).toBe('no meshes');
+  });
+
+  it('is one row for every model when they share mesh, base and height, else a row per model', () => {
+    const same = unit([slot(), slot(), slot()]);
+    expect(slotRows(same)).toEqual({ shared: true, rows: same.models });
+    const one = unit([slot({ name: 'Reaper Champion' })]);
+    expect(slotRows(one)).toEqual({ shared: false, rows: one.models });
+    const mixed = unit([slot(), slot({ assetId: 'a' }), slot()]);
+    expect(slotRows(mixed)).toEqual({ shared: false, rows: mixed.models });
+    const based = unit([slot(), slot({ base: { shape: 'circle', a: 1.57, b: 1.57 } })]);
+    expect(slotRows(based).shared).toBe(false);
+  });
+
+  it('badges Quality and Defense with their icons, then any other stat', () => {
+    expect(statBadges(unit([], { Quality: '3+', Defense: '4+' }))).toEqual([
+      { key: 'Quality', icon: 'quality', value: '3+' }, { key: 'Defense', icon: 'defense', value: '4+' },
+    ]);
+    expect(statBadges(unit([], { Defense: '5+', Quality: '4+', Wounds: '3' }))).toEqual([
+      { key: 'Quality', icon: 'quality', value: '4+' }, { key: 'Defense', icon: 'defense', value: '5+' }, { key: 'Wounds', icon: null, value: '3' },
+    ]);
+  });
+});

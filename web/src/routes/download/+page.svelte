@@ -50,25 +50,20 @@
     <h2 id="release-heading">Tabletop {release.version}</h2>
     <p class="dim">Released {published}</p>
     {#if release.notes.trim()}<p class="notes">{release.notes.trim()}</p>{/if}
-    <p class="notice">These builds are not code-signed yet, so Windows and macOS warn the first time you open one. The steps under each download get past the warning.</p>
   </section>
 
   <ul class="builds">
     {#each downloads as d (d.platform)}
-      <li class="panel" class:mine={d.platform === detected} aria-labelledby="build-{d.platform}">
-        <div class="head">
-          <h2 id="build-{d.platform}">{PLATFORM_NAMES[d.platform]}</h2>
-          {#if d.platform === detected}<span class="mine-tag">This computer</span>{/if}
-        </div>
-        <p class="dim">{PLATFORM_DETAIL[d.platform]}</p>
-        <p><a class="button" class:primary={d.platform === detected} href={d.url} onclick={(e) => follow(e, d)}>
-          <Icon name="download" />Download for {PLATFORM_NAMES[d.platform]}<span class="size">{formatBytes(d.size)}</span></a></p>
+      <li class="panel card" class:mine={d.platform === detected} aria-labelledby="build-{d.platform}">
+        <a class="button tile wide" class:primary={d.platform === detected} href={d.url} onclick={(e) => follow(e, d)}>
+          <Icon name="download" size="1.75rem" /><span class="what"><strong id="build-{d.platform}">{PLATFORM_NAMES[d.platform]}</strong><small>{PLATFORM_DETAIL[d.platform]} · {formatBytes(d.size)}</small></span>
+          {#if d.platform === detected}<span class="chip mine-tag">this computer</span>{/if}</a>
         <dl>
           <dt>File</dt><dd><code>{d.fileName}</code></dd>
           <dt>SHA-256</dt><dd><code>{d.sha256}</code></dd>
         </dl>
         <h3>First run</h3>
-        <ol>{#each FIRST_RUN[d.platform] as step}<li>{step}</li>{/each}</ol>
+        <ol>{#each FIRST_RUN[d.platform] as step}<li class:unsigned={/not signed/.test(step)}>{#if /not signed/.test(step)}<span class="warn"><Icon name="warning" size="1.1em" label="Unsigned build" /></span>{/if}{step}</li>{/each}</ol>
       </li>
     {/each}
   </ul>
@@ -78,11 +73,13 @@
   .notes { white-space: pre-line; }
   .builds { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); }
   .builds > li { margin: 0; display: flex; flex-direction: column; }
-  .head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s2); }
-  .head h2 { margin: 0; }
-  .mine-tag { font-size: .8rem; color: var(--accent); border: 1px solid currentColor; padding: 0 var(--s2); }
-  .button { display: inline-flex; align-items: center; gap: var(--s2); text-decoration: none; }
-  .size { opacity: .8; font-size: .875em; }
+  .builds > li.mine { order: -1; }
+  .tile.wide { gap: var(--s3); padding: var(--s3) var(--s4); min-height: 4rem; }
+  .what { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
+  .what small { color: inherit; opacity: .85; }
+  .mine-tag { margin-left: auto; color: inherit; }
+  .button:not(.primary) { background: none; }
+  .warn { color: var(--warning); margin-right: var(--s1); vertical-align: -.1em; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s3); margin: var(--s3) 0; }
   dt { color: var(--dim); font-size: .875em; }
   dd { margin: 0; min-width: 0; }
@@ -91,4 +88,5 @@
   h3 { font-size: 1rem; margin: var(--s3) 0 var(--s1); }
   ol { margin: 0; padding-left: 1.25rem; }
   ol li { margin: var(--s1) 0; }
+  ol li.unsigned { list-style: decimal; }
 </style>

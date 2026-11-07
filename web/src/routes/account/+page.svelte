@@ -76,7 +76,7 @@
 
 <section class="panel danger-zone" aria-labelledby="delete-heading">
   <h2 id="delete-heading">Delete this account</h2>
-  <p>This removes your armies, assets, folders and layouts, and deletes <strong>every game you created — for everyone in it</strong>. Games you joined go on without you. There is no undo.</p>
+  <p>Deletes your armies, models, folders, layouts and every game you created.</p>
   <form class="stack" onsubmit={destroy}>
     <label>Type your display name, <strong>{current}</strong>, to confirm <input bind:value={confirm} autocomplete="off" /></label>
     <div class="actions"><button type="submit" class="danger" disabled={busy || confirm !== current}>Delete everything</button></div>

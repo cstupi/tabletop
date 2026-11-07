@@ -6,6 +6,8 @@
   import Icon from '$lib/components/Icon.svelte';
   import LibraryTabs from '$lib/components/LibraryTabs.svelte';
   import MeshPreview from '$lib/components/MeshPreview.svelte';
+  import Menu from '$lib/components/Menu.svelte';
+  import Thumb from '$lib/components/Thumb.svelte';
   import { folderOptions } from '$lib/library/bulk';
   import { alreadyHeld, appendPage, day, offerSummary } from '$lib/library/offers';
   import { baseLabel } from '$lib/units/bases';
@@ -90,17 +92,22 @@
 {#if loading}
   <p class="loading" role="status">Loading…</p>
 {:else if offers.length === 0}
-  <div class="empty"><p>No offers. When a player offers you models, they show here.</p></div>
+  <div class="empty"><Icon name="offer" size="2.5rem" /><p>No offers</p></div>
 {:else}
-  <ul class="offers" aria-label="Offers">
+  <ul class="offer-list" aria-label="Offers">
     {#each offers as o (o.id)}
       {@const held = alreadyHeld(o, mine)}
-      <li class="panel stack">
-        <p class="head"><span>From <strong>{o.sharerName}</strong></span><small class="dim">{day(o.createdAt)} · {offerSummary(o)}</small></p>
-        <ul class="assets">
+      <li class="panel card">
+        <div class="title"><Icon name="player" size="1.4rem" /><h2>{o.sharerName}</h2><small class="dim when">{day(o.createdAt)} · {offerSummary(o)}</small></div>
+        <ul class="assets" aria-label="Offered models">
           {#each o.assets as a (a.id)}
-            <li><Icon name={a.kind} size="1.25rem" /><span class="name"><strong>{a.name}</strong>{' '}<small class="dim">{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{' · '}{formatBytes(a.byteSize)}{#if held.has(a.id)}{' · '}in your library{/if}</small></span>
-              <button class="quiet" aria-pressed={preview?.offerId === o.id && preview.asset.id === a.id} onclick={() => show(o, a)}>Preview</button></li>
+            {@const on = preview?.offerId === o.id && preview.asset.id === a.id}
+            <li><button class="asset" aria-pressed={on} title="Preview {a.name}" onclick={() => show(o, a)}>
+              <Thumb url={a.thumbnail} icon={a.kind} size="100%" />
+              <span class="name">{a.name}</span>
+              <small class="dim">{#if a.modelledBase}{baseLabel(a.modelledBase)}{' · '}{/if}{formatBytes(a.byteSize)}</small>
+              {#if held.has(a.id)}<small class="held"><Icon name="ready" size="1em" />in your library</small>{/if}
+            </button></li>
           {/each}
         </ul>
         {#if preview?.offerId === o.id}
@@ -111,11 +118,13 @@
             {:else}<p class="loading" role="status">Downloading…</p>{/if}
           </div>
         {/if}
-        <div class="actions">
-          <label>Into folder <select bind:value={into[o.id]} disabled={busy === o.id}><option value="">No folder</option>{#each targets as t (t.id)}<option value={t.id}>{t.label}</option>{/each}</select></label>
-          <button class="primary" disabled={busy !== null} onclick={() => accept(o)}><Icon name="plus" />Accept</button>
+        <div class="foot">
+          <label class="into"><Icon name="folder" /><span class="visually-hidden">Into folder</span><select bind:value={into[o.id]} disabled={busy === o.id} aria-label="Into folder"><option value="">No folder</option>{#each targets as t (t.id)}<option value={t.id}>{t.label}</option>{/each}</select></label>
+          <button class="primary" disabled={busy !== null} onclick={() => accept(o)}><Icon name="ready" />Accept</button>
           <button disabled={busy !== null} onclick={() => decline(o, false)}>Decline</button>
-          <button class="quiet" disabled={busy !== null} onclick={() => decline(o, true)}>Block {o.sharerName}</button>
+          <span class="end"><Menu label="More for the offer from {o.sharerName}">
+            <button class="danger" disabled={busy !== null} onclick={() => decline(o, true)}>Block {o.sharerName}</button>
+          </Menu></span>
         </div>
       </li>
     {/each}
@@ -129,16 +138,19 @@
   </section>
 {/if}
 <style>
-  .offers { list-style: none; padding: 0; display: grid; gap: var(--s4); margin: 0 0 var(--s4) }
-  .head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); flex-wrap: wrap; margin: 0; overflow-wrap: anywhere }
-  .assets { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s1) }
-  .assets li { display: flex; align-items: center; gap: var(--s2) }
-  .assets :global(.icon) { color: var(--accent); flex: none }
-  .name { flex: 1; overflow-wrap: anywhere }
+  .offer-list { list-style: none; padding: 0; display: grid; gap: var(--s4); margin: 0 0 var(--s4) }
+  .title h2 { flex: 0 1 auto }
+  .when { margin-left: auto }
+  .assets { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)) }
+  .asset { display: flex; flex-direction: column; align-items: stretch; gap: var(--s1); width: 100%; height: 100%; padding: var(--s2); white-space: normal; text-align: left; justify-content: flex-start }
+  .asset > :global(.thumb) { aspect-ratio: 1; height: auto }
+  .name { overflow-wrap: anywhere; font-weight: 700 }
+  .held { display: inline-flex; align-items: center; gap: var(--s1); color: var(--success) }
+  .into { display: inline-flex; align-items: center; gap: var(--s1) }
+  .foot { flex-wrap: wrap }
   .view { min-height: 20rem; background: var(--view-bg); display: grid; overflow: hidden }
   .view > p { margin: auto; padding: var(--s5) }
   .view img { max-width: 100%; max-height: 24rem; margin: auto }
-  .actions label { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap }
   .dim { color: var(--dim) }
   .blocked ul { list-style: none; padding: 0; margin: 0 }
 </style>

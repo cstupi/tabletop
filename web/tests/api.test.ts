@@ -45,7 +45,7 @@ describe('http', () => {
 
 describe('army edition', () => {
   it('lists armies with their edition', async () => {
-    const summary: ArmySummary = { id: 'a', name: 'A', gameSystem: 'grimdark-future', edition: '3.6', source: 's', units: 1, models: 5 };
+    const summary: ArmySummary = { id: 'a', name: 'A', gameSystem: 'grimdark-future', edition: '3.6', source: 's', units: 1, models: 5, meshes: 2 };
     fakeFetch(200, { items: [summary], next: undefined });
     const page = await api.armies.list({});
     expect(page.items[0]?.edition).toBe('3.6');

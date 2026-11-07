@@ -30,6 +30,8 @@ export const api = {
     download: (id: T.Guid) => http.get<T.DownloadResponse>(`/v1/assets/${id}/download`),
     getVolumes: (id: T.Guid) => http.get<T.TerrainVolume[]>(`/v1/assets/${id}/volumes`),
     putVolumes: (id: T.Guid, volumes: T.Volume[]) => http.put<T.TerrainVolume[]>(`/v1/assets/${id}/volumes`, volumes),
+    /** A PNG or WebP of the mesh, rendered in the browser (`thumbnail/render.ts`). */
+    putThumbnail: (id: T.Guid, image: Blob) => http.put<void>(`/v1/assets/${id}/thumbnail`, image),
   },
   offers: {
     players: () => http.get<T.PlayerDto[]>('/v1/offers/players'),

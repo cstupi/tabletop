@@ -10,6 +10,12 @@ export const STAGE_LABELS: Record<UploadStage, string> = {
   hash: 'Fingerprinting the file', create: 'Reserving space in your library', put: 'Sending the file',
   confirm: 'Checking the file on the server', volumes: 'Saving the collision volume',
 };
+/** Each stage of `stages` against the one running (`'done'` when all are): done, current or to do; the dialog's stepper. */
+export function stepStates(stages: UploadStage[], current: UploadStage | 'done' | null): ('done' | 'current' | 'todo')[] {
+  if (current === 'done') return stages.map(() => 'done');
+  const at = current ? stages.indexOf(current) : -1;
+  return stages.map((_, i) => (at < 0 ? 'todo' : i < at ? 'done' : i === at ? 'current' : 'todo'));
+}
 export interface UploadPlan { name: string; kind: AssetKind; contentType: ContentType; bytes: Uint8Array; scale: number; orientation: Orientation; modelledBase: Base | null; volume?: Volume }
 export interface UploadOutcome { asset: AssetDto; triangles?: number; warning?: string; deduplicated: boolean; volumes?: TerrainVolume[] }
 /** Bytes sent of the total, during `put`. */

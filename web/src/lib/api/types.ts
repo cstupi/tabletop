@@ -43,6 +43,8 @@ export type ContentType = 'model/gltf-binary' | 'image/png' | 'image/jpeg' | 'im
 export interface AssetDto {
   id: Guid; name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType; uploaded: boolean;
   scale: number; orientation: Orientation; modelledBase?: Base;
+  /** A presigned GET of the asset's thumbnail (60 min), on the lists and the asset; absent when it has none. */
+  thumbnail?: string;
 }
 export interface CreateAssetRequest {
   name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType;
@@ -59,7 +61,7 @@ export interface PlayerDto { accountId: Guid; name: string; games: string[]; las
 export type OfferState = 'open' | 'accepted' | 'declined' | 'withdrawn';
 export interface OfferAssetDto {
   id: Guid; name: string; kind: AssetKind; hash: string; byteSize: number; contentType: ContentType;
-  scale: number; orientation: Orientation; modelledBase?: Base;
+  scale: number; orientation: Orientation; modelledBase?: Base; thumbnail?: string;
 }
 /** `folder`: the folder's name when a folder was offered; `assets`: the offered assets the sharer still has. */
 export interface OfferDto {
@@ -96,7 +98,8 @@ export interface FolderRequest { name: string; parentId: Guid | null }
 export interface BulkAssetsResponse { done: Guid[]; notFound: Guid[] }
 
 // Armies
-export interface ArmySummary { id: Guid; name: string; gameSystem: string; edition: string; source: string; units: number; models: number }
+/** `meshes`: the model slots with a mesh set. */
+export interface ArmySummary { id: Guid; name: string; gameSystem: string; edition: string; source: string; units: number; models: number; meshes: number }
 /** Which of Army Forge's two published bases the import writes for the whole army: `round` (circle or oval) or `square` (square or rectangle). */
 export interface ImportRequest { source: string }
 export interface UnitPatch { unitId: Guid; assetId: Guid | null }

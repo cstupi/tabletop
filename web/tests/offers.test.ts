@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { alreadyHeld, appendPage, filterPlayers, offerSummary, playerContext } from '../src/lib/library/offers';
+import { alreadyHeld, appendPage, filterPlayers, offerSummary, playerContext, STATE_LABELS, stateChip } from '../src/lib/library/offers';
 import { api } from '../src/lib/api/client';
 import type { AssetDto, OfferAssetDto, OfferDto, PlayerDto } from '../src/lib/api/types';
 
@@ -54,5 +54,13 @@ describe('offers', () => {
     expect(JSON.parse(calls[0]![1].body as string)).toEqual({ recipientIds: ['b'], assetIds: ['x'], folderId: null });
     expect(JSON.parse(calls[2]![1].body as string)).toEqual({ folderId: 'f' });
     expect(JSON.parse(calls[3]![1].body as string)).toEqual({ block: true });
+  });
+});
+
+describe('stateChip', () => {
+  it('is waiting for an open offer and the state otherwise', () => {
+    expect(stateChip('open')).toBe('chip status-waiting');
+    expect(stateChip('accepted')).toBe('chip status-accepted');
+    expect(STATE_LABELS.open).toBe('waiting');
   });
 });

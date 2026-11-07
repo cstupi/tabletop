@@ -10,6 +10,8 @@ describe('patches', () => {
     expect(slotBase('s1', { shape: 'oval', a: 2.36, b: 1.38 })).toEqual({ slots: [{ slotId: 's1', assetId: null, clearAsset: false, base: { shape: 'oval', a: 2.36, b: 1.38 }, height: null }] });
     expect(slotHeight('s1', 2)).toEqual({ slots: [{ slotId: 's1', assetId: null, clearAsset: false, base: null, height: 2 }] });
     expect(rename('Daemons')).toEqual({ name: 'Daemons' });
+    expect(slotHeight(['s1', 's2'], 2)).toEqual({ slots: ['s1', 's2'].map((slotId) => ({ slotId, assetId: null, clearAsset: false, base: null, height: 2 })) });
+    expect(slotBase(['s1', 's2'], { shape: 'circle', a: 1, b: 1 }).slots).toHaveLength(2);
   });
   it('summarises a slot the way the rulebook prints a profile', () => {
     expect(slotSummary({ id: 's', ordinal: 1, name: 'Rider 1', stats: {}, properties: [{ name: 'Tough', parameter: 3 }], base: { shape: 'circle', a: 1, b: 1 }, height: 1.5,

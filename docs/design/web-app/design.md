@@ -170,8 +170,8 @@ graph TD
 
 The layout does four things: `session.restore()` on mount, `session.startRefreshLoop()` with
 its teardown returned from `onMount`, an `$effect` that redirects to `/login?next=<path>` (plus `expired=1` when `session.expired`) when
-`session.ready` and no token is held on a private route, and the header: brand, main navigation, the theme
-switch and Log out. Pages are thin over
+`session.ready` and no token is held on a private route, and the header: brand, the tabs and one `Menu` on the account
+name holding Account, the two theme swatch tiles (`ThemeSwitch`) and Log out (signed out, the menu holds the swatches). Pages are thin over
 tested modules. Every branch worth asserting lives in `src/lib/**` and is covered by Vitest
 under Node. `.svelte` files are verified by running the application.
 
@@ -777,8 +777,9 @@ eight, checkboxes, **Offer**. `LibraryTabs` links **My library**, **Offered to y
 `/library/offered` lists open offers twenty at a time (**More**): sharer, date, `offerSummary`, and per asset the name,
 kind, base, size, *in your library* (`alreadyHeld`) and **Preview** (`MeshPreview` with the sharer's scale and
 orientation, or the texture image). Per offer: **Into folder**, **Accept**, **Decline**, **Block** *name* (confirmed;
-declines every offer from that player). Blocked players are listed below with **Unblock**. `/library/sent` is a table of
-the account's offers: recipient, what, date, state (`STATE_LABELS`) and **Withdraw** on a waiting one.
+declines every offer from that player). Blocked players are listed below with **Unblock**. `/library/sent` is a card per
+offer: recipient, what, the assets' thumbnails, date, the state as a status chip (`stateChip`, `STATE_LABELS`) and
+**Withdraw** on a waiting one.
 
 ### 10. The terrain volume editor
 
@@ -926,13 +927,37 @@ The web app wears the Godot client's two themes, Sci-fi (default) and Fantasy
 
 Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. `/download`, signed in, a header link (icon
 only under 40rem, where the account name gives way with an ellipsis so the links keep one row). It reads
-`api.client.latest()`: the version, date and notes, a notice that the builds are unsigned, then one panel per
-platform: name, architecture, a download link with the size, the file name and SHA-256 (a plain monospace: both are
-case-sensitive), and the first-run steps (`lib/download/platforms.ts` → `FIRST_RUN`: SmartScreen's More info → Run
+`api.client.latest()`: the version, date and notes, then one card per platform: a wide tile (name, architecture, size;
+primary for this computer's build, flat for the others), the file name and SHA-256 (a plain monospace: both are
+case-sensitive), and the numbered first-run steps, the unsigned-build step marked with the `warning` icon (`lib/download/platforms.ts` → `FIRST_RUN`: SmartScreen's More info → Run
 anyway; macOS right-click → Open, then Privacy & Security → Open Anyway; Linux `chmod +x`). `detectPlatform` (the
 `userAgentData` platform hint, else the user agent; phones, tablets and Chromebooks get none) puts this computer's
 build first and marks it. The links are presigned for 15 minutes; a click within a minute of expiry fetches fresh ones
 first. A `404` is the empty state: no build published yet.
+
+### 15. Cards, tiles and thumbnails
+
+The UX redesign's shared vocabulary (`docs/superpowers/specs/2026-11-07-ux-redesign-design.md`, part 3) is `app.css`:
+`.cards` / `.card` (a title row, facts, one primary action at the foot), `.tiles` / `.tile`, `.chip` and
+`.chip.status-*`, `kbd`, `.pips`, `.quiet-band`, `.thumb`, and `.menu` (`Menu.svelte`: a thing's rare actions behind one
+button, closed by a choice, Escape or a click elsewhere). Icons stay paths on the 32-unit grid in `icons.ts`.
+
+- `/armies`: one import row (the paragraph is its tooltip), a card per army: the system's icon (its name as the tooltip),
+  name, edition chip, units and models, `meshPips` and `meshLine` from `ArmySummary.meshes`, **Open**, and Re-import and
+  Delete in the menu (`armies/cards.ts`).
+- `/armies/[id]`: the name as a heading with a rename button, edition chip, Army Forge ↗, Re-import; the facts line with the
+  mesh count and the page's one Mesh folder; a card per unit (a neutral band, name, count, `statBadges`) with a row per
+  slot: thumbnail, name (the loadout as its tooltip), mesh picker, base, height. A unit whose models share mesh, base and
+  height (`slotRows`) is one *every model* row (the mesh as `unitDefault`, base and height as one `PATCH` over every
+  slot) with **per model** opening a row each.
+- Library tiles are the thumbnail (else the kind icon), the name, the kind icon and the base size; the space used is a
+  meter under the grid. Offer cards show each asset as a thumbnail tile that opens its preview.
+- Thumbnails: `thumbnail/render.ts` draws the GLB with its scale and orientation on a 256 × 256 transparent canvas
+  (`thumbnail/frame.ts` places the camera as the preview starts) and `PUT /v1/assets/{id}/thumbnail` stores it as WebP, or
+  PNG where the browser cannot encode WebP. The upload dialog sends one after confirm; the asset page sends one when the
+  asset has none (earlier uploads, the starter meshes) and after a saved scale or orientation change. `AssetDto.thumbnail`
+  and `OfferAssetDto.thumbnail` are presigned GETs (60 min); `Thumb.svelte` falls back to the icon when there is none or
+  the image fails.
 
 ## Key decisions
 
