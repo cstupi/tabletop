@@ -22,7 +22,7 @@ public sealed class GameRepository(Database db) : IGameRepository
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
     // is built afterwards.
     private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames, bool Joined, string? RuleSet,
-        int Teams, int TeamsReady, int? Round, int? ActingTeam, Array WaitingOn, Array? Outcome);   // Array: the reader reports text[] as System.Array
+        int Teams, int TeamsReady, int? Round, int? ActingTeam, Array WaitingOn, Array? Outcome, DateTime? EndedAt);   // Array: the reader reports text[] as System.Array
     private static readonly IReadOnlyDictionary<string, SchedulerShape> Shapes = new Dictionary<string, SchedulerShape> { ["player-turn"] = SchedulerShape.PlayerTurn, ["alternating-activation"] = SchedulerShape.AlternatingActivation };
     private static string Wire(SchedulerShape s) => Shapes.First(kv => kv.Value == s).Key;
 
@@ -88,13 +88,14 @@ public sealed class GameRepository(Database db) : IGameRepository
             (select pr.name from properties pr where pr.content_hash = g.properties_hash) as RuleSet,
             (select count(*) from team t where t.game_id = g.id)::int as Teams,
             (select count(*) from team t where t.game_id = g.id and exists(select 1 from participant p where p.team_id = t.id and p.army_id is not null))::int as TeamsReady,
-            g.round as Round, g.acting_team as ActingTeam, g.waiting_on as WaitingOn, g.outcome as Outcome
+            g.round as Round, g.acting_team as ActingTeam, g.waiting_on as WaitingOn, g.outcome as Outcome, g.ended_at as EndedAt
             from game g where (@after::uuid is null or g.id < @after::uuid)
               and (not @joinedOnly or exists(select 1 from participant p where p.game_id = g.id and p.account_id = @viewer))
             order by g.id desc limit @limit", new { after = page.After, limit = page.Limit, viewer, joinedOnly });
         return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants,
             r.ParticipantNames.Cast<string>().ToList(), r.Joined, r.RuleSet, r.Teams, r.TeamsReady,
-            r.Round is { } round ? new GameProgress(round, r.ActingTeam, r.WaitingOn.Cast<Guid>().ToList(), r.Outcome?.Cast<int>().ToList()) : null)).ToList();
+            r.Round is { } round ? new GameProgress(round, r.ActingTeam, r.WaitingOn.Cast<Guid>().ToList(), r.Outcome?.Cast<int>().ToList()) : null,
+            r.EndedAt is { } ended ? new DateTimeOffset(DateTime.SpecifyKind(ended, DateTimeKind.Utc)) : null)).ToList();
     }
 
     public async Task<GameInfo?> Get(Guid id)
@@ -145,7 +146,7 @@ public sealed class GameRepository(Database db) : IGameRepository
         await using var tx = await c.BeginTransactionAsync();
         if (await c.ExecuteScalarAsync<int?>("select 1 from game where id = @id for update", new { id }, tx) is null) return false;
         if (await c.ExecuteAsync("delete from participant where game_id = @id and account_id = @accountId", new { id, accountId }, tx) == 0) return false;
-        await c.ExecuteAsync("update game set status = 'ended' where id = @id and not exists (select 1 from participant where game_id = @id)", new { id }, tx);
+        await c.ExecuteAsync("update game set status = 'ended', ended_at = coalesce(ended_at, now()) where id = @id and not exists (select 1 from participant where game_id = @id)", new { id }, tx);
         await tx.CommitAsync();
         return true;
     }
@@ -153,7 +154,7 @@ public sealed class GameRepository(Database db) : IGameRepository
     public async Task<bool> End(Guid id)
     {
         await using var c = await db.Open();
-        return await c.ExecuteAsync("update game set status = 'ended' where id = @id", new { id }) == 1;
+        return await c.ExecuteAsync("update game set status = 'ended', ended_at = coalesce(ended_at, now()) where id = @id", new { id }) == 1;
     }
 
     /// <summary>The game's rows cascade in the management schema; the log is a separate delete because no FK crosses the schema boundary.</summary>

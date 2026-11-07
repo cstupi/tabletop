@@ -338,6 +338,8 @@ a per-player client setting and not here. Neither the client's create-game form 
 both send `false`, and the column serves development.
 
 The game server writes `game.status = 'ended'` from `playing` on a strict end, and management writes it on end, leave and delete.
+`game.ended_at timestamptz` is set with it (`032_game_ended_at.sql`; null for a game not ended or ended before the column), and Home's
+Your games keeps the caller's games ended in the last seven days.
 
 ### A game has its optional rules
 

@@ -23,6 +23,8 @@ export type GameSummary = {
   readonly teamsReady?: number;
   /** Where a game in play stands, as the game server last wrote it; absent before (lobby, setup). */
   readonly progress?: GameProgress | null;
+  /** When it ended; absent while not ended. */
+  readonly endedAt?: string | null;
 };
 
 /** management's `GameProgress` (libs/Tabletop.Protocol/GameProgress.cs): the round, the acting team's ordinal, the accounts an open Ask

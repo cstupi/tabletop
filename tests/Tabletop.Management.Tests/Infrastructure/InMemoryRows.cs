@@ -36,6 +36,7 @@ public sealed class InMemoryRows
         public Guid CreatedBy; public DateTimeOffset CreatedAt;
         /// <summary>The progress columns the game server writes; null before its first write.</summary>
         public GameProgress? Progress;
+        public DateTimeOffset? EndedAt;
     }
     public sealed class OfferRow
     {

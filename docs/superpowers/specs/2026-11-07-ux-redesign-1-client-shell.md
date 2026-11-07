@@ -59,23 +59,24 @@ Size: L (new `HomeView` in Core: the cards, their state and actions; `HomeScreen
 │  │ [ ▶ Play ]        ▸  │ │ [ ▶ Continue ]    ▸  │ │ [ ▶ Open ]        ▸  ││   primary on the card; ▸ the rest
 │  └──────────────────────┘ └──────────────────────┘ └──────────────────────┘│
 │                                                                            │
+│  ENDED  (collapsed until "Ended too")                                       │
+│  │ ✓ TestAmbush        3.5.1   👤 clay  👤 Sam           19 Oct   [ Replay ]│
+│                                                                            │
 │  OPEN GAMES                                                                │
 │  ┌────────────────────────────────────────────────────────────────────────┐│
 │  │ ○ Lobby lsr4        3.6.0   👤 Ann  👤 Ben  +2        23 min   [ Join ] ││   a row per game, the action on the row
 │  │ ◐ Setup screen 2    3.5.1   👤 setup-shot             11 days  [ Join ] ││
 │  └────────────────────────────────────────────────────────────────────────┘│
-│                                                                            │
-│  ENDED  (collapsed until "Ended too")                                       │
-│  │ ✓ TestAmbush        3.5.1   👤 clay  👤 Sam           19 Oct   [ Replay ]│
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Your games** are `GET /v1/games?joined=true`: a card each, newest first, the status band and icon (`○` lobby, `◐` setup, `●` playing,
+- **Your games** are `GET /v1/games?joined=true` not ended, and those ended in the last seven days (`GameSummary.EndedAt`): a card each, newest first, the status band and icon (`○` lobby, `◐` setup, `●` playing,
   `✓` ended), the rule set as its edition, the players (`ParticipantNames`, three then `+N`), one state line, one primary button and a
   `▸` menu. The primary is **Play** (playing), **Continue** (setup), **Open** (lobby), **Replay** (ended). The menu holds Replay (a
   playing game), End game and Delete game (the creator, asked first, as today), Leave.
-- **Open games** are the rest of `GET /v1/games` not ended: rows, **Join** on the row (today's Join). **Ended** is folded, Replay on the
-  row. The *Any status* dropdown, *Created by me* and *Games I'm in* checkboxes go: the sections answer them; the name filter stays.
+- **Open games** are the rest of `GET /v1/games` not ended: rows, **Join** on the row (today's Join). **Ended** (my other ended games) is
+  folded until *Ended too*, Replay on the row, and sits after Your games, before Open games. *No games yet* shows only when I have no game
+  at all. The *Any status* dropdown, *Created by me* and *Games I'm in* checkboxes go: the sections answer them; the name filter stays.
 - The state line: lobby `k of N teams ready` (teams with a player and an army, from the game's rows the list already carries only as
   counts); setup `laying the table`; playing `your move` in warning colour when an open Ask is mine, else `Round N · Team k's turn`; ended
   `Team 1 wins`. Needs server data: `GameSummary` gains `Round`, `ActingTeam`, `WaitingOn` (account ids) and `Outcome`, written by the

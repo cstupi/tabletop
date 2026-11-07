@@ -1,6 +1,7 @@
 <!-- viewer/src/lib/games/GamesPage.svelte -->
-<!-- HomeScreen (UX redesign part 1 → Home, homeView.ts): my games as cards banded in their status colour with the state line, the primary
-     action and a ▸ menu; the open games as rows with Join; my ended games folded until Ended too; New game, the name filter and refresh. -->
+<!-- HomeScreen (UX redesign part 1 → Home, homeView.ts): my games, those ended in the last seven days among them, as cards banded in their
+     status colour with the state line, the primary action and a ▸ menu; my older ended games folded until Ended too; the open games as rows
+     with Join; New game, the name filter and refresh. -->
 <script lang="ts">
   import CreateGameDialog from './CreateGameDialog.svelte';
   import Loading from '../components/Loading.svelte';
@@ -149,7 +150,7 @@
   {:else}
     <h2>Your games</h2>
     {#if lists.yours.length === 0}
-      <p class="dim">{search === '' ? 'No games yet' : 'No game of yours matches'}</p>
+      <p class="dim">{search !== '' ? 'No game of yours matches' : lists.hasAny ? 'None in play' : 'No games yet'}</p>
     {:else}
       <ul class="cards">
         {#each lists.yours as c (c.game.id)}
@@ -164,13 +165,6 @@
       </ul>
     {/if}
 
-    <h2>Open games</h2>
-    {#if lists.open.length === 0}
-      <p class="dim">None</p>
-    {:else}
-      <ul class="rows">{#each lists.open as c (c.game.id)}{@render row(c)}{/each}</ul>
-    {/if}
-
     {#if endedToo}
       <h2>Ended</h2>
       {#if lists.ended.length === 0}
@@ -178,6 +172,13 @@
       {:else}
         <ul class="rows">{#each lists.ended as c (c.game.id)}{@render row(c)}{/each}</ul>
       {/if}
+    {/if}
+
+    <h2>Open games</h2>
+    {#if lists.open.length === 0}
+      <p class="dim">None</p>
+    {:else}
+      <ul class="rows">{#each lists.open as c (c.game.id)}{@render row(c)}{/each}</ul>
     {/if}
 
     {#if admin}

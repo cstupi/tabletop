@@ -13,7 +13,7 @@ public sealed record Page<T>(IReadOnlyList<T> Items, Guid? Next);
 /// <summary>A row of GET /v1/games. Teams and TeamsReady: the game's teams and those with a participant holding an army. Progress: where a game in
 /// play stands, as the game server last wrote it; null before (lobby, setup) and from a server that does not send it.</summary>
 public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid CreatedBy, DateTimeOffset CreatedAt, int Participants, bool Joined = false, string? RuleSet = null,
-    IReadOnlyList<string>? ParticipantNames = null, int Teams = 0, int TeamsReady = 0, GameProgress? Progress = null);
+    IReadOnlyList<string>? ParticipantNames = null, int Teams = 0, int TeamsReady = 0, GameProgress? Progress = null, DateTimeOffset? EndedAt = null);
 public sealed record CreateGameRequest(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps);
 public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules, bool Default = false);
 

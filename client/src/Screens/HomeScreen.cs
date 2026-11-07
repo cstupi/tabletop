@@ -9,7 +9,7 @@ namespace Tabletop.Client.Screens;
 /// <summary>
 /// Home (UX redesign part 1 → Home, HomeView): the header with the gear and the account menu; New game, the name filter, refresh and Ended too;
 /// my games as cards banded in their status colour, each with its state line, its primary action and a ▸ menu; the open games as rows with
-/// Join; my ended games as rows with Replay, folded until Ended too. The line at the foot says what is loading, why the last game closed, or
+/// Join; my older ended games as rows with Replay after Your games, folded until Ended too. The line at the foot says what is loading, why the last game closed, or
 /// what went wrong.
 /// </summary>
 public partial class HomeScreen : Control
@@ -168,18 +168,14 @@ public partial class HomeScreen : Control
         var lists = HomeView.Of(_games.Values, me, _search.Text.Trim(), _endedToo, DateTimeOffset.Now);
 
         _body.AddChild(Caption("YOUR GAMES"));
-        if (lists.Yours.Count == 0) _body.AddChild(Quiet(!_loaded ? "Loading games…" : _search.Text.Length > 0 ? "No game of yours matches" : "No games yet"));
+        if (lists.Yours.Count == 0)
+            _body.AddChild(Quiet(!_loaded ? "Loading games…" : _search.Text.Length > 0 ? "No game of yours matches" : lists.HasAny ? "None in play" : "No games yet"));
         else
         {
             var cards = new HFlowContainer(); cards.AddThemeConstantOverride("h_separation", 16); cards.AddThemeConstantOverride("v_separation", 16);
             foreach (var card in lists.Yours) cards.AddChild(Card(card));
             _body.AddChild(cards);
         }
-
-        _body.AddChild(Spacer());
-        _body.AddChild(Caption("OPEN GAMES"));
-        if (lists.Open.Count == 0) _body.AddChild(Quiet(_loaded ? "None" : "Loading games…"));
-        else foreach (var row in lists.Open) _body.AddChild(Row(row));
 
         if (_endedToo)
         {
@@ -188,6 +184,11 @@ public partial class HomeScreen : Control
             if (lists.Ended.Count == 0) _body.AddChild(Quiet("None"));
             else foreach (var row in lists.Ended) _body.AddChild(Row(row));
         }
+
+        _body.AddChild(Spacer());
+        _body.AddChild(Caption("OPEN GAMES"));
+        if (lists.Open.Count == 0) _body.AddChild(Quiet(_loaded ? "None" : "Loading games…"));
+        else foreach (var row in lists.Open) _body.AddChild(Row(row));
         if (_next is not null)
         {
             var more = new Button { Text = "More games", Flat = true, ThemeTypeVariation = Variation.FlatButton, SizeFlagsHorizontal = SizeFlags.ShrinkBegin, Disabled = _busy };

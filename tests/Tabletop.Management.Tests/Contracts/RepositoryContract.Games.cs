@@ -62,6 +62,8 @@ public abstract partial class RepositoryContract
         Assert.Equal(new[] { joined, mine }.Order().Reverse(), listed.Select(g => g.Id).Where(id => id == mine || id == joined || id == other));
         Assert.All(listed, g => Assert.True(g.Joined));
         Assert.Equal(GameStatus.Ended, listed.Single(g => g.Id == joined).Status);
+        Assert.InRange(listed.Single(g => g.Id == joined).EndedAt!.Value, DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddMinutes(5));
+        Assert.Null(listed.Single(g => g.Id == mine).EndedAt);
         Assert.Contains(await Games.List(new Keyset(50, null), b), g => g.Id == other && !g.Joined);
     }
 
@@ -109,6 +111,9 @@ public abstract partial class RepositoryContract
         Assert.False(await Games.IsCreator(game, b));
         Assert.True(await Games.Leave(game, b));
         Assert.Empty((await Games.Get(game))!.Participants);
+        var lastLeft = (await Games.Create(a, GameRequest(hash)))!.Id;
+        await Games.Leave(lastLeft, a);
+        Assert.NotNull((await Games.List(new Keyset(50, null), b)).Single(g => g.Id == lastLeft).EndedAt);
     }
 
     [Fact]

@@ -14,6 +14,21 @@ const g = (over: Partial<GameSummary> = {}): GameSummary => ({
 const card = (over: Partial<GameSummary>) => cardOf(g(over), me, now);
 
 describe('homeListsOf', () => {
+  it('keeps my games ended in the last seven days in yours and folds older ones into ended', () => {
+    const lobby = g({ createdAt: '2026-11-06T12:00:00Z' });
+    const recent = g({ status: 'ended', createdAt: '2026-10-01T12:00:00Z', endedAt: '2026-11-01T12:00:00Z' });
+    const old = g({ status: 'ended', createdAt: '2026-10-01T12:00:00Z', endedAt: '2026-10-30T12:00:00Z' });
+    const undated = g({ status: 'ended', createdAt: '2026-10-01T12:00:00Z' });
+    const notMine = g({ status: 'ended', joined: false, endedAt: '2026-11-07T11:00:00Z' });
+    const lists = homeListsOf([lobby, recent, old, undated, notMine], me, '', false, now);
+    expect(lists.yours.map((c) => c.game.id)).toEqual([lobby.id, recent.id]);
+    expect(lists.yours[1]!.primary).toBe('replay');
+    expect(lists.ended).toEqual([]);
+    expect(homeListsOf([lobby, recent, old, undated, notMine], me, '', true, now).ended.map((c) => c.game.id).sort()).toEqual([old.id, undated.id].sort());
+    expect(homeListsOf([old], me, '', false, now).hasAny).toBe(true);
+    expect(homeListsOf([notMine], me, '', false, now).hasAny).toBe(false);
+  });
+
   it('puts joined games in yours, the rest not ended in open, and folds ended ones until asked', () => {
     const lobby = g(), open = g({ status: 'setup', joined: false }), ended = g({ status: 'ended' }), notMine = g({ status: 'ended', joined: false });
     const lists = homeListsOf([lobby, open, ended, notMine], me, '', false, now);
