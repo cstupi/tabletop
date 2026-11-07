@@ -47,4 +47,20 @@ follow.
 
 ### Results
 
-Pending.
+Guard tests: `tests/Tabletop.Client.Tests/NoPageCitationsTests.cs` (contact sentences, a worked roll, every string literal under
+`client/src`), `tests/Tabletop.GameServer.Tests/NoPageCitationsTests.cs` (notes, mission-length detail, both editions' option
+catalogs, every string literal under `server/game`, `server/management`, `libs`), `viewer/tests/noPageCitations.test.ts` and
+`web/tests/noPageCitations.test.ts` (contact sentences; every `src` line outside comments).
+
+The viewer's call logs (`viewer/tests/fixtures/calls/*.json`) had their `page` fields and cited notes stripped in place:
+regenerating them (`--filter CallLogFixture`) drops every `confirm` case, which `Every_required_case_kind_is_present` then
+fails on, a drift that predates this change. `calls.json` and `combatlog.json` were regenerated from them.
+
+- `dotnet build`: succeeded.
+- `dotnet test`: all green. Client 1036, GameServer 1865, Management 348, Sim 345, Geometry 303, Protocol 66, Content 71,
+  TerrainMeshes 114, Sounds 89, ArmyBooks 60, Geometry.Wasm 44, TableTextures 29, Viewer 16.
+- `./scripts/check-client`: exit 0.
+- `cd viewer && npm run check && npm test`: 0 errors; 1805 passed, 6 skipped (119 files).
+- `cd web && npm test && npm run check`: 142 passed, 1 skipped; 0 errors.
+- `dotnet run --project sim -- suite`: `PASSED: 685 of 685 games passed, 0 failing on known defects, 0 unexpected; 1122 of 1122
+  entries covered, 0 not automated`.
