@@ -95,7 +95,6 @@ describe('CasualtyPick', () => {
   it('one-wound models read as models to remove', () => {
     const c = new CasualtyPick(legal([M1, M2, M3], 7), left({ [M1]: 1, [M2]: 1, [M3]: 1 }));
     expect([c.oneEach, c.title, c.status]).toEqual([true, 'Remove 3 models', '0 of 3 chosen']);
-    expect(c.hint.startsWith('Click a model to remove it')).toBe(true);
     const tough = new CasualtyPick(legal([M1, M2], 2), left({ [M1]: 1, [M2]: 3 }));
     expect([tough.oneEach, tough.title]).toEqual([false, 'Assign 2 wounds']);
   });

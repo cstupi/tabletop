@@ -9,13 +9,13 @@ import { SendError, type ConnectionState } from '../connection/gameConnection';
 import type { Projection } from '../live/apply';
 import { playingAs } from '../lobby/seats';
 import type {
-  Ask, AskAnswer, AskOption, Assignment, Allocation, Command, GameEvent, Options, PieceSelection, Placement, Point3, Refused, TokenSpend,
+  Ask, AskAnswer, AskOption, Assignment, Allocation, Command, GameEvent, GameInfo, Options, PieceSelection, Placement, Point3, Refused, TokenSpend,
 } from '../protocol/wire.generated';
 import { confirmLabel, mine as myAsk, spendableBy, answeredBy, type AskView } from './askView';
 import { CasualtyPick } from './casualtyPick';
-import { choicesOf, clickAnswers, decisionOf, number as numberChoices, rows, unitNamed, type Numbered } from './decisionView';
+import { ENTER, ESC, groupsOf, headOf, keyCap, quietOf, unitPips, type AllowanceBar, type CardHead, type OptionGroup, type OptionTile, type RevealChip } from './decisionCard';
+import { choicesOf, clickAnswers, decisionOf, number as numberChoices, unitNamed, type Numbered } from './decisionView';
 import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
-import { waiting as headerWaiting } from './headerView';
 import { Names } from './names';
 import { SealedReveals } from './sealedReveals';
 import { RuleTexts } from './ruleTexts';
@@ -24,16 +24,29 @@ import { ofOption } from './spellText';
 import { TargetAssignment } from './targetAssignment';
 import { waitHolds, waitingTeams } from './waiting';
 
+/** One option tile of a group, pressed by its id. */
+export interface TileControl extends OptionTile { readonly id: string; readonly disabled: boolean; readonly tooltip?: string }
+
+/** The card's parts (UX redesign part 2 → Decision box). A button is an action at the card's foot (the primary one lit, its key cap inside);
+ *  everything else draws in the body. */
 export type Control =
-  | { readonly kind: 'button'; readonly id: string; readonly label: string; readonly disabled: boolean;
-      readonly tooltip?: string; readonly pieces?: readonly string[] }        // pieces: lit while the pointer is on it
+  | { readonly kind: 'button'; readonly id: string; readonly label: string; readonly disabled: boolean; readonly key?: string; readonly icon?: string;
+      readonly primary?: boolean; readonly tooltip?: string; readonly pieces?: readonly string[] }        // pieces: lit while the pointer is on it
   | { readonly kind: 'note' | 'label' | 'reason'; readonly text: string; readonly id?: string }   // note and reason in warning colour; a reason with no text draws nothing
-  | { readonly kind: 'chip'; readonly id: string; readonly label: string; readonly pressed: boolean; readonly disabled?: boolean }
-  | { readonly kind: 'spin'; readonly id: string; readonly label: string; readonly max: number; readonly value: number };
+  | { readonly kind: 'chip'; readonly id: string; readonly label: string; readonly pressed: boolean; readonly disabled?: boolean;
+      readonly target?: { readonly name: string; readonly ordinal: number } | null }
+  | { readonly kind: 'spin'; readonly id: string; readonly label: string; readonly max: number; readonly value: number; readonly pips?: string }
+  | { readonly kind: 'group'; readonly id: string; readonly group: OptionGroup; readonly tiles: readonly TileControl[] }
+  | { readonly kind: 'row'; readonly id: string; readonly label: string; readonly key: string; readonly pips: string | null; readonly ordinal: number; readonly disabled: boolean; readonly pieces: readonly string[] }
+  | { readonly kind: 'bar'; readonly id: string; readonly bar: AllowanceBar | null }
+  | { readonly kind: 'counter'; readonly id: string; readonly text: string; readonly pips: string };
+
+/** A quiet band: a team the game waits on, and what for. */
+export interface QuietLine { readonly ordinal: number; readonly team: string; readonly doing: string }
 
 export interface DecisionPanel {
-  readonly seat: string; readonly title: string; readonly revealed: string | null; readonly note: string;
-  readonly controls: readonly Control[]; readonly refusal: string | null; readonly hint: string; readonly visible: boolean;
+  readonly seat: string; readonly head: CardHead | null; readonly ordinal: number; readonly revealed: readonly (readonly RevealChip[])[] | null; readonly note: string;
+  readonly controls: readonly Control[]; readonly refusal: string | null; readonly quiet: readonly QuietLine[]; readonly visible: boolean;
 }
 
 /** Palette.Selected, Hovered, Ghost. */
@@ -92,7 +105,7 @@ export class DecisionBox {
   #eligible: ReadonlySet<string> = new Set();
   #marks: ReadonlyMap<string, string> = new Map();
   #targets: TargetAssignment | null = null;
-  #title = ''; #note = ''; #hint = '';
+  #head: CardHead | null = null; #note = ''; #quiet: QuietLine[] = [];
   #seat = '';
   #controls: Control[] = [];
   #segmentLength = 0;
@@ -100,7 +113,7 @@ export class DecisionBox {
   #renderedAsk: string | null = null;
   #answering: string | null = null;
   #refusalAsk: string | null = null;
-  #revealed: string | null = null;
+  #revealed: RevealChip[][] | null = null;
   #refusal: string | null = null;
   /** The server's words in #refusal, for the gate's line that says the same. */
   #refusalDetail: string | null = null;
@@ -108,7 +121,7 @@ export class DecisionBox {
   #lastId: string | null = null;
   #lit: readonly string[] | null = null;
   #deployUnit: string | null = null;
-  #panel: DecisionPanel = { seat: '', title: '', revealed: null, note: '', controls: [], refusal: null, hint: '', visible: false };
+  #panel: DecisionPanel = { seat: '', head: null, ordinal: 1, revealed: null, note: '', controls: [], refusal: null, quiet: [], visible: false };
 
   constructor(host: DecisionHost, moves: MoveHooks | null = null) {
     this.#host = host;
@@ -134,11 +147,12 @@ export class DecisionBox {
   get host(): DecisionHost { return this.#host; }
 
   // ---- for D2's move rendering: the box's texts and controls, as the partial class reaches its fields ----
-  setTexts(texts: { title?: string; hint?: string; note?: string }): void {
-    if (texts.title !== undefined) this.#title = texts.title;
-    if (texts.hint !== undefined) this.#hint = texts.hint;
+  setTexts(texts: { note?: string }): void {
     if (texts.note !== undefined) this.#note = texts.note;
   }
+  /** The card's title band (decisionCard.headOf, or the move's and the placement's own). */
+  setHead(head: CardHead | null): void { this.#head = head; }
+  get head(): CardHead | null { return this.#head; }
   add(control: Control, action?: () => void): void {
     this.#controls.push(control);
     if (action !== undefined && control.id !== undefined) this.#actions.set(control.id, action);
@@ -174,7 +188,7 @@ export class DecisionBox {
   answer(ask: Ask, answer: AskAnswer): string { void this.#answer(ask, answer); return String(this.#lastToken); }
   /** A command that is no answer (a placement's MoveModels); `failed` words a send that never reached the server. Returns its token. */
   sendCommand(command: Command, failed: (message: string) => string): string {
-    this.#controls = this.#controls.map((c) => (c.kind === 'button' || c.kind === 'chip' ? { ...c, disabled: true } : c));
+    this.#controls = this.#controls.map(disable);
     this.handlers.onEnter = null; this.handlers.onCancel = null; this.#moves?.unhook(this);
     const token = ++this.#lastToken;
     this.#lastId = null;
@@ -201,8 +215,15 @@ export class DecisionBox {
   /** Frame.Render: every connection state change. */
   render(): void {
     this.#renderAsk();
-    this.#seat = (this.#title !== '' && this.#renderedAsk !== null) || this.#deployUnit !== null ? this.#playingAs() : '';
+    this.#seat = this.#head !== null && (this.#renderedAsk !== null || this.#deployUnit !== null) ? this.#playingAs() : '';
     this.#publish();
+  }
+
+  /** The answering team's ordinal: the title band's colour. */
+  #ordinal(): number {
+    const game = this.#host.state().game;
+    const team = this.#answering ?? this.#host.acting();
+    return game?.teams.find((t) => t.id === team)?.ordinal ?? 1;
   }
 
   #playingAs(): string {
@@ -217,8 +238,9 @@ export class DecisionBox {
     const controls = said === null || said === '' ? [...this.#controls]
       : this.#controls.map((c) => (c.kind === 'reason' && c.text.includes(said) ? { ...c, text: '' } : c));
     this.#panel = {
-      seat: this.#seat, title: this.#title, revealed: this.#revealed, note: this.#note, controls, refusal: this.#refusal,
-      hint: this.#hint, visible: this.#title !== '' || this.#note !== '' || this.#refusal !== null || this.#revealed !== null,
+      seat: this.#seat, head: this.#head, ordinal: this.#ordinal(), revealed: this.#revealed, note: this.#note, controls, refusal: this.#refusal,
+      quiet: this.#head === null ? this.#quiet : [],
+      visible: this.#head !== null || this.#note !== '' || this.#refusal !== null || this.#revealed !== null || this.#quiet.length > 0,
     };
     for (const l of [...this.#listeners]) l(this.#panel);
   }
@@ -228,11 +250,11 @@ export class DecisionBox {
     const p = st.projection, game = st.game;
     if (p === null || game === null || game.status !== 'playing') {
       if (st.phase === 'reconnecting') this.#moves?.keepGhosts(this);
-      this.#reset(); this.#renderedAsk = null; this.#title = this.#note = this.#hint = '';
+      this.#reset(); this.#renderedAsk = null; this.#head = null; this.#note = ''; this.#quiet = [];
       return;
     }
     const fresh = this.#reveals.drain();                                    // every reveal since the last render, in order
-    if (fresh.length > 0) this.#revealed = fresh.join('\n');
+    if (fresh.length > 0) this.#revealed = fresh;
     const muted = new Set(this.#host.settings().mutedWindowKinds);
     const team = this.#host.acting();
     const mine = myAsk(p, game, team, muted);
@@ -242,39 +264,41 @@ export class DecisionBox {
     if (mine === null) {
       const myTeams = this.#host.myTeams();
       const mid = [team, ...myTeams].map((t) => midDeploy(p, st.log, t)).find((m) => m !== null) ?? null;   // a pick by any team of mine is placed
-      if (this.#renderedAsk !== null || (mid?.unitId ?? null) !== this.#deployUnit) { this.#reset(); this.#renderedAsk = null; }
+      if (this.#renderedAsk !== null || (mid?.unitId ?? null) !== this.#deployUnit) { this.#reset(); this.#renderedAsk = null; this.#head = null; }
       this.#note = '';                                                       // a sealed Ask's reveal (its own line) stays up until the next Ask
       const waits = game.status === 'playing' && waitHolds(game, p.board, p.lastSeq) ? waitingTeams(game, p.board) : [];
-      if (mid === null && waits.length > 0) { this.#title = waits.map((w) => w.text).join('\n'); this.#hint = ''; }
-      else if (mid === null) { this.#title = headerWaiting(p, names, myTeams) ?? ''; this.#hint = ''; }   // the header's waiting line, its one source
-      else if (this.#deployUnit === null) this.#moves?.startDeploy(this, mid, names);
+      if (mid === null && waits.length > 0) this.#quiet = waits.map((w) => ({ ordinal: w.ordinal, team: `Team ${w.ordinal}`, doing: w.hasPlayer ? 'no army' : 'waiting for a player' }));
+      else if (mid === null) this.#quiet = quietOf(p, game, names, myTeams).map((b) => ({ ordinal: b.ordinal, team: b.mine ? 'Your move' : b.team, doing: b.doing }));
+      else { this.#quiet = []; if (this.#deployUnit === null) this.#moves?.startDeploy(this, mid, names); }
       return;
     }
+    this.#quiet = [];
     if (this.#renderedAsk === mine.ask.id) return;
     this.#reset(); this.#renderedAsk = mine.ask.id; this.#answering = team; this.#note = '';
+    this.#head = headOf(mine.ask, p, names);
     if (fresh.length === 0) this.#revealed = null;                          // a reveal is cleared only after a render has shown it
-    this.#title = model.title; this.#hint = model.hint; this.#numbered = model.numbered;
+    this.#numbered = model.numbered;
     this.glow(mine.highlights);
     if (model.autoPass && this.#refusal === null) {   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
       const kind = mine.ask.windowKind!;
-      this.#send(mine.ask, { kind: 'passed' }); this.#note = `auto-passed (muted: ${spaced(kind)})`;
+      this.#send(mine.ask, { kind: 'passed' }); this.#note = `Auto-passed: ${spaced(kind)}`;
       this.add(button('unmute', 'Unmute'), () => this.#host.updateSettings((s) => unmute(s, kind)));
       return;
     }
     switch (mine.mode) {
-      case 'choose': this.#renderChoose(mine); break;
+      case 'choose': this.#renderChoose(mine, game, names); break;
       case 'move': this.#moves?.renderMove(this, mine, p, names); break;
       case 'tokenSpend': this.#renderSpend(mine, p, names); break;
       case 'confirm': {                                                      // "Continue" for a step gate, "End the round" at the round boundary
         this.handlers.onEnter = () => this.#send(mine.ask, { kind: 'confirmed' });
-        this.add(button('enter', `${confirmLabel(mine.ask)} (Enter)`), this.handlers.onEnter);
+        this.add(button('enter', confirmLabel(mine.ask), ENTER, true, 'ready'), this.handlers.onEnter);
         break;
       }
       default: this.#renderPicks(mine, p, names); break;                    // PickPieces, Assign, Allocate
     }
-    if (mine.ask.allowPass) this.add(button('pass', 'Pass'), () => this.#send(mine.ask, { kind: 'passed' }));
+    if (mine.ask.allowPass) this.add(button('pass', mine.ask.question === 'act_or_end_phase' ? 'End phase' : 'Pass'), () => this.#send(mine.ask, { kind: 'passed' }));
     const kind = mine.ask.windowKind;
-    if (kind !== undefined) this.add(button('mute', `Mute ${spaced(kind)} windows`), () => this.#host.updateSettings((s) => mute(s, kind)));
+    if (kind !== undefined) this.add(button('mute', `Mute ${spaced(kind)}`), () => this.#host.updateSettings((s) => mute(s, kind)));
     const who = answeredBy(st.log, mine.ask.id, team, st.participantId, names);
     if (who !== null) this.#note = `${who} answered for your team`;
   }
@@ -292,7 +316,7 @@ export class DecisionBox {
    * per unit and action) is not a pick: the click selects its unit as any click does, and the box narrows to that unit's options,
    * renumbered from 1, until another unit is clicked or Esc widens it again.
    */
-  #renderChoose(mine: AskView): void {
+  #renderChoose(mine: AskView, game: GameInfo, names: Names): void {
     const options = mine.ask.legal as Options;
     const all = options.choices;
     let narrowed = false;
@@ -301,15 +325,17 @@ export class DecisionBox {
     const show = (shown: readonly AskOption[], numbered: readonly Numbered[]): void => {
       if (this.#lit !== null) this.#light(null);
       this.#numbered = numbered;
-      const items: Array<readonly [Control, (() => void)?]> = [];
-      for (const row of rows(shown)) {
-        const c = row.option;
-        if (c === null) { items.push([{ kind: 'note', text: row.note! }]); continue; }
-        const key = this.#numbered.find((n) => n.optionId === c.id)?.key ?? 0;
-        const tip = mine.ask.question === 'cast' ? ofOption(this.#host.rules(), c.id, c.label) : null;
-        items.push([{ kind: 'button', id: `opt:${c.id}`, label: key > 0 ? `${key}. ${c.label}` : c.label, disabled: false, pieces: c.pieces,
-          ...(tip !== null ? { tooltip: tip } : {}) }, send(c)]);
-      }
+      const st = this.#host.state();
+      const p = st.projection;
+      if (p === null) return;
+      const items: Array<readonly [Control, (() => void)?]> = groupsOf(mine.ask, shown, numbered, p, game, names, st.maxWounds).map((g, i) => {
+        const tiles = g.tiles.map((t): TileControl => {
+          const tip = mine.ask.question === 'cast' ? ofOption(this.#host.rules(), t.optionId, t.label) : null;
+          this.#actions.set(`opt:${t.optionId}`, send(shown.find((c) => c.id === t.optionId)!));
+          return { ...t, id: `opt:${t.optionId}`, disabled: false, ...(tip !== null ? { tooltip: tip } : {}) };
+        });
+        return [{ kind: 'group', id: `group:${i}`, group: g, tiles }] as const;
+      });
       this.#segment(items);
     };
     show(all, full);
@@ -345,9 +371,17 @@ export class DecisionBox {
     return this.#lit === null || p === null ? null : unitNamed(this.#lit, p);
   }
 
+  /** The pieces a button, row or tile names, for the hover. */
+  #piecesOf(controlId: string): readonly string[] | null {
+    for (const c of this.#controls) {
+      if ((c.kind === 'button' || c.kind === 'row') && c.id === controlId) return c.pieces ?? null;
+      if (c.kind === 'group') { const t = c.tiles.find((x) => x.id === controlId); if (t !== undefined) return t.pieces; }
+    }
+    return null;
+  }
+
   hover(controlId: string | null): void {
-    const c = controlId === null ? undefined : this.#controls.find((x) => 'id' in x && x.id === controlId);
-    this.#light(c?.kind === 'button' && c.pieces !== undefined ? c.pieces : null);
+    this.#light(controlId === null ? null : this.#piecesOf(controlId));
     this.#publish();
   }
 
@@ -359,14 +393,15 @@ export class DecisionBox {
     const team = this.#host.acting()!;
     const spendable = spendableBy(p, this.#host.state().game!, team, mine.ask.legal as TokenSpend);
     const values = new Map<string, number>([...spendable.keys()].map((id) => [id, 0]));
-    const spin = (id: string): Control => ({ kind: 'spin', id: `spin:${id}`, label: names.piece(id), max: spendable.get(id)!, value: values.get(id)! });
+    const tokens = (id: string): string => { const n = p.models.get(id)?.spellTokens ?? spendable.get(id)!; return '●'.repeat(n); };
+    const spin = (id: string): Control => ({ kind: 'spin', id: `spin:${id}`, label: names.piece(id), max: spendable.get(id)!, value: values.get(id)!, pips: tokens(id) });
     this.#spins = { values, max: spendable, rebuild: () => this.#segment([...values.keys()].map((id) => [spin(id)] as const)) };
     for (const id of spendable.keys()) this.add(spin(id));
     this.#segmentLength = spendable.size;
     const spend = () => this.#send(mine.ask, { kind: 'tokens_spent', counts: Object.fromEntries([...values].filter(([, v]) => v > 0)) });
     this.handlers.onEnter = spend;
-    this.add(button('spend', 'Spend (Enter)'), spend);
-    if (mine.answeredTeams.length > 0) this.add({ kind: 'label', text: mine.answeredTeams.map((t) => `${t} has answered`).join(', ') });
+    this.add(button('spend', 'Spend', ENTER, true, 'cast'), spend);
+    if (mine.answeredTeams.length > 0) this.#note = mine.answeredTeams.map((t) => `${t} has answered`).join(', ');
   }
   #spins: { values: Map<string, number>; max: ReadonlyMap<string, number>; rebuild: () => void } | null = null;
 
@@ -381,7 +416,8 @@ export class DecisionBox {
   /** The press of a button or chip. */
   press(controlId: string): void {
     const c = this.#controls.find((x) => 'id' in x && x.id === controlId);
-    if (c === undefined || ((c.kind === 'button' || c.kind === 'chip') && c.disabled === true)) return;
+    if (c !== undefined && (c.kind === 'button' || c.kind === 'chip' || c.kind === 'row') && c.disabled === true) return;
+    if (c === undefined && !this.#controls.some((x) => x.kind === 'group' && x.tiles.some((t) => t.id === controlId && !t.disabled))) return;
     this.#actions.get(controlId)?.();
   }
 
@@ -428,7 +464,7 @@ export class DecisionBox {
   }
 
   async #answer(ask: Ask, answer: AskAnswer): Promise<void> {
-    this.#controls = this.#controls.map((c) => (c.kind === 'button' || c.kind === 'chip' ? { ...c, disabled: true } : c));   // SetButtons(true)
+    this.#controls = this.#controls.map(disable);   // SetButtons(true)
     this.#unhook();                                                          // one answer per Ask: no second click or key can double-send
     const token = ++this.#lastToken;                                         // before the send, so a Refused that lands first still matches
     this.#lastId = null;
@@ -480,7 +516,7 @@ export class DecisionBox {
   #renderPicks(mine: AskView, p: Projection, names: Names): void {
     switch (mine.mode) {
       case 'pickPieces': this.#renderPick(mine.ask, mine.ask.legal as PieceSelection, p, names); break;
-      case 'allocate': this.#renderCasualties(mine.ask, mine.ask.legal as Allocation, p); break;
+      case 'allocate': this.#renderCasualties(mine.ask, mine.ask.legal as Allocation, p, names); break;
       case 'assign': this.#renderTargets(mine.ask, mine.ask.legal as Assignment, names); break;
     }
   }
@@ -492,14 +528,16 @@ export class DecisionBox {
     const eligible = pickable(p, ask);                                       // a deploy pick: units with a model on the shelf (passengers spec)
     const shelved = offTable(p, eligible);
     const refresh = () => {
-      const items: Array<readonly [Control, (() => void)?]> = [
-        [{ kind: 'label', text: sel.max === 1 && picked.length === 1 ? names.piece(picked[0]!) : `${picked.length} of ${sel.min === sel.max ? sel.min : `${sel.min}–${sel.max}`}` }],
-      ];
+      const items: Array<readonly [Control, (() => void)?]> = sel.max > 1
+        ? [[{ kind: 'label', text: `${picked.length} of ${sel.min === sel.max ? sel.min : `${sel.min}–${sel.max}`}` }]] : [];
+      const game = this.#host.state().game;
       for (const id of shelved) {
         const key = this.#numbered.find((n) => n.optionId === id)?.key ?? 0;
-        items.push([button(`pick:${id}`, key > 0 ? `${key}. ${names.piece(id)}` : names.piece(id)), () => toggle(id)]);
+        const team = names.teamOfUnit(id);
+        items.push([{ kind: 'row', id: `pick:${id}`, label: names.piece(id), key: keyCap(key), pips: p.units.has(id) ? unitPips(p, id, this.#host.state().maxWounds) : null,
+          ordinal: game?.teams.find((t) => t.id === team)?.ordinal ?? 0, disabled: false, pieces: [id] }, () => toggle(id)]);
       }
-      items.push([{ ...button('done', 'Done (Enter)'), disabled: picked.length < sel.min || picked.length > sel.max }, done]);
+      if (sel.max > 1) items.push([{ ...button('done', 'Done', ENTER, true, 'ready'), disabled: picked.length < sel.min || picked.length > sel.max }, done]);
       this.#segment(items);
     };
     const toggle = (id: string) => {
@@ -530,11 +568,14 @@ export class DecisionBox {
       if (this.#targets !== t) return;
       const items: Array<readonly [Control, (() => void)?]> = t.groups.map((g) => {
         const target = t.assigned.get(g.id);
-        return [{ kind: 'chip', id: `chip:${g.id}`, label: TargetAssignment.chip(g, target === undefined ? null : names.unit(target)), pressed: t.picked.has(g.id) } as Control,
+        const team = target === undefined ? null : names.teamOfUnit(target);
+        const ordinal = this.#host.state().game?.teams.find((x) => x.id === team)?.ordinal ?? 0;
+        return [{ kind: 'chip', id: `chip:${g.id}`, label: TargetAssignment.chip(g), pressed: t.picked.has(g.id),
+          target: target === undefined ? null : { name: names.unit(target), ordinal } } as Control,
           () => { t.pickOnly(g.id); show(); }] as const;
       });
-      items.push([{ ...button('clear-targets', 'Clear targets (Esc)'), disabled: !t.canClear }, () => { clear(); }]);
-      items.push([{ ...button('fire', 'Fire (Enter)'), disabled: t.answer() === null }, fire]);
+      items.push([{ ...button('fire', 'Fire', ENTER, true, 'shoot'), disabled: t.answer() === null }, fire]);
+      items.push([{ ...button('clear-targets', 'Clear', ESC), disabled: !t.canClear }, () => { clear(); }]);
       this.#eligible = new Set(t.candidates); this.glow(t.candidates);       // only units a picked group can shoot; two targets taken (p.8): nothing else glows
       this.#segment(items);
     };
@@ -548,21 +589,22 @@ export class DecisionBox {
    * remove_casualties: a click marks a model, each further click on a many-wound model adds a wound, a right-click takes one away. Auto
    * fills the rest in the Ask's default order. Enter confirms once the count is exact.
    */
-  #renderCasualties(ask: Ask, legal: Allocation, p: Projection): void {
+  #renderCasualties(ask: Ask, legal: Allocation, p: Projection, names: Names): void {
     const facts = this.#host.state().maxWounds;
     const left = new Map(legal.targets.map((id) => [id, Math.max(0, (facts.get(id) ?? 1) - (p.models.get(id)?.wounds ?? 0))] as const));
     const pick = new CasualtyPick(legal, left);
-    this.#title = pick.title; this.#hint = pick.hint;
+    const unit = legal.targets.map((id) => p.models.get(id)?.unitId).find((u) => u !== undefined);
+    this.#head = { icon: 'wound', title: pick.title, subject: unit === undefined ? null : names.unit(unit), prompt: null };
     const confirm = () => { const a = pick.answer(); if (a !== null) this.#send(ask, a); };
     const show = () => {
       const marks = new Map<string, string>();
       for (const [id, n] of pick.counts) if (n > 0 && p.models.has(id)) marks.set(id, left.get(id)! > 1 ? `✕ ${n}/${left.get(id)}` : '✕');
       this.#marks = marks;
       this.#segment([
-        [{ kind: 'label', text: pick.status }],
+        [{ kind: 'counter', id: 'counter', text: `${pick.chosen} of ${pick.required}`, pips: '●'.repeat(pick.chosen) + '○'.repeat(Math.max(0, pick.required - pick.chosen)) }],
+        [{ ...button('confirm', 'Confirm', ENTER, true, 'ready'), disabled: !pick.complete }, confirm],
         [button('auto', 'Auto'), () => { pick.auto(); show(); }],
         [button('clear', 'Clear'), () => { pick.clear(); show(); }],
-        [{ ...button('confirm', 'Confirm (Enter)'), disabled: !pick.complete }, confirm],
       ]);
     };
     this.#eligible = new Set(legal.targets);
@@ -574,4 +616,7 @@ export class DecisionBox {
 
 /** A window kind in words: `before_shooting` is "before shooting". */
 const spaced = (kind: string): string => kind.replaceAll('_', ' ');
-const button = (id: string, label: string): Extract<Control, { kind: 'button' }> => ({ kind: 'button', id, label, disabled: false });
+export const button = (id: string, label: string, key?: string, primary = false, icon?: string): Extract<Control, { kind: 'button' }> =>
+  ({ kind: 'button', id, label, disabled: false, ...(key !== undefined && key !== '' ? { key } : {}), ...(primary ? { primary } : {}), ...(icon !== undefined ? { icon } : {}) });
+const disable = (c: Control): Control => (c.kind === 'button' || c.kind === 'chip' || c.kind === 'row' ? { ...c, disabled: true }
+  : c.kind === 'group' ? { ...c, tiles: c.tiles.map((t) => ({ ...t, disabled: true })) } : c);

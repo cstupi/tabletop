@@ -54,7 +54,7 @@
   let { connection, api, view = $bindable(null) }: { connection: GameConnection; api: Api; view?: View | null } = $props();
 
   let snap = $state.raw<ConnectionState | null>(null);
-  let panel = $state.raw<DecisionPanel>({ seat: '', title: '', revealed: null, note: '', controls: [], refusal: null, hint: '', visible: false });
+  let panel = $state.raw<DecisionPanel>({ seat: '', head: null, ordinal: 1, revealed: null, note: '', controls: [], refusal: null, quiet: [], visible: false });
   let box = $state.raw<DecisionBox | null>(null);
   let geometry = $state.raw<Geometry | null>(null);
   const tools = geometryDownload();

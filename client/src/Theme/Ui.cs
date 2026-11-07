@@ -9,6 +9,9 @@ public static class Variation
     public const string Badge = nameof(Badge), Chip = nameof(Chip), DieFace = nameof(DieFace), DieMiss = nameof(DieMiss), FlatButton = nameof(FlatButton);
     public const string Banner = nameof(Banner), BannerDetail = nameof(BannerDetail), Dim = nameof(Dim), Accent = nameof(Accent), Success = nameof(Success),
         Failure = nameof(Failure), Warning = nameof(Warning), Display = nameof(Display), Numerals = nameof(Numerals), Mono = nameof(Mono);
+    /// <summary>The UX redesign's shared vocabulary (spec 2026-11-07-ux-redesign-design.md → Shared vocabulary): a key boxed in the numeral font,
+    /// an icon-over-word button, a panel with a 16 px inset, a one-line dim band, and the one lit button of a card.</summary>
+    public const string KeyCap = nameof(KeyCap), Tile = nameof(Tile), Card = nameof(Card), Quiet = nameof(Quiet), Primary = nameof(Primary);
 }
 
 /// <summary>The current UiTheme, its built Godot theme, and its colours and icons as Godot types.</summary>

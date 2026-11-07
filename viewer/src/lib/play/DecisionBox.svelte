@@ -1,94 +1,178 @@
 <!-- viewer/src/lib/play/DecisionBox.svelte -->
-<!-- DecisionBox.cs's panel: binds the controller's DecisionPanel at the top of the play page's right column. Every decision is in
-     decisionBox.ts; this only lays it out: the confirming button is the primary one, a key in a label shows as a key. Buttons never take
-     focus, so the keys (digits, Enter, Esc) stay with the table. -->
+<!-- DecisionBox.cs's card (UX redesign part 2 → Decision box): binds the controller's DecisionPanel at the top of the play page's right
+     column. Every decision is in decisionBox.ts; this only lays it out: the title band in my team's colour with the Ask's icon, the body,
+     the actions at the foot (the primary one lit) with their key caps; with nothing of mine open, a quiet band per team the game waits on.
+     Buttons never take focus, so the keys (digits, Enter, Esc) stay with the table. -->
 <script lang="ts">
-  import type { DecisionBox, DecisionPanel } from './decisionBox';
-  import { labelParts } from './decisionLabels';
+  import { teamColour } from '../board/palette';
+  import type { Control, DecisionBox, DecisionPanel } from './decisionBox';
+  import { keyCap } from './decisionCard';
+  import DecisionIcon from './DecisionIcon.svelte';
 
   let { box, panel }: { box: DecisionBox; panel: DecisionPanel } = $props();
 
-  /** The buttons that send or commit what the box holds: the one main action. */
-  const PRIMARY = new Set(['commit', 'place', 'enter', 'spend', 'done', 'fire', 'confirm']);
-  const QUIET = new Set(['mute', 'unmute']);
   const noFocus = (e: Event) => e.preventDefault();
-  /** A box with nothing to answer only says whom the game waits on. */
-  const waiting = $derived(panel.controls.length === 0 && panel.seat === '');
+  const colour = (ordinal: number): string => (ordinal > 0 ? teamColour(ordinal) : 'var(--dim)');
+  const body = $derived(panel.controls.filter((c) => c.kind !== 'button'));
+  const foot = $derived(panel.controls.filter((c): c is Extract<Control, { kind: 'button' }> => c.kind === 'button'));
+  const QUIET = new Set(['mute', 'unmute']);
 </script>
 
 {#if panel.visible}
-  <section class="panel decision" class:waiting aria-label="Decision" aria-live="polite">
-    {#if panel.seat !== ''}<p class="seat">{panel.seat}</p>{/if}
-    {#if panel.title !== ''}<h2 class="title">{panel.title}</h2>{/if}
-    {#if panel.revealed !== null}<p class="revealed">{panel.revealed}</p>{/if}
-    {#if panel.note !== ''}<p class="note">{panel.note}</p>{/if}
-    {#if panel.controls.length > 0}
-      <div class="controls">
-        {#each panel.controls as control, i (i)}
-          {#if control.kind === 'button'}
-            {@const parts = labelParts(control.label)}
-            <button
-              type="button" tabindex="-1" disabled={control.disabled} title={control.tooltip}
-              class:primary={PRIMARY.has(control.id)} class:quiet={QUIET.has(control.id)} class:option={parts.digit !== null}
-              onmousedown={noFocus}
-              onclick={() => box.press(control.id)}
-              onpointerenter={() => box.hover(control.id)}
-              onpointerleave={() => box.hover(null)}
-            >
-              {#if parts.digit !== null}<kbd>{parts.digit}</kbd>{/if}
-              <span class="text">{parts.text}</span>
-              {#if parts.key !== null}<kbd>{parts.key}</kbd>{/if}
+  {#if panel.head === null && panel.quiet.length > 0 && panel.refusal === null && panel.note === '' && panel.revealed === null}
+    <section class="quiet-bands" aria-label="Waiting" aria-live="polite">
+      {#each panel.quiet as q, i (i)}
+        <p class="quiet" style:--team={colour(q.ordinal)}><DecisionIcon name="team" size={18} /><strong>{q.team}</strong><span>{q.doing}</span></p>
+      {/each}
+    </section>
+  {:else}
+    <section class="panel decision" aria-label="Decision" aria-live="polite" style:--team={colour(panel.ordinal)}>
+      {#if panel.head !== null}
+        <header class="band">
+          <DecisionIcon name={panel.head.icon} size={22} />
+          <h2>{panel.head.title}{#if panel.head.subject !== null}<span class="subject"> · {panel.head.subject}</span>{/if}</h2>
+          {#if panel.seat !== ''}<span class="seat">{panel.seat}</span>{/if}
+        </header>
+      {/if}
+      <div class="body">
+        {#if panel.revealed !== null}
+          <div class="reveal">
+            {#each panel.revealed.flat() as chip, i (i)}
+              <p class="quiet" style:--team={colour(chip.ordinal)}><strong>{chip.team}</strong><span>{chip.choice}</span></p>
+            {/each}
+          </div>
+        {/if}
+        {#if panel.head?.prompt}<p class="prompt">{panel.head.prompt}</p>{/if}
+        {#if panel.note !== ''}<p class="note">{panel.note}</p>{/if}
+        {#each body as control, i (i)}
+          {#if control.kind === 'group'}
+            {@const g = control.group}
+            <div class="group" class:unit={g.unit !== null} style:--team={colour(g.teamOrdinal)}>
+              {#if g.unit !== null}<p class="group-head"><strong>{g.unit}</strong>{#if g.pips !== null}<span class="pips">{g.pips}</span>{/if}</p>{/if}
+              <div class="tiles" style:--cols={Math.min(4, Math.max(1, control.tiles.length))}>
+                {#each control.tiles as tile (tile.id)}
+                  <button type="button" class="tile" tabindex="-1" disabled={tile.disabled} title={tile.tooltip ?? tile.label} onmousedown={noFocus}
+                    onclick={() => box.press(tile.id)} onpointerenter={() => box.hover(tile.id)} onpointerleave={() => box.hover(null)}>
+                    {#if tile.icon !== null}<DecisionIcon name={tile.icon} size={26} />{/if}
+                    <span class="word">{tile.word}</span>
+                    {#if keyCap(tile.key) !== ''}<kbd>{keyCap(tile.key)}</kbd>{/if}
+                  </button>
+                {/each}
+              </div>
+              {#if g.note !== null}<p class="warn">{g.note}</p>{/if}
+            </div>
+          {:else if control.kind === 'row'}
+            <button type="button" class="tile row" tabindex="-1" disabled={control.disabled} onmousedown={noFocus} style:--team={colour(control.ordinal)}
+              onclick={() => box.press(control.id)} onpointerenter={() => box.hover(control.id)} onpointerleave={() => box.hover(null)}>
+              <span class="team-icon"><DecisionIcon name="army" size={20} /></span>
+              <span class="word">{control.label}</span>
+              {#if control.pips !== null}<span class="pips">{control.pips}</span>{/if}
+              {#if control.key !== ''}<kbd>{control.key}</kbd>{/if}
             </button>
+          {:else if control.kind === 'bar'}
+            {#if control.bar !== null}
+              <div class="bar" class:over={control.bar.over}>
+                <div class="track"><div class="fill" style:width={`${control.bar.fraction * 100}%`}></div>
+                  {#if control.bar.minimumFraction !== null}<div class="mark" style:left={`${control.bar.minimumFraction * 100}%`}></div>{/if}
+                </div>
+                <span class="inches">{control.bar.text}</span>
+              </div>
+            {/if}
+          {:else if control.kind === 'counter'}
+            <p class="counter"><strong>{control.text}</strong><span class="casualties">{control.pips}</span></p>
           {:else if control.kind === 'chip'}
-            <button
-              type="button" class="small toggle" tabindex="-1" aria-pressed={control.pressed} disabled={control.disabled ?? false}
-              onmousedown={noFocus} onclick={() => box.press(control.id)}
-            >{control.label}</button>
+            <button type="button" class="tile chip" tabindex="-1" aria-pressed={control.pressed} disabled={control.disabled ?? false}
+              onmousedown={noFocus} onclick={() => box.press(control.id)}>
+              <span>{control.label}</span>
+              {#if control.target}<span>→</span><span class="target" style:--team={colour(control.target.ordinal)}>{control.target.name}</span>
+              {:else}<span class="dim">holds fire</span>{/if}
+            </button>
           {:else if control.kind === 'spin'}
             <label class="spin">
               <span>{control.label}</span>
-              <input
-                type="number" min="0" max={control.max} step="1" value={control.value}
-                oninput={(e) => box.spin(control.id, e.currentTarget.valueAsNumber)}
-              />
+              {#if control.pips}<span class="pips">{control.pips}</span>{/if}
+              <input type="number" min="0" max={control.max} step="1" value={control.value}
+                oninput={(e) => box.spin(control.id, e.currentTarget.valueAsNumber)} />
             </label>
           {:else if control.kind === 'label'}
             <p class="label">{control.text}</p>
-          {:else if control.text !== ''}
+          {:else if (control.kind === 'note' || control.kind === 'reason') && control.text !== ''}
             <p class="warn reason">{control.text}</p>
           {/if}
         {/each}
+        {#if panel.refusal !== null}<p role="alert">{panel.refusal}</p>{/if}
+        {#if foot.length > 0}
+          <div class="foot">
+            {#each foot as b (b.id)}
+              <button type="button" tabindex="-1" disabled={b.disabled} title={b.tooltip} class:primary={b.primary === true} class:quiet={QUIET.has(b.id)}
+                class:flat={b.primary !== true && !QUIET.has(b.id)} onmousedown={noFocus} onclick={() => box.press(b.id)}
+                onpointerenter={() => box.hover(b.id)} onpointerleave={() => box.hover(null)}>
+                {#if b.icon !== undefined}<DecisionIcon name={b.icon} size={18} />{/if}
+                <span>{b.label}</span>
+                {#if b.key !== undefined}<kbd>{b.key}</kbd>{/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
-    {/if}
-    {#if panel.refusal !== null}<p role="alert">{panel.refusal}</p>{/if}
-    {#if panel.hint !== ''}<p class="hint">{panel.hint}</p>{/if}
-  </section>
+    </section>
+  {/if}
 {/if}
 
 <style>
-  /* The box takes its full height, up to most of the column (the unit card and the log below give way); past that the whole box scrolls,
+  /* The card takes its full height, up to most of the column (the unit card and the log below give way); past that the whole card scrolls,
      so no part of it, the main action least, is squeezed away. */
-  .decision { display: flex; flex-direction: column; gap: var(--s2); margin: 0; padding: var(--s4); flex: none; min-height: 0; max-height: 70%; overflow-y: auto; }
+  .decision { display: flex; flex-direction: column; margin: 0; padding: 0; flex: none; min-height: 0; max-height: 70%; overflow-y: auto; }
   .decision > * { flex: none; }
-  :global([data-theme='fantasy']) .decision { padding: calc(var(--s4) + 4px); }
-  .decision.waiting { opacity: .85; }
+  .band { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s4); background: var(--team); color: var(--bg); }
+  .band h2 { margin: 0; flex: 1; min-width: 0; font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; letter-spacing: .06em; color: inherit; }
+  .band .subject { opacity: .85; }
+  .seat { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+  .body { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); }
   p { margin: 0; white-space: pre-line; }
-  .seat { font-size: .8rem; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
-  .title { margin: 0; font-size: 1.1rem; color: var(--text); }
-  .waiting .title { font-size: .95rem; color: var(--dim); }
-  .revealed { color: var(--accent); }
-  .controls { display: flex; flex-direction: column; gap: var(--s2); margin: 0 calc(-1 * var(--s1)); padding: 2px var(--s1); }
-  .controls > button { justify-content: flex-start; width: 100%; flex: none; text-align: left; white-space: normal; }
-  .controls > button .text { flex: 1; min-width: 0; }
-  .controls > button.quiet { align-self: flex-start; width: auto; font-size: .9rem; }
-  .controls > .toggle { align-self: flex-start; width: auto; }
-  kbd { font-family: var(--font-num); font-size: .75rem; line-height: 1; padding: 3px 5px; border: 1px solid currentColor; border-radius: 3px; opacity: .7; flex: none; }
-  .note { color: var(--text); }
+  .prompt { color: var(--text); }
+  .note, .dim { color: var(--dim); }
   .warn { color: var(--warning); }
-  .reason { font-size: .85rem; line-height: 1.3; margin-top: calc(-1 * var(--s1)); }
-  .label { color: var(--text); }
-  .hint { color: var(--dim); font-size: .9rem; }
+  .reason { font-size: .9rem; line-height: 1.3; }
+  .group { display: flex; flex-direction: column; gap: var(--s2); }
+  .group.unit { border: 2px solid color-mix(in srgb, var(--team) 85%, transparent); border-left-width: 7px; padding: var(--s3); background: var(--panel-solid); }
+  .group-head { display: flex; align-items: center; gap: var(--s3); }
+  .group-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); }
+  .pips { color: var(--team, var(--text)); letter-spacing: .05em; white-space: nowrap; overflow: hidden; max-width: 12rem; }
+  .tiles { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--s2); }
+  .tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s3) var(--s2);
+    min-height: 0; white-space: normal; text-align: center; }
+  .tile kbd { position: absolute; top: 4px; right: 4px; }
+  .tile.row { flex-direction: row; justify-content: flex-start; text-align: left; gap: var(--s3); }
+  .tile.row .word { flex: 1; min-width: 0; }
+  .tile.row kbd { position: static; }
+  .team-icon { color: var(--team); display: inline-flex; }
+  .tile.chip { flex-direction: row; display: inline-flex; width: auto; align-self: flex-start; padding: var(--s2) var(--s3); }
+  .tile.chip[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--accent); }
+  .target { color: var(--team); border-left: 5px solid var(--team); padding-left: var(--s1); }
+  .bar { display: flex; align-items: center; gap: var(--s3); }
+  .track { position: relative; flex: 1; height: 10px; background: var(--bg); border: 1px solid var(--line, var(--dim)); }
+  .fill { height: 100%; background: var(--accent); }
+  .bar.over .fill { background: var(--danger-text); }
+  .bar.over .inches { color: var(--danger-text); }
+  .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); }
+  .inches { font-family: var(--font-num); white-space: nowrap; }
+  .counter { display: flex; align-items: center; gap: var(--s3); }
+  .counter strong { font-family: var(--font-display); font-size: 1.3rem; }
+  .casualties { color: var(--danger-text); letter-spacing: .08em; }
+  .foot { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+  .foot button { display: inline-flex; align-items: center; gap: var(--s2); width: auto; }
+  .foot button.flat { background: none; box-shadow: none; clip-path: none; border-color: transparent; }
+  kbd { font-family: var(--font-num); font-size: .75rem; line-height: 1; padding: 3px 5px; border: 1px solid currentColor; border-radius: 3px; opacity: .7; flex: none; }
+  .label { color: var(--text); font-family: var(--font-num); }
   .spin { display: flex; gap: var(--s2); align-items: center; justify-content: space-between; }
+  .spin > span:first-child { flex: 1; }
   .spin input { width: 5.5rem; }
   [role='alert'] { margin: 0; }
+  .quiet-bands { display: flex; flex-direction: column; gap: var(--s2); flex: none; }
+  .reveal { display: flex; flex-wrap: wrap; gap: var(--s2); }
+  .quiet { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); background: var(--panel); border: 1px solid color-mix(in srgb, var(--dim) 50%, transparent);
+    border-left: 6px solid var(--team); color: var(--team); }
+  .quiet strong { text-transform: uppercase; letter-spacing: .06em; font-family: var(--font-display); }
+  .quiet span { color: var(--dim); }
 </style>

@@ -21,8 +21,8 @@ public class SealedRevealsTests
         Assert.Empty(r.Drain());
         r.Read(Batch(2, new AskClosed(Sealed.Id, [new TeamAnswer(Samples.Team1, new Passed()), new TeamAnswer(Samples.Team2, new Passed())])), N);
         r.Read(Batch(3, new AskOpened(Next)), N);
-        var text = $"Revealed: {N.Team(Samples.Team1)} {LogText.Answer(new Passed(), N)}, {N.Team(Samples.Team2)} {LogText.Answer(new Passed(), N)}";
-        Assert.Equal([text], r.Drain());
+        var reveal = Assert.Single(r.Drain());
+        Assert.Equal([new RevealChip(1, "Team 1", "passed"), new RevealChip(2, "Team 2", "passed")], reveal);
         Assert.Empty(r.Drain());                                    // shown once, then gone
     }
 
@@ -33,7 +33,7 @@ public class SealedRevealsTests
         r.Read(Batch(1, new AskOpened(Sealed), new AskOpened(second), new AskOpened(Next)), N);
         r.Read(Batch(4, new AskClosed(Next.Id, [new TeamAnswer(Samples.Team1, new Passed())]), new AskClosed(second.Id, [new TeamAnswer(Samples.Team2, new Passed())])), N);
         r.Read(Batch(6, new AskClosed(Sealed.Id, [new TeamAnswer(Samples.Team1, new Passed())])), N);
-        Assert.Equal([$"Revealed: {N.Team(Samples.Team2)} {LogText.Answer(new Passed(), N)}", $"Revealed: {N.Team(Samples.Team1)} {LogText.Answer(new Passed(), N)}"], r.Drain());
+        Assert.Equal(["Team 2", "Team 1"], r.Drain().Select(x => Assert.Single(x).Team));
         var unanswered = Sealed with { Id = Guid.CreateVersion7() };
         r.Read(Batch(7, new AskOpened(unanswered), new AskClosed(unanswered.Id, [])), N);
         Assert.Empty(r.Drain());

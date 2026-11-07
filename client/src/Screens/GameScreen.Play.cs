@@ -45,6 +45,7 @@ public partial class GameScreen
         _hud.AddChild(_banner = new TurnBanner()); _banner.Bind(_session);
         _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
         _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input);
+        _decision.KeysRequested += () => { if (IsInstanceValid(_keys)) _keys.Visible = !_keys.Visible; };   // the card's ⌨
 
         // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);

@@ -47,7 +47,14 @@ function rig(over: { game?: GameInfo; board?: Board; settings?: PlaySettings; ma
       return events as never[];
     },
     get panel(): DecisionPanel { return box.panel; },
-    labels(): string[] { return box.panel.controls.map((c) => ('label' in c ? c.label : 'text' in c ? c.text : '')); },
+    /** The card as words: a tile `1. Advance`, a button `Commit [⏎]`, a row `1. Battle Brothers`, a line its text. */
+    labels(): string[] {
+      return box.panel.controls.flatMap((c) => c.kind === 'group' ? c.tiles.map((t) => (t.key > 0 ? `${t.key}. ${t.word}` : t.word))
+        : c.kind === 'button' ? [c.key !== undefined ? `${c.label} [${c.key}]` : c.label]
+        : c.kind === 'row' ? [c.key !== '' ? `${c.key}. ${c.label}` : c.label]
+        : 'label' in c ? [c.label] : 'text' in c ? [c.text] : []);
+    },
+    tile(id: string) { return box.panel.controls.flatMap((c) => (c.kind === 'group' ? c.tiles : [])).find((t) => t.id === id); },
     button(id: string): Extract<Control, { kind: 'button' }> | undefined { return box.panel.controls.find((c): c is Extract<Control, { kind: 'button' }> => c.kind === 'button' && c.id === id); },
     accept(i = pending.length - 1) { pending[i]!.resolve({ id: pending[i]!.id, refused: null }); },
     refuse(i: number, detail: string) {
@@ -66,20 +73,21 @@ const answerOf = (c: Command) => (c as { answer: unknown }).answer;
 const opts = (...choices: ReturnType<typeof option>[]): LegalSet => ({ kind: 'options', choices });
 
 describe('the decision box controller', () => {
-  it('nothing open for my team shows the header\'s waiting line', () => {
+  it('nothing open for my team shows a quiet band per waiting team', () => {
     const r = rig();
     r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', teams: [TEAM2], allowPass: false })));
     r.box.render();
-    expect(r.panel.title).toBe('Team 2: end round');
+    expect(r.panel.head).toBeNull();
+    expect(r.panel.quiet).toEqual([{ ordinal: 2, team: 'Team 2', doing: 'ending the round' }]);
     expect(r.panel.visible).toBe(true);
     expect(r.panel.controls).toEqual([]);
   });
 
-  it('while deployment waits the title lists each team\'s wait', () => {
+  it('while deployment waits a band names each team\'s wait', () => {
     const game = gameOf({}, [{ id: P1, accountId: newId(), name: 'Clay', teamId: TEAM1, armyId: newId() }]);
     const r = rig({ game });
     r.box.render();
-    expect(r.panel.title).toBe('Waiting for a player on Team 2');
+    expect(r.panel.quiet).toEqual([{ ordinal: 2, team: 'Team 2', doing: 'waiting for a player' }]);
   });
 
   it('choose numbers its options and a number key answers Chosen', () => {
@@ -87,9 +95,10 @@ describe('the decision box controller', () => {
     const ask = askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id])));
     r.apply(open(ask));
     r.box.render();
-    expect(r.panel.title).toBe('Activate a unit');
-    expect(r.panel.hint).toBe('1–2: pick · click a glowing unit');
+    expect(r.panel.head).toEqual({ icon: 'activation', title: 'Activate a unit', subject: null, prompt: null });
     expect(r.labels().slice(0, 2)).toEqual(['1. Advance', '2. Hold']);
+    const group = r.panel.controls.find((c) => c.kind === 'group');
+    expect(group?.kind === 'group' && [group.group.unit, group.tiles.map((t) => t.icon)]).toEqual(['Battle Brothers', ['advance', 'hold']]);
     expect(r.box.number(2)).toBe(true);
     expect(r.sent).toEqual([{ kind: 'answer_ask', askId: ask.id, answer: { kind: 'chosen', optionId: 'h' }, teamId: TEAM1 }]);
     expect(r.box.number(0)).toBe(false);
@@ -115,7 +124,7 @@ describe('the decision box controller', () => {
     expect(r.labels().slice(0, 3)).toEqual(['1. Advance', '2. Strike', '3. Hold']);
     r.box.unit(r.s.squad.id);
     expect(r.labels().slice(0, 2)).toEqual(['1. Advance', '2. Hold']);
-    expect(r.panel.controls.filter((c) => c.kind === 'button' && c.id.startsWith('opt:'))).toHaveLength(2);
+    expect(r.panel.controls.flatMap((c) => (c.kind === 'group' ? c.tiles : []))).toHaveLength(2);
     expect(r.box.cancel()).toBe(true);
     expect(r.labels().slice(0, 3)).toEqual(['1. Advance', '2. Strike', '3. Hold']);
     expect(r.box.cancel()).toBe(false);
@@ -158,11 +167,11 @@ describe('the decision box controller', () => {
     const r = rig({ rules });
     r.apply(open(askOf(opts(option('Hex|m', 'Hex (3)', [r.s.model.id])), { question: 'cast' })));
     r.box.render();
-    expect(r.button('opt:Hex|m')!.tooltip).toBe('Hex\nCasting value 3\nPick one enemy unit.');
+    expect(r.tile('opt:Hex|m')!.tooltip).toBe('Hex\nCasting value 3\nPick one enemy unit.');
     const plain = rig({ rules });
     plain.apply(open(askOf(opts(option('Hex|m', 'Hex (3)')), { question: 'activate' })));
     plain.box.render();
-    expect(plain.button('opt:Hex|m')!.tooltip).toBeUndefined();
+    expect(plain.tile('opt:Hex|m')!.tooltip).toBeUndefined();
   });
 
   it('token spend offers a box per caster of mine and sends only non-zero spends', () => {
@@ -171,7 +180,7 @@ describe('the decision box controller', () => {
     r.apply(open(ask));
     r.box.render();
     const spins = r.panel.controls.filter((c) => c.kind === 'spin');
-    expect(spins).toEqual([{ kind: 'spin', id: `spin:${r.s.model.id}`, label: 'Battle Brothers (Battle Brother)', max: 2, value: 0 }]);
+    expect(spins).toEqual([{ kind: 'spin', id: `spin:${r.s.model.id}`, label: 'Battle Brothers (Battle Brother)', max: 2, value: 0, pips: '' }]);
     r.box.spin(`spin:${r.s.model.id}`, 5);
     expect(r.panel.controls.find((c) => c.kind === 'spin')).toMatchObject({ value: 2 });
     r.box.press('spend');
@@ -183,12 +192,12 @@ describe('the decision box controller', () => {
     expect(answerOf(zero.sent[0]!)).toEqual({ kind: 'tokens_spent', counts: {} });
   });
 
-  it('confirm answers on Enter and the end_round button says End the round (Enter)', () => {
+  it('confirm answers on Enter and the end_round button says End the round with its key cap', () => {
     const r = rig();
     r.apply(open(askOf({ kind: 'confirmation' }, { question: 'end_round', prompt: 'End the round', teams: [TEAM1, TEAM2], allowPass: false })));
     r.box.render();
-    expect(r.labels()).toEqual(['End the round (Enter)']);
-    expect(r.panel.hint).toBe('Enter: End the round');
+    expect(r.labels()).toEqual(['End the round [⏎]']);
+    expect(r.button('enter')!.primary).toBe(true);
     expect(r.box.enter()).toBe(true);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'confirmed' });
   });
@@ -214,17 +223,17 @@ describe('the decision box controller', () => {
     const one = rig();
     one.apply(open(askOf({ kind: 'pieces', eligible: [one.s.rivals.id], min: 1, max: 1 }, { question: 'charge_target', allowPass: false })));
     one.box.render();
-    expect(one.labels()[0]).toBe('0 of 1');
+    expect(one.labels()).toEqual(['Rivals']);
     one.box.target(one.s.rival.id);
     expect(answerOf(one.sent[0]!)).toEqual({ kind: 'selected_pieces', pieceIds: [one.s.rivals.id] });
   });
 
-  it('a deploy pick lists shelved units as numbered buttons', () => {
+  it('a deploy pick lists shelved units as rows with their pips and key caps', () => {
     const r = rig();
     r.apply(open(askOf({ kind: 'pieces', eligible: [r.s.squad.id], min: 1, max: 1 }, { question: 'deploy', prompt: 'Deploy one unit', allowPass: false })));
     r.box.render();
-    expect(r.labels()).toContain('1. Battle Brothers');
-    expect(r.panel.hint).toBe('1: pick a unit to deploy');
+    expect(r.labels()).toEqual(['1. Battle Brothers']);
+    expect(r.panel.controls[0]).toMatchObject({ kind: 'row', pips: '●', ordinal: 1 });
     expect(r.box.number(1)).toBe(true);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'selected_pieces', pieceIds: [r.s.squad.id] });
   });
@@ -235,11 +244,11 @@ describe('the decision box controller', () => {
       { question: 'declare_targets', allowPass: false });
     r.apply(open(ask));
     r.box.render();
-    expect(r.panel.controls.filter((c) => c.kind === 'chip').map((c) => c.kind === 'chip' && [c.label, c.pressed])).toEqual([['Rifles ×1 · holds fire', true], ['Pistols ×1 · holds fire', true]]);
+    expect(r.panel.controls.filter((c) => c.kind === 'chip').map((c) => c.kind === 'chip' && [c.label, c.pressed, c.target])).toEqual([['Rifles ×1', true, null], ['Pistols ×1', true, null]]);
     expect(r.button('fire')!.disabled).toBe(true);
     expect([...r.box.eligible]).toEqual([r.s.rivals.id]);
     r.box.target(r.s.rival.id);
-    expect(r.panel.controls.filter((c) => c.kind === 'chip').map((c) => c.kind === 'chip' && c.label)).toEqual(['Rifles ×1 → Rivals', 'Pistols ×1 → Rivals']);
+    expect(r.panel.controls.filter((c) => c.kind === 'chip').map((c) => c.kind === 'chip' && c.target)).toEqual([{ name: 'Rivals', ordinal: 2 }, { name: 'Rivals', ordinal: 2 }]);
     expect(r.box.targets!.assigned.size).toBe(2);
     r.box.press('chip:g2');
     expect(r.panel.controls.filter((c) => c.kind === 'chip').map((c) => c.kind === 'chip' && c.pressed)).toEqual([false, true]);
@@ -266,11 +275,11 @@ describe('the decision box controller', () => {
     const ask = askOf({ kind: 'allocation', targets: [boss], amount: 2 }, { question: 'remove_casualties', prompt: 'Assign 2 wound(s)', allowPass: false });
     t.apply(open(ask));
     t.box.render();
-    expect(t.panel.title).toBe('Assign 2 wounds');
-    expect(t.labels()[0]).toBe('0 of 2 chosen');
+    expect(t.panel.head).toEqual({ icon: 'wound', title: 'Assign 2 wounds', subject: 'Tough', prompt: null });
+    expect(t.panel.controls[0]).toEqual({ kind: 'counter', id: 'counter', text: '0 of 2', pips: '○○' });
     t.box.model(boss, false);
     expect(t.box.marks.get(boss)).toBe('✕ 1/3');
-    expect(t.labels()[0]).toBe('1 of 2 chosen');
+    expect(t.labels()[0]).toBe('1 of 2');
     t.box.model(boss, true);
     expect(t.box.marks.size).toBe(0);
     t.box.press('auto');
@@ -303,7 +312,7 @@ describe('the decision box controller', () => {
     r.box.render();
     expect(r.sent).toHaveLength(1);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'passed' });
-    expect(r.panel.note).toBe('auto-passed (muted: casting)');
+    expect(r.panel.note).toBe('Auto-passed: casting');
     expect(r.button('unmute')).toBeDefined();
     r.box.press('unmute');
     expect(r.settings.mutedWindowKinds).toEqual([]);
@@ -317,7 +326,7 @@ describe('the decision box controller', () => {
     await tick();
     expect(r.panel.refusal).toBe('The server refused: not now');
     expect(r.button('pass')).toBeDefined();
-    expect(r.button('opt:a')!.disabled).toBe(false);
+    expect(r.tile('opt:a')!.disabled).toBe(false);
     expect(r.sent).toHaveLength(1);
     r.box.render();
     expect(r.sent).toHaveLength(1);
@@ -329,16 +338,16 @@ describe('the decision box controller', () => {
     r.apply(open(ask));
     r.box.render();
     r.box.number(1);
-    expect(r.button('opt:a')!.disabled).toBe(true);
+    expect(r.tile('opt:a')!.disabled).toBe(true);
     r.refuse(0, 'illegal here');
     await tick();
     expect(r.panel.refusal).toBe('The server refused: illegal here');
-    expect(r.button('opt:a')!.disabled).toBe(false);
-    expect(r.panel.title).toBe('Activate a unit');
+    expect(r.tile('opt:a')!.disabled).toBe(false);
+    expect(r.panel.head?.title).toBe('Activate a unit');
     r.apply({ kind: 'ask_closed', askId: ask.id, answers: [] }, open(askOf(opts(option('x', 'X')), { prompt: 'Another' })));
     r.box.render();
     expect(r.panel.refusal).toBeNull();
-    expect(r.panel.title).toBe('Another');
+    expect(r.panel.head?.title).toBe('Another');
   });
 
   it('a Refused that arrives after its send settled still shows', async () => {
@@ -351,7 +360,7 @@ describe('the decision box controller', () => {
     expect(r.panel.refusal).toBeNull();
     r.refuseLate(0, 'too late');
     expect(r.panel.refusal).toBe('The server refused: too late');
-    expect(r.button('opt:a')!.disabled).toBe(false);
+    expect(r.tile('opt:a')!.disabled).toBe(false);
     r.refuseLate(0, 'again');
     expect(r.panel.refusal).toBe('The server refused: too late');
   });
@@ -364,7 +373,7 @@ describe('the decision box controller', () => {
     r.fail(0, new SendError('Not connected to the game yet.', 'not_connected'));
     await tick();
     expect(r.panel.refusal).toBe('Could not send the answer: Not connected to the game yet.');
-    expect(r.button('opt:a')!.disabled).toBe(false);
+    expect(r.tile('opt:a')!.disabled).toBe(false);
   });
 
   it('a second Enter after an answer sends nothing', () => {
@@ -407,14 +416,14 @@ describe('the decision box controller', () => {
     r.box.reveal(r.apply({ kind: 'ask_closed', askId: sealed.id, answers: [
       { teamId: TEAM1, answer: { kind: 'passed' } }, { teamId: TEAM2, answer: { kind: 'passed' } }] }));
     r.box.render();
-    expect(r.panel.revealed).toBe('Revealed: Team 1 passed, Team 2 passed');
+    expect(r.panel.revealed).toEqual([[{ ordinal: 1, team: 'Team 1', choice: 'passed' }, { ordinal: 2, team: 'Team 2', choice: 'passed' }]]);
     expect(r.panel.visible).toBe(true);
     r.box.render();
-    expect(r.panel.revealed).toBe('Revealed: Team 1 passed, Team 2 passed');
+    expect(r.panel.revealed).toEqual([[{ ordinal: 1, team: 'Team 1', choice: 'passed' }, { ordinal: 2, team: 'Team 2', choice: 'passed' }]]);
     r.apply(open(askOf(opts(option('b', 'B')), { prompt: 'Next' })));
     r.box.render();
     expect(r.panel.revealed).toBeNull();
-    expect(r.panel.title).toBe('Next');
+    expect(r.panel.head?.title).toBe('Next');
   });
 
   it('Playing as Team 2 heads the box for an account with two teams', () => {

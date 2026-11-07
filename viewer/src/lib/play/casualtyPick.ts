@@ -38,12 +38,6 @@ export class CasualtyPick {
     return `Assign ${this.#legal.amount} ${this.#legal.amount === 1 ? 'wound' : 'wounds'}${this.#legal.maxTargets === 1 ? ' to one model' : ''}`;
   }
 
-  get hint(): string {
-    if (this.oneEach) return 'Click a model to remove it · Click again or right-click: put it back · Auto: fill the rest · Enter: confirm';
-    if (this.#legal.maxTargets === 1) return 'Click a model: +1, once full: put back · Another model: move there · Right-click: −1 · Auto: fill · Enter: confirm';
-    return 'Click a model: +1, once full: put back · Right-click: −1 · Auto: fill the rest · Enter: confirm';
-  }
-
   get status(): string { return `${this.chosen} of ${this.required} chosen`; }
 
   /** Wounds left; a model the facts do not name takes one. */
