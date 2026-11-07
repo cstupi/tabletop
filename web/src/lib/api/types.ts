@@ -32,7 +32,8 @@ export interface Army { id: Guid; name: string; gameSystem: string; edition: str
 export interface TerrainVolume { id: Guid; volume: Volume }
 
 // Identity
-export interface AccountRow { id: Guid; name: string }
+/** `username`: what players type to open this account's Shared folder; absent until set. */
+export interface AccountRow { id: Guid; name: string; username?: string }
 export interface SessionResponse { sessionJwt: string; account: AccountRow }
 export interface OtpSentResponse { methodId: string }
 
@@ -72,13 +73,24 @@ export interface CreateOffersResponse { offers: OfferDto[]; notFound: Guid[] }
 export interface AcceptOfferResponse { copied: AssetDto[] }
 export interface BlockedDto { accountId: Guid; name: string }
 
+// Shared folders (/v1/shared/{username}): any signed-in player browses a player's Shared folder and copies from it.
+/** `assetIds`: the shared models filed in the folder; the Shared folder's `parentId` is absent. */
+export interface SharedFolderDto { id: Guid; parentId?: Guid; name: string; assetIds: Guid[] }
+export type SharedAssetDto = OfferAssetDto;
+export interface SharedLibraryDto { username: string; name: string; folders: SharedFolderDto[]; assets: SharedAssetDto[] }
+/** Exactly one of `assetIds` and `folderId`; `destinationId`: your folder the copies go in, or none. */
+export interface CopySharedRequest { assetIds: Guid[] | null; folderId: Guid | null; destinationId: Guid | null }
+/** `folders`: the new folders, the copied tree's root first; `notFound`: ids that are not shared. */
+export interface CopySharedResponse { assets: Guid[]; folders: FolderDto[]; notFound: Guid[] }
+
 // Client releases (GET /v1/client/latest)
 export type ClientPlatform = 'windows' | 'macos' | 'linux';
 export interface ClientDownload { platform: ClientPlatform; fileName: string; size: number; sha256: string; url: string }
 export interface ClientRelease { version: string; date: string; notes: string; protocolVersion?: number; downloads: ClientDownload[]; expiresAt: string }
 
 // Folders
-export interface FolderDto { id: Guid; parentId?: Guid; name: string; assetIds: Guid[] }
+/** `shared`: the account's Shared folder, which any signed-in player opens by its username. */
+export interface FolderDto { id: Guid; parentId?: Guid; name: string; assetIds: Guid[]; shared?: boolean }
 export interface FolderRequest { name: string; parentId: Guid | null }
 /** Bulk filing and deleting: 1 to 200 ids a request; `notFound` lists ids that are not the caller's assets. */
 export interface BulkAssetsResponse { done: Guid[]; notFound: Guid[] }

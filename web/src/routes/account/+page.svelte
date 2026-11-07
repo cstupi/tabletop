@@ -4,6 +4,7 @@
   import { errorMessage } from '$lib/api/errors';
   import { session } from '$lib/session/session.svelte';
   import { MAX_NAME, nameProblem } from '$lib/validation';
+  import { usernameProblem } from '$lib/library/shared';
 
   let name = $state(session.account?.name ?? '');
   let confirm = $state(''); let error = $state<string | null>(null); let saved = $state(false); let busy = $state(false);
@@ -18,6 +19,17 @@
     busy = true; error = null; saved = false;
     try { const row = await api.account.rename(name.trim()); session.accept({ sessionJwt: session.token!, account: row }); name = row.name; saved = true; }
     catch (err) { error = errorMessage(err); } finally { busy = false; }
+  }
+  let username = $state(session.account?.username ?? ''); let usernameSaved = $state(false); let usernameError = $state<string | null>(null);
+  const currentUsername = $derived(session.account?.username ?? '');
+  const usernameIssue = $derived(username.trim() ? usernameProblem(username) : null);
+  $effect(() => { api.account.get().then((row) => { session.accept({ sessionJwt: session.token!, account: row }); username = row.username ?? ''; }).catch(() => {}); });
+  async function saveUsername(e: SubmitEvent) {
+    e.preventDefault();
+    if (usernameIssue || username.trim() === currentUsername) return;
+    busy = true; usernameError = null; usernameSaved = false;
+    try { const row = await api.account.setUsername(username.trim() || null); session.accept({ sessionJwt: session.token!, account: row }); username = row.username ?? ''; usernameSaved = true; }
+    catch (err) { usernameError = errorMessage(err); } finally { busy = false; }
   }
   async function destroy(e: SubmitEvent) {
     e.preventDefault();
@@ -43,6 +55,22 @@
       <button type="submit" class="primary" disabled={busy || !!problem || unchanged}>Save name</button>
       <span class="saved" role="status">{#if saved}Saved.{/if}</span>
     </div>
+  </form>
+</section>
+
+<section class="panel" aria-labelledby="username-heading">
+  <h2 id="username-heading">Username</h2>
+  <p>Players type your username to open your Shared folder.{#if currentUsername} Yours is <strong>{currentUsername}</strong>.{/if}</p>
+  <form class="stack" onsubmit={saveUsername}>
+    <label>Username
+      <input bind:value={username} maxlength={32} autocomplete="username" aria-invalid={!!usernameIssue} aria-describedby="username-help" oninput={() => (usernameSaved = false)} />
+    </label>
+    <p id="username-help"><small>{usernameIssue ?? '3 to 32 letters, digits, - or _. Empty clears it.'}</small></p>
+    <div class="actions">
+      <button type="submit" class="primary" disabled={busy || !!usernameIssue || username.trim() === currentUsername}>Save username</button>
+      <span class="saved" role="status">{#if usernameSaved}Saved.{/if}</span>
+    </div>
+    {#if usernameError}<p role="alert">{usernameError}</p>{/if}
   </form>
 </section>
 

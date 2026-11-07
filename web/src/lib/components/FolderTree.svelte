@@ -4,11 +4,14 @@
   import { ASSET_DRAG } from '$lib/library/bulk';
   import { nameProblem } from '$lib/validation';
   import Icon from './Icon.svelte';
-  let { folders, selected, onselect, oncreate, onrename, onmove, ondelete, onassetsdrop, oninvalid }: {
+  let { folders, selected, username = null, onselect, oncreate, onrename, onmove, ondelete, onassetsdrop, oninvalid, onmakeshared }: {
     folders: FolderDto[]; selected: Guid | null; onselect: (id: Guid | null) => void; oncreate: (parentId: Guid | null, name: string) => void;
     onrename: (id: Guid, name: string) => void; onmove: (id: Guid, parentId: Guid | null) => void; ondelete: (id: Guid) => void;
     onassetsdrop: (folderId: Guid, assetIds: Guid[]) => void; oninvalid: (message: string) => void;
+    /** The account's username, which opens its Shared folder to other players; null when unset. */
+    username?: string | null; onmakeshared: () => void;
   } = $props();
+  const hasShared = $derived(folders.some((f) => f.shared));
   const tree = $derived(buildTree(folders));
   let dragging = $state<Guid | null>(null);
   let moving = $state<Guid | null>(null);
@@ -38,14 +41,15 @@
 </script>
 
 {#snippet node(n: FolderNode)}
-  <li draggable="true" ondragstart={(e) => { e.stopPropagation(); dragging = n.folder.id; }} ondragover={(e) => { e.preventDefault(); e.stopPropagation(); if (carriesAssets(e)) over = n.folder.id; }} ondragleave={() => over === n.folder.id && (over = null)} ondrop={(e) => drop(e, n.folder.id)}>
-    <button class="folder quiet" class:selected={selected === n.folder.id} class:over={over === n.folder.id} aria-current={selected === n.folder.id ? 'true' : undefined} onclick={() => onselect(n.folder.id)}><Icon name="folder" />{n.folder.name} <small class="num">({n.folder.assetIds.length})</small></button>
+  <li draggable={!n.folder.shared} ondragstart={(e) => { e.stopPropagation(); dragging = n.folder.id; }} ondragover={(e) => { e.preventDefault(); e.stopPropagation(); if (carriesAssets(e)) over = n.folder.id; }} ondragleave={() => over === n.folder.id && (over = null)} ondrop={(e) => drop(e, n.folder.id)}>
+    <button class="folder quiet" class:selected={selected === n.folder.id} class:over={over === n.folder.id} aria-current={selected === n.folder.id ? 'true' : undefined} onclick={() => onselect(n.folder.id)}><Icon name="folder" />{n.folder.name} <small class="num">({n.folder.assetIds.length})</small>{#if n.folder.shared}{' '}<span class="tag">shared</span>{/if}</button>
     <span class="tools">
       <button class="icon-btn" title="New sub-folder" aria-label="New sub-folder in {n.folder.name}" onclick={() => create(n.folder.id)}><Icon name="plus" size="1.1em" /></button>
       <button class="icon-btn" title="Rename" aria-label="Rename {n.folder.name}" onclick={() => rename(n.folder)}><Icon name="edit" size="1.1em" /></button>
-      <button class="icon-btn" title="Move" aria-label="Move {n.folder.name}" aria-expanded={moving === n.folder.id} onclick={() => (moving = moving === n.folder.id ? null : n.folder.id)}><Icon name="move" size="1.1em" /></button>
+      {#if !n.folder.shared}<button class="icon-btn" title="Move" aria-label="Move {n.folder.name}" aria-expanded={moving === n.folder.id} onclick={() => (moving = moving === n.folder.id ? null : n.folder.id)}><Icon name="move" size="1.1em" /></button>{/if}
       <button class="icon-btn" title="Delete folder and sub-folders (assets stay)" aria-label="Delete {n.folder.name}" onclick={() => confirm(`Delete "${n.folder.name}" and its sub-folders? Assets are kept.`) && ondelete(n.folder.id)}><Icon name="close" size="1.1em" /></button>
     </span>
+    {#if n.folder.shared}<p class="note"><small>{#if username}Players open it with your username, <strong>{username}</strong>.{:else}Set a username on the <a href="/account">Account</a> page to share it.{/if}</small></p>{/if}
     {#if moving === n.folder.id}
       <label class="move">Move into
         <select value={n.folder.parentId ?? ''} onchange={(e) => move(n.folder, e.currentTarget.value)} onkeydown={(e) => e.key === 'Escape' && (moving = null)}>
@@ -63,6 +67,7 @@
     <button class="folder quiet" class:selected={selected === null} aria-current={selected === null ? 'true' : undefined} onclick={() => onselect(null)}><Icon name="library" />All assets</button>
     <button onclick={() => create(null)}><Icon name="plus" />New folder</button>
   </div>
+  {#if !hasShared}<button class="quiet makeshared" onclick={onmakeshared}><Icon name="plus" />Make a Shared folder</button>{/if}
   {#if tree.length === 0}<p class="none"><small>No folders yet.</small></p>{/if}
   <ul>{#each tree as n (n.folder.id)}{@render node(n)}{/each}</ul>
 </nav>
@@ -80,4 +85,7 @@
   .tools button { min-height: 1.75rem; min-width: 1.75rem }
   .move { display: block; margin: var(--s1) 0 var(--s2) var(--s2) }
   .none { margin: var(--s2) 0 }
+  .tag { font-size: 0.75em; padding: 0 0.4em; border: 1px solid var(--accent); color: var(--accent); border-radius: 0.6em; font-weight: 400 }
+  .note { margin: 0 0 var(--s1) var(--s3); color: var(--dim) }
+  .makeshared { margin: var(--s2) 0 }
 </style>

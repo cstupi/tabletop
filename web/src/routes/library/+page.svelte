@@ -16,6 +16,7 @@
   import { baseLabel } from '$lib/units/bases';
   import { ASSET_QUOTA, formatBytes, libraryUsage } from '$lib/validation';
 
+  let username = $state<string | null>(null);
   let folders = $state<FolderDto[]>([]); let assets = $state<AssetDto[]>([]); let loading = $state(true);
   let kind = $state<AssetKind | ''>(''); let base = $state<Base | null>(null); let uploading = $state(false); let error = $state<string | null>(null);
   let addButton = $state<HTMLButtonElement>();
@@ -39,6 +40,7 @@
       const all: AssetDto[] = [];
       for (let after: string | undefined; ;) { const p = await api.assets.list({ limit: 200, after }); all.push(...p.items); if (!p.next) break; after = p.next; }
       [assets, folders] = [all, await api.folders.list()];
+      username = (await api.account.get()).username ?? null;
     } catch (e) { error = errorMessage(e); } finally { loading = false; }
   }
   $effect(() => { void loadAll(); });
@@ -146,7 +148,7 @@
   <div class="panel folders"><FolderTree {folders} selected={selected} onselect={(id) => goto(id ? `/library?folder=${id}` : '/library')}
     oncreate={(p, name) => actFolder(() => api.folders.create({ name, parentId: p }))} onrename={(id, name) => actFolder(() => api.folders.patch(id, { name, parentId: folders.find((f) => f.id === id)?.parentId ?? null }))}
     onmove={(id, parentId) => actFolder(() => api.folders.patch(id, { name: folders.find((f) => f.id === id)!.name, parentId }))} ondelete={(id) => actFolder(() => api.folders.delete(id))}
-    onassetsdrop={(id, ids) => moveTo(id, ids)} oninvalid={(m) => (error = m)} /></div>
+    onassetsdrop={(id, ids) => moveTo(id, ids)} oninvalid={(m) => (error = m)} {username} onmakeshared={() => actFolder(() => api.folders.createShared())} /></div>
   <section class="panel assets" aria-label="Assets">
     <div class="bar">
       <button class="primary" bind:this={addButton} onclick={() => (uploading = true)}><Icon name="upload" />Add STL / GLB / texture</button>
