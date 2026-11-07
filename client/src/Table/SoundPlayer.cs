@@ -15,6 +15,8 @@ public partial class SoundPlayer : Node
     readonly Dictionary<AudioStreamPlayer, double> _started = new();
     double _now;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard;
+    /// <summary>Each live batch's cues as they are read, whether or not Sound is on: the table's effects run on the same clock.</summary>
+    public event Action<IReadOnlyList<CueAt>>? Cued;
 
     public void Bind(Session session)
     {
@@ -32,8 +34,10 @@ public partial class SoundPlayer : Node
         {
             if (_s.Projection is not { } q || _s.Game is not { } game) return;
             if (batch.Any(e => e.Payload is Undone)) _waiting.Clear();
-            foreach (var cue in _cues.OnBatch(batch, q, _s.CatchingUp, new Names(game, q)))
+            var cues = _cues.OnBatch(batch, q, _s.CatchingUp, new Names(game, q));
+            foreach (var cue in cues)
                 if (_streams.TryGetValue(SoundCues.File(cue.Cue, cue.Variant), out var stream)) _waiting.Add((_now + cue.Delay, cue, stream));
+            Cued?.Invoke(cues);
         };
         _onBoard = () => { _cues.OnBoard(); _waiting.Clear(); };
         session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;

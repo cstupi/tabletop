@@ -13,6 +13,8 @@ public partial class OrbitCamera : Camera3D
     /// <summary>TableInput's "a unit is in hand": Q/E turn it, and follow waits.</summary>
     public Func<bool> Holding { get; set; } = () => false;
     public float Pitch => _pitch;
+    /// <summary>The camera's distance from its target, in inches.</summary>
+    public float Distance { get => _distance; set { _distance = value; Apply(); } }
 
     public void FocusOn(TableSize size) { _size = size; _target = WorldFrame.ToGodot(new Point3(size.Width / 2, size.Length / 2, 0)); _distance = (float)Math.Max(size.Width, size.Length) * 0.9f; Apply(); }
     /// <summary>Look at a point, keeping the distance and angle: Tab, Space and the roster bring a unit to the centre of the screen.
