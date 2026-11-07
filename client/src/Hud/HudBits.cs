@@ -106,8 +106,10 @@ public static class HudBits
         void Set(bool on) { foreach (var c in shown) if (GodotObject.IsInstanceValid(c)) c.Modulate = Plain with { A = on ? 1 : 0 }; }
         Set(false);
         row.MouseEntered += () => Set(true);
-        row.MouseExited += () => { if (!row.GetGlobalRect().HasPoint(row.GetGlobalMousePosition())) Set(false); };
-        foreach (var c in shown) c.MouseEntered += () => Set(true);
+        // Leaving the row for one of its own controls keeps them shown: the pointer is on the control it came to press.
+        bool Inside(Control at) { var m = at.GetGlobalMousePosition(); return row.GetGlobalRect().HasPoint(m) || shown.Any(c => GodotObject.IsInstanceValid(c) && c.GetGlobalRect().HasPoint(m)); }
+        row.MouseExited += () => { if (!Inside(row)) Set(false); };
+        foreach (var c in shown) { c.MouseEntered += () => Set(true); c.MouseExited += () => { if (!Inside(c)) Set(false); }; }
     }
 
     public static void Clear(Node box, params Node[] keep) { foreach (var c in box.GetChildren()) if (!keep.Contains(c)) { box.RemoveChild(c); c.QueueFree(); } }
