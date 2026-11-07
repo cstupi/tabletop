@@ -97,5 +97,6 @@ public static class Samples
         new SightQuery(Guid.CreateVersion7(), Unit, Guid.CreateVersion7()), new Reauth(Guid.CreateVersion7(), "jwt"),
         new SightAnswer(Guid.CreateVersion7(), [new SightLine(Model, Guid.CreateVersion7(), false, true, [Guid.CreateVersion7()])], [Model]),
         new ModelFacts(new Dictionary<Guid, int> { [Model] = 3 }),
+        new ModelFacts(new Dictionary<Guid, int> { [Model] = 3 }, null, null, new Dictionary<Guid, UnitThreat> { [Unit] = new(12, 6, new Dictionary<Guid, double> { [Model] = 24 }) }),
     ];
 }

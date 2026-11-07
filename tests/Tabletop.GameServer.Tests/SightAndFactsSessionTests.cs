@@ -170,4 +170,20 @@ public class SightAndFactsSessionTests
         await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 3)));
         Assert.DoesNotContain(clay.Received, m => m is ModelFacts);
     }
+
+    [Fact]
+    public async Task Facts_carry_each_units_threat_and_are_broadcast_when_it_changes()
+    {
+        var (session, _, _, observers, targets) = await PlayingAsync();
+        var clay = new RecordingClient(Samples.P1);
+        await session.ConnectAsync(clay);
+        var threats = clay.Received.OfType<ModelFacts>().Single().Threats!;
+        Assert.Equal((12.0, 6.0), (threats[observers.Id].Charge, threats[observers.Id].ShootMove));
+        Assert.All(observers.Models, m => Assert.Equal(12.0, threats[observers.Id].Ranges[m.Id]));
+        Assert.Contains(targets.Id, threats.Keys);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetCondition(new Subject(SubjectKind.Unit, observers.Id), GfNames.Shaken, true)));
+        var shaken = clay.Received.OfType<ModelFacts>().Single().Threats![observers.Id];
+        Assert.Equal((null, (double?)null), (shaken.Charge, shaken.ShootMove));
+    }
 }

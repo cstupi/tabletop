@@ -375,6 +375,7 @@ export interface ModelFacts {
   readonly maxWounds: { readonly [key: string]: number };
   readonly deployInside?: { readonly [key: string]: readonly string[] };
   readonly maySetAside?: readonly string[];
+  readonly threats?: { readonly [key: string]: UnitThreat };
 }
 
 export interface ModelRelocation {
@@ -947,6 +948,12 @@ export interface Unit {
 export interface UnitReserve {
   readonly property: string;
   readonly of: string;
+}
+
+export interface UnitThreat {
+  readonly charge?: number;
+  readonly shootMove?: number;
+  readonly ranges: { readonly [key: string]: number };
 }
 
 export interface VisualRef {

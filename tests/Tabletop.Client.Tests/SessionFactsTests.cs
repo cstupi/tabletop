@@ -88,6 +88,17 @@ public class SessionFactsTests : IDisposable
     }
 
     [Fact]
+    public async Task Model_facts_carry_each_units_threat()
+    {
+        var sock = await Connected(Game);
+        Assert.Empty(_s.Threats);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>(), null, null, new Dictionary<Guid, UnitThreat> { [Samples.Unit] = new(12, 6, new Dictionary<Guid, double>()) }));
+        Assert.Equal((12.0, 6.0), (_s.Threats[Samples.Unit].Charge, _s.Threats[Samples.Unit].ShootMove));
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>()));                                   // a server that sends none: none
+        Assert.Empty(_s.Threats);
+    }
+
+    [Fact]
     public async Task A_sight_query_goes_out_and_only_its_answer_comes_back()
     {
         await LoggedIn();

@@ -46,7 +46,10 @@ model's pips) over each unit's centroid above its tallest model, hidden at End's
 an undo. `FloatingText` subscribes to `EventsApplied` before the `Animator` is made, so it reads each batch before the
 Animator plays it. `RangeRingNode`: with V on (`ClientSettings.RangeRings`) and a unit of mine selected, `RangeRings`'
 union outline per printed `Range` around the models carrying it, labelled with the printed value; a melee weapon draws
-none. `OrbitCamera` orbits a moving focus (`CameraFocus`): WASD and Q/E read held each frame, ignored while a text
+none. Hovering a unit of another team (`ThreatRings.OfAnotherTeam`; a watcher's every unit) draws its threat rings in its team
+colour whatever V says (threat range plan): `ThreatRings` over `Session.Threats` (`ModelFacts.Threats`), a `Charge` outline at
+the unit's charge move round every model and a `Shoot` outline per distinct `ShootMove` + range round the models with that reach;
+`ThreatRingCache` recomputes only when the unit, its placements or its threat change. `OrbitCamera` orbits a moving focus (`CameraFocus`): WASD and Q/E read held each frame, ignored while a text
 field has focus, Q/E the held unit's turn while one is in hand; pan speed scales with distance and the focus stays
 within the table plus 12"; Space, Tab and a roster click glide 0.3 s; an action frame's start glides to its actor
 (`CameraFocus.FollowTarget`) unless the camera moved in the last 2 s, a unit is held, `ClientSettings.CameraFollow` is
