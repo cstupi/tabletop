@@ -16,6 +16,7 @@ export const api = {
   account: {
     get: () => http.get<T.AccountRow>('/v1/account'),
     rename: (name: string) => http.patch<T.AccountRow>('/v1/account', { name }),
+    setUsername: (username: string | null) => http.put<T.AccountRow>('/v1/account/username', { username }),
     delete: () => http.del('/v1/account'),
   },
   assets: {
@@ -43,9 +44,15 @@ export const api = {
     blocked: () => http.get<T.BlockedDto[]>('/v1/offers/blocked'),
     unblock: (accountId: T.Guid) => http.del(`/v1/offers/blocked/${accountId}`),
   },
+  shared: {
+    browse: (username: string) => http.get<T.SharedLibraryDto>(`/v1/shared/${encodeURIComponent(username)}`),
+    download: (username: string, assetId: T.Guid) => http.get<T.DownloadResponse>(`/v1/shared/${encodeURIComponent(username)}/assets/${assetId}/download`),
+    copy: (username: string, r: T.CopySharedRequest) => http.post<T.CopySharedResponse>(`/v1/shared/${encodeURIComponent(username)}/copy`, r),
+  },
   folders: {
     list: () => http.get<T.FolderDto[]>('/v1/folders'),
     create: (r: T.FolderRequest) => http.post<T.FolderDto>('/v1/folders', r),
+    createShared: () => http.post<T.FolderDto>('/v1/folders/shared', {}),
     patch: (id: T.Guid, r: T.FolderRequest) => http.patch<void>(`/v1/folders/${id}`, r),
     delete: (id: T.Guid) => http.del(`/v1/folders/${id}`),
     addAsset: (id: T.Guid, assetId: T.Guid) => http.put<void>(`/v1/folders/${id}/assets/${assetId}`),

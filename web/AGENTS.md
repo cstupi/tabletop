@@ -4,7 +4,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 
 ## Layout
 
-- `src/routes/` pages: `login`, `reset-password`, `account`, `library` (+ `[id]`, `offered`, `sent`), `armies` (+ `[id]`), `download`; `+layout.ts` sets `ssr`/`prerender`.
+- `src/routes/` pages: `login`, `reset-password`, `account`, `library` (+ `[id]`, `offered`, `sent`, `shared`), `armies` (+ `[id]`), `download`; `+layout.ts` sets `ssr`/`prerender`.
 - `src/lib/api/` typed client: `client.ts` (`api`, one function per endpoint), `http.ts` (`http`, `ApiError` with `retryAfter`, `API_BASE`, `setTokenProvider`), `types.ts` (DTOs), `errors.ts` (`errorMessage(e, context)`: every failure as one sentence).
 - `src/lib/session/` `session.svelte.ts` (token and account in `$state`, persisted under `tabletop.session`), `jwt.ts` (expiry, refresh delay, `decodeRoles`), `messages.ts` (`loginErrorMessage`), `redirect.ts` (`safeNext`, `loginHref`).
 - `src/lib/replays.ts` `REPLAYS_URL`: where the header's Play link goes, `PUBLIC_VIEWER_URL` or `/viewer/`.
@@ -13,7 +13,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`, `UNIT_SCALES`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (eight declarations, `defaultVolume`).
 - `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
 - `src/lib/library/` `folders.ts` (`moveTargets`), `selection.ts` (multi-select: `click`, `selectAll`, `keepOnly`), `bulk.ts` (`uploadTarget`,
-  `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`), `offers.ts` (`playerContext`, `filterPlayers`, `offerSummary`, `STATE_LABELS`, `alreadyHeld`, `appendPage`).
+  `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`), `offers.ts` (`playerContext`, `filterPlayers`, `offerSummary`, `STATE_LABELS`, `alreadyHeld`, `appendPage`), `shared.ts` (`usernameProblem`, `sharedFolders`, `copySummary`).
 - `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
 - `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport`), `patches.ts` (`PatchArmyRequest` builders), `folder.ts` (`pickerAssets`,
   `loadFolder`, `saveFolder`: the army page's mesh pickers list one library folder and its sub-folders, plus the mesh a picker already
@@ -34,6 +34,10 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - Offers: **Offer…** on the selection, **Offer folder…** on the folder in view and **Offer to a player…** on the asset page open
   `OfferDialog` (players the account has been in a game with). `/library/offered` (the tab shows the open count) previews, accepts
   into a chosen folder, declines or blocks; `/library/sent` shows each offer's state and withdraws a waiting one.
+- Shared folders: the Account page sets the username; the Library tree puts the Shared folder first with a `shared` tag, no Move
+  tool and a line naming the username (or pointing to the Account page), and offers **Make a Shared folder** when there is none;
+  filing into it is the library's add/move. `/library/shared?user=<username>` (tab **Shared by players**) opens a player's Shared
+  folder: its tree, the folder's models with **Preview**, tick boxes and **Copy selected**, **Copy folder**, **Into folder**.
 - Upload: `classifyFiles` sorts the drop into STLs, one GLB or one image. `UploadDialog` runs `convertInWorker` (a module Web Worker over `convert`).
 - `convert` order: parse, merge, weld, recentre on the footprint, decimate to a triangle budget, creased normals, export GLB, then analysis (bounds, supports, `Proposal`, terrain `Volume`).
 - `guess.ts` proposes millimetres (`scale = mmToInches(1)`) and an up axis: `y` when the model is tallest along Y, else `z`. Y-up gets `pitch: 90`.
@@ -77,7 +81,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 ## Conventions and pitfalls
 
 - The API speaks inches. Millimetres exist only in the UI; convert at the edge with `src/lib/units/`.
-- The client calls `/v1/auth`, `/v1/account`, `/v1/assets`, `/v1/offers`, `/v1/folders`, `/v1/armies`, `/v1/client/latest`. It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
+- The client calls `/v1/auth`, `/v1/account`, `/v1/assets`, `/v1/offers`, `/v1/shared`, `/v1/folders`, `/v1/armies`, `/v1/client/latest`. It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
 - `npm` with exact versions: `.npmrc` sets `save-exact=true` and `engine-strict=true`; `package.json` pins every dependency.
 - The mesh pipeline is headless: no DOM in `src/lib/mesh/` outside `convertInWorker` and the worker, so Vitest runs it against `tests/fixtures`.
 - `vite.config.ts` excludes `meshoptimizer` from `optimizeDeps` and sets `worker.format: 'es'`.
@@ -106,4 +110,5 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `docs/superpowers/specs/2026-09-04-mesh-conversion-design.md`
 - `docs/superpowers/specs/2026-10-01-starter-meshes-design.md`
 - `docs/superpowers/specs/2026-10-25-shared-models-design.md`
+- `docs/superpowers/specs/2026-11-07-shared-folders-design.md`
 - `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md` (Themes)

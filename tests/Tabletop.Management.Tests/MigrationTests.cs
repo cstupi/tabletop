@@ -14,9 +14,9 @@ public class MigrationTests : IClassFixture<TestDatabase>
     {
         await using var c = new NpgsqlConnection(_db.ConnectionString);
         var tables = await c.ExecuteScalarAsync<int>("select count(*) from information_schema.tables where table_schema in ('management','game')");
-        Assert.Equal(38, tables);
+        Assert.Equal(39, tables);
         Assert.DoesNotContain("shared_at", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='asset'"));
-        Assert.Equal(["share_block", "share_offer", "share_offer_asset"],
+        Assert.Equal(["share_block", "share_offer", "share_offer_asset", "shared_copy"],
             await c.QueryAsync<string>("select table_name from information_schema.tables where table_schema='management' and table_name like 'share%' order by table_name"));
         var cols = (await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='blob'")).ToList();
         Assert.Contains("uploaded", cols);
@@ -36,6 +36,27 @@ public class MigrationTests : IClassFixture<TestDatabase>
         var floorCheck = Assert.Single(floorChecks);
         Assert.Equal("effect_floor_check", floorCheck.Name);
         Assert.Contains("modify_parameter", floorCheck.Def);
+    }
+
+    [Fact]
+    public async Task Usernames_are_unique_ignoring_case_and_a_shared_folder_is_one_top_level_folder()
+    {
+        await using var c = new NpgsqlConnection(_db.ConnectionString);
+        var (a, b) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await c.ExecuteAsync("insert into management.account (id, name, username) values (@a, 'Clay', 'Clay_S')", new { a });
+        Assert.Equal("account_username_idx", (await Assert.ThrowsAsync<PostgresException>(() =>
+            c.ExecuteAsync("insert into management.account (id, name, username) values (@b, 'Clay', 'clay_s')", new { b }))).ConstraintName);
+        Assert.Equal("account_username_format", (await Assert.ThrowsAsync<PostgresException>(() =>
+            c.ExecuteAsync("insert into management.account (id, name, username) values (@b, 'Clay', 'a b')", new { b }))).ConstraintName);
+        await c.ExecuteAsync("insert into management.account (id, name) values (@b, 'Clay')", new { b });
+
+        var (shared, sub) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await c.ExecuteAsync("insert into management.folder (id, owner_id, name, shared) values (@shared, @a, 'Shared', true)", new { shared, a });
+        Assert.Equal("folder_shared_idx", (await Assert.ThrowsAsync<PostgresException>(() =>
+            c.ExecuteAsync("insert into management.folder (id, owner_id, name, shared) values (@sub, @a, 'Second', true)", new { sub, a }))).ConstraintName);
+        Assert.Equal("folder_shared_top_level", (await Assert.ThrowsAsync<PostgresException>(() =>
+            c.ExecuteAsync("insert into management.folder (id, owner_id, parent_id, name, shared) values (@sub, @b, @shared, 'Below', true)", new { sub, b, shared }))).ConstraintName);
+        await c.ExecuteAsync("delete from management.account where id = any(@ids)", new { ids = new[] { a, b } });
     }
 
     [Fact]

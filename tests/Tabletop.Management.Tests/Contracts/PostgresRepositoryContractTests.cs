@@ -24,6 +24,7 @@ public sealed class PostgresRepositoryContractTests : RepositoryContract, IClass
         Accounts = new AccountRepository(_db);
         Assets = new AssetRepository(_db);
         Offers = new Tabletop.Management.Content.Offers.OfferRepository(_db);
+        Shared = new Tabletop.Management.Content.Shared.SharedRepository(_db);
         Folders = new FolderRepository(_db);
         Armies = new ArmyRepository(_db);
         Layouts = new LayoutRepository(_db);
@@ -34,6 +35,7 @@ public sealed class PostgresRepositoryContractTests : RepositoryContract, IClass
     protected override IAccountRepository Accounts { get; }
     protected override IAssetRepository Assets { get; }
     protected override Tabletop.Management.Content.Offers.IOfferRepository Offers { get; }
+    protected override Tabletop.Management.Content.Shared.ISharedRepository Shared { get; }
     protected override IFolderRepository Folders { get; }
     protected override IArmyRepository Armies { get; }
     protected override ILayoutRepository Layouts { get; }

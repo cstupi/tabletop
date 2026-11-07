@@ -55,6 +55,7 @@ public class ManagementFactory : WebApplicationFactory<Program>
             s.Replace(ServiceDescriptor.Singleton<IAssetRepository, InMemoryAssetRepository>());
             s.Replace(ServiceDescriptor.Singleton<Tabletop.Management.Content.Offers.IOfferRepository, InMemoryOfferRepository>());
             s.Replace(ServiceDescriptor.Singleton<IFolderRepository, InMemoryFolderRepository>());
+            s.Replace(ServiceDescriptor.Singleton<Tabletop.Management.Content.Shared.ISharedRepository, InMemorySharedRepository>());
             s.Replace(ServiceDescriptor.Singleton<ICatalogKinds, InMemoryCatalogKinds>());
             s.Replace(ServiceDescriptor.Singleton<IArmyRepository, InMemoryArmyRepository>());
             s.Replace(ServiceDescriptor.Singleton<ILayoutRepository, InMemoryLayoutRepository>());

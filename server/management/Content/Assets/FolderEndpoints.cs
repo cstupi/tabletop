@@ -16,11 +16,18 @@ public static class FolderEndpoints
             if (await folders.Count(owner) >= Limits.PerAccount) return Problems.Unprocessable($"An account holds at most {Limits.PerAccount} folders.");
             return await folders.Create(owner, r) is { } f ? Results.Created($"/v1/folders/{f.Id}", f) : Problems.Unprocessable("parentId is not one of your folders");
         });
+        g.MapPost("/shared", async (ClaimsPrincipal u, IFolderRepository folders) =>
+        {
+            var owner = CurrentAccount.Id(u);
+            if ((await folders.List(owner)).FirstOrDefault(f => f.Shared) is { } shared) return Results.Ok(shared);
+            if (await folders.Count(owner) >= Limits.PerAccount) return Problems.Unprocessable($"An account holds at most {Limits.PerAccount} folders.");
+            return Results.Ok(await folders.CreateShared(owner));
+        });
         g.MapPatch("/{id:guid}", async (ClaimsPrincipal u, Guid id, FolderRequest r, IFolderRepository folders) =>
         {
             if (Limits.Text(r.Name, "name", Limits.Name) is { } bad) return Problems.Unprocessable(bad);
             var (found, valid) = await folders.Patch(CurrentAccount.Id(u), id, r);
-            return !found ? Problems.NotFound() : !valid ? Problems.Unprocessable("parentId must be your folder and not this folder or one below it") : Results.NoContent();
+            return !found ? Problems.NotFound() : !valid ? Problems.Unprocessable("parentId must be your folder and not this folder or one below it; the Shared folder stays at the top level") : Results.NoContent();
         });
         g.MapDelete("/{id:guid}", async (ClaimsPrincipal u, Guid id, IFolderRepository folders) => await folders.Delete(CurrentAccount.Id(u), id) ? Results.NoContent() : Problems.NotFound());
         g.MapPut("/{id:guid}/assets/{assetId:guid}", async (ClaimsPrincipal u, Guid id, Guid assetId, IFolderRepository folders) =>

@@ -6,7 +6,7 @@ public sealed class InMemoryAccountRepository(InMemoryRows rows) : IAccountRepos
 {
     public Task<AccountRow?> Get(Guid id)
     {
-        lock (rows.Gate) return Task.FromResult(rows.Accounts.TryGetValue(id, out var a) ? new AccountRow(id, a.Name) : null);
+        lock (rows.Gate) return Task.FromResult(rows.Accounts.TryGetValue(id, out var a) ? new AccountRow(id, a.Name, a.Username) : null);
     }
 
     public Task Insert(Guid id, string name)
@@ -22,6 +22,18 @@ public sealed class InMemoryAccountRepository(InMemoryRows rows) : IAccountRepos
             if (!rows.Accounts.TryGetValue(id, out var a)) return Task.FromResult(false);
             a.Name = name;
             return Task.FromResult(true);
+        }
+    }
+
+    public Task<UsernameResult> SetUsername(Guid id, string? username)
+    {
+        lock (rows.Gate)
+        {
+            if (!rows.Accounts.TryGetValue(id, out var a)) return Task.FromResult(UsernameResult.Missing);
+            if (username is not null && rows.Accounts.Any(x => x.Key != id && string.Equals(x.Value.Username, username, StringComparison.OrdinalIgnoreCase)))
+                return Task.FromResult(UsernameResult.Taken);
+            a.Username = username;
+            return Task.FromResult(UsernameResult.Set);
         }
     }
 

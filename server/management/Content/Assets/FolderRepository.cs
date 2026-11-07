@@ -3,20 +3,21 @@ using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Content.Assets;
 
-public sealed record FolderDto(Guid Id, Guid? ParentId, string Name, IReadOnlyList<Guid> AssetIds);
+/// <summary>A folder of the owner's. <c>Shared</c>: the account's Shared folder, whose subtree any signed-in player may browse by username.</summary>
+public sealed record FolderDto(Guid Id, Guid? ParentId, string Name, IReadOnlyList<Guid> AssetIds, bool Shared = false);
 public sealed record FolderRequest(string Name, Guid? ParentId);
 
 public sealed class FolderRepository(Database db) : IFolderRepository
 {
-    private sealed record Row(Guid Id, Guid? ParentId, string Name);
+    private sealed record Row(Guid Id, Guid? ParentId, string Name, bool Shared);
 
     public async Task<IReadOnlyList<FolderDto>> List(Guid ownerId)
     {
         await using var c = await db.Open();
-        var folders = (await c.QueryAsync<Row>("select id as Id, parent_id as ParentId, name as Name from folder where owner_id = @ownerId order by id", new { ownerId })).ToList();
+        var folders = (await c.QueryAsync<Row>("select id as Id, parent_id as ParentId, name as Name, shared as Shared from folder where owner_id = @ownerId order by id", new { ownerId })).ToList();
         var members = (await c.QueryAsync<(Guid FolderId, Guid AssetId)>("select af.folder_id, af.asset_id from asset_folder af join folder f on f.id = af.folder_id where f.owner_id = @ownerId", new { ownerId }))
             .ToLookup(m => m.FolderId, m => m.AssetId);
-        return folders.Select(f => new FolderDto(f.Id, f.ParentId, f.Name, members[f.Id].ToList())).ToList();
+        return folders.Select(f => new FolderDto(f.Id, f.ParentId, f.Name, members[f.Id].ToList(), f.Shared)).ToList();
     }
 
     public async Task<int> Count(Guid ownerId)
@@ -35,11 +36,19 @@ public sealed class FolderRepository(Database db) : IFolderRepository
         return new FolderDto(id, r.ParentId, r.Name, []);
     }
 
+    public async Task<FolderDto> CreateShared(Guid ownerId)
+    {
+        await using var c = await db.Open();
+        await c.ExecuteAsync("insert into folder (id, owner_id, name, shared) values (@id, @ownerId, 'Shared', true) on conflict (owner_id) where shared do nothing",
+            new { id = Guid.CreateVersion7(), ownerId });
+        return (await List(ownerId)).Single(f => f.Shared);
+    }
+
     public async Task<(bool Found, bool Valid)> Patch(Guid ownerId, Guid id, FolderRequest r)
     {
         await using var c = await db.Open();
         if (!await Owns(c, ownerId, id)) return (false, false);
-        if (r.ParentId is { } p && (p == id || !await Owns(c, ownerId, p) || await IsDescendant(c, ancestor: id, candidate: p))) return (true, false);
+        if (r.ParentId is { } p && (p == id || await c.ExecuteScalarAsync<bool>("select shared from folder where id = @id", new { id }) || !await Owns(c, ownerId, p) || await IsDescendant(c, ancestor: id, candidate: p))) return (true, false);
         await c.ExecuteAsync("update folder set name = @name, parent_id = @parent where id = @id", new { id, name = r.Name, parent = r.ParentId });
         return (true, true);
     }

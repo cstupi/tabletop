@@ -19,6 +19,22 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task A_username_is_unique_ignoring_case_and_can_be_changed_or_cleared()
+    {
+        var (a, b) = (await NewAccount("Clay"), await NewAccount("Clay"));
+        var name = "clay" + Guid.NewGuid().ToString("N")[..8];
+        Assert.Equal(UsernameResult.Set, await Accounts.SetUsername(a, name));
+        Assert.Equal(new AccountRow(a, "Clay", name), await Accounts.Get(a));
+        Assert.Equal(UsernameResult.Taken, await Accounts.SetUsername(b, name.ToUpperInvariant()));
+        Assert.Null((await Accounts.Get(b))!.Username);
+        Assert.Equal(UsernameResult.Set, await Accounts.SetUsername(a, name.ToUpperInvariant()));     // the owner changes its case
+        Assert.Equal(name.ToUpperInvariant(), (await Accounts.Get(a))!.Username);
+        Assert.Equal(UsernameResult.Set, await Accounts.SetUsername(a, null));
+        Assert.Equal(UsernameResult.Set, await Accounts.SetUsername(b, name));                        // freed
+        Assert.Equal(UsernameResult.Missing, await Accounts.SetUsername(Guid.CreateVersion7(), "nobody" + name));
+    }
+
+    [Fact]
     public async Task Account_hosted_games_are_the_games_it_created_and_joined_games_the_others_it_plays_in()
     {
         var hash = await NewProperties();

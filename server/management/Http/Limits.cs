@@ -20,6 +20,10 @@ public static class Limits
 
     /// <summary>Null when the text is acceptable, else the problem detail. Control characters (Cc) and bidirectional
     /// formatting characters are refused everywhere; free text (multiline) admits line feeds and tabs.</summary>
+    /// <summary>Null when the username is 3 to 32 of A–Z a–z 0–9 _ -, else the problem detail.</summary>
+    public static string? Username(string username) =>
+        System.Text.RegularExpressions.Regex.IsMatch(username, "^[A-Za-z0-9_-]{3,32}$") ? null : "A username is 3 to 32 letters, digits, - or _.";
+
     public static string? Text(string? value, string field, int max, bool required = true, bool multiline = false)
     {
         if (value is null) return required ? $"{field} is required." : null;

@@ -3,11 +3,12 @@ import type { AssetDto, AssetKind, Base, FolderDto, Guid } from '$lib/api/types'
 import { sameBase } from '$lib/units/bases';
 export interface FolderNode { folder: FolderDto; children: FolderNode[] }
 
+/** Sorted by name, the Shared folder first. */
 export function buildTree(folders: FolderDto[]): FolderNode[] {
   const byParent = new Map<Guid | undefined, FolderDto[]>();
   for (const f of folders) byParent.set(f.parentId, [...(byParent.get(f.parentId) ?? []), f]);
   const build = (parent: Guid | undefined): FolderNode[] =>
-    (byParent.get(parent) ?? []).sort((a, b) => a.name.localeCompare(b.name)).map((f) => ({ folder: f, children: build(f.id) }));
+    (byParent.get(parent) ?? []).sort((a, b) => Number(!!b.shared) - Number(!!a.shared) || a.name.localeCompare(b.name)).map((f) => ({ folder: f, children: build(f.id) }));
   return build(undefined);
 }
 export function descendantIds(folders: FolderDto[], id: Guid): Set<Guid> {

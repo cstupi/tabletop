@@ -43,6 +43,8 @@ builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp 
 builder.Services.AddSingleton<IAssetRepository, AssetRepository>();
 builder.Services.AddSingleton<Tabletop.Management.Content.Offers.IOfferRepository, Tabletop.Management.Content.Offers.OfferRepository>();
 builder.Services.AddSingleton(Tabletop.Management.Content.Offers.OfferLimits.Default);
+builder.Services.AddSingleton<Tabletop.Management.Content.Shared.ISharedRepository, Tabletop.Management.Content.Shared.SharedRepository>();
+builder.Services.AddSingleton(Tabletop.Management.Content.Shared.SharedCopyLimits.Default);
 builder.Services.AddSingleton<IFolderRepository, FolderRepository>();
 builder.Services.AddSingleton<StarterAssets>();
 builder.Services.AddHostedService<UploadSweeper>();
@@ -97,6 +99,7 @@ app.MapAccount();
 app.MapAuth();
 app.MapAssets();
 Tabletop.Management.Content.Offers.OfferEndpoints.MapOffers(app);
+Tabletop.Management.Content.Shared.SharedEndpoints.MapShared(app);
 app.MapFolders();
 app.MapArmies();
 app.MapLayouts();

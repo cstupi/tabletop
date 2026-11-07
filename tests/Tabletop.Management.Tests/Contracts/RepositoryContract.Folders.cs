@@ -24,6 +24,25 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task The_shared_folder_is_made_once_stays_at_the_top_and_other_folders_move_into_it()
+    {
+        var owner = await NewAccount();
+        var shared = await Folders.CreateShared(owner);
+        Assert.Equal(("Shared", (Guid?)null, true), (shared.Name, shared.ParentId, shared.Shared));
+        Assert.Equal(shared.Id, (await Folders.CreateShared(owner)).Id);
+        var other = (await Folders.Create(owner, new FolderRequest("Orks", null)))!;
+        Assert.False(other.Shared);
+        Assert.Equal((true, false), await Folders.Patch(owner, shared.Id, new FolderRequest("Shared", other.Id)));
+        Assert.Equal((true, true), await Folders.Patch(owner, shared.Id, new FolderRequest("For friends", null)));
+        Assert.Equal((true, true), await Folders.Patch(owner, other.Id, new FolderRequest("Orks", shared.Id)));
+        var list = (await Folders.List(owner)).ToDictionary(f => f.Id);
+        Assert.Equal(("For friends", true), (list[shared.Id].Name, list[shared.Id].Shared));
+        Assert.Equal(((Guid?)shared.Id, false), (list[other.Id].ParentId, list[other.Id].Shared));
+        Assert.True(await Folders.Delete(owner, shared.Id));
+        Assert.NotEqual(shared.Id, (await Folders.CreateShared(owner)).Id);
+    }
+
+    [Fact]
     public async Task Folder_delete_takes_every_folder_below_it_and_leaves_the_assets()
     {
         var owner = await NewAccount();

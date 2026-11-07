@@ -619,6 +619,17 @@ from the sharer declined and a `share_block` row), withdraw (409 unless open), b
 `IAssetRepository.Unreferenced(keys)` is the check the sweep, a lost confirm and `AccountDeleter` use before
 deleting objects.
 
+**Shared folders** ([shared folders](../../superpowers/specs/2026-11-07-shared-folders-design.md)). `Content/Shared/`:
+`SharedEndpoints` (`/v1/shared/{username}`), `ISharedRepository` / `SharedRepository`, `SharedCopyPlan`, `SharedDtos`
+(`SharedCopyLimits`: 50 copies a copier makes in 24 h, 200 models a copy, 200 folders an account holds). Migration 029:
+`account.username` (unique on `lower(username)`), `folder.shared` (one per account, top level), `shared_copy`.
+`PUT /v1/account/username` sets the username (409 taken, 422 format); `POST /v1/folders/shared` makes or answers the
+Shared folder. Browse and preview read the Shared folder's subtree and the uploaded assets filed in it; an unknown username
+and no Shared folder are one 404. `POST /v1/shared/{username}/copy` locks the copier's account row, works out the copy
+with `SharedCopyPlan` (refusals before any write), checks the folder and daily caps, runs `AssetCopies.Copy` (the Accept
+copy above: sources `for share`, quota over all copies, blob rows naming the sharer's key), then writes the folder tree and
+filings and a `shared_copy` row, in one transaction.
+
 `Content/VolumeRows.cs` holds `VolumeRow`, one record over the seventeen columns
 `asset_volume` and `terrain_volume` share, with `ToVolume()`/`From(id, Volume)` and three
 `const string`s (`Columns`, `InsertColumns`, `InsertValues`) so the SQL is written once. The six

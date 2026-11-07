@@ -11,8 +11,10 @@ attack vector if it just pushes files into other people that they could load. so
 and it shouldnt just go to EVERYONE."
 
 This replaces one statement of [the asset library](2026-08-28-asset-library-design.md): "nobody shares storage with
-anybody else" (an accepted copy names the sharer's object in S3). "Nobody can browse or search another account's assets"
-stands: **nothing is public**. An offered asset is visible to its recipients while the offer is open, and to no one else.
+anybody else" (an accepted copy names the sharer's object in S3). "Nobody can search another account's assets" stands.
+An offered asset is visible to its recipients while the offer is open, and to no one else. A player's Shared folder is the
+one other way assets are seen: any signed-in player who types the owner's username browses and copies from it
+([shared folders](2026-11-07-shared-folders-design.md), the later instruction).
 
 ## Offers
 
