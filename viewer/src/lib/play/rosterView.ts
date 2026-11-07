@@ -3,6 +3,7 @@
 
 import type { ModelInPlay, Projection, UnitInPlay } from '../live/apply';
 import type { GameInfo } from '../protocol/wire.generated';
+import { actionFrame } from './headerView';
 import type { Names } from './names';
 import { reserveOf, shownCondition } from './rosterReserve';
 
@@ -13,19 +14,35 @@ export { words } from './rosterReserve';
 export interface RosterRow {
   readonly unitId: string; readonly name: string; readonly activated: boolean; readonly left: number; readonly max: number;
   readonly offTable: boolean; readonly conditions: readonly string[]; readonly inside: string | null; readonly reserve: string | null;
+  /** The active unit (the action frame's actor): its row carries the turn mark. */
+  readonly acting: boolean;
 }
-export interface RosterTeam { readonly teamId: string; readonly name: string; readonly ordinal: number; readonly rows: readonly RosterRow[] }
+/** mine: a team the account holds (★ you). */
+export interface RosterTeam { readonly teamId: string; readonly name: string; readonly ordinal: number; readonly rows: readonly RosterRow[]; readonly mine: boolean }
 
-/** My team first, the rest by ordinal, units in army order; conditions without the bookkeeping ones. `left` is wounds left over models not removed (on the shelf with every wound
+/** A row's mark (RosterView.RosterMark): ○ may still act, ✓ activated, — off the table. */
+export type RosterMark = 'mayAct' | 'activated' | 'offTable';
+export const markOf = (r: RosterRow): RosterMark => (r.offTable ? 'offTable' : r.activated ? 'activated' : 'mayAct');
+const MARK_ORDER: Record<RosterMark, number> = { mayAct: 0, activated: 1, offTable: 2 };
+
+/** May act, then activated, then off the table; each by name (case-insensitive), stable on a tie (RosterView.Sorted). */
+export function sorted(rows: readonly RosterRow[]): RosterRow[] {
+  const key = (r: RosterRow) => r.name.toLowerCase();
+  return [...rows].sort((a, b) => MARK_ORDER[markOf(a)] - MARK_ORDER[markOf(b)] || (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}
+
+/** My team first, the rest by ordinal, rows sorted (`sorted`); `mine` every team the account holds (absent: the acted-for team); conditions without the bookkeeping ones. `left` is wounds left over models not removed (on the shelf with every wound
  * taken); off table is no model on the table, nor inside a container on it. */
-export function rosterOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, maxWounds: ReadonlyMap<string, number>): RosterTeam[] {
+export function rosterOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, maxWounds: ReadonlyMap<string, number>,
+  mine?: readonly string[]): RosterTeam[] {
+  const acting = actionFrame(p)?.context.actorUnitId;
   return [...game.teams].sort((a, b) => (a.id === myTeam ? 0 : 1) - (b.id === myTeam ? 0 : 1) || a.ordinal - b.ordinal).map((t) => ({
-    teamId: t.id, name: n.team(t.id), ordinal: t.ordinal,
-    rows: [...p.units.values()].filter((u) => game.participants.some((x) => x.id === u.participantId && x.teamId === t.id)).map((u) => rowOf(p, u, maxWounds)),
+    teamId: t.id, name: n.team(t.id), ordinal: t.ordinal, mine: mine !== undefined ? mine.includes(t.id) : t.id === myTeam,
+    rows: sorted([...p.units.values()].filter((u) => game.participants.some((x) => x.id === u.participantId && x.teamId === t.id)).map((u) => rowOf(p, u, maxWounds, acting))),
   }));
 }
 
-function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, number>): RosterRow {
+function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, number>, acting: string | undefined): RosterRow {
   const models = [...p.models.values()].filter((m) => m.unitId === u.id).map((m) => ({ m, max: maxWounds.get(m.id) ?? 1 }));
   const left = models.filter((x) => !(x.m.location.kind === 'shelf' && x.m.wounds >= x.max)).reduce((sum, x) => sum + Math.max(0, x.max - x.m.wounds), 0);
   let holder: ModelInPlay | undefined;
@@ -42,7 +59,7 @@ function rowOf(p: Projection, u: UnitInPlay, maxWounds: ReadonlyMap<string, numb
   return {
     unitId: u.id, name: u.definition.name, activated: u.actions.size > 0, left, max: models.reduce((sum, x) => sum + x.max, 0),
     offTable: !models.some((x) => onTable(x.m)), conditions: [...conditions].filter(shownCondition).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
-    inside: transport?.definition.name ?? null, reserve: reserveOf(p, u),
+    inside: transport?.definition.name ?? null, reserve: reserveOf(p, u), acting: u.id === acting,
   };
 }
 

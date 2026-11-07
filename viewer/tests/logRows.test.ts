@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivationBlock } from '../src/lib/play/combatLog';
-import { FILTER_LABELS, faded, rowText, strike, trayLines, undoHere } from '../src/lib/play/logRows';
+import { FILTER_LABELS, bandOf, faded, rowText, strike, trayLines, undoHere } from '../src/lib/play/logRows';
 import { type LineEntry, type RollEntry } from '../src/lib/play/rollEntry';
-import { Enemy, Frame, Round1, Unit, buildSample, ctx, finished, hit, started, step, undone } from './logSamples';
+import { Enemy, Frame, GameSample, Round1, Unit, buildSample, ctx, finished, hit, started, step, undone } from './logSamples';
 import type { LogEntry } from '../src/lib/play/rollEntry';
 
 // The row text CombatLogPanel.cs and DiceTray.cs draw.
@@ -13,6 +13,16 @@ const rolled = () => {
   const round = entries.find((e): e is LineEntry => e.type === 'line')!;
   return { entries, block, roll, round };
 };
+
+describe('logRows band (CombatLogRows.Band)', () => {
+  it('a block takes its actor\'s team band and any other entry none', () => {
+    const { entries, names } = buildSample(Round1, started(Frame, 'advance', ctx(Unit, [Enemy], [], 'Advance')), finished(Frame));
+    const block = entries.find((e) => e.type === 'block')!;
+    expect(bandOf(block, names, GameSample)).toBe(1);
+    expect(bandOf(entries.find((e) => e.type === 'line')!, names, GameSample)).toBe(0);
+    expect(bandOf({ ...(block as ActivationBlock), actor: null }, names, GameSample)).toBe(0);
+  });
+});
 
 describe('logRows', () => {
   it('a folded block shows its chain and an open one does not', () => {

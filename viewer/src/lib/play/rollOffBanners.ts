@@ -6,7 +6,9 @@
 import type { GameEvent, StepCompleted, Team } from '../protocol/wire.generated';
 import type { Names } from './names';
 
-export interface Banner { readonly text: string; readonly seconds: number; readonly detail: string | null }
+/** team: the ordinal whose band and icon lead the banner (0: none); parts: the second line per team, each in its colour (TurnBanners.Banner). */
+export interface BannerPart { readonly team: number; readonly text: string }
+export interface Banner { readonly text: string; readonly seconds: number; readonly detail: string | null; readonly team: number; readonly parts: readonly BannerPart[] }
 export const SECONDS = 4;
 
 const place = (k: number): string => `place_${k}`;
@@ -24,7 +26,8 @@ export function rollOffBannerOf(batch: readonly GameEvent[], n: Names, catchingU
   if (placed.length === 0) return null;
   const rolls = placed.map((team) => ({ team, faces: faces(values, team.ordinal) })).filter((r) => r.faces.length > 0);
   const detail = rolls.length === 0 ? null : rolls.map((r) => `${n.team(r.team.id)} rolled ${r.faces.join(', ')}`).join(' · ');
-  return { text: `${n.team(placed[0]!.id)} goes first`, seconds: SECONDS, detail };
+  return { text: `${n.team(placed[0]!.id)} goes first`, seconds: SECONDS, detail, team: placed[0]!.ordinal,
+    parts: rolls.map((r) => ({ team: r.team.ordinal, text: `${n.team(r.team.id)} rolled ${r.faces.join(', ')}` })) };
 }
 
 function faces(values: Readonly<Record<string, number>>, ordinal: number): number[] {

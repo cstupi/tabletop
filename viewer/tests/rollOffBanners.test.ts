@@ -13,7 +13,8 @@ describe('RollOffBanners', () => {
   it('the ranking step names the first team and each team\'s roll best first', () => {
     const b = batch({ kind: 'step_completed', frameId: FRAME, step: 'roll-off', rolls: [], changes: [] },
       ranked({ winner_ordinal: 2, place_1: 2, place_2: 1, rolled_1_1: 3, rolled_2_1: 5 }));
-    expect(rollOffBannerOf(b, N, false)).toEqual({ text: 'Team 2 goes first', seconds: 4, detail: 'Team 2 rolled 5 · Team 1 rolled 3' });
+    expect(rollOffBannerOf(b, N, false)).toEqual({ text: 'Team 2 goes first', seconds: 4, detail: 'Team 2 rolled 5 · Team 1 rolled 3', team: 2,
+      parts: [{ team: 2, text: 'Team 2 rolled 5' }, { team: 1, text: 'Team 1 rolled 3' }] });
   });
 
   it('a tie and its re-roll show as the roll-off resolved them', () => {
@@ -29,6 +30,6 @@ describe('RollOffBanners', () => {
   });
 
   it('a ranking from before the faces were named shows the first team alone', () => {
-    expect(rollOffBannerOf(batch(ranked({ place_1: 1, place_2: 2 })), N, false)).toEqual({ text: 'Team 1 goes first', seconds: 4, detail: null });
+    expect(rollOffBannerOf(batch(ranked({ place_1: 1, place_2: 2 })), N, false)).toEqual({ text: 'Team 1 goes first', seconds: 4, detail: null, team: 1, parts: [] });
   });
 });

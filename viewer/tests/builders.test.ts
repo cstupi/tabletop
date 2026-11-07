@@ -59,7 +59,7 @@ describe('drop and answer builders', () => {
     expect(dropEdit(draft, 'X', p, yaw)).toBeNull();
   });
   it('a game over answer names its team, or none', () => {
-    const model = { stage: 'choose', askId: ID, result: null, reason: '', choices: [], note: null } as GameOverModel;
+    const model: GameOverModel = { stage: 'choose', askId: ID, result: null, reason: '', choices: [], note: null, rounds: 0, waitingFor: [] };
     expect(answerOf(model, 'end', 'T1')).toEqual({ kind: 'answer_ask', askId: ID, answer: { kind: 'chosen', optionId: 'end' }, teamId: 'T1' });
     expect(answerOf(model, 'end', null)).toEqual({ kind: 'answer_ask', askId: ID, answer: { kind: 'chosen', optionId: 'end' } });
   });

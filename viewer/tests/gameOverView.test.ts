@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WAITING_NOTE, gameOverOf } from '../src/lib/play/gameOverView';
+import { WAITING_NOTE, gameOverOf, headline, waitingText } from '../src/lib/play/gameOverView';
+import { Names } from '../src/lib/play/names';
 import type { EventPayload } from '../src/lib/protocol/wire.generated';
 import { TEAM1, TEAM2, askOf, option, projectionOf, sample } from './play';
 
@@ -20,7 +21,8 @@ describe('GameOverView', () => {
     expect(m.choices.map((c) => c.label)).toEqual(['End', 'Continue']);
     const answered = gameOverOf(after({ kind: 'ask_opened', ask: asked },
       { kind: 'ask_answered', askId: asked.id, teamId: TEAM1, answer: { kind: 'chosen', optionId: 'continue' }, outsideLegalSet: false }), s.game, TEAM1);
-    expect([answered.stage, answered.note]).toEqual(['waiting', WAITING_NOTE]);
+    expect([answered.stage, answered.note, answered.waitingFor]).toEqual(['waiting', 'Waiting for Team 2', [TEAM2]]);
+    expect(waitingText([], new Names(s.game, null))).toBe(WAITING_NOTE);
     expect(answered.choices).toEqual([]);
     expect(gameOverOf(after({ kind: 'ask_opened', ask: asked }), s.game, null).stage).toBe('waiting');
   });
@@ -29,5 +31,6 @@ describe('GameOverView', () => {
     const m = gameOverOf(after({ kind: 'ask_opened', ask: asked }, { kind: 'ask_closed', askId: asked.id, answers: [] },
       { kind: 'game_ended', reason: '4 rounds have been played. 2 to 1', winners: [TEAM1] }), s.game, TEAM1);
     expect([m.stage, m.askId, m.reason, m.result, m.choices]).toEqual(['ended', null, '4 rounds have been played. 2 to 1', 'Team 1 wins', []]);
+    expect([headline(m), headline({ ...m, rounds: 4 })]).toEqual(['Team 1 wins', 'Team 1 wins · 4 rounds']);
   });
 });

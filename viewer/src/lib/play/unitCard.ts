@@ -28,6 +28,37 @@ export function nextModel(g: ModelGroup, selected: string | null): string | null
   return g.standing[(at + 1) % g.standing.length]!;
 }
 
+const MAX_PIPS = 12;
+/** UnitCardContent.PipsOf: `●` per left, `○` per taken; past twelve `left/max`. */
+export const pipsOf = (left: number, max: number): string =>
+  max <= MAX_PIPS ? '●'.repeat(Math.max(0, left)) + '○'.repeat(Math.max(0, max - left)) : `${left}/${max}`;
+/** ModelGroup.Pips: one pip per model of the group, filled alive. */
+export const groupPips = (g: ModelGroup): string => pipsOf(g.alive, g.size);
+/** ModelGroup.Name: the label, then what sets the group apart. */
+export const groupName = (g: ModelGroup): string => g.label + (g.loadout.length > 0 ? ` · ${g.loadout}` : '');
+/** ModelGroup.WoundPips: the group's wounds as pips when a model has more than one, else null. */
+export const groupWoundPips = (g: ModelGroup): string | null => (showsWounds(g) ? pipsOf(g.woundsLeft, g.woundsMax) : null);
+export const groupWoundCount = (g: ModelGroup): string => `${g.woundsLeft}/${g.woundsMax}`;
+
+/** UnitCardContent.Pips: one pip per model in card order, filled while it stands; past twelve `alive/size`. */
+export const cardPips = (c: UnitCardContent): string =>
+  c.sheet.models.length <= MAX_PIPS ? c.sheet.models.map((m) => (m.removed ? '○' : '●')).join('') : `${c.sheet.alive}/${c.sheet.size}`;
+
+/** UnitCardContent.CountNote: `5 models · 2 wounds left on Sergeant`. */
+export function countNote(c: UnitCardContent): string {
+  const count = c.sheet.alive === 1 ? '1 model' : `${c.sheet.alive} models`;
+  const tough = c.sheet.models.filter((m) => !m.removed && m.max > 1);
+  if (tough.length === 0) return count;
+  const left = tough.reduce((s, m) => s + m.left, 0);
+  const wounds = left === 1 ? '1 wound left' : `${left} wounds left`;
+  return tough.length === 1 ? `${count} · ${wounds} on ${tough[0]!.label}` : `${count} · ${wounds}`;
+}
+
+const ACTIVATED_PREFIX = 'Activated: ';
+/** UnitCardContent.ChipText: the activated chip names only its actions (its icon says activated). */
+export const chipText = (c: { kind: string; text: string }): string =>
+  c.kind === 'activated' && c.text.startsWith(ACTIVATED_PREFIX) ? c.text.slice(ACTIVATED_PREFIX.length) : c.text;
+
 /** UnitCardContent.Marked: the group holds a picked model (the selection's model ids), so its row is marked. */
 export const groupMarked = (g: ModelGroup, picked: readonly string[]): boolean => g.standing.some((id) => picked.includes(id));
 

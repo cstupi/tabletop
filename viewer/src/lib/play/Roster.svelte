@@ -1,24 +1,28 @@
 <!-- viewer/src/lib/play/Roster.svelte -->
-<!-- Roster.cs as the play page's left column: team headers and unit rows; a click selects the unit, a right-click asks for the unit's
-     menu. The column collapses to a narrow rail (its button, or R). -->
+<!-- Roster.cs as the play page's left column (UX redesign part 2 → Roster): a band per team (its icon, name, ★ you on a team I hold) and a
+     row per unit, sorted (may act, activated, off the table): ▶ on the acting unit, ○ / ✓ / —, the wound pips, the conditions, a ▸ on hover
+     for the unit's menu. A click selects the unit, a right-click or ▸ opens the menu. The column collapses to a narrow rail (its button, or R). -->
 <script lang="ts">
   import type { ConnectionState } from '../connection/gameConnection';
   import { teamColour } from '../board/palette';
   import type { Projection } from '../live/apply';
   import { intentOf, textFocused } from './keys';
   import { Names } from './names';
-  import { rosterOf, woundsText, words } from './rosterView';
+  import { markOf, rosterOf, woundsText, words } from './rosterView';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
+  import HudIcon from './HudIcon.svelte';
 
-  let { snap, shown, myTeam, selected = null, onPick, onMenu }: {
+  let { snap, shown, myTeam, myTeams, selected = null, onPick, onMenu }: {
     snap: ConnectionState; shown: Projection; myTeam: string | null;
+    /** Every team the account holds, each marked ★ you. */
+    myTeams?: readonly string[];
     /** The selected unit, lit in its row. */
     selected?: string | null;
     onPick: (unitId: string) => void; onMenu: (unitId: string, at: { x: number; y: number }) => void;
   } = $props();
 
   let collapsed = $state(false);
-  const teams = $derived(snap.game === null ? [] : rosterOf(shown, snap.game, new Names(snap.game, shown), myTeam, snap.maxWounds));
+  const teams = $derived(snap.game === null ? [] : rosterOf(shown, snap.game, new Names(snap.game, shown), myTeam, snap.maxWounds, myTeams));
 
   function onKeydown(e: KeyboardEvent): void {
     if (e.defaultPrevented || textFocused(e.target)) return;
@@ -44,7 +48,7 @@
     {:else}
       <div class="body">
         {#each teams as team (team.teamId)}
-          <h3 class="team" style:--team={teamColour(team.ordinal)}>{team.name}{#if team.teamId === myTeam}<span class="you">You</span>{/if}</h3>
+          <h3 class="team" style:--team={teamColour(team.ordinal)}><HudIcon name="team" size={15} /><span class="tname">{team.name}</span>{#if team.mine}<span class="you">★ you</span>{/if}</h3>
           <ul>
             {#each team.rows as row (row.unitId)}
               <li>
@@ -52,9 +56,14 @@
                   onmousedown={(e) => e.preventDefault()} onclick={() => onPick(row.unitId)}
                   oncontextmenu={(e) => { e.preventDefault(); onMenu(row.unitId, { x: e.clientX, y: e.clientY }); }}>
                   <span class="line">
+                    <span class="acting" aria-label={row.acting ? 'Acting' : undefined}>{row.acting ? '▶' : ''}</span>
                     <span class="name">{row.name}</span>
-                    {#if row.activated}<span class="done" title="Activated this round"><Icon name="activated" size="1rem" label="Activated" /></span>{/if}
+                    {#if markOf(row) === 'activated'}<span class="mark done" title="Activated this round"><Icon name="activated" size="1rem" label="Activated" /></span>
+                    {:else if markOf(row) === 'mayAct'}<span class="mark" title="Not yet activated">○</span>
+                    {:else}<span class="mark off" title="Off the table">—</span>{/if}
                     <span class="wounds" title="Wounds left">{woundsText(row)}</span>
+                    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+                    <span class="menu" title="Unit menu" onclick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMenu(row.unitId, { x: r.right, y: r.top }); }}>▸</span>
                   </span>
                   {#if row.conditions.length > 0 || row.inside !== null || row.reserve !== null}
                     <span class="tags">
@@ -84,9 +93,18 @@
   .rail { display: flex; flex-direction: column; gap: var(--s2); align-items: center; padding-top: var(--s2); }
   .dot { width: .75rem; height: .75rem; border-radius: 50%; }
   .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s1) 0 var(--s3); }
-  .team { display: flex; align-items: center; gap: var(--s2); margin: var(--s3) var(--s3) var(--s1); padding-left: var(--s2); border-left: 4px solid var(--team);
-    font-size: .8rem; color: var(--text); }
-  .you { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .8rem; color: var(--dim); font-weight: inherit; }
+  /* The team's band: its colour solid, the words in the background colour (Ui.TeamBand, Ui.OnBand). */
+  .team { display: flex; align-items: center; gap: var(--s2); margin: var(--s3) var(--s2) var(--s1); padding: var(--s1) var(--s3); background: var(--team);
+    font-size: .8rem; color: var(--panel-solid); }
+  .tname { flex: 1; text-transform: uppercase; }
+  .you { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: inherit; }
+  .acting { flex: none; width: .8rem; color: var(--accent); font-size: .75rem; }
+  .mark { flex: none; width: 1rem; display: inline-flex; justify-content: center; color: var(--text); }
+  .mark.off { color: var(--dim); }
+  .menu { flex: none; visibility: hidden; color: var(--dim); padding: 0 2px; }
+  .row:hover .menu { visibility: visible; }
+  .menu:hover { color: var(--accent); }
+  @media (hover: none) { .menu { visibility: visible; } }
   ul { list-style: none; margin: 0; padding: 0; }
   /* A row is a plain list entry, not a themed button. */
   .row { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; min-height: 0; padding: var(--s1) var(--s3) var(--s1) calc(var(--s3) - 3px);

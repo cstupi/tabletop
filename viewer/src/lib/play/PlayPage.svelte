@@ -398,7 +398,7 @@
 <div class="play">
   {#if snap !== null && shown !== null && snap.game !== null}
     <div class="top"><HeaderBar {snap} {shown} myTeams={teams} {actingTeam} onGameOver={() => gameOver?.open()} onTeamMenu={teamMenuAt} /></div>
-    <div class="roster"><Roster {snap} {shown} myTeam={actingTeam} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
+    <div class="roster"><Roster {snap} {shown} myTeam={actingTeam} myTeams={teams} selected={selection?.pieceId ?? null} onPick={pickUnit} onMenu={rosterMenuAt} /></div>
   {/if}
   <div class="stage">
     {#if scene === null || snap === null}
