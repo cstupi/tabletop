@@ -184,7 +184,7 @@
   <div class="info">
     {#if strip !== null}<EnemyStrip {strip} />{/if}
     {#if card !== null}
-      <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} onPick={onPickModel} />
+      <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} picked={selection?.pieceId === card.sheet.unitId ? selection.modelIds : []} onPick={onPickModel} />
     {/if}
     {#if terrainCard !== null}<TerrainCard card={terrainCard} />{/if}
     {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}

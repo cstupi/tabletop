@@ -36,14 +36,17 @@ public sealed record ModelGroup(string Label, string Loadout, bool Hero, int Ali
 
 /// <summary>
 /// What the unit card draws: the sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's
-/// wound total. Equal by value, lists element by element, so the card rebuilds only when what it shows changed and otherwise keeps its
+/// wound total, and the picked models (the selection's model ids), whose groups' rows are marked. Equal by value, lists element by element, so the card rebuilds only when what it shows changed and otherwise keeps its
 /// scroll and tooltip.
 /// </summary>
-public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Note)
+public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Note, IReadOnlyList<Guid>? Picked = null)
 {
     public IReadOnlyList<ModelGroup> Groups { get; } = Group(Sheet.Models);
     public int WoundsLeft => Groups.Sum(g => g.WoundsLeft);
     public int WoundsMax => Groups.Sum(g => g.WoundsMax);
+
+    /// <summary>The group holds a picked model: its row is marked.</summary>
+    public bool Marked(ModelGroup group) => Picked is { Count: > 0 } picked && group.Standing.Any(picked.Contains);
 
     static IReadOnlyList<ModelGroup> Group(IReadOnlyList<SheetModel> models)
     {
@@ -58,7 +61,8 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     }
 
     public bool Equals(UnitCardContent? other) =>
-        other is not null && Team == other.Team && Note == other.Note && Same(Sheet, other.Sheet) && Groups.SequenceEqual(other.Groups);
+        other is not null && Team == other.Team && Note == other.Note && Same(Sheet, other.Sheet) && Groups.SequenceEqual(other.Groups)
+        && (Picked ?? []).SequenceEqual(other.Picked ?? []);
 
     public override int GetHashCode() => HashCode.Combine(Sheet.UnitId, Sheet.Alive, Team, Note);
 

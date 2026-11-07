@@ -211,6 +211,7 @@ public partial class TableInput : Node
 
     void OnMotion(Vector2 screen)
     {
+        ShiftTravelled(screen);
         var (point, piece) = Pick(screen);
         Hover(_drag is { Armed: true } ? null : piece);
         if (_drag is not null) { piece = null; point = OnPlane(screen, _drag.Start.Z) ?? point; }   // a drag follows the plane it started on: pieces and terrain never take the point
@@ -282,7 +283,7 @@ public partial class TableInput : Node
         if (PlacementPoint is { } place) { place(OnPlane(screen, 0) ?? point); return; }
         if (Measuring) { _measureDown = screen; Measure(point, piece); return; }
         var answers = piece is PieceNode eligible && (Eligible.Contains(eligible.ModelId) || Eligible.Contains(eligible.UnitId));
-        if (shift && !answers) { StartBox(screen, piece); return; }   // Shift picks models: a click toggles one, a drag boxes them (TableInput.Picks)
+        if (shift && !answers) { StartShift(screen, point, piece); return; }   // Shift: a click toggles a model, a drag holds my model alone or boxes (TableInput.Picks)
         if (piece is null) { ClearSelection(); return; }
         if (answers && piece is PieceNode target)
         {
@@ -306,6 +307,16 @@ public partial class TableInput : Node
         }
         else { _picks = ModelPicks.None; Selected = new Selection(id, []); models = [id]; }
         SelectionChanged?.Invoke(); _presenceDirty = true;
+        BeginDrag(piece, id, models, point, screen);
+        // Last, with the drag already made, so a listener that treats the click as an answer can CancelDrag() it: the piece's
+        // own id, which for a model is the model, not the unit Selection widens it to (MoveContainment.Enterable is model ids).
+        PieceLeftClicked?.Invoke(id);
+    }
+
+    /// <summary>The drag of these models (or this terrain piece or marker) from the press at point and screen, when it may drag; armed once the cursor travels.</summary>
+    void BeginDrag(Node3D piece, Guid id, IReadOnlyList<Guid> models, Point3 point, Vector2 screen)
+    {
+        var projection = _session.Projection;
         if (MayDrag(piece, models))
         {
             var grabs = DragBodies.Grabs(models, Proposing,
@@ -318,9 +329,6 @@ public partial class TableInput : Node
                 .ToDictionary(m => m, m => new Placement(WorldFrame.FromGodot(_view.PieceAt(m)!.Position), WorldFrame.YawFrom(_view.PieceAt(m)!.Rotation.Y))));
             _drag = new Drag(id, models, point, screen, grabs, models.ToDictionary(m => m, Position));
         }
-        // Last, with the drag already made, so a listener that treats the click as an answer can CancelDrag() it: the piece's
-        // own id, which for a model is the model, not the unit Selection widens it to (MoveContainment.Enterable is model ids).
-        PieceLeftClicked?.Invoke(id);
     }
 
     /// <summary>

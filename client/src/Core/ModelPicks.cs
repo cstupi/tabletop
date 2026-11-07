@@ -12,6 +12,10 @@ public readonly record struct ScreenBox(double FromX, double FromY, double ToX, 
         x >= Math.Min(FromX, ToX) && x <= Math.Max(FromX, ToX) && y >= Math.Min(FromY, ToY) && y <= Math.Max(FromY, ToY);
 }
 
+/// <summary>What a Shift press is (in-game UX spec → Moves: "Shift (held): one model: click selects, drag moves"): Click when it comes
+/// up before travelling a drag's distance; once it travels, HoldOne when it was pressed on a model of my team, else Box.</summary>
+public enum ShiftGesture { Click, Box, HoldOne }
+
 /// <summary>
 /// The picked models (in-game UX spec → Moves, Picking models): one unit's, in pick order. Shift+click toggles a model, a Shift+drag
 /// box adds the models inside it, and a pick naming another unit starts over with that unit. A plain drag on a picked model holds
@@ -70,6 +74,13 @@ public sealed record ModelPicks(Guid? UnitId, IReadOnlyList<Guid> ModelIds)
     /// model is picked; else every model of its unit.</summary>
     public IReadOnlyList<Guid> Held(Guid pressedModelId, IReadOnlyList<Guid> unitModelIds) =>
         Contains(pressedModelId) ? unitModelIds.Where(Contains).ToList() : unitModelIds;
+
+    /// <summary>A Shift press decided: see <see cref="ShiftGesture"/>.</summary>
+    public static ShiftGesture ShiftPress(bool onMyModel, bool travelled) =>
+        !travelled ? ShiftGesture.Click : onMyModel ? ShiftGesture.HoldOne : ShiftGesture.Box;
+
+    /// <summary>The picks after a Shift+drag holds this model alone: kept when it is picked, else that model alone.</summary>
+    public ModelPicks ShiftHeld(Guid unitId, Guid modelId) => UnitId == unitId && Contains(modelId) ? this : new ModelPicks(unitId, [modelId]);
 
     /// <summary>The picks after a plain press on this model: kept when it is picked, cleared when it is not.</summary>
     public ModelPicks Pressed(Guid pressedModelId) => Contains(pressedModelId) ? this : None;

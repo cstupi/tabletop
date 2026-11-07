@@ -28,6 +28,9 @@ export function nextModel(g: ModelGroup, selected: string | null): string | null
   return g.standing[(at + 1) % g.standing.length]!;
 }
 
+/** UnitCardContent.Marked: the group holds a picked model (the selection's model ids), so its row is marked. */
+export const groupMarked = (g: ModelGroup, picked: readonly string[]): boolean => g.standing.some((id) => picked.includes(id));
+
 /** The sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's wound total. */
 export interface UnitCardContent {
   readonly sheet: UnitSheetModel; readonly team: number; readonly note: string | null;

@@ -1,13 +1,15 @@
 <!-- viewer/src/lib/play/UnitCard.svelte -->
-<!-- UnitCard.cs: the headline, the badges, the chips, the decision note, one row per group of like models, the weapons grid and the
+<!-- UnitCard.cs: the headline, the badges, the chips, the decision note, one row per group of like models (a group holding a picked model marked), the weapons grid and the
      unit's rules with their texts as tooltips. Every word is cardText.ts's or the sheet's. -->
 <script lang="ts">
   import { teamColour } from '../board/palette';
   import { WEAPON_HEADINGS, badges, ruleChip, ruleTooltip, weaponName } from './cardText';
-  import { groupLine, groupTitle, groupWounds, nextModel, type UnitCardContent } from './unitCard';
+  import { groupLine, groupMarked, groupTitle, groupWounds, nextModel, type UnitCardContent } from './unitCard';
   import { HERO_LABEL } from './unitSheet';
 
-  let { card, selectedModel = null, onPick }: { card: UnitCardContent; selectedModel?: string | null; onPick: (modelId: string) => void } = $props();
+  let { card, selectedModel = null, picked = [], onPick }: {
+    card: UnitCardContent; selectedModel?: string | null; picked?: readonly string[]; onPick: (modelId: string) => void;
+  } = $props();
 
   const sheet = $derived(card.sheet);
   const noFocus = (e: Event) => e.preventDefault();
@@ -34,7 +36,7 @@
   {/if}
   {#if card.note !== null}<p class="warn">{card.note}</p>{/if}
   {#each card.groups as group, i (i)}
-    <div class="group" class:gone={group.standing.length === 0}>
+    <div class="group" class:gone={group.standing.length === 0} class:marked={groupMarked(group, picked)}>
       {#if group.hero}<span class="badge">{HERO_LABEL}</span>{/if}
       <button
         type="button" class="flat" tabindex="-1" title={groupLine(group)} disabled={group.standing.length === 0}
@@ -78,7 +80,8 @@
   :global([data-theme='fantasy']) .stat .v { color: var(--wood); }
   .stat .k { font-size: .7rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
   .flow, .group { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; }
-  .group { flex-wrap: nowrap; }
+  .group { flex-wrap: nowrap; border: 1px solid transparent; }
+  .group.marked { border-color: var(--accent); }
   .badge, .chip { padding: 0 var(--s1); border: 1px solid var(--rule); font-size: .8rem; line-height: 1.5; color: var(--text); white-space: nowrap; }
   .chip.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
   .warn { color: var(--warning); }

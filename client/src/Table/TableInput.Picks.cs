@@ -1,19 +1,22 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Geometry;
 
 namespace Tabletop.Client.Table;
 
 /// <summary>
-/// Picking models (in-game UX spec → Moves): Shift+click on a model of my team toggles it in the picks, Shift+drag draws a box
-/// from the press to the cursor and adds my team's models whose base centre is inside it (ModelPicks). The picks are the
+/// Picking models (in-game UX spec → Moves): Shift+click on a model of my team toggles it in the picks, Shift+drag from one of my
+/// models holds that model alone, and Shift+drag from anywhere else draws a box from the press to the cursor and adds my team's
+/// models whose base centre is inside it (ModelPicks). The picks are the
 /// selection's model ids, so they light as the selection does and reach presence. A new Ask, the end of the move, a plain click
 /// on the table and Esc clear them.
 /// </summary>
 public partial class TableInput
 {
     ModelPicks _picks = ModelPicks.None;
-    /// <summary>A Shift press: where it went down and the piece under it. A box once it travels, a Shift+click if it does not.</summary>
-    (Vector2 From, Node3D? Piece)? _box;
+    /// <summary>A Shift press: where it went down on screen and on the table, and the piece under it. Once it travels, a drag of the
+    /// pressed model alone when it is mine, else a box; a Shift+click if it does not (ModelPicks.ShiftPress).</summary>
+    (Vector2 From, Point3 At, Node3D? Piece)? _box;
     CanvasLayer? _boxLayer; ReferenceRect? _boxRect;
 
     /// <summary>Models are picked: Esc clears them before anything else.</summary>
@@ -27,14 +30,29 @@ public partial class TableInput
         if (Selected?.PieceId == unit) { Selected = _picks.Selection(unit); _presenceDirty = true; SelectionChanged?.Invoke(); }
     }
 
-    void StartBox(Vector2 screen, Node3D? piece)
+    void StartShift(Vector2 screen, Point3 at, Node3D? piece)
     {
-        _box = (screen, piece);
+        _box = (screen, at, piece);
         if (_boxLayer is null)
         {
             AddChild(_boxLayer = new CanvasLayer());
             _boxLayer.AddChild(_boxRect = new ReferenceRect { EditorOnly = false, BorderColor = Palette.Picked with { A = 1 }, BorderWidth = 1.5f, MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false });
         }
+    }
+
+    /// <summary>A Shift press on a model of my team that has travelled as far as a drag would becomes a drag of that model alone, the
+    /// rest of its unit standing, as a drag of a picked model does; the picks keep it or start over with it (ModelPicks.ShiftHeld).</summary>
+    void ShiftTravelled(Vector2 screen)
+    {
+        if (_box is not { Piece: var piece } box || screen.DistanceTo(box.From) < DragThreshold) return;
+        var mine = piece is PieceNode pn && Mine(pn.UnitId);
+        if (ModelPicks.ShiftPress(mine, travelled: true) != ShiftGesture.HoldOne) return;
+        var model = (PieceNode)piece!;
+        _box = null; if (_boxRect is not null) _boxRect.Visible = false;
+        _picks = _picks.ShiftHeld(model.UnitId, model.ModelId);
+        Selected = _picks.Selection(model.UnitId); _presenceDirty = true;
+        SelectionChanged?.Invoke(); UnitClicked?.Invoke(model.UnitId);
+        BeginDrag(model, model.ModelId, [model.ModelId], box.At, box.From);
     }
 
     /// <summary>The box from the press to the cursor, drawn once the press has travelled as far as a drag would.</summary>
@@ -51,7 +69,9 @@ public partial class TableInput
     {
         if (_box is not { } box) return;
         _box = null; if (_boxRect is not null) _boxRect.Visible = false;
-        if (screen.DistanceTo(box.From) < DragThreshold) { ShiftClick(box.Piece); return; }
+        var gesture = ModelPicks.ShiftPress(box.Piece is PieceNode pn && Mine(pn.UnitId), screen.DistanceTo(box.From) >= DragThreshold);
+        if (gesture == ShiftGesture.Click) { ShiftClick(box.Piece); return; }
+        if (gesture != ShiftGesture.Box) return;   // a hold that no motion started: nothing moved
         var next = _picks.Boxed(Candidates(), new ScreenBox(box.From.X, box.From.Y, screen.X, screen.Y));
         if (!ReferenceEquals(next, _picks)) SetPicks(next, next.UnitId!.Value);
     }

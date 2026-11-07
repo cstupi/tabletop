@@ -8,7 +8,7 @@ namespace Tabletop.Client.Screens;
 
 /// <summary>
 /// The game list: filters, Join (or double-click / Enter on a row), Replay (a game the player is in, running or ended), More, Refresh,
-/// Create game, the player's name with Rename, Settings and Sign out. The line under the list says what is loading, why the list is empty, why the last game closed, or what went wrong.
+/// Create game, the player's name with Rename, the Settings gear and Sign out. The line under the list says what is loading, why the list is empty, why the last game closed, or what went wrong.
 /// </summary>
 public partial class HomeScreen : Control
 {
@@ -16,8 +16,8 @@ public partial class HomeScreen : Control
     Guid? _next;
     bool _loaded, _busy;
     ItemList _list = null!; OptionButton _status = null!; LineEdit _search = null!; CheckBox _mine = null!, _joined = null!; Label _error = null!, _name = null!, _hint = null!;
-    Button _join = null!, _replay = null!, _more = null!, _end = null!, _delete = null!;
-    Action? _onAccount;
+    Button _join = null!, _replay = null!, _more = null!, _end = null!, _delete = null!, _settings = null!;
+    Action? _onAccount, _onTheme;
 
     public override void _Ready()
     {
@@ -29,7 +29,9 @@ public partial class HomeScreen : Control
         top.AddChild(_name = new Label());
         top.AddChild(Btn("Rename…", RenameDialog));
         top.AddChild(Btn("Create game", () => Run(CreateDialog)));
-        top.AddChild(Btn("Settings", () => SettingsDialog.Open(this, session)));
+        top.AddChild(_settings = Btn("", () => SettingsDialog.Open(this, session)));
+        _settings.TooltipText = "Settings";
+        _onTheme = ShowGear; Ui.Changed += _onTheme; ShowGear();
         top.AddChild(Btn("Sign out", () => Run(session.LogoutAsync)));
         root.AddChild(_hint = new Label { ThemeTypeVariation = Variation.Accent, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         _onAccount = ShowName; session.AccountChanged += _onAccount;
@@ -60,7 +62,19 @@ public partial class HomeScreen : Control
         Run(LoadPage);
     }
 
-    public override void _ExitTree() { if (_onAccount is not null) Main.Instance.Session.AccountChanged -= _onAccount; }
+    public override void _ExitTree()
+    {
+        if (_onAccount is not null) Main.Instance.Session.AccountChanged -= _onAccount;
+        if (_onTheme is not null) Ui.Changed -= _onTheme;
+    }
+
+    /// <summary>Settings is the theme's gear (client UX spec → Settings); the word only for a theme without one, never a zero-width button.</summary>
+    void ShowGear()
+    {
+        if (!IsInstanceValid(_settings)) return;
+        _settings.Icon = Ui.Icon("settings");
+        _settings.Text = _settings.Icon is null ? "Settings" : "";
+    }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 
