@@ -647,6 +647,7 @@ export interface RulesOptionsMessage {
   readonly options: RulesOptionCatalog;
   readonly zones: ZoneLegs;
   readonly terrainWords: { readonly [key: string]: string };
+  readonly terrainRules: { readonly [key: string]: string };
   readonly markerRange?: number;
 }
 
@@ -988,6 +989,7 @@ export interface Welcome {
   readonly options: RulesOptionCatalog;
   readonly zones: ZoneLegs;
   readonly terrainWords: { readonly [key: string]: string };
+  readonly terrainRules: { readonly [key: string]: string };
   readonly markerRange?: number;
 }
 

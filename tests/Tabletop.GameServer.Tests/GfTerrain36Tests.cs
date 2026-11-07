@@ -143,6 +143,20 @@ public class GfTerrain36Tests
         Assert.All(GrimdarkFutureRules.V360.TerrainWords.Keys, k => Assert.True(BuiltinTerrain.DeclarationNames.ContainsKey(k), k));
     }
 
+    /// <summary>One sentence per declaration of what it does to a unit, the edition's: 3.5.1 p.11 per model, 3.6.0 p.12 the whole unit and Unstable.</summary>
+    [Fact]
+    public void Terrain_rules_follow_the_edition_and_name_every_declaration()
+    {
+        foreach (var rules in new[] { GrimdarkFutureRules.V351, GrimdarkFutureRules.V360 })
+            Assert.Equal(BuiltinTerrain.DeclarationNames.Keys.Order(), rules.TerrainRules.Keys.Order());
+        Assert.Contains("+1 to Defense", GrimdarkFutureRules.V351.TerrainRules["cover"]);
+        Assert.Contains("6\"", GrimdarkFutureRules.V351.TerrainRules["difficult"]);
+        Assert.Contains("Rush or Charge", GrimdarkFutureRules.V351.TerrainRules["dangerous_on_rush_charge"]);
+        Assert.Contains("over 6\"", GrimdarkFutureRules.V360.TerrainRules["dangerous_on_rush_charge"]);
+        Assert.Contains("whole unit", GrimdarkFutureRules.V360.TerrainRules["dangerous"]);
+        Assert.DoesNotContain(GrimdarkFutureRules.V360.TerrainRules.Values, t => t.Contains("p."));
+    }
+
     [Fact]
     public async Task The_welcome_carries_the_games_terrain_words()
     {
@@ -153,6 +167,7 @@ public class GfTerrain36Tests
         var welcome = await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         Assert.Equal(GrimdarkFutureRules.Instance.TerrainWords, welcome.TerrainWords);
         Assert.Equal("Difficult moving up", welcome.TerrainWords["steep"]);
+        Assert.Equal(GrimdarkFutureRules.Instance.TerrainRules, welcome.TerrainRules);
     }
 
     /// <summary>p.6 "within 3" of a marker" (3.6.0 p.6 the same): the range a client draws about each marker's centre.</summary>

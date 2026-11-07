@@ -17,6 +17,7 @@ public sealed record GfEdition(
     bool UnitDangerousTest,                                       // C4: false per model on Tough dice, true the whole unit on dice = wounds to destroy
     bool UnstableByDistance,                                      // C5: false DangerousOnRushCharge on Rush/Charge, true over 6" moved into or through
     IReadOnlyDictionary<TerrainDeclarations, string> TerrainWords, // C5: the card and label words; a flag not listed keeps today's word
+    IReadOnlyDictionary<TerrainDeclarations, string> TerrainRules, // the terrain card's sentence per declaration: 3.5.1 p.11-12, 3.6.0 p.12
     bool ArtilleryHoldOnly,                                       // S2
     bool HasAssault,                                              // S3
     bool CasterTargetNeedsSight, bool SpendersNeedSight, bool SpendersMeasuredToCasterModel, bool OneCastWindow, // S4
@@ -53,6 +54,17 @@ public sealed record GfEdition(
             [TerrainDeclarations.DangerousOnRushCharge] = "Dangerous when rushing or charging",
             [TerrainDeclarations.Steep] = "Difficult moving up",
         },
+        TerrainRules: new Dictionary<TerrainDeclarations, string>
+        {
+            [TerrainDeclarations.Cover] = "+1 to Defense rolls against shooting while most of the unit's models are fully inside.",
+            [TerrainDeclarations.Difficult] = "A unit with any model moving in or through it moves at most 6\" that move.",
+            [TerrainDeclarations.Dangerous] = "A model moving in or through it, or activated in it, takes a dangerous terrain test: a 1 on any die is a wound.",
+            [TerrainDeclarations.DangerousOnRushCharge] = "Dangerous terrain for a unit using Rush or Charge.",
+            [TerrainDeclarations.Steep] = "Difficult terrain for a model moving up onto it; open terrain moving off it.",
+            [TerrainDeclarations.Impassable] = "Units may not move through it.",
+            [TerrainDeclarations.BlocksLineOfSight] = "Units may not draw line of sight through it.",
+            [TerrainDeclarations.SeeInAndOut] = "Units may see into and out of it, but not through it.",
+        },
         ArtilleryHoldOnly: true,
         HasAssault: false,
         CasterTargetNeedsSight: true, SpendersNeedSight: true, SpendersMeasuredToCasterModel: false, OneCastWindow: false,
@@ -88,6 +100,17 @@ public sealed record GfEdition(
             [TerrainDeclarations.SeeInAndOut] = "Dense",
             [TerrainDeclarations.DangerousOnRushCharge] = "Unstable",
             [TerrainDeclarations.Steep] = "Steep",
+        },
+        TerrainRules: new Dictionary<TerrainDeclarations, string>
+        {
+            [TerrainDeclarations.Cover] = "+1 to Defense rolls against shooting while most of the unit's models are fully inside.",
+            [TerrainDeclarations.Difficult] = "A unit with any model moving in or through it moves at most 6\" that move.",
+            [TerrainDeclarations.Dangerous] = "A unit with any model moving into or through it, or activating in it, tests as a whole unit: a die per wound to destroy it, each 1 a wound.",
+            [TerrainDeclarations.DangerousOnRushCharge] = "Dangerous terrain for a model moving over 6\" into or through it.",
+            [TerrainDeclarations.Steep] = "Difficult terrain for a model moving onto it; open terrain moving off it.",
+            [TerrainDeclarations.Impassable] = "Units may not move through it.",
+            [TerrainDeclarations.BlocksLineOfSight] = "Units may not draw line of sight through it.",
+            [TerrainDeclarations.SeeInAndOut] = "Units may draw line of sight into and out of it, but not through it.",
         },
         ArtilleryHoldOnly: false,
         HasAssault: true,

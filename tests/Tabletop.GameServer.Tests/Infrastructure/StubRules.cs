@@ -79,6 +79,7 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public RulesOptionCatalog OptionCatalog => inner.OptionCatalog;
     public Tabletop.Geometry.ZoneLegs Zones => inner.Zones;
     public IReadOnlyDictionary<string, string> TerrainWords => inner.TerrainWords;
+    public IReadOnlyDictionary<string, string> TerrainRules => inner.TerrainRules;
     public double? MarkerRange => inner.MarkerRange;
     public IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => inner.OptionProblems(optionalRules);
     public Interpreter.ISightPolicy SightPolicy(GameState state) => inner.SightPolicy(state);
