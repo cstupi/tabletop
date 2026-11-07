@@ -85,9 +85,9 @@ public partial class TableView : Node3D
     public void RefreshLooks()
     {
         if (_session is null) return;
-        var show = _session.Settings.ShowHitboxes; var showTerrain = _session.Settings.ShowTerrainHitboxes; var inSetup = _session.Projection is null; var selected = Selected();
+        var show = _session.Settings.ShowHitboxes; var showTerrain = _session.Settings.ShowTerrainHitboxes; var selected = Selected();
         foreach (var n in _pieces.GetChildren().OfType<PieceNode>()) n.SetShowHitboxes(show);
-        foreach (var n in _terrain.GetChildren().OfType<TerrainNode>()) n.SetLook(showTerrain, HitboxLook.Editing(inSetup, n.PlacementId, selected));
+        foreach (var n in _terrain.GetChildren().OfType<TerrainNode>()) n.SetLook(showTerrain, HitboxLook.Selected(n.PlacementId, selected));
     }
 
     TableState? Table => _session.Projection?.Board.Table ?? _session.Draft;
@@ -99,7 +99,7 @@ public partial class TableView : Node3D
         if (table.Size != Size || table.Texture != _texture || _slabDrawn is null) { Size = table.Size; _slabDrawn = _slab.Set(Size, _texture = table.Texture, _meshes.Progress); }
         Volumes = table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
         Sync(_terrain, table.Terrain, t => t.Id, BoardDiff.SameShape,
-            t => { var n = new TerrainNode { PlacementId = t.Id }; n.Build(t); n.SetLook(_session.Settings.ShowTerrainHitboxes, HitboxLook.Editing(_session.Projection is null, t.Id, Selected())); LoadTerrainMesh(n, t); return n; }, (n, t) => n.Place(t));
+            t => { var n = new TerrainNode { PlacementId = t.Id }; n.Build(t); n.SetLook(_session.Settings.ShowTerrainHitboxes, HitboxLook.Selected(t.Id, Selected())); LoadTerrainMesh(n, t); return n; }, (n, t) => n.Place(t));
         // A play marker wins over a setup marker of the same id: one disc per id.
         var played = _session.Projection?.Markers.Values.ToList() ?? [];
         var markers = table.Markers.Where(m => played.All(q => q.Id != m.Id)).Concat(played);

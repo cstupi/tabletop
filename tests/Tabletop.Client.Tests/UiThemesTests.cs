@@ -14,12 +14,12 @@ public class UiThemesTests
             Assert.StartsWith($"res://content/themes/{t.Id}/", p);
             Assert.True(File.Exists(Path.Combine(ClientDir, p["res://".Length..])), $"{t.Id}: {p} is missing");
         }
-        Assert.Equal((54, 47), (UiThemes.Fantasy.Paths.Count(), UiThemes.SciFi.Paths.Count()));   // 2 fonts, 2 nine-patches, 6 faces, 44 icons; 3 fonts, 44 icons
+        Assert.Equal((67, 60), (UiThemes.Fantasy.Paths.Count(), UiThemes.SciFi.Paths.Count()));   // 2 fonts, 2 nine-patches, 6 faces, 57 icons; 3 fonts, 57 icons
     }
     [Fact] public void Every_theme_sets_fonts_six_teams_and_the_icons() => Assert.All(UiThemes.All, t =>
     {
         Assert.All(new[] { t.Display, t.Body, t.Numerals }, f => Assert.True(f.Size >= 12 && f.Path.EndsWith(".ttf"), f.Path));
-        Assert.Equal((54, 47), (UiThemes.Fantasy.Paths.Count(), UiThemes.SciFi.Paths.Count()));   // 2 fonts, 2 nine-patches, 6 faces, 44 icons; 3 fonts, 44 icons
+        Assert.True(t.Teams.Count >= 6); Assert.All(new[] { "activated", "objective", "shaken", "fatigued", "settings", "team", "player", "army", "watch", "warning", "ready", "editing", "charge", "shoot" }.Concat(TerrainEffects.All.Select(e => e.Icon)).Append(TerrainEffects.Open.Icon), n => Assert.NotNull(t.Icon(n)));
     });
     [Fact] public void Teams_cycle_icons_ignore_case_and_faces_are_one_to_six()
     {

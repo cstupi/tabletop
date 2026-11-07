@@ -102,6 +102,9 @@ public interface IGameRules
     /// <summary>The words a client shows for a terrain declaration under this rule set, keyed by its snake_case name (BuiltinTerrain.DeclarationNames),
     /// sent in Welcome. Empty by default: a client keeps its own words. Wrapping rulesets must forward it.</summary>
     IReadOnlyDictionary<string, string> TerrainWords => new Dictionary<string, string>();
+    /// <summary>What each terrain declaration does to a unit under this rule set, one sentence keyed by its snake_case name, sent in Welcome
+    /// for the terrain card. Empty by default. Wrapping rulesets must forward it.</summary>
+    IReadOnlyDictionary<string, string> TerrainRules => new Dictionary<string, string>();
     /// <summary>How far from an objective marker's centre a model's base edge holds it, sent in Welcome for the clients to draw. Null by default:
     /// no range. Wrapping rulesets must forward it.</summary>
     double? MarkerRange => null;

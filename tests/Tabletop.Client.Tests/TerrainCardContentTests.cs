@@ -103,4 +103,16 @@ public class TerrainCardContentTests
         Assert.Same(p.Board.Table, TerrainCardContent.TableOf(GameStatus.Ended, draft, p));
         Assert.Null(TerrainCardContent.TableOf(GameStatus.Lobby, draft, p));
     }
+
+    [Fact]
+    public void The_card_leads_with_the_piece_s_effects_each_with_the_server_s_sentence()
+    {
+        var rules = new Dictionary<string, string> { ["cover"] = "+1 to Defense rolls against shooting.", ["difficult"] = "At most 6\" that move." };
+        var c = TerrainCardContent.Of(Table(Ruin()), GameStatus.Playing, Ruin().Id, null, rules)!;
+        Assert.Equal(["Cover", "Difficult", "Blocks LOS", "See in/out"], c.Effects.Select(e => e.Word));
+        Assert.Equal("+1 to Defense rolls against shooting.", c.Effects[0].Rule);
+        Assert.Equal(TerrainEffects.Primary(TerrainDeclarations.Cover | Difficult | BlocksLineOfSight | SeeInAndOut).Colour, c.Volumes[0].Colour);
+        Assert.Equal(TerrainEffects.Open.Colour, c.Volumes[1].Colour);
+        Assert.NotEqual(c, TerrainCardContent.Of(Table(Ruin()), GameStatus.Playing, Ruin().Id, null, null));
+    }
 }

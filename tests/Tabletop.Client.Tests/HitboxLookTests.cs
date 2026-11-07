@@ -21,11 +21,11 @@ public class HitboxLookTests
     public void Terrain(bool show, bool mesh, bool editing, TerrainProxy want) => Assert.Equal(want, HitboxLook.Terrain(show, mesh, editing));
 
     [Fact]
-    public void Editing_is_the_selected_piece_in_setup()
+    public void The_selected_piece_shows_its_volumes_in_setup_and_in_play()
     {
         var id = Guid.NewGuid();
-        Assert.True(HitboxLook.Editing(true, id, id));
-        Assert.False(HitboxLook.Editing(false, id, id)); Assert.False(HitboxLook.Editing(true, id, Guid.NewGuid())); Assert.False(HitboxLook.Editing(true, id, null));
+        Assert.True(HitboxLook.Selected(id, id));
+        Assert.False(HitboxLook.Selected(id, Guid.NewGuid())); Assert.False(HitboxLook.Selected(id, null));
     }
 
     [Fact]

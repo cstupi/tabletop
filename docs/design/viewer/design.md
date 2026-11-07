@@ -601,8 +601,9 @@ game and log:
 
 Layout: the top bar (back to Games, the game's name, a Replay chip, the round and turn, the scores); the board (`models: 'circles'`,
 zones once the geometry loads) beside a 24rem column with the unit card when a model is selected and the combat log in Godot's words
-(`CombatLogPanel` over the shown events); the replay bar fixed at the foot: `«R «T ‹A ‹`, Play/Pause as the primary button, `› A› T» R»`,
-the scrubber, the caption and the speed. Space plays and pauses, the arrows step (Shift: by action), Home and End jump. Like the play
+(`CombatLogPanel` over the shown events); the replay bar fixed at the foot (`replayBarView.ts`): icon buttons labelled Round, Turn, Action and Step back, Play/Pause as
+the primary button, Step, Action, Turn and Round forward; the scrubber with a tick per round's start and the speed; the caption, the
+latest action's block header. Space plays and pauses, the arrows step (Shift: by action), Home and End jump. Like the play
 page it loads the geometry for the zones, so it lives in `replay/`, outside the playback modules `geometry.lazy.test.ts` checks.
 `PlaybackView` stays the developer Watch tab.
 

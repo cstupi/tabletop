@@ -23,6 +23,8 @@ export interface ConnectionState {
   readonly zones: ZoneLegs | null;
   /** Welcome's terrain words by declaration name (IGameRules.TerrainWords); null before the welcome. */
   readonly terrainWords: { readonly [name: string]: string } | null;
+  /** Welcome's terrain rules: one sentence per declaration of what it does to a unit (the terrain card's). */
+  readonly terrainRules: { readonly [name: string]: string } | null;
   /** Welcome's marker range (inches from a marker's centre), drawn about each objective; null before the welcome or when the rule set has none. */
   readonly markerRange: number | null;
   /** Setup: the last board's table. */
@@ -106,7 +108,7 @@ type Send = {
 };
 
 const INITIAL: ConnectionState = {
-  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, markerRange: null, draft: null, board: null, log: [], projection: null,
+  phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, terrainRules: null, markerRange: null, draft: null, board: null, log: [], projection: null,
   maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), catchingUp: true, closeReason: null,
 };
 
@@ -265,12 +267,12 @@ export function connectGame(options: ConnectionOptions): GameConnection {
         welcomed = true;
         attempt = 0;
         clearTimeout(welcomeTimer);
-        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, markerRange: frame.markerRange ?? null, closeReason: null });
+        publish({ phase: 'connected', participantId: frame.participantId, game: frame.game, options: frame.options ?? NO_OPTIONS, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null, closeReason: null });
         reauthTimer = setInterval(() => void reauth(), reauthEvery);
         flush();
         return;
       case 'rules_options':
-        publish({ options: frame.options, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, markerRange: frame.markerRange ?? null });   // before the 'game' that follows
+        publish({ options: frame.options, zones: frame.zones ?? null, terrainWords: frame.terrainWords ?? null, terrainRules: frame.terrainRules ?? null, markerRange: frame.markerRange ?? null });   // before the 'game' that follows
         return;
       case 'game':
         publish({ game: frame.game });

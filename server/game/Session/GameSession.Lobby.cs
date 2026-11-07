@@ -146,7 +146,7 @@ public sealed partial class GameSession
             foreach (var p in Info.Participants.Where(p => p.ArmyId is not null))
                 if (await rows.ReadArmyAsync(p.ArmyId!.Value, ct) is { } owned && owned.Army.Edition != edition)
                     await rows.SetParticipantArmyAsync(p.Id, null, ct);
-            await BroadcastAsync(new RulesOptionsMessage(Rules.OptionCatalog) { Zones = Rules.Zones, TerrainWords = Rules.TerrainWords, MarkerRange = Rules.MarkerRange });
+            await BroadcastAsync(new RulesOptionsMessage(Rules.OptionCatalog) { Zones = Rules.Zones, TerrainWords = Rules.TerrainWords, TerrainRules = Rules.TerrainRules, MarkerRange = Rules.MarkerRange });
         }
         await ReloadInfoAsync();
     }

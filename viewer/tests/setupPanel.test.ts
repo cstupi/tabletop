@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import packed from '@builtin-catalog';
 import { parseCatalog } from '../src/lib/setup/catalog';
 import { TERRAIN_KINDS, terrainGroups, terrainTiles, toggleKind } from '../src/lib/setup/terrainGroups';
+import { effectOf, OPEN_GROUND } from '../src/lib/play/terrainEffects';
 import { objectiveRows, styleOf, zoneDiagram } from '../src/lib/setup/setupPanel';
 import { columnLine, type TeamColumn } from '../src/lib/lobby/teamColumns';
 import type { Marker, TableState } from '../src/lib/protocol/wire.generated';
@@ -17,6 +18,11 @@ describe('the terrain tiles (TerrainTiles.cs)', () => {
     expect([keyOf('large-forest'), keyOf('large-lake'), keyOf('quicksand'), keyOf('hill'), keyOf('shallow-river'), keyOf('hill-small')])
       .toEqual(['blocks-sight', 'impassable', 'dangerous', 'cover', 'difficult', 'open-ground']);
     for (const g of terrainGroups(catalog)) expect(new Set(g.entries.map((e) => tiles.find((t) => t.entry === e)!.kind.key)).size).toBe(1);
+  });
+
+  it('draws each group in its lead effect\'s icon and colour (terrainEffects.ts)', () => {
+    const lead = ['blocks_line_of_sight', 'impassable', 'dangerous', 'cover', 'difficult'].map(effectOf).concat(OPEN_GROUND);
+    expect(TERRAIN_KINDS.map((k) => [k.key, k.colour])).toEqual(lead.map((e) => [e.icon, e.colour]));
   });
 
   it('a legend dot hides its group; the search filters by name', () => {

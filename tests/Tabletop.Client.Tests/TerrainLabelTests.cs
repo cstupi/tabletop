@@ -48,4 +48,24 @@ public class TerrainLabelTests
         var piece = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(Guid.CreateVersion7()), new Point3(0, 0, 1), new Yaw(0), 0.5, [V(0, 3, Impassable), V(3, 5, None)]);
         Assert.Equal("Terrain · Impassable · 1–2.5\"\nTerrain · Open · 2.5–3.5\"", TerrainLabel.Of(piece));
     }
+
+    [Fact]
+    public void The_hover_panel_names_the_piece_its_height_and_one_chip_per_effect_across_its_volumes()
+    {
+        var words = new Dictionary<string, string> { ["blocks_line_of_sight"] = "Sight blocking" };
+        var piece = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruin"), new Point3(0, 0, 0), new Yaw(0), 1,
+            [V(0, 4, TerrainDeclarations.Cover | Difficult), V(0, 6, BlocksLineOfSight | TerrainDeclarations.Cover)]);
+        var hover = TerrainLabel.HoverOf(piece, words);
+        Assert.Equal("Ruin", hover.Name);
+        Assert.Equal("0–6\"", hover.Height);
+        Assert.Equal(["Cover", "Difficult", "Sight blocking"], hover.Effects.Select(e => e.Word));
+        Assert.Equal(TerrainEffects.Of(BlocksLineOfSight).Colour, hover.Effects[2].Colour);
+    }
+
+    [Fact]
+    public void A_piece_with_no_declaration_hovers_as_open()
+    {
+        var piece = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(Guid.CreateVersion7()), new Point3(0, 0, 0), new Yaw(0), 1, [V(0, 1, None)]);
+        Assert.Equal(["Open"], TerrainLabel.HoverOf(piece).Effects.Select(e => e.Word));
+    }
 }

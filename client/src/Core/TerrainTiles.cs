@@ -3,7 +3,8 @@ using Tabletop.Geometry;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>A terrain group (TerrainGroups' six): its icon key, its legend word and its colour, the browser's declaration colours.</summary>
+/// <summary>A terrain group (TerrainGroups' six): its icon key, its legend word and its colour, both the icon and the colour its lead
+/// declaration's in TerrainEffects.</summary>
 public sealed record TerrainKind(string Key, string Legend, Rgba Colour);
 
 /// <summary>One tile of the setup terrain box: the piece, its group and what it does in words (the tile's tooltip).</summary>
@@ -15,12 +16,14 @@ public sealed record TerrainTile(BuiltinTerrain Entry, TerrainKind Kind, string 
 /// </summary>
 public static class TerrainTiles
 {
-    public static readonly TerrainKind BlocksSight = new("blocks-sight", "Blocks sight", Rgba.Hex("#C98CFF"));
-    public static readonly TerrainKind Impassable = new("impassable", "Impassable", Rgba.Hex("#FF6B5C"));
-    public static readonly TerrainKind Dangerous = new("dangerous", "Dangerous", Rgba.Hex("#FF9D4E"));
-    public static readonly TerrainKind Cover = new("cover", "Cover", Rgba.Hex("#6DDF7C"));
-    public static readonly TerrainKind Difficult = new("difficult", "Difficult", Rgba.Hex("#FFC44E"));
-    public static readonly TerrainKind Open = new("open-ground", "Open", Rgba.Hex("#8B93A1"));
+    public static readonly TerrainKind BlocksSight = Of(TerrainDeclarations.BlocksLineOfSight, "Blocks sight");
+    public static readonly TerrainKind Impassable = Of(TerrainDeclarations.Impassable, "Impassable");
+    public static readonly TerrainKind Dangerous = Of(TerrainDeclarations.Dangerous, "Dangerous");
+    public static readonly TerrainKind Cover = Of(TerrainDeclarations.Cover, "Cover");
+    public static readonly TerrainKind Difficult = Of(TerrainDeclarations.Difficult, "Difficult");
+    public static readonly TerrainKind Open = new(TerrainEffects.Open.Icon, "Open", TerrainEffects.Open.Colour);
+
+    static TerrainKind Of(TerrainDeclarations lead, string legend) { var e = TerrainEffects.Of(lead); return new(e.Icon, legend, e.Colour); }
 
     /// <summary>The legend, in the order a table is balanced.</summary>
     public static IReadOnlyList<TerrainKind> Legend { get; } = [BlocksSight, Impassable, Dangerous, Cover, Difficult, Open];

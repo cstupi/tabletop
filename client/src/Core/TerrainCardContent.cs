@@ -5,8 +5,8 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
 /// <summary>One volume on the terrain card: its kind, footprint and height range on the table (scale and elevation applied), its
-/// declarations in TerrainLabel's order (<c>Open</c> with none) and its notes.</summary>
-public sealed record TerrainCardVolume(Guid Id, string Kind, string Footprint, string Heights, IReadOnlyList<string> Declarations, string? Notes)
+/// declarations in TerrainLabel's order (<c>Open</c> with none), its notes and its tint (TerrainEffects.Primary).</summary>
+public sealed record TerrainCardVolume(Guid Id, string Kind, string Footprint, string Heights, IReadOnlyList<string> Declarations, string? Notes, Rgba Colour = default)
 {
     public bool Equals(TerrainCardVolume? o) => o is not null && Id == o.Id && Kind == o.Kind && Footprint == o.Footprint && Heights == o.Heights
         && Notes == o.Notes && Declarations.SequenceEqual(o.Declarations);
@@ -15,12 +15,15 @@ public sealed record TerrainCardVolume(Guid Id, string Kind, string Footprint, s
 
 /// <summary>
 /// What the terrain card draws for the selected terrain piece, in the unit card's slot (the card replaces the unit card while
-/// terrain is selected): the name (TerrainLabel), where the mesh comes from, facing 0–359°, scale, the piece's height range and each
-/// volume. Editable in setup, where the card carries the piece's edits; read-only in play. Equal by value, lists element by element,
+/// terrain is selected): the name (TerrainLabel), where the mesh comes from, facing 0–359°, scale, the piece's height range, its effects
+/// (every effect any volume carries, each with the server's sentence of what it does to a unit, Session.TerrainRules) and each volume.
+/// Editable in setup, where the card carries the piece's edits; read-only in play. Equal by value, lists element by element,
 /// so the card rebuilds only when what it shows changed; a drag across the table changes nothing it shows.
 /// </summary>
 public sealed record TerrainCardContent(Guid PieceId, string Name, string Source, int Facing, double Scale, string Height, IReadOnlyList<TerrainCardVolume> Volumes, bool Editable)
 {
+    public IReadOnlyList<TerrainEffectRow> Effects { get; init; } = [];
+
     /// <summary>The table the card reads: the draft in setup, the board in play, none in the lobby.</summary>
     public static TableState? TableOf(GameStatus? status, TableState? draft, Projection? p) => status switch
     {
@@ -30,18 +33,21 @@ public sealed record TerrainCardContent(Guid PieceId, string Name, string Source
     };
 
     /// <summary>The selected piece's card when it is a terrain piece on the table, in setup or play.</summary>
-    public static TerrainCardContent? Of(TableState? table, GameStatus? status, Guid? selected, IReadOnlyDictionary<string, string>? words = null)
+    public static TerrainCardContent? Of(TableState? table, GameStatus? status, Guid? selected, IReadOnlyDictionary<string, string>? words = null,
+        IReadOnlyDictionary<string, string>? rules = null)
     {
         if (status is not (GameStatus.Setup or GameStatus.Playing or GameStatus.Ended) || selected is not { } id
             || table?.Terrain.FirstOrDefault(t => t.Id == id) is not { } t) return null;
         var source = t.Mesh.Builtin is { } b ? $"Built-in {b}" : $"Library asset {Names.Short(t.Mesh.AssetId!.Value)}";
-        var height = t.Volumes.Count == 0 ? "" : $"{TerrainLabel.Inches(t.Position.Z + t.Volumes.Min(v => v.Volume.Bottom) * t.Scale)}–{TerrainLabel.Inches(t.Position.Z + t.Volumes.Max(v => v.Volume.Top) * t.Scale)}\"";
+        var height = TerrainLabel.RangeOf(t);
         var volumes = t.Volumes.Select(tv =>
         {
             var v = tv.Volume; var flags = TerrainLabel.FlagsOf(v, words);
-            return new TerrainCardVolume(tv.Id, v.Kind.ToString(), FootprintOf(v.Footprint, t.Scale), TerrainLabel.HeightsOf(t, v), flags.Count == 0 ? ["Open"] : flags, v.Notes);
+            return new TerrainCardVolume(tv.Id, v.Kind.ToString(), FootprintOf(v.Footprint, t.Scale), TerrainLabel.HeightsOf(t, v), flags.Count == 0 ? ["Open"] : flags, v.Notes, TerrainEffects.Primary(v.Declarations).Colour);
         }).ToList();
-        return new TerrainCardContent(t.Id, TerrainLabel.NameOf(t), source, FacingOf(t.Yaw), t.Scale, height, volumes, status == GameStatus.Setup);
+        var all = t.Volumes.Aggregate(TerrainDeclarations.None, (d, tv) => d | tv.Volume.Declarations);
+        return new TerrainCardContent(t.Id, TerrainLabel.NameOf(t), source, FacingOf(t.Yaw), t.Scale, height, volumes, status == GameStatus.Setup)
+            { Effects = TerrainEffects.Rows(all, words, rules) };
     }
 
     /// <summary>Degrees counter-clockwise from above, whole, 0–359.</summary>
@@ -53,7 +59,7 @@ public sealed record TerrainCardContent(Guid PieceId, string Name, string Source
         : $"{TerrainLabel.Inches(f.A * scale)} × {TerrainLabel.Inches(f.B * scale)}\"";
 
     public bool Equals(TerrainCardContent? o) => o is not null && PieceId == o.PieceId && Name == o.Name && Source == o.Source && Facing == o.Facing
-        && Scale == o.Scale && Height == o.Height && Editable == o.Editable && Volumes.SequenceEqual(o.Volumes);
+        && Scale == o.Scale && Height == o.Height && Editable == o.Editable && Volumes.SequenceEqual(o.Volumes) && Effects.SequenceEqual(o.Effects);
     public override int GetHashCode() => HashCode.Combine(PieceId, Name, Source, Facing, Scale, Height, Editable, Volumes.Count);
 }
 

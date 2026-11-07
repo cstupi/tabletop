@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Theming;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -20,7 +21,12 @@ public partial class PieceMenu : PopupMenu
     {
         if (items.Count == 0) return;
         Clear(); _items = items;
-        for (var i = 0; i < items.Count; i++) AddItem(items[i].Label, i);
+        AddThemeConstantOverride("icon_max_width", 20);
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i].Icon is { } icon && Ui.Icon(icon) is { } texture) { AddIconItem(texture, items[i].Label, i); SetItemIconModulate(i, Ui.Text); }
+            else AddItem(items[i].Label, i);
+        }
         Position = (Vector2I)screen; Popup();
     }
 

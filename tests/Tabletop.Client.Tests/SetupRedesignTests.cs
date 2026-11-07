@@ -31,6 +31,16 @@ public class SetupRedesignTests
     }
 
     [Fact]
+    public void The_legend_draws_each_group_in_its_lead_effects_icon_and_colour()
+    {
+        var lead = new[] { TerrainDeclarations.BlocksLineOfSight, TerrainDeclarations.Impassable, TerrainDeclarations.Dangerous, TerrainDeclarations.Cover, TerrainDeclarations.Difficult };
+        Assert.Equal(lead.Select(TerrainEffects.Of).Append(TerrainEffects.Open).Select(e => (e.Icon, e.Colour)), TerrainTiles.Legend.Select(k => (k.Key, k.Colour)));
+        foreach (var t in TerrainTiles.Of(Catalog))
+            Assert.Contains(TerrainEffects.Rows(t.Entry.Volume.Declarations, null, null), r => r.Icon == t.Kind.Key && r.Colour == t.Kind.Colour
+                || t.Kind == TerrainTiles.Dangerous && r.Flag == TerrainDeclarations.DangerousOnRushCharge || t.Kind == TerrainTiles.Difficult && r.Flag == TerrainDeclarations.Steep);
+    }
+
+    [Fact]
     public void A_legend_dot_hides_its_group_and_the_search_filters_by_name()
     {
         Assert.Equal(["Blocks sight", "Impassable", "Dangerous", "Cover", "Difficult", "Open"], TerrainTiles.Legend.Select(k => k.Legend));

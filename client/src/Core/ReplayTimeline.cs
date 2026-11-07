@@ -15,6 +15,8 @@ public sealed class ReplayTimeline(Board board, GameInfo game, IReadOnlyList<Gam
     EventApplier _at = new(board, game);
 
     public int Count => source.Count;
+    /// <summary>The whole log the replay runs over (the live log).</summary>
+    public IReadOnlyList<GameEvent> Source => source;
     public int Position => _at.Log.Count;
     public bool AtEnd => Position >= Count;
     public Projection Projection => _at.Projection;

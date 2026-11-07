@@ -70,6 +70,33 @@ public static class Ui
         return b;
     }
 
+    /// <summary>A terrain effect's chip (TerrainEffects): its colour faintly behind, a border in it.</summary>
+    public static StyleBoxFlat EffectChip(Rgba colour)
+    {
+        var c = Of(colour);
+        var b = new StyleBoxFlat { BgColor = c with { A = 0.2f }, BorderColor = c, CornerDetail = 6 };
+        b.SetBorderWidthAll(1); b.SetCornerRadiusAll(Math.Max(3, Math.Min(Current.Shape.CornerRadius, 8)));
+        b.ContentMarginLeft = 6; b.ContentMarginRight = 10; b.ContentMarginTop = b.ContentMarginBottom = 3;
+        return b;
+    }
+
+    /// <summary>A card's title band: a thick left edge in the colour (a team's, or a terrain piece's strongest effect).</summary>
+    public static StyleBoxFlat EdgeBand(Color edge)
+    {
+        var b = new StyleBoxFlat { BgColor = edge with { A = 0.12f }, BorderColor = edge };
+        b.BorderWidthLeft = 6; b.ContentMarginLeft = 12; b.ContentMarginRight = 8; b.ContentMarginTop = b.ContentMarginBottom = 4;
+        return b;
+    }
+
+    /// <summary>A floating panel over the table (the terrain hover): the theme's panel, opaque, with an accent border.</summary>
+    public static StyleBoxFlat FloatingPanel()
+    {
+        var b = new StyleBoxFlat { BgColor = Of(Current.Panel) with { A = 0.97f }, BorderColor = Of(Current.PanelBorder), CornerDetail = 6 };
+        b.SetBorderWidthAll(Math.Max(1, Current.Shape.BorderWidth)); b.SetCornerRadiusAll(Current.Shape.CornerRadius); b.SetContentMarginAll(12);
+        b.ShadowColor = Background with { A = 0.5f }; b.ShadowSize = 6;
+        return b;
+    }
+
     /// <summary>Null when the theme has no icon for the name.</summary>
     public static Texture2D? Icon(string name)
     {

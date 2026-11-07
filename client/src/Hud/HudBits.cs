@@ -1,10 +1,11 @@
 using Godot;
+using Tabletop.Client.Core;
 using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>The play Hud's shared pieces (UX redesign → Shared vocabulary): a tinted theme icon, a team band bar, a key cap, and a button
-/// that draws its icon, its word and its key cap.</summary>
+/// <summary>The play Hud's shared pieces (UX redesign → Shared vocabulary): a tinted theme icon, a team band bar, key caps, a button
+/// that draws its icon, its word and its key cap, and a terrain effect's chip.</summary>
 public static class HudBits
 {
     /// <summary>The theme's icon tinted; an empty square of the size when the theme has none, so rows keep their columns.</summary>
@@ -35,6 +36,26 @@ public static class HudBits
         if (ink is { } c) label.AddThemeColorOverride("font_color", c with { A = 0.75f });
         cap.AddChild(label);
         return cap;
+    }
+
+    /// <summary>Each key boxed as a cap (Variation.KeyCap), side by side.</summary>
+    public static HBoxContainer KeyCaps(IEnumerable<string> keys)
+    {
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 4);
+        foreach (var k in keys) row.AddChild(new Label { Text = k, ThemeTypeVariation = Variation.KeyCap, HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore });
+        return row;
+    }
+
+    /// <summary>A terrain effect as a chip: its icon in its colour, then its word.</summary>
+    public static PanelContainer EffectChip(TerrainEffectRow e, int iconSize = 20)
+    {
+        var chip = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, TooltipText = e.Rule ?? "" };
+        chip.AddThemeStyleboxOverride("panel", Ui.EffectChip(e.Colour));
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); chip.AddChild(row);
+        row.AddChild(Icon(e.Icon, Ui.Of(e.Colour), iconSize));
+        row.AddChild(new Label { Text = e.Word, VerticalAlignment = VerticalAlignment.Center });
+        return chip;
     }
 
     /// <summary>A button drawing the icon, the word and the key cap at its right (UX redesign → Key cap). The row lays itself out inside

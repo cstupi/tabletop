@@ -95,10 +95,10 @@ function zones(ctx: Ctx, scene: Scene, view: View): void {
 function terrain(ctx: Ctx, scene: Scene, view: View, at: At, c: BoardColours, o: DrawOptions, named: boolean): void {
   for (const piece of scene.terrain) {
     const style = terrainStyle(piece.kind, piece.declarations);
-    path(ctx, piece.shape, view, scene.table);
-    ctx.fillStyle = style.fill;
-    ctx.fill();
     const picked = o.selected.has(piece.id);
+    path(ctx, piece.shape, view, scene.table);
+    ctx.fillStyle = picked ? style.picked : style.fill;     // selected: each volume tinted in its strongest effect's colour
+    ctx.fill();
     ctx.strokeStyle = RIM;                          // a dark rim under the edge separates a piece from any table colour
     ctx.lineWidth = style.width + 2;
     ctx.stroke();

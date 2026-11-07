@@ -5,6 +5,7 @@
 import { declarationsOf } from '../live/project';
 import type { BuiltinTerrain, Catalog } from './catalog';
 import { declarationWords, type TerrainWords } from './terrainCard';
+import { effectOf, OPEN_GROUND } from '../play/terrainEffects';
 
 export interface TerrainGroup { readonly title: string; readonly entries: readonly BuiltinTerrain[] }
 
@@ -54,18 +55,24 @@ export function terrainGroups(catalog: Catalog, query = '', given?: TerrainWords
     .map(([title, list]) => ({ title: titleOf(title, given), entries: list.sort((a, b) => a.label.localeCompare(b.label)) }));
 }
 
-/** A terrain group as a tile and legend dot (TerrainTiles.cs): its icon key, legend word and colour. */
+/** A terrain group as a tile and legend dot (TerrainTiles.cs): its icon key, legend word and colour, its lead declaration's in TERRAIN_EFFECTS. */
 export interface TerrainKind { readonly key: string; readonly legend: string; readonly colour: string }
 export interface TerrainTile { readonly entry: BuiltinTerrain; readonly kind: TerrainKind; readonly summary: string }
 
+/** A group's tile and legend dot in its lead declaration's icon and colour (terrainEffects.ts). */
+const kindOfEffect = (name: string, legend: string): TerrainKind => {
+  const e = name === OPEN_GROUND.name ? OPEN_GROUND : effectOf(name);
+  return { key: e.icon, legend, colour: e.colour };
+};
+
 /** The six groups in the order a table is balanced; each a group of GROUPS above, then Open ground. */
 export const TERRAIN_KINDS: readonly TerrainKind[] = [
-  { key: 'blocks-sight', legend: 'Blocks sight', colour: '#C98CFF' },
-  { key: 'impassable', legend: 'Impassable', colour: '#FF6B5C' },
-  { key: 'dangerous', legend: 'Dangerous', colour: '#FF9D4E' },
-  { key: 'cover', legend: 'Cover', colour: '#6DDF7C' },
-  { key: 'difficult', legend: 'Difficult', colour: '#FFC44E' },
-  { key: 'open-ground', legend: 'Open', colour: '#8B93A1' },
+  kindOfEffect('blocks_line_of_sight', 'Blocks sight'),
+  kindOfEffect('impassable', 'Impassable'),
+  kindOfEffect('dangerous', 'Dangerous'),
+  kindOfEffect('cover', 'Cover'),
+  kindOfEffect('difficult', 'Difficult'),
+  kindOfEffect(OPEN_GROUND.name, 'Open'),
 ];
 
 /** A piece's group: the first of GROUPS it carries a declaration of, else Open. */

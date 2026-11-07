@@ -1,9 +1,15 @@
 <!-- viewer/src/lib/setup/SetupIcon.svelte -->
 <!-- The setup panel's icons, the paths of Godot's client/content/themes/*/icons/<name>.svg, drawn in currentColor. -->
 <script lang="ts">
-  /** terrain, objective, table, zone, layout, remove, dice, add, or a terrain group's key (TERRAIN_KINDS). */
+  import HudIcon from '../play/HudIcon.svelte';
+  /** terrain, objective, table, zone, layout, remove, dice, add, or a terrain group's key (TERRAIN_KINDS), drawn by HudIcon as the play Hud draws it. */
   let { name, size = 20 }: { name: string; size?: number } = $props();
+  const OWN = new Set(['terrain', 'objective', 'table', 'zone', 'layout', 'remove', 'dice', 'add']);
 </script>
+
+{#if !OWN.has(name)}
+<HudIcon {name} {size} />
+{:else}
 
 <svg class="icon" width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
   stroke-linejoin="round" aria-hidden="true">
@@ -25,20 +31,9 @@
     {#each [[11, 11], [21, 11], [16, 16], [11, 21], [21, 21]] as [cx, cy] (`${cx},${cy}`)}<circle {cx} {cy} r="1.4" fill="currentColor" />{/each}
   {:else if name === 'add'}
     <circle cx="16" cy="16" r="12" /><path d="M16 10v12M10 16h12" />
-  {:else if name === 'blocks-sight'}
-    <path d="M3 16 C8 8 24 8 29 16 C24 24 8 24 3 16 Z" /><path d="M16 12 A4 4 0 1 1 15.99 12 Z" /><path d="M5 28 L27 4" />
-  {:else if name === 'impassable'}
-    <path d="M16 4 A12 12 0 1 1 15.99 4 Z" /><path d="M7.5 7.5 L24.5 24.5" />
-  {:else if name === 'dangerous'}
-    <path d="M3 27 H29" /><path d="M5 27 L9 11 L13 27" /><path d="M12 27 L16 5 L20 27" /><path d="M19 27 L23 13 L27 27" />
-  {:else if name === 'cover'}
-    <path d="M16 4 L26 8 V16 C26 22 21 26 16 28 C11 26 6 22 6 16 V8 Z" /><path d="M16 9 V23" />
-  {:else if name === 'difficult'}
-    <path d="M3 11 Q7 7 11 11 T19 11 T27 11" /><path d="M3 18 Q7 14 11 18 T19 18 T27 18" /><path d="M3 25 Q7 21 11 25 T19 25 T27 25" />
-  {:else}
-    <path d="M3 23 H29" /><path d="M7 23 L9 18 M13 23 L14 17 M19 23 L21 18 M25 23 L26 19" />
   {/if}
 </svg>
+{/if}
 
 <style>
   .icon { flex: none; display: block; }
