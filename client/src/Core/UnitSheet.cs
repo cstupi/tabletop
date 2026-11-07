@@ -76,7 +76,7 @@ public static partial class UnitSheet
         var chips = new List<SheetChip>();
         if (RosterView.ReserveOf(p, unit) is { } reserve) chips.Add(new(ChipKind.Reserve, reserve));
         if (unit.Actions.Count > 0) chips.Add(new(ChipKind.Activated, $"Activated: {string.Join(", ", unit.Actions.Order(StringComparer.Ordinal))}"));
-        chips.AddRange(unit.Conditions.Order(StringComparer.Ordinal).Select(c => new SheetChip(ChipKind.Condition, RosterView.Words(c), c)));
+        chips.AddRange(Bookkeeping.OnCard(unit.Conditions).Order(StringComparer.Ordinal).Select(c => new SheetChip(ChipKind.Condition, RosterView.Words(c), c)));
         var tokens = p.Models.Values.Where(m => m.UnitId == unit.Id).Sum(m => m.SpellTokens);
         if (tokens > 0) chips.Add(new(ChipKind.SpellTokens, $"{tokens} spell token{(tokens == 1 ? "" : "s")}"));
         chips.AddRange(unit.Grants.Select(g => new SheetChip(ChipKind.Grant,

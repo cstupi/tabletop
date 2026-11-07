@@ -95,6 +95,16 @@ public class UnitSheetTests
     }
 
     [Fact]
+    public void Moved_and_moved_this_round_show_as_one_chip()
+    {
+        var unit = new Subject(SubjectKind.Unit, Samples.Unit);
+        var a = Applier(Samples.Board, new ConditionSet(unit, "moved", true), new ConditionSet(unit, "moved this round", true));
+        Assert.Equal([new SheetChip(ChipKind.Condition, "Moved", "moved")], Sheet(a, Samples.Unit, NoFacts).Chips);
+        var later = Applier(Samples.Board, new ConditionSet(unit, "moved this round", true));
+        Assert.Equal([new SheetChip(ChipKind.Condition, "Moved this round", "moved this round")], Sheet(later, Samples.Unit, NoFacts).Chips);
+    }
+
+    [Fact]
     public void An_AP_rule_without_a_parameter_stays_in_the_rules()
     {
         var odd = new Unit(Guid.CreateVersion7(), 1, "Odd", new Dictionary<string, string>(), [],

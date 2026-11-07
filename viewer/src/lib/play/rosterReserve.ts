@@ -22,3 +22,9 @@ export const words = (name: string): string => (name.length === 0 ? name : name[
  * card lists them; the roster leaves them out. */
 export const BOOKKEEPING: ReadonlySet<string> = new Set(['moved', 'moved this round', 'ambushed this round', 're-deployed', 'instinctive']);
 export const shownCondition = (condition: string): boolean => !BOOKKEEPING.has(condition);
+
+/** Bookkeeping.OnCard: the conditions the unit card lists; `moved this round` goes while `moved` says the same. */
+export const onCard = (conditions: Iterable<string>): string[] => {
+  const all = [...conditions];
+  return all.includes('moved') ? all.filter((c) => c !== 'moved this round') : all;
+};

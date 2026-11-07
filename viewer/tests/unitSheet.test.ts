@@ -96,6 +96,14 @@ describe('UnitSheet', () => {
     expect(sheetOf(a, game, UnitId, noFacts).chips).toEqual(chips);
   });
 
+  it('moved and moved this round show as one chip', () => {
+    const set = (condition: string) => ({ kind: 'condition_set' as const, subject: { kind: 'unit' as const, id: UnitId }, condition, present: true });
+    expect(sheetOf(applier(sampleBoard, game, set('moved'), set('moved this round')), game, UnitId, noFacts).chips)
+      .toEqual([{ kind: 'condition', text: 'Moved', condition: 'moved' }]);
+    expect(sheetOf(applier(sampleBoard, game, set('moved this round')), game, UnitId, noFacts).chips)
+      .toEqual([{ kind: 'condition', text: 'Moved this round', condition: 'moved this round' }]);
+  });
+
   it('an AP rule without a parameter stays in the rules', () => {
     const odd: Unit = unitOf('Odd', [slotOf({ name: 'Trooper 1', weapons: [ranged('Lance', '18"', { name: 'AP' }, { name: 'Rending' })] })]);
     const lance = sheetOf(applier(boardOf([{ participantId: P1, units: [odd] }]), game), game, odd.id, noFacts).weapons[0]!;

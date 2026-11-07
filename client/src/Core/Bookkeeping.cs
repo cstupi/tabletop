@@ -8,4 +8,11 @@ public static class Bookkeeping
         { "moved", "moved this round", "ambushed this round", "re-deployed", "instinctive" };
 
     public static bool Shown(string condition) => !Conditions.Contains(condition);
+
+    /// <summary>The conditions the unit card lists: `moved this round` goes while `moved` says the same.</summary>
+    public static IEnumerable<string> OnCard(IEnumerable<string> conditions)
+    {
+        var all = conditions.ToList();
+        return all.Contains("moved") ? all.Where(c => c != "moved this round") : all;
+    }
 }

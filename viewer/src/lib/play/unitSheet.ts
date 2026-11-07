@@ -6,7 +6,7 @@
 import type { ModelInPlay, Projection, UnitInPlay } from '../live/apply';
 import type { ModelSlot, PropertyInstance, Unit, Weapon } from '../protocol/wire.generated';
 import type { Names } from './names';
-import { reserveOf, words } from './rosterReserve';
+import { onCard, reserveOf, words } from './rosterReserve';
 import type { RuleTexts } from './ruleTexts';
 
 /** A rule as the sheet shows it: its label with the parameter, its catalog text, and the *not automated* tag (a loaded catalog without it). */
@@ -97,7 +97,7 @@ function chipsOf(p: Projection, n: Names, unit: UnitInPlay): SheetChip[] {
   const reserve = reserveOf(p, unit);
   if (reserve !== null) chips.push({ kind: 'reserve', text: reserve });
   if (unit.actions.size > 0) chips.push({ kind: 'activated', text: `Activated: ${[...unit.actions].sort(ordinal).join(', ')}` });
-  for (const c of [...unit.conditions].sort(ordinal)) chips.push({ kind: 'condition', text: words(c), condition: c });
+  for (const c of onCard(unit.conditions).sort(ordinal)) chips.push({ kind: 'condition', text: words(c), condition: c });
   let tokens = 0;
   for (const m of p.models.values()) if (m.unitId === unit.id) tokens += m.spellTokens;
   if (tokens > 0) chips.push({ kind: 'spell_tokens', text: `${tokens} spell token${tokens === 1 ? '' : 's'}` });
