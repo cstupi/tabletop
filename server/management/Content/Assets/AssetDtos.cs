@@ -1,11 +1,14 @@
+using System.Text.Json.Serialization;
 using Tabletop.Geometry;
 
 namespace Tabletop.Management.Content.Assets;
 
 public enum AssetKind { Miniature, Terrain, Texture }
 
-/// <summary>An asset of the caller's.</summary>
-public sealed record AssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, bool Uploaded, double Scale, Orientation Orientation, Base? ModelledBase);
+/// <summary>An asset of the caller's. <c>ThumbnailKey</c> is the stored key and never leaves the server; <c>Thumbnail</c> is a presigned
+/// GET of it, filled by the endpoints that read assets.</summary>
+public sealed record AssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, bool Uploaded, double Scale, Orientation Orientation, Base? ModelledBase,
+    [property: JsonIgnore] string? ThumbnailKey = null, Uri? Thumbnail = null);
 public sealed record CreateAssetRequest(string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase);
 public sealed record CreateAssetResponse(AssetDto Asset, Uri? UploadUrl);
 public sealed record ConfirmResponse(AssetDto Asset, long? Triangles, string? Warning);
@@ -27,4 +30,15 @@ public static class AssetRules
     public static AssetKind Kind(string k) => Enum.Parse<AssetKind>(k, ignoreCase: true);
     public static string Shape(BaseShape s) => s.ToString().ToLowerInvariant();
     public static BaseShape Shape(string s) => Enum.Parse<BaseShape>(s, ignoreCase: true);
+}
+
+/// <summary>A thumbnail: a PNG or WebP of at most <c>Bytes</c> and <c>Side</c> pixels a side, of an uploaded mesh asset.</summary>
+public static class ThumbnailLimits
+{
+    public const int Bytes = 256 << 10, Side = 512;
+    public static readonly string[] ContentTypes = ["image/png", "image/webp"];
+    public static readonly TimeSpan Ttl = TimeSpan.FromMinutes(60);
+
+    /// <summary>A presigned GET of the key, or null for none.</summary>
+    public static async Task<Uri?> Url(IBlobStore blobs, string? key) => key is null ? null : await blobs.PresignDownload(key, Ttl);
 }

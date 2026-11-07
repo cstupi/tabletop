@@ -20,7 +20,7 @@ public sealed class InMemoryRows
     public sealed class AssetRow
     {
         public required Guid Owner; public required string Hash; public required string Name; public AssetKind Kind;
-        public double Scale; public Orientation Orientation; public Base? ModelledBase;
+        public double Scale; public Orientation Orientation; public Base? ModelledBase; public string? ThumbnailKey;
         public List<TerrainVolume> Volumes = [];
     }
     public sealed class FolderRow { public required Guid Owner; public Guid? ParentId; public required string Name; public bool Shared; }
@@ -172,7 +172,7 @@ public sealed class InMemoryRows
             var id = NextId();
             Assets.Add(id, new AssetRow
             {
-                Owner = callerId, Hash = s.Hash, Name = s.Name, Kind = s.Kind, Scale = s.Scale, Orientation = s.Orientation, ModelledBase = s.ModelledBase,
+                Owner = callerId, Hash = s.Hash, Name = s.Name, Kind = s.Kind, Scale = s.Scale, Orientation = s.Orientation, ModelledBase = s.ModelledBase, ThumbnailKey = s.ThumbnailKey,
                 Volumes = s.Volumes.Select(v => new TerrainVolume(NextId(), v.Volume)).ToList(),
             });
             copies.Add((sourceId, id));

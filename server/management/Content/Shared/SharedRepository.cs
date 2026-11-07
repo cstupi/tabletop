@@ -11,7 +11,7 @@ public sealed class SharedRepository(Database db) : ISharedRepository
     private sealed record Owner(Guid Id, string Username, string Name, Guid Root);
     private sealed record FolderRow(Guid Id, Guid? ParentId, string Name);
     private sealed record AssetRow(Guid Id, string Name, string Kind, string Hash, long ByteSize, string ContentType, double Scale,
-        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB);
+        double Pitch, double Yaw, double Roll, string? Shape, double? BaseA, double? BaseB, string? Thumb);
 
     /// <summary>The account holding the username (ignoring case) and its Shared folder.</summary>
     private static Task<Owner?> Find(NpgsqlConnection c, string username, System.Data.Common.DbTransaction? tx = null) =>
@@ -41,13 +41,13 @@ public sealed class SharedRepository(Database db) : ISharedRepository
         var ids = filed.Select(f => f.Asset).Distinct().ToArray();
         var assets = await c.QueryAsync<AssetRow>(@"select a.id as Id, a.name as Name, a.kind as Kind, a.blob_hash as Hash, b.byte_size as ByteSize, b.content_type as ContentType,
                 a.scale::float8 as Scale, a.orientation_pitch::float8 as Pitch, a.orientation_yaw::float8 as Yaw, a.orientation_roll::float8 as Roll,
-                a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB
+                a.modelled_base_shape as Shape, a.modelled_base_a::float8 as BaseA, a.modelled_base_b::float8 as BaseB, a.thumbnail_key as Thumb
             from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash where a.id = any(@ids) order by a.id", new { ids });
         var byFolder = filed.ToLookup(f => f.Folder, f => f.Asset);
         return new SharedLibraryDto(o.Username, o.Name,
             folders.Select(f => new SharedFolderDto(f.Id, f.Id == o.Root ? null : f.ParentId, f.Name, byFolder[f.Id].Order().ToList())).ToList(),
             assets.Select(a => new SharedAssetDto(a.Id, a.Name, AssetRules.Kind(a.Kind), a.Hash, a.ByteSize, a.ContentType, a.Scale, new Orientation(a.Pitch, a.Yaw, a.Roll),
-                a.Shape is null ? null : new Base(AssetRules.Shape(a.Shape), a.BaseA!.Value, a.BaseB!.Value))).ToList());
+                a.Shape is null ? null : new Base(AssetRules.Shape(a.Shape), a.BaseA!.Value, a.BaseB!.Value), a.Thumb)).ToList());
     }
 
     public async Task<string?> BlobKey(string username, Guid assetId)

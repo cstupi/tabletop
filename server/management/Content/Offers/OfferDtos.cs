@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Tabletop.Geometry;
 using Tabletop.Management.Content.Assets;
 
@@ -10,7 +11,9 @@ public enum OfferState { Open, Accepted, Declined, Withdrawn }
 public sealed record PlayerDto(Guid AccountId, string Name, IReadOnlyList<string> Games, DateTimeOffset LastPlayed);
 
 /// <summary>One offered asset as it stands now (an offer names assets, not copies of their fields).</summary>
-public sealed record OfferAssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase);
+/// <c>ThumbnailKey</c> stays on the server; <c>Thumbnail</c> is its presigned GET.
+public sealed record OfferAssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase,
+    [property: JsonIgnore] string? ThumbnailKey = null, Uri? Thumbnail = null);
 
 /// <summary>An offer of a set of the sharer's assets to one recipient. <c>Folder</c> is the folder's name when a folder was offered.
 /// <c>Assets</c> are the offered assets the sharer still has.</summary>

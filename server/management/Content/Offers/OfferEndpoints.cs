@@ -10,6 +10,19 @@ public static class OfferEndpoints
 {
     private static readonly TimeSpan DownloadTtl = TimeSpan.FromMinutes(60);
 
+    /// <summary>Each offered asset with its thumbnail's presigned GET.</summary>
+    private static async Task<IReadOnlyList<OfferDto>> WithThumbnails(IBlobStore blobs, IReadOnlyList<OfferDto> offers)
+    {
+        var result = new List<OfferDto>(offers.Count);
+        foreach (var o in offers)
+        {
+            var assets = new List<OfferAssetDto>(o.Assets.Count);
+            foreach (var a in o.Assets) assets.Add(a.ThumbnailKey is null ? a : a with { Thumbnail = await ThumbnailLimits.Url(blobs, a.ThumbnailKey) });
+            result.Add(o with { Assets = assets });
+        }
+        return result;
+    }
+
     public static void MapOffers(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/v1/offers").RequireAuthorization();
@@ -37,16 +50,16 @@ public static class OfferEndpoints
             return Results.Ok(new CreateOffersResponse(made, result.NotFound));
         });
 
-        g.MapGet("/sent", async (ClaimsPrincipal user, IOfferRepository offers, int? limit, Guid? after) =>
+        g.MapGet("/sent", async (ClaimsPrincipal user, IOfferRepository offers, IBlobStore blobs, int? limit, Guid? after) =>
         {
             var page = Keyset.Parse(limit, after);
-            return Results.Ok(Page<OfferDto>.Of(await offers.Sent(CurrentAccount.Id(user), page), page.Limit, o => o.Id));
+            return Results.Ok(Page<OfferDto>.Of(await WithThumbnails(blobs, await offers.Sent(CurrentAccount.Id(user), page)), page.Limit, o => o.Id));
         });
 
-        g.MapGet("/received", async (ClaimsPrincipal user, IOfferRepository offers, int? limit, Guid? after) =>
+        g.MapGet("/received", async (ClaimsPrincipal user, IOfferRepository offers, IBlobStore blobs, int? limit, Guid? after) =>
         {
             var page = Keyset.Parse(limit, after);
-            return Results.Ok(Page<OfferDto>.Of(await offers.Received(CurrentAccount.Id(user), page), page.Limit, o => o.Id));
+            return Results.Ok(Page<OfferDto>.Of(await WithThumbnails(blobs, await offers.Received(CurrentAccount.Id(user), page)), page.Limit, o => o.Id));
         });
 
         g.MapGet("/received/count", async (ClaimsPrincipal user, IOfferRepository offers) => Results.Ok(new OfferCountDto(await offers.OpenCount(CurrentAccount.Id(user)))));

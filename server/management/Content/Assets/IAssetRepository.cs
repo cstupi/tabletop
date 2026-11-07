@@ -27,6 +27,8 @@ public interface IAssetRepository
     Task<AssetDto?> Patch(Guid ownerId, Guid id, PatchAssetRequest p);
     /// <summary>False when the owner has no blob row for the hash (the sweep deleted it).</summary>
     Task<bool> MarkUploaded(Guid ownerId, string hash);
+    /// <summary>Points the owner's asset at a thumbnail object; false when the owner has no such asset.</summary>
+    Task<bool> SetThumbnail(Guid ownerId, Guid id, string key);
     /// <summary>The kind of each of these ids that is an asset of the owner with its bytes uploaded; other ids are absent.</summary>
     Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids);
     /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too, and when no blob row
@@ -34,7 +36,7 @@ public interface IAssetRepository
     Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id);
     /// <summary>The S3 key the asset's blob row names; null when the owner has no such asset.</summary>
     Task<string?> BlobKey(Guid ownerId, Guid id);
-    /// <summary>The keys no blob row of any owner names: what may be deleted from the store.</summary>
+    /// <summary>The keys no blob row and no asset's thumbnail key of any owner names: what may be deleted from the store.</summary>
     Task<IReadOnlyList<string>> Unreferenced(IReadOnlyList<string> keys);
     Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId);
     /// <summary>Replaces the asset's volumes with fresh ids. The caller has checked ownership.</summary>

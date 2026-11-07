@@ -20,7 +20,7 @@ public sealed class InMemoryOfferRepository(InMemoryRows rows) : IOfferRepositor
         o.AssetIds.Where(Uploaded).Order().Select(aid =>
         {
             var a = rows.Assets[aid]; var b = rows.Blobs[(a.Owner, a.Hash)];
-            return new OfferAssetDto(aid, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, a.Scale, a.Orientation, a.ModelledBase);
+            return new OfferAssetDto(aid, a.Name, a.Kind, a.Hash, b.ByteSize, b.ContentType, a.Scale, a.Orientation, a.ModelledBase, a.ThumbnailKey);
         }).ToList());
 
     public Task<IReadOnlyList<PlayerDto>> Players(Guid callerId)

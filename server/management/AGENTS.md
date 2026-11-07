@@ -32,6 +32,13 @@
 - A new account is named `Player-xxxx` (`Sessions.DefaultName`), never from the email; `PATCH /v1/account` renames. Accounts created earlier keep their email-derived name until renamed.
 - Authenticated requests carry the Stytch session JWT. Verification: RS256, issuer `stytch.com/{projectId}`, audience the project id, keys from `StytchJwks`: `OnMessageReceived` awaits `Ensure(kid)` (one fetch in flight, 5 s cap, 30 s floor on misses), and the synchronous key resolver reads `Cached(kid)` only. `CurrentAccount.Id` reads the `account_id` claim and throws `UnauthorizedAccessException` (401) without it.
 - Assets: `POST /v1/assets` checks the name, size cap (mesh 64 MiB, texture 16 MiB) and quota (500 assets, 1 GiB, under an account-row lock) and returns a presigned PUT (5 min) to `staging/{owner}/{assetId}`. `POST /v1/assets/{id}/confirm` copies it to a `.held` key no URL names, hashes and validates that copy (`GlbHeader.Check`, `ImageHeader.CheckTexture`, limits in `UploadLimits`), copies it to `{owner}/{hash}` and marks the blob uploaded. No user URL ever writes a content key. `GET /v1/assets/{id}/download` returns a presigned GET. Volumes: ≤ 16 per asset, bounded notes.
+- Thumbnails: `PUT /v1/assets/{id}/thumbnail` (the owner's uploaded mesh asset; body `image/png` or `image/webp`, ≤ 256 KiB and 512 × 512 by
+  `ImageHeader.Read`, `ThumbnailLimits`; else 415, 422, 409 for a pending asset or a texture) stores the browser-rendered picture at
+  `thumbs/{assetId}` (`IBlobStore.ThumbnailKey`) and sets `asset.thumbnail_key`. `AssetDto`, `OfferAssetDto` and `SharedAssetDto` carry the
+  key server-side only (`[JsonIgnore]`); `GET /v1/assets`, `/v1/assets/{id}`, `/v1/offers/sent`, `/v1/offers/received` and
+  `GET /v1/shared/{username}` fill `thumbnail` with a presigned GET (60 min). A copy takes the source's key (`AssetCopies`); `Unreferenced`
+  counts a key an asset's `thumbnail_key` names, so the object goes with the last row naming it (asset delete, `AccountDeleter` through
+  `BlobKeys`).
 - `UploadSweeper` runs `UploadSweep.Run` every 10 min: staging objects and never-confirmed blob rows older than 1 h go. Operator backstop: a MinIO lifecycle rule expiring `staging/` after a day. The S3 credentials need ListBucket and CopyObject.
 - Folders: at most 200 per account, names via `Limits.Text`.
 - Blobs are keyed by owner and content hash (`IBlobStore.Key`). Presigned PUT URLs cannot enforce size; the create cap and the confirm size check are the guards.

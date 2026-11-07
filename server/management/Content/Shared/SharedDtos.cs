@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Tabletop.Geometry;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Http;
@@ -8,8 +9,9 @@ namespace Tabletop.Management.Content.Shared;
 /// <c>ParentId</c> is null.</summary>
 public sealed record SharedFolderDto(Guid Id, Guid? ParentId, string Name, IReadOnlyList<Guid> AssetIds);
 
-/// <summary>A shared asset as it stands now.</summary>
-public sealed record SharedAssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase);
+/// <summary>A shared asset as it stands now. <c>ThumbnailKey</c> stays on the server; <c>Thumbnail</c> is its presigned GET.</summary>
+public sealed record SharedAssetDto(Guid Id, string Name, AssetKind Kind, string Hash, long ByteSize, string ContentType, double Scale, Orientation Orientation, Base? ModelledBase,
+    [property: JsonIgnore] string? ThumbnailKey = null, Uri? Thumbnail = null);
 
 /// <summary><c>GET /v1/shared/{username}</c>: the owner's username as stored, display name, Shared subtree and the uploaded assets in it.</summary>
 public sealed record SharedLibraryDto(string Username, string Name, IReadOnlyList<SharedFolderDto> Folders, IReadOnlyList<SharedAssetDto> Assets);
