@@ -2,26 +2,33 @@ using Godot; using Tabletop.Client.Core; using Tabletop.Client.Theming; using Ta
 namespace Tabletop.Client.Table;
 
 /// <summary>My selected unit's range rings when V has them on (ClientSettings.RangeRings, so the choice is remembered), each labelled with its printed range;
-/// and the hovered unit of another team's threat rings (ThreatRings over Session.Threats), in its team colour, whatever V says. Readable rings plan:
+/// and the threat rings (ThreatRings over Session.Threats), in the unit's team colour, whatever V says, of the selected unit of another team than the one
+/// I act for (kept until the selection changes) and of the hovered one; and with T on, every such team's Charge and Shoot areas (ThreatRings.All),
+/// in deployment and play alike. Readable rings plan:
 /// each ring fills its area in its kind's opacity (RingLook) under a screen-constant outline (RingMesh), and carries a screen-space label, the
 /// kind's icon and its words in the team colour, under the outline's point lowest on the screen (RingLabels), never over another label.</summary>
 public partial class RangeRingNode : Node3D
 {
     Session _s = null!; TableInput _input = null!;
-    readonly Layer _threat = new(), _range = new();
+    readonly Layer _picked = new(), _hovered = new(), _range = new(); readonly List<Layer> _all = new();
+    bool _allOn;
     readonly CanvasLayer _canvas = new(); readonly Control _labels = new() { MouseFilter = Control.MouseFilterEnum.Ignore };
     Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Intent>? _onIntent; Action<Guid?>? _onHover;
-    readonly RangeRingCache _rings = new(); readonly ThreatRingCache _threats = new();
+    readonly RangeRingCache _rings = new(); readonly ThreatRingCache _pickedThreat = new(), _hoveredThreat = new(); readonly AllThreatCache _allThreats = new();
     readonly List<(float X, float Y)> _projected = new(); readonly List<HudRect> _wanted = new(); readonly List<Control> _order = new();
 
     public void Bind(Session session, TableInput input)
     {
         _s = session; _input = input;
         AddChild(_canvas); _canvas.AddChild(_labels); _labels.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        _threat.Attach(this, _labels); _range.Attach(this, _labels);
+        _picked.Attach(this, _labels); _hovered.Attach(this, _labels); _range.Attach(this, _labels);
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Facts | RenderCause.Game)) != 0) Draw(); }; _onChanged = Draw; _onHover = _ => Draw();
-        _onTheme = () => { _labels.Theme = Ui.Theme; _threat.Forget(); _range.Forget(); Draw(); };                              // the themed team colour, font and icons
-        _onIntent = i => { if (i == Intent.ToggleRangeRings) _s.UpdateSettings(x => x with { RangeRings = !x.RangeRings }); };   // SettingsChanged redraws
+        _onTheme = () => { _labels.Theme = Ui.Theme; foreach (var l in Layers) l.Forget(); Draw(); };                           // the themed team colour, font and icons
+        _onIntent = i =>
+        {
+            if (i == Intent.ToggleRangeRings) _s.UpdateSettings(x => x with { RangeRings = !x.RangeRings });                   // SettingsChanged redraws
+            else if (i == Intent.ToggleAllThreats) { _allOn = !_allOn; Draw(); }
+        };
         session.Frame.Render += _onFrame; session.SettingsChanged += _onChanged; Ui.Changed += _onTheme;                       // the Settings dialog's toggle
         input.SelectionChanged += _onChanged; input.IntentPressed += _onIntent; input.HoveredUnitChanged += _onHover; _onTheme();
     }
@@ -32,7 +39,28 @@ public partial class RangeRingNode : Node3D
         if (IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.IntentPressed -= _onIntent; _input.HoveredUnitChanged -= _onHover; }
     }
 
-    void Draw() { _threat.Show(ThreatWanted()); _range.Show(RangeWanted()); }
+    /// <summary>Every layer, in the order their labels claim room: the selected and hovered units' first, then T's areas, then V's rings. Rebuilt
+    /// only when T adds a layer, so a frame walks it without allocating.</summary>
+    Layer[] _layers = [];
+    Layer[] Layers => _layers.Length == _all.Count + 3 ? _layers : _layers = [_picked, _hovered, .. _all, _range];
+
+    void Draw()
+    {
+        DrawAll();
+        var picked = _input.Selected?.PieceId; var hovered = _input.HoveredUnit;
+        var shown = _s.Projection is { } p && _s.Game is { } game ? ThreatRings.Shown(game, p, _s.MyTeamId, picked, hovered, _s.Threats) : [];
+        _picked.Show(picked is { } a && shown.Contains(a) ? ThreatOf(a, _pickedThreat) : null);
+        _hovered.Show(hovered is { } b && b != picked && shown.Contains(b) ? ThreatOf(b, _hoveredThreat) : null);
+        _range.Show(RangeWanted());
+    }
+
+    /// <summary>T: a layer per enemy team, each its Charge and Shoot areas in the team's colour; the cache keeps the list while nothing it reads changed.</summary>
+    void DrawAll()
+    {
+        IReadOnlyList<TeamThreat> teams = _allOn && _s.Projection is { } p && _s.Game is { } game ? _allThreats.Of(game, p, _s.MyTeamId, _s.Threats) : [];
+        while (_all.Count < teams.Count) { var layer = new Layer(); layer.Attach(this, _labels); _all.Add(layer); }
+        for (var i = 0; i < _all.Count; i++) _all[i].Show(i < teams.Count ? (teams[i].Rings, Palette.Team(teams[i].Ordinal)) : null);
+    }
 
     (IReadOnlyList<RangeRing> Rings, Color Colour)? RangeWanted()
     {
@@ -41,23 +69,25 @@ public partial class RangeRingNode : Node3D
         return (_rings.Of(p, unit), Palette.Team(game.Teams.First(t => t.Id == team).Ordinal));
     }
 
-    (IReadOnlyList<RangeRing> Rings, Color Colour)? ThreatWanted()
+    (IReadOnlyList<RangeRing> Rings, Color Colour)? ThreatOf(Guid unit, ThreatRingCache cache)
     {
-        if (_s.Projection is not { } p || _s.Game is not { } game || _input.HoveredUnit is not { } unit || !ThreatRings.OfAnotherTeam(game, p, _s.MyTeamIds, unit)) return null;
-        if (_s.Threats.GetValueOrDefault(unit) is not { } threat) return null;
+        if (_s.Projection is not { } p || _s.Game is not { } game || _s.Threats.GetValueOrDefault(unit) is not { } threat) return null;
         var team = game.Participants.FirstOrDefault(x => x.Id == p.Units[unit].ParticipantId)?.TeamId;
-        return (_threats.Of(p, unit, threat), Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0));
+        return (cache.Of(p, unit, threat), Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0));
     }
 
     /// <summary>Each frame: every shown label under its ring's lowest point on the screen, then moved apart (RingLabels.Place). A frame projects
     /// at most RingShape.Labels points per ring and builds nothing.</summary>
     public override void _Process(double delta)
     {
-        if (!_threat.Shown && !_range.Shown) return;
+        var layers = Layers; var any = false;
+        foreach (var l in layers) any |= l.Shown;
+        if (!any) return;
         if (GetViewport().GetCamera3D() is not { } cam) return;
         var size = GetViewport().GetVisibleRect().Size; var view = new HudRect(0, 0, size.X, size.Y);
         _wanted.Clear(); _order.Clear();
-        foreach (var (candidates, label) in _threat.Labels.Concat(_range.Labels))
+        foreach (var layer in layers)
+        foreach (var (candidates, label) in layer.Labels)
         {
             _projected.Clear();
             foreach (var q in candidates) if (!cam.IsPositionBehind(q)) { var s = cam.UnprojectPosition(q); _projected.Add((s.X, s.Y)); }

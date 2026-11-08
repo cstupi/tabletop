@@ -22,6 +22,14 @@ public class KeyOverlayViewTests
     }
 
     [Fact]
+    public void Every_open_asks_keys_end_with_T_for_every_enemy_threat_and_the_table_lists_it()
+    {
+        foreach (var mode in new[] { AskMode.Move, AskMode.PickPieces, AskMode.Choose, AskMode.Assign })
+            Assert.Equal(new KeyRow(["T"], "all enemy threats"), KeyOverlayView.Of(mode, "Deploy", false)[0].Rows[^1]);
+        Assert.Contains(new KeyRow(["T"], "all enemy threats"), KeyOverlayView.Table.Rows);
+    }
+
+    [Fact]
     public void Each_key_the_overlay_names_is_one_the_hotkeys_map()
     {
         // The single-letter caps of Camera, Measure and Table each map to an intent.

@@ -31,16 +31,20 @@ public static class KeyOverlayView
 
     public static KeyGroup Table { get; } = new("Table", "table",
     [
-        R("range rings", "V"), R("model hitboxes", "B"), R("terrain hitboxes", "⇧", "B"), R("roster", "R"), R("log", "G"),
+        R("range rings", "V"), R("all enemy threats", "T"), R("model hitboxes", "B"), R("terrain hitboxes", "⇧", "B"), R("roster", "R"), R("log", "G"),
         R("undo", "Ctrl", "Z"), R("ping", "P"), R("remove (setup)", "Del"), R("this overlay", "F1"),
     ]);
 
-    /// <summary>The overlay's groups: the open Ask's keys first when there is one, then Camera, Measure and Table.</summary>
+    /// <summary>The overlay's groups: the open Ask's keys first when there is one, ending with T for every enemy threat (deployment
+    /// and play), then Camera, Measure and Table.</summary>
     public static IReadOnlyList<KeyGroup> Of(AskMode? mode, string? title, bool stoppable)
     {
-        var now = mode is { } m ? Now(m, stoppable) : [];
-        return now.Count == 0 ? [Camera, Measure, Table] : [new KeyGroup($"Now · {title}", "key", now), Camera, Measure, Table];
+        IReadOnlyList<KeyRow> rows = mode is { } m ? Now(m, stoppable) : [];
+        KeyRow[] now = rows.Count == 0 ? [] : [.. rows, AllThreats];
+        return now.Length == 0 ? [Camera, Measure, Table] : [new KeyGroup($"Now · {title}", "key", now), Camera, Measure, Table];
     }
+
+    static readonly KeyRow AllThreats = R("all enemy threats", "T");
 
     static IReadOnlyList<KeyRow> Now(AskMode mode, bool stoppable) => mode switch
     {
