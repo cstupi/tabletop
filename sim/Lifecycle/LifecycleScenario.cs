@@ -19,7 +19,7 @@ public static class LifecycleScenario
     /// </summary>
     /// <param name="setAside">Per seat, the unit ordinals the run sets aside before the first answer.</param>
     public static CompiledScenario From(string name, ulong seed, GameInfo info, Board board, Guid recorder, bool selfPlay,
-        IReadOnlyDictionary<Guid, IReadOnlyList<int>> setAside, int roundCap, string rules = Tabletop.Content.RuleSets.Gf351)
+        IReadOnlyDictionary<Guid, IReadOnlyList<int>> setAside, int roundCap, string rules = Tabletop.Content.RuleSets.Gf360)
     {
         var properties = ScenarioCompiler.CorePropertiesOf(rules);
         if (info.PropertiesHash != properties.ContentHash)

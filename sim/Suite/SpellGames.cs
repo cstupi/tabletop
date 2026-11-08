@@ -148,7 +148,8 @@ public static class SpellGames
         IReadOnlyList<GameCheck>? checks = null, bool firstCastsPass = true) =>
         new(NameOf(book), SuiteCatalog.SpellsGroup(set.GameRules, book.Uid), Scenario(book, seed, set, setup), book.Spells,
             [.. firstCastsPass ? FirstCasts(book, setup, dice ?? []) : [], .. dice ?? []],
-            [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells, ResolvedCheckOf(set.GameRules)), .. checks ?? []]);
+            [Checks.Ended(), Checks.Invariants(), Checks.FiredAll(), ResolvedUnderP5(book.Spells, ResolvedCheckOf(set.GameRules)), .. checks ?? []])
+        { Edition = set.GameRules };
 
     /// <summary>A casting die of 6 on each caster's first cast, but for a caster whose first cast the game's own dice already key.</summary>
     static IEnumerable<DiceFix> FirstCasts(BookRecord book, SpellSetup? setup, IReadOnlyList<DiceFix> dice) =>

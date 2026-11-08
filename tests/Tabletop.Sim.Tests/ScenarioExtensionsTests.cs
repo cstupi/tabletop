@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Net.WebSockets;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
@@ -44,7 +45,7 @@ public class ScenarioExtensionsTests
     async Task<T> OverSocketAsync<T>(CompiledScenario c, Func<IGameDriver, Task<T>> play)
     {
         var db = new InMemorySeeder();
-        db.Properties.Add(ScenarioCompiler.CoreProperties);
+        foreach (var rules in RuleSets.All) db.Properties.Add(ScenarioCompiler.CorePropertiesOf(rules));
         var credentials = new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList());
         using var factory = new GameServerFactory(db);
         await new InMemorySocketRows(db).SeedAsync(c, credentials, Ct);

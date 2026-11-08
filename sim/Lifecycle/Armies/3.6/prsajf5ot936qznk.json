@@ -1,0 +1,140 @@
+{
+ "id": "lifecycle-prsajf5ot936qznk-3.6",
+ "name": "Daemons of War",
+ "gameSystem": "gf",
+ "units": [
+  {
+   "selectionId": "prs31",
+   "name": "Blood Warriors",
+   "size": 5,
+   "quality": 4,
+   "defense": 4,
+   "bases": {
+    "round": "32",
+    "square": "30"
+   },
+   "rules": [
+    {
+     "name": "Warbound",
+     "label": "Warbound"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Hand Weapon",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Parry",
+       "label": "Parry(1)",
+       "rating": 1
+      }
+     ]
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "prsajf5ot936qznk"
+  },
+  {
+   "selectionId": "prs32",
+   "name": "Blood Hounds",
+   "size": 5,
+   "quality": 4,
+   "defense": 5,
+   "bases": {
+    "round": "60x35",
+    "square": "50x25"
+   },
+   "rules": [
+    {
+     "name": "Warbound",
+     "label": "Warbound"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Flame Claws",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Thrust",
+       "label": "Thrust"
+      }
+     ]
+    },
+    {
+     "name": "Malicious Predator",
+     "type": "ArmyBookItem",
+     "content": [
+      {
+       "name": "Fast",
+       "type": "ArmyBookRule"
+      }
+     ],
+     "count": 5
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "prsajf5ot936qznk"
+  },
+  {
+   "selectionId": "prs33",
+   "name": "Blood Beast Riders",
+   "size": 3,
+   "quality": 4,
+   "defense": 3,
+   "bases": {
+    "round": "60x35",
+    "square": "50x25"
+   },
+   "rules": [
+    {
+     "name": "Fast",
+     "label": "Fast"
+    },
+    {
+     "name": "Tough",
+     "label": "Tough(3)",
+     "rating": 3
+    },
+    {
+     "name": "Warbound",
+     "label": "Warbound"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Dual Hand Weapons",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 0,
+     "attacks": 2,
+     "specialRules": []
+    },
+    {
+     "name": "Trample",
+     "type": "ArmyBookItem",
+     "content": [
+      {
+       "name": "Impact",
+       "type": "ArmyBookRule",
+       "rating": 2
+      }
+     ],
+     "count": 3
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "prsajf5ot936qznk"
+  }
+ ]
+}

@@ -9,6 +9,7 @@ import { listGames } from '../../src/lib/live/games';
 import { connectGame, type ConnectionState, type GameConnection } from '../../src/lib/connection/gameConnection';
 import { acting, teamsOf } from '../../src/lib/lobby/seats';
 import type { Geometry } from '../../src/lib/geometry';
+import type { PropertiesSummary } from '../../src/lib/api/types';
 import { DecisionBox } from '../../src/lib/play/decisionBox';
 import { moveHooks } from '../../src/lib/play/decisionBox.move';
 import { Violations } from '../../src/lib/play/violations';
@@ -30,19 +31,27 @@ export async function session(name: string): Promise<string> {
 
 export const AMBUSHER = 'Veterans';
 
-/** The book's list; `ambush` names a unit that also carries Ambush (p.13), added as the list names its rules. */
+/** The book's 3.6 list (the lifecycle suite's cut), imported as a 3.6 army; `ambush` names a unit that also carries Ambush, added as the
+ *  list names its rules. */
 export async function importArmy(jwt: string, book: string, ambush?: string): Promise<string> {
-  const list = JSON.parse(readFileSync(`../sim/Lifecycle/Armies/${book}.json`, 'utf8')) as { units: { name: string; rules: unknown[] }[] };
+  const list = JSON.parse(readFileSync(`../sim/Lifecycle/Armies/3.6/${book}.json`, 'utf8')) as { units: { name: string; rules: unknown[] }[] };
   if (ambush !== undefined) {
     const unit = list.units.find((u) => u.name === ambush);
     if (unit === undefined) throw new Error(`book ${book} has no unit named ${ambush}`);
     unit.rules.push({ name: 'Ambush', label: 'Ambush' });
   }
   const response = await fetch(`${MANAGEMENT}/v1/dev/armies/import`, {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${jwt}` }, body: JSON.stringify({ source: 'lifecycle', list }),
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${jwt}` }, body: JSON.stringify({ source: 'lifecycle', list, edition: '3.6' }),
   });
   if (response.status !== 201) throw new Error(`army import answered ${response.status}: ${await response.text()}`);
   return ((await response.json()) as { id: string }).id;
+}
+
+/** The server's default rule set (Grimdark Future v3.6.0), the one the 3.6 lists play on. */
+export function defaultSet(sets: readonly PropertiesSummary[]): PropertiesSummary {
+  const set = sets.find((s) => s.default);
+  if (set === undefined) throw new Error('GET /v1/properties marks no default set');
+  return set;
 }
 
 export async function deleteArmy(jwt: string, id: string): Promise<void> {
@@ -102,7 +111,7 @@ export async function playingGame(label: string, enforcement: 'strict' | 'warn' 
   let armyA!: string, armyB!: string, gameId!: string;
   try {
     [armyA, armyB] = await Promise.all([importArmy(jwtA, BOOKS[0]!, options.ambush), importArmy(jwtB, BOOKS[1]!)]);
-    const properties = (await apiA.listProperties())[0]!;
+    const properties = defaultSet(await apiA.listProperties());
     const created = await apiA.createGame({
       name: `${label} e2e`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement, waitsBetweenSteps: false,
     });
@@ -143,7 +152,7 @@ export async function oneAccountGame(label: string, options: { ambush?: string }
   try {
     const army1 = await importArmy(jwt, BOOKS[0]!, options.ambush);
     const army2 = await importArmy(jwt, BOOKS[1]!);
-    const properties = (await api.listProperties())[0]!;
+    const properties = defaultSet(await api.listProperties());
     const created = await api.createGame({
       name: `${label} e2e`, propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation', enforcement: 'strict', waitsBetweenSteps: false,
     });

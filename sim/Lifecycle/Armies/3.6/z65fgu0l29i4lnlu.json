@@ -1,0 +1,141 @@
+{
+ "id": "lifecycle-z65fgu0l29i4lnlu-3.6",
+ "name": "Human Defense Force",
+ "gameSystem": "gf",
+ "units": [
+  {
+   "selectionId": "z6531",
+   "name": "Veterans",
+   "size": 5,
+   "quality": 4,
+   "defense": 5,
+   "bases": {
+    "round": "25",
+    "square": "20"
+   },
+   "rules": [
+    {
+     "name": "Hold the Line",
+     "label": "Hold the Line"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Battle Rifle",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 24,
+     "attacks": 1,
+     "specialRules": []
+    },
+    {
+     "name": "Strike",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "z65fgu0l29i4lnlu"
+  },
+  {
+   "selectionId": "z6532",
+   "name": "Storm Troopers",
+   "size": 5,
+   "quality": 4,
+   "defense": 4,
+   "bases": {
+    "round": "25",
+    "square": "25"
+   },
+   "rules": [
+    {
+     "name": "Strider",
+     "label": "Strider"
+    },
+    {
+     "name": "Hold the Line",
+     "label": "Hold the Line"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Heavy Rifle",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 18,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "AP",
+       "label": "AP(1)",
+       "rating": 1
+      }
+     ]
+    },
+    {
+     "name": "Strike",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "z65fgu0l29i4lnlu"
+  },
+  {
+   "selectionId": "z6533",
+   "name": "Sappers",
+   "size": 3,
+   "quality": 5,
+   "defense": 5,
+   "bases": {
+    "round": "25",
+    "square": "25"
+   },
+   "rules": [
+    {
+     "name": "Relentless",
+     "label": "Relentless"
+    },
+    {
+     "name": "Hold the Line",
+     "label": "Hold the Line"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Grenade Launcher",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 24,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Blast",
+       "label": "Blast(3)",
+       "rating": 3
+      }
+     ]
+    },
+    {
+     "name": "Strike",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "z65fgu0l29i4lnlu"
+  }
+ ]
+}

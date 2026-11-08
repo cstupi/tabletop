@@ -65,14 +65,15 @@ public static class ScenarioCatalog
             .Expect(new Expectation.AskAsked("cast"))
             .Build(),
 
-        // Every army-rule hook in one game (army-rule hooks spec -> Testing): moves after melee and shooting, a placement before attacking and at
-        // activation, shooting after Rush, a die at the attack's start, extra attacks, and the near-terrain bonus, on the terrain board.
+        // Every army-rule hook in one game (army-rule hooks spec -> Testing): moves after melee and shooting, a placement before attacking, a move at
+        // activation (3.6.0 Rapid Blink), shooting after Rush, a die at the attack's start, extra attacks, and the near-terrain bonus (3.6.0
+        // Grounded Defense, 3.5.1's Grounded Reinforcement), on the terrain board.
         ["army-rules"] = () => new ScenarioBuilder("army-rules", seed: 1)
             .Army("Red", 4, 3,
                 modelRules: [new ScenarioRule(1, "Hit & Run Fighter"), new ScenarioRule(2, "Teleport"), new ScenarioRule(3, "Quick Shot"), new ScenarioRule(4, "Rapid Blink")],
                 weapons: [Rifle, HandWeapon])
             .Army("Blue", 4, 3,
-                modelRules: [new ScenarioRule(1, "Hit & Run Shooter"), new ScenarioRule(2, "Unpredictable Fighter"), new ScenarioRule(3, "Primal"), new ScenarioRule(4, "Grounded Reinforcement")],
+                modelRules: [new ScenarioRule(1, "Hit & Run Shooter"), new ScenarioRule(2, "Unpredictable Fighter"), new ScenarioRule(3, "Primal"), new ScenarioRule(4, "Grounded Defense")],
                 weapons: [Rifle, HandWeapon])
             .Terrain("ruin", new Point3(36, 24, 0), volumes:
                 [new Volume(VolumeKind.Solid, Footprint.Rect(6, 6), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.Cover, null)])

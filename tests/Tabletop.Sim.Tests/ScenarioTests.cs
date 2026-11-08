@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Run;
@@ -60,12 +61,13 @@ public class ScenarioTests
     }
 
     [Fact]
-    public void The_properties_hash_is_the_embedded_core_set_and_the_rules_are_grimdark_future()
+    public void The_properties_hash_is_the_embedded_3_6_core_set_and_the_rules_are_grimdark_future_3_6()
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish"));
-        Assert.Equal(ScenarioCompiler.CoreProperties.ContentHash, c.Info.PropertiesHash);
-        Assert.Equal("grimdark-future", c.Info.GameRules);
-        Assert.Contains("Hold", ScenarioCompiler.CoreProperties.Actions.Select(a => a.Name));
+        var set = ScenarioCompiler.CorePropertiesOf(RuleSets.Gf360);
+        Assert.Equal(set.ContentHash, c.Info.PropertiesHash);
+        Assert.Equal(RuleSets.Gf360, c.Info.GameRules);
+        Assert.Contains("Hold", set.Actions.Select(a => a.Name));
     }
 
     [Fact]
@@ -143,6 +145,6 @@ public class ScenarioTests
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("army-rules"));
         var rules = c.Board.Armies.SelectMany(a => a.Snapshot.Units).SelectMany(u => u.Models).SelectMany(m => m.Properties).Select(p => p.Name).ToHashSet();
-        Assert.Superset(new HashSet<string>(["Hit & Run Fighter", "Hit & Run Shooter", "Teleport", "Rapid Blink", "Quick Shot", "Unpredictable Fighter", "Primal", "Grounded Reinforcement"]), rules);
+        Assert.Superset(new HashSet<string>(["Hit & Run Fighter", "Hit & Run Shooter", "Teleport", "Rapid Blink", "Quick Shot", "Unpredictable Fighter", "Primal", "Grounded Defense"]), rules);
     }
 }

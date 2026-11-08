@@ -46,7 +46,7 @@ switch (args.FirstOrDefault())
     }
     case "generate":
     {
-        var edition = Arg("--edition", "3.5");
+        var edition = Arg("--edition", "3.6");
         var rulesId = RuleSets.RulesIdOf(edition);
         var folder = edition == "3.5" ? "grimdark-future-3.5.1" : "grimdark-future-3.6";
         var dir = Path.Combine(dump, edition);

@@ -21,18 +21,18 @@ public class ScenarioCompilerTests
     }
 
     [Fact]
-    public void A_3_6_scenario_compiles_against_the_3_6_set_and_stamps_its_snapshots_3_6()
+    public void A_scenario_plays_3_6_unless_it_names_3_5_1_and_compiles_against_its_editions_set()
     {
-        var compiled = ScenarioCompiler.Compile(TwoArmies(RuleSets.Gf360));
+        var plain = ScenarioCompiler.Compile(TwoArmies());     // a scenario that names no rules plays 3.6.0
         var set = ScenarioCompiler.CorePropertiesOf(RuleSets.Gf360);
-        Assert.Same(set, compiled.Properties);
-        Assert.Equal((RuleSets.Gf360, set.ContentHash, set.Name), (compiled.Info.GameRules, compiled.Info.PropertiesHash, compiled.Info.RuleSet));
-        Assert.All(compiled.Board.Armies, a => Assert.Equal(ArmyEditions.V36, a.Snapshot.Edition));
+        Assert.Equal(RuleSets.Gf360, plain.Scenario.Rules);
+        Assert.Same(set, plain.Properties);
+        Assert.Equal((RuleSets.Gf360, set.ContentHash, set.Name), (plain.Info.GameRules, plain.Info.PropertiesHash, plain.Info.RuleSet));
+        Assert.All(plain.Board.Armies, a => Assert.Equal(ArmyEditions.V36, a.Snapshot.Edition));
 
-        var plain = ScenarioCompiler.Compile(TwoArmies());     // a scenario that names no rules stays on 3.5.1
-        Assert.Equal(RuleSets.Gf351, plain.Scenario.Rules);
-        Assert.Same(ScenarioCompiler.CoreProperties, plain.Properties);
-        Assert.Equal((RuleSets.Gf351, ScenarioCompiler.CoreProperties.Name), (plain.Info.GameRules, plain.Info.RuleSet));
-        Assert.All(plain.Board.Armies, a => Assert.Equal(ArmyEditions.V35, a.Snapshot.Edition));
+        var v351 = ScenarioCompiler.Compile(TwoArmies(RuleSets.Gf351));
+        Assert.Same(ScenarioCompiler.CoreProperties, v351.Properties);
+        Assert.Equal((RuleSets.Gf351, ScenarioCompiler.CoreProperties.Name), (v351.Info.GameRules, v351.Info.RuleSet));
+        Assert.All(v351.Board.Armies, a => Assert.Equal(ArmyEditions.V35, a.Snapshot.Edition));
     }
 }

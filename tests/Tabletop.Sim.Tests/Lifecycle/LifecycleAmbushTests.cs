@@ -37,6 +37,6 @@ public class LifecycleAmbushTests
     public void A_rider_never_placed_fails_the_check()
     {
         var log = Log(E(1, new ModelsMoved([Place(0), Place(2)])));
-        Assert.Equal("a Beast Rider never left the shelf", LifecycleGame.EveryModelLeftTheShelf(log, Riders.Id));
+        Assert.Equal("an ambushing model never left the shelf", LifecycleGame.EveryModelLeftTheShelf(log, Riders.Id));
     }
 }

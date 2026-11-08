@@ -165,7 +165,7 @@ public class InMemorySocketRowsTests : SocketRowsContract
     public InMemorySocketRowsTests() => Rows = new InMemorySocketRows(_db);
     protected override IRowSeeder Seeder => _db;
     protected override IEventLog Log => _db.Log;
-    protected override Task SeedCorePropertiesAsync() { _db.Properties.Add(ScenarioCompiler.CoreProperties); return Task.CompletedTask; }
+    protected override Task SeedCorePropertiesAsync() { foreach (var rules in RuleSets.All) _db.Properties.Add(ScenarioCompiler.CorePropertiesOf(rules)); return Task.CompletedTask; }
 }
 
 [Collection("Postgres")]
@@ -175,8 +175,10 @@ public class PostgresSocketRowsTests(PostgresFixture pg) : SocketRowsContract, I
     protected override ISocketRows Rows => new SocketRowSeeder(pg.Db);
     protected override IRowSeeder Seeder => pg;
     protected override IEventLog Log => new PostgresEventLog(pg.Db);
-    protected override Task SeedCorePropertiesAsync() =>
-        new PostgresPropertiesStore(pg.Db).SeedAsync(ScenarioCompiler.CoreDocuments[RuleSets.Gf351], CancellationToken.None);
+    protected override async Task SeedCorePropertiesAsync()
+    {
+        foreach (var rules in RuleSets.All) await new PostgresPropertiesStore(pg.Db).SeedAsync(ScenarioCompiler.CoreDocuments[rules], CancellationToken.None);
+    }
 
     public Task InitializeAsync() => Task.CompletedTask;
 

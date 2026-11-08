@@ -91,7 +91,7 @@ public sealed record Scenario(
     public Scenario WithSeed(ulong seed) => this with { Seed = seed };
 
     /// <summary>The game-rules id the run plays under (RuleSets): its core set, GameInfo.GameRules and the armies' edition.</summary>
-    public string Rules { get; init; } = RuleSets.Gf351;
+    public string Rules { get; init; } = RuleSets.Gf360;
 
     /// <summary>The move goal the scenario's policy ranks legal destinations by; null for the uniform policy.</summary>
     public MoveGoal? Goal { get; init; }

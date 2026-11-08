@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using System.Net.WebSockets;
 using Microsoft.Extensions.DependencyInjection;
 using Tabletop.GameServer.Session;
@@ -29,12 +30,12 @@ public class DriverAgreementTests
         new(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList());
 
     /// <summary>
-    /// GameServerFactory runs in the Test environment, where Program does not seed the embedded documents, so the core set goes into
-    /// the factory's properties store here. sim/ never writes a properties row.
+    /// GameServerFactory runs in the Test environment, where Program does not seed the embedded documents, so each edition's core set goes
+    /// into the factory's properties store here. sim/ never writes a properties row.
     /// </summary>
     (ISocketRows Seeder, SocketCredentials Credentials) Prepare(CompiledScenario c)
     {
-        db.Properties.Add(ScenarioCompiler.CoreProperties);
+        foreach (var rules in RuleSets.All) db.Properties.Add(ScenarioCompiler.CorePropertiesOf(rules));
         return (new InMemorySocketRows(db), Credentials(c));
     }
 

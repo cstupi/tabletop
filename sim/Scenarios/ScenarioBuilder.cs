@@ -22,7 +22,7 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     private MoveGoal? _goal;
     private IReadOnlyDictionary<string, string> _optionalRules = new Dictionary<string, string>();
     private bool _selfPlay;
-    private string _rules = RuleSets.Gf351;
+    private string _rules = RuleSets.Gf360;
 
     public ScenarioBuilder Shape(SchedulerShape shape) { _shape = shape; return this; }
     public ScenarioBuilder Enforcing(Enforcement e) { _enforcement = e; return this; }

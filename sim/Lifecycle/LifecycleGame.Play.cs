@@ -24,7 +24,7 @@ public sealed partial class LifecycleGame
         if (shape.Ambush)
         {
             var army = board.Armies.Single(a => info.Participants.Single(p => p.Id == a.ParticipantId).AccountId == Creator.AccountId);
-            var riders = army.Snapshot.Units.Single(u => u.Name == LifecycleArmy.AmbushUnit);
+            var riders = army.Snapshot.Units.Single(u => u.Name == LifecycleArmy.AmbushUnit(shape.Edition));
             setAside[army.ParticipantId] = [riders.Ordinal];
             ambusher = riders.Id;
         }
@@ -65,9 +65,9 @@ public sealed partial class LifecycleGame
                 rounds[e.Seq] = round;
             }
             var arrivals = queries.Deployments.Where(d => d.Unit == unit).ToList();
-            Check(arrivals.Count > 0, "the Beast Riders never deployed");
+            Check(arrivals.Count > 0, "the ambushing riders never deployed");
             Check(arrivals.All(d => d.Question == AskQuestions.DeployAmbusher && rounds[d.Seq] >= 2),
-                $"the Beast Riders deployed by {string.Join(", ", arrivals.Select(d => $"{d.Question} in round {rounds[d.Seq]}"))}");
+                $"the ambushing riders deployed by {string.Join(", ", arrivals.Select(d => $"{d.Question} in round {rounds[d.Seq]}"))}");
             var stayed = EveryModelLeftTheShelf(queries, unit);
             Check(stayed is null, stayed!);
         }
@@ -76,12 +76,12 @@ public sealed partial class LifecycleGame
 
     /// <summary>
     /// Every model of the unit was placed from the shelf at some point. A casualty goes back to the shelf (deal-wounds' remove), so the final
-    /// projection's shelf holds the Beast Riders killed after they arrived as well as any never placed; only the log tells them apart.
+    /// projection's shelf holds the riders killed after they arrived as well as any never placed; only the log tells them apart.
     /// </summary>
     public static string? EveryModelLeftTheShelf(LogQueries log, Guid unit)
     {
         var placed = log.Moves.Where(m => m.Move is { From: OnShelf, To: not OnShelf }).Select(m => m.Move.ModelId).ToHashSet();
-        return log.Final.Models.Values.Where(m => m.UnitId == unit).All(m => placed.Contains(m.Id)) ? null : "a Beast Rider never left the shelf";
+        return log.Final.Models.Values.Where(m => m.UnitId == unit).All(m => placed.Contains(m.Id)) ? null : "an ambushing model never left the shelf";
     }
 
     /// <summary>The row follows the log to ended, every participant's list says so, and the creator's socket from the lobby saw the end.</summary>

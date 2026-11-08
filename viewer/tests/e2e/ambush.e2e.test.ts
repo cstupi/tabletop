@@ -135,7 +135,7 @@ async function placeRefusedThenAccepted(seat: Seat, conn: GameConnection, g: Geo
   expect(near, 'a spot within 9" of an enemy').toBe(true);
   box.enter();
   await until('the refusal', () => box.panel.refusal !== null);
-  expect(box.panel.refusal).toMatch(/would be placed within 9" of an enemy unit: Ambushers deploy over 9" away from enemy units \(p\.13\)/);
+  expect(box.panel.refusal).toMatch(/would be placed within 9" of an enemy unit: Ambushers deploy over 9" away from enemy units/);
   expect(modelsOf(conn, unit).every((m) => m.location.kind === 'shelf')).toBe(true);
   expect(box.deployUnit).toBe(unit);
 
@@ -189,8 +189,10 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('Ambush in the browser', () =>
       const unit = unitNamed(a, t1.id, AMBUSHER);
       const seat = mkSeat('solo', a, game.api, g);
       const actingTeam = () => acting(a.state.projection, teamsOf(a.state.game!, a.state.participantId), a.state.log);
-      // The roster offers Set aside for team 1's unit while team 1 acts.
-      for (let i = 0; i < 200 && actingTeam() !== t1.id; i++) if (!(await stepAvoiding(seat, g, unit))) await sleep(100);
+      // The roster offers Set aside for team 1's unit while team 1 acts: its deploy Ask is open (a roll-off answer alone leaves team 1
+      // acting until the deployment order arrives).
+      const team1Deploys = () => actingTeam() === t1.id && openAsk(a, 'deploy', t1.id) !== undefined;
+      for (let i = 0; i < 200 && !team1Deploys(); i++) if (!(await stepAvoiding(seat, g, unit))) await sleep(100);
       expect(actingTeam()).toBe(t1.id);
       await setAside(a, unit);
 
