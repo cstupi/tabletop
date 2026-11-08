@@ -10,10 +10,11 @@ other's drag through presence. The server answers every setup edit with a `Board
 the whole draft, and every lobby edit with a `GameInfoMessage`. The client has no local merge to do.
 
 The lobby and setup send seven lobby edits (spec `2026-11-07-lobby-and-setup-redesign-design.md`). `TeamColumnsPanel`, over
-`TeamColumns`, draws a column per team and one for Watching: a column's Join is `PickTeam` (moving my one seat with
-`PickTeam(team, seat)`, taking a team when I hold none, adding one when I hold several), Also play this side `PickTeam(team)`
-(self-play), Watch `PickTeam(null)`; a row's ▸ menu and a row dragged onto a column send `PickTeam(target, participant)`, offered to
-the creator for any row and to a player for their own, never onto a team the server would refuse; the creator's + Add team is
+`TeamColumns`, draws a column per team and one for Watching: a column's Join (setup's compact columns: the band's +) is
+`PickTeam(team)`, taking a team for my teamless row, else adding a seat for my account (self-play), never moving one; Watch
+`PickTeam(null)`; a row's ▸ menu and a row dragged onto a column send `PickTeam(target, participant)`, offered to the creator for any
+row and to a player for their own, never onto a team the server would refuse, and my row's Leave Team N `LeaveTeam(team)` while I
+hold several; the creator's + Add team is
 `CreateTeam`; my row's picker is `PickArmy` (one per team held). `LobbyPanel` is Game settings: `SetConfiguration` pre-filled with
 the current values, shown to everyone and editable by the creator alone (for anyone else its controls are disabled with
 `LobbyView.CreatorOnly` as tooltip); the game name is held to 64 characters (`TextLimits`). `SidePanelHead` holds the creator's

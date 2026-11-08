@@ -11,6 +11,8 @@ Rulings, 2026-11-07:
 - *"it needs to be columns listing everyones names. Visuals are worth a thousand words. The current row of leave team 1 join team x watch
   create team. jesus christ that is example of BAD ux"*
 - The mockup below: *"Yes that is MUCH better"*.
+- *"you removed my single player ability in the client where a user could be on two teams.. why?"*: one account playing several teams is
+  the obvious path. A column's Join adds a seat; it never moves the one I hold.
 
 ```
   ┌──────── TEAM 1 (red) ───────┐  ┌──────── TEAM 2 (blue) ──────┐  ┌──── WATCHING ────┐
@@ -59,15 +61,15 @@ The lobby has no table (commit 660288cf): the page is the whole window under the
 - Its players, one row each with generous spacing: the player icon in the team's colour, the name, `(you)` on my rows (lit faintly in the
   accent colour; compact columns drop `(you)`, the lit row says it); under the name the army icon and `Army name · 3.6` (the edition is the game's: the server refuses and clears an army of
   another edition), or *no army yet*, in the warning colour when the team has no army, dim when a teammate brings one. My own row holds my
-  army picker in place of the army line.
-- At its foot one button, **Join**, in a column I am not in. Joining moves my seat when I hold one team (`PickTeam(team, my seat)`: the seat
-  keeps its army), takes the team when I hold none, adds it when I already hold several. When I hold one team the column also offers a flat
-  **Also play this side** (`PickTeam(team)`: one account playing both sides, game-flow spec → One account, several teams). A team another
-  account holds shows Join disabled, "Ann holds this team: the creator adds players to it" as its line, for everyone but the creator.
-- A row I may move (the creator: every row; anyone: their own) carries a **▸** menu, *Move to Team N* for each column it may go to and
+  army picker in place of the army line; holding several teams I have a row, and a picker, in each of their columns (`LobbyView.Armies`).
+- At its foot one button, **Join**, in a column I am not in: `PickTeam(team)`. It takes the team for my teamless row, else adds a seat for
+  my account on it (one account playing several sides, game-flow spec → One account, several teams); it never moves a seat I hold. A team
+  another account holds shows Join disabled, "Ann holds this team: the creator adds players to it" as its line, for everyone but the creator.
+- A row I may move (the creator: every row; anyone: their own) carries a **▸** menu, *Move to Team N* for each column it may go to, then
   *Watch*, and can be dragged onto another column. Both send `PickTeam(target, participant)`, `PickTeam(null, participant)` for Watching; a
   target the server would refuse (another account's team for a non-creator, a team the account already holds) is not offered and refuses the
-  drop.
+  drop. On my own row while my account holds several teams, *Leave Team N* (`LeaveTeam(team)`) takes Watch's place, in the menu and as the
+  drop on Watching: it gives up that one seat.
 
 ### Watching
 
@@ -91,7 +93,8 @@ whatever they say, and deployment waits for players as it does today (game-flow 
 The table stays, with the 360 px side column. Its fixed head: `Setup`, the creator's **End setup** (with the pieces off the table it will
 remove), Still to do, then the **same columns, compact**: two to a row, the team band with its state as an icon after the title (the words
 in its tooltip), each name with its army line (my picker only while my seat has no army), the ▸ menu and drag, Watching only while someone
-watches, and the creator's **+ Team**. No Join or Watch buttons: the ▸ menu on my own row offers every move a Join would. A player whose
+watches, and the creator's **+ Team**. A team column I am not in carries **+** in its band, Join's add-a-seat (disabled with Join's line as
+its tooltip where Join is); no Watch button. A player whose
 presence selects or holds a piece shows the editing icon beside their name in Godot (`Presence.Selection`, `Presence.Placements`, already
 sent); the browser keeps no presence and shows none. The folds
 under it: Terrain, Objectives, Table, Deployment zones, Layouts, Game settings (Leave game at its foot). The Players fold is gone. The terrain
@@ -106,14 +109,14 @@ opens with Still to do and the compact columns; the header strip's wait reads "A
 
 ## On the wire
 
-Nothing new. Join, Also play, Move and Watch are `PickTeam`; Add team `CreateTeam`; the army picker `PickArmy`. The server already accepts
-`PickTeam(team, own seat)` from a non-creator onto a team no other account holds. The calls fixture's `teamButton` cases become `columnJoin`,
-`columnAlsoPlay` and `move`.
+Nothing new. Join, Move and Watch are `PickTeam`; Leave Team N `LeaveTeam`; Add team `CreateTeam`; the army picker `PickArmy`. The server
+already accepts `PickTeam(team, own seat)` from a non-creator onto a team no other account holds. The calls fixture's cases are `columnJoin`
+and `columnMove` (Watching's target is `LeaveTeam` on my row while I hold several).
 
 ## Where it lives
 
-- `client/src/Core/TeamColumns.cs`: `TeamColumns.Of` (columns, members, state, Join, Also play, my army seat), `TeamColumns.Moves` (a row's
-  targets), `TeamColumns.MoveTo` (a drop), `TeamColumns.StillToDo` (`ToDoLine`), `TeamColumns.Editing` (presence); `SetupHead` carries the
+- `client/src/Core/TeamColumns.cs`: `TeamColumns.Of` (columns, members, state, Join, my army seat per row), `TeamColumns.Moves` (a row's
+  targets, Leave Team N), `TeamColumns.MoveTo` (a drop), `TeamColumns.StillToDo` (`ToDoLine`), `TeamColumns.Editing` (presence); `SetupHead` carries the
   lines, `SetupLayout.TerrainListHeight(window, head)`.
 - `client/src/Panels/TeamColumnsPanel.cs` (the columns, wide or compact; drag and drop), `SidePanelHead` (phase, action, Still to do, the
   compact columns in setup), `LobbyPanel` (Game settings and Leave game). `TeamPanel` goes.

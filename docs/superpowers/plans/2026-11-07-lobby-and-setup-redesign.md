@@ -6,7 +6,7 @@ Spec: `docs/superpowers/specs/2026-11-07-lobby-and-setup-redesign-design.md`. Go
 
 1. **Core: `TeamColumns`** (`client/src/Core/TeamColumns.cs`), test first (`tests/Tabletop.Client.Tests/TeamColumnsTests.cs`): `Of` (columns
    by ordinal then Watching; state Ready / Needs a player / Needs an army; members with `Army · edition`, `NoArmyWarns`, `You`, my
-   `ArmySeat`, `Moves`; Join moves my one seat, takes a team when I hold none, adds when I hold several; Also play this side; a held team's
+   `ArmySeat`, `Moves`; Join takes a team for my teamless row, else adds a seat (never moves one); my row's Leave Team N while I hold several; a held team's
    Join disabled with its line for a non-creator; Watch on Watching; compact drops an empty Watching), `Moves`, `MoveTo`, `StillToDo`
    (`ToDoLine`), `Editing`.
 2. **Core: the head and folds** (`SetupPanel.cs`): `SetupHeadView` carries `ToDo`; `SetupFolds` loses `Players` and the lobby's folds;
@@ -21,7 +21,7 @@ Spec: `docs/superpowers/specs/2026-11-07-lobby-and-setup-redesign-design.md`. Go
    setup). `TeamPanel` deleted.
 5. **GameScreen**: lobby body is an `HBoxContainer` of the wide columns and a 380 px settings column; setup body is `SetupToolbar` then
    `LobbyPanel`; `FitList(window, head)` and a relayout when the head resizes.
-6. **Calls fixture**: `teamButton` and `place` become `columnJoin`, `columnAlsoPlay`, `columnMove` (`CallCases.EditControls`,
+6. **Calls fixture**: `teamButton` and `place` become `columnJoin`, `columnMove` (`CallCases.EditControls`,
    `CallCases.Edits`); regenerate `viewer/tests/fixtures/calls.json`; `viewer/tests/callRig.ts` replays them through `teamColumns.ts`.
 7. **Viewer**: `lobby/teamColumns.ts` (port, test `tests/teamColumns.test.ts`), `TeamColumns.svelte`, `TeamIcon.svelte`; `LobbyPage.svelte`
    (head with Start setup and Still to do, columns, Game settings); `SetupTools.svelte` (Still to do and compact columns first, Players
