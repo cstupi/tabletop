@@ -2,6 +2,7 @@ import type { Scene, Shape } from './frame';
 import type { Point } from './transform';
 
 import type { BoardHit } from './interaction';
+import { bestHit, type TableHit } from './tablePick';
 
 export type Hit = BoardHit;
 
@@ -26,12 +27,21 @@ export function contains(shape: Shape, p: Point): boolean {
   return inside;
 }
 
-/** Models first, then markers, then terrain; the last drawn wins within each. Table inches in, never screen pixels. A model is tested by
- *  what the board draws for it: its base, or its circle when the board draws circles. */
-export function pickAt(scene: Scene, p: Point, models: 'bases' | 'circles' = 'bases'): Hit | null {
+/** Models first, then a model within `slop` inches of the point (TablePick: the closest), then markers, then terrain; the last drawn wins
+ *  within each. Table inches in, never screen pixels. A model is tested by what the board draws for it: its base, or its circle when the
+ *  board draws circles; the slop by its circle. */
+export function pickAt(scene: Scene, p: Point, models: 'bases' | 'circles' = 'bases', slop = 0): Hit | null {
   for (let i = scene.models.length - 1; i >= 0; i--) {
     const model = scene.models[i]!;
     if (contains(models === 'circles' ? model.circle : model.shape, p)) return { kind: 'model', id: model.id };
+  }
+  if (slop > 0) {
+    const near = scene.models.map((m, i): TableHit & { i: number } => {
+      const c = m.circle.kind === 'circle' ? m.circle : { centre: m.centre, radius: 0.5 };
+      return { i, kind: 'model', along: -i, miss: Math.max(1e-9, Math.hypot(p.x - c.centre.x, p.y - c.centre.y) - c.radius) };
+    });
+    const best = bestHit(near, slop);
+    if (best !== null) return { kind: 'model', id: scene.models[near[best]!.i]!.id };
   }
   for (let i = scene.markers.length - 1; i >= 0; i--) {
     const marker = scene.markers[i]!;

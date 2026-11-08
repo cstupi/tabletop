@@ -130,21 +130,40 @@ public partial class TableInput : Node
     Presence Snapshot() => new(_session.ParticipantId ?? Guid.Empty, _cursor, Selected,
         _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaws[kv.Key], Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _tape.Line);
 
+    /// <summary>The piece under the pointer (TablePick): a model the ray enters, else a model within TablePick.SlopPixels of the pointer on
+    /// screen, else the nearest terrain piece or marker the ray enters; the point is where the ray enters it, else the table plane.</summary>
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
-        var from = _view.Camera.ProjectRayOrigin(screen); var dir = _view.Camera.ProjectRayNormal(screen);
-        Node3D? best = null; var bestIsPiece = false; var bestDistance = float.MaxValue; Vector3? hit = null;
+        var cam = _view.Camera; var from = cam.ProjectRayOrigin(screen); var dir = cam.ProjectRayNormal(screen);
+        var pieces = new List<(Node3D Piece, Vector3? At)>(); var hits = new List<TableHit>();
         foreach (var piece in _view.Pieces)
         {
             if (piece.IsQueuedForDeletion()) continue;
             var bounds = piece switch { PieceNode p => p.Bounds, TerrainNode t => t.Bounds, MarkerNode m => m.Bounds, _ => new Aabb() };
-            if (RayHit(bounds, from, dir) is not { } h) continue;
-            // A piece beats terrain and markers: a terrain box encloses its whole area volume, so a model standing inside it is hit after the box's top face.
-            var isPiece = piece is PieceNode; var d = from.DistanceTo(h);
-            if (best is null || (isPiece && !bestIsPiece) || (isPiece == bestIsPiece && d < bestDistance)) { best = piece; bestIsPiece = isPiece; bestDistance = d; hit = h; }
+            var isModel = piece is PieceNode;
+            if (RayHit(bounds, from, dir) is { } h) { pieces.Add((piece, h)); hits.Add(new(isModel ? HitKind.Model : HitKind.Other, from.DistanceTo(h), 0)); continue; }
+            if (!isModel || ScreenMiss(cam, bounds, screen) is not { } miss || miss > TablePick.SlopPixels) continue;
+            pieces.Add((piece, null)); hits.Add(new(HitKind.Model, from.DistanceTo(bounds.GetCenter()), miss));
         }
         var ground = new Plane(Vector3.Up, 0).IntersectsRay(from, dir);
-        return (WorldFrame.FromGodot(hit ?? ground ?? Vector3.Zero), best);
+        if (TablePick.Best(hits) is not { } best) return (WorldFrame.FromGodot(ground ?? Vector3.Zero), null);
+        var (chosen, at) = pieces[best];
+        return (WorldFrame.FromGodot(at ?? (chosen is PieceNode n ? n.Bounds.GetCenter() with { Y = n.Bounds.End.Y } : ground ?? Vector3.Zero)), chosen);
+    }
+
+    /// <summary>How far the pointer is from a box's outline on screen, in pixels; null when the box is behind the camera.</summary>
+    static float? ScreenMiss(Camera3D cam, Aabb box, Vector2 screen)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+        for (var i = 0; i < 8; i++)
+        {
+            var corner = box.GetEndpoint(i);
+            if (cam.IsPositionBehind(corner)) return null;
+            var p = cam.UnprojectPosition(corner);
+            minX = Math.Min(minX, p.X); minY = Math.Min(minY, p.Y); maxX = Math.Max(maxX, p.X); maxY = Math.Max(maxY, p.Y);
+        }
+        var dx = Math.Max(0, Math.Max(minX - screen.X, screen.X - maxX)); var dy = Math.Max(0, Math.Max(minY - screen.Y, screen.Y - maxY));
+        return MathF.Sqrt(dx * dx + dy * dy);
     }
 
     /// <summary>The table surface under a point of the table's viewport: where a terrain tile dropped there lands from.</summary>

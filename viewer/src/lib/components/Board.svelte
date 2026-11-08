@@ -5,6 +5,7 @@
   import type { Glow } from '../play/decisionBox';
   import type { BoardHit, BoardInteraction, Modifiers, Overlay } from '../board/interaction';
   import { pickAt } from '../board/pick';
+  import { SLOP_PIXELS } from '../board/tablePick';
   import { IDLE_POINTER, step, type PointerEffect, type PointerInput, type PointerState } from '../board/pointer';
   import { type Point, type View, fit, fitBox, panBy, toTable, zoomAt } from '../board/transform';
 
@@ -76,7 +77,7 @@
   }
   const modsOf = (event: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean }): Modifiers =>
     ({ shift: event.shiftKey, ctrl: event.ctrlKey || false, alt: event.altKey });
-  const pick = (at: Point): BoardHit | null => interaction?.pick?.(at) ?? pickAt(scene, at, models);
+  const pick = (at: Point): BoardHit | null => interaction?.pick?.(at) ?? pickAt(scene, at, models, SLOP_PIXELS / current.scale);   // a click beside a model picks it
 
   function apply(effects: readonly PointerEffect[]): void {
     for (const effect of effects) {

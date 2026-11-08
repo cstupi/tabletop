@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { contains, pickAt } from '../src/lib/board/pick';
+import { bestHit } from '../src/lib/board/tablePick';
 import { baseOutline, type Scene } from '../src/lib/board/frame';
 
 const scene: Scene = {
@@ -29,6 +30,21 @@ describe('picking', () => {
     expect(contains(square, { x: 1, y: 1 })).toBe(true);
     expect(contains(square, { x: 0, y: 1 })).toBe(true);
     expect(contains(square, { x: -0.1, y: 1 })).toBe(false);
+  });
+
+  it('a point just beside a model on terrain picks the model within the slop, else the terrain', () => {
+    expect(pickAt(scene, { x: 6.7, y: 5 }, 'bases', 0.5)).toEqual({ kind: 'model', id: 'm2' });   // 0.2" off m2's base, inside the ruin
+    expect(pickAt(scene, { x: 6.7, y: 5 })).toEqual({ kind: 'terrain', id: 'tp1', volumeId: 'v1' });   // no slop
+    expect(pickAt(scene, { x: 8, y: 5 }, 'bases', 0.5)).toEqual({ kind: 'terrain', id: 'tp1', volumeId: 'v1' });   // 1" off: the terrain
+  });
+
+  it('ports TablePick: a model entered, then a model within the slop, then the nearest other hit', () => {
+    expect(bestHit([{ kind: 'other', along: 10, miss: 0 }, { kind: 'model', along: 14, miss: 0 }], 12)).toBe(1);
+    expect(bestHit([{ kind: 'other', along: 10, miss: 0 }, { kind: 'model', along: 14, miss: 20 }, { kind: 'model', along: 15, miss: 6 }], 12)).toBe(2);
+    expect(bestHit([{ kind: 'other', along: 10, miss: 0 }, { kind: 'model', along: 14, miss: 20 }], 12)).toBe(0);
+    expect(bestHit([{ kind: 'model', along: 10, miss: 3 }, { kind: 'model', along: 20, miss: 0 }], 12)).toBe(1);
+    expect(bestHit([{ kind: 'other', along: 20, miss: 0 }, { kind: 'other', along: 12, miss: 0 }, { kind: 'other', along: 5, miss: 4 }], 12)).toBe(1);
+    expect(bestHit([], 12)).toBeNull();
   });
 
   it('prefers the last model drawn where two bases overlap', () => {
