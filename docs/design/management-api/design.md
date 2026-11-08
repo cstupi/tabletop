@@ -1228,6 +1228,7 @@ writes `builtin/`.
 | `POST /v1/assets/delete` | `BulkAssetsRequest(AssetIds)` (1–200) → `BulkAssetsResponse(Done, NotFound)`; each as `DELETE /v1/assets/{id}`, blobs included | owner |
 | `POST /v1/armies/import` | `ImportRequest(Source, Bases = round)` → `201 Tabletop.Content.Army` | owner |
 | `GET /v1/armies?limit&after` | → `Page<ArmySummary>` | owner |
+| `GET /v1/armies/meshes` | → `ArmyMeshUse(UnitName, ModelName, AssetId, Slots)[]`: the owner's slots with a mesh across armies, by unit name, model name (no trailing number) and mesh | owner |
 | `GET`/`PATCH`/`DELETE /v1/armies/{id}` | `PatchArmyRequest(Name?, Units?, Slots?)` → `Army` / `204` | owner |
 | `GET /v1/layouts` | → `LayoutSummary(Id, Name, Size, Terrain, Markers)[]` | owner |
 | `POST /v1/layouts` | `TableState` with `Name` → `201 TableState` | owner |

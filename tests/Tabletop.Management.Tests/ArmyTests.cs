@@ -157,6 +157,21 @@ public class ArmyTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
+    public async Task Mesh_uses_list_the_callers_slots_with_a_mesh_across_armies()
+    {
+        var me = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(me);
+        var other = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var army = await c.PostJson<Army>("/v1/armies/import", new ImportRequest(Share));
+        var unit = army.Units.Single(u => u.Name == "Beast Riders");
+        var mesh = await Uploaded(me, AssetKind.Miniature);
+        await c.PatchJson<Army>($"/v1/armies/{army.Id}", new PatchArmyRequest(null, [new UnitPatch(unit.Id, mesh)], null));
+        var uses = await c.GetJson<List<ArmyMeshUse>>("/v1/armies/meshes");
+        Assert.Equal([new ArmyMeshUse("Beast Riders", "Beast Riders", mesh, unit.Models.Count)], uses);   // "Beast Riders 1", "Beast Riders 2"…: one model name
+        Assert.Empty(await other.GetJson<List<ArmyMeshUse>>("/v1/armies/meshes"));
+    }
+
+    [Fact]
     public async Task Owner_only_and_import_errors()
     {
         var mine = await _f.AuthenticatedClient(Guid.CreateVersion7());

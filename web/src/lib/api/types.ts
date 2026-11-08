@@ -105,3 +105,5 @@ export interface ImportRequest { source: string }
 export interface UnitPatch { unitId: Guid; assetId: Guid | null }
 export interface SlotPatch { slotId: Guid; assetId: Guid | null; clearAsset: boolean; base: Base | null; height: number | null }
 export interface PatchArmyRequest { name?: string; units?: UnitPatch[]; slots?: SlotPatch[] }
+/** `slots`: how many of the account's slots, across all its armies, hold `assetId` under this unit and model name. */
+export interface ArmyMeshUse { unitName: string; modelName: string; assetId: Guid; slots: number }

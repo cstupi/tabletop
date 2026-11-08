@@ -68,6 +68,8 @@ export const api = {
     get: (id: T.Guid) => http.get<T.Army>(`/v1/armies/${id}`),
     patch: (id: T.Guid, r: T.PatchArmyRequest) => http.patch<T.Army>(`/v1/armies/${id}`, r),
     delete: (id: T.Guid) => http.del(`/v1/armies/${id}`),
+    /** Every mesh on the account's slots, by unit and model name: the mesh picker's suggestions. */
+    meshUses: () => http.get<T.ArmyMeshUse[]>('/v1/armies/meshes'),
   },
   client: {
     /** The newest published client build; a 404 before the first release. */

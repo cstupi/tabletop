@@ -11,6 +11,8 @@ public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string
 public sealed record ImportRequest(string Source);
 public sealed record UnitPatch(Guid UnitId, Guid? AssetId);
 public sealed record SlotPatch(Guid SlotId, Guid? AssetId, bool ClearAsset, Base? Base, double? Height);
+/// <summary>How many of the owner's slots, across all armies, hold this mesh under this unit and model name (the slot's name without its ordinal).</summary>
+public sealed record ArmyMeshUse(string UnitName, string ModelName, Guid AssetId, int Slots);
 public sealed record PatchArmyRequest(string? Name, IReadOnlyList<UnitPatch>? Units, IReadOnlyList<SlotPatch>? Slots);
 
 /// <summary>The army tree: army → unit → model_slot → weapon, each level with its stat and property rows.</summary>
@@ -88,6 +90,15 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
             (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id)::int as Models, a.edition as Edition,
             (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id and s.asset_id is not null)::int as Meshes
             from army a where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) order by a.id limit @limit", new { ownerId, after = page.After, limit = page.Limit })).ToList();
+    }
+
+    public async Task<IReadOnlyList<ArmyMeshUse>> MeshUses(Guid ownerId)
+    {
+        await using var c = await db.Open();
+        return (await c.QueryAsync<ArmyMeshUse>(@"select u.name as UnitName, regexp_replace(s.name, '\s+[0-9]+$', '') as ModelName, s.asset_id as AssetId, count(*)::int as Slots
+            from model_slot s join unit u on u.id = s.unit_id join army a on a.id = u.army_id
+            where a.owner_id = @ownerId and s.asset_id is not null
+            group by 1, 2, 3 order by count(*) desc, u.name collate ""C"", regexp_replace(s.name, '\s+[0-9]+$', '') collate ""C"", s.asset_id", new { ownerId })).ToList();
     }
 
     public async Task<int> Count(Guid ownerId)

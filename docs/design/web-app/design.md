@@ -159,7 +159,7 @@ graph TD
     Layout --> Asset
     Armies -->|"after import"| Army
     Lib -->|"asset card"| Asset
-    Army -.->|"the page reads the library once for every AssetPicker"| Lib
+    Army -.->|"the page reads the library once for its MeshPicker"| Lib
     Asset --> VE["VolumeEditor — terrain only"]
 
     Login -.->|"public: no token needed"| Layout
@@ -178,7 +178,7 @@ under Node. `.svelte` files are verified by running the application.
 ```mermaid
 graph TD
     Routes["src/routes/* — pages"]
-    Comps["src/lib/components/* — MeshPreview, UploadDialog, BasePicker, FolderTree, VolumeEditor, AssetPicker, Icon, ThemeSwitch"]
+    Comps["src/lib/components/* — MeshPreview, UploadDialog, BasePicker, FolderTree, VolumeEditor, MeshPicker, Icon, ThemeSwitch"]
     Sess["session/ — jwt.ts, session.svelte.ts, messages.ts, redirect.ts"]
     Api["api/ — types.ts, http.ts, client.ts, errors.ts"]
     Valid["validation.ts — name and size checks, quota usage"]
@@ -828,7 +828,8 @@ would only earn its place if something preserved it across a re-import, and noth
 asset reference is a plain field on the model slot (`MODEL_SLOT.asset_id`).
 
 **The editor** (`/armies/[id]`) implements the pattern of a default from the pack or the import
-plus a per-slot override. A unit-level picker sets every slot's mesh. A per-slot picker
+plus a per-slot override. The mesh picker sets the slots of the scope chosen in it (the row, every model of
+that name in the unit, every model of that name in the army; `meshpicker/scope.ts`), one `SlotPatch` each. A per-slot pick
 overrides one, and overriding is **expected rather than exceptional**, because the models in a
 unit are often made from different meshes. Base shape and height are per slot too, defaulting
 from the import. The base is Army Forge's round base, or its square base where a unit has no round one; height has no source and
@@ -836,7 +837,7 @@ import writes 1.5 × the larger dimension of that base.
 
 `armies/patches.ts` is one function per edit, each returning a whole `PatchArmyRequest`:
 `unitDefault`, `slotMesh` (null becomes `clearAsset: true`, since an omitted null cannot express
-"clear"), `slotBase`, `slotHeight`, `rename`. Every edit is one `PATCH` and the page re-renders
+"clear"), `slotBase`, `slotHeight`, `rename`; the picker's `scopePatch` does the same per scope. Every edit is one `PATCH` and the page re-renders
 from the returned `Army`. There is no local draft to lose and no reconciliation. The cost is one
 round trip per completed field and no offline editing.
 
@@ -845,7 +846,8 @@ determines composition and loadout; the user determines appearance and physical 
 `UnitPatch` and `SlotPatch` carry no `Name?` (management plan, web-app plan). It is a
 one-column change if it is ever wanted.
 
-`AssetPicker` offers *made for this base* first. That is why the asset library records a
+The mesh picker ranks meshes *made for this base* first among equal matches and offers a **Fits** filter
+(spec `2026-11-07-mesh-picker-design.md`). That is why the asset library records a
 modelled base: given a slot on a 32 mm base, the library can offer the meshes built for one.
 The asset's modelled base and the slot's base are **two different facts with two different
 jobs**. One base on the asset, winning for geometry with any mismatch surfaced as a warning, is
@@ -946,10 +948,16 @@ button, closed by a choice, Escape or a click elsewhere). Icons stay paths on th
   name, edition chip, units and models, `meshPips` and `meshLine` from `ArmySummary.meshes`, **Open**, and Re-import and
   Delete in the menu (`armies/cards.ts`).
 - `/armies/[id]`: the name as a heading with a rename button, edition chip, Army Forge ↗, Re-import; the facts line with the
-  mesh count and the page's one Mesh folder; a card per unit (a neutral band, name, count, `statBadges`) with a row per
-  slot: thumbnail, name (the loadout as its tooltip), mesh picker, base, height. A unit whose models share mesh, base and
-  height (`slotRows`) is one *every model* row (the mesh as `unitDefault`, base and height as one `PATCH` over every
-  slot) with **per model** opening a row each.
+  mesh count; a card per unit (a neutral band, name, count, `statBadges`) with a row per
+  slot: name (the loadout as its tooltip), the mesh button (thumbnail and mesh name), base, height. A unit whose models share
+  mesh, base and height (`slotRows`) is one *every model* row (base and height as one `PATCH` over every slot) with
+  **per model** opening a row each.
+- The mesh picker (`MeshPicker`, `lib/meshpicker/`, spec `2026-11-07-mesh-picker-design.md`): a dialog over the library the page
+  loaded once, indexed once (`buildIndex`): a search box (name and folder words, word prefix, one-edit typos), filter chips (Fits
+  the row's base, In this army, Recent), the folder tree (folder chips at phone width), a Suggested row (`suggest`: this unit's
+  other meshes, the same unit's meshes in the account's armies from `GET /v1/armies/meshes`, name matches), a grid drawing only
+  the rows in view, and the scope a pick applies to (`scopes`, `defaultScope`, `changeLine`). Arrows, Enter and Esc work from
+  the search box (`gridMove`). Recent picks and the open folder are kept per account in `localStorage` (`memory.ts`).
 - Library tiles are the thumbnail (else the kind icon), the name, the kind icon and the base size; the space used is a
   meter under the grid. Offer cards show each asset as a thumbnail tile that opens its preview.
 - Thumbnails: `thumbnail/render.ts` draws the GLB with its scale and orientation on a 256 × 256 transparent canvas

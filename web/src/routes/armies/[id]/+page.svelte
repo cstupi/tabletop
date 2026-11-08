@@ -4,16 +4,17 @@
   import { tick } from 'svelte';
   import { api } from '$lib/api/client';
   import { errorMessage } from '$lib/api/errors';
-  import type { Army, AssetDto, FolderDto, Guid, ModelSlot, PatchArmyRequest, Unit } from '$lib/api/types';
-  import AssetPicker from '$lib/components/AssetPicker.svelte';
+  import type { Army, ArmyMeshUse, AssetDto, FolderDto, Guid, ModelSlot, PatchArmyRequest, Unit } from '$lib/api/types';
   import BasePicker from '$lib/components/BasePicker.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import MeshPicker from '$lib/components/MeshPicker.svelte';
   import Thumb from '$lib/components/Thumb.svelte';
   import { meshLine, slotRows, statBadges, systemName } from '$lib/armies/cards';
-  import { loadFolder, saveFolder } from '$lib/armies/folder';
   import { importErrorMessage, reimport } from '$lib/armies/import';
-  import { rename, slotBase, slotHeight, slotMesh, slotSummary, unitDefault } from '$lib/armies/patches';
-  import { folderOptions } from '$lib/library/bulk';
+  import { rename, slotBase, slotHeight, slotSummary } from '$lib/armies/patches';
+  import { buildIndex } from '$lib/meshpicker/search';
+  import { scopePatch, type RowKind, type Scope } from '$lib/meshpicker/scope';
+  import { session } from '$lib/session/session.svelte';
   import { MAX_NAME, nameProblem } from '$lib/validation';
 
   const id = $derived(page.params.id!);
@@ -21,11 +22,14 @@
   let loadFailed = $state(false); let editing = $state(false); let nameInput = $state<HTMLInputElement>(); let busy = $state(false);
   let assets = $state<AssetDto[]>([]); let assetsLoaded = $state(false);
   let status = $state<string>('');
-  // every mesh picker lists one library folder, chosen once for the page and remembered for this army
-  let folders = $state<FolderDto[]>([]); let folder = $state<Guid | null>(null);
-  const folderChoices = $derived(folderOptions(folders));
-  $effect(() => { const armyId = id; api.folders.list().then((f) => { folders = f; folder = loadFolder(armyId, f); }).catch(fail); });
-  function pickFolder(f: Guid | null) { folder = f; saveFolder(id, f); }
+  // one picker for the page, opened on a row; it searches the library loaded below, indexed once per load
+  let folders = $state<FolderDto[]>([]); let uses = $state<ArmyMeshUse[]>([]);
+  const index = $derived(buildIndex(assets, folders));
+  let target = $state<{ unit: Unit; slots: ModelSlot[]; row: RowKind; label: string } | null>(null);
+  $effect(() => { api.folders.list().then((f) => (folders = f)).catch(fail); });
+  const loadUses = () => api.armies.meshUses().then((u) => (uses = u)).catch(() => (uses = []));   // suggestions only: without them the picker still works
+  $effect(() => { void loadUses(); });
+  async function picked(scope: Scope, assetId: Guid | null) { await apply(scopePatch(scope, assetId)); void loadUses(); }
   const fail = (e: unknown) => { error = errorMessage(e); };
   const nameError = $derived(army ? nameProblem(name, 'Army name') : null);
   const slots = $derived(army ? army.units.flatMap((u) => u.models) : []);
@@ -77,11 +81,15 @@
 {#snippet row(unit: Unit, m: ModelSlot, all: boolean, label: string)}
   {@const ids = all ? unit.models.map((x) => x.id) : [m.id]}
   {@const mesh = m.assetId ? byId.get(m.assetId) : undefined}
-  <div class="slot" class:sub={!all && unit.models.length > 1 && slotRows(unit).shared}>
-    <Thumb url={mesh?.thumbnail} alt={mesh?.name ?? ''} size="2.75rem" />
+  {@const sub = !all && unit.models.length > 1 && slotRows(unit).shared}
+  <div class="slot" class:sub>
     <span class="slot-name" title={slotSummary(m)}>{label}</span>
-    <span class="cell mesh"><AssetPicker {assets} {folders} {folder} value={m.assetId ?? null} base={m.base} label="Mesh for {label}"
-      onchange={(a) => apply(all ? unitDefault(unit.id, a) : slotMesh(m.id, a))} /></span>
+    <button type="button" class="mesh-btn" class:none={!m.assetId} aria-haspopup="dialog" aria-label="Mesh for {label}: {mesh?.name ?? 'none'}" title="Pick a mesh"
+      onclick={() => (target = { unit, slots: all ? unit.models : [m], row: all ? 'shared' : sub ? 'sub' : 'single', label: all ? unit.name : label })}>
+      <Thumb url={mesh?.thumbnail} alt="" size="2.75rem" />
+      <span class="mesh-name">{m.assetId ? (mesh?.name ?? 'Mesh') : 'No mesh'}</span>
+      <Icon name="caret" size="1em" />
+    </button>
     <span class="cell base"><Icon name="base" /><BasePicker value={m.base} allowNone={false} label="Base for {label}" onchangevalue={(b) => b && apply(slotBase(ids, b))} /></span>
     <span class="cell tall"><Icon name="height" /><input class="height" type="number" step="0.25" min="0.25" value={m.height.toFixed(2)} aria-label="Height in inches for {label}"
       onchange={(e) => height(e, ids, m.height)} /><span class="dim">in</span></span>
@@ -111,13 +119,6 @@
     <div class="facts-row">
       <p class="facts">{plural(army.units.length, 'unit')} · {plural(slots.length, 'model')} · {meshLine(withMesh, slots.length)}</p>
       <span class="status saved" role="status">{status}</span>
-      {#if folderChoices.length}
-        <label class="folder">Mesh folder
-          <select value={folder ?? ''} onchange={(e) => pickFolder(e.currentTarget.value || null)}>
-            <option value="">All folders</option>
-            {#each folderChoices as o (o.id)}<option value={o.id}>{o.label}</option>{/each}
-          </select></label>
-      {/if}
     </div>
   </header>
   {#if assetsLoaded && assets.length === 0}
@@ -133,12 +134,16 @@
       {#if view.shared}
         {@render row(unit, unit.models[0]!, true, 'every model')}
         <button class="quiet per" aria-expanded={!!perModel[unit.id]} onclick={() => (perModel[unit.id] = !perModel[unit.id])}><span class="chev"><Icon name="chevron" size="1em" /></span>per model</button>
-        {#if perModel[unit.id]}{#each unit.models as m, i (m.id)}{@render row(unit, m, false, `${m.name} ${i + 1}`)}{/each}{/if}
+        {#if perModel[unit.id]}{#each unit.models as m (m.id)}{@render row(unit, m, false, m.name)}{/each}{/if}
       {:else}
-        {#each unit.models as m, i (m.id)}{@render row(unit, m, false, unit.models.length > 1 ? `${m.name} ${i + 1}` : m.name)}{/each}
+        {#each unit.models as m (m.id)}{@render row(unit, m, false, m.name)}{/each}
       {/if}
     </section>
   {/each}
+  {#if target}
+    <MeshPicker open={!!target} {army} unit={target.unit} slots={target.slots} row={target.row} label={target.label} {index} {folders} {uses}
+      accountId={session.account?.id ?? null} onpick={picked} onclose={() => (target = null)} />
+  {/if}
 {:else if !loadFailed}
   <p class="loading" role="status">Loading…</p>
 {/if}
@@ -155,7 +160,6 @@
   :global([data-theme='fantasy']) .facts-row { border-top-color: var(--wood) }
   .facts { margin: 0; color: var(--dim) }
   .status { min-width: 4rem; margin: 0 }
-  .folder { margin-left: auto; display: inline-flex; align-items: center; gap: var(--s2) }
   .unit { padding: var(--s3) var(--s4) var(--s3) calc(var(--s4) + 6px); margin-bottom: var(--s3); border-left: 6px solid var(--dim) }
   :global([data-theme='fantasy']) .unit { padding-left: calc(var(--s4) + 10px) }
   .unit-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin: 0 0 var(--s2); padding-bottom: var(--s2); border-bottom: 1px solid var(--rule) }
@@ -165,13 +169,14 @@
   .stat { display: inline-flex; align-items: center; gap: var(--s1) }
   .stat :global(.icon) { color: var(--accent) }
   :global([data-theme='fantasy']) .stat :global(.icon) { color: var(--wood) }
-  .slot { display: grid; grid-template-columns: auto minmax(7rem, 11rem) minmax(10rem, 1fr) auto auto; align-items: center; gap: var(--s2) var(--s3); padding: var(--s1) 0 }
+  .slot { display: grid; grid-template-columns: minmax(7rem, 11rem) minmax(12rem, 1fr) auto auto; align-items: center; gap: var(--s2) var(--s3); padding: var(--s1) 0 }
   .slot.sub { margin-left: var(--s5) }
   .slot-name { overflow-wrap: anywhere }
   .cell { display: inline-flex; align-items: center; gap: var(--s1); min-width: 0; flex-wrap: wrap }
   .cell :global(.icon) { color: var(--dim) }
-  .mesh :global(.picker) { min-width: 0; max-width: 100% }
-  .mesh :global(select) { max-width: 100%; min-width: 0 }
+  .mesh-btn { justify-content: flex-start; gap: var(--s3); min-height: 3.25rem; padding: var(--s1) var(--s3) var(--s1) var(--s1); min-width: 0; max-width: 100%; text-align: left; white-space: normal }
+  .mesh-btn .mesh-name { flex: 1; min-width: 0; overflow-wrap: anywhere }
+  .mesh-btn.none .mesh-name { color: var(--dim); font-style: italic }
   .base { flex-wrap: nowrap; min-width: max-content }
   .base :global(input[type='number']) { width: 4.5rem }
   .tall { flex-wrap: nowrap }
@@ -181,10 +186,7 @@
   .chev { display: inline-flex; transition: transform .15s }
   .per[aria-expanded='true'] .chev { transform: rotate(90deg) }
   @media (max-width: 60rem) {
-    .slot { grid-template-columns: auto minmax(0, 1fr); }
-    .mesh, .mesh :global(.picker), .mesh :global(select) { width: 100% }
-    .slot > .cell { grid-column: 2 }
+    .slot { grid-template-columns: minmax(0, 1fr) }
     .base { flex-wrap: wrap; min-width: 0 }
-    .folder { margin-left: 0 }
   }
 </style>
