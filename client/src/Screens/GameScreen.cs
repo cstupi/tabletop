@@ -13,6 +13,7 @@ public partial class GameScreen : Control
     Session _session = null!;
     public TableView Table { get; private set; } = null!;
     public TableInput Input { get; private set; } = null!;
+    Button _home = null!; PanelContainer _chip = null!; Label _chipText = null!;
     Label _status = null!, _statusTail = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!, _sideColumn = null!; MarginContainer _sideHead = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup, _head; WaitingPanel? _waiting; bool _wasWaiting;
     readonly SetupFolds _folds = new();   // the sections' open state outlives each rebuild
@@ -49,10 +50,16 @@ public partial class GameScreen : Control
         _hud = new Control { MouseFilter = MouseFilterEnum.Ignore }; _hud.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(_hud);
         _hud.AddChild(_corner = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore });
         var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; _corner.AddChild(top);
-        var home = new Button { Text = "Home", FocusMode = FocusModeEnum.None }; home.Pressed += () => Guarded.Run(_session.DisconnectAsync, Toast); top.AddChild(home);
-        // The game's name clips with an ellipsis inside the corner's slot; the status and "watching" after it always show.
-        top.AddChild(_status = new Label { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Pass });
-        top.AddChild(_statusTail = new Label());
+        top.AddThemeConstantOverride("separation", 8);
+        _home = new Button { Icon = Ui.Icon("home"), TooltipText = "Home", FocusMode = FocusModeEnum.None, ExpandIcon = false };
+        _home.Text = _home.Icon is null ? "Home" : "";   // never a zero-width button
+        _home.AddThemeConstantOverride("icon_max_width", 22);
+        _home.Pressed += () => Guarded.Run(_session.DisconnectAsync, Toast); top.AddChild(_home);
+        // The game's name clips with an ellipsis inside the corner's slot; the status chip and a reconnect after it always show.
+        top.AddChild(_status = new Label { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, MouseFilter = MouseFilterEnum.Pass, VerticalAlignment = VerticalAlignment.Center });
+        top.AddChild(_chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore, Visible = false });
+        _chip.AddChild(_chipText = new Label());
+        top.AddChild(_statusTail = new Label { ThemeTypeVariation = Variation.Warning, VerticalAlignment = VerticalAlignment.Center });
         _hud.AddChild(_toasts = new Toasts());
         _hud.AddChild(_strip = new LoadingPanel { Strip = true, Visible = false });
         _onLayout = QueueLayout;
@@ -73,7 +80,7 @@ public partial class GameScreen : Control
         }
         Input.SelectionChanged += ShowSelection;
         // A late army arrives as a board after the game info: the waiting panel follows the board, and goes when the board ends the wait.
-        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) { ShowStatus(); if (_wasWaiting != _session.WaitingTeams.Count > 0) Rebuild(); else { _waiting?.Refresh(); Callable.From(ShowSelection).CallDeferred(); } } };
         _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
         // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
         _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) ShowStatus(); }).CallDeferred(); };
@@ -165,11 +172,14 @@ public partial class GameScreen : Control
         ShowPlayPanels(playing);
     }
 
-    /// <summary>The corner's line (CornerLine): the name, clipped to the corner's slot with its whole text as the tooltip, then the tail.</summary>
+    /// <summary>The corner's line (CornerLine): the name, clipped to the corner's slot with its whole text as the tooltip, the status chip,
+    /// then a reconnect. Only a change relays out.</summary>
     void ShowStatus()
     {
-        var (name, tail) = CornerLine.Of(_session.Phase, _session.ReconnectAttempt, _session.Game, _session.IsWatching, _session.Replaying);
-        _status.Text = name; _status.TooltipText = name; _statusTail.Text = tail;
+        var line = CornerLine.Of(_session.Phase, _session.ReconnectAttempt, _session.Game, _session.Projection?.Scheduler.Round ?? 0, _session.IsWatching, _session.Replaying);
+        if (_status.Text == line.Name && _chipText.Text == (line.Chip ?? "") && _statusTail.Text == line.Tail) return;
+        _status.Text = line.Name; _status.TooltipText = line.Name; _statusTail.Text = line.Tail; _statusTail.Visible = line.Tail != "";
+        _chipText.Text = line.Chip ?? ""; _chip.Visible = line.Chip is not null;
         QueueLayout();   // a clipped label's minimum does not follow its text
     }
 
@@ -179,6 +189,7 @@ public partial class GameScreen : Control
     {
         if (_session.GameId is not null) Table.Redraw();   // the table is bound only for a game
         if (_undo is not null && IsInstanceValid(_undo)) _undo.Theme = Ui.Theme;
+        _home.Icon = Ui.Icon("home"); _home.Text = _home.Icon is null ? "Home" : "";
     }
 
 

@@ -78,8 +78,9 @@ with Join; my ended games as rows with Replay while Ended too is on. The list re
 the front. Create game loads the rule sets and armies first; the name's problem shows from the first keystroke or an Enter, and
 Create game waits for a valid name; the enforcement's line (`CreateDefaults.EnforcementHint`) is under its picker; created, the lobby
 opens at once.
-The game screen's corner (`CornerLine`) reads `Connecting…`, or the game's name, clipped with an ellipsis to the corner's 420 px, then
-its status, `— watching` for a watcher and `(reconnecting, attempt N; Home stops it…)`, which never clip.
+The game screen's corner (`CornerLine`) is the `home` icon button, then `Connecting…`, or the game's name, clipped with an ellipsis to
+the corner's 420 px, then a status chip with the game's phase (`Lobby`, `Setup`, `Deployment`, `Round N`, `Ended`; `Watching` for a
+watcher, `Replay` in a replay) and `reconnecting, attempt N; Home stops it…`, which never clip.
 
 A status change happens inside the game screen. It is never a scene swap. `GameScreen` creates
 one `TableView` and binds it once for the whole game, and a second `Bind` throws. It draws the

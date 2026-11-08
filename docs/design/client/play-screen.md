@@ -71,7 +71,7 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 
 | Slot | Where | Size |
 | --- | --- | --- |
-| `Corner` | top left | 420 x 40: Home, the game's name clipped with an ellipsis to what the slot leaves, and `CornerLine`'s tail (status, `— watching`, the reconnect), never clipped |
+| `Corner` | top left | 420 x 40: the `home` icon button, the game's name clipped with an ellipsis to what the slot leaves, `CornerLine`'s status chip (Lobby, Setup, Deployment, Round N, Ended, Watching, Replay) and the reconnect, never clipped |
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
 | `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; the card's slot then starts at the roster's actual bottom |
