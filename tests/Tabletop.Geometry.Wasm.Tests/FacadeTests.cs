@@ -182,6 +182,14 @@ public class FacadeTests
     }
 
     [Fact]
+    public void RangeOutline_with_a_range_per_model_equals_RangeOutline_Of()
+    {
+        var models = new[] { Model(10, 10), Model(12, 10), Model(30, 30) };
+        var got = R<Segment[]>(Facade.RangeOutline(W(new RingRequest(models, 0, [6, 18, 12]))));
+        Assert.Equal(Geometry.RangeOutline.Of(models, [6.0, 18, 12]).Select(s => new Segment(s.A, s.B)), got);
+    }
+
+    [Fact]
     public void Zone_answers_equal_ZoneStyles()
     {
         var size = new TableSize(72, 48);

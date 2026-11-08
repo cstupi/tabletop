@@ -9,29 +9,33 @@ public static class RangeOutline
     /// <summary>Per ring, in angle: the crossings with every nearby carrier's ring are bisected; an interval between crossings stays when its middle lies
     /// outside every other ring, sampled at about Points per full turn with the crossings as its ends, so neighbouring arcs meet. Each ring is scanned once;
     /// a carrier whose ring cannot reach this one is skipped, and a point is measured exactly only when the two bounding circles of a base leave it undecided.</summary>
-    public static IReadOnlyList<(Point2 A, Point2 B)> Of(IReadOnlyList<PlacedModel> models, double range)
+    public static IReadOnlyList<(Point2 A, Point2 B)> Of(IReadOnlyList<PlacedModel> models, double range) => Of(models, models.Select(_ => range).ToArray());
+
+    /// <summary>The union outline of the rings at ranges[i] from the base edge of models[i]: one area round carriers of different reach.</summary>
+    public static IReadOnlyList<(Point2 A, Point2 B)> Of(IReadOnlyList<PlacedModel> models, IReadOnlyList<double> ranges)
     {
-        var edges = models.Select(m => new BaseEdge(m)).ToArray();
-        var scans = edges.Select(e => Enumerable.Range(0, Scan + 1).Select(k => Reach(e, range, Turn * k / Scan)).ToArray()).ToArray();
+        if (ranges.Count != models.Count) throw new ArgumentException("one range per model", nameof(ranges));
+        var edges = models.Select((m, i) => (Edge: new BaseEdge(m), Range: ranges[i])).ToArray();
+        var scans = edges.Select(e => Enumerable.Range(0, Scan + 1).Select(k => Reach(e.Edge, e.Range, Turn * k / Scan)).ToArray()).ToArray();
         var segments = new List<(Point2 A, Point2 B)>();
         for (var i = 0; i < edges.Length; i++)
         {
-            var m = edges[i]; var scan = scans[i];
-            var others = edges.Where((o, j) => j != i && o.Centre.DistanceTo(m.Centre) <= m.Outer + o.Outer + 2 * range + 1e-9).ToList();   // farther off, the rings neither cross nor cover
+            var (m, range) = edges[i]; var scan = scans[i];
+            var others = edges.Where((o, j) => j != i && o.Edge.Centre.DistanceTo(m.Centre) <= m.Outer + o.Edge.Outer + range + o.Range + 1e-9).ToList();   // farther off, the rings neither cross nor cover
             var crossings = new List<double>();
             var inside = new bool[Scan + 1];
-            foreach (var o in others)
+            foreach (var (o, reach) in others)
             {
-                for (var k = 0; k <= Scan; k++) inside[k] = Within(o, scan[k], range);
+                for (var k = 0; k <= Scan; k++) inside[k] = Within(o, scan[k], reach);
                 for (var k = 0; k < Scan; k++)
                 {
                     if (inside[k] == inside[k + 1]) continue;
                     double lo = Turn * k / Scan, hi = Turn * (k + 1) / Scan;
-                    for (var n = 0; n < 20; n++) { var mid = (lo + hi) / 2; if (Within(o, Reach(m, range, mid), range) == inside[k]) lo = mid; else hi = mid; }
+                    for (var n = 0; n < 20; n++) { var mid = (lo + hi) / 2; if (Within(o, Reach(m, range, mid), reach) == inside[k]) lo = mid; else hi = mid; }
                     crossings.Add((lo + hi) / 2 % Turn);
                 }
             }
-            bool Outside(double a) { var q = Reach(m, range, a); return others.All(o => !Within(o, q, range)); }
+            bool Outside(double a) { var q = Reach(m, range, a); return others.All(o => !Within(o.Edge, q, o.Range)); }
             void Arc(double from, double to, int count)
             {
                 var pts = Enumerable.Range(0, count + 1).Select(k => Reach(m, range, from + (to - from) * k / count)).ToList();

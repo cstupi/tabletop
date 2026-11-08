@@ -176,6 +176,7 @@ public static class AgreementCases
 
         // Range outline, zones, table.
         Add("range_outline_busy_table", "RangeOutline", new RingRequest(models, 6), RangeOutline.Of(models, 6).Select(s => new Segment(s.A, s.B)).ToArray());
+        Add("range_outline_per_model", "RangeOutline", new RingRequest(models[..6], 0, [6, 12, 18, 6, 24, 9]), RangeOutline.Of(models[..6], [6.0, 12, 18, 6, 24, 9]).Select(s => new Segment(s.A, s.B)).ToArray());
         Add("range_outline_one_base", "RangeOutline", new RingRequest([Model(10, 10)], 12), RangeOutline.Of([Model(10, 10)], 12).Select(s => new Segment(s.A, s.B)).ToArray());
         var size = new TableSize(72, 48);
         Add("zone_polygons_frontline", "ZonePolygons", new ZoneRequest("frontline/1", size, null, null), ZoneStyles.Resolve("frontline/1", size).Select(p => p.Vertices.ToArray()).ToArray());

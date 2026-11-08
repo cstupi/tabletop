@@ -106,7 +106,7 @@ public static class Facade
     public static string RangeOutline(string json)
     {
         var r = Read<RingRequest>(json);
-        return Write(Geometry.RangeOutline.Of(r.Models, r.Range).Select(s => new Segment(s.A, s.B)).ToArray());
+        return Write((r.Ranges is { } each ? Geometry.RangeOutline.Of(r.Models, each) : Geometry.RangeOutline.Of(r.Models, r.Range)).Select(s => new Segment(s.A, s.B)).ToArray());
     }
 
     public static string ZonePolygons(string json)

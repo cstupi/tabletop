@@ -51,8 +51,8 @@ export interface Geometry {
   edgeToMarker(model: PlacedModel, centre: XY, diameter: number): number;
   /** The closest pair edge to edge, by index into `from` and `to`; null when either is empty. */
   nearestPair(from: readonly PlacedModel[], to: readonly PlacedModel[]): Nearest | null;
-  /** The union outline of the rings at `range` from each model's base edge (RangeOutline.Of). */
-  rangeOutline(models: readonly PlacedModel[], range: number): Segment[];
+  /** The union outline of the rings at `range` from each model's base edge, or at `ranges[i]` from model i's when given (RangeOutline.Of). */
+  rangeOutline(models: readonly PlacedModel[], range: number, ranges?: readonly number[]): Segment[];
   /** `legs`: Side Battle's, from the game's Welcome; absent is ZoneLegs.Default. */
   zonePolygons(shape: string, size: TableSize, legs?: ZoneLegs): XY[][];
   zoneContains(shape: string, size: TableSize, point: XY, legs?: ZoneLegs): boolean;

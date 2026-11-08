@@ -66,7 +66,7 @@ function wrap(exports: Exports): Geometry {
     edgeToPoint: (model, point) => ask<number>('EdgeToPoint', { model, point }),
     edgeToMarker: (model, centre, diameter) => ask<number>('EdgeToMarker', { model, centre, diameter }),
     nearestPair: (from, to) => from.length === 0 || to.length === 0 ? null : ask<Nearest>('NearestPair', { from, to }),
-    rangeOutline: (models, range) => ask<Segment[]>('RangeOutline', { models, range }),
+    rangeOutline: (models, range, ranges) => ask<Segment[]>('RangeOutline', ranges === undefined ? { models, range } : { models, range, ranges }),
     zonePolygons: (shape, size, legs) => ask<XY[][]>('ZonePolygons', { shape, size, legs }),
     zoneContains: (shape, size, point, legs) => ask<boolean>('ZoneContains', { shape, size, point, legs }),
     zoneHoldsBase: (shape, size, model, legs) => ask<boolean>('ZoneHoldsBase', { shape, size, model, legs }),
