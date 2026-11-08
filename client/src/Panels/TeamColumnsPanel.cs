@@ -7,8 +7,9 @@ namespace Tabletop.Client.Panels;
 
 /// <summary>
 /// The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md, TeamColumns): one column per team, then Watching, side by side and
-/// wrapping. The lobby's are wide with room to spare; setup's head holds them compact, two to a row. A column's Join, a row's ▸ menu and a row
-/// dragged onto another column each send one PickTeam; my row holds my army picker.
+/// wrapping. The lobby's are wide with room to spare; setup's head holds them compact, two to a row. A column's Join (setup: its band's +) adds
+/// a seat for my account; a row's ▸ menu and a row dragged onto another column move it (or leave a team I hold among several); each of my rows
+/// holds its army picker.
 /// </summary>
 public partial class TeamColumnsPanel : HFlowContainer
 {
@@ -81,7 +82,7 @@ public partial class TeamColumnsPanel : HFlowContainer
         if (column.Members.Count == 0)
             rows.AddChild(new Label { Text = column.TeamId is null ? "No one" : "No players yet", ThemeTypeVariation = Variation.Dim });
         foreach (var m in column.Members) rows.AddChild(Member(box, column, m));
-        // Compact (setup): no buttons; a row's ▸ menu and drag make every move a Join would.
+        // Compact (setup): Join is the band's +.
         if (column.Join is { } join && !_compact)
         {
             var b = new Button { Text = join.Text, Disabled = !join.Enabled, TooltipText = join.Why ?? "", SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
@@ -90,13 +91,6 @@ public partial class TeamColumnsPanel : HFlowContainer
             rows.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
             rows.AddChild(b);
             if (join.Why is { } why) rows.AddChild(Wrapping(why, Variation.Dim));
-        }
-        if (column.AlsoPlay is { } also && !_compact)
-        {
-            var b = new Button { Text = TeamColumns.AlsoPlay, Flat = true, ThemeTypeVariation = Variation.FlatButton, SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
-                TooltipText = "Keep your team and play this side too" };
-            b.Pressed += () => Guarded.Send(_s, also);
-            rows.AddChild(b);
         }
         return box;
     }
@@ -116,6 +110,13 @@ public partial class TeamColumnsPanel : HFlowContainer
         if (_compact)
         {
             if (column.State != ColumnState.Watching) line.AddChild(Icon(column.State == ColumnState.Ready ? "ready" : "warning", ink, 16));
+            if (column.TeamId is not null && column.Join is { } join)
+            {
+                var plus = new Button { Text = TeamColumns.JoinCompact, Disabled = !join.Enabled, TooltipText = join.Why ?? $"{TeamColumns.Join} {column.Title}",
+                    FocusMode = FocusModeEnum.None, SizeFlagsVertical = SizeFlags.ShrinkCenter };
+                if (join.Edit is { } edit) plus.Pressed += () => Guarded.Send(_s, edit);
+                line.AddChild(plus);
+            }
         }
         else
         {
@@ -143,7 +144,7 @@ public partial class TeamColumnsPanel : HFlowContainer
         if (m.You && !_compact) top.AddChild(new Label { Text = TeamColumns.You, ThemeTypeVariation = Variation.Accent });   // compact: the lit row says it
         if (m.Moves.Count > 0)
         {
-            var menu = new MenuButton { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Move", FocusMode = FocusModeEnum.None };
+            var menu = new MenuButton { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Move or leave", FocusMode = FocusModeEnum.None };
             for (var i = 0; i < m.Moves.Count; i++) menu.GetPopup().AddItem(m.Moves[i].Text, i);
             var moves = m.Moves;
             menu.GetPopup().IdPressed += id => Guarded.Send(_s, moves[(int)id].Edit);
@@ -190,7 +191,7 @@ public partial class TeamColumnsPanel : HFlowContainer
     }
 
     /// <summary>The move a row dropped on a column makes, or null.</summary>
-    internal PickTeam? DropOn(TeamColumn column, Variant data) =>
+    internal LobbyEdit? DropOn(TeamColumn column, Variant data) =>
         _s.Game is { } game && data.VariantType == Variant.Type.String && Guid.TryParse(data.AsString(), out var row)
             ? TeamColumns.MoveTo(game, _s.ParticipantId, _s.IsCreator, row, column.TeamId) : null;
 

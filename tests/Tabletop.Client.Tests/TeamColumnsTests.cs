@@ -4,7 +4,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Tests;
 
-/// <summary>Spec 2026-11-07-lobby-and-setup-redesign-design.md: one column per team, then Watching; Join, Also play, Move and Watch as PickTeam.</summary>
+/// <summary>Spec 2026-11-07-lobby-and-setup-redesign-design.md: one column per team, then Watching; Join adds a seat; Move, Watch and Leave on a row.</summary>
 public class TeamColumnsTests
 {
     static readonly Guid T1 = Guid.CreateVersion7(), T2 = Guid.CreateVersion7(), T3 = Guid.CreateVersion7();
@@ -43,23 +43,45 @@ public class TeamColumnsTests
         Assert.All(team1.Members, m => Assert.True(m.NoArmyWarns));
     }
 
+    /// <summary>The owner, 2026-11-07: "you removed my single player ability in the client where a user could be on two teams". Join adds a seat;
+    /// it never moves the one I hold.</summary>
     [Fact]
-    public void Holding_one_team_join_moves_my_seat_and_also_play_adds_one()
+    public void Holding_a_team_join_adds_a_seat_and_never_moves_mine()
     {
         var team3 = TeamColumns.Of(Game, Cid, isCreator: false)[2];
-        Assert.Equal(new ColumnJoin("Join", new PickTeam(T3, Cid), null), team3.Join);
-        Assert.Equal(new PickTeam(T3), team3.AlsoPlay);
+        Assert.Equal(new ColumnJoin("Join", new PickTeam(T3), null), team3.Join);
         Assert.Null(TeamColumns.Of(Game, Cid, isCreator: false)[1].Join);        // my own column has no Join
+        Assert.Equal(new PickTeam(T3), TeamColumns.Of(Game, Cid, isCreator: false, compact: true)[2].Join!.Edit);   // setup's + too
     }
 
+    /// <summary>One account alone: on Team 1, Join on Team 2 adds a seat; then it holds both, an army picker on each row.</summary>
     [Fact]
-    public void A_team_another_account_holds_is_joined_only_by_the_creator()
+    public void One_account_joins_a_second_team_and_picks_an_army_on_each_row()
     {
-        var team1 = TeamColumns.Of(Game, Cid, isCreator: false)[0];
-        Assert.False(team1.Join!.Enabled);
-        Assert.Equal("Ann, Ben hold this team: the creator adds players to it.", team1.Join.Why);
-        Assert.Null(team1.AlsoPlay);
-        Assert.Equal(new PickTeam(T2, Ann), TeamColumns.Of(Game, Ann, isCreator: true)[1].Join!.Edit);
+        var solo = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Lobby, AnnAcct, RuleSets.Gf360, "h", SchedulerShape.AlternatingActivation, Enforcement.Warn,
+            false, 0, [new Team(T1, 1), new Team(T2, 2)], [new Participant(Ann, AnnAcct, "Ann", T1, null)]);
+        Assert.Equal(new ColumnJoin("Join", new PickTeam(T2), null), TeamColumns.Of(solo, Ann, isCreator: true)[1].Join);
+        var second = Guid.CreateVersion7();
+        var both = solo with { Participants = [.. solo.Participants, new Participant(second, AnnAcct, "Ann", T2, null)] };
+        var columns = TeamColumns.Of(both, Ann, isCreator: true);
+        Assert.Equal(new ArmySeat(T1, "Your army for Team 1", null), columns[0].Members.Single().MyArmy);
+        Assert.Equal(new ArmySeat(T2, "Your army for Team 2", null), columns[1].Members.Single().MyArmy);
+        Assert.Null(columns[0].Join); Assert.Null(columns[1].Join);
+    }
+
+    /// <summary>My row's ▸ menu: Move to Team N moves that seat (drag does the same); Leave Team N gives one up while I hold several.</summary>
+    [Fact]
+    public void My_row_menu_moves_the_seat_and_leaves_a_team_while_i_hold_several()
+    {
+        Assert.Equal(["Move to Team 3", "Watch"], TeamColumns.Moves(Game, Cid, false, Cid).Select(m => m.Text));    // one seat: no Leave
+        var second = Guid.CreateVersion7();
+        var game = Game with { Participants = [.. Game.Participants.Where(p => p.Id != Cid), new Participant(second, AnnAcct, "Ann", T2, null)] };
+        var moves = TeamColumns.Moves(game, Ann, true, second);
+        Assert.Equal(["Move to Team 3", "Leave Team 2"], moves.Select(m => m.Text));
+        Assert.Equal(new PickTeam(T3, second), moves[0].Edit);
+        Assert.Equal(new LeaveTeam(T2), moves[1].Edit);
+        Assert.Equal(new LeaveTeam(T1), TeamColumns.MoveTo(game, Ann, true, Ann, null));                          // dragged to Watching
+        Assert.Equal(["Move to Team 2", "Move to Team 3", "Watch"], TeamColumns.Moves(game, Ann, true, Ben).Select(m => m.Text));
     }
 
     [Fact]
@@ -67,7 +89,6 @@ public class TeamColumnsTests
     {
         var columns = TeamColumns.Of(Game, Dee, isCreator: false);
         Assert.Equal(new ColumnJoin("Join", new PickTeam(T3), null), columns[2].Join);
-        Assert.Null(columns[2].AlsoPlay);
         Assert.Null(columns[3].Join);
         Assert.Equal(new ColumnJoin("Watch", new PickTeam(null), null), TeamColumns.Of(Game, Cid, isCreator: false)[3].Join);
     }
@@ -76,7 +97,7 @@ public class TeamColumnsTests
     public void A_watcher_admin_gets_no_buttons_and_no_moves()
     {
         var columns = TeamColumns.Of(Game, Guid.Empty, isCreator: false);
-        Assert.All(columns, c => { Assert.Null(c.Join); Assert.Null(c.AlsoPlay); Assert.All(c.Members, m => Assert.Empty(m.Moves)); });
+        Assert.All(columns, c => { Assert.Null(c.Join); Assert.All(c.Members, m => Assert.Empty(m.Moves)); });
     }
 
     [Fact]
@@ -102,9 +123,7 @@ public class TeamColumnsTests
         var columns = TeamColumns.Of(game, Ann, isCreator: true);
         Assert.True(columns[1].Members.Single().You);
         Assert.Equal(new ArmySeat(T2, "Your army for Team 2", null), columns[1].Members.Single().MyArmy);
-        Assert.Equal(["Move to Team 3", "Watch"], TeamColumns.Moves(game, Ann, true, second).Select(m => m.Text));
-        Assert.Equal(new ColumnJoin("Join", new PickTeam(T3), null), columns[2].Join);   // several held: Join adds
-        Assert.Null(columns[2].AlsoPlay);
+        Assert.Equal(new ColumnJoin("Join", new PickTeam(T3), null), columns[2].Join);
     }
 
     [Fact]

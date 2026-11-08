@@ -11,8 +11,8 @@ public enum ColumnState { Ready, NeedsPlayer, NeedsArmy, Watching }
 public sealed record ColumnMember(Guid ParticipantId, string Name, string? Army, bool NoArmyWarns, bool You, ArmySeat? MyArmy,
     IReadOnlyList<ColumnMove> Moves);
 
-/// <summary>A row's move: the menu text and its edit; TeamId null is Watching.</summary>
-public sealed record ColumnMove(Guid? TeamId, string Text, PickTeam Edit);
+/// <summary>A row's ▸ menu entry and drop: the menu text and its edit (PickTeam, or LeaveTeam on my row while I hold several); TeamId null is Watching.</summary>
+public sealed record ColumnMove(Guid? TeamId, string Text, LobbyEdit Edit);
 
 /// <summary>A column's one button: Join (or Watch on Watching), enabled or not with the line that says why.</summary>
 public sealed record ColumnJoin(string Text, PickTeam? Edit, string? Why)
@@ -23,19 +23,20 @@ public sealed record ColumnJoin(string Text, PickTeam? Edit, string? Why)
 /// <summary>One Still to do line; Missing for a team that lacks a player or an army (or no teams at all), drawn as a warning.</summary>
 public sealed record ToDoLine(string Text, bool Missing);
 
-/// <summary>One column: a team by ordinal (Ordinal 0 and TeamId null for Watching), its members, its button and Also play this side.</summary>
+/// <summary>One column: a team by ordinal (Ordinal 0 and TeamId null for Watching), its members and its button.</summary>
 public sealed record TeamColumn(Guid? TeamId, int Ordinal, string Title, ColumnState State, string StateText, IReadOnlyList<ColumnMember> Members,
-    ColumnJoin? Join, PickTeam? AlsoPlay);
+    ColumnJoin? Join);
 
 /// <summary>
 /// The lobby's and setup's team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md): one column per team, then Watching. Every move is a
-/// PickTeam the game server's lobby authority accepts: a player takes an empty team, moves their own seat onto one no other account holds, or
-/// adds one (one account, several teams); the creator places anyone anywhere. Nothing is offered that the server would refuse.
+/// PickTeam (or LeaveTeam) the game server's lobby authority accepts. A column's Join takes the team for my teamless row or adds a seat for my
+/// account (one account, several teams); it never moves a seat. Moving a seat is its row's ▸ menu or drag; the creator places anyone anywhere.
+/// Nothing is offered that the server would refuse.
 /// </summary>
 public static class TeamColumns
 {
     public const string Watching = "Watching", WatchingState = "Watches once play starts", Join = "Join", Watch = "Watch",
-        AlsoPlay = "Also play this side", NoArmy = "no army yet", AddTeam = "+ Add team", AddTeamCompact = "+ Team", You = "(you)";
+        JoinCompact = "+", NoArmy = "no army yet", AddTeam = "+ Add team", AddTeamCompact = "+ Team", You = "(you)";
 
     public static string StateText(ColumnState s) => s switch
     {
@@ -74,25 +75,20 @@ public static class TeamColumns
         {
             var state = StateOf(game, t.Id);
             var members = game.Participants.Where(p => p.TeamId == t.Id).Select(p => Member(game, p, participantId, isCreator, state == ColumnState.NeedsArmy)).ToList();
-            ColumnJoin? join = null; PickTeam? also = null;
+            ColumnJoin? join = null;
             if (account is { } me && mine.All(p => p.TeamId != t.Id))
             {
                 var holders = game.Participants.Where(p => p.TeamId == t.Id && p.AccountId != me).Select(p => p.Name).Distinct().ToList();
                 if (holders.Count > 0 && !isCreator)
                     join = new ColumnJoin(Join, null, $"{string.Join(", ", holders)} {(holders.Count == 1 ? "holds" : "hold")} this team: the creator adds players to it.");
-                else if (held.Count == 1)
-                {
-                    join = new ColumnJoin(Join, new PickTeam(t.Id, held[0].Id), null);   // moves my one seat, its army with it
-                    also = new PickTeam(t.Id);                                            // a second seat: one account playing both sides
-                }
-                else join = new ColumnJoin(Join, new PickTeam(t.Id), null);              // takes my teamless row, or adds a seat
+                else join = new ColumnJoin(Join, new PickTeam(t.Id), null);              // takes my teamless row, or adds a seat; never moves one
             }
-            columns.Add(new TeamColumn(t.Id, t.Ordinal, $"Team {t.Ordinal}", state, StateText(state), members, join, also));
+            columns.Add(new TeamColumn(t.Id, t.Ordinal, $"Team {t.Ordinal}", state, StateText(state), members, join));
         }
         var watching = game.Participants.Where(p => p.TeamId is null).Select(p => Member(game, p, participantId, isCreator, false)).ToList();
         if (!compact || watching.Count > 0)
             columns.Add(new TeamColumn(null, 0, Watching, ColumnState.Watching, WatchingState, watching,
-                held.Count > 0 ? new ColumnJoin(Watch, LobbyEdits.Watch(), null) : null, null));
+                held.Count > 0 ? new ColumnJoin(Watch, LobbyEdits.Watch(), null) : null));
         return columns;
     }
 
@@ -104,7 +100,8 @@ public static class TeamColumns
     }
 
     /// <summary>Where this viewer may send a row: the creator any row, anyone else their own; another column, never one the row's account already
-    /// holds, never (for a non-creator) a team another account holds. "Watch" last, for a row on a team.</summary>
+    /// holds, never (for a non-creator) a team another account holds. Last, for a row on a team: "Leave Team N" (LeaveTeam) on my row while my
+    /// account holds several teams, else "Watch".</summary>
     public static IReadOnlyList<ColumnMove> Moves(GameInfo game, Guid? participantId, bool isCreator, Guid rowId)
     {
         if (game.Participants.FirstOrDefault(p => p.Id == rowId) is not { } row) return [];
@@ -117,12 +114,17 @@ public static class TeamColumns
             if (!isCreator && game.Participants.Any(p => p.TeamId == t.Id && p.AccountId != row.AccountId)) continue;
             moves.Add(new ColumnMove(t.Id, $"Move to Team {t.Ordinal}", new PickTeam(t.Id, rowId)));
         }
-        if (row.TeamId is not null) moves.Add(new ColumnMove(null, Watch, new PickTeam(null, rowId)));
+        if (row.TeamId is { } at)
+        {
+            var several = row.AccountId == mine[0].AccountId && mine.Count(s => s.TeamId is not null) > 1;
+            var ordinal = game.Teams.FirstOrDefault(t => t.Id == at)?.Ordinal;
+            moves.Add(several ? new ColumnMove(null, $"Leave Team {ordinal}", new LeaveTeam(at)) : new ColumnMove(null, Watch, new PickTeam(null, rowId)));
+        }
         return moves;
     }
 
     /// <summary>A row dropped on a column (null: Watching): the move it makes, or null when the row may not go there.</summary>
-    public static PickTeam? MoveTo(GameInfo game, Guid? participantId, bool isCreator, Guid rowId, Guid? teamId) =>
+    public static LobbyEdit? MoveTo(GameInfo game, Guid? participantId, bool isCreator, Guid rowId, Guid? teamId) =>
         Moves(game, participantId, isCreator, rowId).FirstOrDefault(m => m.TeamId == teamId)?.Edit;
 
     /// <summary>The Still to do lines (spec → Still to do), from the lobby rows alone; empty outside lobby and setup.</summary>

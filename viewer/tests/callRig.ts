@@ -260,7 +260,6 @@ function editOf(c: CallCase, st: ConnectionState, g: Geometry, log: CallLogFiles
   const piece = (id: string) => draft.terrain.find((t) => t.id === id)!;
   switch (x.control as string) {
     case 'columnJoin': return columnsOf(game, pid, c.creator === true)[x.column]!.join?.edit ?? null;
-    case 'columnAlsoPlay': return columnsOf(game, pid, c.creator === true)[x.column]!.alsoPlay;
     case 'columnMove': {
       const team = x.team < 0 ? null : [...game.teams].sort((a, b) => a.ordinal - b.ordinal)[x.team]!.id;
       return moveTo(game, pid, c.creator === true, x.participantId, team);

@@ -1,16 +1,17 @@
 // viewer/src/lib/lobby/teamColumns.ts
 // TeamColumns (client/src/Core/TeamColumns.cs), members camelCased: the lobby's and setup's team columns (spec
-// 2026-11-07-lobby-and-setup-redesign-design.md): one column per team, then Watching; Join, Also play, Move and Watch are each one PickTeam.
+// 2026-11-07-lobby-and-setup-redesign-design.md): one column per team, then Watching. A column's Join adds a seat for my account (never moves one); a row's ▸ menu and drag move it,
+// Watch, or Leave a team while my account holds several (LeaveTeam).
 // Editing is Godot's alone: the browser keeps no presence.
 
-import type { GameInfo, Participant, PickTeam } from '../protocol/wire.generated';
+import type { GameInfo, LeaveTeam, Participant, PickTeam } from '../protocol/wire.generated';
 import { EDITION_OF, armySeats, type ArmySeat } from './lobbyView';
 import { mine } from './seats';
 import { watch } from './lobbyEdits';
 
 export type ColumnState = 'ready' | 'needsPlayer' | 'needsArmy' | 'watching';
 
-export interface ColumnMove { readonly teamId: string | null; readonly text: string; readonly edit: PickTeam }
+export interface ColumnMove { readonly teamId: string | null; readonly text: string; readonly edit: PickTeam | LeaveTeam }
 export interface ColumnMember {
   readonly participantId: string; readonly name: string; readonly army: string | null; readonly noArmyWarns: boolean;
   readonly you: boolean; readonly myArmy: ArmySeat | null; readonly moves: readonly ColumnMove[];
@@ -18,12 +19,12 @@ export interface ColumnMember {
 export interface ColumnJoin { readonly text: string; readonly edit: PickTeam | null; readonly why: string | null }
 export interface TeamColumn {
   readonly teamId: string | null; readonly ordinal: number; readonly title: string; readonly state: ColumnState; readonly stateText: string;
-  readonly members: readonly ColumnMember[]; readonly join: ColumnJoin | null; readonly alsoPlay: PickTeam | null;
+  readonly members: readonly ColumnMember[]; readonly join: ColumnJoin | null;
 }
 export interface ToDoLine { readonly text: string; readonly missing: boolean }
 
 export const WATCHING = 'Watching', WATCHING_STATE = 'Watches once play starts', JOIN = 'Join', WATCH = 'Watch',
-  ALSO_PLAY = 'Also play this side', NO_ARMY = 'no army yet', ADD_TEAM = '+ Add team', ADD_TEAM_COMPACT = '+ Team', YOU = '(you)';
+  JOIN_COMPACT = '+', NO_ARMY = 'no army yet', ADD_TEAM = '+ Add team', ADD_TEAM_COMPACT = '+ Team', YOU = '(you)';
 
 export function stateText(s: ColumnState): string {
   return s === 'ready' ? 'Ready' : s === 'needsPlayer' ? 'Needs a player' : s === 'needsArmy' ? 'Needs an army' : WATCHING_STATE;
@@ -60,23 +61,20 @@ export function columnsOf(game: GameInfo, participantId: string | null, creator:
   const columns: TeamColumn[] = byOrdinal(game).map((t) => {
     const state = stateOf(game, t.id);
     const members = game.participants.filter((p) => p.teamId === t.id).map((p) => member(game, p, participantId, creator, state === 'needsArmy'));
-    let join: ColumnJoin | null = null, alsoPlay: PickTeam | null = null;
+    let join: ColumnJoin | null = null;
     if (account !== undefined && rows.every((p) => p.teamId !== t.id)) {
       const holders = [...new Set(game.participants.filter((p) => p.teamId === t.id && p.accountId !== account).map((p) => p.name))];
       if (holders.length > 0 && !creator) {
         join = { text: JOIN, edit: null, why: `${holders.join(', ')} ${holders.length === 1 ? 'holds' : 'hold'} this team: the creator adds players to it.` };
-      } else if (held.length === 1) {
-        join = { text: JOIN, edit: pickTeam(t.id, held[0]!.id), why: null };
-        alsoPlay = pickTeam(t.id);
-      } else join = { text: JOIN, edit: pickTeam(t.id), why: null };
+      } else join = { text: JOIN, edit: pickTeam(t.id), why: null };   // takes my teamless row, or adds a seat; never moves one
     }
-    return { teamId: t.id, ordinal: t.ordinal, title: `Team ${t.ordinal}`, state, stateText: stateText(state), members, join, alsoPlay };
+    return { teamId: t.id, ordinal: t.ordinal, title: `Team ${t.ordinal}`, state, stateText: stateText(state), members, join };
   });
   const watching = game.participants.filter((p) => p.teamId === undefined).map((p) => member(game, p, participantId, creator, false));
   if (!compact || watching.length > 0) {
     columns.push({
       teamId: null, ordinal: 0, title: WATCHING, state: 'watching', stateText: WATCHING_STATE, members: watching,
-      join: held.length > 0 ? { text: WATCH, edit: watch(), why: null } : null, alsoPlay: null,
+      join: held.length > 0 ? { text: WATCH, edit: watch(), why: null } : null,
     });
   }
   return columns;
@@ -91,7 +89,8 @@ function member(game: GameInfo, p: Participant, participantId: string | null, cr
 }
 
 /** Where this viewer may send a row: the creator any row, anyone else their own; never a team the row's account already holds, never (for a
- *  non-creator) a team another account holds. "Watch" last, for a row on a team. */
+ *  non-creator) a team another account holds. Last, for a row on a team: "Leave Team N" (LeaveTeam) on my row while my account holds several
+ *  teams, else "Watch". */
 export function moves(game: GameInfo, participantId: string | null, creator: boolean, rowId: string): ColumnMove[] {
   const row = game.participants.find((p) => p.id === rowId);
   const rows = mine(game, participantId);
@@ -102,12 +101,17 @@ export function moves(game: GameInfo, participantId: string | null, creator: boo
     if (!creator && game.participants.some((p) => p.teamId === t.id && p.accountId !== row.accountId)) continue;
     out.push({ teamId: t.id, text: `Move to Team ${t.ordinal}`, edit: pickTeam(t.id, rowId) });
   }
-  if (row.teamId !== undefined) out.push({ teamId: null, text: WATCH, edit: pickTeam(null, rowId) });
+  if (row.teamId !== undefined) {
+    const at = row.teamId;
+    const several = row.accountId === rows[0]!.accountId && rows.filter((s) => s.teamId !== undefined).length > 1;
+    const ordinal = game.teams.find((t) => t.id === at)?.ordinal;
+    out.push(several ? { teamId: null, text: `Leave Team ${ordinal}`, edit: { kind: 'leave_team', teamId: at } } : { teamId: null, text: WATCH, edit: pickTeam(null, rowId) });
+  }
   return out;
 }
 
 /** A row dropped on a column (null: Watching): the move it makes, or null. */
-export function moveTo(game: GameInfo, participantId: string | null, creator: boolean, rowId: string, teamId: string | null): PickTeam | null {
+export function moveTo(game: GameInfo, participantId: string | null, creator: boolean, rowId: string, teamId: string | null): PickTeam | LeaveTeam | null {
   return moves(game, participantId, creator, rowId).find((m) => m.teamId === teamId)?.edit ?? null;
 }
 

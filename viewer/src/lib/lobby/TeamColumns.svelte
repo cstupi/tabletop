@@ -1,7 +1,8 @@
 <!-- viewer/src/lib/lobby/TeamColumns.svelte -->
 <!-- TeamColumnsPanel.cs over columnsOf (spec 2026-11-07-lobby-and-setup-redesign-design.md): one column per team in its colour, then Watching;
-     each player with their army, my row with my army picker; Join at a column's foot, a row's ▸ menu and a row dragged onto another column
-     each send one PickTeam. The lobby's are wide; setup's sidebar holds them `compact`. -->
+     each player with their army, each of my rows with its army picker; Join at a column's foot (compact: the band's +) adds a seat for my
+     account; a row's ▸ menu and a row dragged onto another column move it, or leave a team I hold among several. The lobby's are wide; setup's
+     sidebar holds them `compact`. -->
 <script lang="ts">
   import type { ArmySummary } from '../api/types';
   import type { ConnectionState } from '../connection/gameConnection';
@@ -9,7 +10,7 @@
   import type { Edit } from '../protocol/wire.generated';
   import { createTeam } from './lobbyEdits';
   import { armyOptions, pickArmy } from './lobbyView';
-  import { ADD_TEAM, ADD_TEAM_COMPACT, ALSO_PLAY, NO_ARMY, YOU, columnsOf, moveTo, type TeamColumn } from './teamColumns';
+  import { ADD_TEAM, ADD_TEAM_COMPACT, JOIN, JOIN_COMPACT, NO_ARMY, YOU, columnsOf, moveTo, type TeamColumn } from './teamColumns';
   import { isCreator } from './seats';
   import TeamIcon from './TeamIcon.svelte';
 
@@ -55,6 +56,11 @@
         </div>
         <!-- Compact: the state is an icon after the title, its words the band's title. -->
         {#if compact && c.state !== 'watching'}<TeamIcon name={c.state === 'ready' ? 'ready' : 'warning'} size={14} />{/if}
+        {#if compact && c.teamId !== null && c.join !== null}
+          {@const join = c.join}
+          <button class="plus" disabled={join.edit === null} title={join.why ?? `${JOIN} ${c.title}`} aria-label={`${JOIN} ${c.title}`}
+            onclick={() => join.edit && send(join.edit)}>{JOIN_COMPACT}</button>
+        {/if}
       </header>
       <ul class="members">
         {#each c.members as m (m.participantId)}
@@ -93,15 +99,11 @@
           <li class="empty">{c.teamId === null ? 'No one' : 'No players yet'}</li>
         {/each}
       </ul>
-      <!-- Compact (setup): no buttons; a row's ▸ menu and drag make every move a Join would. -->
+      <!-- Compact (setup): Join is the band's +. -->
       {#if c.join !== null && !compact}
         <footer>
           <button class="join" disabled={c.join.edit === null} title={c.join.why ?? undefined} onclick={() => c.join?.edit && send(c.join.edit)}>{c.join.text}</button>
           {#if c.join.why !== null}<p class="why">{c.join.why}</p>{/if}
-          {#if c.alsoPlay !== null}
-            {@const also = c.alsoPlay}
-            <button class="quiet" title="Keep your team and play this side too" onclick={() => send(also)}>{ALSO_PLAY}</button>
-          {/if}
         </footer>
       {/if}
     </section>
@@ -143,6 +145,7 @@
   .empty { color: var(--dim); }
   footer { display: flex; flex-direction: column; align-items: center; gap: var(--s2); padding: 0 var(--s4) var(--s4); }
   .join { min-width: 8rem; }
+  .plus { flex: none; margin-left: auto; min-height: 0; padding: 0 var(--s2); line-height: 1.4; }
   .why { margin: 0; color: var(--dim); font-size: .85rem; text-align: center; }
   .add { display: flex; align-items: center; justify-content: center; gap: var(--s2); min-height: 10rem; border-style: dashed; }
   .compact .add { min-height: 0; }

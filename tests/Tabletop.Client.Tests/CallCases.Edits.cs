@@ -114,16 +114,14 @@ public static partial class CallCases
                 return TableCase("edit/" + control, log, status, creator, choice, s => build(s) is { } e ? EditMsg(e) : null, $"{status.ToString().ToLowerInvariant()} {who} {suffix}".Trim(), decide);
             }
             var game = Log(log).Game;
-            // The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md): each column's Join and Also play this side, Watching last.
+            // The team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md): each column's Join (adds a seat, never moves one), Watching last.
             for (var i = 0; i <= game.Teams.Count; i++)
             {
                 var index = i;
                 yield return E("columnJoin", Obj(("column", index)), s => TeamColumns.Of(s.Game, s.ParticipantId, creator)[index].Join?.Edit, $"column {index + 1}",
                     (s, d) => d["button"] = TeamColumns.Of(s.Game, s.ParticipantId, creator)[index].Join is { } j ? Obj(("text", j.Text), ("enabled", j.Enabled), ("why", j.Why)) : null);
-                if (index < game.Teams.Count)
-                    yield return E("columnAlsoPlay", Obj(("column", index)), s => TeamColumns.Of(s.Game, s.ParticipantId, creator)[index].AlsoPlay, $"column {index + 1}");
             }
-            // A row's move: to each team by ordinal, and to Watching (-1); a target the viewer may not send it to sends nothing.
+            // A row's move: to each team by ordinal, and to Watching (-1: Watch, or LeaveTeam on my row while I hold several); a target the viewer may not send it to sends nothing.
             foreach (var row in game.Participants.Select(p => p.Id).Distinct().Take(2))
                 for (var t = -1; t < game.Teams.Count; t++)
                 {
