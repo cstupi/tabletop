@@ -157,8 +157,8 @@ public partial class PerfProbe : Node
             if (i >= Steps.Length) { _scene?.Restore(); _step = Steps.Length; return ""; }
             if (i != _step)
             {
-                if ((_scene ??= Scene.Find(probe.GetTree().Root)) is null) return "";
-                _scene.Restore(); _step = i; _shot = false; Steps[i].Apply(_scene);
+                if ((_scene ??= Scene.Find(probe.GetTree().Root)) is not { } scene) return "";
+                scene.Restore(); _step = i; _shot = false; Steps[i].Apply(scene);
             }
             if (!_shot && t - start - i * Hold > 2 && OutPath is { } path)
             {
