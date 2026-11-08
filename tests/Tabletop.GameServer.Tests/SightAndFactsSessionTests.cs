@@ -63,6 +63,8 @@ public class SightAndFactsSessionTests
         var expected = observers.Models.SelectMany(f => targets.Models.Select(t => sight.Line(f.Id, t.Id)!)).ToList();
         Assert.Equal(expected.Select(l => (l.FromModelId, l.ToModelId, l.Clear, l.Screened)), answer.Lines.Select(l => (l.FromModelId, l.ToModelId, l.Clear, l.Screened)));
         Assert.Equal([observers.Models[1].Id], answer.CanShoot);
+        var range = Assert.Single(answer.Ranges!);
+        Assert.Equal(("Rifle", 12.0, 12.0), (range.Weapon, range.Printed, range.Inches));
     }
 
     [Fact]
@@ -73,7 +75,7 @@ public class SightAndFactsSessionTests
         await session.AttachAsync(clay);
         await session.ReceiveAsync(clay, new SightQuery(Guid.CreateVersion7(), observers.Id, Guid.CreateVersion7()));
         var unknown = Assert.IsType<SightAnswer>(Assert.Single(clay.Received));
-        Assert.Empty(unknown.Lines); Assert.Empty(unknown.CanShoot);
+        Assert.Empty(unknown.Lines); Assert.Empty(unknown.CanShoot); Assert.Empty(unknown.Ranges!);
 
         await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new MoveModels(targets.Models.Select(m =>
             new ModelRelocation(m.Id, state.Projection.Models[m.Id].Location, new OnShelf())).ToList())));

@@ -398,7 +398,7 @@ durability rules, and a sight query has none: it is answered and forgotten. `Gam
 | `CommandMessage` | `HandleCommandAsync` → `CommandDispatcher` | **yes**, before broadcast | in the log | to everyone, filtered per viewer, then one `AtRest` | `playing`, `ended` |
 | `PresenceMessage` | `HandlePresence` → `PresenceTable.Set` | never | never | on the next 20 Hz tick, latest value only | every status |
 | `PingMessage` | relayed at once, sender stamped | never | never | immediately, except back to the sender | every status |
-| `SightQuery` | `HandleSightAsync` → `Sight.From(state, observer).Line` per model pair, `IGameRules.Shooters` | never | never | one `SightAnswer` to the asker alone, no `AtRest` | every status (empty lists before play) |
+| `SightQuery` | `HandleSightAsync` → `Sight.From(state, observer).Line` per model pair, `IGameRules.Shooters`, `IGameRules.ShotRanges` | never | never | one `SightAnswer` to the asker alone, no `AtRest` | every status (empty lists before play) |
 | `EditMessage` with a `LobbyEdit` | `HandleLobbyEditAsync` | never | **management's rows** | `GameInfoMessage` | `lobby`, `setup` |
 | `EditMessage` with a `SetupEdit` | `HandleSetupEditAsync` → `DraftEditor` | never | the `table_state` tree | `BoardMessage` with the whole draft | `setup` |
 

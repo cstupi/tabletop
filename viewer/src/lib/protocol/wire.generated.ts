@@ -780,11 +780,19 @@ export interface SetZoneStyle {
   readonly shapes: readonly string[];
 }
 
+export interface ShotRange {
+  readonly weapon: string;
+  readonly printed: number;
+  readonly inches: number;
+  readonly by: readonly string[];
+}
+
 export interface SightAnswer {
   readonly kind: 'sight_answer';
   readonly queryId: string;
   readonly lines: readonly SightLine[];
   readonly canShoot: readonly string[];
+  readonly ranges?: readonly ShotRange[];
 }
 
 export interface SightLine {

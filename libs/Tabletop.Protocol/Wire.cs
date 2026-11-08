@@ -88,8 +88,11 @@ public sealed record Refused(Guid MessageId, RefusalReason Reason, string Detail
 /// <summary>The connect was not accepted; the server closes the socket after this.</summary>
 public sealed record Rejected(RejectReason Reason) : SocketMessage;
 /// <summary>The answer to a SightQuery, to the asker alone: one line per observer-model, target-model pair, and the observer's models that
-/// may fire at the target (p.8, Who can shoot). Both lists are empty when either unit is off the table.</summary>
-public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot) : SocketMessage;
+/// may fire at the target (p.8, Who can shoot). Both lists are empty when either unit is off the table. Ranges: each of the observer's ranged weapons'
+/// range against this target as the rules leave it; null from a server that does not send it.</summary>
+public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot, IReadOnlyList<ShotRange>? Ranges = null) : SocketMessage;
+/// <summary>A ranged weapon type's printed range and its range against one target in inches, with the rules that changed it (Shadowborn), none when it is the printed one.</summary>
+public sealed record ShotRange(string Weapon, double Printed, double Inches, IReadOnlyList<string> By);
 /// <summary>Clear: line of sight exists. Screened: clear but through cover. BlockedBy: the terrain pieces or models that obstruct it.
 /// Seen: on a clear line, the point of the target the observer's eye sees (its top, centre or rim), null on a blocked line or from a server that does not send it.</summary>
 public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy, Point3? Seen = null);

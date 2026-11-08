@@ -61,7 +61,10 @@ public static class StatReader
         return new TargetRead(value, new ThresholdBasis(stat.Name, printed, changes, ignored.Count == 0 ? null : ignored));
     }
 
-    public static double? WeaponRange(LiveSet live, Side side, Guid weaponId)
+    public static double? WeaponRange(LiveSet live, Side side, Guid weaponId) => WeaponRange(live, side, weaponId, null);
+
+    /// <summary>The weapon's range as the live set leaves it; <paramref name="by"/>, when given, takes the name of each rule that changed it.</summary>
+    public static double? WeaponRange(LiveSet live, Side side, Guid weaponId, List<string>? by)
     {
         var weapon = live.Interaction.State.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(w => w.Id == weaponId);
         if (!weapon.Stats.TryGetValue("Range", out var text)) return null;
@@ -71,8 +74,10 @@ public static class StatReader
         {
             var amount = e.EffectiveAmount(src.Parameter);
             if (amount < 0 && live.SuppressedModifiers.Contains(TargetModifier.RangePenalties)) { live.ReadSuppressedModifier(TargetModifier.RangePenalties); continue; }
+            var before = range;
             range = Floored(range, amount, e.Floor);
             live.Read(src);
+            if (by is not null && range != before && !by.Contains(src.Entry.Name)) by.Add(src.Entry.Name);
         }
         return Math.Max(0, range);
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dimmed, summaryText } from '../src/lib/play/sightSummary';
-import type { SightAnswer, SightLine } from '../src/lib/protocol/wire.generated';
+import type { ShotRange, SightAnswer, SightLine } from '../src/lib/protocol/wire.generated';
 import { P1, boardOf, gameOf, newId, option, projectionOf, slotOf, unitOf, weaponOf } from './play';
 
 const R1 = weaponOf('Rifle'), R2 = weaponOf('Rifle'), PG = weaponOf('Plasma Gun');
@@ -20,6 +20,18 @@ describe('SightSummary', () => {
     expect(summaryText(answer([line(M(0), true, false), line(M(1), false, false)], []), 'Red Warriors', false))
       .toBe('1 of 2 models can see Red Warriors · 0 of 1 clear lines screened');
     expect(summaryText(answer([line(M(0), false, false)], []), 'Red Warriors', false)).toBe('0 of 1 models can see Red Warriors');
+  });
+
+  it('under a target pick the summary names the ranges rules changed against the target', () => {
+    const range = (weapon: string, printed: number, inches: number, by: string[]): ShotRange => ({ weapon, printed, inches, by });
+    const a: SightAnswer = { ...answer([line(M(0), true, false), line(M(1), true, false), line(M(2), true, false)], [M(2)]),
+      ranges: [range('Carbine', 18, 14, ['Shadowborn']), range('Plasma Rifle', 24, 20, ['Shadowborn']), range('Pistol', 12, 12, [])] };
+    expect(summaryText(a, 'Reapers', true))
+      .toBe('3 of 3 models can see Reapers · 0 of 3 clear lines screened · 1 can shoot · Carbine 18" → 14", Plasma Rifle 24" → 20" (Shadowborn)');
+    expect(summaryText(a, 'Reapers', false)).toBe('3 of 3 models can see Reapers · 0 of 3 clear lines screened');
+    expect(summaryText({ ...a, ranges: [range('Carbine', 18, 13.5, ['Shadowborn', 'Long Shot'])] }, 'Reapers', true))
+      .toMatch(/ · 1 can shoot · Carbine 18" → 13\.5" \(Shadowborn, Long Shot\)$/);
+    expect(summaryText({ ...a, ranges: undefined }, 'Reapers', true)).toMatch(/ · 1 can shoot$/);
   });
 
   it('dimmed are the models that cannot shoot the hovered target or their groups\' assigned one', () => {

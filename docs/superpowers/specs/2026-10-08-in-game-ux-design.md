@@ -207,7 +207,9 @@ without L. The client asks the server and draws the answer:
   screened (cover), red blocked, with the blocking terrain piece or model lit. A clear line ends at the point of the
   target the server saw (`SightLine.Seen`: a tall model's head over shorter models), a blocked one at its centre;
 - a summary, `4 of 5 models can see Red Warriors · 2 of 3 clear lines screened`, and with `declare_targets` open, how
-  many models can shoot. Whether the unit is in cover is the rules' (p.11's majority) and the client does not state it.
+  many models can shoot and each weapon range a rule changed against this target, with the rules
+  (`· 1 can shoot · Carbine 18" → 14" (Shadowborn)`), so a model that sees the target but is out of range reads as such.
+  Whether the unit is in cover is the rules' (p.11's majority) and the client does not state it.
 
 The answer is the same `Sight` the rules use, so the check tests the server.
 
@@ -283,13 +285,16 @@ A request and its answer on the game socket, outside the log:
 // Client → server
 public sealed record SightQuery(Guid QueryId, Guid ObserverUnitId, Guid TargetUnitId) : SocketMessage;
 // Server → client, to the asker only
-public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot) : SocketMessage;
+public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot, IReadOnlyList<ShotRange>? Ranges = null) : SocketMessage;
+public sealed record ShotRange(string Weapon, double Printed, double Inches, IReadOnlyList<string> By);
 public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy);
 ```
 
 The session answers from the current state with `Sight.From(state, observer)`, one `SightLine` per model pair.
 `BlockedBy` is `LineOfSightResult.ObstructedBy`. `CanShoot` is the observer's models that may fire at the target
-under p.8's *Who can shoot* (line of sight and a weapon in range), from the ruleset. A query appends nothing,
+under p.8's *Who can shoot* (line of sight and a weapon in range), from the ruleset. `Ranges` is each ranged weapon
+type's printed range and its range against this target as the rules leave it (`IGameRules.ShotRanges`), `By` the rules
+that changed it. A query appends nothing,
 broadcasts nothing and produces no `AtRest`. Any participant may ask about any two units on the table; a unit off the
 table gives empty lists.
 

@@ -29,7 +29,7 @@ each multi-wound model, the Shift tag, a hovered terrain piece's panel beside th
 one chip per effect in its `TerrainEffects` icon and colour; not the selected piece's: the terrain card shows that). `SightLines`: the server's `SightAnswer` while L is held over a unit, or while a
 target assignment is open; green clear, amber screened, red blocked with the blocker lit, a clear line drawn to the
 target point the server saw (`SightLine.Seen`), a summary over the target
-(`SightSummary`: models that see it, clear lines screened, and under a target pick how many can shoot; never a cover
+(`SightSummary`: models that see it, clear lines screened, and under a target pick how many can shoot and each range a rule changed against the target, with the rules; never a cover
 verdict, which is the rules'), and under a target pick the models that cannot shoot the hovered target or their group's
 assigned one dimmed, each assigned target asked about in its own query. Each query's id is made before the send, so
 only the newest query's answer is drawn. `TargetLines`: each assigned weapon group's shooters to

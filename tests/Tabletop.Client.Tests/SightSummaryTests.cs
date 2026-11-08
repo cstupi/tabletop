@@ -36,6 +36,21 @@ public class SightSummaryTests
         Assert.Equal("0 of 1 models can see Red Warriors", SightSummary.Text(blind, "Red Warriors", shooting: false));
     }
 
+    /// <summary>A model that sees the target may still be out of range: the summary names each range a rule changed against this target, and the rules.</summary>
+    [Fact]
+    public void Under_a_target_pick_the_summary_names_the_ranges_rules_changed_against_the_target()
+    {
+        var lines = new[] { Line(M(0), true, false), Line(M(1), true, false), Line(M(2), true, false) };
+        var answer = new SightAnswer(Guid.CreateVersion7(), lines, [M(2)],
+            [new ShotRange("Carbine", 18, 14, ["Shadowborn"]), new ShotRange("Plasma Rifle", 24, 20, ["Shadowborn"]), new ShotRange("Pistol", 12, 12, [])]);
+        Assert.Equal("3 of 3 models can see Reapers · 0 of 3 clear lines screened · 1 can shoot · Carbine 18\" → 14\", Plasma Rifle 24\" → 20\" (Shadowborn)",
+            SightSummary.Text(answer, "Reapers", shooting: true));
+        Assert.Equal("3 of 3 models can see Reapers · 0 of 3 clear lines screened", SightSummary.Text(answer, "Reapers", shooting: false));
+        var half = answer with { Ranges = [new ShotRange("Carbine", 18, 13.5, ["Shadowborn", "Long Shot"])] };
+        Assert.EndsWith(" · 1 can shoot · Carbine 18\" → 13.5\" (Shadowborn, Long Shot)", SightSummary.Text(half, "Reapers", shooting: true));
+        Assert.EndsWith(" · 1 can shoot", SightSummary.Text(answer with { Ranges = null }, "Reapers", shooting: true));
+    }
+
     /// <summary>Spec → Shooting targets: models that cannot shoot the hovered or the assigned target are dimmed.</summary>
     [Fact]
     public void Dimmed_are_the_models_that_cannot_shoot_the_hovered_target_or_their_groups_assigned_one()

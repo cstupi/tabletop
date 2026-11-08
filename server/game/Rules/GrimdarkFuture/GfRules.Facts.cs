@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
@@ -27,6 +28,28 @@ public sealed partial class GrimdarkFutureRules
             var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting, action));
             return GfAttack.EligibleModels(state, live, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting);
         }).Distinct().ToList();
+    }
+
+    /// <summary>
+    /// Each ranged weapon group's range against the target, on the live set Shooters judges it with: the printed range, the range a model of
+    /// the group reaches with (the longest of its weapons), and the rules that changed it (Shadowborn's "-4\" range"), so a client can say why a
+    /// model that sees the target cannot shoot it.
+    /// </summary>
+    public IReadOnlyList<ShotRange> ShotRanges(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId)
+    {
+        var p = state.Projection;
+        if (!p.Units.ContainsKey(unitId) || !p.Units.ContainsKey(targetUnitId)) return [];
+        if (Lookup.AliveModels(state, unitId).Count == 0 || Lookup.LivingModels(state, targetUnitId).Count == 0) return [];
+        var action = p.Stack.FirstOrDefault(f => f.Context.ActorUnitId == unitId)?.Context.Action;
+        var weapons = p.Models.Values.SelectMany(m => m.Slot.Weapons).ToDictionary(w => w.Id);
+        return GfShooting.Groups(state, properties, unitId, null).Select(group =>
+        {
+            var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting, action));
+            var by = new List<string>();
+            var inches = group.WeaponIds.Max(w => StatReader.WeaponRange(live, Side.Attacker, w, by) ?? 0);
+            var printed = group.WeaponIds.Max(w => StatValue.Read(StatKind.Distance, weapons[w].Stats[GfNames.Range]).Inches);
+            return new ShotRange(group.Name, printed, inches, inches == printed ? [] : by);
+        }).ToList();
     }
 
     /// <summary>

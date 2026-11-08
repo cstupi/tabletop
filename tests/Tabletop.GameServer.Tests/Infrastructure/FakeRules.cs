@@ -52,6 +52,7 @@ public sealed class FakeRules : IGameRules
     public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => RoundEndedHook?.Invoke(state, properties, round) ?? [];
     public int MaxWounds(GameState state, Guid modelId) => MaxWoundsHook?.Invoke(state, modelId) ?? _inner.MaxWounds(state, modelId);
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => _inner.Shooters(state, properties, unitId, targetUnitId);
+    public IReadOnlyList<ShotRange> ShotRanges(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => _inner.ShotRanges(state, properties, unitId, targetUnitId);
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => _inner.MayDeployInside(state, unitId, containerModelId, deploying);
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => DeployInsideHook?.Invoke(state) ?? _inner.DeployInside(state);
     public IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => MaySetAsideHook?.Invoke(state) ?? _inner.MaySetAside(state, properties);

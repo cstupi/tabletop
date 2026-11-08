@@ -84,6 +84,8 @@ public interface IGameRules
     int MaxWounds(GameState state, Guid modelId) => 1;
     /// <summary>The unit's models that may fire at the target unit now (OPR p.8, Who can shoot). Empty when either unit is unknown or off the table. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => [];
+    /// <summary>Each ranged weapon type of the unit's living models: its range against the target as the rules leave it, and the rules that changed it.</summary>
+    IReadOnlyList<ShotRange> ShotRanges(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => [];
     /// <summary>For each unit that may be put inside a container now, before either deploys, the container models it may go in (OPR p.15: "Transports may
     /// deploy with units inside"; passengers spec). Empty by default. Wrapping rulesets must forward it.</summary>
     IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => new Dictionary<Guid, IReadOnlyList<Guid>>();

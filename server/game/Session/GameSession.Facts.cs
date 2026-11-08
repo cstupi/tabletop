@@ -10,10 +10,10 @@ public sealed partial class GameSession
     /// <summary>The last ModelFacts sent; null before any. Facts change only through a batch, and every batch compares against this.</summary>
     private ModelFacts? _factsSent;
 
-    /// <summary>One line per observer model and target model on the table, in unit order, and who may shoot — to the asker alone.</summary>
+    /// <summary>One line per observer model and target model on the table, in unit order, who may shoot and each weapon's range against the target — to the asker alone.</summary>
     private async Task HandleSightAsync(ISessionClient from, SightQuery query)
     {
-        IReadOnlyList<SightLine> lines = []; IReadOnlyList<Guid> canShoot = [];
+        IReadOnlyList<SightLine> lines = []; IReadOnlyList<Guid> canShoot = []; IReadOnlyList<ShotRange> ranges = [];
         if (Play is { } state && state.Projection.Units.TryGetValue(query.ObserverUnitId, out var observer) && state.Projection.Units.TryGetValue(query.TargetUnitId, out var target))
         {
             var (watching, watched) = (OnTable(state, observer), OnTable(state, target));
@@ -21,10 +21,11 @@ public sealed partial class GameSession
             {
                 var sight = Sight.From(state, observer.Id);
                 lines = watching.SelectMany(f => watched.Select(t => sight.Line(f, t))).OfType<SightLine>().ToList();
-                canShoot = Engine?.Properties is { } properties ? state.Rules.Shooters(state, properties, observer.Id, target.Id) : [];
+                if (Engine?.Properties is { } properties)
+                    (canShoot, ranges) = (state.Rules.Shooters(state, properties, observer.Id, target.Id), state.Rules.ShotRanges(state, properties, observer.Id, target.Id));
             }
         }
-        await from.SendAsync(new SightAnswer(query.QueryId, lines, canShoot));
+        await from.SendAsync(new SightAnswer(query.QueryId, lines, canShoot, ranges));
     }
 
     static List<Guid> OnTable(GameState state, UnitInPlay unit) =>
