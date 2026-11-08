@@ -43,12 +43,53 @@ export function sameThreat(a: UnitThreat, b: UnitThreat): boolean {
     && ak.length === bk.length && ak.every((k) => b.ranges[k] === a.ranges[k]);
 }
 
-/** The owner's "a model of the other team": a unit on no team of mine. A watcher holds none, so every unit is another's. */
-export function ofAnotherTeam(game: GameInfo, p: Projection, myTeams: readonly string[], unitId: string): boolean {
+const teamOf = (game: GameInfo, participantId: string): string | null => game.participants.find((x) => x.id === participantId)?.teamId ?? null;
+
+/** The owner's enemy: a unit not on the team I act for now (seats.ts acting), so one account holding both teams sees the other side's.
+ *  A watcher acts for none (null) and sees every unit's. */
+export function ofAnotherTeam(game: GameInfo, p: Projection, acting: string | null, unitId: string): boolean {
   const u = p.units.get(unitId);
   if (u === undefined) return false;
-  const team = game.participants.find((x) => x.id === u.participantId)?.teamId;
-  return team == null || !myTeams.includes(team);
+  return acting === null || teamOf(game, u.participantId) !== acting;
+}
+
+/** ThreatRings.Shown: the selected unit, kept until the selection changes, then the hovered one; each of another team, with a threat, once. */
+export function shownThreats(game: GameInfo, p: Projection, acting: string | null, selected: string | null, hovered: string | null, threats: ReadonlyMap<string, UnitThreat>): string[] {
+  const shown: string[] = [];
+  for (const id of [selected, hovered]) if (id !== null && !shown.includes(id) && threats.has(id) && ofAnotherTeam(game, p, acting, id)) shown.push(id);
+  return shown;
+}
+
+/** One enemy team's threat areas under the T key: a Charge area and a Shoot area, in the team's colour. */
+export interface TeamThreat { readonly teamId: string; readonly ordinal: number; readonly rings: readonly RangeRing[] }
+
+/** ThreatRings.All, the T key: per team other than the one I act for, the union of its units' reach by kind, one Charge area (each unit's charge
+ *  round its models) and one Shoot area (each model's shootMove + range), labelled with the distance, or the shortest–longest when they differ. */
+export function allThreatsOf(g: Geometry, game: GameInfo, p: Projection, acting: string | null, threats: ReadonlyMap<string, UnitThreat>): TeamThreat[] {
+  type Carrier = { model: ModelInPlay; placement: Placement; range: number };
+  const charge = new Map<string, Carrier[]>(), shoot = new Map<string, Carrier[]>();
+  const add = (into: Map<string, Carrier[]>, team: string, c: Carrier) => { const list = into.get(team); if (list === undefined) into.set(team, [c]); else list.push(c); };
+  for (const m of p.models.values()) {
+    if (m.location.kind !== 'table') continue;
+    const u = p.units.get(m.unitId), t = threats.get(m.unitId);
+    if (u === undefined || t === undefined) continue;
+    const team = teamOf(game, u.participantId);
+    if (team === null || team === acting) continue;
+    const placement = m.location.placement;
+    if (t.charge != null) add(charge, team, { model: m, placement, range: t.charge });
+    const range = t.ranges[m.id];
+    if (t.shootMove != null && range !== undefined) add(shoot, team, { model: m, placement, range: t.shootMove + range });
+  }
+  const area = (by: Map<string, Carrier[]>, team: string, word: string, kind: 'charge' | 'shoot'): RangeRing[] => {
+    const cs = by.get(team);
+    if (cs === undefined) return [];
+    const ranges = cs.map((c) => c.range), lo = Math.min(...ranges), hi = Math.max(...ranges);
+    const label = lo === hi ? `${word} ${inchesText(hi)}` : `${word} ${Math.round(lo * 10) / 10}–${inchesText(hi)}`;
+    return [{ inches: hi, label, segments: g.rangeOutline(cs.map((c) => placed(c.model.slot, c.placement)), hi, ranges), kind }];
+  };
+  return [...game.teams].sort((a, b) => a.ordinal - b.ordinal)
+    .map((t) => ({ teamId: t.id, ordinal: t.ordinal, rings: [...area(charge, t.id, 'Charge', 'charge'), ...area(shoot, t.id, 'Shoot', 'shoot')] }))
+    .filter((t) => t.rings.length > 0);
 }
 
 const samePlacement = (a: Placement, b: Placement): boolean =>
@@ -71,5 +112,25 @@ export class ThreatRingCache {
     this.#threat = threat;
     this.#rings = threatRingsOf(g, p, unitId, threat);
     return this.#rings;
+  }
+}
+
+/** AllThreatCache: the T key's areas, recomputed only when the team acted for, a unit with a threat, its models' slots or placements, or its
+ *  threat change; otherwise the same array, so the drawn overlay stands. */
+export class AllThreatCache {
+  #acting: string | null = null;
+  #key: { unit: string; at: readonly Carrier[]; threat: UnitThreat }[] | null = null;
+  #teams: readonly TeamThreat[] = [];
+
+  of(g: Geometry, game: GameInfo, p: Projection, acting: string | null, threats: ReadonlyMap<string, UnitThreat>): readonly TeamThreat[] {
+    const key = [...threats.entries()].filter(([id]) => ofAnotherTeam(game, p, acting, id)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([unit, threat]) => ({ unit, at: onTable(p, unit), threat }));
+    const prev = this.#key;
+    if (prev !== null && acting === this.#acting && key.length === prev.length && key.every((k, i) => k.unit === prev[i]!.unit && sameThreat(k.threat, prev[i]!.threat)
+      && k.at.length === prev[i]!.at.length && k.at.every((c, j) => c.model.id === prev[i]!.at[j]!.model.id && c.model.slot === prev[i]!.at[j]!.model.slot && samePlacement(c.placement, prev[i]!.at[j]!.placement)))) return this.#teams;
+    this.#acting = acting;
+    this.#key = key;
+    this.#teams = allThreatsOf(g, game, p, acting, threats);
+    return this.#teams;
   }
 }

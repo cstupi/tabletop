@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Geometry, PlacedModel, Segment } from '../src/lib/geometry';
-import { ThreatRingCache, ofAnotherTeam, threatRingsOf } from '../src/lib/play/threatRings';
+import { AllThreatCache, ThreatRingCache, allThreatsOf, ofAnotherTeam, shownThreats, threatRingsOf } from '../src/lib/play/threatRings';
 import type { EventPayload, UnitThreat, Weapon } from '../src/lib/protocol/wire.generated';
 import { P1, P2, at, boardOf, gameOf, projectionOf, slotOf, unitOf, weaponOf } from './play';
 
@@ -19,9 +19,9 @@ const squadThreat = (charge?: number, shootMove?: number): UnitThreat =>
   ({ charge, shootMove, ranges: { [squad.models[0]!.id]: 24, [squad.models[1]!.id]: 24, [squad.models[2]!.id]: 12 } });
 
 function fake() {
-  const calls: { models: readonly PlacedModel[]; range: number }[] = [];
-  const rangeOutline = vi.fn((models: readonly PlacedModel[], range: number): Segment[] => {
-    calls.push({ models, range });
+  const calls: { models: readonly PlacedModel[]; range: number; ranges?: readonly number[] }[] = [];
+  const rangeOutline = vi.fn((models: readonly PlacedModel[], range: number, ranges?: readonly number[]): Segment[] => {
+    calls.push(ranges === undefined ? { models, range } : { models, range, ranges });
     return [{ a: { x: range, y: 0 }, b: { x: range, y: 1 } }];
   });
   return { g: { rangeOutline } as unknown as Geometry, calls, rangeOutline };
@@ -59,10 +59,49 @@ describe('ThreatRings', () => {
     expect(rangeOutline.mock.calls.length).toBeGreaterThan(calls);
   });
 
-  it('only a unit of another team shows its threat, and a watcher sees every unit\'s', () => {
+  const team1 = game.participants.find((x) => x.id === P1)!.teamId!, team2 = game.participants.find((x) => x.id === P2)!.teamId!;
+  const orcThreat: UnitThreat = { charge: 16, shootMove: 6, ranges: {} };
+  const both = new Map<string, UnitThreat>([[squad.id, squadThreat(12, 6)], [orcs.id, orcThreat]]);
+
+  it('another team is one other than the team acted for, and a watcher sees every unit\'s', () => {
     const p = projectionOf(game, board, deploy).projection;
-    const mine = game.participants.find((x) => x.id === P1)!.teamId!;
-    expect([ofAnotherTeam(game, p, [mine], orcs.id), ofAnotherTeam(game, p, [mine], squad.id), ofAnotherTeam(game, p, [], squad.id), ofAnotherTeam(game, p, [mine], 'nope')])
-      .toEqual([true, false, true, false]);
+    expect([ofAnotherTeam(game, p, team1, orcs.id), ofAnotherTeam(game, p, team1, squad.id), ofAnotherTeam(game, p, team2, squad.id),
+      ofAnotherTeam(game, p, team2, orcs.id), ofAnotherTeam(game, p, null, squad.id), ofAnotherTeam(game, p, team1, 'nope')])
+      .toEqual([true, false, true, false, true, false]);
+  });
+
+  it('the selected unit and the hovered one both show, each once, only of another team with a threat', () => {
+    const p = projectionOf(game, board, deploy).projection;
+    expect(shownThreats(game, p, team1, orcs.id, null, both)).toEqual([orcs.id]);
+    expect(shownThreats(game, p, team1, orcs.id, orcs.id, both)).toEqual([orcs.id]);
+    expect(shownThreats(game, p, team1, squad.id, null, both)).toEqual([]);
+    expect(shownThreats(game, p, team1, orcs.id, null, new Map())).toEqual([]);
+    expect(shownThreats(game, p, null, squad.id, orcs.id, both)).toEqual([squad.id, orcs.id]);
+    expect(shownThreats(game, p, team2, orcs.id, squad.id, both)).toEqual([squad.id]);          // solo, acting for team 2
+  });
+
+  it('all is per enemy team one charge area and one shoot area, each the union with a range per model', () => {
+    const { g, calls } = fake();
+    const p = projectionOf(game, board, deploy).projection;
+    const seen = allThreatsOf(g, game, p, team2, both);
+    expect(seen.map((t) => [t.teamId, t.ordinal, t.rings.map((r) => [r.kind, r.label])])).toEqual([[team1, 1, [['charge', 'Charge 12"'], ['shoot', 'Shoot 18–30"']]]]);
+    expect(calls.map((c) => c.ranges)).toEqual([[12, 12, 12], [30, 30, 18]]);
+    expect(allThreatsOf(g, game, p, team1, both).map((t) => t.rings.map((r) => r.label))).toEqual([['Charge 16"']]);
+    expect(allThreatsOf(g, game, p, null, both).length).toBe(2);
+    expect(allThreatsOf(g, game, p, team1, new Map([[orcs.id, { ranges: {} }]]))).toEqual([]);
+  });
+
+  it('the all cache recomputes only when the team acted for, a unit, its placements or its threat change', () => {
+    const { g } = fake();
+    const a = projectionOf(game, board, deploy);
+    const cache = new AllThreatCache();
+    const first = cache.of(g, game, a.projection, team2, both);
+    expect(cache.of(g, game, a.projection, team2, new Map(both))).toBe(first);
+    expect(cache.of(g, game, a.projection, team1, both)).not.toBe(first);
+    const back = cache.of(g, game, a.projection, team2, both);
+    expect(cache.of(g, game, a.projection, team2, new Map([[squad.id, squadThreat(8, 4)], [orcs.id, orcThreat]]))).not.toBe(back);
+    const now = cache.of(g, game, a.projection, team2, both);
+    a.apply({ seq: 99, actor: P1, payload: { kind: 'models_moved', moves: [{ modelId: squad.models[2]!.id, from: { kind: 'table', placement: at(14, 10) }, to: { kind: 'table', placement: at(20, 10) } }] } } as never);
+    expect(cache.of(g, game, a.projection, team2, both)).not.toBe(now);
   });
 });

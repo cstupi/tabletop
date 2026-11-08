@@ -32,7 +32,7 @@
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
-  import { ThreatRingCache, ofAnotherTeam } from './threatRings';
+  import { AllThreatCache, ThreatRingCache, shownThreats } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
@@ -231,19 +231,30 @@
     return { rings: ringCache.of(geometry, p, unit), colour: teamColour(ordinal) };
   });
 
-  // The hovered unit of another team's threat rings (RangeRingNode, ThreatRings), from the server's ModelFacts.threats, whatever V says.
-  const threatCache = new ThreatRingCache();
-  const threatLayer = $derived.by((): RingLayer | null => {
-    const p = shown, game = snap?.game, unit = hoveredUnit, threat = unit == null ? undefined : snap?.threats.get(unit);
-    if (geometry === null || p === null || game == null || unit == null || threat === undefined || !ofAnotherTeam(game, p, teams, unit)) return null;
-    const u = p.units.get(unit)!;
-    const team = game.participants.find((x) => x.id === u.participantId)?.teamId;
+  // Threat rings (RangeRingNode, ThreatRings), from the server's ModelFacts.threats, whatever V says, in deployment and play: the selected unit of
+  // another team than the one I act for (kept until the selection changes) and the hovered one; with T on, every enemy team's areas.
+  const pickedThreats = new ThreatRingCache(), hoveredThreats = new ThreatRingCache(), allThreats = new AllThreatCache();
+  let allThreatsOn = $state(false);
+  const threatLayerOf = (cache: ThreatRingCache, unit: string): RingLayer | null => {
+    const p = shown, game = snap?.game, threat = snap?.threats.get(unit);
+    if (geometry === null || p === null || game == null || threat === undefined) return null;
+    const team = game.participants.find((x) => x.id === p.units.get(unit)?.participantId)?.teamId;
     const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
-    return { rings: threatCache.of(geometry, p, unit, threat), colour: teamColour(ordinal) };
+    return { rings: cache.of(geometry, p, unit, threat), colour: teamColour(ordinal) };
+  };
+  const threatLayers = $derived.by((): RingLayer[] => {
+    const p = shown, game = snap?.game;
+    if (geometry === null || p === null || game == null || snap === null) return [];
+    const picked = selection?.pieceId ?? null, hovered = hoveredUnit ?? null;
+    const ids = shownThreats(game, p, actingTeam, picked, hovered, snap.threats);
+    const layers = [picked !== null && ids.includes(picked) ? threatLayerOf(pickedThreats, picked) : null,
+      hovered !== null && hovered !== picked && ids.includes(hovered) ? threatLayerOf(hoveredThreats, hovered) : null];
+    if (allThreatsOn) for (const t of allThreats.of(geometry, game, p, actingTeam, snap.threats)) layers.push({ rings: t.rings, colour: teamColour(t.ordinal) });
+    return layers.filter((l): l is RingLayer => l !== null);
   });
-  // Both layers in one overlay, so their labels are kept apart; the threat's labels place first.
+  // Every layer in one overlay, so their labels are kept apart; the threats' labels place first.
   const ringsDrawn = $derived.by((): Overlay | null => {
-    const layers = [threatLayer, rangeLayer].filter((l): l is RingLayer => l !== null);
+    const layers = [...threatLayers, rangeLayer].filter((l): l is RingLayer => l !== null);
     return layers.length === 0 ? null : ringsOverlay(layers);
   });
 
@@ -383,6 +394,7 @@
     if (drags.onKey(intent, e.shiftKey)) { e.preventDefault(); return; }   // D2: Q/E, 1–5 and Enter while a drag is in hand
     if (intent.kind === 'sight') { sightHeld = true; e.preventDefault(); return; }
     if (intent.kind === 'toggleRangeRings') { changeSettings((x) => ({ ...x, rangeRings: !x.rangeRings })); e.preventDefault(); return; }
+    if (intent.kind === 'toggleAllThreats') { allThreatsOn = !allThreatsOn; e.preventDefault(); return; }
     const used = intent.kind === 'option' ? box.number(intent.key)
       : intent.kind === 'confirm' ? box.enter()
       : intent.kind === 'cancel' ? drags.clearPicks() || box.cancel()      // Esc clears the picks first, then resets

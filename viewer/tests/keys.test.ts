@@ -20,6 +20,7 @@ describe('Hotkeys', () => {
     expect(intentOf('l', NO_MODIFIERS)).toEqual({ kind: 'sight' });
     expect(intentOf('g', NO_MODIFIERS)).toEqual({ kind: 'toggleLog' });
     expect(intentOf('v', NO_MODIFIERS)).toEqual({ kind: 'toggleRangeRings' });
+    expect(intentOf('t', NO_MODIFIERS)).toEqual({ kind: 'toggleAllThreats' });
     expect(intentOf('Delete', NO_MODIFIERS)).toEqual({ kind: 'remove' });
     expect(intentOf('Backspace', NO_MODIFIERS)).toEqual({ kind: 'remove' });
     expect(intentOf('z', NO_MODIFIERS)).toBeNull();
