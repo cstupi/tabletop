@@ -15,10 +15,11 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/library/` `folders.ts` (`moveTargets`), `selection.ts` (multi-select: `click`, `selectAll`, `keepOnly`), `bulk.ts` (`uploadTarget`,
   `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`), `offers.ts` (`playerContext`, `filterPlayers`, `offerSummary`, `STATE_LABELS`, `stateChip`, `alreadyHeld`, `appendPage`), `shared.ts` (`usernameProblem`, `sharedFolders`, `copySummary`).
 - `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
-- `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport`), `patches.ts` (`PatchArmyRequest` builders), `folder.ts` (`pickerAssets`,
-  `loadFolder`, `saveFolder`: the army page's mesh pickers list one library folder and its sub-folders, plus the mesh a picker already
-  holds; the choice is the army's, shared by every picker on the page and kept in `localStorage` under `tabletop.armyFolder.<armyId>`).
-- `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `OfferDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `LibraryTabs`, `Icon`
+- `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport`), `patches.ts` (`PatchArmyRequest` builders).
+- `src/lib/meshpicker/` the army page's mesh picker: `search.ts` (`words`, `wordScore`, `buildIndex`, `search`, `fits`), `suggest.ts`,
+  `scope.ts` (`modelName`, `scopes`, `defaultScope`, `scopePatch`, `changeLine`), `nav.ts` (`gridMove`), `memory.ts` (recent picks and the
+  open folder per account: `tabletop.meshRecent.<accountId>`, `tabletop.meshFolder.<accountId>`).
+- `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `OfferDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `MeshPicker` (the army page's mesh dialog), `FolderTree`, `LibraryTabs`, `Icon`
   (paths in `icons.ts`), `ThemeSwitch` (the two theme swatch tiles), `Menu` (a thing's ▸ menu), `Thumb` (an asset's thumbnail, else its icon).
 - `src/lib/armies/cards.ts` `systemName`, `meshPips`, `meshLine`, `slotRows`, `statBadges`: the army cards and the army page's unit cards.
 - `src/lib/thumbnail/` `frame.ts` (`thumbnailView`, `THUMBNAIL_SIZE`), `render.ts` (`renderThumbnail`, `sendThumbnail`: three.js
@@ -48,6 +49,18 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   folder: its tree, the folder's models with **Preview**, tick boxes and **Copy selected**, **Copy folder**, **Into folder**.
 - Live check on a dev port other than 5173: MinIO's CORS refuses the browser's presigned PUT, so drive the upload with Chromium
   started with `--disable-web-security` (Playwright), or upload over HTTP from a script.
+- Live check of a management change from a worktree: copy the main checkout's `.env` in, `dotnet build server/management`, run
+  `ASPNETCORE_ENVIRONMENT=Development TABLETOP_DEV_MODE=1 TABLETOP_MANAGEMENT_URL=http://127.0.0.1:<port> dotnet server/management/bin/Debug/net10.0/Tabletop.Management.dll`
+  from the worktree root (`TABLETOP_MANAGEMENT_URL` beats `.env`'s 5100, which compose holds), then
+  `TABLETOP_API_PROXY_TARGET=http://127.0.0.1:<port> npx vite dev --port <web port> --strictPort --host 127.0.0.1` in `web/`. Seed
+  over HTTP: `POST /v1/dev/sessions`, assets created with an uploaded hash (a starter's) need no upload, `PUT .../thumbnail`, and
+  `POST /v1/dev/armies/import` with an export body; `DELETE /v1/account` removes it all. Playwright's headless shell
+  (`~/.cache/ms-playwright/chromium_headless_shell-*`) needs `libnspr4` and `libnss3`: `apt-get download` both, `dpkg-deb -x` each
+  into a directory and set `LD_LIBRARY_PATH` to its `usr/lib/x86_64-linux-gnu`.
+- Army page: each slot row's mesh button opens the one `MeshPicker` (spec `2026-11-07-mesh-picker-design.md`). The page loads every
+  miniature once (keyset pages of 200), `buildIndex`es it once and fetches `GET /v1/armies/meshes` for the suggestions; search,
+  chips and folders filter in the browser, and the grid draws only the rows in view. A pick is one `PATCH` with a `SlotPatch` per
+  slot of the chosen scope. Slot names carry the import's number (`Orc Boyz 3`); `modelName` drops it to group a unit's models.
 - Upload: `classifyFiles` sorts the drop into STLs, one GLB or one image. `UploadDialog` runs `convertInWorker` (a module Web Worker over `convert`).
 - `convert` order: parse, merge, weld, recentre on the footprint, decimate to a triangle budget, creased normals, export GLB, then analysis (bounds, supports, `Proposal`, terrain `Volume`).
 - `guess.ts` proposes millimetres (`scale = mmToInches(1)`) and an up axis: `y` when the model is tallest along Y, else `z`. Y-up gets `pitch: 90`.
@@ -121,4 +134,5 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `docs/superpowers/specs/2026-10-01-starter-meshes-design.md`
 - `docs/superpowers/specs/2026-10-25-shared-models-design.md`
 - `docs/superpowers/specs/2026-11-07-shared-folders-design.md`
+- `docs/superpowers/specs/2026-11-07-mesh-picker-design.md`
 - `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md` (Themes)

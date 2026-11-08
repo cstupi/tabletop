@@ -87,6 +87,27 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Army_mesh_uses_count_the_owners_slots_per_unit_model_and_mesh_across_armies()
+    {
+        var owner = await NewAccount();
+        var (first, second) = (SmallArmy("First"), SmallArmy("Second"));
+        await Armies.Insert(owner, first);
+        await Armies.Insert(owner, second);
+        var stranger = await NewAccount();
+        var theirs = SmallArmy("Theirs");
+        await Armies.Insert(stranger, theirs);
+        Assert.Empty(await Armies.MeshUses(owner));
+        var (squad, walker) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await Armies.Patch(owner, first.Id, new PatchArmyRequest(null, [new UnitPatch(first.Units[0].Id, squad)], [new SlotPatch(first.Units[1].Models[0].Id, walker, false, null, null)]));
+        await Armies.Patch(owner, second.Id, new PatchArmyRequest(null, null, [new SlotPatch(second.Units[0].Models[1].Id, squad, false, null, null)]));
+        await Armies.Patch(stranger, theirs.Id, new PatchArmyRequest(null, [new UnitPatch(theirs.Units[0].Id, squad)], null));
+
+        Assert.Equal(
+            [new ArmyMeshUse("Squad", "Trooper", squad, 2), new ArmyMeshUse("Squad", "Sergeant", squad, 1), new ArmyMeshUse("Walker", "Walker", walker, 1)],
+            await Armies.MeshUses(owner));
+    }
+
+    [Fact]
     public async Task Army_delete_is_owner_only_and_clears_a_lobby_pick()
     {
         var hash = await NewProperties();

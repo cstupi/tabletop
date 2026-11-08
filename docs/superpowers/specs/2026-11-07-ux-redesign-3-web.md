@@ -57,13 +57,13 @@ read top to bottom to find a unit; every picker repeats the unit's name in a sen
 
 ```
 ┌ ‹ Armies     🛡 VOIDYS  ⟨3.6⟩  Army Forge ↗                                 [ ↻ Re-import ] ┐
-│  4 units · 13 models · meshes 9 of 13                 Mesh folder [ Starter ▾ ]              │   the folder once for the page (today's shared choice)
+│  4 units · 13 models · meshes 9 of 13                                                        │
 │                                                                                              │
 │  ┌▌ Reaper Champion ─────────────────────────────────────────────── 🎯 3+  🛡 4+ ─────────┐ │
-│  │ [ ▣ ] Reaper Champion     Figure, 32mm round ▾   base ◯ 32 mm   height 1.9"            │ │   a row per slot: thumbnail, name, mesh picker, base, height
+│  │ Reaper Champion 1  [ ▣ Figure, 32mm round ▾ ]   base ◯ 32 mm   height 1.9"            │ │   a row per slot: name, mesh button (thumbnail), base, height
 │  └──────────────────────────────────────────────────────────────────────────────────────────┘ │
 │  ┌▌ Flayer Cavalry ×5 ───────────────────────────────────────────── 🎯 3+  🛡 4+ ─────────┐ │
-│  │ [ ▢ ] every model         — none (draws the hitbox) ▾   base ◯ 40 mm   height 2.4"     │ │   one row when every model shares a slot
+│  │ every model        [ ▢ No mesh ▾ ]              base ◯ 40 mm   height 2.4"            │ │   one row when every model shares a slot
 │  │   ▸ per model                                                                            │ │   opens a row per model
 │  └──────────────────────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -72,8 +72,8 @@ read top to bottom to find a unit; every picker repeats the unit's name in a sen
 - The name is a heading with an edit icon, not a field. The facts line and the Army Forge link stay; *Stats, weapons and rules are the
   list's; meshes, bases and heights are yours* becomes the page's tooltip.
 - A unit is a card with its band (the army's colour is not a team's: a neutral band), its name, count and the two stat badges with
-  icons. Each slot is a row: a thumbnail of the chosen mesh, the mesh picker (the library folder chosen once for the page), the base
-  picker and the height, as the `PatchArmyRequest` builders already patch them. Needs server data: an asset thumbnail (`GET
+  icons. Each slot is a row: the slot's name, a button with the chosen mesh's thumbnail and name that opens the mesh picker
+  (`2026-11-07-mesh-picker-design.md`), the base picker and the height, as the `PatchArmyRequest` builders already patch them. Needs server data: an asset thumbnail (`GET
   /v1/assets/{id}/thumbnail`, rendered once at upload from the GLB the browser already previews); without it the row shows the `mesh`
   icon.
 
@@ -139,7 +139,7 @@ caption as the position's block header; the header `Replay` chip and the team ti
 - `web/src/app.css`: `.team-band`, `.chip.status-*`, `kbd`, `.card`, `.tile`, `.pips`, `.quiet`; `web/src/themes.css`: the icon tokens
   per theme (`--icon-<name>` as `url()` of the SVG under `static/themes/<id>/icons/`, the same files as the client's, copied by the
   build). `web/src/lib/components/Icon.svelte` draws by name.
-- `web/src/routes/armies/+page.svelte` (cards), `armies/[id]/+page.svelte` (unit cards, slot rows, the page folder), `library/` (tiles
+- `web/src/routes/armies/+page.svelte` (cards), `armies/[id]/+page.svelte` (unit cards, slot rows, the mesh picker), `library/` (tiles
   with thumbnails, the usage bar), `library/offered`, `library/sent` (offer cards), `login/+page.svelte` (the two sentences removed),
   `account/+page.svelte`.
 - Management: `GET /v1/assets/{id}/thumbnail` and the thumbnail's write at upload confirm (the one server change this part needs);

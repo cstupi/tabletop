@@ -30,6 +30,7 @@ public static class ArmyEndpoints
             var page = Keyset.Parse(limit, after);
             return Results.Ok(Page<ArmySummary>.Of(await armies.List(CurrentAccount.Id(u), page), page.Limit, a => a.Id));
         });
+        g.MapGet("/meshes", async (ClaimsPrincipal u, IArmyRepository armies) => Results.Ok(await armies.MeshUses(CurrentAccount.Id(u))));
         g.MapGet("/{id:guid}", async (ClaimsPrincipal u, Guid id, IArmyRepository armies) => await armies.Get(CurrentAccount.Id(u), id) is { } a ? Results.Ok(a) : Problems.NotFound());
         g.MapPatch("/{id:guid}", async (ClaimsPrincipal u, Guid id, PatchArmyRequest p, IArmyRepository armies, IAssetRepository assets) =>
         {

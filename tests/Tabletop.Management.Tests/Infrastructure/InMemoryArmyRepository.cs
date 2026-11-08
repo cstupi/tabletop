@@ -52,6 +52,16 @@ public sealed class InMemoryArmyRepository(InMemoryRows rows) : IArmyRepository
                 .ToList());
     }
 
+    public Task<IReadOnlyList<ArmyMeshUse>> MeshUses(Guid ownerId)
+    {
+        lock (rows.Gate)
+            return Task.FromResult<IReadOnlyList<ArmyMeshUse>>(rows.Armies.Values.Where(a => a.Owner == ownerId)
+                .SelectMany(a => a.Army.Units.SelectMany(u => u.Models.Where(m => m.AssetId is not null).Select(m => (Unit: u.Name, Model: System.Text.RegularExpressions.Regex.Replace(m.Name, @"\s+[0-9]+$", ""), Asset: m.AssetId!.Value))))
+                .GroupBy(x => x).Select(g => new ArmyMeshUse(g.Key.Unit, g.Key.Model, g.Key.Asset, g.Count()))
+                .OrderByDescending(x => x.Slots).ThenBy(x => x.UnitName, StringComparer.Ordinal).ThenBy(x => x.ModelName, StringComparer.Ordinal).ThenBy(x => x.AssetId)
+                .ToList());
+    }
+
     public Task<int> Count(Guid ownerId)
     {
         lock (rows.Gate) return Task.FromResult(rows.Armies.Values.Count(a => a.Owner == ownerId));

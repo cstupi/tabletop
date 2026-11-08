@@ -44,6 +44,9 @@ export const ICONS = {
   grimdark: [circle(16, 16, 8), 'M3 19 C3 14 30 9 29 14 C28.5 17 14 22 6 22 C4 22 3 21 3 19 Z'],
   fantasy: ['M16 3 L19 7 V22 H13 V7 Z', 'M9 22 H23', 'M16 22 V29', 'M13.5 29 H18.5'],
   theme: [circle(16, 16, 12), 'M16 4 A12 12 0 0 1 16 28 Z'],
+  search: [circle(14, 14, 8.5), 'M20.5 20.5 L27 27'],
+  recent: [circle(16, 16, 12), 'M16 9 V16 L21 19'],
+  suggest: ['M16 4 L19.2 12.2 L28 12.8 L21.2 18.4 L23.4 27 L16 22.2 L8.6 27 L10.8 18.4 L4 12.8 L12.8 12.2 Z'],
 } as const;
 
 export type IconName = keyof typeof ICONS;
