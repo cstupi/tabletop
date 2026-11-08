@@ -13,7 +13,7 @@
   import CombatLogPanel from './CombatLogPanel.svelte';
   import { noteOf } from './decisionView';
   import DiceTray from './DiceTray.svelte';
-  import { enemyStripOf, stripShows } from './enemyStrip';
+  import { enemyStripOf, measuredUnit, stripShows } from './enemyStrip';
   import EnemyStrip from './EnemyStrip.svelte';
   import { HoverDistances, hoverOf } from './hoverView';
   import { hoverOverlay } from './hoverLabels';
@@ -96,10 +96,12 @@
   const strip = $derived.by(() => {
     const p = shown, game = snap.game;
     if (p === null || game === null || sheet === null || focus === null || hoveredUnit === null || !p.units.has(hoveredUnit)) return null;
-    if (!stripShows(p, game, myTeam, focus, hoveredUnit)) return null;
+    const measured = measuredUnit(p, game, myTeam, focus);   // the acting shooter's weapons, whatever the card shows
+    if (!stripShows(p, game, myTeam, measured, hoveredUnit)) return null;
     const names = new Names(game, p);
-    const distance = hoverOf(geometry, p, game, names, hoveredUnit, focus, snap.maxWounds, distances)?.distance ?? null;
-    return enemyStripOf(sheet, unitSheetOf(p, names, hoveredUnit, rules, snap.maxWounds), distance);
+    const distance = hoverOf(geometry, p, game, names, hoveredUnit, measured, snap.maxWounds, distances)?.distance ?? null;
+    const mine = measured === focus ? sheet : unitSheetOf(p, names, measured, rules, snap.maxWounds);
+    return enemyStripOf(mine, unitSheetOf(p, names, hoveredUnit, rules, snap.maxWounds), distance);
   });
 
   /** HoverLabels: the distance follows the name only with one of my units selected. */

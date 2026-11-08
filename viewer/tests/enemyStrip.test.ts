@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { enemyStripOf, stripShows } from '../src/lib/play/enemyStrip';
+import { enemyStripOf, measuredUnit, stripShows } from '../src/lib/play/enemyStrip';
 import type { SheetWeapon, UnitSheetModel } from '../src/lib/play/unitSheet';
 import { TEAM_A, activating, blue, blue2, focusGame, red } from './focusSamples';
 import { newId } from './play';
@@ -27,5 +27,13 @@ describe('EnemyStrip', () => {
     expect(stripShows(p, focusGame, TEAM_A, blue.id, blue2.id)).toBe(false);   // my own unit hovered
     expect(stripShows(p, focusGame, TEAM_A, red.id, blue.id)).toBe(false);     // the card shows an enemy
     expect(stripShows(p, focusGame, null, blue.id, red.id)).toBe(false);       // a watcher has no units
+  });
+
+  it('measures my acting unit whatever the card shows', () => {
+    expect(measuredUnit(activating(blue.id), focusGame, TEAM_A, blue2.id)).toBe(blue.id);
+    expect(measuredUnit(activating(blue.id), focusGame, TEAM_A, red.id)).toBe(blue.id);
+    expect(measuredUnit(activating(null), focusGame, TEAM_A, blue2.id)).toBe(blue2.id);
+    expect(measuredUnit(activating(red.id), focusGame, TEAM_A, blue2.id)).toBe(blue2.id);
+    expect(measuredUnit(activating(blue.id), focusGame, null, blue2.id)).toBe(blue2.id);
   });
 });

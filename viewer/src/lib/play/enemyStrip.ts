@@ -5,6 +5,7 @@
 
 import type { Projection } from '../live/apply';
 import type { GameInfo } from '../protocol/wire.generated';
+import { actionFrame } from './headerView';
 import { teamOf } from './sheetFocus';
 import type { UnitSheetModel } from './unitSheet';
 
@@ -18,6 +19,12 @@ export interface EnemyStripModel {
 export function stripShows(p: Projection, game: GameInfo, myTeam: string | null, cardUnit: string, hoveredUnit: string): boolean {
   const theirs = teamOf(p, game, hoveredUnit);
   return myTeam !== null && teamOf(p, game, cardUnit)?.id === myTeam && theirs !== null && theirs.id !== myTeam;
+}
+
+/** EnemyStrip.Measured: whose weapons the strip measures: my team's acting unit (the shooter while targets are declared), else the card's unit. */
+export function measuredUnit(p: Projection, game: GameInfo, myTeam: string | null, cardUnit: string): string {
+  const actor = actionFrame(p)?.context.actorUnitId;
+  return myTeam !== null && actor !== undefined && teamOf(p, game, actor)?.id === myTeam ? actor : cardUnit;
 }
 
 export function enemyStripOf(mine: UnitSheetModel, hovered: UnitSheetModel, distance: number | null): EnemyStripModel {

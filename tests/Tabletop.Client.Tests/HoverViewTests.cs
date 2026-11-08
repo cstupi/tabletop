@@ -86,4 +86,13 @@ public class HoverViewTests
         var p = Table(new ModelsMoved([Put(Loose.Models[0], 40, 40)]));
         Assert.Equal(0, HoverView.Of(p, Game, new Names(Game, p), Loose.Id, null, NoFacts)!.TeamOrdinal);
     }
+
+    [Fact]
+    public void The_wounds_are_one_line_under_the_name_like_ones_counted()
+    {
+        Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7(), c = Guid.CreateVersion7(), d = Guid.CreateVersion7();
+        Assert.Equal("3/3 ×2 · 1/3 · 2/3", HoverView.WoundsLine([(a, 3, 3), (b, 1, 3), (c, 3, 3), (d, 2, 3)]));
+        Assert.Equal("2/2", HoverView.WoundsLine([(a, 2, 2)]));
+        Assert.Null(HoverView.WoundsLine([]));
+    }
 }

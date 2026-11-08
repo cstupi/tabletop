@@ -220,8 +220,10 @@ public partial class UnitCard : VBoxContainer
     void RenderStrip(Projection p, GameInfo game, Names names, UnitSheetModel mine)
     {
         _strip.Visible = false;
-        if (_hovered is not { } h || !p.Units.ContainsKey(h) || !EnemyStrip.Shows(p, game, _s.MyTeamId, mine.UnitId, h)) return;
-        var m = EnemyStrip.Of(mine, UnitSheet.Of(p, names, h, _s.Rules, _s.MaxWounds), HoverView.Of(p, game, names, h, mine.UnitId, _s.MaxWounds)?.Distance);
+        var measured = EnemyStrip.Measured(p, game, _s.MyTeamId, mine.UnitId);   // the acting shooter's weapons, whatever the card shows
+        if (_hovered is not { } h || !p.Units.ContainsKey(h) || !EnemyStrip.Shows(p, game, _s.MyTeamId, measured, h)) return;
+        if (measured != mine.UnitId) mine = UnitSheet.Of(p, names, measured, _s.Rules, _s.MaxWounds);
+        var m = EnemyStrip.Of(mine, UnitSheet.Of(p, names, h, _s.Rules, _s.MaxWounds), HoverView.Of(p, game, names, h, measured, _s.MaxWounds)?.Distance);
         Clear(_stripBody);
         var band = SheetFocus.TeamOf(p, game, h)?.Ordinal ?? 0;
         var strip = new StyleBoxFlat { BgColor = Ui.Background with { A = 0.9f }, BorderColor = band > 0 ? Ui.Team(band) : Ui.DimText };

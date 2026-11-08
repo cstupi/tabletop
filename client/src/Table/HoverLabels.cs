@@ -8,15 +8,14 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the pick tag at the cursor. A hovered locked objective says how to unlock it. In play a hovered terrain piece shows a panel beside the cursor (TerrainLabel.HoverOf: its name, height and one chip per effect in the
+/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and under it in the same label the multi-wound models' wounds left (HoverView.WoundsLine). Shift held shows the pick tag at the cursor. A hovered locked objective says how to unlock it, unless a unit is hovered too. In play a hovered terrain piece shows a panel beside the cursor (TerrainLabel.HoverOf: its name, height and one chip per effect in the
 /// effect's colour, TerrainEffects), except the selected one, whose details are the terrain card's.</summary>
 public partial class HoverLabels : Node3D
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly Label3D _name = new() { Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = Palette.ScreenPixel, FixedSize = true, OutlineSize = 10, NoDepthTest = true, Visible = false };
     readonly MeshInstance3D _line = new() { MaterialOverride = LineMesh.Material() };
-    readonly Node3D _wounds = new();
-    readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
+    readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 32, PixelSize = Palette.ScreenPixel, FixedSize = true, OutlineSize = 8, NoDepthTest = true, Visible = false };
     readonly PanelContainer _terrainPanel = new() { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
     TerrainHover? _terrainShown;
     /// <summary>The terrain panel's layer, in the window over the Hud: a panel inside the table's viewport would sit under the Hud's parts.</summary>
@@ -28,7 +27,7 @@ public partial class HoverLabels : Node3D
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _view = view; _input = input;
-        AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_lock); AddChild(_layer); _layer.AddChild(_shift);
+        AddChild(_name); AddChild(_line); AddChild(_lock); AddChild(_layer); _layer.AddChild(_shift);
         _overHud.AddChild(_terrainPanel); GetTree().Root.CallDeferred(Node.MethodName.AddChild, _overHud);
         _onTheme = () => { _terrainShown = null; DrawTerrain(); }; Ui.Changed += _onTheme;
         _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onTerrain = id => { _terrain = id; DrawTerrain(); };
@@ -72,7 +71,6 @@ public partial class HoverLabels : Node3D
     void Draw()
     {
         _name.Visible = false; _line.Mesh = null;
-        foreach (var c in _wounds.GetChildren()) c.QueueFree();
         DrawLock(); DrawTerrain();
         if (_hovered is not { } unit || _s.Projection is not { } p || _s.Game is not { } game) return;
         if (HoverView.Of(p, game, new Names(game, p), unit, MySelectedUnit(p, game), _s.MaxWounds) is not { } info) return;
@@ -81,24 +79,20 @@ public partial class HoverLabels : Node3D
         var top = nodes.Max(n => n.Bounds.End.Y);
         var centre = nodes.Aggregate(Vector3.Zero, (a, n) => a + n.GlobalPosition) / nodes.Count;
         var eligible = _input.Eligible.Contains(unit) || nodes.Any(n => _input.Eligible.Contains(n.ModelId));
-        _name.Text = eligible ? $"{info.Name} · Click to target" : info.Distance is { } d ? $"{info.Name} · {d:0.0}\"" : info.Name;
+        _name.Text = (eligible ? $"{info.Name} · Click to target" : info.Distance is { } d ? $"{info.Name} · {d:0.0}\"" : info.Name)
+            + (HoverView.WoundsLine(info.Wounds) is { } wounds ? $"\n{wounds}" : "");   // one label, so the wounds never overlap the name
         _name.Modulate = Palette.Team(info.TeamOrdinal);
         _name.Position = new Vector3(centre.X, top + 1.2f, centre.Z);
         _name.Visible = true;
         if (info.From is { } from && info.To is { } to)
             _line.Mesh = LineMesh.Of([(WorldFrame.ToGodot(from) + Vector3.Up * 0.15f, WorldFrame.ToGodot(to) + Vector3.Up * 0.15f, Colors.White)]);
-        foreach (var (model, left, max) in info.Wounds)
-        {
-            if (max <= 1 || _view.PieceAt(model) is not { } node) continue;
-            _wounds.AddChild(new Label3D { Text = $"{left}/{max}", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true,
-                Position = new Vector3(node.GlobalPosition.X, node.Bounds.End.Y + 0.4f, node.GlobalPosition.Z) });
-        }
     }
 
     void DrawLock()
     {
         _lock.Visible = false;
-        if (_marker is not { } id || !_input.Locks.IsLocked(_s.Game?.Status, _s.Projection, id) || _view.MarkerAt(id) is not { } node) return;
+        // A hovered unit's label is the one shown: a marker under or beside it says nothing, so the two never overlap.
+        if (_hovered is not null || _marker is not { } id || !_input.Locks.IsLocked(_s.Game?.Status, _s.Projection, id) || _view.MarkerAt(id) is not { } node) return;
         _lock.Position = new Vector3(node.GlobalPosition.X, node.Bounds.End.Y + 0.6f, node.GlobalPosition.Z);
         _lock.Visible = true;
     }

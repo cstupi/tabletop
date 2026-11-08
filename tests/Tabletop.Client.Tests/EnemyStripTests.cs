@@ -30,4 +30,16 @@ public class EnemyStripTests
         Assert.False(EnemyStrip.Shows(p, g, a, red, blue));     // the card shows an enemy
         Assert.False(EnemyStrip.Shows(p, g, null, blue, red));  // a watcher has no units
     }
+
+    [Fact]
+    public void The_strip_measures_my_acting_unit_whatever_the_card_shows()
+    {
+        var g = SheetFocusTests.Game; var a = SheetFocusTests.TeamA;
+        Guid blue = SheetFocusTests.Blue.Id, blue2 = SheetFocusTests.Blue2.Id, red = SheetFocusTests.Red.Id;
+        Assert.Equal(blue, EnemyStrip.Measured(SheetFocusTests.Activating(blue), g, a, blue2));   // another of mine selected: the shooter's weapons
+        Assert.Equal(blue, EnemyStrip.Measured(SheetFocusTests.Activating(blue), g, a, red));
+        Assert.Equal(blue2, EnemyStrip.Measured(SheetFocusTests.Activating(null), g, a, blue2));  // no activation: the card's unit
+        Assert.Equal(blue2, EnemyStrip.Measured(SheetFocusTests.Activating(red), g, a, blue2));   // another team's activation is not mine to measure
+        Assert.Equal(blue2, EnemyStrip.Measured(SheetFocusTests.Activating(blue), g, null, blue2));
+    }
 }

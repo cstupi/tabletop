@@ -15,6 +15,15 @@ export interface HoverInfo {
 
 const KEPT = 8;
 
+/** HoverView.WoundsLine: the multi-wound models' wounds left as one line under the name, like ones counted (`3/3 ×2 · 1/3`), in model
+ *  order; null when none takes more than one. */
+export function woundsLine(wounds: HoverInfo['wounds']): string | null {
+  if (wounds.length === 0) return null;
+  const groups = new Map<string, number>();
+  for (const w of wounds) groups.set(`${w.left}/${w.max}`, (groups.get(`${w.left}/${w.max}`) ?? 0) + 1);
+  return [...groups].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).join(' · ');
+}
+
 /** The least base-edge distance between two sets of placed models (HoverView's MinBy over EdgeToEdge, as one NearestPair), kept per
  *  placements: a frame that moved neither unit, or the strip and the overlay asking the same pair, cross into the geometry once. */
 export class HoverDistances {

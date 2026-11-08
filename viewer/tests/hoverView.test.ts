@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Applier } from '../src/lib/live/apply';
 import type { Geometry, PlacedModel } from '../src/lib/geometry';
-import { HoverDistances, hoverOf } from '../src/lib/play/hoverView';
+import { HoverDistances, hoverOf, woundsLine } from '../src/lib/play/hoverView';
 import { Names } from '../src/lib/play/names';
 import type { EventPayload, GameInfo, ModelRelocation, ModelSlot } from '../src/lib/protocol/wire.generated';
 import { at, boardOf, ev, gameOf, newId, slotOf, unitOf } from './play';
@@ -98,5 +98,12 @@ describe('HoverView', () => {
   it('a unit whose participant has no team is ordinal zero', () => {
     const p = table({ kind: 'models_moved', moves: [put(loose.models[0]!, 40, 40)] });
     expect(hoverOf(geometry, p, game, new Names(game, p), loose.id, null, noFacts)!.teamOrdinal).toBe(0);
+  });
+
+  it('the wounds are one line under the name, like ones counted', () => {
+    const w = (left: number, max: number) => ({ modelId: newId(), left, max });
+    expect(woundsLine([w(3, 3), w(1, 3), w(3, 3), w(2, 3)])).toBe('3/3 ×2 · 1/3 · 2/3');
+    expect(woundsLine([w(2, 2)])).toBe('2/2');
+    expect(woundsLine([])).toBeNull();
   });
 });

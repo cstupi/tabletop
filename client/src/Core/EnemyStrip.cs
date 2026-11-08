@@ -16,6 +16,11 @@ public static class EnemyStrip
         myTeamId is { } mine && SheetFocus.TeamOf(p, game, cardUnit)?.Id == mine
         && SheetFocus.TeamOf(p, game, hoveredUnit) is { } theirs && theirs.Id != mine;
 
+    /// <summary>Whose weapons the strip measures: my team's acting unit (the activation's actor, the shooter while targets are declared),
+    /// else the card's unit.</summary>
+    public static Guid Measured(Projection p, GameInfo game, Guid? myTeamId, Guid cardUnit) =>
+        myTeamId is { } mine && HeaderView.ActionFrame(p)?.Context.ActorUnitId is { } actor && SheetFocus.TeamOf(p, game, actor)?.Id == mine ? actor : cardUnit;
+
     public static EnemyStripModel Of(UnitSheetModel mine, UnitSheetModel hovered, double? distance) =>
         new(hovered.UnitId, hovered.Name, hovered.Defense, hovered.Alive, distance,
             mine.Weapons.Where(w => w.Range != "-").Select(w => new RangeCheck(w.Name, w.Range, Within(w.Range, distance))).ToList());
