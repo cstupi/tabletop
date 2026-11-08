@@ -112,8 +112,9 @@ public partial class TeamColumnsPanel : HFlowContainer
             if (column.State != ColumnState.Watching) line.AddChild(Icon(column.State == ColumnState.Ready ? "ready" : "warning", ink, 16));
             if (column.TeamId is not null && column.Join is { } join)
             {
-                var plus = new Button { Text = TeamColumns.JoinCompact, Disabled = !join.Enabled, TooltipText = join.Why ?? $"{TeamColumns.Join} {column.Title}",
+                var plus = new Button { Text = TeamColumns.JoinCompact, Flat = true, ThemeTypeVariation = Variation.FlatButton, Disabled = !join.Enabled, TooltipText = join.Why ?? $"{TeamColumns.Join} {column.Title}",
                     FocusMode = FocusModeEnum.None, SizeFlagsVertical = SizeFlags.ShrinkCenter };
+                foreach (var c in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" }) plus.AddThemeColorOverride(c, ink);
                 if (join.Edit is { } edit) plus.Pressed += () => Guarded.Send(_s, edit);
                 line.AddChild(plus);
             }
