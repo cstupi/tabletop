@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -37,7 +38,7 @@ public class SuiteSocketTests : IDisposable
 
     async Task<SuiteSocket> SocketAsync()
     {
-        db.Properties.Add(ScenarioCompiler.CoreProperties);
+        foreach (var rules in RuleSets.All) db.Properties.Add(ScenarioCompiler.CorePropertiesOf(rules));
         await Task.CompletedTask;
         return _pool.Socket(() => new FactoryConnector(_factory));
     }

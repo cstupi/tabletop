@@ -79,18 +79,19 @@ public class LifecycleRunnerTests
     }
 
     [Fact]
-    public void The_3_6_shape_plays_two_players_on_the_3_6_rule_set_and_every_other_shape_on_3_5_1()
+    public void The_3_5_shape_plays_two_players_on_the_3_5_1_rule_set_and_every_other_shape_on_3_6_0()
     {
-        var shape = LifecycleShapes.Select(["two-players-3.6"])[0];
-        Assert.Equal(Tabletop.Content.RuleSets.Gf360, shape.Rules);
-        Assert.Equal(LifecycleShapes.Select(["two-players"])[0].Seats.Select(s => s.Team), shape.Seats.Select(s => s.Team));
-        Assert.Equal(Tabletop.Content.ArmyEditions.V36, shape.Edition);
-        Assert.All(shape.Seats, s => Assert.Equal(3, s.Book));
-        Assert.All(shape.Seats, s => Assert.Equal(3, LifecycleArmy.List(s.Book, edition: shape.Edition)["units"]!.AsArray().Count));
-        Assert.All(LifecycleShapes.All.Where(s => s.Name != "two-players-3.6"), s =>
+        var shape = LifecycleShapes.Select(["two-players-3.5"])[0];
+        var two = LifecycleShapes.Select(["two-players"])[0];
+        Assert.Equal(Tabletop.Content.RuleSets.Gf351, shape.Rules);
+        Assert.Equal(Tabletop.Content.ArmyEditions.V35, shape.Edition);
+        Assert.Equal(two.Seats, shape.Seats);
+        Assert.Equal(Tabletop.Content.RuleSets.Default, two.Rules);
+        Assert.All(LifecycleShapes.All.Where(s => s.Name != "two-players-3.5"), s =>
         {
-            Assert.Equal(Tabletop.Content.RuleSets.Gf351, s.Rules);
-            Assert.Equal(Tabletop.Content.ArmyEditions.V35, s.Edition);
+            Assert.Equal(Tabletop.Content.RuleSets.Gf360, s.Rules);
+            Assert.Equal(Tabletop.Content.ArmyEditions.V36, s.Edition);
+            Assert.All(s.Seats, seat => Assert.Equal(3, LifecycleArmy.List(seat.Book, edition: s.Edition)["units"]!.AsArray().Count));
         });
     }
 

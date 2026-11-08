@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.Protocol;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
@@ -70,9 +71,9 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
             ? evidence(EventApplier.EffectiveLog(effectiveLog))
             : Suite.Fired.In(effectiveLog, entry);
 
-    /// <summary>The game-rules id this game runs under (RuleSets); the scenario's, 3.5.1 unless it names one. SuiteCatalog.Expand sets the
-    /// scenario's rules to it, and the runner compiles under it.</summary>
-    public string Edition { get; init; } = Scenario.Rules;
+    /// <summary>The game-rules id this game runs under (RuleSets): 3.5.1 unless the game names one (In36, BothEditions, a book's edition).
+    /// SuiteCatalog.Expand sets the scenario's rules to it, and the runner compiles under it.</summary>
+    public string Edition { get; init; } = RuleSets.Gf351;
 
     /// <summary>The editions the game runs under, once each (SuiteCatalog.Expand); null is Edition alone.</summary>
     public IReadOnlyList<string>? Editions { get; init; }

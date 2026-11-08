@@ -68,6 +68,7 @@ drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver 
 - Every module is designed before it is built, and built from its plan. No speculative folders, interfaces or
   placeholders for undesigned work.
 - The rules engine lives only in `server/game/`. Nothing else names or implements a rule.
+- New work targets Grimdark Future v3.6.0: build, test and check it on 3.6 games with 3.6 armies first; 3.5.1 stays supported.
 
 ## Docs
 

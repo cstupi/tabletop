@@ -14,7 +14,7 @@ import { SetupDrag } from '../../src/lib/setup/drag';
 import { objective, overrideVolume, withDeclaration, zoneShapes } from '../../src/lib/setup/edits';
 import { loadEdit, randomEdit, randomRequest } from '../../src/lib/setup/layouts';
 import { loadTestGeometry } from '../geometry';
-import { MANAGEMENT, SOCKET, accountName, session, sweep, waitFor } from './harness';
+import { MANAGEMENT, SOCKET, accountName, defaultSet, session, sweep, waitFor } from './harness';
 
 describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playing', () => {
   let geometry: Geometry;
@@ -34,7 +34,7 @@ describe.skipIf(process.env.TABLETOP_E2E !== '1')('browser play, lobby to playin
     const conns: GameConnection[] = [];
     try {
       catalog = await loadCatalog(apiA);
-      const properties = (await apiA.listProperties())[0]!;
+      const properties = defaultSet(await apiA.listProperties());
       const created = await apiA.createGame({
         name: 'c2 e2e', propertiesHash: properties.contentHash, schedulerShape: 'alternating-activation',
         enforcement: 'warn', waitsBetweenSteps: false,

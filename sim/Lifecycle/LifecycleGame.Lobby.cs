@@ -100,7 +100,7 @@ public sealed partial class LifecycleGame
         _armies.Add((account, army.Id));
         Check(army.Units.Count == 3 && army.Source == LifecycleArmy.Source && army.Edition == shape.Edition, $"the import holds {army.Units.Count} units from {army.Source}, edition {army.Edition}");
         if (ambush)
-            Check(army.Units.Single(u => u.Name == LifecycleArmy.AmbushUnit).Properties.Any(p => p.Name == "Ambush"), "the imported Beast Riders do not carry Ambush");
+            Check(army.Units.Single(u => u.Name == LifecycleArmy.AmbushUnit(shape.Edition)).Properties.Any(p => p.Name == "Ambush"), $"the imported {LifecycleArmy.AmbushUnit(shape.Edition)} do not carry Ambush");
         var team = TeamId(CreatorSocket.Game, seat.Team);
         await socket.EditAsync(new PickArmy(army.Id, team),
             g => g.Participants.Any(p => p.AccountId == account.AccountId && p.TeamId == team && p.ArmyId == army.Id), ct);

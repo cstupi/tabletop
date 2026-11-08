@@ -22,6 +22,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 
 - `ScenarioCatalog` holds `skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `final-round`, `final-round-warn`, `final-round-silent`, `casting`, `army-rules`, `objectives`. `--list` prints them.
 - A scenario has a seed, a round cap, a scheduler shape, an enforcement setting, armies, terrain, an optional `AnswerScript` and `Expectation`s.
+- A scenario plays Grimdark Future v3.6.0 (`Scenario.Rules`, `ScenarioBuilder.Rules(id)`; default `RuleSets.Gf360`) unless it names
+  `RuleSets.Gf351`; every catalog scenario plays 3.6.0, its rules named as the 3.6 books print them (`army-rules`: Grounded Defense).
 - `ScenarioCompiler` turns it into a `CompiledScenario`; `CorePropertiesOf(rulesId)` gives an edition's shipped set and `CoreProperties` is 3.5.1's; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
 - `RunLoop` asks the driver for open Asks, answers each, drains events, and ends in a `RunOutcome`: `Ended`, `RoundLimit`, `Stuck`, `Failed` or `Paused`.
 - `AnswerPolicy` picks uniformly over exactly the legal set the server sent, one case per `LegalSet` shape. It never narrows the set.
@@ -119,7 +121,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   `docs/handoff.md` → Rules-suite gaps.
 - A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
   name the rule it shows.
-- A `TestGame` runs under `Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names one with `.Rules(id)`): the
+- A `TestGame` runs under `Edition` (a game-rules id, `RuleSets.Gf351` unless the game names one: `.In36()`, `.BothEditions()`, a 3.6
+  book's game, `SpellGames.Game` over a set; the scenario's own `Rules` does not choose it): the
   scenario compiles against that edition's core set and its armies' snapshots carry the edition. `Editions: [Gf351, Gf360]` runs it
   twice (`SuiteCatalog.Expand`), the 3.6 run named `<name>@3.6`, the 3.5.1 one keeping the bare name; a game under 3.6 alone is
   `<name>@3.6` too. Groups `army:<edition>:<uid>` and `spells:<edition>:<uid>` (`SuiteCatalog.ArmyGroup`, `SpellsGroup`); `--only <name>` selects the 3.5.1 run, `--only <name>@3.6` the 3.6 one, a group both. Core and special games whose checks quote no rule the 3.6 set changes run both (`.BothEditions()` in their catalog list); the rest are 3.5.1-only. Army and spell games are single-edition (`Expand` throws on more than one: the books' uids differ per edition), and `BookOf` takes the three-part group only.
@@ -185,15 +188,17 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 
 - Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
   the game socket (`ClientSocket` outside play, `SocketDriver` in it); nothing is written to Postgres, so it needs no database connection.
-- Shapes (`LifecycleShapes.All`): `two-players`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`, `two-players-3.6`.
+- Shapes (`LifecycleShapes.All`): `two-players`, `two-players-3.5`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`.
   Account 0 creates; `lifecycle-player-0..7` take seats, `lifecycle-spectator` joins every played game and is the driver's recorder. Never deleted.
-- Armies come from `POST /v1/dev/armies/import` (dev mode only) with the body `LifecycleArmy.List(book)` builds: book 0 is management's
-  Army Forge fixture (embedded from `tests/Tabletop.Management.Tests/Fixtures/`), cut to three units, and the `ambusher` shape adds Ambush
-  to its Beast Riders; books 1..3 are `Lifecycle/Armies/<uid>.json`, three units each cut from Human Defense Force, Battle Brothers and Orc
-  Marauders. A `Seat` names its book. Nothing calls Army Forge.
-- `LifecycleShape.Rules` (default `Gf351`) is the game-rules id the game is created on and `Edition` the army edition it takes; the import
-  body carries `edition`. `two-players-3.6` is `two-players` on `Gf360`: both seats bring book 3 from `Lifecycle/Armies/3.6/` (three units
-  cut from the 3.6 Army Forge dump), and the lobby step asserts the set is the default.
+- Armies come from `POST /v1/dev/armies/import` (dev mode only) with the body `LifecycleArmy.List(book, ambush, edition)` builds. 3.6
+  (the default): `Lifecycle/Armies/3.6/<uid>.json`, three units of each book at their default loadout, cut from the 3.6 Army Forge dump:
+  book 0 Daemons of War (Blood Warriors, Blood Hounds, Blood Beast Riders), then Human Defense Force, Battle Brothers and Orc Marauders.
+  3.5: book 0 is management's Army Forge fixture (embedded from `tests/Tabletop.Management.Tests/Fixtures/`), cut to three units; books
+  1..3 are `Lifecycle/Armies/<uid>.json`. The `ambusher` shape adds Ambush to book 0's riders (`LifecycleArmy.AmbushUnit(edition)`). A
+  `Seat` names its book. Nothing calls Army Forge.
+- `LifecycleShape.Rules` (default `Gf360`) is the game-rules id the game is created on and `Edition` the army edition it takes; the import
+  body carries `edition`, and the lobby step asserts a `Gf360` game's set is the default. `two-players-3.5` is `two-players` on `Gf351`
+  with the 3.5 lists, the one shape that keeps 3.5.1 covered.
 - After play every shape is read by `FreeForAllChecks` (`Suite/`; p.50 and p.6): the roll-off ranks every team, deployment and each
   round's turns go round the order one unit a turn, every model stands in its team's zone at round one, round one follows the deployment
   order and later rounds who finished activating first, every team on the table takes turns, and `game_ended` names the teams holding the
@@ -210,7 +215,7 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 
 ```bash
 dotnet run --project sim -- --list
-dotnet run --project sim -- skirmish --seeds 1..20             # in-process, recordings in ./recordings
+dotnet run --project sim -- skirmish --seeds 1..20             # in-process on 3.6.0, recordings in ./recordings
 dotnet run --project sim -- skirmish --seed 7 --rounds 2 --no-recording
 dotnet run --project sim -- skirmish --driver socket           # needs the stack below
 dotnet run --project sim -- suite                              # every suite game, in-process

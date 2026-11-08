@@ -94,7 +94,7 @@ public class ProgramTests
     public void The_casting_scenario_fields_a_real_books_casters_and_pins_the_production_set()
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
-        Assert.Equal(ScenarioCompiler.CoreProperties.ContentHash, c.Info.PropertiesHash);
+        Assert.Equal(ScenarioCompiler.CorePropertiesOf(Tabletop.Content.RuleSets.Gf360).ContentHash, c.Info.PropertiesHash);
         var casters = c.Board.Armies.SelectMany(a => a.Snapshot.Units).SelectMany(u => u.Models).Where(m => m.Properties.Any(p => p.Name == "Caster")).ToList();
         Assert.NotEmpty(casters);
         Assert.All(casters, m => Assert.Equal("z65fgu0l29i4lnlu", m.ArmyBook));

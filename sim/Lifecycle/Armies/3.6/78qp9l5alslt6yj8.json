@@ -1,0 +1,163 @@
+{
+ "id": "lifecycle-78qp9l5alslt6yj8-3.6",
+ "name": "Battle Brothers",
+ "gameSystem": "gf",
+ "units": [
+  {
+   "selectionId": "78q31",
+   "name": "Battle Brothers",
+   "size": 5,
+   "quality": 3,
+   "defense": 3,
+   "bases": {
+    "round": "25",
+    "square": "25"
+   },
+   "rules": [
+    {
+     "name": "Battleborn",
+     "label": "Battleborn"
+    },
+    {
+     "name": "Fearless",
+     "label": "Fearless"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Heavy Rifle",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 18,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "AP",
+       "label": "AP(1)",
+       "rating": 1
+      }
+     ]
+    },
+    {
+     "name": "Strike",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "78qp9l5alslt6yj8"
+  },
+  {
+   "selectionId": "78q32",
+   "name": "Assault Brothers",
+   "size": 5,
+   "quality": 3,
+   "defense": 3,
+   "bases": {
+    "round": "25",
+    "square": "25"
+   },
+   "rules": [
+    {
+     "name": "Battleborn",
+     "label": "Battleborn"
+    },
+    {
+     "name": "Fearless",
+     "label": "Fearless"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Heavy Pistol",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 9,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "AP",
+       "label": "AP(1)",
+       "rating": 1
+      },
+      {
+       "name": "Assault",
+       "label": "Assault"
+      }
+     ]
+    },
+    {
+     "name": "Hand Weapon",
+     "type": "ArmyBookWeapon",
+     "count": 5,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "78qp9l5alslt6yj8"
+  },
+  {
+   "selectionId": "78q33",
+   "name": "Veteran Battle Brothers",
+   "size": 3,
+   "quality": 3,
+   "defense": 3,
+   "bases": {
+    "round": "25",
+    "square": "25"
+   },
+   "rules": [
+    {
+     "name": "Battleborn",
+     "label": "Battleborn"
+    },
+    {
+     "name": "Fearless",
+     "label": "Fearless"
+    },
+    {
+     "name": "Versatile Expert",
+     "label": "Versatile Expert"
+    }
+   ],
+   "loadout": [
+    {
+     "name": "Flamer",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 12,
+     "attacks": 1,
+     "specialRules": [
+      {
+       "name": "Blast",
+       "label": "Blast(3)",
+       "rating": 3
+      },
+      {
+       "name": "Reliable",
+       "label": "Reliable"
+      }
+     ]
+    },
+    {
+     "name": "Strike",
+     "type": "ArmyBookWeapon",
+     "count": 3,
+     "range": 0,
+     "attacks": 1,
+     "specialRules": []
+    }
+   ],
+   "combined": false,
+   "joinToUnit": null,
+   "armyId": "78qp9l5alslt6yj8"
+  }
+ ]
+}

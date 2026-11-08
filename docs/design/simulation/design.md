@@ -178,7 +178,8 @@ through the production path, `PropertiesJson.ToSet(CoreDocuments[rulesId], Guid.
 `PropertiesSeeder.EmbeddedDocuments()` keyed by game-rules id: the composed document of that edition's embedded
 `core.properties.json`, parts and books. `CoreProperties` is `CorePropertiesOf(RuleSets.Gf351)`; the game server's
 `TestProperties.Core` (3.5.1) and `Core36` read the same documents, reached without referencing a test project. The scenario's
-`GameInfo.GameRules` names the edition, so the engine under test is the game's own `GrimdarkFutureRules` instance.
+`GameInfo.GameRules` names the edition, so the engine under test is the game's own `GrimdarkFutureRules` instance. A scenario plays
+3.6.0 (`Scenario.Rules` defaults to `RuleSets.Gf360`) unless it names `RuleSets.Gf351`.
 
 `Base.Circle(1.26)` and a height of `1.5` are a 32 mm base in inches, the same two numbers the
 scheduler plan's `TestArmies.Build` uses, so a scenario and a fixture describe the same model.
@@ -774,7 +775,7 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   end), `special` (the 33 core special rules, three to five a game), `army:<edition>:<book uid>` (the army rules, by the
   book that prints them; `army:3.5:<uid>`, `army:3.6:<uid>`) and `spells:<edition>:<book uid>` (every spell, generated per book by `SpellGames`,
   cast by name).
-- **Editions.** A game runs under `TestGame.Edition` (a game-rules id, `RuleSets.Gf351` unless its scenario names another), so every
+- **Editions.** A game runs under `TestGame.Edition` (a game-rules id, `RuleSets.Gf351` unless the game names another), so every
   existing game keeps running against 3.5.1 unchanged. `Editions: [Gf351, Gf360]` (`.BothEditions()` in the catalog list) runs a
   game twice, the 3.6.0 run named `<name>@3.6` and the 3.5.1 run keeping the bare name; core and special games whose checks quote
   no rule that 3.6.0 changes run both. A rule 3.6.0 changes or adds has a 3.6.0-only game declared `.In36()`, its checks quoting
@@ -818,18 +819,18 @@ The rules suite seeds its games' rows and starts them at `playing`; the lifecycl
 `2026-10-20-lifecycle-suite-design.md`) covers the path around play by the client's own requests and frames, against the
 running stack, with no row written directly.
 
-- **Shapes.** `LifecycleShapes.All`: `two-players`, `self-play`, `team-game`, `late-joiner` (setup ends with a team empty; the
-  joiner takes it while deployment waits for players), `ambusher` (the creator's Beast Riders set aside, placed in round 2 or
-  later), `leave-and-delete` (a lobby game) and `two-players-3.6` (`two-players` created on `RuleSets.Gf360`, both seats bringing a 3.6
-  army; the lobby step asserts the default set is the one picked). `LifecycleShape.Rules` and `Edition` choose the set and the army
-  edition; the import body carries `edition`. Accounts `lifecycle-player-0..3` take the seats, `lifecycle-spectator` records.
+- **Shapes.** `LifecycleShapes.All`: `two-players`, `two-players-3.5` (`two-players` created on `RuleSets.Gf351` with 3.5 armies),
+  `self-play`, `team-game`, `late-joiner` (setup ends with a team empty; the joiner takes it while deployment waits for players),
+  `ambusher` (the creator's Blood Beast Riders set aside, placed in round 2 or later) and `leave-and-delete` (a lobby game).
+  `LifecycleShape.Rules` (default `RuleSets.Gf360`) and `Edition` choose the set and the army edition; the import body carries
+  `edition`, and on 3.6.0 the lobby step asserts the default set is the one picked. Accounts `lifecycle-player-0..3` take the seats, `lifecycle-spectator` records.
 - **Path.** `ManagementApi` per account: the dev mint, `GET /v1/properties` and its rules, `POST /v1/games`, join, leave, the
-  game's `GET`, `?joined=true`, delete; armies through `POST /v1/dev/armies/import` (dev mode only), whose body is management's
-  Army Forge fixture cut to three units (`LifecycleArmy`). `ClientSocket` holds an account's socket outside play: the connect,
+  game's `GET`, `?joined=true`, delete; armies through `POST /v1/dev/armies/import` (dev mode only), whose body is three units of a
+  book (`LifecycleArmy`: the 3.6 lists cut from the 3.6 Army Forge dump; for 3.5, management's Army Forge fixture and the 3.5 cuts). `ClientSocket` holds an account's socket outside play: the connect,
   lobby and setup edits (each waited on until the broadcast `GameInfo` or `Board` shows it, or its `Refused`), the wait for
   players, and the replay on `/ws?watch=1`. It reads frames through `SocketFrames.PumpAsync`, `SocketDriver`'s read loop.
 - **Play.** `LifecycleScenario.From` builds the `CompiledScenario` from the `GameInfo` and `Board` the server sent (the board's
-  armies are the seats, the recorder goes last, the set must be `ScenarioCompiler.CoreProperties`), and `SocketDriver` with
+  armies are the seats, the recorder goes last, the set must be the shape's `ScenarioCompiler.CorePropertiesOf(rules)`), and `SocketDriver` with
   `RunLoop` plays it under the default policy, round cap 5, so the game ends by its rules at round 4's end.
 - **Assertions.** Every step's status from `GET /v1/games/{id}` and each participant's joined list; the set (first in
   `GET /v1/properties`, the embedded set, holding Fanatic, Ambush and Death Bolt); `Welcome` and its option catalog; each
