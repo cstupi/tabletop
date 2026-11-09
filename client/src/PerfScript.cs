@@ -12,7 +12,8 @@ namespace Tabletop;
 /// Phases: idle; a hover sweep over every unit of the other teams (the pointer moving a little every frame, as a hand does); T and the
 /// sweep again; T off; a click on a unit of mine yet to act; V and the sweep with the rings on; the camera panned with D held; 2
 /// (Advance) and the move's area building; a drag of the acting unit 24 px toward the nearest enemy; Enter (the move); 1 (Shoot); the
-/// sweep under the shooting Ask; a click on a target the Ask allows and Enter (the volley); a rest. <c>TABLETOP_PERF_SHOTS=1</c>
+/// sweep under the shooting Ask; a click on a target the Ask allows and Enter (the volley); a rest; then Auto and Enter (the casualties) and
+/// the next team's activation (a unit yet to act clicked, 2, a drag, Enter), whose costs are those of every later turn. <c>TABLETOP_PERF_SHOTS=1</c>
 /// photographs each phase. A release build never reads it.
 /// </summary>
 public partial class PerfScript : Node
@@ -48,6 +49,13 @@ public partial class PerfScript : Node
         _phases.Enqueue(("target", 2, () => Click(Target())));
         _phases.Enqueue(("volley", 8, () => { _pointer = EmptyTable(); Key(Godot.Key.Enter); }));
         _phases.Enqueue(("rest", 3, null));
+        // A second activation, the next team's: the same code paths warm, so each phase's cost is what every later turn pays.
+        _phases.Enqueue(("casualties", 3, () => { Press("Auto"); Key(Godot.Key.Enter); }));
+        _phases.Enqueue(("select-2", 2, () => Click(Fresh())));
+        _phases.Enqueue(("advance-2", 4, () => Key(Godot.Key.Key2)));
+        _phases.Enqueue(("drag-2", DragSeconds + 1, StartDrag));
+        _phases.Enqueue(("move-2", 4, () => { _pointer = EmptyTable(); Key(Godot.Key.Enter); }));
+        _phases.Enqueue(("rest-2", 3, null));
     }
 
     public override void _Process(double delta)
@@ -154,6 +162,12 @@ public partial class PerfScript : Node
         if (unit is not { } u || At(u) is not { } at) { GD.Print("perf script: nothing to click"); return; }
         _pointer = at; Motion(at);
         Button(at, true); Button(at, false);
+    }
+    /// <summary>The visible Hud button with this text, pressed as a click would.</summary>
+    void Press(string text)
+    {
+        if (_screen!.FindChildren("*", "Button", true, false).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && (b.Text == text || b.FindChildren("*", "Label", true, false).OfType<Label>().Any(l => l.Text == text))) is { } button) button.EmitSignal(BaseButton.SignalName.Pressed);
+        else GD.Print($"perf script: no {text} button");
     }
     static void Key(Key k) { Hold(k, true); Hold(k, false); }
     static void Hold(Key k, bool down) => Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = down });
