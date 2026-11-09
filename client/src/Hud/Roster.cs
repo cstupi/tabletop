@@ -23,7 +23,7 @@ public partial class Roster : PanelContainer
         _onFrame = _ => Render(); _onChanged = () => { Clear(); Render(); };
         session.Frame.Render += _onFrame;                                                                              // every cause the frame carries
         Ui.Changed += _onChanged;                                                                                      // the theme's icons
-        if (input is not null) { _onSelection = () => { if (input.Selected?.PieceId == _selected) return; _selected = input.Selected?.PieceId; Clear(); Render(); }; input.SelectionChanged += _onSelection; }
+        if (input is not null) { _onSelection = () => { if (input.Selected?.PieceId == _selected) return; _selected = input.Selected?.PieceId; Render(); }; input.SelectionChanged += _onSelection; }
         Render();
     }
     public override void _ExitTree()
@@ -48,41 +48,66 @@ public partial class Roster : PanelContainer
 
     void Collapse() { _collapsed = !_collapsed; Render(); }
 
-    IReadOnlyList<RosterTeam>? _drawn; bool _drawnCollapsed;
-    /// <summary>Per drawn row, its line and its chip line, by (team, row) index of <see cref="_drawn"/>.</summary>
-    readonly List<List<(Control Line, Control? Chips)>> _rows = new();
+    IReadOnlyList<RosterTeam>? _drawn; bool _drawnCollapsed; Guid? _drawnSelected;
+    /// <summary>Each drawn team's band and the spacer under its rows, and each drawn unit's line and chip line.</summary>
+    readonly Dictionary<Guid, (Control Header, Control Spacer)> _teams = new();
+    Dictionary<Guid, (Control Line, Control? Chips)> _lines = new();
 
-    /// <summary>Only the rows whose content changed are rebuilt (RosterView.Changed); a new team line, unit order, the collapse or the
-    /// selection rebuilds the list.</summary>
+    /// <summary>A render keeps every row whose content and selection stand (RosterView.Keep), builds the rest and puts the list in order; a new team
+    /// line or the collapse rebuilds it. A selection or an activation (which re-sorts the rows) rebuilds two rows, not the list.</summary>
     void Render()
     {
         Visible = _s.Projection is not null && _s.Game is not null;
         if (_s.Projection is not { } p || _s.Game is not { } game) { Clear(); return; }
         var teams = RosterView.Of(p, game, new Names(game, p), _s.MyTeamId, _s.MaxWounds, _s.MyTeamIds);
-        if (_drawnCollapsed == _collapsed && RosterView.Changed(_drawn, teams) is { } changed)
+        var keep = _drawnCollapsed == _collapsed && !_collapsed ? RosterView.Keep(_drawn, _drawnSelected, teams, _selected) : null;
+        if (keep is null) { Rebuild(teams); return; }
+        var next = new Dictionary<Guid, (Control Line, Control? Chips)>(); var order = new List<Control>();
+        for (var t = 0; t < teams.Count; t++)
         {
-            foreach (var (t, r) in changed) if (!_collapsed) Replace(t, r, teams[t].Rows[r]);
-            _drawn = teams;
-            return;
+            var (header, spacer) = _teams[teams[t].TeamId]; order.Add(header);
+            for (var r = 0; r < teams[t].Rows.Count; r++)
+            {
+                var (unit, kept) = keep[t][r];
+                if (!kept || !_lines.TryGetValue(unit, out var drawn)) drawn = Row(teams[t].Rows[r]);
+                next[unit] = drawn; order.Add(drawn.Line); if (drawn.Chips is not null) order.Add(drawn.Chips);
+            }
+            order.Add(spacer);
         }
+        foreach (var (unit, (line, chips)) in _lines)
+            if (!next.TryGetValue(unit, out var now) || now.Line != line) { Free(line); if (chips is not null) Free(chips); }
+        for (var i = 0; i < order.Count; i++) { if (order[i].GetParent() is null) _list.AddChild(order[i]); _list.MoveChild(order[i], i); }
+        (_lines, _drawn, _drawnSelected) = (next, teams, _selected);
+    }
+
+    void Rebuild(IReadOnlyList<RosterTeam> teams)
+    {
         Clear();
-        _drawn = teams; _drawnCollapsed = _collapsed;
+        (_drawn, _drawnCollapsed, _drawnSelected) = (teams, _collapsed, _selected);
         foreach (var team in teams)
         {
-            _list.AddChild(Header(team));
-            var lines = new List<(Control, Control?)>(); _rows.Add(lines);
+            var header = Header(team); _list.AddChild(header);
+            var spacer = new Control { CustomMinimumSize = new Vector2(0, 4), MouseFilter = MouseFilterEnum.Ignore };
+            _teams[team.TeamId] = (header, spacer);
             if (_collapsed) continue;
             foreach (var row in team.Rows)
             {
                 var (line, chips) = Row(row);
                 _list.AddChild(line); if (chips is not null) _list.AddChild(chips);
-                lines.Add((line, chips));
+                _lines[row.UnitId] = (line, chips);
             }
-            _list.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4), MouseFilter = MouseFilterEnum.Ignore });
+            _list.AddChild(spacer);
         }
     }
 
-    void Clear() { foreach (var c in _list.GetChildren()) { _list.RemoveChild(c); c.QueueFree(); } _rows.Clear(); _drawn = null; }
+    void Free(Control c) { if (c.GetParent() == _list) _list.RemoveChild(c); if (!c.IsQueuedForDeletion()) c.QueueFree(); }
+
+    void Clear()
+    {
+        foreach (var c in _list.GetChildren()) { _list.RemoveChild(c); c.QueueFree(); }
+        foreach (var (_, spacer) in _teams.Values) if (IsInstanceValid(spacer) && !spacer.IsQueuedForDeletion()) spacer.QueueFree();   // a collapsed list never added them
+        _teams.Clear(); _lines.Clear(); _drawn = null;
+    }
 
     /// <summary>The team's band: its icon, its name, `★ you` on mine, the chevron that collapses the roster (R).</summary>
     Control Header(RosterTeam team)
@@ -98,18 +123,6 @@ public partial class Roster : PanelContainer
         chevron.Pressed += Collapse;
         line.AddChild(chevron);
         return band;
-    }
-
-    void Replace(int team, int index, RosterRow row)
-    {
-        var (oldLine, oldChips) = _rows[team][index];
-        var at = oldLine.GetIndex();
-        _list.RemoveChild(oldLine); oldLine.QueueFree();
-        if (oldChips is not null) { _list.RemoveChild(oldChips); oldChips.QueueFree(); }
-        var (line, chips) = Row(row);
-        _list.AddChild(line); _list.MoveChild(line, at);
-        if (chips is not null) { _list.AddChild(chips); _list.MoveChild(chips, at + 1); }
-        _rows[team][index] = (line, chips);
     }
 
     static string PipsOf(RosterRow row) => row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}";

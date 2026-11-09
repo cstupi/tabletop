@@ -14,7 +14,9 @@ public partial class RangeRingNode : Node3D
     bool _allOn; Guid? _pinned;
     readonly CanvasLayer _canvas = new(); readonly Control _labels = new() { MouseFilter = Control.MouseFilterEnum.Ignore };
     Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Intent>? _onIntent; Action<Guid?>? _onHover;
-    readonly RangeRingCache _rings = new(); readonly ThreatRingCache _pickedThreat = new(), _hoveredThreat = new(); readonly AllThreatCache _allThreats = new();
+    // Built on the thread pool (RingBuilds): a unit's outline takes tens of milliseconds, T's union more. A layer shows nothing until its build lands.
+    readonly RingBuilds<Guid, Shaped> _threats = new(), _ranges = new(); readonly RingBuilds<Guid, IReadOnlyList<(int Ordinal, Shaped Rings)>> _allThreats = new(capacity: 4);
+    Action? _onBuilt;
     readonly List<(float X, float Y)> _projected = new(); readonly List<HudRect> _wanted = new(); readonly List<Control> _order = new();
 
     /// <summary>The Hud's panels over the table, in this viewport's pixels (GameScreen sets it): labels keep off them.</summary>
@@ -32,12 +34,15 @@ public partial class RangeRingNode : Node3D
             if (i == Intent.ToggleRangeRings) _s.UpdateSettings(x => x with { RangeRings = !x.RangeRings });                   // SettingsChanged redraws
             else if (i == Intent.ToggleAllThreats) { _allOn = !_allOn; Draw(); }
         };
+        _onBuilt = () => Callable.From(() => { if (IsInstanceValid(this)) Draw(); }).CallDeferred();                          // a build landed, on a pool thread
+        _threats.Built += _onBuilt; _ranges.Built += _onBuilt; _allThreats.Built += _onBuilt;
         session.Frame.Render += _onFrame; session.SettingsChanged += _onChanged; Ui.Changed += _onTheme;                       // the Settings dialog's toggle
         input.SelectionChanged += _onChanged; input.IntentPressed += _onIntent; input.HoveredUnitChanged += _onHover; _onTheme();
     }
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
+        _threats.Built -= _onBuilt; _ranges.Built -= _onBuilt; _allThreats.Built -= _onBuilt;
         if (_s is null) return; _s.Frame.Render -= _onFrame; _s.SettingsChanged -= _onChanged;
         if (IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.IntentPressed -= _onIntent; _input.HoveredUnitChanged -= _onHover; }
     }
@@ -57,32 +62,46 @@ public partial class RangeRingNode : Node3D
             _pinned = ThreatRings.Pinned(game, p, _s.MyTeamId, _input.Selected?.PieceId, _pinned);
             shown = ThreatRings.Shown(game, p, _s.MyTeamId, _pinned, hovered, _s.Threats);
         }
-        _picked.Show(_pinned is { } a && shown.Contains(a) ? ThreatOf(a, _pickedThreat) : null);
-        _hovered.Show(hovered is { } b && b != _pinned && shown.Contains(b) ? ThreatOf(b, _hoveredThreat) : null);
+        _picked.Show(_pinned is { } a && shown.Contains(a) ? ThreatOf(a) : null);
+        _hovered.Show(hovered is { } b && b != _pinned && shown.Contains(b) ? ThreatOf(b) : null);
         _range.Show(RangeWanted());
     }
 
     /// <summary>T: a layer per enemy team, each its Charge and Shoot areas in the team's colour; the cache keeps the list while nothing it reads changed.</summary>
     void DrawAll()
     {
-        IReadOnlyList<TeamThreat> teams = _allOn && _s.Projection is { } p && _s.Game is { } game ? _allThreats.Of(game, p, _s.MyTeamId, _s.Threats) : [];
+        IReadOnlyList<(int Ordinal, Shaped Rings)> teams = [];
+        if (_allOn && _s.Projection is { } p && _s.Game is { } game)
+        {
+            var acting = _s.MyTeamId; var threats = _s.Threats;
+            IReadOnlyList<RingStamp> stamps = threats.Where(t => ThreatRings.OfAnotherTeam(game, p, acting, t.Key)).OrderBy(t => t.Key).Select(t => RingStamp.Of(p, t.Key, t.Value)).ToList();
+            var build = ThreatRings.AllBuilder(game, p, acting, threats);
+            teams = _allThreats.Get(acting ?? Guid.Empty, stamps, () => build().Select(t => (t.Ordinal, Shape(t.Rings))).ToList()) ?? [];
+        }
         while (_all.Count < teams.Count) { var layer = new Layer(); layer.Attach(this, _labels); _all.Add(layer); }
         for (var i = 0; i < _all.Count; i++) _all[i].Show(i < teams.Count ? (teams[i].Rings, Palette.Team(teams[i].Ordinal)) : null);
     }
 
-    (IReadOnlyList<RangeRing> Rings, Color Colour)? RangeWanted()
+    (Shaped Rings, Color Colour)? RangeWanted()
     {
         if (!_s.Settings.RangeRings || _s.Projection is not { } p || _s.Game is not { } game || _input.Selected?.PieceId is not { } unit || p.Units.GetValueOrDefault(unit) is not { } u) return null;
         if (game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId is not { } team || team != _s.MyTeamId) return null;   // mine only
-        return (_rings.Of(p, unit), Palette.Team(game.Teams.First(t => t.Id == team).Ordinal));
+        var build = RangeRings.Builder(p, unit);
+        return _ranges.Get(unit, [RingStamp.Of(p, unit, null)], () => Shape(build())) is { } rings ? (rings, Palette.Team(game.Teams.First(t => t.Id == team).Ordinal)) : null;
     }
 
-    (IReadOnlyList<RangeRing> Rings, Color Colour)? ThreatOf(Guid unit, ThreatRingCache cache)
+    (Shaped Rings, Color Colour)? ThreatOf(Guid unit)
     {
         if (_s.Projection is not { } p || _s.Game is not { } game || _s.Threats.GetValueOrDefault(unit) is not { } threat) return null;
+        var build = ThreatRings.Builder(p, unit, threat);
+        if (_threats.Get(unit, [RingStamp.Of(p, unit, threat)], () => Shape(build())) is not { } rings) return null;
         var team = game.Participants.FirstOrDefault(x => x.Id == p.Units[unit].ParticipantId)?.TeamId;
-        return (cache.Of(p, unit, threat), Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0));
+        return (rings, Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0));
     }
+
+    /// <summary>A set of rings with what each draws from: its look and its fill and label shape, built with the outline off the main thread.</summary>
+    public sealed record Shaped(IReadOnlyList<(RangeRing Ring, RingLook Look, RingShape Shape)> Rings);
+    static Shaped Shape(IReadOnlyList<RangeRing> rings) => new(rings.Where(r => r.Segments.Count > 0).Select(r => (r, RingLook.Of(r.Kind), RingShape.Of(r.Segments))).ToList());
 
     /// <summary>Each frame: every shown label under its ring's lowest point on the screen clear of the Hud's panels, then moved apart and off them (RingLabels.Place). A frame projects
     /// at most RingShape.Labels points per ring and builds nothing.</summary>
@@ -115,7 +134,7 @@ public partial class RangeRingNode : Node3D
         readonly MeshInstance3D _line = new() { MaterialOverride = RingMesh.LineMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         readonly MeshInstance3D _behind = new() { MaterialOverride = RingMesh.BehindMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         Control _parent = null!;
-        (IReadOnlyList<RangeRing> Rings, Color Colour)? _drawn;
+        (Shaped Rings, Color Colour)? _drawn;
         public readonly List<(Vector3[] Candidates, Control Label)> Labels = new();
         public bool Shown => _drawn is not null;
 
@@ -129,14 +148,14 @@ public partial class RangeRingNode : Node3D
             Labels.Clear();
         }
 
-        public void Show((IReadOnlyList<RangeRing> Rings, Color Colour)? want)
+        public void Show((Shaped Rings, Color Colour)? want)
         {
             if (want is { } w && _drawn is { } d && ReferenceEquals(w.Rings, d.Rings) && w.Colour == d.Colour) return;
             if (want is null && _drawn is null) return;
             Clear(); _drawn = want;
             if (want is not { } shown) return;
             var (rings, colour) = shown;
-            var drawn = rings.Where(r => r.Segments.Count > 0).Select(r => (Ring: r, Look: RingLook.Of(r.Kind), Shape: RingShape.Of(r.Segments))).ToList();
+            var drawn = rings.Rings;
             _fill.Mesh = RingMesh.Fill(drawn.Select(x => (x.Shape, x.Look)).ToList(), colour);
             _line.Mesh = _behind.Mesh = RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), colour);
             foreach (var (ring, look, shape) in drawn)

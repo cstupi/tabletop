@@ -21,19 +21,4 @@ public class RangeRingsTests
         Assert.Empty(RangeRings.Of(p, TableUx.Orcs.Id));                                                                 // melee only
         Assert.Equal(((double?)24.0, (double?)null, (double?)null), (RangeRings.Inches("24\""), RangeRings.Inches("-"), RangeRings.Inches("0")));
     }
-    [Fact]
-    public void The_cache_recomputes_only_when_the_unit_or_its_placements_change()
-    {
-        var a = TableUx.Applier(TableUx.Deploy); var cache = new RangeRingCache();
-        var first = cache.Of(a.Projection, TableUx.Squad.Id);
-        Assert.Same(first, cache.Of(a.Projection, TableUx.Squad.Id));
-        Assert.Empty(cache.Of(a.Projection, TableUx.Orcs.Id));
-        var back = cache.Of(a.Projection, TableUx.Squad.Id);
-        Assert.NotSame(first, back);
-        a.ApplyAll([new GameEvent(2, TableUx.P1, new ModelsMoved([new ModelRelocation(TableUx.Squad.Models[2].Id, new OnTable(new Placement(new Point3(14, 10, 0), new Yaw(0))),
-            new OnTable(new Placement(new Point3(20, 10, 0), new Yaw(0))))]), null)]);
-        var moved = cache.Of(a.Projection, TableUx.Squad.Id);
-        Assert.NotSame(back, moved);
-        Assert.Equal(RangeRings.Of(a.Projection, TableUx.Squad.Id).Select(r => r.Segments.Count), moved.Select(r => r.Segments.Count));
-    }
 }

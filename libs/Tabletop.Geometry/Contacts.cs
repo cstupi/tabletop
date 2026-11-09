@@ -24,6 +24,9 @@ public static class Contacts
     {
         var (separation, passesModels, landing, legal, size, unit) = (terms.Separation, terms.PassesModels, terms.Landing, terms.Move, terms.Size, terms.Unit);
         var byId = models.ToDictionary(m => m.Id);
+        // Every model answered where it stands (a move Ask's ghosts as it opens) has no contact: return before settling a landing for each.
+        if (proposed.All(kv => !byId.TryGetValue(kv.Key, out var m) || m.At is { } t && t.Position.Horizontal.DistanceTo(kv.Value.Position.Horizontal) <= 1e-6))
+            return new Dictionary<Guid, Contact>();
         var impassable = landing ? volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList() : [];
         static PlacedModel Body(ContactBody m, Placement at) => new(m.Body, at);
         static PlacedModel? Standing(ContactBody m) => m.At is { } t ? Body(m, t) : null;

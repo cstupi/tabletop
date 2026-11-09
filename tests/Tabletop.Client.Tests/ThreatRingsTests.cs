@@ -31,17 +31,18 @@ public class ThreatRingsTests
     }
 
     [Fact]
-    public void The_cache_recomputes_only_when_the_unit_its_placements_or_its_threat_change()
+    public void A_builder_reads_the_projection_when_made_and_builds_the_same_rings_later()
     {
-        var a = TableUx.Applier(TableUx.Deploy); var cache = new ThreatRingCache();
-        var first = cache.Of(a.Projection, TableUx.Squad.Id, SquadThreat());
-        Assert.Same(first, cache.Of(a.Projection, TableUx.Squad.Id, SquadThreat()));                       // an equal threat from a later ModelFacts
-        var slower = cache.Of(a.Projection, TableUx.Squad.Id, SquadThreat(8, 4));
-        Assert.NotSame(first, slower);
-        Assert.Equal(8.0, slower[0].Inches);
+        var a = TableUx.Applier(TableUx.Deploy); var game = TableUx.Game;
+        var unit = ThreatRings.Builder(a.Projection, TableUx.Squad.Id, SquadThreat());
+        var all = ThreatRings.AllBuilder(game, a.Projection, TableUx.T2, Both);
+        var range = RangeRings.Builder(a.Projection, TableUx.Squad.Id);
+        var (unitNow, allNow, rangeNow) = (ThreatRings.Of(a.Projection, TableUx.Squad.Id, SquadThreat()), ThreatRings.All(game, a.Projection, TableUx.T2, Both), RangeRings.Of(a.Projection, TableUx.Squad.Id));
         a.ApplyAll([new GameEvent(2, TableUx.P1, new ModelsMoved([new ModelRelocation(TableUx.Squad.Models[2].Id, new OnTable(new Placement(new Point3(14, 10, 0), new Yaw(0))),
             new OnTable(new Placement(new Point3(20, 10, 0), new Yaw(0))))]), null)]);
-        Assert.NotSame(slower, cache.Of(a.Projection, TableUx.Squad.Id, SquadThreat(8, 4)));
+        Assert.Equal(unitNow.SelectMany(r => r.Segments), unit().SelectMany(r => r.Segments));
+        Assert.Equal(allNow.SelectMany(t => t.Rings).SelectMany(r => r.Segments), all().SelectMany(t => t.Rings).SelectMany(r => r.Segments));
+        Assert.Equal(rangeNow.SelectMany(r => r.Segments), range().SelectMany(r => r.Segments));
     }
 
     static readonly UnitThreat OrcThreat = new(16, 6, new Dictionary<Guid, double>());
@@ -99,22 +100,6 @@ public class ThreatRingsTests
         Assert.Equal(["Charge 16\""], Assert.Single(ThreatRings.All(game, p, TableUx.T1, Both)).Rings.Select(r => r.Label));
         Assert.Equal(2, ThreatRings.All(game, p, null, Both).Count);                                                                 // a watcher: every team
         Assert.Empty(ThreatRings.All(game, p, TableUx.T1, new Dictionary<Guid, UnitThreat> { [TableUx.Orcs.Id] = new(null, null, new Dictionary<Guid, double>()) }));
-    }
-
-    [Fact]
-    public void The_all_cache_recomputes_only_when_a_unit_its_placements_its_threat_or_the_acting_team_change()
-    {
-        var a = TableUx.Applier(TableUx.Deploy); var cache = new AllThreatCache(); var game = TableUx.Game;
-        var first = cache.Of(game, a.Projection, TableUx.T2, Both);
-        Assert.Same(first, cache.Of(game, a.Projection, TableUx.T2, Both));
-        Assert.NotSame(first, cache.Of(game, a.Projection, TableUx.T1, Both));
-        var back = cache.Of(game, a.Projection, TableUx.T2, Both);
-        Assert.NotSame(back, cache.Of(game, a.Projection, TableUx.T2, new Dictionary<Guid, UnitThreat> { [TableUx.Squad.Id] = SquadThreat(8, 4), [TableUx.Orcs.Id] = OrcThreat }));
-        var now = cache.Of(game, a.Projection, TableUx.T2, Both);
-        Assert.Same(now, cache.Of(game, a.Projection, TableUx.T2, Both));
-        a.ApplyAll([new GameEvent(2, TableUx.P1, new ModelsMoved([new ModelRelocation(TableUx.Squad.Models[2].Id, new OnTable(new Placement(new Point3(14, 10, 0), new Yaw(0))),
-            new OnTable(new Placement(new Point3(20, 10, 0), new Yaw(0))))]), null)]);
-        Assert.NotSame(now, cache.Of(game, a.Projection, TableUx.T2, Both));
     }
 
     [Fact]

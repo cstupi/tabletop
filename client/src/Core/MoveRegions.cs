@@ -51,6 +51,13 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
     public async Task<IReadOnlyList<IReadOnlyList<Point2>>> OutlinesAsync(IReadOnlyList<Guid> ids) =>
         await Task.WhenAll(ids.Where(Has).Select(id => Task.Run(() => Outline(id))));
 
+    /// <summary>Every model's reach built on the thread pool, one task each: the decision box starts it when the Ask opens, so a pickup's first drag
+    /// frame (which clamps each held model on the main thread) finds them built instead of waiting on the builds.</summary>
+    public Task Prepare() => Task.WhenAll(starts.Keys.Select(id => Task.Run(() => ReachOf(id))));
+
+    /// <summary>Whether this model's reach is built.</summary>
+    public bool Built(Guid id) => _reaches.TryGetValue(id, out var reach) && reach.IsValueCreated;
+
     /// <summary>The least this model must move going towards `toward` (MoveRuler.Minimum; with no direction, the farthest the table allows), or
     /// null when the Ask sets none.</summary>
     public double? Minimum(Guid id, Point2? toward = null) => MoveRuler.Minimum(starts[id], legal, size, toward);

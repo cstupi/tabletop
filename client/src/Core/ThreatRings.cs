@@ -6,10 +6,18 @@ namespace Tabletop.Client.Core;
 /// with that reach, ascending. The client adds the two numbers; every distance is the server's.</summary>
 public static class ThreatRings
 {
-    public static IReadOnlyList<RangeRing> Of(Projection p, Guid unitId, UnitThreat threat)
+    public static IReadOnlyList<RangeRing> Of(Projection p, Guid unitId, UnitThreat threat) => Builder(p, unitId, threat)();
+
+    /// <summary><see cref="Of"/> in two halves: the unit's models read now, on the caller's thread; the outlines built when the returned function runs, on any thread.</summary>
+    public static Func<IReadOnlyList<RangeRing>> Builder(Projection p, Guid unitId, UnitThreat threat)
     {
         var models = p.Models.Values.Where(m => m.UnitId == unitId && m.Location is OnTable)
             .Select(m => (m.Id, Placed: new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement))).ToList();
+        return () => Build(models, threat);
+    }
+
+    static IReadOnlyList<RangeRing> Build(List<(Guid Id, PlacedModel Placed)> models, UnitThreat threat)
+    {
         var rings = new List<RangeRing>();
         if (threat.Charge is { } charge && models.Count > 0) rings.Add(new(charge, $"Charge {Inches(charge)}", RangeOutline.Of(models.Select(m => m.Placed).ToList(), charge), RingKind.Charge));
         if (threat.ShootMove is { } move)
@@ -42,7 +50,10 @@ public static class ThreatRings
 
     /// <summary>The T key: per team other than the one I act for, the union of its units' reach by kind, one Charge area (each unit's charge round
     /// its models) and one Shoot area (each model's ShootMove + range), labelled with the distance, or the shortest–longest when they differ.</summary>
-    public static IReadOnlyList<TeamThreat> All(GameInfo game, Projection p, Guid? acting, IReadOnlyDictionary<Guid, UnitThreat> threats)
+    public static IReadOnlyList<TeamThreat> All(GameInfo game, Projection p, Guid? acting, IReadOnlyDictionary<Guid, UnitThreat> threats) => AllBuilder(game, p, acting, threats)();
+
+    /// <summary><see cref="All"/> in two halves, as <see cref="Builder"/>.</summary>
+    public static Func<IReadOnlyList<TeamThreat>> AllBuilder(GameInfo game, Projection p, Guid? acting, IReadOnlyDictionary<Guid, UnitThreat> threats)
     {
         var charge = new Dictionary<Guid, List<(PlacedModel, double)>>(); var shoot = new Dictionary<Guid, List<(PlacedModel, double)>>();
         foreach (var m in p.Models.Values)
@@ -53,7 +64,8 @@ public static class ThreatRings
             if (t.Charge is { } c) Add(charge, team, (placed, c));
             if (t.ShootMove is { } move && t.Ranges.TryGetValue(m.Id, out var range)) Add(shoot, team, (placed, move + range));
         }
-        return game.Teams.OrderBy(t => t.Ordinal).Select(t => new TeamThreat(t.Id, t.Ordinal, Area(charge, t.Id, "Charge", RingKind.Charge).Concat(Area(shoot, t.Id, "Shoot", RingKind.Shoot)).ToList()))
+        var teams = game.Teams.OrderBy(t => t.Ordinal).Select(t => (t.Id, t.Ordinal)).ToList();
+        return () => teams.Select(t => new TeamThreat(t.Id, t.Ordinal, Area(charge, t.Id, "Charge", RingKind.Charge).Concat(Area(shoot, t.Id, "Shoot", RingKind.Shoot)).ToList()))
             .Where(t => t.Rings.Count > 0).ToList();
 
         static void Add(Dictionary<Guid, List<(PlacedModel, double)>> into, Guid team, (PlacedModel, double) carrier)
@@ -76,35 +88,5 @@ public static class ThreatRings
         && a.Ranges.All(r => b.Ranges.TryGetValue(r.Key, out var v) && v == r.Value);
 }
 
-/// <summary>One unit's threat rings, recomputed only when the unit, its models' slots or placements (<see cref="RangeRings.Key"/>) or its threat change.</summary>
-public sealed class ThreatRingCache
-{
-    Guid _unit; IReadOnlyList<(Guid, ModelSlot, Placement)>? _key; UnitThreat? _threat; IReadOnlyList<RangeRing> _rings = [];
-
-    public IReadOnlyList<RangeRing> Of(Projection p, Guid unitId, UnitThreat threat)
-    {
-        var key = RangeRings.Key(p, unitId);
-        if (_key is not null && _threat is not null && unitId == _unit && key.SequenceEqual(_key) && ThreatRings.Same(threat, _threat)) return _rings;
-        (_unit, _key, _threat, _rings) = (unitId, key, threat, ThreatRings.Of(p, unitId, threat));
-        return _rings;
-    }
-}
-
 /// <summary>One enemy team's threat areas under the T key: a Charge area and a Shoot area, in the team's colour.</summary>
 public sealed record TeamThreat(Guid TeamId, int Ordinal, IReadOnlyList<RangeRing> Rings);
-
-/// <summary>The T key's areas (<see cref="ThreatRings.All"/>), recomputed only when the team acted for, a unit with a threat, its models' slots or
-/// placements, or its threat change; otherwise the same list, so the drawn meshes stand.</summary>
-public sealed class AllThreatCache
-{
-    Guid? _acting; List<(Guid Unit, IReadOnlyList<(Guid, ModelSlot, Placement)> At, UnitThreat Threat)>? _key; IReadOnlyList<TeamThreat> _teams = [];
-
-    public IReadOnlyList<TeamThreat> Of(GameInfo game, Projection p, Guid? acting, IReadOnlyDictionary<Guid, UnitThreat> threats)
-    {
-        var key = threats.OrderBy(t => t.Key).Where(t => ThreatRings.OfAnotherTeam(game, p, acting, t.Key)).Select(t => (t.Key, RangeRings.Key(p, t.Key), t.Value)).ToList();
-        if (_key is not null && acting == _acting && key.Count == _key.Count
-            && key.Zip(_key).All(x => x.First.Key == x.Second.Unit && x.First.Item2.SequenceEqual(x.Second.At) && ThreatRings.Same(x.First.Value, x.Second.Threat))) return _teams;
-        (_acting, _key, _teams) = (acting, key.Select(k => (k.Key, k.Item2, k.Value)).ToList(), ThreatRings.All(game, p, acting, threats));
-        return _teams;
-    }
-}

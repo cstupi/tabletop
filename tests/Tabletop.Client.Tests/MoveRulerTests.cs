@@ -83,6 +83,18 @@ public class MoveRulerTests
     }
 
     [Fact]
+    public async Task Prepare_builds_every_models_reach_on_the_pool_so_a_later_drag_finds_it_built()
+    {
+        // A pickup's first drag frame clamps every held model on the main thread: built at the Ask's open, it does not wait on the build there.
+        var big = Wood(44, 24, 4);
+        var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [big.Id], 6), [big], Opr, []);
+        Assert.False(regions.Built(A));
+        await regions.Prepare();
+        Assert.True(regions.Built(A)); Assert.True(regions.Built(B));
+        Assert.False(regions.Built(Guid.CreateVersion7()));
+    }
+
+    [Fact]
     public void Each_model_has_its_own_area_from_where_it_stands()
     {
         var big = Wood(44, 24, 4);

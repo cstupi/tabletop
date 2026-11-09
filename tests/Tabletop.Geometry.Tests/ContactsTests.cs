@@ -20,6 +20,18 @@ public class ContactsTests
     }
 
     [Fact]
+    public void Models_proposed_where_they_stand_have_no_contact_whatever_they_stand_on_or_beside()
+    {
+        // A move Ask opens with every ghost where its model stands: answered as it stands, even on a base, in a wall or too close.
+        var mover = Body(UnitA, 30, 30); var other = Body(UnitB, 30.5, 30); var near = Body(UnitB, 31.6, 30);
+        var wall = Fx.Box(30, 30, 4, 4, 0, 3, d: TerrainDeclarations.Impassable);
+        var found = Contacts.Of([mover, other, near], To((mover, At(30, 30))), [wall], Terms(separation: 1, passes: false, landing: true, move: new ContactMove(6, [], [], null)));
+        Assert.Empty(found);
+        var moved = Contacts.Of([mover, other, near], To((mover, At(30, 30.2))), [wall], Terms(separation: 1, passes: false, landing: true, move: new ContactMove(6, [], [], null)));
+        Assert.True(moved.ContainsKey(mover.Id));                                                                    // moved a fifth of an inch: judged
+    }
+
+    [Fact]
     public void A_landing_in_an_impassable_solid_is_InImpassable()
     {
         var mover = Body(UnitA, 10, 10);

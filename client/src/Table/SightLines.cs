@@ -139,6 +139,8 @@ public partial class SightLines : Node3D
         return placement is not null && _view.TerrainAt(placement.Id) is { } terrain ? terrain.Bounds : null;
     }
 
+    /// <summary>One unit box shared by every mark, scaled to the box: a mark per dimmed model and blocker is redrawn on every answer.</summary>
+    static readonly BoxMesh Unit = new() { Size = Vector3.One };
     void Mark(Aabb box, Color colour) =>
-        _marks.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = box.Size + Vector3.One * 0.1f }, Position = box.GetCenter(), MaterialOverride = Palette.Translucent(colour) });
+        _marks.AddChild(new MeshInstance3D { Mesh = Unit, Scale = box.Size + Vector3.One * 0.1f, Position = box.GetCenter(), MaterialOverride = Palette.Translucent(colour) });
 }
