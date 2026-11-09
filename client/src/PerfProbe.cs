@@ -68,6 +68,8 @@ public partial class PerfProbe : Node
 
     /// <summary><c>using var _ = PerfProbe.Time("rings");</c> around a suspect: its milliseconds count against this frame's row.</summary>
     public static Timing Time(string name) => new(On ? name : null, On ? Time_.GetTicksUsec() : 0);
+    /// <summary>An expression timed as <see cref="Time"/> times a block: <c>var x = PerfProbe.Timed("regions", () => MoveRegions.Of(…));</c>.</summary>
+    public static T Timed<T>(string name, Func<T> work) { using var _ = Time(name); return work(); }
     public readonly struct Timing(string? name, ulong start) : IDisposable
     {
         public void Dispose() { if (name is not null) Probes[name] = Probes.GetValueOrDefault(name) + (Time_.GetTicksUsec() - start) / 1000.0; }

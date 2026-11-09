@@ -132,6 +132,12 @@ public partial class WarmupScene : Node
         foreach (var fx in BattleFx.WarmupNodes()) { fx.Position += new Vector3(22, 1, -4); _root.AddChild(fx); }
         var shaken = ModelMarkNodes.Ring(Base.Circle(1)); shaken.Position = new Vector3(22, 0.05f, -2); _root.AddChild(shaken);
         var dots = ModelMarkNodes.Dots(3, Palette.WoundDot); dots.Position = new Vector3(22, 2, -2); _root.AddChild(dots);
+        // A ring's fill, its outline and the outline's pass behind terrain (RangeRingNode): the outline is its own shader.
+        var ring = new RangeRing(2, "Shoot 2\"", RangeOutline.Of([new PlacedModel(new ModelBody(Base.Circle(1), 1), new Placement(new Point3(26, 10, 0), new Yaw(0)))], 2), RingKind.Shoot);
+        var ringLook = RingLook.Of(ring.Kind); var outline = RingMesh.Line([(ring, ringLook)], Palette.Team(1));
+        _root.AddChild(new MeshInstance3D { Mesh = RingMesh.Fill([(RingShape.Of(ring.Segments), ringLook)], Palette.Team(1)), MaterialOverride = RingMesh.FillMaterial });
+        _root.AddChild(new MeshInstance3D { Mesh = outline, MaterialOverride = RingMesh.LineMaterial });
+        _root.AddChild(new MeshInstance3D { Mesh = outline, MaterialOverride = RingMesh.BehindMaterial });
         foreach (var (fixedSize, depth) in new[] { (true, true), (false, true), (false, false) })
             _root.AddChild(new Label3D { Text = "Warm 6\"", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = fixedSize ? Palette.ScreenPixel : 0.01f,
                 FixedSize = fixedSize, OutlineSize = depth ? 10 : 0, NoDepthTest = depth, Position = new Vector3(16, 2, -2 - (fixedSize ? 1 : 0) - (depth ? 0 : 2)) });
