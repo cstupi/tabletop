@@ -1,4 +1,4 @@
-import { circle, haloText, line, path, shapeCentre, SMALL_FONT } from './canvas';
+import { circle, haloText, line, path, ringOutside, shapeCentre, SMALL_FONT } from './canvas';
 import type { Scene } from './frame';
 import type { Overlay } from './interaction';
 import { GLOW, teamColour } from './palette';
@@ -8,6 +8,8 @@ import { type View, type Viewport, gridStep, toScreen } from './transform';
 
 const WARNING = '#ffc44e';
 const RIM = 'rgba(0, 0, 0, 0.45)';
+/** The activated ring's width in inches beyond the base (Godot's ModelMarks.BandGap + BandWidth). */
+const ACTIVATED_WIDTH = 0.2;
 
 export type DrawOptions = {
   readonly selected: ReadonlySet<string>;
@@ -46,6 +48,7 @@ export function draw(ctx: Ctx, scene: Scene, view: View, viewport: Viewport, opt
   if (options.showZones) zones(ctx, scene, view);
   terrain(ctx, scene, view, at, c, options, named);
   markers(ctx, scene, view, at, c, options, named);
+  for (const model of scene.models) if (model.activated) drawActivated(ctx, model, scene, view, c, options);  // every band under every base
   for (const model of scene.models) drawModel(ctx, model, scene, view, at, c, options);
   for (const overlay of options.overlays ?? []) {
     ctx.save();
@@ -158,6 +161,7 @@ function drawModel(ctx: Ctx, model: Scene['models'][number], scene: Scene, view:
   const picked = o.selected.has(model.id);
   const centre = at(model.centre.x, model.centre.y);
   const radius = (model.circle.kind === 'circle' ? model.circle.radius : 0.5) * view.scale;
+  const band = model.activated ? activatedWidth(view) : 0;         // the Ask's glow and the pick ring sit beyond the activated band
   path(ctx, circles ? model.circle : model.shape, view, scene.table);
   ctx.fillStyle = withAlpha(colour, 0.88);
   ctx.fill();
@@ -169,13 +173,13 @@ function drawModel(ctx: Ctx, model: Scene['models'][number], scene: Scene, view:
   ctx.setLineDash([]);
   const glow = o.glow?.(model.id, model.unitId) ?? null;
   if (glow !== null) {
-    circle(ctx, centre, Math.max(5, radius + 3));
+    circle(ctx, centre, Math.max(5, radius + 3 + band));
     ctx.strokeStyle = GLOW[glow];
     ctx.lineWidth = 3;
     ctx.stroke();
   }
   if (picked) {                                                    // outside an Ask's glow, so a picked model stays outlined in a move
-    circle(ctx, centre, glow === null ? radius + 2.5 : Math.max(5, radius + 3) + 3.5);
+    circle(ctx, centre, glow === null ? radius + 2.5 + band : Math.max(5, radius + 3 + band) + 3.5);
     ctx.strokeStyle = c.select;
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -199,6 +203,17 @@ function drawModel(ctx: Ctx, model: Scene['models'][number], scene: Scene, view:
     if (tags.length > 0) haloText(ctx, tags, { x: centre.x, y: centre.y - radius - 7 }, c.label, withAlpha(c.bg, 0.8), SMALL_FONT);
     if (model.z > 0.01) haloText(ctx, `${+model.z.toFixed(1)}"`, { x: centre.x, y: centre.y + radius + 7 }, c.label, withAlpha(c.bg, 0.8), SMALL_FONT);
   }
+}
+
+/** The activated band's width on screen: ACTIVATED_WIDTH inches, at least 2.5 px. */
+function activatedWidth(view: View): number {
+  return Math.max(2.5, ACTIVATED_WIDTH * view.scale);
+}
+
+/** The activated band round the outside of a model's base, drawn before any base so a neighbour's band never covers a base. */
+function drawActivated(ctx: Ctx, model: Scene['models'][number], scene: Scene, view: View, c: BoardColours, o: DrawOptions): void {
+  ctx.strokeStyle = c.activated;
+  ringOutside(ctx, o.models === 'circles' ? model.circle : model.shape, view, scene.table, activatedWidth(view));
 }
 
 /** Where a model's facing tick ends on its circle's edge. */

@@ -67,6 +67,13 @@ describe('sceneOf', () => {
     expect(sceneOf(board, frame).models.find((m) => m.id === 'm2')!.facing![1].x).toBeCloseTo(12 - 1.5);
   });
 
+  it('a model of a unit with an action this round is activated', () => {
+    const scene = sceneOf(board, frame);
+    expect(scene.models.map((m) => [m.id, m.activated])).toEqual([['m1', true], ['m2', true]]);
+    const turned = { ...frame, units: frame.units.map((u) => ({ ...u, actions: [] })) };
+    expect(sceneOf(board, turned).models.every((m) => !m.activated)).toBe(true);
+  });
+
   it('a model\'s circle is as wide as its base\'s longer side', () => {
     const scene = sceneOf(board, frame);
     expect(scene.models.find((m) => m.id === 'm1')!.circle).toEqual({ kind: 'circle', centre: { x: 10, y: 20 }, radius: 0.5 });

@@ -21,11 +21,11 @@ main.viewer > * { flex: 1; min-height: 0; }
 /* The board's colours, read by board/draw.ts each frame so a theme switch redraws in the new one. */
 :root, :root[data-theme='scifi'] {
   --board-bg: #0E1A22; --board-grid: #3FD0E014; --board-grid-major: #3FD0E033; --board-edge: #3FD0E066;
-  --board-label: #DCEBF2; --board-label-dim: #7A8C96; --board-select: #FFFFFF;
+  --board-label: #DCEBF2; --board-label-dim: #7A8C96; --board-select: #FFFFFF; --board-activated: #4BE08A;
 }
 :root[data-theme='fantasy'] {
   --board-bg: #5E7A45; --board-grid: #2B211814; --board-grid-major: #2B21182E; --board-edge: #3A2414;
-  --board-label: #F3EAD3; --board-label-dim: #E9DBB8; --board-select: #FFF6D8;
+  --board-label: #F3EAD3; --board-label-dim: #E9DBB8; --board-select: #FFF6D8; --board-activated: #B8F27A;
 }
 
 /* A status chip: lobby, setup, playing, ended. */

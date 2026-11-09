@@ -14,16 +14,18 @@ export interface BoardColours {
   readonly label: string;
   readonly labelDim: string;
   readonly select: string;
+  /** The ring around an activated unit's bases: the theme's success green. */
+  readonly activated: string;
 }
 
 /** The Sci-fi values: what the board draws in when no stylesheet answers (a test, a detached canvas). */
 export const BOARD_DEFAULTS: BoardColours = {
-  bg: '#0E1A22', grid: '#3FD0E014', gridMajor: '#3FD0E033', edge: '#3FD0E066', label: '#DCEBF2', labelDim: '#7A8C96', select: '#FFFFFF',
+  bg: '#0E1A22', grid: '#3FD0E014', gridMajor: '#3FD0E033', edge: '#3FD0E066', label: '#DCEBF2', labelDim: '#7A8C96', select: '#FFFFFF', activated: '#4BE08A',
 };
 
 const PROPERTIES: Record<keyof BoardColours, string> = {
   bg: '--board-bg', grid: '--board-grid', gridMajor: '--board-grid-major', edge: '--board-edge',
-  label: '--board-label', labelDim: '--board-label-dim', select: '--board-select',
+  label: '--board-label', labelDim: '--board-label-dim', select: '--board-select', activated: '--board-activated',
 };
 
 /** The board colours from a custom-property reader (getComputedStyle(document.documentElement).getPropertyValue); blanks fall back. */

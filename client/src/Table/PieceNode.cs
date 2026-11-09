@@ -39,14 +39,36 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         _proxy = new MeshInstance3D { Mesh = Palette.Body(b, height), Position = new Vector3(0, h / 2, 0), MaterialOverride = Palette.Translucent(_base) };
         if (b.Shape == BaseShape.Oval) _proxy.Scale = new Vector3((float)b.B, 1, (float)b.A);   // oval length along facing (+Y wire = −Z Godot)
         AddChild(_proxy); _proxy.Position += _jolt;
+        Band();
     }
 
     public void SetMesh(Node3D? scene)
     {
         _mesh?.QueueFree(); _mesh = scene;
-        if (scene is null) return;
+        if (scene is null) { Band(); return; }
         if (_ghost) Ghostly(scene);
-        AddChild(scene); scene.Position += _jolt; Apply();
+        AddChild(scene); scene.Position += _jolt; Apply(); Band();
+    }
+
+    /// <summary>The activated band (ModelMarks.Band) in <paramref name="material"/> round the base, or round the mesh's own base where that is
+    /// wider (ModelMarks.BandBase), so the model never covers it; remade when the body or the mesh changes. Null takes it away.</summary>
+    public void SetActivated(Material? material)
+    {
+        if (material == _bandMaterial) return;
+        _bandMaterial = material; Band();
+    }
+
+    MeshInstance3D? _band;
+    Material? _bandMaterial;
+    const float BandLift = 0.035f;
+
+    void Band()
+    {
+        if (_bandMaterial is null) { _band?.QueueFree(); _band = null; return; }
+        var (x, z) = _mesh is null ? (0f, 0f) : Palette.GroundExtent(this, _mesh, _jolt);
+        if (_band is null) AddChild(_band = new MeshInstance3D { Name = "ActivatedBand", Position = Vector3.Up * BandLift + _jolt, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+        _band.Mesh = Palette.ActivatedBand(ModelMarks.BandBase(_footprint, x, z));
+        _band.MaterialOverride = _bandMaterial;
     }
 
     /// <summary>

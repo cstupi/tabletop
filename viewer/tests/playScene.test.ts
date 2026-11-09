@@ -35,6 +35,17 @@ describe('sceneOfPlay', () => {
     expect(ghost.models.map((m) => m.id)).toEqual([transport.models[0]!.id]);
   });
 
+  it('every table model of a unit with an action this round is activated, on both teams, until the record clears', () => {
+    const deploy = [moved(s.model.id, onTable(10, 12)), moved(s.rival.id, onTable(30, 20))];
+    const activated = (payloads: EventPayload[]) =>
+      sceneOfPlay(projectionOf(s.game, s.board, [...deploy, ...payloads]).projection, s.game, zones, name).models.map((m) => [m.id, m.activated]);
+    expect(activated([])).toEqual([[s.model.id, false], [s.rival.id, false]]);
+    const acted: EventPayload[] = [
+      { kind: 'action_recorded', unitId: s.squad.id, action: 'advance' } as EventPayload, { kind: 'action_recorded', unitId: s.rivals.id, action: 'hold' } as EventPayload];
+    expect(activated(acted)).toEqual([[s.model.id, true], [s.rival.id, true]]);
+    expect(activated([...acted, { kind: 'action_record_cleared', unitId: s.squad.id } as EventPayload])).toEqual([[s.model.id, false], [s.rival.id, true]]);
+  });
+
   it('a controlled objective takes its team\'s ordinal', () => {
     const objective = markerOf('A');
     const other = markerOf('B');
