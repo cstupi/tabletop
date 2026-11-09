@@ -81,15 +81,74 @@ Tests: `RingBuildsTests`, `ThreatRingsTests.A_builder_reads_the_projection_when_
 `RosterDiffTests` (`Keep`), `MoveRulerTests.Prepare_builds_every_models_reach_on_the_pool_so_a_later_drag_finds_it_built`,
 `ContactsTests.Models_proposed_where_they_stand_have_no_contact_whatever_they_stand_on_or_beside`.
 
+## Second round: the remaining spikes
+
+Main at `ad868022` against this branch, three runs each, on a quiet machine (no other Godot). The script now plays a second activation
+(the next team's selection, Advance, drag and move) after the casualties, so each action is measured the first time a session does it
+(first use: .NET compiling the code, Godot shaping and caching new text) and again (what every later turn pays). New columns split a
+frame: `script_ms` (the `_Process` span), `flush_ms` (from there to the draw), `draw_ms` (the draw's submission), and the physics step's
+spans (`physics_steps`, `before_physics_ms`, `after_physics_ms`); each probe also counts its calls and the kilobytes it allocated.
+
+### What fills a spike
+
+The dispatcher's turn (events, the Hud renders) runs as a deferred call flushed in the physics step, and so does what Godot does with
+the controls a render made: their layout, theme lookups, text and the old controls' deletion. A spike's time is almost all there: the
+`_Process` span stays under 3 ms, the flush before the draw under 1 ms and the draw 7–9 ms, while the physics step's flush takes 40–100
+ms. The C# probes account for 15–25 ms of that (the dispatcher's turn); the rest is Godot's work on what the turn changed, which no C#
+probe reaches. Measured by removal (a part's render skipped by a scratch switch): on the second move, skipping the header saved 17 ms,
+the unit card 13 ms, the dice tray nothing; on a selection the unit card's first build costs 65 ms. Turning the Hud's word wrap off
+changed nothing. Under WSLg this work also includes GL calls through D3D12 (new glyphs uploaded to the font cache, new meshes); a native
+profile on Windows is the next step to split Godot's layout from the driver.
+
+### Worst frame per phase, ms (mean of three runs)
+
+| Phase | main `ad868022` | this branch |
+| --- | --- | --- |
+| select (first) | 103 | 113 |
+| select (second) | 62 | 58 |
+| advance (first) | 120 | 101 |
+| advance (second) | 87 | 76 |
+| drag (first) | 91 | 88 |
+| drag (second) | 46 | 45 |
+| move (first) | 77 | 60 |
+| move (second) | 102 | 85 |
+| volley | 65 | 55 |
+| casualties | 83 | 69 |
+| hover with V on | 69 | 64 |
+| frames over 33 ms per run | 27.7 | 23.7 |
+| frames with over 33 ms of main-thread C# per run | 4.0 | 3.3 |
+
+### Fixes
+
+1. Unit card parts (`UnitCardParts.Changed`): a change rebuilds only the parts it shows in (title, count, state, note, models,
+   weapons, rules); a move's activated chip rebuilds the state row and leaves the weapons table and the rules standing.
+2. Header lines: each of the three lines rebuilds only when what it shows changed (`HeaderBar`), so a move's step leaves the round and
+   the team tiles standing; before, any change rebuilt all three and refitted each.
+3. Loading garbage (`LoadSettled`): once the table stands with its models, `GameScreen` runs a full collection. The 16 ms gen 1 pause that
+   fell on the first hover is gone; the longest pause in play is now 6–9 ms (one gen 2 at the move Ask).
+
+Tests: `UnitCardPartsTests`, `LoadSettledTests`.
+
+### First use and steady state
+
+The first time a session opens a move Ask, drags or selects a unit costs 50–100 ms; the second time 45–85 ms, of which C# is 10–20 ms.
+The first-use C# (the decision box opening a move 37 ms, the first drag frame 50 ms, the unit card's first build 32 ms) is mostly the
+.NET JIT: ReadyToRun for the client's own assemblies (`PublishReadyToRun` under ExportRelease, `GodotSharp.dll` left out; `Tabletop.dll`
+1.7 → 4.7 MB, `Tabletop.Geometry.dll` 0.2 → 0.5 MB) cut those to 26, 46 and 21 ms and the first advance's frame 121 → 90 ms, with no
+change to the second time. Not adopted here: the release exports macOS universal and Windows from Linux, and a cross-target ReadyToRun
+build of those is untested.
+
 ## Left
 
-- The move Ask's opening render: 40 ms in the decision box (`RenderMove`: regions 8, the gate 10, building the card's controls), 70 ms
-  for the batch with the header and unit card. As slow in v0.1.37.
-- The first drag frame: 45–55 ms (landings, contacts, the gate, rulers and landing rings created); later frames 6 ms but allocating
-  500 KB each.
-- The unit card's build on a selection: 25–33 ms. The header's rebuild per changed line: 5–12 ms.
-- The hover label's draw: 7–11 ms per hovered unit (`HoverView.Of` and the Label3D's text).
-- A ring layer's labels and meshes when its build lands: up to 22 ms for V's rings.
-- Gen 1 and gen 2 collections: a pause up to 22 ms; the drag allocates 500 KB a frame.
-- ReadyToRun (`PublishReadyToRun` under ExportRelease) was measured: first-use costs fell by about a third (advance 44 → 30 ms, the
-  first drag frame 42 → 31 ms), spikes per run did not change, and `GodotSharp.dll` grew from 6 to 16 MB. Not adopted.
+- Godot's work on rebuilt Hud controls in the physics step's flush: 30–60 ms a game event under WSLg (above). Profile natively on Windows
+  (Forward+, the owner's renderer) before changing the Hud further; the candidates are fewer rebuilt controls (labels updated in place)
+  and new glyphs uploaded to the font cache.
+- The move Ask's opening render: 35–40 ms of C# in the decision box the first time (regions 8, the gate 14, the card's controls), 3 ms
+  the second time.
+- The first drag frame: 50 ms of C# the first time (landings, contacts, the gate), 10 ms the second; each drag frame allocates 0.3–1.6 MB
+  (landings and contacts in `Tabletop.Geometry`), which keeps gen 0 collections at 1–4 ms.
+- The unit card's first build on a selection: 32 ms of C#, 65 ms with Godot's work.
+- The hover label: `HoverView.Of` 3 ms a hover, 9 ms the first time.
+- A ring layer when its build lands: 20 ms for V's rings, 16 of them creating the fill's mesh (building its vertex arrays on the pool
+  instead was measured and saved nothing).
+- ReadyToRun: measured above, not adopted.
