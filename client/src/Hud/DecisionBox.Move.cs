@@ -279,7 +279,7 @@ public partial class DecisionBox
         _sent.Remember(unit, moves.Moves);
         _onEnter = null; _onCancel = null; _regate = null; SetButtons(true);   // a ghost dragged while the answer travels gates nothing: Place stays off
         var id = Guid.CreateVersion7(); _lastCommand = id;                          // a Refused for it lands in _onRefused, which rebuilds the placement
-        _sent.Sent(id);
-        Guarded.Run(() => _s.SendCommandAsync(moves, id), message => { _refusal = $"Could not place the models: {message}"; _refusalAsk = null; Reset(); Render(); });
+        _sent.Sent(id); _flight.Sent(unit, id);
+        Guarded.Run(() => _s.SendCommandAsync(moves, id), message => { _flight.Refused(id); _refusal = $"Could not place the models: {message}"; _refusalAsk = null; Reset(); Render(); });
     }
 }

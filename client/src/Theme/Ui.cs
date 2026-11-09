@@ -23,9 +23,12 @@ public static class Ui
     public static Godot.Theme Theme => _theme ??= ThemeBuilder.Build(Current);
     public static event Action? Changed;
 
-    public static void Apply(UiTheme t)
+    /// <summary>Makes t the current theme. install puts the built theme on the tree before Changed is raised, so a handler that reads a
+    /// control's inherited theme (a constant, a stylebox) reads the new one.</summary>
+    public static void Apply(UiTheme t, Action<Godot.Theme>? install = null)
     {
         Current = t; _theme = ThemeBuilder.Build(t); Icons.Clear();
+        install?.Invoke(_theme);
         Changed?.Invoke();
     }
 

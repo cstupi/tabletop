@@ -85,6 +85,7 @@ public partial class DecisionBox : PanelContainer
         _onRefused = r =>
         {
             if (r.MessageId != _lastCommand) return;
+            _flight.Refused(r.MessageId);
             _refusal = $"The server refused: {r.Detail}"; _refusalDetail = r.Detail; _refusalAsk = _renderedAsk;
             KeepRefused(r);                                              // a refused move or placement comes back where it was dropped, marked
             Reset(); _renderedAsk = null; Render();
@@ -107,12 +108,24 @@ public partial class DecisionBox : PanelContainer
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
     }
 
-    /// <summary>A theme change: the head and the bands are drawn again in the new theme's colours and icons.</summary>
+    /// <summary>
+    /// A theme change: the card's frame, head and bands are drawn again in the new theme's colours and icons, and so is the open Ask, made
+    /// afresh (its tiles and actions too) with a move's or a placement's ghosts kept where they stood, unless its answer is in flight
+    /// (AnswerInFlight). Drawn now, not at the next frame's render.
+    /// </summary>
     void Restyle()
     {
-        _acts.Clear();                                                                       // the next Ask makes its actions in the new theme; Reset frees the old
-        foreach (var g in _choices.GetChildren().OfType<DecisionTiles.OptionPanel>()) DecisionTiles.Restyle(g);
-        _keys.Icon = Ui.Icon("key"); var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null; }
+        _acts.Clear();                                                                       // made again in the new theme; Reset frees the old
+        if (_flight.Redraws(_renderedAsk) || _renderedAsk is null && _flight.Redraws(_deployUnit))
+        {
+            KeepGhosts();
+            _choiceGroupsKept?.Clear();
+            Reset(); _renderedAsk = null;
+        }
+        else foreach (var g in _choices.GetChildren().OfType<DecisionTiles.OptionPanel>()) DecisionTiles.Restyle(g);
+        _keys.Icon = Ui.Icon("key"); var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null;
+        Render();
+    }
 
     /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
     public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Bottom(this, slot); }
@@ -398,6 +411,7 @@ public partial class DecisionBox : PanelContainer
     {
         GD.PushWarning($"Answer failed: {message}");
         if (!IsInstanceValid(this) || _renderedAsk != askId) return;
+        if (_lastCommand is { } sent) _flight.Refused(sent);
         _refusal = $"Could not send the answer: {message}"; _refusalAsk = askId; _renderedAsk = null; Render();
     }
 
@@ -406,6 +420,7 @@ public partial class DecisionBox : PanelContainer
         SetButtons(true); Unhook();                                             // one answer per Ask: no second click or key can double-send
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
         _sent.Sent(_lastCommand.Value);                                         // a move commit's ghosts go with it, else none are held
+        _flight.Sent(ask.Id, _lastCommand.Value);
         await _s.SendCommandAsync(AskAnswers.Answer(ask, answer, _answering), _lastCommand.Value);   // for the team the Ask was rendered for
     }
 
@@ -469,6 +484,7 @@ public partial class DecisionBox : PanelContainer
 
     /// <summary>A card's action (DecisionTiles.Action), pooled by its look: the next Ask with the same action takes the same button, pressing this Ask's handler.</summary>
     readonly Dictionary<string, Button> _acts = new(); readonly Dictionary<Button, Action> _actPressed = new();
+    readonly AnswerInFlight _flight = new();
     Button Act(string text, string key, Action pressed, bool primary = false, string? icon = null)
     {
         var id = $"{text}\u001f{key}\u001f{primary}\u001f{icon}";

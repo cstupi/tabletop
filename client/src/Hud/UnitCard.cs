@@ -36,8 +36,16 @@ public partial class UnitCard : VBoxContainer
         _onFrame = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; OnHover(); };   // the frame: every cause
         session.Frame.Render += _onFrame;
         input.SelectionChanged += _onChanged; input.HoveredUnitChanged += _onHover;
-        _onTheme = () => { _content = null; Render(); }; Ui.Changed += _onTheme;   // a new theme sets every part again whatever the content
+        _onTheme = Rethemed; Ui.Changed += _onTheme;
         Render();
+    }
+
+    /// <summary>A new theme: every part and the strip are made again in it, whatever the content (a kept control holds what it was made with).</summary>
+    void Rethemed()
+    {
+        foreach (var part in _parts) { part.Clear(); var box = part.Box; box.GetParent()?.RemoveChild(box); box.QueueFree(); }
+        _parts.Clear(); _kids.Clear(); _stripKids.Clear();
+        _content = null; Render();
     }
 
     public override void _ExitTree()
