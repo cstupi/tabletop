@@ -15,12 +15,88 @@ internal sealed class MoveShape
     public readonly Point2 Centre;
     public readonly double Bound;
 
+    /// <summary>
+    /// A many-sided core's coarse bounds (an oval base has 64 sides): the circles about Centre inside it (`_inner`) and holding it (`_outer`), and
+    /// polygons of a few sides inside it (some of its own vertices) and holding it (its support lines in a few directions). A distance to one of
+    /// them bounds the distance to the core, so most tests are settled on them and the core itself is measured only near the limit.
+    /// </summary>
+    readonly double _inner, _outer;
+    readonly Edged? _within, _around;
+    readonly Edged _core;
+    const int CoarseSides = 16;
+    /// <summary>What the bounds leave to the exact test: well above the rounding in either distance.</summary>
+    const double Slack = 1e-9;
+
     MoveShape(Point2[] core, double radius)
     {
         Core = core;
         Radius = radius;
         Centre = new Point2(core.Average(p => p.X), core.Average(p => p.Y));
         Bound = core.Max(p => p.DistanceTo(Centre)) + radius;
+        _core = new Edged(core);
+        if (core.Length <= 2 * CoarseSides) return;
+        _outer = Bound - radius;
+        _inner = double.PositiveInfinity;
+        for (int i = 0, j = core.Length - 1; i < core.Length; j = i++)
+        {
+            var e = core[i] - core[j];
+            _inner = Math.Min(_inner, e.Cross(Centre - core[j]) / e.Length);
+        }
+        _inner = Math.Max(0, _inner);
+        var normals = Enumerable.Range(0, CoarseSides)
+            .Select(k => new Point2(Math.Cos(2 * Math.PI * k / CoarseSides), Math.Sin(2 * Math.PI * k / CoarseSides))).ToArray();
+        var support = normals.Select(n => core.Max(v => v.Dot(n))).ToArray();
+        var around = new Point2[CoarseSides];
+        for (var k = 0; k < CoarseSides; k++)
+        {
+            var (n1, n2) = (normals[k], normals[(k + 1) % CoarseSides]);
+            var (h1, h2) = (support[k], support[(k + 1) % CoarseSides]);
+            var det = n1.Cross(n2);
+            around[k] = new Point2((h1 * n2.Y - h2 * n1.Y) / det, (n1.X * h2 - n2.X * h1) / det);
+        }
+        _around = new Edged(around);
+        var within = new List<Point2>();
+        foreach (var n in normals)
+        {
+            var v = core.MaxBy(v => v.Dot(n));
+            if (within.Count == 0 || (within[^1] - v).Length > 1e-9) within.Add(v);
+        }
+        while (within.Count > 1 && (within[^1] - within[0]).Length <= 1e-9) within.RemoveAt(within.Count - 1);
+        if (within.Count >= 3) _within = new Edged([.. within]);
+    }
+
+    /// <summary>SegmentDistance(Core, a, b) &lt; limit, exactly: settled on the coarse bounds when they clear the limit by Slack, else measured.</summary>
+    bool SegmentWithin(Point2 a, Point2 b, double limit)
+    {
+        if (_around is not null)
+        {
+            var s = Outline.ClosestOnSegment(a, b, Centre).DistanceTo(Centre);
+            if (s - _outer >= limit + Slack) return false;
+            if (s - _inner < limit - Slack) return true;
+            if (SegmentDistance(_around, a, b) >= limit + Slack) return false;
+            if (_within is not null && SegmentDistance(_within, a, b) < limit - Slack) return true;
+        }
+        return SegmentDistance(_core, a, b) < limit;
+    }
+
+    /// <summary>Clip(a, b) is not null for a core with no radius, exactly: settled on the circles about Centre when they clear it by Slack.</summary>
+    bool Enters(Point2 a, Point2 b)
+    {
+        if (Core.Length < 3) return false;
+        if (_around is not null)
+        {
+            var s = Outline.ClosestOnSegment(a, b, Centre).DistanceTo(Centre);
+            if (s - _outer >= Slack) return false;
+            if (s < _inner - Tolerance.Distance - Slack) return true;
+        }
+        return Clip(a, b) is not null;
+    }
+
+    /// <summary>A convex polygon (or one point) with the length of each edge, edge i running from vertex i − 1 to vertex i.</summary>
+    sealed class Edged(Point2[] points)
+    {
+        public readonly Point2[] Points = points;
+        public readonly double[] Lengths = points.Select((p, i) => (p - points[(i + points.Length - 1) % points.Length]).Length).ToArray();
     }
 
     /// <summary>The shape `obstacle` makes for a base whose outline, placed at `origin`, is `mover`.</summary>
@@ -85,21 +161,35 @@ internal sealed class MoveShape
     }
 
     /// <summary>Signed distance from p to the core: negative inside a polygon core.</summary>
-    public double CoreSigned(Point2 p)
+    public double CoreSigned(Point2 p) => CoreSigned(_core, p);
+
+    /// <summary>
+    /// Outside, the least distance to an edge, each measured as ClosestOnSegment does; an edge whose line is already farther than the least so far
+    /// (its line distance bounds its segment distance from below, by more than the rounding in either) cannot be the least, so is not measured.
+    /// </summary>
+    static double CoreSigned(Edged polygon, Point2 p)
     {
-        if (Core.Length == 1) return p.DistanceTo(Core[0]);
-        var inside = true; var deepest = double.NegativeInfinity;
-        for (int i = 0, j = Core.Length - 1; i < Core.Length; j = i++)
+        var core = polygon.Points;
+        if (core.Length == 1) return p.DistanceTo(core[0]);
+        var n = core.Length;
+        Span<double> signs = n <= 256 ? stackalloc double[n] : new double[n];
+        var inside = true; var deepest = double.NegativeInfinity; var facing = 0;
+        for (int i = 0, j = n - 1; i < n; j = i++)
         {
-            var e = Core[i] - Core[j];
-            var len = e.Length;
-            var signed = e.Cross(p - Core[j]) / -len;                     // outward is to the right of a counter-clockwise edge
+            var e = core[i] - core[j];
+            var signed = e.Cross(p - core[j]) / -polygon.Lengths[i];       // outward is to the right of a counter-clockwise edge
+            signs[i] = signed;
             if (signed > 0) inside = false;
+            if (signed > signs[facing]) facing = i;
             deepest = Math.Max(deepest, signed);
         }
         if (inside) return deepest;
-        var best = double.PositiveInfinity;
-        for (int i = 0, j = Core.Length - 1; i < Core.Length; j = i++) best = Math.Min(best, Outline.ClosestOnSegment(Core[j], Core[i], p).DistanceTo(p));
+        var best = Outline.ClosestOnSegment(core[(facing + n - 1) % n], core[facing], p).DistanceTo(p);
+        for (int i = 0, j = n - 1; i < n; j = i++)
+        {
+            if (i == facing || Math.Abs(signs[i]) > best + Slack) continue;
+            best = Math.Min(best, Outline.ClosestOnSegment(core[j], core[i], p).DistanceTo(p));
+        }
         return best;
     }
 
@@ -128,55 +218,124 @@ internal sealed class MoveShape
     /// <summary>Some point of the segment a–b is inside the shape.</summary>
     public bool Blocks(Point2 a, Point2 b)
     {
-        if (Radius > Tolerance.Distance) return SegmentDistance(a, b) < Radius - Tolerance.Distance;
-        return Core.Length >= 3 && Clip(a, b) is not null;
+        if (Radius > Tolerance.Distance) return SegmentWithin(a, b, Radius - Tolerance.Distance);
+        return Enters(a, b);
     }
 
-    /// <summary>The part of a–b inside the shape, as the parameters t in [0, 1] it spans; null when none is.</summary>
+    /// <summary>
+    /// The part of a–b inside the shape, as the parameters t in [0, 1] it spans; null when none is. Inside is a core distance under
+    /// Radius − Tolerance.Distance: the core's interior, a band of that width outside each core edge and a disc of that radius about each core
+    /// vertex. Each meets the line in an interval found in closed form, and the shape is convex, so their union is the one interval from the least
+    /// start to the greatest end.
+    /// </summary>
     public (double T0, double T1)? Interval(Point2 a, Point2 b)
     {
         if (Radius <= Tolerance.Distance) return Core.Length >= 3 ? Clip(a, b) : null;
         if (!Blocks(a, b)) return null;
         var d = b - a;
-        double F(double t) => Depth(a + d * t) + Tolerance.Distance;          // negative inside; convex in t
-        // Golden-section search for the deepest point, then bisect out to each side's crossing.
-        double lo = 0, hi = 1;
-        const double g = 0.6180339887498949;
-        for (var k = 0; k < 60 && hi - lo > 1e-9; k++)
+        var rho = Radius - Tolerance.Distance;
+        if (d.Dot(d) < 1e-24) return (0, 1);
+        double lo = double.PositiveInfinity, hi = double.NegativeInfinity;
+        void Take((double, double)? span)
         {
-            double m1 = hi - g * (hi - lo), m2 = lo + g * (hi - lo);
-            if (F(m1) < F(m2)) hi = m2; else lo = m1;
+            if (span is not var (t0, t1)) return;
+            lo = Math.Min(lo, t0); hi = Math.Max(hi, t1);
         }
-        var deepest = (lo + hi) / 2;
-        if (F(deepest) >= 0) return null;
-        double Cross(double outside, double inside)
+        if (Core.Length == 1) Take(Disc(a, d, Core[0], rho));
+        else
         {
-            if (F(outside) < 0) return outside;
-            for (var k = 0; k < 50; k++) { var mid = (outside + inside) / 2; if (F(mid) < 0) inside = mid; else outside = mid; }
-            return inside;
+            Take(Slab(a, d, Core));
+            for (int i = 0, j = Core.Length - 1; i < Core.Length; j = i++)
+            {
+                Take(Disc(a, d, Core[i], rho));
+                Take(Band(a, d, Core[j], Core[i], rho));
+            }
         }
-        return (Cross(0, deepest), Cross(1, deepest));
+        lo = Math.Max(lo, 0); hi = Math.Min(hi, 1);
+        return lo < hi ? (lo, hi) : null;
+    }
+
+    /// <summary>The t where |a + t·d − c| &lt; r, unclamped.</summary>
+    static (double, double)? Disc(Point2 a, Point2 d, Point2 c, double r)
+    {
+        var w = a - c;
+        double qa = d.Dot(d), qb = w.Dot(d), qc = w.Dot(w) - r * r;
+        var disc = qb * qb - qa * qc;
+        if (disc <= 0) return null;
+        var root = Math.Sqrt(disc);
+        return ((-qb - root) / qa, (-qb + root) / qa);
+    }
+
+    /// <summary>The t where a + t·d lies over the edge p–q (its projection on the edge inside it) within r of the edge's line, unclamped.</summary>
+    static (double, double)? Band(Point2 a, Point2 d, Point2 p, Point2 q, double r)
+    {
+        var e = q - p;
+        var len = e.Length;
+        if (len < 1e-12) return null;
+        var u = e * (1 / len);
+        var n = new Point2(u.Y, -u.X);
+        double t0 = double.NegativeInfinity, t1 = double.PositiveInfinity;
+        // Along the edge: 0 ≤ (x − p)·u ≤ len; across it: −r ≤ (x − p)·n ≤ r.
+        return Between(ref t0, ref t1, (a - p).Dot(u), d.Dot(u), 0, len) && Between(ref t0, ref t1, (a - p).Dot(n), d.Dot(n), -r, r) && t0 < t1
+            ? (t0, t1) : null;
+    }
+
+    /// <summary>The t where a + t·d lies inside the polygon core (every edge's signed distance negative), unclamped.</summary>
+    static (double, double)? Slab(Point2 a, Point2 d, Point2[] core)
+    {
+        double t0 = double.NegativeInfinity, t1 = double.PositiveInfinity;
+        for (int i = 0, j = core.Length - 1; i < core.Length; j = i++)
+        {
+            var e = core[i] - core[j];
+            // signed(x) = e.Cross(x − core[j]) / −|e| < 0, i.e. e.Cross(x − core[j]) > 0.
+            var num = e.Cross(a - core[j]);
+            var den = e.Cross(d);
+            if (Math.Abs(den) < 1e-15) { if (num <= 0) return null; continue; }
+            var t = -num / den;
+            if (den > 0) t0 = Math.Max(t0, t); else t1 = Math.Min(t1, t);
+            if (t0 >= t1) return null;
+        }
+        return (t0, t1);
+    }
+
+    /// <summary>Narrows [t0, t1] to where lo ≤ x0 + t·dx ≤ hi; false when that leaves nothing.</summary>
+    static bool Between(ref double t0, ref double t1, double x0, double dx, double lo, double hi)
+    {
+        if (Math.Abs(dx) < 1e-15) return x0 >= lo && x0 <= hi;
+        double ta = (lo - x0) / dx, tb = (hi - x0) / dx;
+        if (ta > tb) (ta, tb) = (tb, ta);
+        t0 = Math.Max(t0, ta); t1 = Math.Min(t1, tb);
+        return t0 < t1;
     }
 
     /// <summary>
-    /// Interval(a, b) is not null, known without its search: the segment comes inside by clearly more than the search's own error (its deepest
-    /// point found to 1e-9 of the length). False only says "not known".
+    /// Interval(a, b) is not null, known before it is computed: the segment comes inside by clearly more than its rounding. False only says
+    /// "not known".
     /// </summary>
     public bool SurelyEnters(Point2 a, Point2 b)
     {
-        if (Radius <= Tolerance.Distance) return Core.Length >= 3 && Clip(a, b) is not null;
-        return SegmentDistance(a, b) < Radius - Tolerance.Distance - 1e-6 - 1e-8 * (b - a).Length;
+        if (Radius <= Tolerance.Distance) return Enters(a, b);
+        return SegmentWithin(a, b, Radius - Tolerance.Distance - 1e-6 - 1e-8 * (b - a).Length);
     }
 
-    /// <summary>Unsigned distance from the segment to the core: 0 when they meet.</summary>
-    double SegmentDistance(Point2 a, Point2 b)
+    /// <summary>Unsigned distance from the segment to a core: 0 when they meet.</summary>
+    static double SegmentDistance(Edged polygon, Point2 a, Point2 b)
     {
-        if (Core.Length == 1) return Outline.ClosestOnSegment(a, b, Core[0]).DistanceTo(Core[0]);
-        if (CoreSigned(a) <= 0 || CoreSigned(b) <= 0) return 0;
-        for (int i = 0, j = Core.Length - 1; i < Core.Length; j = i++)
-            if (Outline.SegmentsIntersect(a, b, Core[j], Core[i])) return 0;
-        var best = Math.Min(CoreSigned(a), CoreSigned(b));
-        foreach (var v in Core) best = Math.Min(best, Outline.ClosestOnSegment(a, b, v).DistanceTo(v));
+        var core = polygon.Points;
+        if (core.Length == 1) return Outline.ClosestOnSegment(a, b, core[0]).DistanceTo(core[0]);
+        var (fromA, fromB) = (CoreSigned(polygon, a), CoreSigned(polygon, b));
+        if (fromA <= 0 || fromB <= 0) return 0;
+        for (int i = 0, j = core.Length - 1; i < core.Length; j = i++)
+            if (Outline.SegmentsIntersect(a, b, core[j], core[i])) return 0;
+        var best = Math.Min(fromA, fromB);
+        var d = b - a;
+        var length = d.Length;
+        foreach (var v in core)
+        {
+            // The line's distance bounds the segment's from below: a vertex beyond the least so far is not measured.
+            if (length > 1e-9 && Math.Abs(d.Cross(v - a)) / length > best + Slack) continue;
+            best = Math.Min(best, Outline.ClosestOnSegment(a, b, v).DistanceTo(v));
+        }
         return best;
     }
 

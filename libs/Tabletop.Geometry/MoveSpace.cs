@@ -13,14 +13,20 @@ internal sealed partial class MoveSpace
     const double Margin = 1e-3;
 
     /// <summary>`AlwaysMeets`: a body whose height interval meets the base's at every height the base can rest at inside its shape, so no
-    /// position there needs the base rested to know (MeetsInHeight is true wherever Holds is).</summary>
-    internal sealed record Obstacle(MoveShape Shape, int Group, Guid Id, double Bottom, double Top, bool StartInside, bool AlwaysMeets = false);
+    /// position there needs the base rested to know (MeetsInHeight is true wherever Holds is). `Rests`: for a body, the surfaces the base centred
+    /// inside its shape can meet (Near), highest first; the base rests on the first it meets there, else on the table.</summary>
+    internal sealed record Obstacle(MoveShape Shape, int Group, Guid Id, double Bottom, double Top, bool StartInside, bool AlwaysMeets = false,
+        Rest[]? Rests = null);
+
+    /// <summary>A surface the base may rest on: its footprint, the circle that holds it, and the height the base rests at on it.</summary>
+    internal readonly record struct Rest(Outline Outline, Point2 Centre, double Radius, double Height);
 
     /// <summary>A graph corner: its point, the obstacle it rounds and its two neighbours on that obstacle's ring, the groups whose obstacles hold it.</summary>
     internal readonly record struct Node(Point2 At, Point2 Prev, Point2 Next, int Inside);
 
     readonly PlacedModel _mover;
     readonly Outline _base;
+    readonly (Point2 Centre, double Radius) _baseBound;
     readonly IReadOnlyList<WorldVolume> _surfaces;
     readonly (double X0, double X1, double Y0, double Y1)? _box;
     readonly List<Obstacle> _obstacles = [];
@@ -41,6 +47,7 @@ internal sealed partial class MoveSpace
         _mover = start;
         Origin = start.Placement.Position.Horizontal;
         _base = start.BaseOutline();
+        _baseBound = _base.BoundingCircle();
         _surfaces = surfaces ?? [];
         if (table is { } t)
         {
@@ -68,29 +75,44 @@ internal sealed partial class MoveSpace
             if (MoveShape.CircleBounds(outline, _base, Origin) is { } far && far.Centre.DistanceTo(Origin) > reach + far.Bound + Tolerance.Distance) continue;
             var shape = MoveShape.Of(outline, _base, Origin);
             if (shape.Centre.DistanceTo(Origin) > reach + shape.Bound + Tolerance.Distance || Overlap.Bases(start, m)) continue;
-            _obstacles.Add(new Obstacle(shape, Bodies, Guid.Empty, m.Bottom(), m.Top(), false, MeetsAtEveryRest(shape, m.Bottom(), m.Top())));
+            var rests = Near(shape);
+            _obstacles.Add(new Obstacle(shape, Bodies, Guid.Empty, m.Bottom(), m.Top(), false, MeetsAtEveryRest(rests, m.Bottom(), m.Top()), rests));
             Present |= Bodies;
         }
     }
 
     /// <summary>
-    /// The base centred anywhere inside `shape` meets a body between these heights whatever it rests on there: it rests at 0 or at the height of a
-    /// surface its base meets (Collision.Rest), and only a surface whose bounding circle comes within the base's reach of the shape's can be met.
+    /// The surfaces the base centred anywhere inside `shape` can rest on (Collision.Rest with floors: a Solid's top, an Area's floor), highest
+    /// first: only one whose bounding circle comes within the base's reach of the shape's can be met, and one at or under the table never lifts it.
+    /// A sample inside the shape rests over these alone (RestAt), not over every surface on the table.
     /// </summary>
-    bool MeetsAtEveryRest(MoveShape shape, double bottom, double top)
+    Rest[] Near(MoveShape shape)
     {
-        var height = _mover.Body.Height;
-        if (!Overlap.IntervalsOverlap(0, 0 + height, bottom, top)) return false;
-        var (bc, br) = _base.BoundingCircle();
+        var (bc, br) = _baseBound;
         var reach = shape.Bound + bc.DistanceTo(Origin) + br;
+        var near = new List<Rest>();
         foreach (var v in _surfaces)
         {
             var h = v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom();
             if (h <= 0) continue;
-            var (c, r) = v.WorldOutline().BoundingCircle();
+            var outline = v.WorldOutline();
+            var (c, r) = outline.BoundingCircle();
             if (c.DistanceTo(shape.Centre) > reach + r + Tolerance.Distance) continue;
-            if (!Overlap.IntervalsOverlap(h, h + height, bottom, top)) return false;
+            near.Add(new Rest(outline, c, r, h));
         }
+        return [.. near.OrderByDescending(n => n.Height)];
+    }
+
+    /// <summary>
+    /// The base centred anywhere inside the body's shape meets a body between these heights whatever it rests on there: it rests at 0 or at the
+    /// height of a surface its base meets (Near).
+    /// </summary>
+    bool MeetsAtEveryRest(Rest[] rests, double bottom, double top)
+    {
+        var height = _mover.Body.Height;
+        if (!Overlap.IntervalsOverlap(0, 0 + height, bottom, top)) return false;
+        foreach (var r in rests)
+            if (!Overlap.IntervalsOverlap(r.Height, r.Height + height, bottom, top)) return false;
         return true;
     }
 
@@ -139,8 +161,25 @@ internal sealed partial class MoveSpace
 
     bool MeetsInHeight(Obstacle o, Point2 p)
     {
-        var bottom = _surfaces.Count == 0 ? 0 : Collision.Rest([_base.Shift(p - Origin)], _surfaces, floors: true);
+        var bottom = RestAt(o.Rests ?? [], p);
         return Overlap.IntervalsOverlap(bottom, bottom + _mover.Body.Height, o.Bottom, o.Top);
+    }
+
+    /// <summary>Where the base centred at p rests (Collision.Rest with floors) over these surfaces, highest first: the first whose footprint
+    /// shares interior with the base, else the table.</summary>
+    double RestAt(Rest[] rests, Point2 p)
+    {
+        if (rests.Length == 0) return 0;
+        var (bc, br) = _baseBound;
+        var centre = bc + (p - Origin);
+        Outline? shifted = null;
+        foreach (var r in rests)
+        {
+            if (centre.DistanceTo(r.Centre) >= br + r.Radius) continue;
+            shifted ??= _base.Shift(p - Origin);
+            if (Outline.InteriorsIntersect(shifted, r.Outline)) return r.Height;
+        }
+        return 0;
     }
 
     internal enum Cover { Free, Edge, Covered }
@@ -206,6 +245,12 @@ internal sealed partial class MoveSpace
         // Every sample lies inside the shape, where such a body always meets the base: met as soon as some part is surely inside.
         if (o.AlwaysMeets && (_surfaces.Count == 0 || o.Shape.SurelyEnters(a, b))) return true;
         if (_surfaces.Count == 0) return MeetsInHeight(o, a);
+        // Every sample rests on the table or on a surface the base can meet somewhere along a–b: when those heights all agree, the samples do.
+        switch (MeetsAlong(o, a, b))
+        {
+            case false: return false;
+            case true when o.Shape.SurelyEnters(a, b): return true;
+        }
         if (o.Shape.Interval(a, b) is not { } span) return false;
         var d = b - a;
         var steps = Sampling.Steps((span.T1 - span.T0) * d.Length, Collision.Step);
@@ -215,6 +260,22 @@ internal sealed partial class MoveSpace
             if (MeetsInHeight(o, a + d * t)) return true;
         }
         return false;
+    }
+
+    /// <summary>Whether the base centred anywhere on a–b meets the body in height: true at every height it can rest at there (the table, or a
+    /// surface of the body's Rests whose bounding circle comes within the base's of the segment), false at none of them, null when they differ.</summary>
+    bool? MeetsAlong(Obstacle o, Point2 a, Point2 b)
+    {
+        var height = _mover.Body.Height;
+        var meets = Overlap.IntervalsOverlap(0, height, o.Bottom, o.Top);
+        var (bc, br) = _baseBound;
+        var shift = bc - Origin;
+        foreach (var r in o.Rests ?? [])
+        {
+            if (Overlap.IntervalsOverlap(r.Height, r.Height + height, o.Bottom, o.Top) == meets) continue;
+            if (Outline.ClosestOnSegment(a + shift, b + shift, r.Centre).DistanceTo(r.Centre) < br + r.Radius) return null;
+        }
+        return meets;
     }
 
     static bool HeadsOut(MoveShape shape, Point2 from, Point2 dir)
