@@ -93,6 +93,63 @@ public class GfTerrain36Tests
         Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, (MoveRegion)ask.Legal, By(sim, off, 11)));
     }
 
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void A_model_standing_on_the_hills_edge_rushes_and_charges_off_it_in_the_open(string rules)
+    {
+        // At x -2.6 a 32 mm base's centre is 0.4" past the hill's edge at -3, its base on the hill: it stands on it, so going east is moving off it.
+        var rim = Unit("A", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(rules, State([rim], [Unit("B", "4+", "4+", [], 1, [])], x1: -2.6, x2: 20, terrain: [Hill(-6)]), Fours);
+        sim.Start(GfNames.RushSeq, new SequenceContext(rim.Id, [], [], GfNames.Rush));
+        var ask = sim.AskFor(Samples.Team1);
+        Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, (MoveRegion)ask.Legal, By(sim, rim, 11)));
+
+        // A charge 10.34" from the rim into base contact with a model at x 9 (contact at 7.74): the full 12", not 6".
+        var charger = Unit("A", "4+", "4+", [], 1, [], Melee("CCW", 1));
+        var target = Unit("B", "4+", "4+", [], 1, [], Melee("CCW", 1));
+        var charge = Sim.Gf(rules, State([charger], [target], x1: -2.6, x2: 9, enforcement: Enforcement.Strict, terrain: [Hill(-6)]), Fours);
+        charge.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        charge.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        var region = Assert.IsType<MoveRegion>(charge.AskFor(Samples.Team1).Legal);
+        Assert.Equal(12, region.Allowance);
+        charge.Answer(Samples.Team1, By(charge, charger, 10.34));
+        Assert.Equal(7.74, ((OnTable)charge.Model(charger.Models[0].Id).Location).Placement.Position.X, 2);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void Steep_is_read_per_model_by_where_it_starts_and_the_cap_binds_the_unit(string rules)
+    {
+        // Two models: the first on the hill (x -6), the second moved off it to x -14 (its base reaches -13.37; the hill is -9..-3).
+        var unit = Unit("A", "4+", "4+", [], 2, []);
+        var sim = Sim.Gf(rules, State([unit], [Unit("B", "4+", "4+", [], 1, [])], x1: -6, x2: 20, terrain: [Hill(-6)]), Fours);
+        var second = sim.Model(unit.Models[1].Id);
+        sim.Append([new ModelsMoved([new ModelRelocation(second.Id, second.Location,
+            new OnTable(new Placement(((OnTable)second.Location).Placement.Position with { X = -14 }, new Yaw(0))))])]);
+        sim.Start(GfNames.RushSeq, new SequenceContext(unit.Id, [], [], GfNames.Rush));
+        var ask = sim.AskFor(Samples.Team1);
+        var region = (MoveRegion)ask.Legal;
+        Destinations Moves(double first, double other) => new([
+            Relocate(sim, unit.Models[0].Id, first, 0), Relocate(sim, unit.Models[1].Id, other, 0)]);
+        // The first off the hill 11" and the second 4" short of it: no model moves onto it.
+        Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, region, Moves(11, 4)));
+        // The second 6" onto it: it moves onto steep ground, so no model of the unit may go over 6".
+        Assert.NotNull(GfMoves.DifficultCapBreach(sim.State, ask, region, Moves(11, 6)));
+        Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, region, Moves(6, 6)));
+        // Along the hill's top, 11" north, staying on it: neither onto nor off it, not difficult.
+        Assert.Null(GfMoves.DifficultCapBreach(sim.State, ask, region, new Destinations([
+            Relocate(sim, unit.Models[0].Id, 0, 11), Relocate(sim, unit.Models[1].Id, 0, 0)])));
+    }
+
+    static ModelRelocation Relocate(Sim sim, Guid id, double dx, double dy)
+    {
+        var m = sim.Model(id);
+        var at = ((OnTable)m.Location).Placement.Position;
+        return new ModelRelocation(id, m.Location, new OnTable(new Placement(at with { X = at.X + dx, Y = at.Y + dy }, new Yaw(0))));
+    }
+
     static readonly EntryDocument Ward = new("Ward", CatalogKind.Spell, false, null, 1, "Test Book", "Target up to two friendly units within 24\" get Regeneration once.",
         new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 2, 24),
         [new EffectDocument(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, "Regeneration", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]);

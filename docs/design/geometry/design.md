@@ -670,7 +670,7 @@ read here:
 | `Difficult` | `Movement.Region`/`Check`, `VolumesOnPath` | *in or through* along the path taken, which goes round when that fits the allowance |
 | `Dangerous` | `Movement.Check`, `VolumesOnPath` | the same, over the dangerous list; a path goes round when that fits |
 | `DangerousOnRushCharge` | `Movement.Check`, `VolumesOnPath` | p.12 *"Dangerous when using rush/charge"*: in the dangerous list for a Rush or a Charge only; under 3.6.0 p.12 Unstable, for a model whose own path is over 6" |
-| `Steep` | `Movement.Check` (`steep`), `Movement.SteepEntering` | 3.6.0 p.12 *"Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain"* (3.5.1 p.12 Hills *"Difficult when moving up"*): difficult for a move whose base centre starts outside the footprint, open for one that starts inside |
+| `Steep` | `Movement.Check` (`steep`), `Movement.SteepEntering` | 3.6.0 p.12 *"Units moving onto steep terrain count it as being in Difficult terrain, but units moving off it count it as open terrain"* (3.5.1 p.12 Hills *"Difficult when moving up"*): difficult for a move whose base starts off the footprint (no shared interior in plan), open for one whose base starts on it |
 
 The declarations are shared by both editions; the same Ruins, deep Rivers and Hills carry them under 3.5.1 and 3.6.0. What a
 flag is called follows the game's edition (`GfEdition.TerrainWords`): `BlocksLineOfSight` is Blocking (3.5.1) or Sight Blocking
