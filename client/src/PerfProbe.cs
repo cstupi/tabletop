@@ -34,9 +34,10 @@ public partial class PerfProbe : Node
     public override void _Ready()
     {
         On = true;
+        AddChild(new Tail());
         ProcessPriority = int.MinValue;   // first in the frame, so each row's interval is frame start to frame start
         _out = new StreamWriter(OutPath!, append: false) { AutoFlush = false };
-        _out.WriteLine("frame,wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench,compiles_canvas,compiles_mesh,compiles_surface,compiles_draw,compiles_spec,process_ms,physics_ms,probes");
+        _out.WriteLine("frame,wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench,compiles_canvas,compiles_mesh,compiles_surface,compiles_draw,compiles_spec,process_ms,physics_ms,script_ms,probes");
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_SECONDS"), CultureInfo.InvariantCulture, out var s)) _quitAfter = s;
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_BENCH"), CultureInfo.InvariantCulture, out var b)) _bench = new Bench(b);
         if (int.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_REPLAY_FROM"), out var from)) _replayFrom = from;
@@ -56,6 +57,14 @@ public partial class PerfProbe : Node
     /// <c>name=ms;</c>. Empty unless the probe runs.</summary>
     static readonly Dictionary<string, double> Probes = new();
     public static bool On { get; private set; }
+    static ulong _head, _tail;
+
+    /// <summary>Last in every frame's process: the probe's row reads the main thread's _Process time as from its own end to this.</summary>
+    sealed partial class Tail : Node
+    {
+        public override void _Ready() => ProcessPriority = int.MaxValue;
+        public override void _Process(double delta) => _tail = Time_.GetTicksUsec();
+    }
 
     /// <summary><c>using var _ = PerfProbe.Time("rings");</c> around a suspect: its milliseconds count against this frame's row.</summary>
     public static Timing Time(string name) => new(On ? name : null, On ? Time_.GetTicksUsec() : 0);
@@ -100,10 +109,11 @@ public partial class PerfProbe : Node
             .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.RenderVideoMemUsed) / 1048576:0.#},{M(Performance.Monitor.RenderTextureMemUsed) / 1048576:0.#},{M(Performance.Monitor.RenderBufferMemUsed) / 1048576:0.#},")
             .Append(CultureInfo.InvariantCulture, $"{(alloc - _alloc) / 1024.0:0.#},{(allocAll - _allocAll) / 1024.0:0.#},{g0 - _gc0},{g1 - _gc1},{g2 - _gc2},{(pause - _pause).TotalMilliseconds:0.###},")
             .Append(CultureInfo.InvariantCulture, $"{_batches},{_events},{_screen},{size.X}x{size.Y},{bench},")
-            .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.PipelineCompilationsCanvas)},{M(Performance.Monitor.PipelineCompilationsMesh)},{M(Performance.Monitor.PipelineCompilationsSurface)},{M(Performance.Monitor.PipelineCompilationsDraw)},{M(Performance.Monitor.PipelineCompilationsSpecialization)},{M(Performance.Monitor.TimeProcess) * 1000:0.###},{M(Performance.Monitor.TimePhysicsProcess) * 1000:0.###},");
+            .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.PipelineCompilationsCanvas)},{M(Performance.Monitor.PipelineCompilationsMesh)},{M(Performance.Monitor.PipelineCompilationsSurface)},{M(Performance.Monitor.PipelineCompilationsDraw)},{M(Performance.Monitor.PipelineCompilationsSpecialization)},{M(Performance.Monitor.TimeProcess) * 1000:0.###},{M(Performance.Monitor.TimePhysicsProcess) * 1000:0.###},{(_tail > _head ? (_tail - _head) / 1000.0 : 0):0.###},");
         foreach (var (name, ms) in Probes) _row.Append(CultureInfo.InvariantCulture, $"{name}={ms:0.###};");
         Probes.Clear();
         _out.WriteLine(_row);
+        _head = Time_.GetTicksUsec();
         (_alloc, _allocAll, _gc0, _gc1, _gc2, _pause, _batches, _events) = (alloc, allocAll, g0, g1, g2, pause, 0, 0);
         if ((now - _start) / 1e6 > _quitAfter) { _out.Flush(); GetTree().Quit(); }
     }

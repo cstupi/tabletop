@@ -7,12 +7,13 @@ namespace Tabletop;
 
 /// <summary>
 /// A development build's scripted session for <see cref="PerfProbe"/> (<c>TABLETOP_PERF_SCRIPT=play</c>): once the table stands and its
-/// meshes have loaded, real input events through the window, each phase named in the probe's bench column. The game must open on my
-/// team's activation Ask with a unit whose options are Hold, Advance, Rush (1, 2, 3). Phases: idle; a hover sweep over every unit of
-/// another team (the pointer moving a little every frame, as a hand does); T and the sweep again; T off; a click on my acting unit; V
-/// and the sweep with the rings on; the camera panned with D held; 2 (Advance); the move's area building; a drag of my unit toward the
-/// nearest unit of another team; Enter (the move); the sweep under the shooting Ask; a click on the nearest unit of another team and
-/// Enter (target and volley); a rest. <c>TABLETOP_PERF_SHOTS=1</c> photographs each phase. A release build never reads it.
+/// meshes have loaded, real input events through the window, each phase named in the probe's bench column. The game opens on the
+/// activation Ask of a team I act for, its unit's options Hold, Advance, Rush (1, 2, 3), with a shooting unit and targets in range.
+/// Phases: idle; a hover sweep over every unit of the other teams (the pointer moving a little every frame, as a hand does); T and the
+/// sweep again; T off; a click on a unit of mine yet to act; V and the sweep with the rings on; the camera panned with D held; 2
+/// (Advance) and the move's area building; a drag of the acting unit 24 px toward the nearest enemy; Enter (the move); 1 (Shoot); the
+/// sweep under the shooting Ask; a click on a target the Ask allows and Enter (the volley); a rest. <c>TABLETOP_PERF_SHOTS=1</c>
+/// photographs each phase. A release build never reads it.
 /// </summary>
 public partial class PerfScript : Node
 {
@@ -35,15 +36,16 @@ public partial class PerfScript : Node
         _phases.Enqueue(("t-on", 2, () => { Key(Godot.Key.T); _pointer = EmptyTable(); }));
         _phases.Enqueue(("hover-t", -1, () => Sweep(Enemies())));
         _phases.Enqueue(("t-off", 2, () => { Key(Godot.Key.T); _pointer = EmptyTable(); }));
-        _phases.Enqueue(("select", 1.5, () => Click(Mine())));
+        _phases.Enqueue(("select", 1.5, () => Click(Fresh())));
         _phases.Enqueue(("v-on", 3, () => { Key(Godot.Key.V); _pointer = EmptyTable(); }));
         _phases.Enqueue(("hover-v", -1, () => Sweep(Enemies())));
         _phases.Enqueue(("pan-v", 2, () => { _pointer = EmptyTable(); Hold(Godot.Key.D, true); }));
         _phases.Enqueue(("advance", 4, () => { Hold(Godot.Key.D, false); Key(Godot.Key.Key2); }));
         _phases.Enqueue(("drag", DragSeconds + 1, StartDrag));
-        _phases.Enqueue(("move", 4, () => { _pointer = EmptyTable(); Key(Godot.Key.Enter); }));
+        _phases.Enqueue(("move", 3, () => { _pointer = EmptyTable(); Key(Godot.Key.Enter); }));
+        _phases.Enqueue(("shoot", 3, () => Key(Godot.Key.Key1)));
         _phases.Enqueue(("hover-ask", -1, () => Sweep(Enemies())));
-        _phases.Enqueue(("target", 2, () => Click(Nearest())));
+        _phases.Enqueue(("target", 2, () => Click(Target())));
         _phases.Enqueue(("volley", 8, () => { _pointer = EmptyTable(); Key(Godot.Key.Enter); }));
         _phases.Enqueue(("rest", 3, null));
     }
@@ -85,7 +87,8 @@ public partial class PerfScript : Node
         if (Mine() is not { } me || At(me) is not { } from || Nearest() is not { } them || At(them) is not { } to) { GD.Print("perf script: nothing to drag"); return; }
         _pointer = null; Motion(from, true);
         Button(from, true);
-        _drag = (from, from + (to - from) / 3, _clock);
+        _drag = (from, from + (to - from).Normalized() * 24, _clock);
+        GD.Print($"perf script: drag from {from} to {_drag.Value.To}");
     }
 
     void Dragging((Vector2 From, Vector2 To, double Start) d)
@@ -94,6 +97,7 @@ public partial class PerfScript : Node
         var at = d.From.Lerp(d.To, (float)t);
         Motion(at, true);
         if (t < 1) return;
+        GD.Print($"perf script: holding {_screen!.Input.Holding}");
         Button(at, false); _drag = null; _pointer = null;
     }
 
@@ -104,18 +108,26 @@ public partial class PerfScript : Node
         return _screen!.Table.Pieces.OfType<PieceNode>().Select(n => n.UnitId).Distinct()
             .Where(u => p.Units.TryGetValue(u, out var unit) && team(g.Participants.FirstOrDefault(x => x.Id == unit.ParticipantId)?.TeamId)).ToList();
     }
-    List<Guid> Enemies() => UnitsWhere(t => t is { } id && !Main.Instance.Session.MyTeamIds.Contains(id));
+    /// <summary>Every unit of a team other than the one I act for (one account may hold both).</summary>
+    List<Guid> Enemies() => UnitsWhere(t => t is { } id && id != Main.Instance.Session.MyTeamId);
+    /// <summary>The first unit of the team I act for yet to act.</summary>
+    Guid? Fresh() { var s = Main.Instance.Session; return UnitsWhere(t => t == s.MyTeamId).FirstOrDefault(u => s.Projection!.Units[u].Actions.Count == 0); }
+    /// <summary>The acting unit of the team I act for, else its first unit yet to act.</summary>
     Guid? Mine()
     {
         var s = Main.Instance.Session;
         var actor = s.Projection?.Stack.LastOrDefault(f => f.Context.ActorUnitId is not null)?.Context.ActorUnitId;
-        return actor ?? UnitsWhere(t => t is { } id && s.MyTeamIds.Contains(id)).FirstOrDefault();
+        var mine = UnitsWhere(t => t == s.MyTeamId);
+        return actor is { } a && mine.Contains(a) ? a : mine.FirstOrDefault(u => s.Projection!.Units[u].Actions.Count == 0);
     }
     Guid? Nearest()
     {
         if (Mine() is not { } me || Centre(me) is not { } from) return null;
         return Enemies().OrderBy(u => Centre(u)?.DistanceTo(from) ?? float.MaxValue).FirstOrDefault();
     }
+
+    /// <summary>A unit the open Ask lets me pick (a shooting Ask's targets), else the nearest unit of another team.</summary>
+    Guid? Target() => Enemies().Where(_screen!.Input.Eligible.Contains).Cast<Guid?>().FirstOrDefault() ?? Nearest();
 
     Vector3? Centre(Guid unit)
     {
