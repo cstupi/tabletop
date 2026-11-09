@@ -80,7 +80,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   models of non-Scout enemy units (`GfEdition.ScoutClearance`, read from `CompiledScenario.Info.GameRules`).
 - `Scenario.OptionalRules` (builder `Options`) is the game's optional-rules map, in `GameInfo` and the socket seeder's row.
   `ScenarioArmy.Sizes` (builder `sizes:`) gives a unit its own model count; `ScenarioArmy.Anchors` (builder `anchors:`) fixes where a unit's
-  first model deploys, its row following as `HandPlacement` lays one. `core-perimeter-sight`, `core-hybrid-sight` and
+  first model deploys, its row following as `HandPlacement` lays one. `core-perimeter-sight` (the core game's perimeters), `core-per-model-sight`, `core-hybrid-sight` and
   `core-melee-no-separation` (`SuiteCatalog.Core.Options.cs`) play the optional rules.
 - `ScriptBuilder.Match(question, pick)` answers every Ask of that question the pick answers; a keyed answer for the same ordinal wins,
   a null pick falls through to the policy. `AskPicks` picks by label or name, never by id: `Activate(ask, "Red unit 1", "Charge")`,
