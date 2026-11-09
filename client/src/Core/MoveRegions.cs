@@ -46,9 +46,10 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
         return ReachOf(key).Triangles(least);
     })).Value;
 
-    /// <summary>These models' areas (the ones the Ask moves), built on the thread pool: a 12" move's areas among much terrain take a frame or more.</summary>
-    public Task<IReadOnlyList<IReadOnlyList<Point2>>> OutlinesAsync(IReadOnlyList<Guid> ids) =>
-        Task.Run(() => (IReadOnlyList<IReadOnlyList<Point2>>)ids.Where(Has).Select(Outline).ToList());
+    /// <summary>These models' areas (the ones the Ask moves), each built on the thread pool at once, in the order asked: a long move's among much
+    /// terrain and many models takes a frame or more.</summary>
+    public async Task<IReadOnlyList<IReadOnlyList<Point2>>> OutlinesAsync(IReadOnlyList<Guid> ids) =>
+        await Task.WhenAll(ids.Where(Has).Select(id => Task.Run(() => Outline(id))));
 
     /// <summary>The least this model must move going towards `toward` (MoveRuler.Minimum; with no direction, the farthest the table allows), or
     /// null when the Ask sets none.</summary>

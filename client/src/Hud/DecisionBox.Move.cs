@@ -137,7 +137,7 @@ public partial class DecisionBox
     Yaw? NodeYaw(Guid modelId) => _view.PieceAt(modelId) is { } n && IsInstanceValid(n) ? WorldFrame.YawFrom(n.Rotation.Y) : null;
 
     /// <summary>Each of these models' own region, those the move holds; the outline stays on the last held models after the drop. Drawn when the
-    /// thread pool has them (MoveRegions.OutlinesAsync): a 12" move among much terrain takes longer than a frame, and the table and the drag keep
+    /// thread pool has them (MoveRegions.OutlinesAsync): a long move among much terrain takes longer than a frame, and the table and the drag keep
     /// running meanwhile. A newer request, or an Ask that has gone, drops an older answer.</summary>
     async void ShowRegions(IReadOnlyList<Guid> modelIds)
     {
