@@ -29,4 +29,18 @@ public class UiThemesTests
         Assert.Equal("res://content/themes/fantasy/dice/6.svg", t.Dice.FaceTexture(6)); Assert.Null(t.Dice.FaceTexture(7)); Assert.Null(UiThemes.SciFi.Dice.FaceTexture(3));
         Assert.Equal(new Rgba(1, 0, 0), Rgba.Hex("#FF0000")); Assert.Equal(0.85f, Rgba.Hex("#0D1620D9").A, 2);
     }
+
+    static double Hue(Rgba c)
+    {
+        double max = Math.Max(c.R, Math.Max(c.G, c.B)), min = Math.Min(c.R, Math.Min(c.G, c.B)), d = max - min;
+        var h = max == c.R ? (c.G - c.B) / d % 6 : max == c.G ? (c.B - c.R) / d + 2 : (c.R - c.G) / d + 4;
+        return (h * 60 + 360) % 360;
+    }
+
+    [Fact]
+    public void No_team_reads_as_the_activated_band_green() => Assert.All(UiThemes.All, t => Assert.All(t.Teams, team =>
+    {
+        var apart = Math.Abs(Hue(team) - Hue(t.Success)); apart = Math.Min(apart, 360 - apart);
+        Assert.True(apart >= 40, $"{t.Id}: team {team} is {apart:0}° from the success green {t.Success}");
+    }));
 }
