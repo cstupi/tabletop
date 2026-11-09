@@ -38,9 +38,10 @@ public partial class PerfProbe : Node
         // After the _Process span: the deferred calls and notifications (flush_ms, to the draw's start), then the draw's submission (draw_ms).
         RenderingServer.FramePreDraw += () => _pre = Time_.GetTicksUsec();
         RenderingServer.FramePostDraw += () => _post = Time_.GetTicksUsec();
+        ProcessPhysicsPriority = int.MinValue;
         ProcessPriority = int.MinValue;   // first in the frame, so each row's interval is frame start to frame start
         _out = new StreamWriter(OutPath!, append: false) { AutoFlush = false };
-        _out.WriteLine("frame,wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench,compiles_canvas,compiles_mesh,compiles_surface,compiles_draw,compiles_spec,process_ms,physics_ms,script_ms,flush_ms,draw_ms,probes");
+        _out.WriteLine("frame,wall_ms,dt_ms,gpu_ms,cpu_render_ms,draw_calls,objects,primitives,nodes,orphans,managed_mb,video_mb,texture_mb,buffer_mb,alloc_main_kb,alloc_all_kb,gc0,gc1,gc2,gc_pause_ms,batches,events,screen,size,bench,compiles_canvas,compiles_mesh,compiles_surface,compiles_draw,compiles_spec,process_ms,physics_ms,script_ms,flush_ms,draw_ms,physics_steps,before_physics_ms,after_physics_ms,probes");
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_SECONDS"), CultureInfo.InvariantCulture, out var s)) _quitAfter = s;
         if (double.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_BENCH"), CultureInfo.InvariantCulture, out var b)) _bench = new Bench(b);
         if (int.TryParse(System.Environment.GetEnvironmentVariable("TABLETOP_PERF_REPLAY_FROM"), out var from)) _replayFrom = from;
@@ -57,16 +58,27 @@ public partial class PerfProbe : Node
     }
 
     /// <summary>Named main-thread timings a measuring patch adds (<see cref="Time"/>), summed per frame into the probes column as
-    /// <c>name=ms@kb;</c> (its milliseconds and the kilobytes it allocated). Empty unless the probe runs.</summary>
-    static readonly Dictionary<string, double> Probes = new(), Allocated = new();
+    /// <c>name=ms@kbxN;</c> (its milliseconds, the kilobytes it allocated, the times it ran). Empty unless the probe runs.</summary>
+    static readonly Dictionary<string, double> Probes = new(), Allocated = new(); static readonly Dictionary<string, int> Calls = new();
     public static bool On { get; private set; }
-    static ulong _head, _tail, _pre, _post;
+    static ulong _head, _tail, _pre, _post, _physHead, _physTail; static int _steps;
 
     /// <summary>Last in every frame's process: the probe's row reads the main thread's _Process time as from its own end to this.</summary>
     sealed partial class Tail : Node
     {
-        public override void _Ready() => ProcessPriority = int.MaxValue;
+        public override void _Ready() { ProcessPriority = int.MaxValue; ProcessPhysicsPriority = int.MaxValue; }
         public override void _Process(double delta) => _tail = Time_.GetTicksUsec();
+        public override void _PhysicsProcess(double delta) => _physTail = Time_.GetTicksUsec();
+    }
+
+    /// <summary>The physics steps since the last draw: the first one's start (before_physics_ms: input and events after the draw), and from the
+    /// last one's callbacks to this frame's process (after_physics_ms: the physics step's deferred calls and deletions, where the dispatcher's
+    /// turn and the Hud's notifications land when they were queued from a physics step).</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        var now = Time_.GetTicksUsec();
+        if (_physHead <= _post) _physHead = now;
+        _steps++;
     }
 
     /// <summary><c>using var _ = PerfProbe.Time("rings");</c> around a suspect: its milliseconds count against this frame's row.</summary>
@@ -80,6 +92,7 @@ public partial class PerfProbe : Node
             if (name is null) return;
             Probes[name] = Probes.GetValueOrDefault(name) + (Time_.GetTicksUsec() - start) / 1000.0;
             Allocated[name] = Allocated.GetValueOrDefault(name) + (GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024.0;
+            Calls[name] = Calls.GetValueOrDefault(name) + 1;
         }
     }
 
@@ -119,11 +132,11 @@ public partial class PerfProbe : Node
             .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.RenderVideoMemUsed) / 1048576:0.#},{M(Performance.Monitor.RenderTextureMemUsed) / 1048576:0.#},{M(Performance.Monitor.RenderBufferMemUsed) / 1048576:0.#},")
             .Append(CultureInfo.InvariantCulture, $"{(alloc - _alloc) / 1024.0:0.#},{(allocAll - _allocAll) / 1024.0:0.#},{g0 - _gc0},{g1 - _gc1},{g2 - _gc2},{(pause - _pause).TotalMilliseconds:0.###},")
             .Append(CultureInfo.InvariantCulture, $"{_batches},{_events},{_screen},{size.X}x{size.Y},{bench},")
-            .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.PipelineCompilationsCanvas)},{M(Performance.Monitor.PipelineCompilationsMesh)},{M(Performance.Monitor.PipelineCompilationsSurface)},{M(Performance.Monitor.PipelineCompilationsDraw)},{M(Performance.Monitor.PipelineCompilationsSpecialization)},{M(Performance.Monitor.TimeProcess) * 1000:0.###},{M(Performance.Monitor.TimePhysicsProcess) * 1000:0.###},{(_tail > _head ? (_tail - _head) / 1000.0 : 0):0.###},{(_pre > _tail ? (_pre - _tail) / 1000.0 : 0):0.###},{(_post > _pre ? (_post - _pre) / 1000.0 : 0):0.###},");
-        foreach (var (name, ms) in Probes) _row.Append(CultureInfo.InvariantCulture, $"{name}={ms:0.###}@{Allocated.GetValueOrDefault(name):0.#};");
-        Probes.Clear(); Allocated.Clear();
+            .Append(CultureInfo.InvariantCulture, $"{M(Performance.Monitor.PipelineCompilationsCanvas)},{M(Performance.Monitor.PipelineCompilationsMesh)},{M(Performance.Monitor.PipelineCompilationsSurface)},{M(Performance.Monitor.PipelineCompilationsDraw)},{M(Performance.Monitor.PipelineCompilationsSpecialization)},{M(Performance.Monitor.TimeProcess) * 1000:0.###},{M(Performance.Monitor.TimePhysicsProcess) * 1000:0.###},{(_tail > _head ? (_tail - _head) / 1000.0 : 0):0.###},{(_pre > _tail ? (_pre - _tail) / 1000.0 : 0):0.###},{(_post > _pre ? (_post - _pre) / 1000.0 : 0):0.###},{_steps},{(_physHead > _post ? (_physHead - _post) / 1000.0 : 0):0.###},{(_steps > 0 && now > _physTail ? (now - _physTail) / 1000.0 : 0):0.###},");
+        foreach (var (name, ms) in Probes) _row.Append(CultureInfo.InvariantCulture, $"{name}={ms:0.###}@{Allocated.GetValueOrDefault(name):0.#}x{Calls.GetValueOrDefault(name)};");
+        Probes.Clear(); Allocated.Clear(); Calls.Clear();
         _out.WriteLine(_row);
-        _head = Time_.GetTicksUsec();
+        _head = Time_.GetTicksUsec(); _steps = 0;
         (_alloc, _allocAll, _gc0, _gc1, _gc2, _pause, _batches, _events) = (alloc, allocAll, g0, g1, g2, pause, 0, 0);
         if ((now - _start) / 1e6 > _quitAfter) { _out.Flush(); GetTree().Quit(); }
     }
