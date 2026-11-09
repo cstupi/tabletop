@@ -85,8 +85,9 @@ public partial class UnitCard : VBoxContainer
         {
             // The same unit's card keeps its place in the scroll; another unit's starts at the top.
             var scroll = _content?.Sheet.UnitId == u ? _card.ScrollVertical : 0;
+            var parts = UnitCardParts.Changed(_content, content);
             _content = content;
-            RenderCard(content);
+            RenderCard(content, parts);
             if (scroll > 0) RestoreScroll(scroll);
         }
         RenderStrip(p!, game!, names, sheet);
@@ -105,37 +106,69 @@ public partial class UnitCard : VBoxContainer
 
     /// <summary>The card (UX redesign part 2 → Unit card): the band and the name alone, with the eye that centres the camera on the unit; a pip
     /// per model and the count note; Quality and Defense as badges with their icons and the state chips with theirs; the limited-choice note
-    /// (why my open choice limits this unit, AskOption.Note), the model groups, the weapons and the rules.</summary>
-    void RenderCard(UnitCardContent c)
+    /// (why my open choice limits this unit, AskOption.Note), the model groups, the weapons and the rules. Each part is its own box in the body,
+    /// rebuilt only when UnitCardParts names it: new controls cost their layout and text shaping in the frame they appear.</summary>
+    void RenderCard(UnitCardContent c, IReadOnlyList<UnitCardPart> parts)
     {
-        var m = c.Sheet; var note = c.Note;
-        Clear(_body);
-        var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 10); _body.AddChild(title);
-        title.AddChild(HudBits.Band(c.Team));
-        var name = new Label { Text = m.Name, ThemeTypeVariation = Variation.Display, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        if (c.Team > 0) name.AddThemeColorOverride("font_color", Ui.Team(c.Team));
-        title.AddChild(name);
-        var eye = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None, TooltipText = "Centre the camera on this unit",
-            Icon = Ui.Icon("watch"), Text = Ui.Icon("watch") is null ? "◉" : "", ExpandIcon = false, SizeFlagsVertical = SizeFlags.ShrinkCenter };
-        var unit = m.UnitId; eye.Pressed += () => _input.Focus(unit);
-        title.AddChild(eye);
-
-        var count = new HBoxContainer(); count.AddThemeConstantOverride("separation", 10); _body.AddChild(count);
-        var pips = new Label { Text = c.Pips }; if (c.Team > 0) pips.AddThemeColorOverride("font_color", Ui.Team(c.Team));
-        count.AddChild(pips);
-        count.AddChild(Wrap(c.CountNote, Variation.Dim));
-
-        var state = new HFlowContainer(); state.AddThemeConstantOverride("h_separation", 8); state.AddThemeConstantOverride("v_separation", 4); _body.AddChild(state);
-        state.AddChild(Stat("quality", "Q", m.Quality, "Quality")); state.AddChild(Stat("defense", "D", m.Defense, "Defense"));
-        foreach (var chip in m.Chips) state.AddChild(StatusChip(chip));
-        if (note is not null) _body.AddChild(Wrap($"⚠ {note}", Variation.Warning));
-        if (c.Groups.Count > 0)
+        if (_parts.Count == 0)
+            foreach (var _ in Enum.GetValues<UnitCardPart>())
+            {
+                var box = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+                box.AddThemeConstantOverride("separation", _body.GetThemeConstant("separation"));
+                _body.AddChild(box); _parts.Add(box);
+            }
+        foreach (var part in parts)
         {
-            _body.AddChild(Caption("Models"));
-            foreach (var group in c.Groups) _body.AddChild(GroupRow(group, c.Marked(group), c.Team));
+            var box = _parts[(int)part];
+            Clear(box);
+            DrawPart(box, part, c);
+            box.Visible = box.GetChildCount() > 0;   // an empty part takes no separation
         }
-        if (m.Weapons.Count > 0) _body.AddChild(WeaponTable(m.Weapons));
-        if (m.Rules.Count > 0) { _body.AddChild(Caption("Rules")); _body.AddChild(Flow(m.Rules.Select(RuleChip))); }
+    }
+    readonly List<VBoxContainer> _parts = new();
+
+    void DrawPart(VBoxContainer box, UnitCardPart part, UnitCardContent c)
+    {
+        var m = c.Sheet;
+        switch (part)
+        {
+            case UnitCardPart.Title:
+                var title = new HBoxContainer(); title.AddThemeConstantOverride("separation", 10); box.AddChild(title);
+                title.AddChild(HudBits.Band(c.Team));
+                var name = new Label { Text = m.Name, ThemeTypeVariation = Variation.Display, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+                if (c.Team > 0) name.AddThemeColorOverride("font_color", Ui.Team(c.Team));
+                title.AddChild(name);
+                var eye = new Button { Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None, TooltipText = "Centre the camera on this unit",
+                    Icon = Ui.Icon("watch"), Text = Ui.Icon("watch") is null ? "◉" : "", ExpandIcon = false, SizeFlagsVertical = SizeFlags.ShrinkCenter };
+                var unit = m.UnitId; eye.Pressed += () => _input.Focus(unit);
+                title.AddChild(eye);
+                break;
+            case UnitCardPart.Count:
+                var count = new HBoxContainer(); count.AddThemeConstantOverride("separation", 10); box.AddChild(count);
+                var pips = new Label { Text = c.Pips }; if (c.Team > 0) pips.AddThemeColorOverride("font_color", Ui.Team(c.Team));
+                count.AddChild(pips);
+                count.AddChild(Wrap(c.CountNote, Variation.Dim));
+                break;
+            case UnitCardPart.State:
+                var state = new HFlowContainer(); state.AddThemeConstantOverride("h_separation", 8); state.AddThemeConstantOverride("v_separation", 4); box.AddChild(state);
+                state.AddChild(Stat("quality", "Q", m.Quality, "Quality")); state.AddChild(Stat("defense", "D", m.Defense, "Defense"));
+                foreach (var chip in m.Chips) state.AddChild(StatusChip(chip));
+                break;
+            case UnitCardPart.Note:
+                if (c.Note is { } note) box.AddChild(Wrap($"⚠ {note}", Variation.Warning));
+                break;
+            case UnitCardPart.Models:
+                if (c.Groups.Count == 0) break;
+                box.AddChild(Caption("Models"));
+                foreach (var group in c.Groups) box.AddChild(GroupRow(group, c.Marked(group), c.Team));
+                break;
+            case UnitCardPart.Weapons:
+                if (m.Weapons.Count > 0) box.AddChild(WeaponTable(m.Weapons));
+                break;
+            case UnitCardPart.Rules:
+                if (m.Rules.Count > 0) { box.AddChild(Caption("Rules")); box.AddChild(Flow(m.Rules.Select(RuleChip))); }
+                break;
+        }
     }
 
     static Label Caption(string text) => new() { Text = text.ToUpperInvariant(), ThemeTypeVariation = Variation.Dim };
