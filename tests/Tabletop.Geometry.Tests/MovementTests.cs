@@ -125,6 +125,21 @@ public class MovementTests
         Assert.Empty(Movement.SteepEntering(Fx.Model(8, 0), [hill]));
     }
 
+    [Fact] public void A_model_standing_on_a_steep_hill_by_its_base_edge_moves_off_it_in_the_open()
+    {
+        // A 32 mm base resting on the top of a 3"-radius hill with its centre 3.47" out (it stands on the hill, Collision.Surfaces): moving off is
+        // open ground (3.6.0 p.12), a 10" move down the slope past the hill's edge is within 12", not held to 6".
+        var hill = Fx.Cylinder(28.74, 15.62, 3, 0, 3, VolumeKind.Solid, TerrainDeclarations.Steep);
+        var rim = Fx.Model(25.28, 15.88, 3);
+        Assert.Empty(Movement.SteepEntering(rim, [hill]));
+        var down = Movement.Check(rim, new(30, 24.5), 12, [], [], 6, null, surfaces: [hill], steep: [hill]);
+        Assert.False(down.EntersDifficult);
+        Assert.True(down.WithinAllowance);
+        // A base touching the hill's edge from the ground does not stand on it: crossing it is moving onto it.
+        var foot = Fx.Model(28.74 - 3 - 0.63, 15.62);
+        Assert.Equal([hill.Id], Movement.SteepEntering(foot, [hill]).Select(v => v.Id));
+    }
+
     [Fact] public void Check_applies_the_difficult_cap()
     {
         var r = Movement.Check(Start, new(4, 0), 12, [], [Forest], 6, null);                // in the forest

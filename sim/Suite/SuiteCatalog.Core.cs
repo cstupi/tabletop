@@ -10,7 +10,7 @@ public static partial class SuiteCatalog
 {
     private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions().BothEditions(), CoreGames.FiringLine().BothEditions(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround(), CoreGames.Ruins(),
         CoreGames.CoverAndSight().BothEditions(), CoreGames.FenceCover().BothEditions(), CoreGames.TransportRun().BothEditions(), CoreGames.TransportDeploy().BothEditions(),
-        CoreGames.Overkill().BothEditions(), CoreGames.HoldTheMarkers().BothEditions(), CoreGames.Deployment(), CoreGames.OverALowerModel().BothEditions(), CoreGames.RoundTheTerrain().BothEditions(),
+        CoreGames.Overkill().BothEditions(), CoreGames.HoldTheMarkers().BothEditions(), CoreGames.Deployment(), CoreGames.OverALowerModel().BothEditions(), CoreGames.RoundTheTerrain().BothEditions(), CoreGames.OffTheHill().BothEditions(),
         CoreGames.PerimeterSight().BothEditions(), CoreGames.HybridSight().BothEditions(), CoreGames.MeleeNoSeparation().BothEditions(), CoreGames.SelfPlay().BothEditions(), CoreGames.TeamGame().BothEditions(), CoreGames.FourTeams().BothEditions(), .. CoreGames.All36()];
 }
 

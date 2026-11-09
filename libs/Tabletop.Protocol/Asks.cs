@@ -94,8 +94,8 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// every other move.
 /// ContactGrace: with ContactWith, how far apart a moving model's base may end from one of those models and still count as reaching it; the
 /// server draws such a model flush into base contact, and a client draws its landing flush the same way. Null with no ContactWith.
-/// SteepVolumeIds: volumes on the Board that count as difficult for a model whose base centre starts outside the footprint, and as open ground for
-/// one that starts inside (3.6.0 p.12 Steep; 3.5.1 p.12 Hills "Difficult when moving up"): Tabletop.Geometry.Movement.SteepEntering per model.
+/// SteepVolumeIds: volumes on the Board that count as difficult for a model whose base starts off the footprint (sharing no interior with it), and as
+/// open ground for one whose base starts on it (3.6.0 p.12 Steep; 3.5.1 p.12 Hills "Difficult when moving up"): Tabletop.Geometry.Movement.SteepEntering per model.
 /// Null is none.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
