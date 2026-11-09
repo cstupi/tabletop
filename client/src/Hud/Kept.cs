@@ -1,4 +1,5 @@
 using Godot;
+using Tabletop.Client.Core;
 
 namespace Tabletop.Client.Hud;
 
@@ -7,49 +8,34 @@ namespace Tabletop.Client.Hud;
 /// so Godot frees and makes none, and a control whose text is unchanged keeps its shaping. The box holds only these children after its first `first`.</summary>
 public sealed class Kept(Node box, int first = 0)
 {
-    readonly List<(string Key, Control Node)> _items = [];
-    int _at;
+    readonly KeptSlots<Control> _slots = new();
 
     public Node Box => box;
 
     /// <summary>Starts a render: the next Take is the first child.</summary>
-    public Kept Begin() { _at = 0; return this; }
+    public Kept Begin() { _slots.Begin(); return this; }
 
-    /// <summary>The next child: the one made for this key, moved here if it stood later, else a new one from `make`.</summary>
+    /// <summary>The next child: the one made for this key, moved here if it stood later, else a new one from `make` (KeptSlots).</summary>
     public T Take<T>(string key, Func<T> make) where T : Control
     {
-        var i = -1;
-        for (var k = _at; k < _items.Count; k++) if (_items[k].Key == key && _items[k].Node is T) { i = k; break; }
-        Control node;
-        if (i < 0)
-        {
-            node = make();
-            box.AddChild(node);
-            _items.Insert(_at, (key, node));
-            box.MoveChild(node, first + _at);
-        }
-        else
-        {
-            node = _items[i].Node;
-            if (i != _at) { _items.RemoveAt(i); _items.Insert(_at, (key, node)); box.MoveChild(node, first + _at); }
-        }
+        var (node, made, movedTo) = _slots.Take(key, make);
+        if (made) box.AddChild(node);
+        if (movedTo is { } at) box.MoveChild(node, first + at);
         node.Visible = true;
-        _at++;
-        return (T)node;
+        return node;
     }
 
     /// <summary>Ends a render: every child not taken hides, kept for a later one. Returns how many were taken.</summary>
     public int End()
     {
-        for (var k = _at; k < _items.Count; k++) _items[k].Node.Visible = false;
-        return _at;
+        foreach (var node in _slots.End()) node.Visible = false;
+        return _slots.Taken;
     }
 
     /// <summary>Frees every child: the next render makes them again (a theme change).</summary>
     public void Clear()
     {
-        foreach (var (_, node) in _items) { box.RemoveChild(node); node.QueueFree(); }
-        _items.Clear(); _at = 0;
+        foreach (var node in _slots.Clear()) { box.RemoveChild(node); node.QueueFree(); }
     }
 }
 
