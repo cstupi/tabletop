@@ -46,6 +46,19 @@ internal static partial class CoreGames
         new(name, run => failure(new CoreLog(run)), entries.Length == 0 ? null : entries);
 
     /// <summary>
+    /// A round-1 charge (each declared from out of contact with a target it can reach, by construction) moves: its move Ask offers no pass
+    /// and is answered by a move. A later charge may start in contact, where staying put is the move. The quote is the edition's p.9 sentence.
+    /// </summary>
+    static GameCheck ChargeMoves(string page) => Check($"{page}: \"Charging models must move by up to 12” to get into base contact with an enemy model from the target unit\" (the charge move Ask offers no pass)", log =>
+    {
+        var closed = log.Events.Select(e => e.Payload).OfType<AskClosed>().ToDictionary(c => c.AskId, c => c.Answers.FirstOrDefault()?.Answer);
+        return Require(log.Events.Select(e => e.Payload).OfType<AskOpened>().Select(o => o.Ask)
+            .Where(a => a.Legal is MoveRegion { ContactWith.Count: > 0 } && log.Frame(a.FrameId) is { Sequence: "charge", Round: 1 }).ToList(), "no round-1 charge move Ask", a =>
+            a.AllowPass ? $"the charge move Ask {a.Id} offered a pass"
+            : closed.GetValueOrDefault(a.Id) is Destinations ? null : $"the charge move Ask {a.Id} was answered with {closed.GetValueOrDefault(a.Id)?.GetType().Name ?? "nothing"}");
+    });
+
+    /// <summary>
     /// p.7: "Advance - Moves 6"", "Rush - Moves 12"", "Charge - Moves 12" into melee"; p.9: the target unit's models "must move by up to 3"";
     /// p.10: "the other unit may move by up to 3"" when one was destroyed, else "the charging unit must move back by 1"". The offered allowance
     /// and every model's displacement on the table.

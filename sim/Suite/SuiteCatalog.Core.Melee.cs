@@ -53,6 +53,7 @@ internal static partial class CoreGames
                 }),
             RollToBlock(),
             MoveAllowances(),
+            ChargeMoves("p.9"),
             Check("p.9: \"Once all charging models have attacked, the defending unit may choose to strike back ... but doesn't have to\"", log =>
             {
                 var struck = 0;

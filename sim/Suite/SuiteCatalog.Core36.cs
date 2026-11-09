@@ -51,6 +51,7 @@ internal static partial class CoreGames
             .Build();
         return Game(name, scenario,
         [
+            ChargeMoves("3.6.0 p.9"),
             Check("3.6.0 p.9: \"All models that are within 3” of an enemy model from the target unit (horizontally or vertically), may attack it\"", log =>
             {
                 var far = 0;
