@@ -87,13 +87,19 @@ export const LABEL_GAP = 6;
 
 const overlaps = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-/** The candidate lowest on the screen inside the view (less the margin); when none is, the one nearest the view, pulled inside. */
-export function ringAnchor(projected: readonly XY[], view: Rect, margin = 0): XY | null {
+/** RingLabels.Anchor: the candidate lowest on the screen inside the view (less the margin) and clear of every covered rectangle (panels over
+ *  the board, grown by the margin); else the lowest inside the view; when none is, the one nearest the view, pulled inside. */
+export function ringAnchor(projected: readonly XY[], view: Rect, margin = 0, covered: readonly Rect[] = []): XY | null {
   if (projected.length === 0) return null;
   const l = view.x + margin, t = view.y + margin, r = view.x + view.w - margin, b = view.y + view.h - margin;
-  let best: XY | null = null;
-  for (const p of projected) if (p.x >= l && p.x <= r && p.y >= t && p.y <= b && (best === null || p.y > best.y)) best = p;
-  if (best !== null) return best;
+  const under = (p: XY): boolean => covered.some((c) => p.x >= c.x - margin && p.x <= c.x + c.w + margin && p.y >= c.y - margin && p.y <= c.y + c.h + margin);
+  let best: XY | null = null, clear: XY | null = null;
+  for (const p of projected) {
+    if (p.x < l || p.x > r || p.y < t || p.y > b) continue;
+    if (best === null || p.y > best.y) best = p;
+    if ((clear === null || p.y > clear.y) && !under(p)) clear = p;
+  }
+  if ((clear ?? best) !== null) return clear ?? best;
   const out = (v: number, lo: number, hi: number): number => (v < lo ? lo - v : v > hi ? v - hi : 0);
   let near = projected[0]!, nearD = Infinity;
   for (const p of projected) { const d = out(p.x, l, r) + out(p.y, t, b); if (d < nearD) { near = p; nearD = d; } }
@@ -120,17 +126,30 @@ function slide(r: Rect, placed: readonly Rect[], view: Rect, dir: -1 | 1): Rect 
   return null;
 }
 
-/** Each wanted rectangle kept inside the view, placed lowest on the screen first, so an outer ring's label keeps its place under its ring
- * and an inner ring's moves up toward its own; one that would overlap a label already placed moves up past it, or, when that leaves the
- * view, down past it from where it wanted to be. One that fits neither way stays where it wanted to be. In the wanted order. */
-export function placeRingLabels(wanted: readonly Rect[], view: Rect): Rect[] {
-  const placed: Rect[] = [];
+/** RingLabels.Place: each wanted rectangle kept inside the view and off every covered rectangle, placed lowest on the screen first, so an
+ *  outer ring's label keeps its place under its ring and an inner ring's moves up toward its own. One that would overlap a label already
+ *  placed or a panel moves up or down past it, or beside the panel it meets and then up or down, whichever lands nearest where it wanted to
+ *  be. One that fits nowhere stays where it wanted to be. In the wanted order. */
+export function placeRingLabels(wanted: readonly Rect[], view: Rect, covered: readonly Rect[] = []): Rect[] {
+  const obstacles: Rect[] = [...covered];
   const result: Rect[] = new Array(wanted.length);
   const order = wanted.map((_, i) => i).sort((i, j) => wanted[j]!.y - wanted[i]!.y || i - j);
   for (const i of order) {
     const start = clampRect(wanted[i]!, view);
-    const at = slide(start, placed, view, -1) ?? slide(start, placed, view, 1) ?? start;
-    placed.push(at); result[i] = at;
+    const starts = [start];
+    for (const c of covered) {
+      const g = grown(c);
+      if (g.x < start.x + start.w && start.x < g.x + g.w) {
+        starts.push(clampRect({ ...start, x: c.x + c.w + LABEL_GAP }, view));
+        starts.push(clampRect({ ...start, x: c.x - LABEL_GAP - start.w }, view));
+      }
+    }
+    let best: Rect | null = null, bestCost = Infinity;
+    for (const s of starts)
+      for (const fit of [slide(s, obstacles, view, -1), slide(s, obstacles, view, 1)])
+        if (fit !== null) { const cost = Math.abs(fit.x - start.x) + Math.abs(fit.y - start.y); if (cost < bestCost) { best = fit; bestCost = cost; } }
+    const at = best ?? start;
+    obstacles.push(at); result[i] = at;
   }
   return result;
 }

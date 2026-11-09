@@ -61,6 +61,25 @@ describe('RingLabels', () => {
     }
   });
 
+  const card: Rect = { x: 8, y: 380, w: 420, h: 332 };
+
+  it('the anchor is the lowest point clear of the panels over the board', () => {
+    expect(ringAnchor([{ x: 200, y: 700 }, { x: 600, y: 560 }, { x: 900, y: 300 }], view, 8, [card])).toEqual({ x: 600, y: 560 });
+    expect(ringAnchor([{ x: 200, y: 700 }, { x: 600, y: 560 }], view, 8)).toEqual({ x: 200, y: 700 });
+    expect(ringAnchor([{ x: 200, y: 700 }, { x: 300, y: 690 }], view, 8, [card])).toEqual({ x: 200, y: 700 });
+  });
+
+  it('a label that would sit on a panel moves clear of it and of the other labels', () => {
+    const wanted = [labelUnder({ x: 420, y: 600 }, 140, 34), labelUnder({ x: 440, y: 640 }, 140, 34), labelUnder({ x: 300, y: 650 }, 140, 34), labelUnder({ x: 460, y: 560 }, 140, 34)];
+    const placed = placeRingLabels(wanted, view, [card]);
+    for (const p of placed) {
+      expect(overlaps(p, card)).toBe(false);
+      expect(p.x >= 0 && p.y >= 0 && p.x + p.w <= view.w && p.y + p.h <= view.h).toBe(true);
+    }
+    for (let i = 0; i < placed.length; i++) for (let j = i + 1; j < placed.length; j++) expect(overlaps(placed[i]!, placed[j]!)).toBe(false);
+    placed.forEach((p, i) => expect(Math.abs(p.x - wanted[i]!.x) + Math.abs(p.y - wanted[i]!.y)).toBeLessThan(300));
+  });
+
   it('labels at the top go down, and one past the edge comes inside', () => {
     const placed = placeRingLabels([{ x: 600, y: 0, w: 100, h: 30 }, { x: 610, y: 5, w: 100, h: 30 }, { x: 1250, y: -20, w: 100, h: 30 }], view);
     for (const p of placed) expect(p.y >= 0 && p.y + p.h <= view.y + view.h).toBe(true);
