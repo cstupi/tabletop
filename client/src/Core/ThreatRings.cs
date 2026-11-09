@@ -26,12 +26,16 @@ public static class ThreatRings
         return acting is not { } mine || TeamOf(game, u) != mine;
     }
 
-    /// <summary>The units whose threat draws: the selected unit, kept until the selection changes, then the hovered one; each of another team,
-    /// with a threat, once.</summary>
-    public static IReadOnlyList<Guid> Shown(GameInfo game, Projection p, Guid? acting, Guid? selected, Guid? hovered, IReadOnlyDictionary<Guid, UnitThreat> threats)
+    /// <summary>The enemy unit whose threat stays drawn: the selected unit when it is of another team; selecting a unit of my own (picking a unit
+    /// to deploy or move, or its ghost) or a terrain piece keeps the one before, so the reach stays up while I place; an empty selection clears it.</summary>
+    public static Guid? Pinned(GameInfo game, Projection p, Guid? acting, Guid? selected, Guid? before) =>
+        selected is not { } s ? null : OfAnotherTeam(game, p, acting, s) ? s : before;
+
+    /// <summary>The units whose threat draws: the pinned unit (<see cref="Pinned"/>), then the hovered one; each of another team, with a threat, once.</summary>
+    public static IReadOnlyList<Guid> Shown(GameInfo game, Projection p, Guid? acting, Guid? pinned, Guid? hovered, IReadOnlyDictionary<Guid, UnitThreat> threats)
     {
         var shown = new List<Guid>(2);
-        foreach (var unit in new[] { selected, hovered })
+        foreach (var unit in new[] { pinned, hovered })
             if (unit is { } id && !shown.Contains(id) && threats.ContainsKey(id) && OfAnotherTeam(game, p, acting, id)) shown.Add(id);
         return shown;
     }

@@ -32,7 +32,7 @@
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
-  import { AllThreatCache, ThreatRingCache, shownThreats } from './threatRings';
+  import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
   import { fetchRuleTexts, RuleTexts, type GrantChoice } from './ruleTexts';
@@ -232,9 +232,16 @@
   });
 
   // Threat rings (RangeRingNode, ThreatRings), from the server's ModelFacts.threats, whatever V says, in deployment and play: the selected unit of
-  // another team than the one I act for (kept until the selection changes) and the hovered one; with T on, every enemy team's areas.
+  // another team than the one I act for (kept while I select and place my own units) and the hovered one; with T on, every enemy team's areas.
   const pickedThreats = new ThreatRingCache(), hoveredThreats = new ThreatRingCache(), allThreats = new AllThreatCache();
   let allThreatsOn = $state(false);
+  // ThreatRings.Pinned: the selected enemy stays while I select and place my own units; each selection or acting-team change folds into it.
+  let pinnedBefore: string | null = null;
+  const pinned = $derived.by((): string | null => {
+    const p = shown, game = snap?.game, sel = selection?.pieceId ?? null;
+    if (p === null || game == null) return null;
+    return (pinnedBefore = pinnedThreat(game, p, actingTeam, sel, pinnedBefore));
+  });
   const threatLayerOf = (cache: ThreatRingCache, unit: string): RingLayer | null => {
     const p = shown, game = snap?.game, threat = snap?.threats.get(unit);
     if (geometry === null || p === null || game == null || threat === undefined) return null;
@@ -245,7 +252,7 @@
   const threatLayers = $derived.by((): RingLayer[] => {
     const p = shown, game = snap?.game;
     if (geometry === null || p === null || game == null || snap === null) return [];
-    const picked = selection?.pieceId ?? null, hovered = hoveredUnit ?? null;
+    const picked = pinned, hovered = hoveredUnit ?? null;
     const ids = shownThreats(game, p, actingTeam, picked, hovered, snap.threats);
     const layers = [picked !== null && ids.includes(picked) ? threatLayerOf(pickedThreats, picked) : null,
       hovered !== null && hovered !== picked && ids.includes(hovered) ? threatLayerOf(hoveredThreats, hovered) : null];

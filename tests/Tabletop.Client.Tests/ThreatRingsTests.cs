@@ -116,4 +116,35 @@ public class ThreatRingsTests
             new OnTable(new Placement(new Point3(20, 10, 0), new Yaw(0))))]), null)]);
         Assert.NotSame(now, cache.Of(game, a.Projection, TableUx.T2, Both));
     }
+
+    [Fact]
+    public void The_selected_enemy_stays_pinned_while_a_unit_of_mine_or_terrain_is_selected_and_an_empty_selection_clears_it()
+    {
+        var p = TableUx.After(TableUx.Deploy);
+        var game = TableUx.Game;
+        var pinned = ThreatRings.Pinned(game, p, TableUx.T1, TableUx.Orcs.Id, null);
+        Assert.Equal(TableUx.Orcs.Id, pinned);
+        Assert.Equal(TableUx.Orcs.Id, ThreatRings.Pinned(game, p, TableUx.T1, TableUx.Reserve.Id, pinned));         // picked to deploy: on the shelf
+        Assert.Equal(TableUx.Orcs.Id, ThreatRings.Pinned(game, p, TableUx.T1, TableUx.Squad.Id, pinned));           // a unit of mine on the table
+        Assert.Equal(TableUx.Orcs.Id, ThreatRings.Pinned(game, p, TableUx.T1, Guid.CreateVersion7(), pinned));      // a terrain piece
+        Assert.Null(ThreatRings.Pinned(game, p, TableUx.T1, null, pinned));
+        Assert.Null(ThreatRings.Pinned(game, p, TableUx.T1, TableUx.Squad.Id, null));
+    }
+
+    [Fact]
+    public void While_one_account_places_a_unit_in_a_deploy_ask_the_other_teams_threat_draws()
+    {
+        var ask = new Ask(Guid.CreateVersion7(), AskQuestions.Deploy, "Deploy one unit", [TableUx.T1], new PieceSelection([TableUx.Reserve.Id], 1, 1), false, false, null, null);
+        var p = TableUx.After(TableUx.Deploy, new AskOpened(ask));
+        Assert.Equal(0, p.Scheduler.Round);
+        var account = Guid.CreateVersion7();
+        var solo = TableUx.Game with { Participants = [.. TableUx.Game.Participants.Select(x => x with { AccountId = account })] };
+        var acting = Seats.Acting(p, Seats.Teams(solo, TableUx.P1));
+        Assert.Equal(TableUx.T1, acting);                                                                             // the deploy Ask's team
+        var pinned = ThreatRings.Pinned(solo, p, acting, TableUx.Orcs.Id, null);
+        pinned = ThreatRings.Pinned(solo, p, acting, TableUx.Reserve.Id, pinned);                                    // the unit being placed
+        Assert.Equal([TableUx.Orcs.Id], ThreatRings.Shown(solo, p, acting, pinned, null, Both));
+        Assert.Equal(["Charge 16\""], ThreatRings.Of(p, TableUx.Orcs.Id, OrcThreat).Select(r => r.Label));
+        Assert.Equal(TableUx.T2, Assert.Single(ThreatRings.All(solo, p, acting, Both)).TeamId);                        // T: the other team's areas
+    }
 }

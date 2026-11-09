@@ -3,7 +3,7 @@ namespace Tabletop.Client.Table;
 
 /// <summary>My selected unit's range rings when V has them on (ClientSettings.RangeRings, so the choice is remembered), each labelled with its printed range;
 /// and the threat rings (ThreatRings over Session.Threats), in the unit's team colour, whatever V says, of the selected unit of another team than the one
-/// I act for (kept until the selection changes) and of the hovered one; and with T on, every such team's Charge and Shoot areas (ThreatRings.All),
+/// I act for (kept while I select and place my own units, ThreatRings.Pinned) and of the hovered one; and with T on, every such team's Charge and Shoot areas (ThreatRings.All),
 /// in deployment and play alike. Readable rings plan:
 /// each ring fills its area in its kind's opacity (RingLook) under a screen-constant outline (RingMesh), and carries a screen-space label, the
 /// kind's icon and its words in the team colour, under the outline's point lowest on the screen (RingLabels), never over another label.</summary>
@@ -11,7 +11,7 @@ public partial class RangeRingNode : Node3D
 {
     Session _s = null!; TableInput _input = null!;
     readonly Layer _picked = new(), _hovered = new(), _range = new(); readonly List<Layer> _all = new();
-    bool _allOn;
+    bool _allOn; Guid? _pinned;
     readonly CanvasLayer _canvas = new(); readonly Control _labels = new() { MouseFilter = Control.MouseFilterEnum.Ignore };
     Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Intent>? _onIntent; Action<Guid?>? _onHover;
     readonly RangeRingCache _rings = new(); readonly ThreatRingCache _pickedThreat = new(), _hoveredThreat = new(); readonly AllThreatCache _allThreats = new();
@@ -47,10 +47,15 @@ public partial class RangeRingNode : Node3D
     void Draw()
     {
         DrawAll();
-        var picked = _input.Selected?.PieceId; var hovered = _input.HoveredUnit;
-        var shown = _s.Projection is { } p && _s.Game is { } game ? ThreatRings.Shown(game, p, _s.MyTeamId, picked, hovered, _s.Threats) : [];
-        _picked.Show(picked is { } a && shown.Contains(a) ? ThreatOf(a, _pickedThreat) : null);
-        _hovered.Show(hovered is { } b && b != picked && shown.Contains(b) ? ThreatOf(b, _hoveredThreat) : null);
+        var hovered = _input.HoveredUnit;
+        IReadOnlyList<Guid> shown = [];
+        if (_s.Projection is { } p && _s.Game is { } game)
+        {
+            _pinned = ThreatRings.Pinned(game, p, _s.MyTeamId, _input.Selected?.PieceId, _pinned);
+            shown = ThreatRings.Shown(game, p, _s.MyTeamId, _pinned, hovered, _s.Threats);
+        }
+        _picked.Show(_pinned is { } a && shown.Contains(a) ? ThreatOf(a, _pickedThreat) : null);
+        _hovered.Show(hovered is { } b && b != _pinned && shown.Contains(b) ? ThreatOf(b, _hoveredThreat) : null);
         _range.Show(RangeWanted());
     }
 

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Geometry, PlacedModel, Segment } from '../src/lib/geometry';
-import { AllThreatCache, ThreatRingCache, allThreatsOf, ofAnotherTeam, shownThreats, threatRingsOf } from '../src/lib/play/threatRings';
+import { acting, teamsOf } from '../src/lib/lobby/seats';
+import { AllThreatCache, ThreatRingCache, allThreatsOf, ofAnotherTeam, pinnedThreat, shownThreats, threatRingsOf } from '../src/lib/play/threatRings';
 import type { EventPayload, UnitThreat, Weapon } from '../src/lib/protocol/wire.generated';
-import { P1, P2, at, boardOf, gameOf, projectionOf, slotOf, unitOf, weaponOf } from './play';
+import { P1, P2, askOf, at, boardOf, gameOf, projectionOf, slotOf, unitOf, weaponOf } from './play';
 
 const gun = (name: string, range?: string): Weapon => ({ ...weaponOf(name), stats: range === undefined ? {} : { Range: range } });
 const squad = unitOf('Squad', [
@@ -78,6 +79,29 @@ describe('ThreatRings', () => {
     expect(shownThreats(game, p, team1, orcs.id, null, new Map())).toEqual([]);
     expect(shownThreats(game, p, null, squad.id, orcs.id, both)).toEqual([squad.id, orcs.id]);
     expect(shownThreats(game, p, team2, orcs.id, squad.id, both)).toEqual([squad.id]);          // solo, acting for team 2
+  });
+
+  it('the selected enemy stays pinned while a unit of mine or terrain is selected; an empty selection clears it', () => {
+    const p = projectionOf(game, board, deploy).projection;
+    const pinned = pinnedThreat(game, p, team1, orcs.id, null);
+    expect(pinned).toBe(orcs.id);
+    expect(pinnedThreat(game, p, team1, squad.id, pinned)).toBe(orcs.id);           // a unit of mine, picked to place or move
+    expect(pinnedThreat(game, p, team1, 'terrain', pinned)).toBe(orcs.id);
+    expect(pinnedThreat(game, p, team1, null, pinned)).toBeNull();
+    expect(pinnedThreat(game, p, team1, squad.id, null)).toBeNull();
+  });
+
+  it('while one account places a unit in a deploy ask, the other team\'s threat draws', () => {
+    const reserve = unitOf('Reserve', [slotOf({ name: 'Trooper', weapons: [gun('Rifle', '24"')] })]);
+    const solo = gameOf({}, game.participants.map((x) => ({ ...x, accountId: 'solo' })));
+    const withReserve = boardOf([{ participantId: P1, units: [squad, reserve] }, { participantId: P2, units: [orcs] }]);
+    const ask = askOf({ kind: 'pieces', eligible: [reserve.id], min: 1, max: 1 }, { question: 'deploy', teams: [team1], allowPass: false });
+    const p = projectionOf(solo, withReserve, [...deploy, { kind: 'ask_opened', ask }]).projection;
+    const mine = acting(p, teamsOf(solo, P1));
+    expect(mine).toBe(team1);
+    const pinned = pinnedThreat(solo, p, mine, reserve.id, pinnedThreat(solo, p, mine, orcs.id, null));      // the unit being placed selected
+    expect(shownThreats(solo, p, mine, pinned, null, both)).toEqual([orcs.id]);
+    expect(allThreatsOf(fake().g, solo, p, mine, both).map((t) => t.teamId)).toEqual([team2]);
   });
 
   it('all is per enemy team one charge area and one shoot area, each the union with a range per model', () => {
