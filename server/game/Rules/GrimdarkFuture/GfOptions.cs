@@ -6,8 +6,8 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// <summary>p.5 Line of sight (core) or p.56 Hybrid True Line of Sight (3.6.0 p.58).</summary>
 public enum GfSightMethod { Core, HybridTrue }
 
-/// <summary>p.5 "the perimeter of other units": each model blocks with its body, or each unit with one outline (optional-rules spec → Units as sight blockers).</summary>
-public enum GfUnitSightBlocking { PerModel, Perimeter }
+/// <summary>p.5 "the perimeter of other units": each unit blocks with one outline (core), or each model with its body (optional-rules spec → Units as sight blockers).</summary>
+public enum GfUnitSightBlocking { Perimeter, PerModel }
 
 /// <summary>
 /// The optional rules a Grimdark Future game opted into, parsed from GameInfo.OptionalRules (optional-rules spec → How the rules read it).
@@ -15,7 +15,7 @@ public enum GfUnitSightBlocking { PerModel, Perimeter }
 /// </summary>
 public sealed record GfOptions(GfSightMethod LineOfSight, GfUnitSightBlocking UnitSightBlocking, bool MeleeSeparation)
 {
-    public static readonly GfOptions Core = new(GfSightMethod.Core, GfUnitSightBlocking.PerModel, MeleeSeparation: true);
+    public static readonly GfOptions Core = new(GfSightMethod.Core, GfUnitSightBlocking.Perimeter, MeleeSeparation: true);
 
     const string UnitSightBlockingKey = "unit_sight_blocking", LineOfSightKey = "line_of_sight", MeleeSeparationKey = "melee_separation";
 
@@ -23,7 +23,7 @@ public sealed record GfOptions(GfSightMethod LineOfSight, GfUnitSightBlocking Un
     public static RulesOptionCatalog Catalog { get; } = new(
     [
         new RulesOption(UnitSightBlockingKey, "Unit sight blocking",
-            [new RulesOptionValue("per_model", "Each model blocks"), new RulesOptionValue("perimeter", "Each unit's perimeter blocks")], "per_model"),
+            [new RulesOptionValue("perimeter", "Each unit's perimeter blocks"), new RulesOptionValue("per_model", "Each model blocks")], "perimeter"),
         new RulesOption(LineOfSightKey, "Line of sight method",
             [new RulesOptionValue("core", "Core line of sight"), new RulesOptionValue("hybrid_true", "Hybrid True Line of Sight")], "core"),
         new RulesOption(MeleeSeparationKey, "Melee separation",
@@ -36,7 +36,7 @@ public sealed record GfOptions(GfSightMethod LineOfSight, GfUnitSightBlocking Un
     /// <summary>The map read as options; an absent key, or a value Problems would name, reads as Core's.</summary>
     public static GfOptions Parse(IReadOnlyDictionary<string, string> map) => new(
         map.GetValueOrDefault(LineOfSightKey) == "hybrid_true" ? GfSightMethod.HybridTrue : GfSightMethod.Core,
-        map.GetValueOrDefault(UnitSightBlockingKey) == "perimeter" ? GfUnitSightBlocking.Perimeter : GfUnitSightBlocking.PerModel,
+        map.GetValueOrDefault(UnitSightBlockingKey) == "per_model" ? GfUnitSightBlocking.PerModel : GfUnitSightBlocking.Perimeter,
         MeleeSeparation: map.GetValueOrDefault(MeleeSeparationKey) != "off");
 
     /// <summary>Every key the catalog does not hold, and every value its option does not offer, in map order.</summary>

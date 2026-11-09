@@ -14,7 +14,7 @@ public interface ISightPolicy
     /// <summary>True when the line from observer to target passes through blockingUnit as if it were not there.</summary>
     bool SeesThrough(Guid observerModel, Guid targetModel, Guid blockingUnit);
 
-    /// <summary>Each model blocks with its body and no unit is seen through: the core game.</summary>
+    /// <summary>Each model blocks with its body and no unit is seen through: a ruleset without sight options, and Grimdark Future's `per_model`.</summary>
     static ISightPolicy PerModel { get; } = new PerModelPolicy();
 
     private sealed class PerModelPolicy : ISightPolicy

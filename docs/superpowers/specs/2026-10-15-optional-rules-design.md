@@ -35,7 +35,7 @@ through the perimeter of other units (friendly or enemy), they are sight blocker
 cover."* p.56 lists the same sentence among the rules that *"always apply, regardless of which line of sight method is
 used"*.
 
-The engine blocks per model. `Sight.From` (`server/game/Interpreter/Sight.cs`) turns every on-table model outside the
+Per model, `Sight.From` (`server/game/Interpreter/Sight.cs`) turns every on-table model outside the
 observing unit into its own volume through `Bodies.AsBlockingVolume` (`libs/Tabletop.Geometry/Bodies.cs`): a solid
 `BlocksLineOfSight` prism of the base footprint (an oval as its bounding rectangle) and the body's height. A line
 that passes between two models of a third unit is clear. The target model's own body is ignored for its own line
@@ -43,7 +43,7 @@ that passes between two models of a third unit is clear. The target model's own 
 the sight with `alsoIgnoring: targetUnit`, so a model never takes cover behind its own unit.
 
 The book's word is *perimeter*, so the literal reading blocks the gaps between a unit's models too. This is a
-configuration option, **Unit sight blocking**: `per_model` (today's engine) or `perimeter`.
+configuration option, **Unit sight blocking**: `perimeter` (the core game) or `per_model`.
 
 - A unit's perimeter is one volume per unit: the convex hull of its on-table models' base outlines, from the lowest
   base to the tallest body's top, keyed by the unit id. The book gives the word and no shape: *perimeter* appears on
@@ -52,8 +52,8 @@ configuration option, **Unit sight blocking**: `per_model` (today's engine) or `
   every base and needs no order of models; a unit in a line has a hull no wider than its bases.
 - The target's own unit blocks per model under both settings (owner ruling 2026-10-15). Its perimeter would hide every
   model inside it, which p.8's *"If at least one model in the unit has line of sight to an enemy model"* cannot have meant.
-- The default is `per_model`. Every game played so far ran under it, and `perimeter` is offered as the literal p.5
-  reading for groups that want it.
+- The default is `perimeter`. Owner ruling 2026-11-07: *"a unit in between blocks sight"*. `per_model` is offered for
+  groups that agree to see through the gaps between another unit's models.
 
 ### Optional modules (pp.16–67)
 
@@ -172,7 +172,8 @@ of it), and Top-Down needs a height per unit the army data does not carry.
 
 The map is opaque outside `server/game/`: keys and values are snake_case strings the ruleset defines, so the protocol,
 management and the client name no rule (root `AGENTS.md`: *"Nothing else names or implements a rule"*). An absent key
-reads as that option's default, so `'{}'` is the core game and every existing row stays as it plays today.
+reads as that option's default, so `'{}'` is the core game, and a game that has not ended follows a change of default
+the way it follows a rule fix.
 
 Enforcement keeps its typed column and field. It is ruleset-free: `CommandDispatcher`, `RulesEngine.Advance` and
 `EnforcementPolicy.Decide` read `state.Info.Enforcement` and know no ruleset, and management already reads the enum
@@ -206,16 +207,16 @@ configuration row from `playing` on). Reasons:
 ```csharp
 // server/game/Rules/GrimdarkFuture/GfOptions.cs
 public enum GfSightMethod { Core, HybridTrue }
-public enum GfUnitSightBlocking { PerModel, Perimeter }
+public enum GfUnitSightBlocking { Perimeter, PerModel }
 public sealed record GfOptions(GfSightMethod LineOfSight, GfUnitSightBlocking UnitSightBlocking, bool MeleeSeparation)
 {
-    public static readonly GfOptions Core = new(GfSightMethod.Core, GfUnitSightBlocking.PerModel, MeleeSeparation: true);
+    public static readonly GfOptions Core = new(GfSightMethod.Core, GfUnitSightBlocking.Perimeter, MeleeSeparation: true);
     public static GfOptions Of(GameState state);                        // parses state.Info.OptionalRules; absent keys read Core's
     public static IReadOnlyList<string> Problems(IReadOnlyDictionary<string, string> map);   // unknown key or value
 }
 ```
 
-Keys: `line_of_sight` (`core` | `hybrid_true`), `unit_sight_blocking` (`per_model` | `perimeter`),
+Keys: `line_of_sight` (`core` | `hybrid_true`), `unit_sight_blocking` (`perimeter` | `per_model`),
 `melee_separation` (`on` | `off`). Each GF rule that an option changes calls `GfOptions.Of(state)` where it decides;
 nothing caches it, as the engine holds no state. A module enters the record when its own spec designs it, not before.
 
@@ -299,8 +300,8 @@ gains `Sizes` (a unit's model count) and `Anchors` (where a unit's first model d
 ## Touch points and tests per option
 
 Rules tests are in `tests/Tabletop.GameServer.Tests` with `ScriptedDice`; each option value that is not the default
-also gets a suite game (`sim/Suite/SuiteCatalog.Core.Options.cs`) run under it: `core-perimeter-sight`,
-`core-hybrid-sight`, `core-melee-no-separation`.
+also gets a suite game (`sim/Suite/SuiteCatalog.Core.Options.cs`) run under it: `core-per-model-sight`,
+`core-hybrid-sight`, `core-melee-no-separation`; `core-perimeter-sight` plays the same screen as the core game.
 
 | Option | Touch points | Tests |
 | --- | --- | --- |

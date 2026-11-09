@@ -35,29 +35,36 @@ internal static partial class CoreGames
         from s in f.Steps from ask in s.Asks where ask.Legal is Assignment
         select (s.Seq, ((Assignment)ask.Legal).Targets);
 
-    // ---- core-perimeter-sight ----------------------------------------------------------------------------------------------------------
+    // ---- core-perimeter-sight, core-per-model-sight -----------------------------------------------------------------------------------
 
     // 48" by 36". Red's shooter at (24, 34); Red's four-model screen in a row at y 26, centres 1.76" apart from x 21.36, so its middle gap spans
     // x 23.75–24.25; Blue 1 at (24, 6), every line to it through that gap (0.18" either side of x 24 at y 26); Blue 2 at (40, 6), its lines
     // passing the screen's east end at x 28.4 or more.
     const double ScreenY = 26;
 
-    /// <summary>p.5: "Models can't see through solid obstacles, including the perimeter of other units (friendly or enemy)", played as each unit's perimeter.</summary>
-    public static TestGame PerimeterSight()
+    /// <summary>p.5: "Models can't see through solid obstacles, including the perimeter of other units (friendly or enemy)": the core game, no option set.</summary>
+    public static TestGame PerimeterSight() => ScreenSight("core-perimeter-sight", new Dictionary<string, string>(), gapSeen: false);
+
+    /// <summary>unit_sight_blocking per_model: each model of another unit blocks alone, so a line through a gap between two of them is clear.</summary>
+    public static TestGame PerModelSight() => ScreenSight("core-per-model-sight", new Dictionary<string, string> { ["unit_sight_blocking"] = "per_model" }, gapSeen: true);
+
+    static TestGame ScreenSight(string name, Dictionary<string, string> options, bool gapSeen)
     {
-        const string name = "core-perimeter-sight";
         var scenario = new ScenarioBuilder(name, seed: 1)
             .RoundCap(5).Table(48, 36)
-            .Options(new Dictionary<string, string> { ["unit_sight_blocking"] = "perimeter" })
+            .Options(options)
             .Army("Red", 2, 1, weapons: [LongRifle()], sizes: new Dictionary<int, int> { [2] = 4 },
                 models: [.. Enumerable.Range(1, 4).Select(m => new ScenarioModel(2, m, Weapons: [HandWeapon()]))],
                 anchors: new Dictionary<int, Point2> { [1] = new(24, 34), [2] = new(24 - 2.64, ScreenY) })
             .Army("Blue", 2, 1, weapons: [HandWeapon()], anchors: new Dictionary<int, Point2> { [1] = new(24, 6), [2] = new(40, 6) })
             .Scripted(EveryoneHolds())
             .Build();
+        var verdict = gapSeen
+            ? "(unit_sight_blocking per_model: Blue 1, seen through the gap in Red's screen, is a target; so is Blue 2 in the open)"
+            : "(core: Blue 1, seen only through the gap in Red's screen, is never a target; Blue 2 in the open is)";
         return Game(name, scenario,
         [
-            Check("p.5: \"Models can't see through solid obstacles, including the perimeter of other units (friendly or enemy)\" (unit_sight_blocking perimeter: Blue 1, seen only through the gap in Red's screen, is never a target; Blue 2 in the open is)", log =>
+            Check($"p.5: \"Models can't see through solid obstacles, including the perimeter of other units (friendly or enemy)\" {verdict}", log =>
             {
                 var (shooter, screen, hidden, open) = (UnitNamed(log, "Red unit 1"), UnitNamed(log, "Red unit 2"), UnitNamed(log, "Blue unit 1"), UnitNamed(log, "Blue unit 2"));
                 var offers = OfferedTargets(log, shooter).ToList();
@@ -67,7 +74,7 @@ internal static partial class CoreGames
                     var wall = log.Placed(screen, seq);
                     if (wall.Count != 4 || wall.Any(p => Math.Abs(p.Y - ScreenY) > 1e-6)) return $"Red's screen is not in its row at seq {seq}";
                     if (log.Placed(hidden, seq) is not [{ X: var x }] || Math.Abs(x - 24) > 1e-6) return $"Blue 1 is not behind the gap at seq {seq}";
-                    if (targets.Contains(hidden)) return $"Blue 1 was offered through the screen's gap at seq {seq}";
+                    if (targets.Contains(hidden) != gapSeen) return gapSeen ? $"Blue 1 was not offered through the screen's gap at seq {seq}" : $"Blue 1 was offered through the screen's gap at seq {seq}";
                 }
                 return offers.Any(o => o.Targets.Contains(open)) ? null : "Blue 2, in the open, was never offered";
             }),

@@ -21,7 +21,7 @@ public sealed class GfSight : ISightPolicy
 
     GfSight(GameState state, GfOptions options) => (this.state, this.options) = (state, options);
 
-    /// <summary>The policy for this state; the core game's per-model policy when neither sight option is set.</summary>
+    /// <summary>The policy for this state; the interpreter's per-model policy under core line of sight with `per_model` blocking.</summary>
     public static ISightPolicy For(GameState state)
     {
         var options = GfOptions.Of(state);

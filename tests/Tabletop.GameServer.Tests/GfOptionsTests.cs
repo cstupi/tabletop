@@ -11,12 +11,21 @@ public class GfOptionsTests
     [Fact]
     public void An_empty_map_is_the_core_game() => Assert.Equal(GfOptions.Core, GfOptions.Parse(Map()));
 
+    /// <summary>p.5 "Models can't see through solid obstacles, including the perimeter of other units (friendly or enemy)": the core game blocks with
+    /// each other unit's perimeter (owner, 2026-11-07: a unit in between blocks); each model blocking alone is the option.</summary>
+    [Fact]
+    public void The_core_game_blocks_sight_with_each_units_perimeter()
+    {
+        Assert.Equal(GfUnitSightBlocking.Perimeter, GfOptions.Core.UnitSightBlocking);
+        Assert.Equal(GfUnitSightBlocking.PerModel, GfOptions.Parse(Map(("unit_sight_blocking", "per_model"))).UnitSightBlocking);
+    }
+
     [Fact]
     public void Every_key_and_value_parses()
     {
         Assert.Equal(new GfOptions(GfSightMethod.HybridTrue, GfUnitSightBlocking.Perimeter, MeleeSeparation: false),
             GfOptions.Parse(Map(("line_of_sight", "hybrid_true"), ("unit_sight_blocking", "perimeter"), ("melee_separation", "off"))));
-        Assert.Equal(GfOptions.Core, GfOptions.Parse(Map(("line_of_sight", "core"), ("unit_sight_blocking", "per_model"), ("melee_separation", "on"))));
+        Assert.Equal(GfOptions.Core, GfOptions.Parse(Map(("line_of_sight", "core"), ("unit_sight_blocking", "perimeter"), ("melee_separation", "on"))));
         Assert.Empty(GfOptions.Problems(Map(("line_of_sight", "hybrid_true"), ("unit_sight_blocking", "perimeter"), ("melee_separation", "off"))));
     }
 
@@ -41,7 +50,7 @@ public class GfOptionsTests
         var catalog = GrimdarkFutureRules.Instance.OptionCatalog;
         Assert.Equal(
         [
-            ("unit_sight_blocking", "Unit sight blocking", "per_model", "per_model,perimeter"),
+            ("unit_sight_blocking", "Unit sight blocking", "perimeter", "perimeter,per_model"),
             ("line_of_sight", "Line of sight method", "core", "core,hybrid_true"),
             ("melee_separation", "Melee separation", "on", "on,off"),
         ], catalog.Options.Select(o => (o.Key, o.Label, o.Default, string.Join(",", o.Values.Select(v => v.Value)))));
