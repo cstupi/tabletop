@@ -91,4 +91,12 @@ public class ModelMarksTests
         Assert.Equal(Base.Circle(1.6), ModelMarks.BandBase(Base.Circle(1.37), 0.8, 0.7));   // a circle stays a circle, as wide as the wider side
         Assert.Equal(Base.Rect(2, 3.2), ModelMarks.BandBase(Base.Rect(2, 3), 1.6, 0.9));
     }
+
+    [Fact]
+    public void The_shaken_star_round_an_oversized_mesh_base_starts_beyond_that_base()
+    {
+        var star = ModelMarks.StarRing(ModelMarks.BandBase(Base.Oval(2.36, 1.38), 0.905, 1.475));
+        Assert.Equal(0.905 + ModelMarks.Gap, star[0].Inner.X, 6);                     // the first sample on +x, beyond the mesh base's 0.905
+        Assert.Equal(0.905 + ModelMarks.Spike, star[0].Outer.X, 6);
+    }
 }

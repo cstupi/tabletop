@@ -168,12 +168,12 @@ camera; the other is not drawn that frame (`MarkerDeclutter`).
 on a model with more than one wound (`ModelFacts.MaxWounds`), and above it a row of blue dots, one per spell token, on a
 model holding any. Hidden at table level with the unit icons. Every model on the table whose unit (or itself) has the
 condition `shaken` wears a flat yellow star ring around its base: a band from just outside the base's outline to twelve
-spikes 0.45" beyond it, an oval base's ring stretched to match and a rectangular base's drawn round its corners. The ring
-goes when the condition clears. Every model on the table whose unit has activated this round (an action on record, the roster's
-✓), on every team, wears a flat band in the theme's success green from 0.06" to 0.2" beyond its base, following the base's
+spikes 0.45" beyond it, an oval base's ring stretched to match and a rectangular base's drawn round its corners, round
+the same base as the activated band below (the mesh's own where wider). The ring goes when the condition clears. Every
+model on the table whose unit has activated this round (an action on record, the roster's ✓), on every team, wears a flat band in the theme's success green from 0.06" to 0.2" beyond its base, following the base's
 shape: an ellipse round a round or oval base, a square-cornered frame round a rectangular one. Where the model's mesh has a
 base of its own wider than the declared one (its vertices within 0.2" of its lowest), the band goes round that instead, so the
-model never covers it. It sits outside the base ring that carries the selection, hover and team colours and the body that
+model never covers it. No team colour is within 40° of hue of the success green, in either theme. It sits outside the base ring that carries the selection, hover and team colours and the body that
 carries the warning, so it hides none of them, and over a shaken model it lies on the star's inner band with the spikes
 beyond. It goes when the round turns and the record clears; a model on the shelf or inside a transport wears none. The browser
 viewer's board draws the same as a green band round the outside of the base, every band before any base so a neighbour's

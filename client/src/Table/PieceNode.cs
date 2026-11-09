@@ -54,21 +54,39 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     /// wider (ModelMarks.BandBase), so the model never covers it; remade when the body or the mesh changes. Null takes it away.</summary>
     public void SetActivated(Material? material)
     {
-        if (material == _bandMaterial) return;
-        _bandMaterial = material; Band();
+        if (material == _activated.Material) return;
+        _activated.Material = material; Band();
     }
 
-    MeshInstance3D? _band;
-    Material? _bandMaterial;
-    const float BandLift = 0.035f;
+    /// <summary>The shaken star ring (ModelMarks.StarRing) in <paramref name="material"/>, round the same base as the activated band; null takes it away.</summary>
+    public void SetShaken(Material? material)
+    {
+        if (material == _shaken.Material) return;
+        _shaken.Material = material; Band();
+    }
+
+    /// <summary>A flat mark on the ground round the base: its node, its material, its lift and its mesh for a base.</summary>
+    sealed class GroundMark(string name, float lift, Func<Base, Mesh> mesh)
+    {
+        public readonly string Name = name; public readonly float Lift = lift; public readonly Func<Base, Mesh> Mesh = mesh;
+        public MeshInstance3D? Node; public Material? Material;
+    }
+    readonly GroundMark _shaken = new("ShakenRing", 0.02f, Palette.StarRing), _activated = new("ActivatedBand", 0.035f, Palette.ActivatedBand);
 
     void Band()
     {
-        if (_bandMaterial is null) { _band?.QueueFree(); _band = null; return; }
+        if (_shaken.Material is null && _activated.Material is null) { Mark(_shaken, default); Mark(_activated, default); return; }
         var (x, z) = _mesh is null ? (0f, 0f) : Palette.GroundExtent(this, _mesh, _jolt);
-        if (_band is null) AddChild(_band = new MeshInstance3D { Name = "ActivatedBand", Position = Vector3.Up * BandLift + _jolt, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
-        _band.Mesh = Palette.ActivatedBand(ModelMarks.BandBase(_footprint, x, z));
-        _band.MaterialOverride = _bandMaterial;
+        var round = ModelMarks.BandBase(_footprint, x, z);
+        Mark(_shaken, round); Mark(_activated, round);
+    }
+
+    void Mark(GroundMark m, Base round)
+    {
+        if (m.Material is null) { m.Node?.QueueFree(); m.Node = null; return; }
+        if (m.Node is null) AddChild(m.Node = new MeshInstance3D { Name = m.Name, Position = Vector3.Up * m.Lift + _jolt, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+        m.Node.Mesh = m.Mesh(round);
+        m.Node.MaterialOverride = m.Material;
     }
 
     /// <summary>

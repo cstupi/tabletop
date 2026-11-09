@@ -72,6 +72,10 @@ public static class Palette
     /// <summary>The activated band of a base (ModelMarks.Band), one mesh per base shared by every model on one.</summary>
     public static Mesh ActivatedBand(Base b) => _bands.TryGetValue(b, out var mesh) ? mesh : _bands[b] = Strip(ModelMarks.Band(b));
 
+    static readonly Dictionary<Base, Mesh> _stars = new();
+    /// <summary>The shaken star ring of a base (ModelMarks.StarRing), one mesh per base shared by every model on one.</summary>
+    public static Mesh StarRing(Base b) => _stars.TryGetValue(b, out var mesh) ? mesh : _stars[b] = Strip(ModelMarks.StarRing(b));
+
     /// <summary>How far a model mesh's lowest part, its base, reaches from the piece's centre across (x) and along (z): the furthest vertex within
     /// <see cref="GroundBand"/> of the lowest, less the piece's jolt. Each mesh instance is measured once per mesh and transform under the piece.</summary>
     public static (float X, float Z) GroundExtent(Node3D piece, Node3D scene, Vector3 jolt)

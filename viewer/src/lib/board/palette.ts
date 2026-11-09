@@ -5,7 +5,7 @@ import { effectOf, primaryEffect } from '../play/terrainEffects';
 export const GLOW: Record<Glow, string> = { selected: '#ffffff', hovered: '#40e6ff', ghost: 'rgba(230, 230, 255, 0.35)' };
 
 /** One per team ordinal, 1-based; ordinals past the end wrap. */
-export const TEAM_COLOURS = ['#4ea1ff', '#ff6b5c', '#ffc44e', '#6ddf7c', '#c98cff', '#4ee0d0'] as const;
+export const TEAM_COLOURS = ['#4ea1ff', '#ff6b5c', '#ffc44e', '#ff6fb5', '#c98cff', '#3fd0e0'] as const;
 
 export function teamColour(ordinal: number): string {
   const colours = TEAM_COLOURS;
