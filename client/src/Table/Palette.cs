@@ -60,6 +60,66 @@ public static class Palette
     public static readonly Color WoundDot = new(0.9f, 0.15f, 0.15f);              // wounds left over a model
     public static readonly Color TokenDot = new(0.3f, 0.55f, 1f);                 // spell tokens over a model
     public static readonly Color ShakenRing = new(1f, 0.85f, 0.1f);
+    /// <summary>The activated band's colour: the theme's success green.</summary>
+    public static Color ActivatedRing => Ui.Success;
+
+    static readonly Dictionary<Color, StandardMaterial3D> _flat = new();
+    /// <summary>A flat mark on the ground (the star and activated bands) in a colour: opaque, unlit, both faces, casting no shadow; shared like <see cref="Translucent"/>.</summary>
+    public static StandardMaterial3D Flat(Color c) => _flat.TryGetValue(c, out var m) ? m
+        : _flat[c] = new() { AlbedoColor = c with { A = 1 }, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
+
+    static readonly Dictionary<Base, Mesh> _bands = new();
+    /// <summary>The activated band of a base (ModelMarks.Band), one mesh per base shared by every model on one.</summary>
+    public static Mesh ActivatedBand(Base b) => _bands.TryGetValue(b, out var mesh) ? mesh : _bands[b] = Strip(ModelMarks.Band(b));
+
+    /// <summary>How far a model mesh's lowest part, its base, reaches from the piece's centre across (x) and along (z): the furthest vertex within
+    /// <see cref="GroundBand"/> of the lowest, less the piece's jolt. Each mesh instance is measured once per mesh and transform under the piece.</summary>
+    public static (float X, float Z) GroundExtent(Node3D piece, Node3D scene, Vector3 jolt)
+    {
+        var parts = new List<(float Low, float X, float Z)>();
+        foreach (var node in scene.FindChildren("*", nameof(MeshInstance3D), true, false).Prepend(scene))
+        {
+            if (node is not MeshInstance3D { Mesh: { } mesh } instance) continue;
+            var at = Transform3D.Identity;
+            for (Node3D? n = instance; n is not null && n != piece; n = n.GetParent() as Node3D) at = n.Transform * at;
+            at.Origin -= jolt;
+            parts.Add(_ground.TryGetValue((mesh, at), out var m) ? m : _ground[(mesh, at)] = Lowest(mesh, at));
+        }
+        if (parts.Count == 0) return (0, 0);
+        var floor = parts.Min(p => p.Low);
+        float x = 0, z = 0;
+        foreach (var p in parts) if (p.Low <= floor + GroundBand) { x = Math.Max(x, p.X); z = Math.Max(z, p.Z); }
+        return (x, z);
+    }
+
+    /// <summary>How high above a mesh's lowest vertex its base is taken to reach.</summary>
+    const float GroundBand = 0.2f;
+    static readonly Dictionary<(Mesh, Transform3D), (float Low, float X, float Z)> _ground = new();
+
+    static (float Low, float X, float Z) Lowest(Mesh mesh, Transform3D at)
+    {
+        var points = new List<Vector3>();
+        for (var i = 0; i < mesh.GetSurfaceCount(); i++)
+            foreach (var v in mesh.SurfaceGetArrays(i)[(int)Mesh.ArrayType.Vertex].AsVector3Array()) points.Add(at * v);
+        if (points.Count == 0) return (float.MaxValue, 0, 0);
+        var low = points.Min(p => p.Y);
+        float x = 0, z = 0;
+        foreach (var p in points) if (p.Y <= low + GroundBand) { x = Math.Max(x, Math.Abs(p.X)); z = Math.Max(z, Math.Abs(p.Z)); }
+        return (low, x, z);
+    }
+
+    /// <summary>A flat closed band through (inner, outer) samples: two triangles per sample, wire (x, y) to Godot (x, 0, -y).</summary>
+    public static Mesh Strip(IReadOnlyList<RingSample> ring)
+    {
+        var st = new SurfaceTool(); st.Begin(Mesh.PrimitiveType.Triangles);
+        static Vector3 G(Point2 q) => new((float)q.X, 0, (float)-q.Y);
+        for (var i = 0; i < ring.Count; i++)
+        {
+            var (a, c) = (ring[i], ring[(i + 1) % ring.Count]);
+            foreach (var v in new[] { a.Inner, a.Outer, c.Outer, a.Inner, c.Outer, c.Inner }) st.AddVertex(G(v));
+        }
+        return st.Commit();
+    }
 
     /// <summary>A volume's tint: its strongest effect's colour (TerrainEffects.Primary), the legend's and the chips' colour, see-through.</summary>
     public static Color ForDeclarations(TerrainDeclarations d)

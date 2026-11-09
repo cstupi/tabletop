@@ -31,6 +31,19 @@ export function path(ctx: CanvasRenderingContext2D, shape: Shape, view: View, ta
   ctx.closePath();
 }
 
+/** A band `width` px wide around the outside of `shape`, square-cornered on a polygon's corners: the shape's own area stays clear. */
+export function ringOutside(ctx: CanvasRenderingContext2D, shape: Shape, view: View, table: Table, width: number): void {
+  ctx.save();
+  path(ctx, shape, view, table);
+  ctx.rect(-1e6, -1e6, 2e6, 2e6);
+  ctx.clip('evenodd');
+  path(ctx, shape, view, table);
+  ctx.lineWidth = 2 * width;
+  ctx.lineJoin = 'miter';
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function circle(ctx: CanvasRenderingContext2D, at: Point, radius: number): void {
   ctx.beginPath();
   ctx.arc(at.x, at.y, radius, 0, 2 * Math.PI);

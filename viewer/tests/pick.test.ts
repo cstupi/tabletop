@@ -14,10 +14,10 @@ const scene: Scene = {
   models: [
     { id: 'm1', unitId: 'u1', unitName: 'Rifles', label: 'A', teamId: 't1', teamOrdinal: 1,
       centre: { x: 5, y: 5 }, shape: { kind: 'circle', centre: { x: 5, y: 5 }, radius: 1 },
-      facing: [{ x: 5, y: 5 }, { x: 5, y: 6 }], wounds: 0, spellTokens: 0, conditions: [], elevated: false, z: 0, circle: { kind: 'circle', centre: { x: 5, y: 5 }, radius: 1 } },
+      facing: [{ x: 5, y: 5 }, { x: 5, y: 6 }], wounds: 0, spellTokens: 0, conditions: [], elevated: false, activated: false, z: 0, circle: { kind: 'circle', centre: { x: 5, y: 5 }, radius: 1 } },
     { id: 'm2', unitId: 'u1', unitName: 'Rifles', label: 'B', teamId: 't1', teamOrdinal: 1,
       centre: { x: 5.5, y: 5 }, shape: { kind: 'circle', centre: { x: 5.5, y: 5 }, radius: 1 },
-      facing: null, wounds: 0, spellTokens: 0, conditions: [], elevated: false, z: 0, circle: { kind: 'circle', centre: { x: 5.5, y: 5 }, radius: 1 } },
+      facing: null, wounds: 0, spellTokens: 0, conditions: [], elevated: false, activated: false, z: 0, circle: { kind: 'circle', centre: { x: 5.5, y: 5 }, radius: 1 } },
   ],
   offTable: [],
 };

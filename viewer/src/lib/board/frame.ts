@@ -16,6 +16,8 @@ export type ModelShape = {
   readonly centre: Point; readonly shape: Shape; readonly facing: readonly [Point, Point] | null;
   readonly wounds: number; readonly spellTokens: number; readonly conditions: readonly string[];
   readonly elevated: boolean;
+  /** Its unit has an action recorded this round (the roster's ✓): drawn with a ring in the activated colour. */
+  readonly activated: boolean;
   /** The model as a circle at its centre (radius: the base's longer side / 2), and its height above the table. */
   readonly circle: Shape; readonly z: number;
 };
@@ -98,6 +100,7 @@ export function worldOutline(
 
 export function sceneOf(board: RecordedBoard, frame: RecordedFrame): Scene {
   const definitions = new Map(board.models.map((m) => [m.id, m]));
+  const acted = new Set(frame.units.filter((u) => u.actions.length > 0).map((u) => u.id));
   const models: ModelShape[] = [];
   const offTable: OffTable[] = [];
 
@@ -122,7 +125,7 @@ export function sceneOf(board: RecordedBoard, frame: RecordedFrame): Scene {
       centre, shape: baseOutline(definition, centre, yaw),
       facing: [centre, { x: centre.x + reach.x, y: centre.y + reach.y }],
       wounds: state.wounds, spellTokens: state.spellTokens, conditions: state.conditions,
-      elevated: (state.z ?? 0) > 0.01, z: state.z ?? 0,
+      elevated: (state.z ?? 0) > 0.01, z: state.z ?? 0, activated: acted.has(definition.unitId),
       circle: { kind: 'circle', centre, radius: Math.max(definition.baseA, definition.baseB) / 2 },
     });
   }

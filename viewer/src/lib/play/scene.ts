@@ -63,6 +63,7 @@ export function sceneOfPlay(
       facing: [centre, { x: centre.x + reach.x, y: centre.y + reach.y }],
       wounds: m.wounds, spellTokens: m.spellTokens, conditions: [...m.conditions].sort(),
       elevated: placement.position.z > 0.01, z: placement.position.z,
+      activated: m.location.kind === 'table' && (unit?.actions.size ?? 0) > 0,
       circle: { kind: 'circle', centre, radius: Math.max(a, b) / 2 },
     });
   }

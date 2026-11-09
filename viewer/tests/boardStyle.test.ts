@@ -9,6 +9,8 @@ describe('the board colours', () => {
     expect(colours.select).toBe('#FFF6D8');
     expect(colours.grid).toBe(BOARD_DEFAULTS.grid);
     expect(colours.label).toBe(BOARD_DEFAULTS.label);
+    expect(colours.activated).toBe(BOARD_DEFAULTS.activated);
+    expect(boardColoursOf((name) => (name === '--board-activated' ? '#B8F27A' : '')).activated).toBe('#B8F27A');
   });
 
   it('withAlpha multiplies a hex colour\'s alpha and leaves other colours alone', () => {

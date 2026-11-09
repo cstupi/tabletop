@@ -1,0 +1,57 @@
+import { describe, expect, it } from 'vitest';
+import { draw } from '../src/lib/board/draw';
+import type { ModelShape, Scene } from '../src/lib/board/frame';
+import { BOARD_DEFAULTS } from '../src/lib/board/style';
+
+type Call = { readonly op: string; readonly args: readonly unknown[]; readonly strokeStyle: unknown };
+
+/** A canvas context that records each call with the stroke colour current at the time. */
+function recorder(): { ctx: CanvasRenderingContext2D; calls: Call[] } {
+  const calls: Call[] = [];
+  const state: Record<string, unknown> = {};
+  const ctx = new Proxy(state, {
+    get: (target, key: string) => key in target ? target[key]
+      : key === 'measureText' ? () => ({ width: 0 })
+      : (...args: unknown[]) => { calls.push({ op: key, args, strokeStyle: target.strokeStyle }); },
+    set: (target, key: string, value) => { target[key] = value; return true; },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, calls };
+}
+
+const model = (id: string, x: number, activated: boolean): ModelShape => ({
+  id, unitId: 'u1', unitName: 'Rifles', label: id, teamId: 't1', teamOrdinal: 1,
+  centre: { x, y: 5 }, shape: { kind: 'circle', centre: { x, y: 5 }, radius: 0.5 },
+  facing: null, wounds: 0, spellTokens: 0, conditions: [], elevated: false, activated, z: 0,
+  circle: { kind: 'circle', centre: { x, y: 5 }, radius: 0.5 },
+});
+
+const scene = (models: ModelShape[]): Scene => ({ table: { width: 72, length: 48 }, terrain: [], zones: [], markers: [], models, offTable: [] });
+const view = { scale: 20, panX: 0, panY: 0 };
+const options = { selected: new Set<string>(), models: 'bases' as const, showGrid: false, showZones: false, showLabels: false };
+
+describe('the activated band', () => {
+  it('draws every band before any base, so a band never covers a neighbour in base contact', () => {
+    const { ctx, calls } = recorder();
+    draw(ctx, scene([model('a', 5, true), model('b', 6, true)]), view, { width: 800, height: 600 }, options);
+    const bands = calls.flatMap((c, i) => (c.op === 'stroke' && c.strokeStyle === BOARD_DEFAULTS.activated ? [i] : []));
+    const fills = calls.flatMap((c, i) => (c.op === 'fill' ? [i] : []));
+    expect(bands).toHaveLength(2);
+    expect(Math.max(...bands)).toBeLessThan(Math.min(...fills));
+  });
+
+  it('pushes the pick ring and the Ask glow beyond the band, so each stays readable', () => {
+    const radii = (activated: boolean, picked: boolean, glowing: boolean): number[] => {
+      const { ctx, calls } = recorder();
+      draw(ctx, scene([model('a', 5, activated)]), view, { width: 800, height: 600 },
+        { ...options, selected: new Set(picked ? ['a'] : []), glow: glowing ? () => 'hovered' as const : undefined });
+      return calls.filter((c) => c.op === 'arc').map((c) => c.args[2] as number).slice(picked && glowing ? -2 : -1);   // the glow and pick rings are the last arcs
+    };
+    const base = 0.5 * view.scale, band = 0.2 * view.scale;
+    const [picked] = radii(true, true, false);
+    expect(picked! - 1).toBeGreaterThanOrEqual(base + band);          // the 2 px pick ring's inner edge clears the band
+    const [glow, pickedOverGlow] = radii(true, true, true);
+    expect(glow! - 1.5).toBeGreaterThanOrEqual(base + band);          // the 3 px glow's inner edge clears the band
+    expect(pickedOverGlow!).toBeGreaterThan(glow!);
+    expect(radii(false, true, false)[0]).toBe(base + 2.5);            // no band: the pick ring where it was
+  });
+});
