@@ -126,4 +126,29 @@ public class RingLabelsTests
         for (var i = 0; i < placed.Count; i++)
             for (var j = i + 1; j < placed.Count; j++) Assert.False(placed[i].Overlaps(placed[j]));
     }
+
+    /// <summary>The unit card's slot in the left column, under the roster, as the play Hud places it at 1280×720.</summary>
+    static readonly HudRect Card = new(8, 380, 420, 332);
+
+    [Fact]
+    public void The_anchor_is_the_lowest_point_clear_of_the_hud_panels()
+    {
+        // The ring's lowest point on the screen is under the unit card: the label hangs from the lowest point the table shows.
+        Assert.Equal((600f, 560f), RingLabels.Anchor([(200, 700), (600, 560), (900, 300)], View, 8, [Card]));
+        Assert.Equal((200f, 700f), RingLabels.Anchor([(200, 700), (600, 560)], View, 8));                     // no panel: the lowest
+        Assert.Equal((200f, 700f), RingLabels.Anchor([(200, 700), (300, 690)], View, 8, [Card]));             // every point under one: as before
+    }
+
+    [Fact]
+    public void A_label_that_would_sit_on_a_panel_moves_clear_of_it_and_of_the_other_labels()
+    {
+        // Two threat layers at once (the pinned unit and T's areas): four labels whose rings meet the card's edge.
+        var wanted = new[] { RingLabels.Under((420, 600), 140, 34), RingLabels.Under((440, 640), 140, 34), RingLabels.Under((300, 650), 140, 34), RingLabels.Under((460, 560), 140, 34) };
+        var placed = RingLabels.Place(wanted, View, [Card]);
+        Assert.All(placed, p => Assert.False(p.Overlaps(Card)));
+        Assert.All(placed, p => Assert.True(p.X >= 0 && p.Y >= 0 && p.Right <= View.Right && p.Bottom <= View.Bottom));
+        for (var i = 0; i < placed.Count; i++)
+            for (var j = i + 1; j < placed.Count; j++) Assert.False(placed[i].Overlaps(placed[j]));
+        Assert.All(placed.Zip(wanted), x => Assert.True(Math.Abs(x.First.X - x.Second.X) + Math.Abs(x.First.Y - x.Second.Y) < 300));   // near its ring
+    }
 }

@@ -16,6 +16,8 @@ public partial class LogDrawer : Control
     readonly Button _toggle = HudBits.CapButton("log", "Log", "G", "Open or close the log");
     /// <summary>The Log button, whose height the Hud's button row takes.</summary>
     public Control Toggle => _toggle;
+    /// <summary>The open log panel; hidden while the drawer is closed.</summary>
+    public Control Panel => _drawer;
 
     /// <summary>A failed undo from the log, for the screen's toast.</summary>
     public event Action<string>? Reported;

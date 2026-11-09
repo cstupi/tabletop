@@ -52,7 +52,7 @@ public partial class GameScreen
         Table.AddChild(_violations = new ViolationMarks()); _violations.Bind(Table, Input);
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
-        Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input);
+        Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input); _rings.Covered = Covered;
         Table.AddChild(_modelMarks = new ModelMarkNodes()); _modelMarks.Bind(_session, Table);
         Table.AddChild(_tableLayer = new CanvasLayer());
 
@@ -184,6 +184,21 @@ public partial class GameScreen
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
         if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
         NoteLayout();
+    }
+
+    readonly List<HudRect> _covered = new();
+
+    /// <summary>The Hud's panels as they stand over the table, in the table viewport's pixels: the ring labels keep off them. The banner, the
+    /// end message and the toasts come and go over everything and are left out.</summary>
+    IReadOnlyList<HudRect> Covered()
+    {
+        _covered.Clear();
+        if (!IsInstanceValid(_tableBox)) return _covered;
+        var origin = _tableBox.GlobalPosition;
+        foreach (var part in new Control?[] { _corner, _header, _roster, _card, _terrainCard, _decision, _waiting, _dice, _undo, _replay, _logDrawer?.Toggle, _logDrawer?.Panel })
+            if (part is not null && IsInstanceValid(part) && part.IsVisibleInTree() && part.GetGlobalRect() is var r && r.Size.X > 0 && r.Size.Y > 0)
+                _covered.Add(new HudRect(r.Position.X - origin.X, r.Position.Y - origin.Y, r.Size.X, r.Size.Y));
+        return _covered;
     }
 
     /// <summary>The corner keeps to its slot's width: the game's name gives up what Home and the tail take, and clips.</summary>
