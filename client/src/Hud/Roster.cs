@@ -20,6 +20,7 @@ public partial class Roster : PanelContainer
         _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; AddChild(_scroll); _scroll.AddChild(_list);
         _list.AddThemeConstantOverride("separation", 2);
         _list.MinimumSizeChanged += QueueFit;                                                                           // a ScrollContainer reports no content height
+        if (!Touch) _list.SortChildren += SyncMenus;                                                                     // a row moved from under a still pointer hears no exit
         _onFrame = _ => Render(); _onChanged = () => { Clear(); Render(); };
         session.Frame.Render += _onFrame;                                                                              // every cause the frame carries
         Ui.Changed += _onChanged;                                                                                      // the theme's icons
@@ -124,6 +125,19 @@ public partial class Roster : PanelContainer
         chevron.Pressed += Collapse;
         line.AddChild(chevron);
         return band;
+    }
+
+    /// <summary>After the list lays out: each row's ▸ shows only while the pointer is over the row. Rows move when a render re-sorts them, and Godot
+    /// sends no MouseExited to a control that moves out from under a pointer that stays still.</summary>
+    void SyncMenus()
+    {
+        var at = _list.GetGlobalMousePosition();
+        foreach (var child in _list.GetChildren())
+            if (child is RowControls row)
+            {
+                var shown = row.Visible && row.GetGlobalRect().HasPoint(at) ? HudBits.Plain : HudBits.Plain with { A = 0 };
+                if (row.Menu.Modulate != shown) row.Menu.Modulate = shown;
+            }
     }
 
     static string PipsOf(RosterRow row) => row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}";
