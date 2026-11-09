@@ -96,6 +96,7 @@ public partial class GameScreen : Control
 
     public override void _Process(double delta) => UpdateLoading();
 
+    readonly LoadSettled _settled = new();
     /// <summary>The curtain while entering the game, then the strip over the table: a reconnect, the models still loading.</summary>
     void UpdateLoading()
     {
@@ -105,6 +106,8 @@ public partial class GameScreen : Control
         _curtain.Set(entry, CurtainHead.Of(_session.Game));
         var meshes = _session.GameId is null ? null : Table.MeshProgress;
         var strip = LoadingView.Strip(_session.Phase, _entered, meshes?.Done ?? 0, meshes?.Total ?? 0);
+        // The table stands with its models: the loading's garbage (tens of megabytes) is collected now, not in a later frame of play.
+        if (_session.GameId is not null && _settled.Update(_entered, meshes?.Done ?? 0, meshes?.Total ?? 0)) GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
         var shown = _stripGate.Update(strip is not null, TimeSpan.FromMilliseconds(Time.GetTicksMsec()));
         if (strip is not null) _strip.Set(strip);
         if (shown != _strip.Visible) { _strip.Visible = shown; QueueLayout(); }

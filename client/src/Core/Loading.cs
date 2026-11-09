@@ -79,3 +79,16 @@ public sealed class LoadingGate(TimeSpan delay)
         return now - _since.Value >= delay;
     }
 }
+
+/// <summary>Entering a game is over once the table stands (entered) with every model of its loading wave in: true once, the moment the client
+/// collects the loading's garbage (GameScreen), so that collection is not paid in a later frame of play. Main thread only.</summary>
+public sealed class LoadSettled
+{
+    bool _settled;
+
+    public bool Update(bool entered, int modelsDone, int modelsTotal)
+    {
+        if (_settled || !entered || modelsDone < modelsTotal) return false;
+        return _settled = true;
+    }
+}
