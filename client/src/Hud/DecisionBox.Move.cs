@@ -93,14 +93,14 @@ public partial class DecisionBox
         _onEnter = Commit;
         // Any ghost out of range is counted and each contact named, only while it holds; under strict the commit and the stop wait until none is.
         var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
-        var commit = DecisionTiles.Action("Commit", DecisionCard.Enter, Commit, primary: true, icon: "ready"); Foot(commit);
+        var commit = Act("Commit", DecisionCard.Enter, Commit, primary: true, icon: "ready"); Foot(commit);
         Button? stop = null;
         if (legal.Stoppable && !MoveRuler.IsDisembark(legal))
         {
             void Stop() => Relocate(true);
             _onStop = Stop;
             var word = DecisionView.StopLabel(p, legal)!;
-            Foot(stop = DecisionTiles.Action(word, DecisionCard.Stop, Stop, icon: word.StartsWith("Cast", StringComparison.Ordinal) ? "cast" : "hold"));
+            Foot(stop = Act(word, DecisionCard.Stop, Stop, icon: word.StartsWith("Cast", StringComparison.Ordinal) ? "cast" : "hold"));
         }
         _regate = () =>
         {
@@ -257,7 +257,7 @@ public partial class DecisionBox
         _onCancel = () => { Reset(); Render(); return true; };                    // Reset drops _deployUnit, so Render arms a fresh click
         // A ghost on another model's base is named, only while it holds; under strict Place waits until none is.
         var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
-        var place = DecisionTiles.Action("Place", DecisionCard.Enter, PlaceDeploy, primary: true, icon: "ready"); Foot(place);
+        var place = Act("Place", DecisionCard.Enter, PlaceDeploy, primary: true, icon: "ready"); Foot(place);
         _regate = () =>
         {
             if (_deployAt is not { } at || _s.Projection is not { } p || _s.Game is not { } game || !IsInstanceValid(place)) return;

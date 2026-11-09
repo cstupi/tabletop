@@ -73,6 +73,7 @@ public partial class DecisionBox : PanelContainer
         _body.AddThemeConstantOverride("separation", 12); _inset.AddChild(_body);
         _foot.AddThemeConstantOverride("h_separation", 10); _foot.AddThemeConstantOverride("v_separation", 8);
         _reveal.AddThemeConstantOverride("h_separation", 8); _reveal.AddThemeConstantOverride("v_separation", 6);
+        _choices.AddThemeConstantOverride("separation", 10);
         foreach (var c in new Control[] { _reveal, _prompt, _note, _scroll, _refusalLabel, _foot }) _body.AddChild(c);
         _reveal.Visible = false;                                                    // an empty row still takes the body's separation: a gap above the first line
         _quiet.AddThemeConstantOverride("separation", 6);
@@ -107,7 +108,11 @@ public partial class DecisionBox : PanelContainer
     }
 
     /// <summary>A theme change: the head and the bands are drawn again in the new theme's colours and icons.</summary>
-    void Restyle() { _keys.Icon = Ui.Icon("key"); var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null; }
+    void Restyle()
+    {
+        _acts.Clear();                                                                       // the next Ask makes its actions in the new theme; Reset frees the old
+        foreach (var g in _choices.GetChildren().OfType<DecisionTiles.OptionPanel>()) DecisionTiles.Restyle(g);
+        _keys.Icon = Ui.Icon("key"); var h = _head; _head = default; if (h.Head is { } head) Head(head, h.Ordinal); _quietKey = ""; _revealDrawn = null; _framed = null; }
 
     /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
     public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Bottom(this, slot); }
@@ -164,7 +169,7 @@ public partial class DecisionBox : PanelContainer
         _seat.Text = card ? Seats.PlayingAs(_s.Game!, _s.MyTeamIds, _s.MyTeamId) is not null ? $"Team {MyOrdinal}" : "" : "";
         _seat.Visible = _seat.Text != "";
         DrawReveal();
-        _foot.Visible = _foot.GetChildCount() > 0;
+        _foot.Visible = _foot.GetChildren().OfType<Control>().Any(c => c.Visible);
         SyncScroll();
         var body = card || _refusal is not null || _revealed is not null || _note.Text != "";
         _inset.Visible = body;
@@ -229,7 +234,7 @@ public partial class DecisionBox : PanelContainer
         if (model.AutoPass && _refusal is null)   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
         {
             Send(mine.Ask, new Passed()); _note.Text = $"Auto-passed: {mine.Ask.WindowKind!.Replace('_', ' ')}";
-            Foot(DecisionTiles.Action("Unmute", "", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!))));
+            Foot(Act("Unmute", "", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!))));
             return;
         }
         switch (mine.Mode)
@@ -239,12 +244,12 @@ public partial class DecisionBox : PanelContainer
             case AskMode.TokenSpend: RenderSpend(mine, p, names); break;
             case AskMode.Confirm:                                               // "Continue" for a step gate, "End the round" at the round boundary
                 _onEnter = () => Send(mine.Ask, new Confirmed());
-                Foot(DecisionTiles.Action(AskViewModel.ConfirmLabel(mine.Ask), DecisionCard.Enter, _onEnter, primary: true, icon: "ready"));
+                Foot(Act(AskViewModel.ConfirmLabel(mine.Ask), DecisionCard.Enter, _onEnter, primary: true, icon: "ready"));
                 break;
             default: RenderPicks(mine, p, names); break;                       // PickPieces, Assign, Allocate
         }
-        if (mine.Ask.AllowPass) Foot(DecisionTiles.Action(mine.Ask.Question == AskQuestions.ActOrEndPhase ? "End phase" : "Pass", "", () => Send(mine.Ask, new Passed())));
-        if (mine.Ask.WindowKind is { } kind) Foot(DecisionTiles.Action($"Mute {kind.Replace('_', ' ')}", "", () => _s.UpdateSettings(x => x.Mute(kind))));
+        if (mine.Ask.AllowPass) Foot(Act(mine.Ask.Question == AskQuestions.ActOrEndPhase ? "End phase" : "Pass", "", () => Send(mine.Ask, new Passed())));
+        if (mine.Ask.WindowKind is { } kind) Foot(Act($"Mute {kind.Replace('_', ' ')}", "", () => _s.UpdateSettings(x => x.Mute(kind))));
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 
@@ -257,30 +262,29 @@ public partial class DecisionBox : PanelContainer
     void RenderChoose(AskView mine, Projection p0, GameInfo game, Names names)
     {
         var options = (Options)mine.Ask.Legal; var all = options.Choices;
-        var list = new VBoxContainer(); list.AddThemeConstantOverride("separation", 10); Add(list);
+        Add(_choices);
         var narrowed = false;
         var full = _numbered;
+        _onTile = option => Send(mine.Ask, new Chosen(option));
         void Show(IReadOnlyList<AskOption> shown, IReadOnlyList<(int Key, string Label, string OptionId)> numbered)
         {
-            if (!IsInstanceValid(list)) return;
+            if (!IsInstanceValid(_choices)) return;
             if (_lit is not null) Light(null);
-            foreach (var c in list.GetChildren()) { list.RemoveChild(c); c.QueueFree(); }
             _numbered = numbered;
             var p = _s.Projection ?? p0;
+            var groups = ChoiceGroups.Begin();
             foreach (var group in DecisionCard.Groups(mine.Ask, shown, numbered, p, game, names, _s.MaxWounds))
             {
-                var grid = DecisionTiles.Grid(group.Tiles.Count);
+                var tiles = DecisionTiles.Fill(groups.Take("group", () => new DecisionTiles.OptionPanel()), group);
                 foreach (var tile in group.Tiles)
                 {
-                    var t = tile;
-                    var b = DecisionTiles.Tile(t, () => Send(mine.Ask, new Chosen(t.OptionId)));
-                    if (mine.Ask.Question == "cast" && SpellText.OfOption(_s.Rules, t.OptionId, t.Label) is { } tip) b.TooltipText = tip;
-                    b.MouseEntered += () => Light(t.Pieces);
-                    b.MouseExited += () => Light(null);
-                    grid.AddChild(b);
+                    var b = tiles.Take("tile", ChoiceTile);
+                    DecisionTiles.Fill(b, tile);
+                    if (mine.Ask.Question == "cast" && SpellText.OfOption(_s.Rules, tile.OptionId, tile.Label) is { } tip) Look.Tip(b, tip);
                 }
-                list.AddChild(group.Unit is null && group.Note is null ? grid : DecisionTiles.Group(group, grid));
+                tiles.End();
             }
+            groups.End();
         }
         Show(all, full);
         _onNumber = option => Send(mine.Ask, new Chosen(option));
@@ -352,7 +356,7 @@ public partial class DecisionBox : PanelContainer
         }
         void Spend() => Send(mine.Ask, AskAnswers.Spent(spends.ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)));
         _onEnter = Spend;
-        Foot(DecisionTiles.Action("Spend", DecisionCard.Enter, Spend, primary: true, icon: "cast"));
+        Foot(Act("Spend", DecisionCard.Enter, Spend, primary: true, icon: "cast"));
         if (mine.AnsweredTeams.Count > 0) _note.Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered"));
     }
 
@@ -408,7 +412,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The open Ask's handlers and table state, dropped whenever it ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>
     void Unhook()
     {
-        _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _onDeselect = null; _glow.Clear();
+        _onTile = null; _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _onDeselect = null; _glow.Clear();
         if (_lit is not null && IsInstanceValid(_view)) Light(null);                 // a button freed under the pointer never hears its exit
         _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.Violations.Clear();   // a refused commit's marks come back with its ghosts (ApplyVerdict)
@@ -424,7 +428,14 @@ public partial class DecisionBox : PanelContainer
     void Reset()
     {
         Unhook(); _numbered = [];
-        foreach (var parent in new Node[] { _controls, _foot }) foreach (var c in parent.GetChildren()) { parent.RemoveChild(c); c.QueueFree(); }
+        // The option tiles and the foot's actions stand for the next Ask, hidden; whatever else the Ask made goes.
+        foreach (var parent in new Node[] { _controls, _foot })
+            foreach (var child in parent.GetChildren())
+            {
+                if (child is not Control c) continue;
+                if (Standing(c)) { c.Visible = false; continue; }
+                parent.RemoveChild(c); c.QueueFree();
+            }
         if (_view is not null && IsInstanceValid(_view)) foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null);
     }
 
@@ -432,7 +443,45 @@ public partial class DecisionBox : PanelContainer
     /// <summary>Into the card's body, which scrolls.</summary>
     /// <summary>A control added hidden (a gate line until a reason holds) shows or hides the scroll with it: an empty scroll still takes the
     /// body's separation, a gap above the foot.</summary>
-    void Add(Control c) { _controls.AddChild(c); c.VisibilityChanged += SyncScroll; }
+    void Add(Control c)
+    {
+        if (c.GetParent() == _controls) { _controls.MoveChild(c, -1); c.Visible = true; return; }   // a standing control, hooked when first added
+        _controls.AddChild(c); c.VisibilityChanged += SyncScroll;
+    }
+
+    /// <summary>Kept across Asks: the option tiles' list and the pooled foot actions in the current theme.</summary>
+    bool Standing(Control c) => c == _choices || c is Button b && _acts.ContainsValue(b);
+
+    /// <summary>The option tiles' list, its groups and their tiles kept from one Ask to the next (Kept): an activation's Ask sets them again.</summary>
+    readonly VBoxContainer _choices = new();
+    Kept? _choiceGroupsKept;
+    Kept ChoiceGroups => _choiceGroupsKept ??= new Kept(_choices);
+    Action<string>? _onTile;
+
+    DecisionTiles.ChoiceTile ChoiceTile()
+    {
+        var b = new DecisionTiles.ChoiceTile();
+        b.Pressed += () => { if (b.Option is { } o) _onTile?.Invoke(o.OptionId); };
+        b.MouseEntered += () => { if (b.Option is { } o) Light(o.Pieces); };
+        b.MouseExited += () => Light(null);
+        return b;
+    }
+
+    /// <summary>A card's action (DecisionTiles.Action), pooled by its look: the next Ask with the same action takes the same button, pressing this Ask's handler.</summary>
+    readonly Dictionary<string, Button> _acts = new(); readonly Dictionary<Button, Action> _actPressed = new();
+    Button Act(string text, string key, Action pressed, bool primary = false, string? icon = null)
+    {
+        var id = $"{text}\u001f{key}\u001f{primary}\u001f{icon}";
+        if (!_acts.TryGetValue(id, out var b) || !IsInstanceValid(b))
+        {
+            Button made = null!;
+            made = DecisionTiles.Action(text, key, () => { if (_actPressed.TryGetValue(made, out var a)) a(); }, primary, icon);
+            _acts[id] = b = made;
+        }
+        _actPressed[b] = pressed;
+        b.Disabled = false; b.TooltipText = "";
+        return b;
+    }
 
     void SyncScroll()
     {
@@ -440,5 +489,9 @@ public partial class DecisionBox : PanelContainer
         _scroll.Visible = _controls.GetChildren().OfType<Control>().Any(c => c.Visible);
     }
     /// <summary>Into the card's foot: its actions, the primary first.</summary>
-    void Foot(Control c) => _foot.AddChild(c);
+    void Foot(Control c)
+    {
+        if (c.GetParent() == _foot) _foot.MoveChild(c, -1); else _foot.AddChild(c);
+        c.Visible = true;
+    }
 }

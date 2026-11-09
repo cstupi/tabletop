@@ -6,7 +6,7 @@ namespace Tabletop.Client.Hud;
 
 /// <summary>The decision card's parts (UX redesign part 2 → Decision box): buttons with their key cap inside, option tiles, a unit's group,
 /// the allowance bar, a team's band and chip. Each draws a Core value with the shared Variations; nothing here decides.</summary>
-public static class DecisionTiles
+public static partial class DecisionTiles
 {
     /// <summary>A key cap: the key boxed in the numeral font. Empty for no key.</summary>
     public static Label Cap(string key) => new() { Text = key, ThemeTypeVariation = Variation.KeyCap, VerticalAlignment = VerticalAlignment.Center, Visible = key != "",
@@ -54,28 +54,47 @@ public static class DecisionTiles
         return b;
     }
 
-    /// <summary>An option tile: its icon over its word, its key cap in the top corner.</summary>
-    public static Button Tile(OptionTile tile, Action pressed, int minWidth = 96)
+    /// <summary>An option tile: its icon over its word, its key cap in the top corner. Made once and set by Fill, so the decision box keeps its
+    /// tiles from one Ask to the next.</summary>
+    public sealed partial class ChoiceTile : Button
     {
-        var b = new Button { FocusMode = Control.FocusModeEnum.None, ThemeTypeVariation = Variation.Tile, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-            CustomMinimumSize = new Vector2(minWidth, 0), TooltipText = tile.Label };
-        var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
-        col.AddThemeConstantOverride("separation", 4);
-        if (tile.Icon is not null) { var i = Icon(tile.Icon, 26); i.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter; col.AddChild(i); }
-        col.AddChild(new Label { Text = tile.Word, HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(minWidth - 24, 0) });
-        Holding(b, col, 10, 10);
-        if (DecisionCard.KeyCap(tile.Key) is { Length: > 0 } key)
+        public readonly TextureRect Picture = DecisionTiles.Icon(null, 26);
+        public readonly Label Word = new() { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = MouseFilterEnum.Ignore };
+        public readonly Label Key = DecisionTiles.Cap("");
+        /// <summary>What the tile stands for now, read by the handlers the decision box wires once.</summary>
+        public OptionTile? Option;
+
+        public ChoiceTile() : this(96) { }
+
+        public ChoiceTile(int minWidth)
         {
-            var cap = Cap(key);
-            cap.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
-            cap.GrowHorizontal = Control.GrowDirection.Begin;
-            cap.Position = new Vector2(-4, 4);
-            b.AddChild(cap);
-            b.Resized += () => { if (GodotObject.IsInstanceValid(cap)) cap.Position = new Vector2(b.Size.X - cap.Size.X - 5, 5); };
+            FocusMode = FocusModeEnum.None; ThemeTypeVariation = Variation.Tile; SizeFlagsHorizontal = SizeFlags.ExpandFill; CustomMinimumSize = new Vector2(minWidth, 0);
+            var col = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
+            col.AddThemeConstantOverride("separation", 4);
+            Picture.SizeFlagsHorizontal = SizeFlags.ShrinkCenter; col.AddChild(Picture);
+            Word.CustomMinimumSize = new Vector2(minWidth - 24, 0); col.AddChild(Word);
+            DecisionTiles.Holding(this, col, 10, 10);
+            Key.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
+            Key.GrowHorizontal = GrowDirection.Begin;
+            Key.Position = new Vector2(-4, 4);
+            AddChild(Key);
+            Resized += () => Key.Position = new Vector2(Size.X - Key.Size.X - 5, 5);
         }
-        b.Pressed += pressed;
-        return b;
+    }
+
+    /// <summary>Sets a tile to an option: its icon, word, key cap and tooltip.</summary>
+    public static void Fill(ChoiceTile b, OptionTile tile)
+    {
+        b.Option = tile;
+        Look.Tip(b, tile.Label);
+        var picture = tile.Icon is null ? null : Ui.Icon(tile.Icon);
+        if (!ReferenceEquals(b.Picture.Texture, picture)) b.Picture.Texture = picture;
+        b.Picture.Visible = picture is not null;
+        if (b.Picture.SelfModulate != Ui.Text) b.Picture.SelfModulate = Ui.Text;
+        Look.Text(b.Word, tile.Word);
+        var key = DecisionCard.KeyCap(tile.Key) ?? "";
+        Look.Text(b.Key, key, Variation.KeyCap); b.Key.Visible = key.Length > 0;
+        if (b.Disabled) b.Disabled = false;
     }
 
     /// <summary>Tiles in rows of up to four.</summary>
@@ -86,25 +105,59 @@ public static class DecisionTiles
         return g;
     }
 
-    /// <summary>A unit's group: its team's left edge, its name and pips, its tiles, and the note once under them.</summary>
-    public static PanelContainer Group(OptionGroup group, Control tiles)
+    /// <summary>A unit's group: its team's left edge, its name and pips, its tiles, and the note once under them; a run of options naming no
+    /// one unit is its tiles alone. Made once and set by Fill.</summary>
+    public sealed partial class OptionPanel : PanelContainer
     {
-        var panel = new PanelContainer(); panel.AddThemeStyleboxOverride("panel", Ui.TeamColumn(group.TeamOrdinal));
-        var inset = new MarginContainer();
-        foreach (var side in new[] { "left", "right", "top", "bottom" }) inset.AddThemeConstantOverride($"margin_{side}", 10);
-        inset.AddThemeConstantOverride("margin_left", 14);
-        panel.AddChild(inset);
-        var col = new VBoxContainer(); col.AddThemeConstantOverride("separation", 8); inset.AddChild(col);
-        if (group.Unit is { } unit)
+        public readonly HBoxContainer Head = new();
+        public readonly Label Unit = new() { ThemeTypeVariation = Variation.Display, ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis },
+            Pips = new() { VerticalAlignment = VerticalAlignment.Center },
+            Note = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        public readonly GridContainer Tiles = Grid(1);
+        public readonly MarginContainer Inset = new();
+        public readonly Kept Kept;
+        public int? Ordinal;
+
+        public OptionPanel()
         {
-            var head = new HBoxContainer(); head.AddThemeConstantOverride("separation", 10); col.AddChild(head);
-            head.AddChild(new Label { Text = unit, ThemeTypeVariation = Variation.Display, ClipText = true, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis });
-            if (group.Pips is { } pips) head.AddChild(Pips(pips, group.TeamOrdinal));
+            Kept = new(Tiles);
+            foreach (var side in new[] { "left", "right", "top", "bottom" }) Inset.AddThemeConstantOverride($"margin_{side}", 10);
+            Inset.AddThemeConstantOverride("margin_left", 14);
+            AddChild(Inset);
+            var col = new VBoxContainer(); col.AddThemeConstantOverride("separation", 8); Inset.AddChild(col);
+            Head.AddThemeConstantOverride("separation", 10); col.AddChild(Head);
+            Head.AddChild(Unit); Head.AddChild(Pips);
+            col.AddChild(Tiles); col.AddChild(Note);
         }
-        col.AddChild(tiles);
-        if (group.Note is { } note) col.AddChild(new Label { Text = note, ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
-        return panel;
     }
+
+    static readonly StyleBoxEmpty Bare = new();
+
+    /// <summary>Sets a group: framed in its team's column with its name, pips and note when it names a unit or carries a note, else bare tiles.
+    /// Returns the tiles' kept children for the caller to fill.</summary>
+    public static Kept Fill(OptionPanel panel, OptionGroup group)
+    {
+        var framed = group.Unit is not null || group.Note is not null;
+        int? ordinal = framed ? group.TeamOrdinal : null;
+        if (panel.Ordinal != ordinal || !panel.HasThemeStyleboxOverride("panel"))
+        {
+            panel.Ordinal = ordinal;
+            panel.AddThemeStyleboxOverride("panel", ordinal is { } o ? Ui.TeamColumn(o) : Bare);
+            foreach (var side in new[] { "left", "right", "top", "bottom" }) panel.Inset.AddThemeConstantOverride($"margin_{side}", framed ? side == "left" ? 14 : 10 : 0);
+        }
+        panel.Head.Visible = group.Unit is not null;
+        if (group.Unit is { } unit) Look.Text(panel.Unit, unit, Variation.Display);
+        panel.Pips.Visible = group.Pips is not null;
+        if (group.Pips is { } pips) { Look.Text(panel.Pips, pips); Look.Ink(panel.Pips, group.TeamOrdinal > 0 ? Ui.Team(group.TeamOrdinal) : Ui.Text); }
+        panel.Note.Visible = group.Note is not null;
+        if (group.Note is { } note) Look.Text(panel.Note, note, Variation.Warning);
+        var columns = Math.Clamp(group.Tiles.Count, 1, 4);
+        if (panel.Tiles.Columns != columns) panel.Tiles.Columns = columns;
+        return panel.Kept.Begin();
+    }
+
+    /// <summary>Forgets the cached frame, so the next Fill sets it in the current theme.</summary>
+    public static void Restyle(OptionPanel panel) => panel.Ordinal = -1;
 
     public static Label Pips(string pips, int ordinal)
     {

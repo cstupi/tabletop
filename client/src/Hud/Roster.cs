@@ -53,8 +53,8 @@ public partial class Roster : PanelContainer
     readonly Dictionary<Guid, (Control Header, Control Spacer)> _teams = new();
     Dictionary<Guid, (Control Line, Control? Chips)> _lines = new();
 
-    /// <summary>A render keeps every row whose content and selection stand (RosterView.Keep), builds the rest and puts the list in order; a new team
-    /// line or the collapse rebuilds it. A selection or an activation (which re-sorts the rows) rebuilds two rows, not the list.</summary>
+    /// <summary>A render keeps every row whose content and selection stand (RosterView.Keep), sets the rest again on their standing controls (a new unit's
+    /// row is made) and puts the list in order; a new team line or the collapse rebuilds it. A selection or an activation sets two rows.</summary>
     void Render()
     {
         Visible = _s.Projection is not null && _s.Game is not null;
@@ -69,7 +69,8 @@ public partial class Roster : PanelContainer
             for (var r = 0; r < teams[t].Rows.Count; r++)
             {
                 var (unit, kept) = keep[t][r];
-                if (!kept || !_lines.TryGetValue(unit, out var drawn)) drawn = Row(teams[t].Rows[r]);
+                if (!_lines.TryGetValue(unit, out var drawn)) drawn = Row(teams[t].Rows[r]);
+                else if (!kept) Fill((RowControls)drawn.Line, teams[t].Rows[r]);   // a changed row is set again in place
                 next[unit] = drawn; order.Add(drawn.Line); if (drawn.Chips is not null) order.Add(drawn.Chips);
             }
             order.Add(spacer);
@@ -129,64 +130,109 @@ public partial class Roster : PanelContainer
 
     static readonly bool Touch = DisplayServer.IsTouchscreenAvailable();
 
-    (Control Line, Control? Chips) Row(RosterRow row)
+    /// <summary>A unit's row, made once per unit and set by Fill whenever what it shows changes: the frame lit at its edge when selected, ▶ on the
+    /// acting unit, the name, the mark, the wound pips, the condition icons, the ▸ menu; under it the chip line (where an off-table unit is, and the
+    /// conditions the theme draws no icon for), hidden when empty.</summary>
+    sealed partial class RowControls : PanelContainer
     {
-        var frame = new PanelContainer { MouseFilter = MouseFilterEnum.Stop, TooltipText = row.Name };
-        var edge = new StyleBoxFlat { BgColor = row.UnitId == _selected ? Ui.Accent with { A = 0.12f } : Ui.Accent with { A = 0 }, BorderColor = Ui.Accent };
-        edge.BorderWidthLeft = row.UnitId == _selected ? 3 : 0; edge.ContentMarginLeft = 6; edge.ContentMarginRight = 2; edge.ContentMarginTop = edge.ContentMarginBottom = 1;
-        frame.AddThemeStyleboxOverride("panel", edge);
-        var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; line.AddThemeConstantOverride("separation", 8); frame.AddChild(line);
-        var v = row.OffTable ? Variation.Dim : "";   // off the table: dimmed
-        var acting = new Label { Text = row.Acting ? "▶" : "", CustomMinimumSize = new Vector2(14, 0), MouseFilter = MouseFilterEnum.Ignore };
-        acting.AddThemeColorOverride("font_color", Ui.Accent); line.AddChild(acting);
-        line.AddChild(new Label { Text = row.Name, ThemeTypeVariation = v, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
-            SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore });
-        line.AddChild(Mark(row.Mark));
-        line.AddChild(new Label { Text = PipsOf(row), ThemeTypeVariation = v, MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(48, 0), HorizontalAlignment = HorizontalAlignment.Right });
-        var conditions = new HBoxContainer { CustomMinimumSize = new Vector2(20, 0), MouseFilter = MouseFilterEnum.Ignore }; line.AddChild(conditions);
-        foreach (var c in row.Conditions.Where(c => Ui.Icon(c) is not null)) conditions.AddChild(Icon(c));   // an icon with a tooltip; a condition without one goes on the chip line
-        var id = row.UnitId;
-        var menu = new Button { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None, TooltipText = "Unit menu",
-            Modulate = Touch ? HudBits.Plain : HudBits.Plain with { A = 0 }, Visible = !_s.IsWatching };
-        menu.Pressed += () => UnitMenuRequested?.Invoke(id, menu.GlobalPosition + new Vector2(menu.Size.X, 0));
-        line.AddChild(menu);
-        if (!Touch)
+        public readonly StyleBoxFlat Edge = new() { ContentMarginLeft = 6, ContentMarginRight = 2, ContentMarginTop = 1, ContentMarginBottom = 1 };
+        public readonly Label Acting = new() { Text = "▶", CustomMinimumSize = new Vector2(14, 0), MouseFilter = MouseFilterEnum.Ignore },
+            Title = new() { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore },
+            MarkText = new() { HorizontalAlignment = HorizontalAlignment.Center, CustomMinimumSize = new Vector2(16, 0), MouseFilter = MouseFilterEnum.Pass },
+            Pips = new() { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(48, 0), HorizontalAlignment = HorizontalAlignment.Right };
+        public readonly TextureRect MarkIcon = HudBits.Icon("activated", HudBits.Plain, 16, "Activated");
+        public readonly HBoxContainer Conditions = new() { CustomMinimumSize = new Vector2(20, 0), MouseFilter = MouseFilterEnum.Ignore };
+        public readonly Button Menu = new() { Text = "▸", Flat = true, ThemeTypeVariation = Variation.FlatButton, FocusMode = FocusModeEnum.None, TooltipText = "Unit menu" };
+        public readonly MarginContainer ChipLine = new() { MouseFilter = MouseFilterEnum.Stop };
+        public readonly HFlowContainer Chips = new() { MouseFilter = MouseFilterEnum.Ignore };
+        public readonly Kept ConditionKids, ChipKids;
+        public Guid UnitId;
+        public Roster? Owner;
+
+        public RowControls()
         {
-            frame.MouseEntered += () => menu.Modulate = HudBits.Plain;
-            frame.MouseExited += () => { if (!frame.GetGlobalRect().HasPoint(frame.GetGlobalMousePosition())) menu.Modulate = HudBits.Plain with { A = 0 }; };
+            ConditionKids = new(Conditions); ChipKids = new(Chips);
+            MouseFilter = MouseFilterEnum.Stop;
+            AddThemeStyleboxOverride("panel", Edge);
+            var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; line.AddThemeConstantOverride("separation", 8); AddChild(line);
+            MarkIcon.MouseFilter = MouseFilterEnum.Pass;
+            foreach (var c in new Control[] { Acting, Title, MarkIcon, MarkText, Pips, Conditions, Menu }) line.AddChild(c);
+            Menu.Modulate = Touch ? HudBits.Plain : HudBits.Plain with { A = 0 };
+            Menu.Pressed += () => Owner?.UnitMenuRequested?.Invoke(UnitId, Menu.GlobalPosition + new Vector2(Menu.Size.X, 0));
+            if (!Touch)
+            {
+                MouseEntered += () => Menu.Modulate = HudBits.Plain;
+                MouseExited += () => { if (!GetGlobalRect().HasPoint(GetGlobalMousePosition())) Menu.Modulate = HudBits.Plain with { A = 0 }; };
+            }
+            GuiInput += Clicked;
+            ChipLine.AddThemeConstantOverride("margin_left", 28);   // the chip line is the row's too
+            ChipLine.GuiInput += Clicked; ChipLine.AddChild(Chips);
         }
+
         void Clicked(InputEvent e)
         {
-            if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) UnitPicked?.Invoke(id);
-            else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) UnitMenuRequested?.Invoke(id, b.GlobalPosition);
+            if (Owner is not { } roster) return;
+            if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) roster.UnitPicked?.Invoke(UnitId);
+            else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) roster.UnitMenuRequested?.Invoke(UnitId, b.GlobalPosition);
         }
-        frame.GuiInput += Clicked;
+
+    }
+
+    (Control Line, Control? Chips) Row(RosterRow row)
+    {
+        var c = new RowControls { Owner = this };
+        Fill(c, row);
+        return (c, c.ChipLine);
+    }
+
+    void Fill(RowControls c, RosterRow row)
+    {
+        c.UnitId = row.UnitId;
+        var selected = row.UnitId == _selected;
+        var bg = Ui.Accent with { A = selected ? 0.12f : 0 };
+        if (c.Edge.BgColor != bg) c.Edge.BgColor = bg;
+        if (c.Edge.BorderColor != Ui.Accent) c.Edge.BorderColor = Ui.Accent;
+        var edge = selected ? 3 : 0;
+        if (c.Edge.BorderWidthLeft != edge) c.Edge.BorderWidthLeft = edge;
+        Look.Tip(c, row.Name);
+        var v = row.OffTable ? Variation.Dim : "";   // off the table: dimmed
+        Look.Text(c.Acting, row.Acting ? "▶" : ""); Look.Ink(c.Acting, Ui.Accent);
+        Look.Text(c.Title, row.Name, v);
+        Mark(c, row.Mark);
+        Look.Text(c.Pips, PipsOf(row), v);
+        var conditions = c.ConditionKids.Begin();
+        foreach (var k in row.Conditions.Where(k => Ui.Icon(k) is not null))   // an icon with a tooltip; a condition without one goes on the chip line
+        {
+            var icon = conditions.Take("icon", () => new TextureRect { MouseFilter = MouseFilterEnum.Pass, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new Vector2(16, 16) });
+            var texture = Ui.Icon(k); if (!ReferenceEquals(icon.Texture, texture)) icon.Texture = texture;
+            Look.Tip(icon, RosterView.Words(k));
+        }
+        conditions.End();
+        c.Menu.Visible = !_s.IsWatching;
         // Where an off-table unit is, and the conditions the theme draws no icon for, on their own line under the name so a long chip
         // never squeezes the name: inside a Transport (passengers spec), or held off the table until its property places it.
-        var words = row.Conditions.Where(c => Ui.Icon(c) is null).ToList();
-        if (row.Inside is null && row.Reserve is null && words.Count == 0) return (frame, null);
-        var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore };
-        foreach (var c in words) chips.AddChild(Chip(RosterView.Words(c)));
-        if (row.Inside is { } transport) chips.AddChild(Chip($"in {transport}"));
-        if (row.Reserve is { } reserve) chips.AddChild(Chip(reserve));
-        var indent = new MarginContainer { MouseFilter = MouseFilterEnum.Stop }; indent.AddThemeConstantOverride("margin_left", 28);   // the chip line is the row's too
-        indent.GuiInput += Clicked; indent.AddChild(chips);
-        return (frame, indent);
+        var chips = c.ChipKids.Begin();
+        void Chip(string text) => Look.Text((Label)chips.Take("chip", () => Roster.Chip("")).GetChild(0), text);
+        foreach (var k in row.Conditions.Where(k => Ui.Icon(k) is null)) Chip(RosterView.Words(k));
+        if (row.Inside is { } transport) Chip($"in {transport}");
+        if (row.Reserve is { } reserve) Chip(reserve);
+        c.ChipLine.Visible = chips.End() > 0;
     }
 
     /// <summary>○ may still act, ✓ (the activated icon) activated, — off the table.</summary>
-    static Control Mark(RosterMark mark)
+    static void Mark(RowControls c, RosterMark mark)
     {
-        Control c = mark switch
+        var icon = mark == RosterMark.Activated && Ui.Icon("activated") is not null;
+        c.MarkIcon.Visible = icon; c.MarkText.Visible = !icon;
+        if (icon) { Look.Icon(c.MarkIcon, "activated", HudBits.Plain); return; }
+        var (text, variation, tip) = mark switch
         {
-            RosterMark.Activated when Ui.Icon("activated") is not null => HudBits.Icon("activated", HudBits.Plain, 16, "Activated"),
-            RosterMark.Activated => new Label { Text = "✓", ThemeTypeVariation = Variation.Success, TooltipText = "Activated" },
-            RosterMark.MayAct => new Label { Text = "○", TooltipText = "Not yet activated" },
-            _ => new Label { Text = "—", ThemeTypeVariation = Variation.Dim, TooltipText = "Off the table" },
+            RosterMark.Activated => ("✓", Variation.Success, "Activated"),
+            RosterMark.MayAct => ("○", "", "Not yet activated"),
+            _ => ("—", Variation.Dim, "Off the table"),
         };
-        c.MouseFilter = MouseFilterEnum.Pass;
-        if (c is Label l) { l.HorizontalAlignment = HorizontalAlignment.Center; l.CustomMinimumSize = new Vector2(16, 0); }
-        return c;
+        Look.Text(c.MarkText, text, variation); Look.Tip(c.MarkText, tip);
     }
 
     /// <summary>The theme's icon for a condition name or marker kind, else a text chip of the name.</summary>
