@@ -65,10 +65,13 @@ public static partial class GfMoves
                     // A stop is offered when the checkpoint after it has something for the mover now; an Aircraft's one segment never stops.
                     var contact = ContactWith(ctx, target);
                     var stoppable = !aircraft &&ctx.Rules.ReactionsAt(ctx.State, ctx.Properties, GfNames.BeforeAttacking, ctx.Frame).Any(r => r.TeamId == ctx.ActorTeam);
-                    return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
-                        new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
-                            ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
-                            contact, contact is null ? null : GfNames.ChargeContactGrace, steep), allowPass: !aircraft)]);
+                    var region = new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
+                        ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
+                        contact, contact is null ? null : GfNames.ChargeContactGrace, steep);
+                    // p.9: "Charging models must move by up to 12” to get into base contact"; p.7: only when "being within charge distance becomes
+                    // impossible" may the unit "complete its move in any direction". So a charge that can still reach contact has no pass.
+                    var mayPass = !aircraft && ChargeContactBreach(ctx.State, region, null) is null;
+                    return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value, region, allowPass: mayPass)]);
                 case 0:
                 {
                     var answered = ctx.History.LastClosed("move")!;

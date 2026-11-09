@@ -84,10 +84,12 @@ public partial class Main : Node
 
     void ApplyTheme()
     {
-        Ui.Apply(UiThemes.Resolve(Session.Settings.Theme));
-        GetTree().Root.Theme = Ui.Theme;
-        if (_screen is Control c) c.Theme = Ui.Theme;
-        RenderingServer.SetDefaultClearColor(Ui.Of(Ui.Current.Background));
+        Ui.Apply(UiThemes.Resolve(Session.Settings.Theme), theme =>
+        {
+            GetTree().Root.Theme = theme;
+            if (_screen is Control c) c.Theme = theme;
+            RenderingServer.SetDefaultClearColor(Ui.Of(Ui.Current.Background));
+        });
     }
 
     async Task Boot()

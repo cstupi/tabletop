@@ -305,6 +305,19 @@ describe('the decision box controller', () => {
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'passed' });
   });
 
+  it('a charge move Ask offers Pass only when the server allows one', () => {
+    const r = rig();
+    const charge = (allowPass: boolean): LegalSet => ({ kind: 'move_region', modelIds: [r.s.model.id], allowance: 12, impassableVolumeIds: [], difficultVolumeIds: [],
+      stoppable: false, passesModels: false, ignoresTerrain: false, contactWith: [r.s.rival.id], contactGrace: 0.5 });
+    r.apply(open(askOf(charge(false), { question: 'move', prompt: 'Charge: move into contact', allowPass: false })));
+    r.box.render();
+    expect(r.button('pass')).toBeUndefined();
+    const s2 = rig();
+    s2.apply(open(askOf(charge(true), { question: 'move', prompt: 'Charge: move into contact', allowPass: true })));
+    s2.box.render();
+    expect(s2.button('pass')).toBeDefined();
+  });
+
   it('a muted window auto-passes once and offers Unmute', () => {
     const r = rig({ settings: { ...DEFAULT_SETTINGS, mutedWindowKinds: ['casting'] } });
     r.apply(open(askOf(opts(option('a', 'Advance')), { windowKind: 'casting', allowPass: true })));

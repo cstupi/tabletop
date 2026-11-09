@@ -112,7 +112,7 @@ public class GfChargeContactTests
     }
 
     [Fact]
-    public void Under_strict_a_charge_move_that_stops_short_of_reachable_contact_or_passes_is_refused()
+    public void Under_strict_a_charge_move_that_stops_short_of_reachable_contact_is_refused()
     {
         var sim = Charging(Enforcement.Strict, out var charger, out _);
         var none = new Destinations([At(sim, charger.Models[0].Id, 20, 24), At(sim, charger.Models[1].Id, 20, 25.5)]);
@@ -122,7 +122,35 @@ public class GfChargeContactTests
         Assert.Equal(RefusalReason.Illegal, refused.Reason);
         Assert.Equal("no charging model reached base contact with Berserkers: charging models must move to get into base contact with an enemy model from the target unit", refused.Detail);
         Assert.IsType<Refused>(Answer(sim, new Destinations([At(sim, charger.Models[0].Id, 24, 24)])));
+    }
+
+    [Fact]
+    public void A_charge_that_can_reach_contact_offers_no_pass()
+    {
+        // p.9: "Charging models must move by up to 12” to get into base contact with an enemy model from the target unit".
+        var sim = Charging(Enforcement.Strict, out _, out _);
+        Assert.False(sim.AskFor(Samples.Team1).AllowPass);
         Assert.IsType<Refused>(Answer(sim, new Passed()));
+        var warned = Charging(Enforcement.Warn, out _, out _);
+        Assert.False(warned.AskFor(Samples.Team1).AllowPass);
+        Assert.NotNull(Assert.IsType<Applied>(Answer(warned, new Passed())).Warning);
+    }
+
+    [Fact]
+    public void A_charge_that_can_no_longer_reach_contact_may_pass()
+    {
+        // p.7: "if being within charge distance becomes impossible ... the unit may complete its move in any direction and ends its activation".
+        // A model standing in the only path that fits: the way round is longer than the 12" left.
+        var charger = Unit("C", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var blocker = Unit("Wall of Shields", "4+", "4+", [], 3, []);
+        var target = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger, blocker], [target], enforcement: Enforcement.Strict), 1);
+        Place(sim, charger.Models[0].Id, 20, 24); Place(sim, target.Models[0].Id, 33.1, 24);
+        Place(sim, blocker.Models[0].Id, 27, 22.74); Place(sim, blocker.Models[1].Id, 27, 24); Place(sim, blocker.Models[2].Id, 27, 25.26);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        Assert.True(sim.AskFor(Samples.Team1).AllowPass);
+        Assert.IsType<Applied>(Answer(sim, new Passed()));
     }
 
     [Fact]
