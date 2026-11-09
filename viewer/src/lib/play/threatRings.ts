@@ -53,10 +53,17 @@ export function ofAnotherTeam(game: GameInfo, p: Projection, acting: string | nu
   return acting === null || teamOf(game, u.participantId) !== acting;
 }
 
-/** ThreatRings.Shown: the selected unit, kept until the selection changes, then the hovered one; each of another team, with a threat, once. */
-export function shownThreats(game: GameInfo, p: Projection, acting: string | null, selected: string | null, hovered: string | null, threats: ReadonlyMap<string, UnitThreat>): string[] {
+/** ThreatRings.Pinned: the enemy unit whose threat stays drawn: the selected unit when it is of another team; selecting a unit of my own (picking
+ *  a unit to deploy or move, or its ghost) or a terrain piece keeps the one before, so the reach stays up while I place; no selection clears it. */
+export function pinnedThreat(game: GameInfo, p: Projection, acting: string | null, selected: string | null, before: string | null): string | null {
+  if (selected === null) return null;
+  return ofAnotherTeam(game, p, acting, selected) ? selected : before;
+}
+
+/** ThreatRings.Shown: the pinned unit (pinnedThreat), then the hovered one; each of another team, with a threat, once. */
+export function shownThreats(game: GameInfo, p: Projection, acting: string | null, pinned: string | null, hovered: string | null, threats: ReadonlyMap<string, UnitThreat>): string[] {
   const shown: string[] = [];
-  for (const id of [selected, hovered]) if (id !== null && !shown.includes(id) && threats.has(id) && ofAnotherTeam(game, p, acting, id)) shown.push(id);
+  for (const id of [pinned, hovered]) if (id !== null && !shown.includes(id) && threats.has(id) && ofAnotherTeam(game, p, acting, id)) shown.push(id);
   return shown;
 }
 
