@@ -24,6 +24,7 @@ public class RosterDiffTests
 {
     static RosterRow Row(Guid id, int left = 3, params string[] conditions) => new(id, "Squad", false, left, 3, false, conditions.ToList());
     static readonly Guid T = Guid.NewGuid(), A = Guid.NewGuid(), B = Guid.NewGuid();
+    static (Guid, bool)[][] Flat(IReadOnlyList<IReadOnlyList<(Guid Unit, bool Keep)>>? kept) => kept!.Select(t => t.ToArray()).ToArray();
 
     [Fact]
     public void Rows_are_equal_by_value_conditions_included()
@@ -34,20 +35,33 @@ public class RosterDiffTests
     }
 
     [Fact]
-    public void Same_teams_and_units_redraw_only_the_rows_that_changed()
+    public void A_render_keeps_each_row_whose_content_and_selection_stand_wherever_it_moved()
     {
         var before = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B)]) };
-        var after = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B, 2)]) };
-        Assert.Equal(new[] { (0, 1) }, RosterView.Changed(before, after));
-        Assert.Empty(RosterView.Changed(after, after)!);
+        Assert.Equal(new[] { new[] { (A, true), (B, false) } }, Flat(RosterView.Keep(before, null, [new RosterTeam(T, "Team 1", 1, [Row(A), Row(B, 2)])], null)));   // B lost a wound
+        Assert.Equal(new[] { new[] { (B, true), (A, true) } }, Flat(RosterView.Keep(before, null, [new RosterTeam(T, "Team 1", 1, [Row(B), Row(A)])], null)));       // a new order moves rows
+        Assert.Equal(new[] { new[] { (A, false), (B, true) } }, Flat(RosterView.Keep(before, null, before, A)));                                                      // A selected: its edge changes
+        Assert.Equal(new[] { new[] { (A, false), (B, false) } }, Flat(RosterView.Keep(before, A, before, B)));                                                        // the selection moved
+        var c = Guid.NewGuid();
+        Assert.Equal(new[] { new[] { (A, true), (c, false), (B, true) } }, Flat(RosterView.Keep(before, null, [new RosterTeam(T, "Team 1", 1, [Row(A), Row(c), Row(B)])], null)));
     }
 
     [Fact]
-    public void A_new_unit_order_or_team_line_rebuilds_the_whole_list()
+    public void A_new_team_line_or_no_earlier_list_rebuilds_the_whole_list()
     {
         var before = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B)]) };
-        Assert.Null(RosterView.Changed(before, [new RosterTeam(T, "Team 1", 1, [Row(B), Row(A)])]));
-        Assert.Null(RosterView.Changed(before, [new RosterTeam(T, "Team 1 (you)", 1, [Row(A), Row(B)])]));
-        Assert.Null(RosterView.Changed(null, before));
+        Assert.Null(RosterView.Keep(before, null, [new RosterTeam(T, "Team 1 (you)", 1, [Row(A), Row(B)])], null));
+        Assert.Null(RosterView.Keep(before, null, [new RosterTeam(T, "Team 1", 1, [Row(A), Row(B)], Mine: true)], null));
+        Assert.Null(RosterView.Keep(before, null, [.. before, new RosterTeam(Guid.NewGuid(), "Team 2", 2, [])], null));
+        Assert.Null(RosterView.Keep(null, null, before, null));
+        Assert.Null(RosterView.Keep(before, null, [new RosterTeam(Guid.NewGuid(), "Team 1", 1, [Row(A), Row(B)])], null));
+    }
+
+    [Fact]
+    public void Teams_in_a_new_order_keep_their_rows()
+    {
+        var u = Guid.NewGuid(); var second = new RosterTeam(Guid.NewGuid(), "Team 2", 2, [Row(u)], Mine: true);
+        var before = new[] { new RosterTeam(T, "Team 1", 1, [Row(A), Row(B)], Mine: true), second };
+        Assert.Equal(new[] { new[] { (u, true) }, new[] { (A, true), (B, true) } }, Flat(RosterView.Keep(before, null, [second, before[0]], null)));
     }
 }

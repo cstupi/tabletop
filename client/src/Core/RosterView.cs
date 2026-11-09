@@ -57,23 +57,21 @@ public static class RosterView
         return at is null ? $"Reserve: {r.Property}" : $"Reserve: {r.Property} ({at})";
     }
 
-    /// <summary>The (team, row) indices whose rows differ when both lists hold the same teams, team lines and units in the same order;
-    /// null when they do not, or there is no earlier list, and the roster rebuilds.</summary>
-    public static IReadOnlyList<(int Team, int Row)>? Changed(IReadOnlyList<RosterTeam>? before, IReadOnlyList<RosterTeam> after)
+    /// <summary>What a render keeps when both lists hold the same team lines, in any order (one account on both teams puts the team it acts for first):
+    /// per team of the new list, each row's unit and whether its drawn line stands (the same row by value in the same team, and selected as before),
+    /// whatever its place; null when a team line differs, or there is no earlier list, and the roster rebuilds.</summary>
+    public static IReadOnlyList<IReadOnlyList<(Guid Unit, bool Keep)>>? Keep(IReadOnlyList<RosterTeam>? before, Guid? selectedBefore, IReadOnlyList<RosterTeam> after, Guid? selected)
     {
         if (before is null || before.Count != after.Count) return null;
-        var changed = new List<(int, int)>();
-        for (var t = 0; t < after.Count; t++)
+        var kept = new List<IReadOnlyList<(Guid, bool)>>();
+        foreach (var b in after)
         {
-            var (a, b) = (before[t], after[t]);
-            if (a.TeamId != b.TeamId || a.Name != b.Name || a.Ordinal != b.Ordinal || a.Mine != b.Mine || a.Rows.Count != b.Rows.Count) return null;
-            for (var r = 0; r < b.Rows.Count; r++)
-            {
-                if (a.Rows[r].UnitId != b.Rows[r].UnitId) return null;
-                if (!a.Rows[r].Equals(b.Rows[r])) changed.Add((t, r));
-            }
+            if (before.FirstOrDefault(t => t.TeamId == b.TeamId) is not { } a || a.Name != b.Name || a.Ordinal != b.Ordinal || a.Mine != b.Mine) return null;
+            var old = a.Rows.ToDictionary(r => r.UnitId);
+            kept.Add(b.Rows.Select(r => (r.UnitId, old.TryGetValue(r.UnitId, out var was) && was.Equals(r)
+                && (r.UnitId == selectedBefore) == (r.UnitId == selected))).ToList());
         }
-        return changed;
+        return kept;
     }
 
     public static string Pips(int left, int max) => new string('●', left) + new string('○', Math.Max(0, max - left));
