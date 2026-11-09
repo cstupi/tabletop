@@ -1,7 +1,7 @@
 # Frame drops in play
 
 The owner sees the Godot client drop frames in a real game (Windows, RX 6900 XT, release export). This plan measures where a
-frame goes, compares the client at `97f5fc1c` (v0.1.37) with main at `7400a219`, fixes the largest costs, and lists what is left.
+frame goes, compares the client at `97f5fc1c` (v0.1.37) with main at `7400a219`, fixes the largest costs over three rounds, and lists what is left.
 
 ## Method
 
@@ -138,17 +138,69 @@ The first-use C# (the decision box opening a move 37 ms, the first drag frame 50
 change to the second time. Not adopted here: the release exports macOS universal and Windows from Linux, and a cross-target ReadyToRun
 build of those is untested.
 
+## Third round: controls set in place
+
+Main at `c0538f33` against this branch, three runs each alternating, on the second round's method and template game.
+
+### What fills a spike
+
+The second round's removal runs, repeated on main with more switches (one run each, so noisy): skipping the header and the unit card took
+the first selection's worst frame from 100 to 47 ms and the first move Ask's from 112 to 85; skipping the decision box's option tiles
+took the second move's from 104 to 66 and the second Advance's from 79 to 68; the roster and the ring layers 5–30 ms between them. What
+those parts cost is Godot making and freeing controls: each new control resolves its theme, shapes its text and lays out in the flush of the
+frame it appears, and each freed one is torn down there.
+
+### Worst frame per phase, ms (mean of three runs)
+
+| Phase | main `c0538f33` | this branch |
+| --- | --- | --- |
+| select (first) | 109 | 70 |
+| select (second) | 59 | 37 |
+| advance (first) | 103 | 75 |
+| advance (second) | 79 | 53 |
+| drag (first) | 89 | 63 |
+| drag (second) | 48 | 46 |
+| move (first) | 58 | 48 |
+| move (second) | 84 | 60 |
+| volley | 62 | 55 |
+| casualties | 70 | 51 |
+| hover with V on | 67 | 63 |
+| frames over 33 ms per run | 23.3 | 24.0 |
+| frames over 50 ms per run | 14.3 | 10.3 |
+| frames with over 33 ms of main-thread C# per run | 4.0 | 1.3 |
+
+C# at its worst frame (ms, mean of three runs), main → this branch: the unit card's first build 33 → 5, its second 6 → 3; the dispatcher's
+turn opening the first move Ask 63 → 39 (the decision box 38 → 21, the header 6.5 → 3.8), the second 19 → 8; the second move's turn
+15 → 9; the first drag frame's placement 50 → 23. A steady drag frame allocates 1.0 → 0.5 MB on the main thread (median).
+
+### Fixes
+
+1. Kept controls (`Kept`, `Look`): a render takes each child of a box in order by key, reusing the control made for that key and making
+   one only when none stands, and hides the rest; text, colours, icons and theme overrides are set only when they differ. The header's three
+   lines (`HeaderBar`: the round box, the team tiles, the objectives, the activation line and its steps, the waiting line), every part of the
+   unit card and the enemy strip (`UnitCard`), and a roster row whose content changed (`Roster.Fill`) set standing controls.
+2. The unit card's controls are made while the game loads (`UnitCard.Prebuild`, from `GameScreen` once the table stands): the largest unit's
+   card, hidden, so the first selection only sets them.
+3. The decision box keeps its option tiles and groups from one Ask to the next (`DecisionTiles.ChoiceTile`, `OptionPanel`, `Fill`) and pools
+   its foot actions by look (`DecisionBox.Act`): an Ask that ends hides them, the next sets them.
+4. A move measured once at load (`MoveWarmup`: the first unit on the table, 2" of a 6" move, its regions, landing, contacts, rulers, gate
+   and bar), so .NET compiles the move Ask's first render and drag frame then.
+5. A landing search builds each volume's outline once (`Collision.Land`'s `LandGround`) instead of once a spot; results are unchanged
+   (`ReferenceAgreementTests`).
+6. A ring layer keeps its label panels hidden between shows (`RangeRingNode.Layer`) and sets them for the next set of rings.
+
+Tests: `MoveWarmupTests`; the Geometry suite (314), Geometry.Wasm (45) and the viewer's (1849) unchanged.
+
 ## Left
 
-- Godot's work on rebuilt Hud controls in the physics step's flush: 30–60 ms a game event under WSLg (above). Profile natively on Windows
-  (Forward+, the owner's renderer) before changing the Hud further; the candidates are fewer rebuilt controls (labels updated in place)
-  and new glyphs uploaded to the font cache.
-- The move Ask's opening render: 35–40 ms of C# in the decision box the first time (regions 8, the gate 14, the card's controls), 3 ms
-  the second time.
-- The first drag frame: 50 ms of C# the first time (landings, contacts, the gate), 10 ms the second; each drag frame allocates 0.3–1.6 MB
-  (landings and contacts in `Tabletop.Geometry`), which keeps gen 0 collections at 1–4 ms.
-- The unit card's first build on a selection: 32 ms of C#, 65 ms with Godot's work.
+- Godot's work in the physics step's flush outside the C# probes: the second move's worst frame is 60 ms with 9 ms of C#, the first
+  selection's 70 ms with 5. The remaining candidates are the ring meshes and labels the move redraws, the glyphs a new text uploads, and
+  layout passes over the Hud; a native profile on Windows (Forward+) splits them from the GL-through-D3D12 driver.
+- The move Ask's first render: 21 ms of C# after the warm-up (2 the second time); the decision box's Godot side (Holding's resize
+  callbacks, a pooled action's first build) is what is left there.
+- The first drag frame: 23 ms of C#, 11 the second; each drag frame still allocates about 0.5 MB, most of it in `Contacts.Of`, whose
+  `Movement.Check` builds a `MoveSpace` for each moved ghost every frame (the start, the allowance and the terrain stand for the whole Ask,
+  so one space per ghost could be kept).
 - The hover label: `HoverView.Of` 3 ms a hover, 9 ms the first time.
-- A ring layer when its build lands: 20 ms for V's rings, 16 of them creating the fill's mesh (building its vertex arrays on the pool
-  instead was measured and saved nothing).
-- ReadyToRun: measured above, not adopted.
+- V's fill mesh when its build lands: under 2 ms of C# measured here; the rest of that frame is the draw (GL through D3D12).
+- ReadyToRun: measured in the second round, not adopted.

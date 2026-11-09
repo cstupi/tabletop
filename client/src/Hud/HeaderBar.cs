@@ -24,6 +24,13 @@ public partial class HeaderBar : PanelContainer
     string? _drawnTop, _drawnMiddle, _drawnWait;   // what each line last drew
     bool _marksOnTop = true;                       // the objectives fit on line 1
     float _width;     // the slot's width (FitTo)
+    // Line 1's round box and line 2's and 3's children stand across renders: a render sets them (Kept, Look).
+    readonly HBoxContainer _roundBox = new() { MouseFilter = MouseFilterEnum.Stop };
+    readonly TextureRect _roundIcon = HudBits.Icon("round", Ui.Accent, 20);
+    readonly Label _roundText = new() { ThemeTypeVariation = Variation.Display };
+    readonly Kept _tileKids, _middleKids, _waitKids; Kept? _middleMarks;
+
+    public HeaderBar() { _tileKids = new(_tiles); _middleKids = new(_activation); _waitKids = new(_waiting); }
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
     public event Action? GameOverPressed;
@@ -36,11 +43,14 @@ public partial class HeaderBar : PanelContainer
         _top.AddThemeConstantOverride("separation", 12); _tiles.AddThemeConstantOverride("separation", 8);
         _activation.AddThemeConstantOverride("separation", 10); _waiting.AddThemeConstantOverride("separation", 8);
         lines.AddChild(_top); lines.AddChild(_activation); lines.AddChild(_waiting);
+        _roundBox.AddThemeConstantOverride("separation", 6); _roundBox.AddChild(_roundIcon); _roundBox.AddChild(_roundText);
+        _top.AddChild(_roundBox); _top.AddChild(_tiles); _top.AddChild(_settings);
         _settings.Pressed += () => SettingsRequested?.Invoke();
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
-        _onTheme = () => { _drawnTop = _drawnMiddle = _drawnWait = null; Render(); }; Ui.Changed += _onTheme;
+        _onTheme = () => { _drawnTop = _drawnMiddle = _drawnWait = null; Restyle(); Render(); }; Ui.Changed += _onTheme;
+        Restyle();
         Render();
     }
 
@@ -49,6 +59,14 @@ public partial class HeaderBar : PanelContainer
         Ui.Changed -= _onTheme;
         if (_s is null) return;
         _s.Frame.Render -= _onFrame;
+    }
+
+    /// <summary>The theme's icons on the standing controls.</summary>
+    void Restyle()
+    {
+        Look.Icon(_roundIcon, "round", Ui.Accent);
+        _settings.Icon = Ui.Icon("settings");
+        _settings.Text = _settings.Icon is null ? "Settings" : "";   // never a zero-width button
     }
 
     /// <summary>The slot's width: the lines redraw at the fullest fit for it when it changes.</summary>
@@ -107,139 +125,171 @@ public partial class HeaderBar : PanelContainer
         if (waitKey != _drawnWait) { _drawnWait = waitKey; Waiting(quiet, wait); }
     }
 
-    /// <summary>Line 1: the round, the tiles, the objectives when marksOnTop, the gear.</summary>
+    /// <summary>Line 1: the round, the tiles, the objectives when marksOnTop, the gear. The round box, the tiles box and the gear stand from Bind;
+    /// the tiles and marks are kept controls (Kept) a render sets.</summary>
     void Top(HeaderFit fit, bool marksOnTop, (int Round, string? Phase) round, IReadOnlyList<TeamTile> tiles, IReadOnlyList<(Guid MarkerId, Guid? TeamId)> objectives,
         HeaderModel m, GameInfo game)
     {
-        // The tiles box and the gear are kept nodes the line re-adds: taken out, never freed.
-        Detach(_top, _tiles, _settings); HudBits.Clear(_tiles);
-        var roundText = HeaderView.RoundText(round.Round, round.Phase, fit);
-        var roundBox = new HBoxContainer { TooltipText = $"{HeaderView.RoundText(round.Round, round.Phase)} · {HeaderView.RuleSetLine(game)}", MouseFilter = MouseFilterEnum.Stop };
-        roundBox.AddThemeConstantOverride("separation", 6);
-        roundBox.AddChild(HudBits.Icon("round", Ui.Accent, 20));
-        roundBox.AddChild(new Label { Text = roundText.ToUpperInvariant(), ThemeTypeVariation = Variation.Display });
-        _top.AddChild(roundBox);
-        _top.AddChild(_tiles);
-        foreach (var tile in tiles) _tiles.AddChild(Tile(tile, game.Status == GameStatus.Playing && m.Round > 0, fit));
-        if (marksOnTop) foreach (var mark in Marks(objectives, fit, game)) _tiles.AddChild(mark);
-        _settings.Icon = Ui.Icon("settings");
-        _settings.Text = _settings.Icon is null ? "Settings" : "";   // never a zero-width button
-        _top.AddChild(_settings);
+        Look.Tip(_roundBox, $"{HeaderView.RoundText(round.Round, round.Phase)} · {HeaderView.RuleSetLine(game)}");
+        Look.Text(_roundText, HeaderView.RoundText(round.Round, round.Phase, fit).ToUpperInvariant(), Variation.Display);
+        _tileKids.Begin();
+        foreach (var tile in tiles) Tile(_tileKids.Take("tile", () => new TileControls { Header = this }), tile, game.Status == GameStatus.Playing && m.Round > 0, fit);
+        if (marksOnTop) Marks(_tileKids, objectives, fit, game);
+        _tileKids.End();
     }
 
-    List<Control> Marks(IReadOnlyList<(Guid MarkerId, Guid? TeamId)> objectives, HeaderFit fit, GameInfo game) =>
-        objectives.Select(o => Objective(o.TeamId is { } t ? game.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0 : 0, fit)).ToList();
+    void Marks(Kept into, IReadOnlyList<(Guid MarkerId, Guid? TeamId)> objectives, HeaderFit fit, GameInfo game)
+    {
+        foreach (var o in objectives) Objective(into, o.TeamId is { } t ? game.Teams.FirstOrDefault(x => x.Id == t)?.Ordinal ?? 0 : 0, fit);
+    }
 
     /// <summary>Line 2: the objectives line 1 had no room for, the acting unit and its steps, or the game's result.</summary>
     void Middle(HeaderFit fit, IReadOnlyList<(Guid MarkerId, Guid? TeamId)> objectives, HeaderModel m, string? activationLine, GameInfo game)
     {
-        Detach(_activation, _gameOver);   // the Game over button is kept: taken out, never freed
+        _middleKids.Begin();
         if (objectives.Count > 0)
         {
-            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 4);
-            foreach (var mark in Marks(objectives, HeaderFit.Tight, game)) row.AddChild(mark);
-            _activation.AddChild(row);
+            var row = _middleKids.Take("marks", () => { var r = new HBoxContainer(); r.AddThemeConstantOverride("separation", 4); return r; });
+            _middleMarks ??= new Kept(row);
+            Marks(_middleMarks.Begin(), objectives, HeaderFit.Tight, game); _middleMarks.End();
         }
         if (m.Result is { } result)
         {
-            _gameOver.Text = $"✓ {result}"; _gameOver.Visible = true;
-            _activation.AddChild(_gameOver);
+            _gameOver.Text = $"✓ {result}";
+            _middleKids.Take("over", () => _gameOver);
         }
         else if (activationLine is not null)
         {
-            var who = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; who.AddThemeConstantOverride("separation", 6);
-            who.AddChild(HudBits.Icon(HeaderView.ActionIcon(m.Action), Ui.Accent, 18));
-            who.AddChild(OneLine(activationLine, ""));
-            _activation.AddChild(who);
+            var who = _middleKids.Take("who", () =>
+            {
+                var box = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; box.AddThemeConstantOverride("separation", 6);
+                box.AddChild(HudBits.Icon("", Ui.Accent, 18)); box.AddChild(OneLine("", ""));
+                return box;
+            });
+            Look.Icon((TextureRect)who.GetChild(0), HeaderView.ActionIcon(m.Action), Ui.Accent);
+            var line = (Label)who.GetChild(1); Look.Text(line, activationLine); Look.Tip(line, activationLine);
             foreach (var item in m.Outline)
-                _activation.AddChild(new Label
-                {
-                    Text = HeaderView.StepText(item, fit), TooltipText = item.Label, MouseFilter = MouseFilterEnum.Stop,
-                    ThemeTypeVariation = item.State switch { OutlineState.Done => Variation.Success, OutlineState.Current => Variation.Accent, _ => Variation.Dim },
-                });
+            {
+                var step = _middleKids.Take("step", () => new Label { MouseFilter = MouseFilterEnum.Stop });
+                Look.Text(step, HeaderView.StepText(item, fit), item.State switch { OutlineState.Done => Variation.Success, OutlineState.Current => Variation.Accent, _ => Variation.Dim });
+                Look.Tip(step, item.Label);
+            }
         }
-        _activation.Visible = _activation.GetChildCount() > 0;
+        _activation.Visible = _middleKids.End() > 0;
     }
 
     /// <summary>Line 3: what the game waits on, one line.</summary>
     void Waiting(string? quiet, WaitLine? wait)
     {
-        HudBits.Clear(_waiting);
+        _waitKids.Begin();
         _waiting.Visible = quiet is not null || wait is not null;
+        TextureRect Icon(string name, Color tint) { var r = _waitKids.Take("icon", () => HudBits.Icon(name, tint, 16)); Look.Icon(r, name, tint); return r; }
+        Label Line(string text, string variation, Color? ink)
+        {
+            var l = _waitKids.Take("line", () => OneLine("", "")); Look.Text(l, text, variation); Look.Tip(l, text); Look.Ink(l, ink); return l;
+        }
         if (quiet is not null)
         {
-            _waiting.AddChild(HudBits.Icon(_s.Replaying || _s.IsWatching ? "watch" : "wait", Ui.DimText, 16));
-            _waiting.AddChild(OneLine(quiet, Variation.Dim));
+            Icon(_s.Replaying || _s.IsWatching ? "watch" : "wait", Ui.DimText);
+            Line(quiet, Variation.Dim, null);
         }
         else if (wait is { Mine: true } mine)
         {
             var colour = Ui.Team(mine.Ordinal);
-            _waiting.AddChild(HudBits.Icon("turn", colour, 16));
-            var line = OneLine(mine.Text, Variation.Display); line.AddThemeColorOverride("font_color", colour);
-            _waiting.AddChild(line);
+            Icon("turn", colour);
+            Line(mine.Text, Variation.Display, colour);
         }
         else if (wait is { } other)
         {
-            _waiting.AddChild(HudBits.Band(other.Ordinal, 4));
-            _waiting.AddChild(HudBits.Icon("wait", Ui.DimText, 16));
-            _waiting.AddChild(OneLine(other.Text, ""));
+            var band = _waitKids.Take("band", () => HudBits.Band(other.Ordinal, 4));
+            var bandColour = other.Ordinal > 0 ? Ui.Team(other.Ordinal) : Ui.DimText with { A = 0 };
+            if (band.Color != bandColour) band.Color = bandColour;
+            Icon("wait", Ui.DimText);
+            Line(other.Text, "", null);
         }
+        _waitKids.End();
     }
 
-    static void Detach(Node box, params Node[] kept)
+    /// <summary>A team tile's controls, made once and set by each render: its band down the left edge, the player icon on mine, the name, the
+    /// score, VP at Full, the activation dots, the active team's ▶ with a brighter border. A right-click opens the team menu.</summary>
+    sealed partial class TileControls : PanelContainer
     {
-        foreach (var c in box.GetChildren()) { box.RemoveChild(c); if (!kept.Contains(c)) c.QueueFree(); }
-    }
+        public readonly StyleBoxFlat Frame = new();
+        public readonly TextureRect Player = HudBits.Icon("player", HudBits.Plain, 16), Turn = HudBits.Icon("turn", HudBits.Plain, 14);
+        public readonly Label Title = new() { MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center },
+            Score = new() { MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center },
+            Vp = new() { Text = "VP", ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center },
+            Dots = new() { MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
+        public Guid TeamId;
 
-    /// <summary>A team's tile: its band down the left edge, the name, the score, the activation dots, mine's player icon and the active
-    /// team's ▶ with a brighter border. A right-click opens the team menu.</summary>
-    Control Tile(TeamTile t, bool dots, HeaderFit fit)
-    {
-        var tile = new PanelContainer { MouseFilter = MouseFilterEnum.Stop,
-            TooltipText = $"{t.Name} · {HeaderView.ScoreText(t.Score)}{(t.Mine ? " · you" : "")}{(t.Acting ? " · their turn" : "")}" };
-        var box = new StyleBoxFlat { BgColor = Ui.Team(t.Ordinal) with { A = t.Acting ? 0.22f : 0.10f }, BorderColor = Ui.Team(t.Ordinal) with { A = t.Acting ? 1f : 0.45f },
-            CornerDetail = Ui.Current.Shape.Clipped ? 1 : 8 };
-        box.SetBorderWidthAll(t.Acting ? 2 : 1); box.BorderWidthLeft = 6; box.SetCornerRadiusAll(Math.Min(Ui.Current.Shape.CornerRadius, 6));
-        box.ContentMarginLeft = 10; box.ContentMarginRight = 8; box.ContentMarginTop = 2; box.ContentMarginBottom = 2;
-        tile.AddThemeStyleboxOverride("panel", box);
-        var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); tile.AddChild(row);
-        if (t.Mine) row.AddChild(HudBits.Icon("player", Ui.Team(t.Ordinal), 16));
-        var name = new Label { Text = t.Name.ToUpperInvariant(), MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
-        name.AddThemeColorOverride("font_color", Ui.Team(t.Ordinal)); row.AddChild(name);
-        var score = new Label { Text = t.Score.ToString(), MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
-        score.AddThemeFontSizeOverride("font_size", Ui.Current.Body.Size + 6); row.AddChild(score);
-        if (fit == HeaderFit.Full) row.AddChild(new Label { Text = "VP", ThemeTypeVariation = Variation.Dim, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
-        if (dots && t.InPlay > 0)
+        public HeaderBar? Header;
+
+        public TileControls()
         {
-            var d = new Label { Text = t.Dots ? new string('●', t.Acted) + new string('○', t.InPlay - t.Acted) : t.CountText, MouseFilter = MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
-            d.AddThemeColorOverride("font_color", Ui.Team(t.Ordinal));
-            row.AddChild(d);
-            tile.TooltipText += $" · {HeaderView.NotActivatedText(t.InPlay - t.Acted)}";
+            MouseFilter = MouseFilterEnum.Stop;
+            Frame.BorderWidthLeft = 6; Frame.ContentMarginLeft = 10; Frame.ContentMarginRight = 8; Frame.ContentMarginTop = 2; Frame.ContentMarginBottom = 2;
+            AddThemeStyleboxOverride("panel", Frame);
+            var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); AddChild(row);
+            foreach (var c in new Control[] { Player, Title, Score, Vp, Dots, Turn }) row.AddChild(c);
+            GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) Header?.TeamMenuRequested?.Invoke(TeamId, b.GlobalPosition); };
         }
-        if (t.Acting) row.AddChild(HudBits.Icon("turn", Ui.Team(t.Ordinal), 14));
-        var id = t.TeamId;
-        tile.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) TeamMenuRequested?.Invoke(id, b.GlobalPosition); };
-        return tile;
+    }
+
+    static void Tile(TileControls c, TeamTile t, bool dots, HeaderFit fit)
+    {
+        c.TeamId = t.TeamId;
+        var team = Ui.Team(t.Ordinal);
+        var tip = $"{t.Name} · {HeaderView.ScoreText(t.Score)}{(t.Mine ? " · you" : "")}{(t.Acting ? " · their turn" : "")}";
+        var showDots = dots && t.InPlay > 0;
+        if (showDots) tip += $" · {HeaderView.NotActivatedText(t.InPlay - t.Acted)}";
+        Look.Tip(c, tip);
+        var f = c.Frame;
+        var (bg, border, width, detail, radius) = (team with { A = t.Acting ? 0.22f : 0.10f }, team with { A = t.Acting ? 1f : 0.45f }, t.Acting ? 2 : 1,
+            Ui.Current.Shape.Clipped ? 1 : 8, Math.Min(Ui.Current.Shape.CornerRadius, 6));
+        if (f.BgColor != bg) f.BgColor = bg;
+        if (f.BorderColor != border) f.BorderColor = border;
+        if (f.BorderWidthTop != width) { f.BorderWidthTop = f.BorderWidthRight = f.BorderWidthBottom = width; }
+        if (f.CornerDetail != detail) f.CornerDetail = detail;
+        if (f.CornerRadiusTopLeft != radius) f.SetCornerRadiusAll(radius);
+        c.Player.Visible = t.Mine; if (t.Mine) Look.Icon(c.Player, "player", team);
+        Look.Text(c.Title, t.Name.ToUpperInvariant()); Look.Ink(c.Title, team);
+        Look.Text(c.Score, t.Score.ToString()); Look.FontSize(c.Score, Ui.Current.Body.Size + 6);
+        c.Vp.Visible = fit == HeaderFit.Full;
+        c.Dots.Visible = showDots;
+        if (showDots) { Look.Text(c.Dots, t.Dots ? new string('●', t.Acted) + new string('○', t.InPlay - t.Acted) : t.CountText); Look.Ink(c.Dots, team); }
+        c.Turn.Visible = t.Acting; if (t.Acting) Look.Icon(c.Turn, "turn", team);
     }
 
     /// <summary>An objective: its icon in the chip frame, the controller's colour when held; past Full the bare icon in that colour.</summary>
-    static Control Objective(int ordinal, HeaderFit fit)
+    static void Objective(Kept into, int ordinal, HeaderFit fit)
     {
         if (fit != HeaderFit.Full)
         {
-            var icon = HudBits.Icon("objective", ordinal > 0 ? Ui.Team(ordinal) : HudBits.Plain, 18, ordinal > 0 ? $"Objective · Team {ordinal}" : "Objective");
-            icon.MouseFilter = MouseFilterEnum.Stop;
-            return icon;
+            var icon = into.Take("mark", () => { var r = HudBits.Icon("objective", HudBits.Plain, 18); r.MouseFilter = MouseFilterEnum.Stop; return r; });
+            Look.Icon(icon, "objective", ordinal > 0 ? Ui.Team(ordinal) : HudBits.Plain);
+            Look.Tip(icon, ordinal > 0 ? $"Objective · Team {ordinal}" : "Objective");
+            return;
         }
-        var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, TooltipText = "Objective", SizeFlagsVertical = SizeFlags.ShrinkCenter };
-        chip.AddChild(HudBits.Icon("objective", HudBits.Plain, 16));
-        if (ordinal > 0 && Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() is StyleBoxFlat box)
+        var chip = into.Take("chip", () =>
         {
-            box.BorderColor = Ui.Team(ordinal); box.BgColor = Ui.Team(ordinal) with { A = 0.25f }; box.SetBorderWidthAll(2);
-            chip.AddThemeStyleboxOverride("panel", box);
-        }
-        return chip;
+            var c = new PanelContainer { ThemeTypeVariation = Variation.Chip, TooltipText = "Objective", SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            c.AddChild(HudBits.Icon("objective", HudBits.Plain, 16));
+            return c;
+        });
+        Look.Icon((TextureRect)chip.GetChild(0), "objective", HudBits.Plain);
+        Look.Box(chip, ordinal > 0 ? HeldChip(ordinal) : null);
     }
+
+    /// <summary>The chip frame in a team's colour, one per team and theme.</summary>
+    static StyleBox? HeldChip(int ordinal)
+    {
+        if (_heldChips.Theme != Ui.Theme) _heldChips = (Ui.Theme, new());
+        if (_heldChips.Boxes.TryGetValue(ordinal, out var made)) return made;
+        if (Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() is not StyleBoxFlat box) return null;
+        box.BorderColor = Ui.Team(ordinal); box.BgColor = Ui.Team(ordinal) with { A = 0.25f }; box.SetBorderWidthAll(2);
+        return _heldChips.Boxes[ordinal] = box;
+    }
+    static (Theme? Theme, Dictionary<int, StyleBox> Boxes) _heldChips = (null, new());
 
     /// <summary>One line cut with an ellipsis to the width it gets; the whole text is its tooltip.</summary>
     static Label OneLine(string text, string variation) =>

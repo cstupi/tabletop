@@ -66,7 +66,7 @@ public partial class DecisionBox
         _input.Eligible = eligible.ToHashSet();
         _onTarget = clicked => { if (AskAnswers.Resolve(p, clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
         _onEnter = Done;
-        if (sel.Max > 1) Foot(done = DecisionTiles.Action("Done", DecisionCard.Enter, Done, primary: true, icon: "ready"));
+        if (sel.Max > 1) Foot(done = Act("Done", DecisionCard.Enter, Done, primary: true, icon: "ready"));
         Refresh();
     }
 
@@ -94,8 +94,8 @@ public partial class DecisionBox
         var chips = new HFlowContainer(); chips.AddThemeConstantOverride("h_separation", 8); chips.AddThemeConstantOverride("v_separation", 8); Add(chips);
         void Fire() { if (t.Answer() is { } answer) Send(ask, answer); }
         bool ClearTargets() { if (!t.CanClear) return false; t.Clear(); Show(); return true; }
-        Button fire = DecisionTiles.Action("Fire", DecisionCard.Enter, Fire, primary: true, icon: "shoot"), clear = null!;
-        clear = DecisionTiles.Action("Clear", DecisionCard.Esc, () => ClearTargets());
+        Button fire = Act("Fire", DecisionCard.Enter, Fire, primary: true, icon: "shoot"), clear = null!;
+        clear = Act("Clear", DecisionCard.Esc, () => ClearTargets());
         void Show()
         {
             if (Targets != t || !IsInstanceValid(chips)) return;                       // the Ask ended before a deferred refresh ran
@@ -146,7 +146,7 @@ public partial class DecisionBox
         var pips = new Label { VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.Arbitrary, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         pips.AddThemeColorOverride("font_color", Ui.Failure); row.AddChild(pips);
         void Confirm() { if (pick.Answer() is { } answer) Send(ask, answer); }
-        var confirm = DecisionTiles.Action("Confirm", DecisionCard.Enter, Confirm, primary: true, icon: "ready");
+        var confirm = Act("Confirm", DecisionCard.Enter, Confirm, primary: true, icon: "ready");
         void Show()
         {
             count.Text = $"{pick.Chosen} of {pick.Required}";
@@ -164,7 +164,7 @@ public partial class DecisionBox
         _input.Eligible = legal.Targets.ToHashSet();
         _onModel = (id, right) => { if (!left.ContainsKey(id)) return; if (right) pick.Remove(id); else pick.Click(id); Show(); };
         _onEnter = Confirm;
-        Foot(confirm); Foot(DecisionTiles.Action("Auto", "", () => { pick.Auto(); Show(); })); Foot(DecisionTiles.Action("Clear", "", () => { pick.Clear(); Show(); })); Show();
+        Foot(confirm); Foot(Act("Auto", "", () => { pick.Auto(); Show(); })); Foot(Act("Clear", "", () => { pick.Clear(); Show(); })); Show();
     }
 
     void ClearMarks() { foreach (var m in _marks) if (IsInstanceValid(m)) m.QueueFree(); _marks.Clear(); }

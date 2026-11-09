@@ -20,9 +20,14 @@ public static partial class Collision
     public static Point3 Land(PlacedModel moving, Point2 to, IReadOnlyList<PlacedModel> models, IReadOnlyList<WorldVolume> walls, IReadOnlyList<WorldVolume> volumes,
         Func<Point2, bool>? within = null, Abutment? abut = null)
     {
-        var solid = Solids(walls);
-        var landed = Rested(moving, to + (Ring(by => Free(moving, to + by, solid, models, volumes, within), LandReach) ?? new Point2(0, 0)), volumes);
-        return abut is null ? landed : Abut(moving, landed, abut, solid, models, volumes, within);
+        return Land(moving, to, models, Solids(walls), new LandGround(volumes), within, abut);
+    }
+
+    static Point3 Land(PlacedModel moving, Point2 to, IReadOnlyList<PlacedModel> models, IReadOnlyList<Outline> solid, LandGround ground,
+        Func<Point2, bool>? within, Abutment? abut)
+    {
+        var landed = Rested(moving, to + (Ring(by => Free(moving, to + by, solid, models, ground, within), LandReach) ?? new Point2(0, 0)), ground);
+        return abut is null ? landed : Abut(moving, landed, abut, solid, models, ground, within);
     }
 
     /// <summary>A lifted group lands in drag order: each against the stationary models and the held ones already landed.</summary>
@@ -31,9 +36,10 @@ public static partial class Collision
     {
         var placed = stationary.ToList();
         var ends = new List<Point3>(held.Count);
+        var (solid, ground) = (Solids(walls), new LandGround(volumes));
         foreach (var (moving, to, within) in held)
         {
-            var end = Land(moving, to, placed, walls, volumes, within, abut);
+            var end = Land(moving, to, placed, solid, ground, within, abut);
             ends.Add(end);
             placed.Add(moving with { Placement = moving.Placement with { Position = end } });
         }
@@ -47,10 +53,10 @@ public static partial class Collision
     /// </summary>
     public static Point3 Abut(PlacedModel moving, Point3 landed, Abutment abut, IReadOnlyList<PlacedModel> models, IReadOnlyList<WorldVolume> walls,
         IReadOnlyList<WorldVolume> volumes, Func<Point2, bool>? within = null) =>
-        Abut(moving, landed, abut, Solids(walls), models, volumes, within);
+        Abut(moving, landed, abut, Solids(walls), models, new LandGround(volumes), within);
 
     static Point3 Abut(PlacedModel moving, Point3 landed, Abutment abut, IReadOnlyList<Outline> solid, IReadOnlyList<PlacedModel> models,
-        IReadOnlyList<WorldVolume> volumes, Func<Point2, bool>? within)
+        LandGround volumes, Func<Point2, bool>? within)
     {
         if (abut.Models.Count == 0) return landed;
         var outline = (moving with { Placement = moving.Placement with { Position = landed } }).BaseOutline();
@@ -64,13 +70,30 @@ public static partial class Collision
 
     static PlacedModel There(PlacedModel moving, Point2 at) => moving with { Placement = moving.Placement with { Position = new Point3(at.X, at.Y, 0) } };
 
-    static Point3 Rested(PlacedModel moving, Point2 at, IReadOnlyList<WorldVolume> volumes) => new(at.X, at.Y, RestHeight(There(moving, at), volumes));
+    static Point3 Rested(PlacedModel moving, Point2 at, LandGround volumes) => new(at.X, at.Y, volumes.Rest(There(moving, at).BaseOutline()));
 
-    static bool Free(PlacedModel moving, Point2 at, IReadOnlyList<Outline> solid, IReadOnlyList<PlacedModel> models, IReadOnlyList<WorldVolume> volumes, Func<Point2, bool>? within)
+    /// <summary>A landing search's volumes with their outlines built once: a search tries up to thousands of spots against the same terrain.</summary>
+    sealed class LandGround(IReadOnlyList<WorldVolume> volumes)
     {
-        if (solid.Any(s => Outline.InteriorsIntersect(There(moving, at).BaseOutline(), s))) return false;
-        var placed = moving with { Placement = moving.Placement with { Position = Rested(moving, at, volumes) } };
-        return !models.Any(m => Overlap.Bases(placed, m)) && (within is null || within(at));
+        readonly (double Height, Outline Outline)[] _rests = volumes.Select(v => (v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom(), v.WorldOutline())).ToArray();
+
+        /// <summary><see cref="RestHeight(PlacedModel, IReadOnlyList{WorldVolume})"/> for a base outline: the highest Solid top or Area floor under it.</summary>
+        public double Rest(Outline outline)
+        {
+            var best = 0.0;
+            foreach (var (height, under) in _rests)
+                if (height > best && Outline.InteriorsIntersect(outline, under)) best = height;
+            return best;
+        }
+    }
+
+    static bool Free(PlacedModel moving, Point2 at, IReadOnlyList<Outline> solid, IReadOnlyList<PlacedModel> models, LandGround volumes, Func<Point2, bool>? within)
+    {
+        var outline = There(moving, at).BaseOutline();
+        foreach (var s in solid) if (Outline.InteriorsIntersect(outline, s)) return false;
+        var placed = moving with { Placement = moving.Placement with { Position = new Point3(at.X, at.Y, volumes.Rest(outline)) } };
+        foreach (var m in models) if (Overlap.Bases(placed, m)) return false;
+        return within is null || within(at);
     }
 
     /// <summary>A lifted terrain piece lands where its footprint at the target enters no wall, else at the nearest spot that does (<see cref="Clear"/>).</summary>

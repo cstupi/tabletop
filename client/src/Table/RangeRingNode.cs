@@ -141,10 +141,13 @@ public partial class RangeRingNode : Node3D
         public void Attach(Node parent, Control labels) { parent.AddChild(_fill); parent.AddChild(_line); parent.AddChild(_behind); _parent = labels; }
         public void Forget() { Clear(); _drawn = null; }
 
+        /// <summary>The label panels made so far, kept hidden between shows: a new set of rings sets them, making only the ones it lacks.</summary>
+        readonly List<PanelContainer> _made = new();
+
         void Clear()
         {
             _fill.Mesh = null; _line.Mesh = null; _behind.Mesh = null;
-            foreach (var (_, label) in Labels) label.QueueFree();
+            foreach (var (_, label) in Labels) label.Visible = false;
             Labels.Clear();
         }
 
@@ -160,23 +163,35 @@ public partial class RangeRingNode : Node3D
             _line.Mesh = _behind.Mesh = RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), colour);
             foreach (var (ring, look, shape) in drawn)
             {
-                var label = Label(ring.Label, look.Icon, colour); _parent.AddChild(label);
+                if (Labels.Count == _made.Count) { var made = Label(); _parent.AddChild(made); _made.Add(made); }
+                var label = _made[Labels.Count];
+                Fill(label, ring.Label, look.Icon, colour);
                 Labels.Add((shape.Candidates.Select(q => WorldFrame.ToGodot(new Point3(q.X, q.Y, RingMesh.LineLift))).ToArray(), label));
             }
         }
 
-        /// <summary>The theme's panel holding the kind's icon, tinted, and the label in the team colour.</summary>
-        static Control Label(string text, string icon, Color colour)
+        /// <summary>The theme's panel holding the kind's icon and the label; hidden until _Process places it.</summary>
+        static PanelContainer Label()
         {
             var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
             var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); panel.AddChild(row);
-            if (Ui.Icon(icon) is { } texture)
-                row.AddChild(new TextureRect { Texture = texture, SelfModulate = colour, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                    CustomMinimumSize = new Vector2(22, 22), MouseFilter = Control.MouseFilterEnum.Ignore });
-            var words = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
-            words.AddThemeColorOverride("font_color", colour);
-            row.AddChild(words);
+            row.AddChild(new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                CustomMinimumSize = new Vector2(22, 22), MouseFilter = Control.MouseFilterEnum.Ignore });
+            row.AddChild(new Label { MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center });
             return panel;
+        }
+
+        /// <summary>The kind's icon tinted and the words in the team colour, each set only when it differs.</summary>
+        static void Fill(PanelContainer panel, string text, string icon, Color colour)
+        {
+            var row = panel.GetChild(0);
+            var image = (TextureRect)row.GetChild(0); var texture = Ui.Icon(icon);
+            if (!ReferenceEquals(image.Texture, texture)) image.Texture = texture;
+            image.Visible = texture is not null;
+            if (image.SelfModulate != colour) image.SelfModulate = colour;
+            var words = (Label)row.GetChild(1);
+            if (words.Text != text) words.Text = text;
+            if (!words.HasThemeColorOverride("font_color") || words.GetThemeColor("font_color") != colour) words.AddThemeColorOverride("font_color", colour);
         }
     }
 }
