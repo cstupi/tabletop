@@ -67,6 +67,7 @@ public partial class DecisionBox
             var regions = MoveRegions.Of(p, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
             _regions = regions; _regionColour = Palette.Team(ordinal);
             ShowRegions([lead.Id]);
+            _ = regions.Prepare();                                                  // every model's reach, before a pickup clamps them on this thread
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red. Where the table
             // has no room for it, the least is as far as the table allows in the direction the model goes (MoveRegions.Minimum).
             // The bar's mark is that least; the bar reads the farthest ghost's path over the allowance, or the cap once it holds.
