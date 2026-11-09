@@ -21,7 +21,8 @@ public partial class HeaderBar : PanelContainer
     readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
     Action<RenderCause>? _onFrame; Action? _onTheme;
-    string? _drawn;   // what the lines last drew
+    string? _drawnTop, _drawnMiddle, _drawnWait;   // what each line last drew
+    bool _marksOnTop = true;                       // the objectives fit on line 1
     float _width;     // the slot's width (FitTo)
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
@@ -39,7 +40,7 @@ public partial class HeaderBar : PanelContainer
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game | RenderCause.Board)) != 0) Render(); };
         session.Frame.Render += _onFrame;
-        _onTheme = () => { _drawn = null; Render(); }; Ui.Changed += _onTheme;
+        _onTheme = () => { _drawnTop = _drawnMiddle = _drawnWait = null; Render(); }; Ui.Changed += _onTheme;
         Render();
     }
 
@@ -54,7 +55,7 @@ public partial class HeaderBar : PanelContainer
     public void FitTo(float width)
     {
         if (Math.Abs(width - _width) < 0.5f) return;
-        _width = width; _drawn = null;
+        _width = width; _drawnTop = _drawnMiddle = _drawnWait = null;
         Render();
     }
 
@@ -71,29 +72,39 @@ public partial class HeaderBar : PanelContainer
         var quiet = HeaderView.WaitingForPlayers(_s.WaitingTeams) ?? (_s.Replaying ? HeaderView.Replaying : _s.IsWatching ? HeaderView.Watching : null);
         var wait = quiet is null ? HeaderView.Wait(p!, game!, names, _s.MyTeamIds) : null;
         var round = (m.Round, p!.Scheduler.Round == 0 ? p.Scheduler.Phase : null);
-        // The lines are rebuilt only when something they show changed: most renders leave the header as it was.
-        var key = string.Join("\u001f", (string?[])[round.ToString(), string.Join(",", tiles), string.Join(",", objectives), m.ActiveUnit, HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId), m.Action,
-            string.Join(",", m.Outline), quiet, wait?.ToString(), m.Result, HeaderView.RuleSetLine(game!), _width.ToString()]);
-        if (key == _drawn) return;
-        _drawn = key;
+        // Each line is rebuilt only when something it shows changed: a move's step leaves the round and the tiles standing, and every new
+        // control costs its layout and text shaping in the frame it appears.
+        static string Key(params string?[] parts) => string.Join("\u001f", parts);
+        var width = _width.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var topKey = Key(round.ToString(), string.Join(",", tiles), string.Join(",", objectives), m.Round.ToString(), game!.Status.ToString(), HeaderView.RuleSetLine(game!), width);
         // Each of the first two lines draws the fullest fit that fits the slot; the objectives leave line 1 for line 2 only when line 1
         // still overflows at Tight.
         var inner = _width - (GetThemeStylebox("panel")?.GetMinimumSize().X ?? 0);
         bool Fits(Control line) => _width <= 0 || line.GetCombinedMinimumSize().X <= inner;
-        var marksOnTop = true;
-        for (HeaderFit? fit = HeaderFit.Full; fit is { } f; fit = HeaderView.Tighter(f))
+        if (topKey != _drawnTop)
         {
-            Top(f, true, round, tiles, objectives, m, game!);
-            if (Fits(_top)) break;
-            if (f == HeaderFit.Tight) { marksOnTop = false; Top(f, false, round, tiles, objectives, m, game!); }
+            _drawnTop = topKey; _marksOnTop = true;
+            for (HeaderFit? fit = HeaderFit.Full; fit is { } f; fit = HeaderView.Tighter(f))
+            {
+                Top(f, true, round, tiles, objectives, m, game!);
+                if (Fits(_top)) break;
+                if (f == HeaderFit.Tight) { _marksOnTop = false; Top(f, false, round, tiles, objectives, m, game!); }
+            }
         }
-        for (HeaderFit? fit = HeaderFit.Full; fit is { } f; fit = HeaderView.Tighter(f))
+        var middleKey = Key(m.ActiveUnit, HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId), m.Action, string.Join(",", m.Outline), m.Result,
+            _marksOnTop ? "" : string.Join(",", objectives), width);
+        if (middleKey != _drawnMiddle)
         {
-            var line = m.ActiveUnit is { } active ? HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId, f) ?? active : null;
-            Middle(f, marksOnTop ? [] : objectives, m, line, game!);
-            if (Fits(_activation)) break;
+            _drawnMiddle = middleKey;
+            for (HeaderFit? fit = HeaderFit.Full; fit is { } f; fit = HeaderView.Tighter(f))
+            {
+                var line = m.ActiveUnit is { } active ? HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId, f) ?? active : null;
+                Middle(f, _marksOnTop ? [] : objectives, m, line, game!);
+                if (Fits(_activation)) break;
+            }
         }
-        Waiting(quiet, wait);
+        var waitKey = Key(quiet, wait?.ToString(), _s.Replaying.ToString(), _s.IsWatching.ToString());
+        if (waitKey != _drawnWait) { _drawnWait = waitKey; Waiting(quiet, wait); }
     }
 
     /// <summary>Line 1: the round, the tiles, the objectives when marksOnTop, the gear.</summary>
