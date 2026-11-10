@@ -26,6 +26,8 @@ namespace Tabletop.Geometry.Wasm;
 [JsonSerializable(typeof(ExitRequest))]
 [JsonSerializable(typeof(BandsRequest))]
 [JsonSerializable(typeof(BandsAnswer))]
+[JsonSerializable(typeof(RoutesRequest))]
+[JsonSerializable(typeof(RouteFound[]))]
 [JsonSerializable(typeof(Yaw))]
 [JsonSerializable(typeof(Yaw?))]
 [JsonSerializable(typeof(Piece))]

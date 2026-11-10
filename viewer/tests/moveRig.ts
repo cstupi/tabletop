@@ -47,9 +47,17 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   let exit: Yaw | null = null;
   const exitCalls: unknown[][] = [];
   const bandCalls: unknown[][] = [];
+  const routeCalls: { capped?: boolean; models: { id: string; to: { x: number; y: number } }[] }[] = [];
+  // Each route bends 1" east of the straight line and is that much longer; one ending at x > 30 goes in difficult ground.
+  const routeOf = (m: { id: string; start: { placement: { position: { x: number; y: number } } }; to: { x: number; y: number } }) => {
+    const from = m.start.placement.position, mid = { x: (from.x + m.to.x) / 2 + 1, y: (from.y + m.to.y) / 2 };
+    return { id: m.id, points: [{ x: from.x, y: from.y }, mid, m.to], distance: Math.hypot(mid.x - from.x, mid.y - from.y) + Math.hypot(m.to.x - mid.x, m.to.y - mid.y),
+      entersDifficult: m.to.x > 30 };
+  };
   const geometry = {
     contacts: (...args: unknown[]) => { contactCalls.push(args); return found; },
     exitYaw: (...args: unknown[]) => { exitCalls.push(args); return exit; },
+    moveRoutes: (request: never) => { const r = request as { capped?: boolean; models: never[] }; routeCalls.push(r); return r.models.map(routeOf); },
     moveBands: (...args: unknown[]) => { bandCalls.push(args); return { clear: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }], difficult: [], dangerous: [] }; },
   } as unknown as Geometry;
   let reconnecting = false;
@@ -68,7 +76,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const r = {
     game, applier, box, hooks, violations, drops, sent, squad, rivals, transport, reserve, ids, apply,
     rival: rivals.models[0]!.id, truck: transport.models[0]!.id, reserveIds: reserve.models.map((m) => m.id),
-    contactCalls, exitCalls, bandCalls,
+    contactCalls, exitCalls, bandCalls, routeCalls,
     setExit(next: Yaw | null) { exit = next; },
     setFound(next: Map<string, Contact>) { found = next; },
     setEnforcement(e: Enforcement) { enforcement = e; },

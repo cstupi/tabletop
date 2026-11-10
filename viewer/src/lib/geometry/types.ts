@@ -34,6 +34,12 @@ export interface BandsRequest {
   readonly difficultCap?: number; readonly size: TableSize; readonly stationary: readonly PlacedModel[]; readonly steep?: readonly string[];
   readonly dangerous?: readonly string[]; readonly unstable?: readonly string[]; readonly unstableOver?: number; readonly minDistance?: number;
 }
+/** One held model's move for `moveRoutes`: where it stands and where it is going. */
+export interface RouteModel { readonly id: string; readonly start: PlacedModel; readonly to: XY }
+/** The move Ask's parameters for `moveRoutes` (as BandsRequest, no minimum); `capped`: the unit is held to the cap, each move by its shortest path. */
+export type RoutesRequest = Omit<BandsRequest, 'start' | 'minDistance'> & { readonly models: readonly RouteModel[]; readonly capped?: boolean };
+/** The path a move is measured along, its length, and whether the base goes in or through difficult ground on it. */
+export interface RouteFound { readonly id: string; readonly points: readonly XY[]; readonly distance: number; readonly entersDifficult: boolean }
 /** The area in its bands, each as triangles (three points each): clear, only through difficult ground, only into ground dangerous to the move. */
 export interface MoveBands { readonly clear: readonly XY[]; readonly difficult: readonly XY[]; readonly dangerous: readonly XY[] }
 type Terrain = readonly TerrainPlacement[];
@@ -72,6 +78,8 @@ export interface Geometry {
   exitYaw(body: ModelBody, container: PlacedModel, within: number, at: XY, terrain: Terrain, impassable: readonly string[], size: TableSize): Yaw | null;
   /** A model's move area in bands (MoveReach.Bands, as Godot's MoveRegions builds it). */
   moveBands(request: BandsRequest, terrain: Terrain): MoveBands;
+  /** Each held model's path as the server measures it (Movement.Measured; MoveReach.Route in the Godot client). */
+  moveRoutes(request: RoutesRequest, terrain: Terrain): RouteFound[];
   /** One facade method by name on a JSON request: the agreement test's door. */
   call(method: string, json: string): string;
 }

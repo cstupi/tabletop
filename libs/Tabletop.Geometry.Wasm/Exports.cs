@@ -27,4 +27,5 @@ public static partial class Exports
     [JSExport] public static string TableHoldsBase(string json) => Facade.TableHoldsBase(json);
     [JSExport] public static string ExitYaw(string json) => Facade.ExitYaw(json);
     [JSExport] public static string MoveBands(string json) => Facade.MoveBands(json);
+    [JSExport] public static string MoveRoutes(string json) => Facade.MoveRoutes(json);
 }

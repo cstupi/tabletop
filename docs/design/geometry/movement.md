@@ -75,6 +75,10 @@ server's `move_through_models`). Nothing fits at all: the shortest path at any l
 and `CrossesImpassable` is set when the straight line meets an impassable volume or no path gets there. `LeavesTable` is the
 base off the slab at the destination.
 
+`Movement.Measured(…, dangerous, unstable, unstableOver, steep?)` is the path a move is measured along when some volumes are dangerous only to a
+long path (3.6.0 Unstable): `Check` round `dangerous`; when that path is longer than `unstableOver` and enters a dangerous or unstable volume,
+`Check` again round both. The server's `ApplyMove` measures and tests along it; with no unstable volume it is `Check`.
+
 `Movement.VolumesOnPath(start, path, volumes)` names the volumes the base touches along a path (p.11 "in or through");
 `Movement.VolumesCrossed(start, destination, volumes)` is the same for the straight line.
 `Movement.ContactDistance(start, target, limit, impassable, table)` is the shortest path to base contact with a model, round
@@ -83,13 +87,16 @@ impassable volumes, when it is at most `limit` (p.9's "clear path to reach it"; 
 ## The reach and the drawn area
 
 `MoveReach.Build(start, allowance, impassable, difficult, cap, table, models?, surfaces?)` settles two fields once per model
-per move Ask: one round the difficult volumes (walls and bodies too) and one through them. Owner ruling: *"the visible
+per move Ask: one round the difficult volumes (walls and bodies too) and one through them. The cap binds only when a difficult volume is in
+reach: one listed out of reach caps nothing, as `Check` fits round it within the allowance. Owner ruling: *"the visible
 feedback to users should just show the furthest they could move accounting for both if they cross or go around the
 difficult"*, so a point is reachable when the field round difficult ground reaches it within the allowance **or** the field
 through it within the cap, and the client draws that one area.
 
-- `Route(to, shortest?)`: the path a move to `to` is measured along, by the same order as `Check`; `shortest` once the unit is
-  capped. The client's ruler follows it and reads its length.
+- `Route(to, shortest?)`: the path a move to `to` is measured along, `Measured`'s path: `Check`'s order over the dangerous volumes the reach was
+  given, chosen again round the unstable ones past `unstableOver`; `shortest`, the shortest whatever it enters, once the unit is capped (the cap is
+  judged by the shortest path). The client's ruler follows it and reads its length. Its fields round dangerous ground are settled on first use, or
+  ahead by `PrepareRoute` (the client calls it on the pool when the Ask opens).
 - `Clamp(target, cap?)`: the target when reachable, else the nearest point a path within the limit gets to (from the start
   and each settled corner, as far toward the target as the length left and the way allow). With `cap`, the unit is held to it.
 - `Triangles(least?)`: the area as triangles. `ReachMesh` walks a quadtree over the square of the allowance: a cell clear of
@@ -112,7 +119,7 @@ draws the area split by what reaching a point costs (`BandAt`, `Bands(least?)` a
 - Dangerous: else reached at all.
 
 Each is a level of fields settled on first use, a field whose groups (`MoveSpace.Dangerous`, `MoveSpace.Unstable`) add nothing in reach being the
-reach's own. `ReachMesh` walks one quadtree for the three, a band one level less the one inside it, so the bands are disjoint and cover the area.
+reach's own; the bands and the route share them (by groups and limit). `ReachMesh` walks one quadtree for the three, a band one level less the one inside it, so the bands are disjoint and cover the area.
 
 ## The wire carries destinations, not paths
 

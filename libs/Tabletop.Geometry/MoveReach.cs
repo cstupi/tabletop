@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Tabletop.Geometry;
 
 /// <summary>A path for the base centre from its start, its length, and whether the base goes in or through a difficult volume on it.</summary>
@@ -25,6 +27,7 @@ public sealed class MoveReach
     readonly double _capLimit;
     readonly double _unstableOver;
     readonly Lazy<Levels> _levels;
+    readonly ConcurrentDictionary<(int Mask, double Limit), Lazy<MoveSpace.Field>> _fields = new();
 
     MoveReach(MoveSpace space, double allowance, double capLimit, bool capBinds, double unstableOver)
     {
@@ -45,7 +48,8 @@ public sealed class MoveReach
 
     /// <summary>`models` stop the base where its body meets theirs, in plan and in height, the base rested on `surfaces` where it is; one it starts on
     /// does not. `dangerous` volumes are dangerous to any path that enters them, `unstable` ones only to a path longer than `unstableOver`; they
-    /// change only the bands (Bands, BandAt), never what is reached, the clamp or the route.</summary>
+    /// change the bands (Bands, BandAt) and the route (a path goes round them when that fits, as Movement.Check's does), never what is reached or the
+    /// clamp.</summary>
     public static MoveReach Build(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult,
         double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null, IReadOnlyList<WorldVolume>? surfaces = null,
         IReadOnlyList<WorldVolume>? dangerous = null, IReadOnlyList<WorldVolume>? unstable = null, double unstableOver = 0)
@@ -56,21 +60,74 @@ public sealed class MoveReach
         // No path within the allowance is longer than it, so an unstable volume is then never dangerous.
         if (unstableOver >= allowance - Tolerance.Distance) unstable = null;
         var space = new MoveSpace(start, allowance, impassable, binds ? difficult : [], dangerous ?? [], table, models, surfaces, unstable);
+        // The cap binds only where a difficult volume is in reach: one listed out of reach caps nothing (Movement.Check fits round it within the allowance).
+        binds &= (space.Present & MoveSpace.Difficult) != 0;
         var capLimit = binds ? Math.Max(0, difficultCap!.Value) : allowance;
-        return new MoveReach(space, allowance, capLimit, binds && (space.Present & MoveSpace.Difficult) != 0, unstableOver);
+        return new MoveReach(space, allowance, capLimit, binds, unstableOver);
     }
 
     /// <summary>
-    /// The path a move to `to` is measured along: round every difficult volume when that fits the allowance, else the shortest; the straight line when
-    /// no path within the allowance reaches it (then its length says how far over it is). `shortest`: the shortest whatever it enters, for a unit the
-    /// cap already holds (p.11), where going round no longer buys anything.
+    /// The path a move to `to` is measured along, in Movement.Check's order: round every difficult and dangerous volume within the allowance; round
+    /// every difficult one within it; round every dangerous one within the cap; else the shortest; the straight line when no path within the allowance
+    /// reaches it (then its length says how far over it is). An unstable volume counts as dangerous once the path is longer than `unstableOver` and
+    /// enters a dangerous or unstable one: the path is then chosen again, round both (Movement.Measured). `shortest`: the shortest whatever it enters,
+    /// for a unit the cap already holds (p.11), which is judged by its shortest path.
     /// </summary>
     public MovePath Route(Point2 to, bool shortest = false)
     {
-        if (!shortest && _avoiding?.Path(to) is { } round && round.Length <= Allowance + Tolerance.Distance) return new MovePath(round.Path, round.Length, false);
+        if (shortest) return Shortest(to);
+        var path = RouteRound(to, MoveSpace.Dangerous);
+        if ((_space.Present & MoveSpace.Unstable) != 0 && path.Distance > _unstableOver + Tolerance.Distance
+            && _space.Touched(path.Points, MoveSpace.Dangerous | MoveSpace.Unstable).Count > 0)
+            path = RouteRound(to, MoveSpace.Dangerous | MoveSpace.Unstable);
+        return path;
+    }
+
+    MovePath RouteRound(Point2 to, int danger)
+    {
+        const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+        danger &= _space.Present;
+        if (_avoiding is not null)
+        {
+            if (danger != 0 && FieldOf(walls | MoveSpace.Difficult | danger, Allowance).Path(to) is { } both && both.Length <= Allowance + Tolerance.Distance)
+                return new MovePath(both.Path, both.Length, false);
+            if (_avoiding.Path(to) is { } round && round.Length <= Allowance + Tolerance.Distance) return new MovePath(round.Path, round.Length, false);
+        }
+        if (danger != 0 && FieldOf(walls | danger, _capLimit).Path(to) is { } safe && safe.Length <= _capLimit + Tolerance.Distance)
+            return new MovePath(safe.Path, safe.Length, Enters(safe.Path));
+        return Shortest(to);
+    }
+
+    MovePath Shortest(Point2 to)
+    {
         if (_any.Path(to) is { } any) return new MovePath(any.Path, any.Length, Enters(any.Path));
         List<Point2> straight = [Origin, to];
         return new MovePath(straight, Origin.DistanceTo(to), Enters(straight));
+    }
+
+    /// <summary>Settles now the fields Route reads round dangerous and unstable ground (the decision box asks it on the pool when the Ask opens, so a
+    /// drag frame never settles one); nothing when none is in reach.</summary>
+    public void PrepareRoute()
+    {
+        const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+        foreach (var danger in new[] { MoveSpace.Dangerous, MoveSpace.Dangerous | MoveSpace.Unstable })
+        {
+            if ((danger & _space.Present) == 0) continue;
+            if (_avoiding is not null) _ = FieldOf(walls | MoveSpace.Difficult | danger, Allowance);
+            _ = FieldOf(walls | danger, _capLimit);
+        }
+    }
+
+    /// <summary>The field round these groups (those not in reach dropped) within `limit`, settled once on first use, from any thread; the reach's own
+    /// (settled within the allowance) for its groups. A field within the allowance serves a smaller limit too.</summary>
+    MoveSpace.Field FieldOf(int mask, double limit)
+    {
+        const int walls = MoveSpace.Walls | MoveSpace.Bodies;
+        mask = (mask & _space.Present & ~walls) | walls;
+        if (mask == walls) return _any;
+        if (_avoiding is not null && mask == (walls | MoveSpace.Difficult)) return _avoiding;
+        if (_fields.TryGetValue((mask, Allowance), out var whole)) return whole.Value;
+        return _fields.GetOrAdd((mask, limit), k => new Lazy<MoveSpace.Field>(() => _space.Settle(k.Mask, k.Limit))).Value;
     }
 
     bool Enters(IReadOnlyList<Point2> path) => _avoiding is not null && _space.Touched(path, MoveSpace.Difficult).Count > 0;
@@ -200,12 +257,8 @@ public sealed class MoveReach
                 wanted.Add((walls | dangerous | unstable, reach._capLimit, false));
                 if (unstable != 0) wanted.Add((walls | dangerous, Math.Min(reach._capLimit, reach._unstableOver), false));
             }
-            var fields = new Dictionary<int, MoveSpace.Field> { [walls] = reach._any };
-            if (reach._avoiding is { } avoiding) fields[walls | MoveSpace.Difficult] = avoiding;
-            foreach (var group in wanted.GroupBy(w => w.Mask))
-                if (!fields.ContainsKey(group.Key)) fields[group.Key] = space.Settle(group.Key, group.Max(w => w.Limit));
-            _clear = [.. wanted.Where(w => w.Clear).Select(w => (fields[w.Mask], w.Limit))];
-            _inner = [.. wanted.Where(w => !w.Clear).Select(w => (fields[w.Mask], w.Limit))];
+            _clear = [.. wanted.Where(w => w.Clear).Select(w => (reach.FieldOf(w.Mask, w.Limit), w.Limit))];
+            _inner = [.. wanted.Where(w => !w.Clear).Select(w => (reach.FieldOf(w.Mask, w.Limit), w.Limit))];
         }
 
         public double Clear(Point2 p) => Least(_clear, p);

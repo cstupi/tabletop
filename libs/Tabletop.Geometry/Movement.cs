@@ -100,6 +100,22 @@ public static class Movement
         return new MoveCheck(straight, allowance, false, true, Through(line), leaves, line);
     }
 
+    /// <summary>
+    /// The path a move is measured along when some volumes are dangerous only to a long path: Check round the `dangerous` volumes; when that path is
+    /// longer than `unstableOver` and enters a dangerous or `unstable` volume, Check again round both, so such a path goes round unstable ground when
+    /// that fits (MoveReach.Route draws the same path). With no unstable volume it is Check.
+    /// </summary>
+    public static MoveCheck Measured(PlacedModel start, Point2 destination, double allowance, IReadOnlyList<WorldVolume> impassable,
+        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces,
+        IReadOnlyList<WorldVolume> dangerous, IReadOnlyList<WorldVolume> unstable, double unstableOver, IReadOnlyList<WorldVolume>? steep = null)
+    {
+        MoveCheck Path(IReadOnlyList<WorldVolume> avoid) => Check(start, destination, allowance, impassable, difficult, difficultCap, table, models, surfaces, avoid, steep);
+        var path = Path(dangerous);
+        if (unstable.Count > 0 && path.Distance > unstableOver + Tolerance.Distance && VolumesOnPath(start, path.Path, [.. dangerous, .. unstable]).Count > 0)
+            path = Path([.. dangerous, .. unstable]);
+        return path;
+    }
+
     /// <summary>The steep volumes a move from this start goes onto: those the start's base does not stand on, sharing no interior with their footprint
     /// in plan (a base on the footprint rests on the top, Collision.Surfaces; one only touching its edge stands beside it). A move from one the base
     /// stands on is moving off it or along its top, open ground for the whole move (3.6.0 p.12 Steep "units moving off it count it as open terrain";

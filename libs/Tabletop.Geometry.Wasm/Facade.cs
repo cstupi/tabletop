@@ -158,5 +158,23 @@ public static class Facade
         return Write(new BandsAnswer([.. bands.Clear], [.. bands.Difficult], [.. bands.Dangerous]));
     }
 
+    /// <summary>Each held model's path as the server measures it (Movement.Measured over the Ask's volumes, the standing models and the table; the
+    /// steep volumes it starts outside difficult), the path MoveReach.Route draws in the Godot client; `Capped`, the shortest within the cap.</summary>
+    public static string MoveRoutes(string json)
+    {
+        var r = Read<RoutesRequest>(json);
+        var volumes = Volumes(r.Terrain);
+        List<WorldVolume> Named(IReadOnlyList<Guid>? ids) => ids is null ? [] : volumes.Where(v => ids.Contains(v.Id)).ToList();
+        var (impassable, difficult, steep) = (Named(r.Impassable), Named(r.Difficult), Named(r.Steep));
+        return Write(r.Models.Select(m =>
+        {
+            var path = r.Capped
+                ? Movement.Check(m.Start, m.To, Math.Min(r.Allowance, r.DifficultCap ?? r.Allowance), impassable, [], null, r.Size, r.Stationary, volumes)
+                : Movement.Measured(m.Start, m.To, r.Allowance, impassable, difficult, r.DifficultCap, r.Size, r.Stationary, volumes, Named(r.Dangerous),
+                    Named(r.Unstable), r.UnstableOver ?? 0, steep);
+            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult);
+        }).ToArray());
+    }
+
     public static string TableHoldsBase(string json) { var r = Read<TableRequest>(json); return Write(Table.ContainsBase(r.Size, r.Model)); }
 }

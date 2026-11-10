@@ -23,7 +23,16 @@ Owner, 2026-11-09 ("do it"): the move area is drawn in up to three bands by what
 - An unstable volume is dangerous only to a path longer than the Ask's `UnstableOver`, so a path no longer than that may enter it: under 3.6 the
   Dangerous band from unstable ground starts beyond 6" of total move.
 - No cap (Strider, Flying, Aircraft, a cap at or over the allowance): no Difficult band. A volume the Ask does not list draws no band.
-- The bands never change what is reached, the clamp, the route or the cap once a path enters difficult ground.
+- The bands never change what is reached, the clamp or the cap once a path enters difficult ground.
+
+## The route
+
+The ruler shows the path the server measures (`GfMoves.ApplyMove`, `Movement.Measured`): `Movement.Check`'s order over the dangerous volumes
+(round difficult and dangerous within the allowance, round difficult within it, round dangerous within the cap, any within the cap), chosen again
+round the unstable ones too once the path is longer than `UnstableOver` and enters dangerous or unstable ground. A unit already held to the cap is
+judged by its shortest path, and the ruler shows that. Godot: `MoveReach.Route`, its fields settled on the pool when the Ask opens
+(`MoveRegions.Prepare` → `PrepareRoute`). Viewer: `Geometry.moveRoutes` (facade `MoveRoutes` over `Movement.Measured`) per drag frame for the held
+models, asked again `capped` once any path goes in difficult ground; the readouts, the gate, the allowance bar and the ruler (a polyline) read it.
 
 ## The wire
 

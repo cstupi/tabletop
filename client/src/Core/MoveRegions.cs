@@ -54,9 +54,10 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
     public async Task<IReadOnlyList<MoveBands>> BandsAsync(IReadOnlyList<Guid> ids) =>
         await Task.WhenAll(ids.Where(Has).Select(id => Task.Run(() => Bands(id))));
 
-    /// <summary>Every model's reach built on the thread pool, one task each: the decision box starts it when the Ask opens, so a pickup's first drag
-    /// frame (which clamps each held model on the main thread) finds them built instead of waiting on the builds.</summary>
-    public Task Prepare() => Task.WhenAll(starts.Keys.Select(id => Task.Run(() => ReachOf(id))));
+    /// <summary>Every model's reach built on the thread pool, one task each, with the fields its route reads round dangerous ground
+    /// (MoveReach.PrepareRoute): the decision box starts it when the Ask opens, so a pickup's first drag frame (which clamps and routes each held
+    /// model on the main thread) finds them built instead of waiting on the builds.</summary>
+    public Task Prepare() => Task.WhenAll(starts.Keys.Select(id => Task.Run(() => ReachOf(id).PrepareRoute())));
 
     /// <summary>Whether this model's reach is built.</summary>
     public bool Built(Guid id) => _reaches.TryGetValue(id, out var reach) && reach.IsValueCreated;
@@ -65,8 +66,8 @@ public sealed class MoveRegions(IReadOnlyDictionary<Guid, PlacedModel> starts, M
     /// null when the Ask sets none.</summary>
     public double? Minimum(Guid id, Point2? toward = null) => MoveRuler.Minimum(starts[id], legal, size, toward);
 
-    /// <summary>The path a move of this model to `to` is measured along (MoveReach.Route), the shortest when the unit is `capped` (Allowance); null for a
-    /// model the Ask does not move.</summary>
+    /// <summary>The path a move of this model to `to` is measured along (MoveReach.Route: the server's order, round dangerous ground the Ask names when
+    /// that fits), the shortest when the unit is `capped` (Allowance); null for a model the Ask does not move.</summary>
     public MovePath? Route(Guid id, Point2 to, bool capped = false) => starts.ContainsKey(id) ? ReachOf(id).Route(to, capped) : null;
 
     /// <summary>

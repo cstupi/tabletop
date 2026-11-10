@@ -16,7 +16,7 @@ public class FacadeReadersTests
         ["EdgeToEdge"] = typeof(PairRequest), ["BodyToBody"] = typeof(PairRequest), ["EdgeToPoint"] = typeof(PointRequest),
         ["EdgeToMarker"] = typeof(MarkerRequest), ["NearestPair"] = typeof(NearestRequest), ["RangeOutline"] = typeof(RingRequest),
         ["ZonePolygons"] = typeof(ZoneRequest), ["ZoneContains"] = typeof(ZoneRequest), ["ZoneHoldsBase"] = typeof(ZoneRequest),
-        ["ExitYaw"] = typeof(ExitRequest), ["TableHoldsBase"] = typeof(TableRequest), ["MoveBands"] = typeof(BandsRequest),
+        ["ExitYaw"] = typeof(ExitRequest), ["TableHoldsBase"] = typeof(TableRequest), ["MoveBands"] = typeof(BandsRequest), ["MoveRoutes"] = typeof(RoutesRequest),
     };
 
     /// <summary>Read with each, written back with the generated metadata: the same text.</summary>
