@@ -52,7 +52,8 @@ public class GfAttackTests
         sim.Start(GfNames.AttackSequence, Attack(mortar, pair, GfNames.Hold));
         Assert.Equal(2, sim.Steps("roll-to-hit").Single().Values!["hit_multiplier"]);                   // 3 capped at 2 models
         Assert.Equal(4, sim.Steps("roll-to-block").Single().Rolls.Single().Dice.Count);                // 2 hits × 2
-        Assert.Equal(4, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                   // four wounds kill both models: nothing to allocate
+        Assert.Equal((0, 2), (sim.Alive(pair.Id), sim.Unit(pair.Id).WoundsThisActivation));
 
         var render = Unit("Render", "4+", "4+", [], 2, [], Gun("Saw", "12\"", 1, P("Rending")));
         var target = Unit("T", "4+", "2+", [], 3, []);

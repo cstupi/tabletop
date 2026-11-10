@@ -147,11 +147,64 @@ public static partial class GfAttack
                 if (toughOnly && allocation.Keys.FirstOrDefault() is var first && first != Guid.Empty)
                     allocation = new Dictionary<Guid, int> { [first] = wounds };
             }
+            else if (KillsEveryModel(ctx, target, wounds) is { } forced) allocation = forced;   // no choice changes the outcome
             else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
             return Apply(ctx, target, wounds, allocation.Where(kv => kv.Value > 0).Select(kv => (kv.Key, kv.Value)).ToList(), takedown is not null, null);
         }
 
         const string IgnoreWoundsKey = "ignore_wounds";
+
+        /// <summary>
+        /// Owner ruling (2026-11-09): a unit whose every model the wounds kill is not asked to allocate them. p.8 "For each wound that the
+        /// unit has taken, the defending player must remove one model", p.15 Tough "must take X wounds before being killed": when the wounds
+        /// reach the remaining wounds of every living model (Deadly(X)'s multiplied wounds counted per model, one per X of room) every allocation
+        /// removes the whole unit. A rule that may ignore a wound after allocation (Regeneration and its kind, rolled per allocated model in Apply)
+        /// can leave a model standing, so its unit is still asked. The allocation lays the wounds one at a time in p.15's order
+        /// (EligibleForNextWound), each model taking what kills it: heroes last, Split's kept model the last one laid.
+        /// </summary>
+        static Dictionary<Guid, int>? KillsEveryModel(StepContext ctx, Guid target, int wounds)
+        {
+            var (multiplier, regen) = WoundEffects(ctx, target, LiveProperties.Settle(WoundInteraction(ctx, target)));
+            if (regen.Roll is not null) return null;
+            var laid = Lookup.AliveModels(ctx.State, target).ToDictionary(m => m, m => ctx.Projection.Models[m].Wounds);
+            var allocation = new List<(Guid Model, int Count)>();
+            for (var i = 0; i < wounds; i++)
+            {
+                if (EligibleForNextWound(ctx.State, target, m => laid.GetValueOrDefault(m)) is not [var next, ..]) break;
+                laid[next] = Math.Min(Size(ctx.State, next), laid[next] + multiplier);
+                var at = allocation.FindIndex(a => a.Model == next);
+                if (at < 0) allocation.Add((next, 1)); else allocation[at] = (next, allocation[at].Count + 1);
+            }
+            if (EligibleForNextWound(ctx.State, target, m => laid.GetValueOrDefault(m)).Count > 0) return null;
+            var ordered = new Dictionary<Guid, int>();
+            foreach (var (model, count) in allocation) ordered[model] = count;
+            return ordered;
+        }
+
+        static Interaction WoundInteraction(StepContext ctx, Guid target)
+        {
+            var actor = ctx.Frame.Context.ActorUnitId;
+            return AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
+        }
+
+        /// <summary>Deadly's wound multiplier and the rule that rolls to ignore the target's wounds, if any, off a settled live set.</summary>
+        static (int Multiplier, (LiveProperty Source, Effect Roll) Regen) WoundEffects(StepContext ctx, Guid target, LiveSet live)
+        {
+            var actor = ctx.Frame.Context.ActorUnitId;
+            var targetSide = actor is null ? Side.Attacker : Side.Defender;
+            var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
+            var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
+            // Regeneration is aggregation all under 3.5.1 ("a unit where all models have this rule") and majority under 3.6.0 (3.6.0 p.14: "most models"), so LiveProperties.Gather settles it
+            // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
+            // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
+            // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … roll one die per wound") is this unit's for every wound of
+            // the first attack it is rolled against, and for no later one.
+            // No Retreat's wounds "can't be ignored": no roll is made for them.
+            var regen = ctx.Frame.Context.Action == GfNames.NoRetreat ? default
+                : RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
+                    (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
+            return (multiplier, regen);
+        }
 
         /// <summary>The allocation a rolling run recorded, in its order.</summary>
         static IReadOnlyList<(Guid Model, int Count)> RecordedAllocation(IReadOnlyDictionary<string, int> values) =>
@@ -162,13 +215,10 @@ public static partial class GfAttack
         /// segment recorded; otherwise the rolling run's dice, one record per model that rolled, in the allocation's order, read as they now stand.</summary>
         static StepOutcome Apply(StepContext ctx, Guid target, int wounds, IReadOnlyList<(Guid Model, int Count)> allocation, bool fixedModels, IReadOnlyList<RollRecord>? ignoreRolls)
         {
-            var actor = ctx.Frame.Context.ActorUnitId;
-            var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
+            var ix = WoundInteraction(ctx, target);
             // The rolling run lists what acted on the segment; the run that reads its dice settles the same rules again only to spend them.
             var live = ignoreRolls is null ? ctx.Settle(ix) : LiveProperties.Settle(ix);
-            var targetSide = actor is null ? Side.Attacker : Side.Defender;
-            var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
-            var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
+            var (multiplier, regen) = WoundEffects(ctx, target, live);
             // Deadly(X): "Assign each wound to one model, and multiply it by X ... these wounds don't carry over to other models if the original
             // target is killed" (3.5.1 p.13, 3.6.0 p.14). A model keeps only the wounds it needs to die; each wound past those is a wound of its own,
             // assigned to no removed model (p.8: one model for each wound), so it goes to the next segment,
@@ -179,15 +229,6 @@ public static partial class GfAttack
                     var room = Size(ctx.State, a.Model) - ctx.Projection.Models[a.Model].Wounds;
                     return (a.Model, Count: Math.Min(a.Count, Math.Max(1, (room + multiplier - 1) / multiplier)));
                 }).ToList();
-            // Regeneration is aggregation all under 3.5.1 ("a unit where all models have this rule") and majority under 3.6.0 (3.6.0 p.14: "most models"), so LiveProperties.Gather settles it
-            // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
-            // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
-            // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … roll one die per wound") is this unit's for every wound of
-            // the first attack it is rolled against, and for no later one.
-            // No Retreat's wounds "can't be ignored": no roll is made for them.
-            var regen = ctx.Frame.Context.Action == GfNames.NoRetreat ? default
-                : RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
-                    (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
 
             // Carried wounds come first and keep the result they rolled; each of a model's other wounds rolls one die.
             var carried = ctx.Frame.Value("wounds_carried");

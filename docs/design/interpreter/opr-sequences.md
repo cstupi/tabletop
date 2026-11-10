@@ -184,6 +184,15 @@ defender names one model, it takes every wound it can, and the rest carry to the
 Otherwise `MaxTargets` is null and the answer is applied as given. An out-of-set allocation under `warn`/`silent` is applied too,
 because nothing is an invariant; a spread over `Tough` models reads as all its wounds on the first model it names.
 
+No Ask opens when there is nothing to choose: one eligible model takes the wounds, and wounds that kill every living model
+whatever the allocation are assigned by `assign` itself (owner ruling: "If a unit of 5 takes 5 wounds and they can't come back
+it shouldn't have them choose to allocate wounds - it should 'kill them' with the animation."). `KillsEveryModel` lays the
+wounds one at a time in `EligibleForNextWound`'s order on a copy of the unit's wounds, each `Deadly(X)` wound filling X of a
+model's room, and holds when no model is left standing; the allocation it lays (heroes last) is applied as an answer would be,
+so the step writes the same `WoundsSet`, `ModelsMoved` to the shelf and `killed_<model>` values, and both clients play the same
+removal. A rule that rolls to ignore wounds after allocation (`Regeneration` and its kind, the `override_result` wound rolls
+`WoundEffects` finds; none under `No Retreat` or against `Bane`) can leave a model standing, so its unit is still asked.
+
 A **takedown** wound opens no Ask at all. When `GfAttack.TakedownModel` names a living model of the
 target, every wound this group deals is assigned to that one model and the defender is not asked
 (p.14 `Takedown`). What that skips is precisely what building the prompt's targets decides:
