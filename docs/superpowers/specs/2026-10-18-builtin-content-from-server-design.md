@@ -21,7 +21,7 @@ the files, which a client fetches by hash when a table needs them (spec `2026-11
     { "id": "barricade", "label": "Barricade", "mesh": "wall", "kind": "solid",
       "footprint": { "kind": "rect", "a": 3, "b": 1 }, "top": 1, "declarations": ["difficult", "cover"] },
     { "id": "ruins", "label": "Ruins or Debris", "mesh": "ruins", "kind": "area",
-      "footprint": { "kind": "rect", "a": 6, "b": 6 }, "top": 4, "declarations": ["cover", "dangerous_on_rush_charge"] }
+      "footprint": { "kind": "rect", "a": 6, "b": 6 }, "top": 4, "declarations": ["blocks_line_of_sight", "see_in_and_out", "cover", "dangerous_on_rush_charge"] }
   ]
 }
 ```

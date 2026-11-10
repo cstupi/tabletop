@@ -167,5 +167,60 @@ public class MigrationTests : IClassFixture<TestDatabase>
     }
 
     [Fact]
+    public async Task Built_in_ruins_at_their_old_default_become_dense_in_layouts_and_unfinished_games_only()
+    {
+        await using var c = new NpgsqlConnection(_db.ConnectionString);
+        var (owner, hash) = (Guid.CreateVersion7(), "dense-ruins-" + Guid.NewGuid().ToString("N"));
+        await c.ExecuteAsync("insert into management.account (id, name) values (@owner, 'dense test')", new { owner });
+        await c.ExecuteAsync("insert into management.properties (content_hash, name, game_rules) values (@hash, 'GF test', 'grimdark-future')", new { hash });
+        async Task<Guid> Table(string? status)
+        {
+            var table = Guid.CreateVersion7();
+            Guid? game = null;
+            if (status is not null)
+            {
+                game = Guid.CreateVersion7();
+                await c.ExecuteAsync("insert into management.game (id, name, status, game_rules, properties_hash, scheduler_shape, enforcement, rng_seed, created_by) " +
+                    "values (@game, 'g', @status, 'grimdark-future', @hash, 'alternating-activation', 'warn', 1, @owner)", new { game, status, hash, owner });
+            }
+            await c.ExecuteAsync("insert into management.table_state (id, owner_id, game_id, width, length, texture_builtin) values (@table, @o, @game, 72, 48, 'grass')",
+                new { table, o = game is null ? owner : (Guid?)null, game });
+            return table;
+        }
+        async Task<Guid> Volume(Guid table, string builtin, string flags)
+        {
+            var (placement, volume) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+            await c.ExecuteAsync("insert into management.terrain_placement (id, table_state_id, builtin, pos_x, pos_y) values (@placement, @table, @builtin, 10, 10)", new { placement, table, builtin });
+            bool F(string f) => flags.Split(' ').Contains(f);
+            await c.ExecuteAsync("insert into management.terrain_volume (id, terrain_placement_id, kind, footprint, dim_a, dim_b, top, impassable, blocks_los, see_in_out, cover, difficult, dangerous, dangerous_rush_charge, steep) " +
+                "values (@volume, @placement, 'area', 'rect', 6, 6, 4, false, @los, @sio, @cover, @difficult, @dangerous, @drc, false)",
+                new { volume, placement, los = F("los"), sio = F("sio"), cover = F("cover"), difficult = F("difficult"), dangerous = F("dangerous"), drc = F("drc") });
+            return volume;
+        }
+        var (layout, playing, setup, ended) = (await Table(null), await Table("playing"), await Table("setup"), await Table("ended"));
+        Guid[] dense =
+        [
+            await Volume(layout, "ruined-corner", "cover drc"), await Volume(playing, "ruined-corner", "cover drc"), await Volume(setup, "ruins", "cover drc"),
+            await Volume(playing, "overgrown-ruins", "cover difficult"), await Volume(playing, "deadly-vegetation", "cover difficult dangerous"),
+        ];
+        Guid[] kept =
+        [
+            await Volume(ended, "ruined-corner", "cover drc"),            // an ended game
+            await Volume(playing, "ruined-corner", "cover"),              // edited away from the default
+            await Volume(playing, "ruins", "cover difficult"),
+            await Volume(layout, "crater", "cover"),                      // another piece
+        ];
+
+        var script = typeof(Persistence.Migrator).Assembly.GetManifestResourceStream("Tabletop.Management.Persistence.Migrations.033_dense_builtin_ruins.sql")!;
+        await c.ExecuteAsync(await new StreamReader(script).ReadToEndAsync());
+
+        const string Sight = "select blocks_los and see_in_out from management.terrain_volume where id = @id";
+        foreach (var id in dense) Assert.True(await c.ExecuteScalarAsync<bool>(Sight, new { id }));
+        foreach (var id in kept) Assert.False(await c.ExecuteScalarAsync<bool>(Sight, new { id }));
+        Assert.True(await c.ExecuteScalarAsync<bool>("select dangerous_rush_charge and cover from management.terrain_volume where id = @id", new { id = dense[0] }));
+        await c.ExecuteAsync("delete from management.game where created_by = @owner; delete from management.account where id = @owner; delete from management.properties where content_hash = @hash", new { owner, hash });
+    }
+
+    [Fact]
     public void Running_the_migrator_twice_is_a_no_op() => Persistence.Migrator.Run(_db.ConnectionString);
 }

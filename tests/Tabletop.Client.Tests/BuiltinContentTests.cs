@@ -21,9 +21,11 @@ public class BuiltinContentTests
         Assert.Equal(TerrainDeclarations.Difficult | TerrainDeclarations.Cover | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut, BuiltinContent.Terrain["forest"].Volume.Declarations);
         Assert.Equal(TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight, BuiltinContent.Terrain["large-building"].Volume.Declarations);
         // p.18/p.19 "Ruins or Debris: Counts as Cover terrain, as well as Dangerous terrain when using Rush/Charge actions."
+        // Owner ruling: ruins are seen into and out of, not through (3.6.0 p.12 Dense).
+        const TerrainDeclarations dense = TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut;
         foreach (var ruins in new[] { "ruins", "large-ruins" })
         {
-            Assert.Equal((VolumeKind.Area, TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge),
+            Assert.Equal((VolumeKind.Area, dense | TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge),
                 (BuiltinContent.Terrain[ruins].Volume.Kind, BuiltinContent.Terrain[ruins].Volume.Declarations));
             Assert.Null(BuiltinContent.Terrain[ruins].Volume.Notes);
         }
@@ -32,9 +34,11 @@ public class BuiltinContentTests
         Assert.Equal(TerrainDeclarations.Difficult | TerrainDeclarations.Cover, BuiltinContent.Terrain["wall-or-fence"].Volume.Declarations);   // "Difficult when moving through it" is what Difficult means
         Assert.Equal(VolumeKind.Area, BuiltinContent.Terrain["deep-river"].Volume.Kind);
         Assert.Equal(TerrainDeclarations.Impassable, BuiltinContent.Terrain["deep-river"].Volume.Declarations);
-        // The ruins pack's own pieces. p.12 "Ruins - Cover + Dangerous when using rush/charge", as the generators' ruins.
-        Assert.Equal((VolumeKind.Area, TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge),
+        // The ruins pack's own pieces. p.12 "Ruins - Cover + Dangerous when using rush/charge", as the generators' ruins, and Dense.
+        Assert.Equal((VolumeKind.Area, dense | TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge),
             (BuiltinContent.Terrain["ruined-corner"].Volume.Kind, BuiltinContent.Terrain["ruined-corner"].Volume.Declarations));
+        Assert.Equal(dense | TerrainDeclarations.Cover | TerrainDeclarations.Difficult, BuiltinContent.Terrain["overgrown-ruins"].Volume.Declarations);
+        Assert.Equal(dense | TerrainDeclarations.Cover | TerrainDeclarations.Difficult | TerrainDeclarations.Dangerous, BuiltinContent.Terrain["deadly-vegetation"].Volume.Declarations);
         // p.11 Blocking terrain "Examples: Walls, Buildings, Rocks"; Elevated terrain "over 3" tall ... are impassable".
         Assert.Equal((VolumeKind.Solid, TerrainDeclarations.Impassable | TerrainDeclarations.BlocksLineOfSight),
             (BuiltinContent.Terrain["ruined-wall"].Volume.Kind, BuiltinContent.Terrain["ruined-wall"].Volume.Declarations));

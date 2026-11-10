@@ -77,7 +77,9 @@ An entry naming alternatives ("Hill, Forest, or Field") is resolved by that
 same RNG, so rolling a table produces a finished board in one action; a player
 who dislikes a piece swaps its mesh or deletes it, which the toolbar already offers. The tables ship with the client and the server never reads them, which keeps
 the game server ruleset-blind during setup. 40k has no such tables. Declarations follow the tables
-literally. "Dangerous terrain when using Rush/Charge actions" (Ruins or Debris, Quicksand) is the
+literally, but for the owner's ruling that ruins and deadly vegetation are seen into and out of, not through: `ruins`,
+`large-ruins`, `ruined-corner`, `overgrown-ruins` and `deadly-vegetation` also declare `blocks_line_of_sight` and `see_in_and_out`
+(3.6.0 Dense). "Dangerous terrain when using Rush/Charge actions" (Ruins or Debris, Quicksand) is the
 `dangerous_on_rush_charge` flag; other conditional clauses ("units on top may ignore one unit for line of
 sight", "Difficult terrain for units moving up") go in `Notes` and are never flags. The engine reads a closed
 set of seven and carries the rest as text nobody interprets.
