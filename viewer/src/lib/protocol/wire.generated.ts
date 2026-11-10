@@ -436,6 +436,9 @@ export interface MoveRegion {
   readonly contactWith?: readonly string[];
   readonly contactGrace?: number;
   readonly steepVolumeIds?: readonly string[];
+  readonly dangerousVolumeIds?: readonly string[];
+  readonly unstableVolumeIds?: readonly string[];
+  readonly unstableOver?: number;
 }
 
 export interface MoveSetupMarker {

@@ -15,7 +15,7 @@ import { handMarks, handMoveCommand, markerMove, mayDrag } from './handMove';
 import type { MarkerLocks } from './markerLocks';
 import { ModelDrag, type Held } from './modelDrag';
 import { ModelPicks, shiftPress, type PickBox, type PickCandidate } from './modelPicks';
-import { allowanceOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
+import { allowanceOverlay, bandsOverlay, boxOverlay, labelOverlay, landingOverlay, landingRings, rulerLines, rulerOverlay, violationLabels } from './moveOverlays';
 import { read } from './moveRuler';
 import { Names } from './names';
 import { teamsOf } from '../lobby/seats';
@@ -293,11 +293,13 @@ export class PlayDrags {
     if (token !== undefined) this.#refuseHand(token, refusalText(refused) ?? refused.detail ?? 'refused');
   }
 
-  /** Rings, rulers, landing rings, violation labels and the marker in hand, in the order the plan draws them. */
+  /** The move's area in bands (else its allowance rings), rulers, landing rings, violation labels and the marker in hand, in the order the plan draws them. */
   overlays(centreOf: (id: string) => XY | null, colour: number): Overlay[] {
     const out: Overlay[] = [];
     const hooks = this.#deps.hooks(), p = this.#deps.state().projection, held = this.#held;
-    const rings = hooks?.allowance() ?? [];
+    const bands = hooks?.bands() ?? [];
+    const rings = bands.length > 0 ? [] : hooks?.allowance() ?? [];
+    if (bands.length > 0) out.push(bandsOverlay(bands, teamColour(colour)));
     if (rings.length > 0) out.push(allowanceOverlay(rings, teamColour(colour)));
     if (held !== null && p !== null) {
       const readouts = this.#proposing ? hooks?.readouts(held) ?? []

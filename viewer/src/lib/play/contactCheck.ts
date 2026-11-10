@@ -1,7 +1,7 @@
 // viewer/src/lib/play/contactCheck.ts
 // client/src/Core/ContactCheck.cs over Geometry.contacts (the moved Contacts.Of): the contacts a drag shows before the server judges it.
 // The server stays the judge: a unit a mover already stood within the separation of is left to it. No `unit` cap: the difficult cap is
-// the server's to judge (no reach outline in the browser).
+// the server's to judge (the browser holds no drag to the reach).
 
 import type { Contact, ContactBody, Geometry, Placement, TableSize } from '../geometry';
 import type { Projection } from '../live/apply';

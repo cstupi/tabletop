@@ -265,7 +265,7 @@ the first time it is asked for:
 
 | Member | What it answers |
 | --- | --- |
-| `MoveRegions.Outline(id)` | the area the model can reach, as triangles `MoveRegionNode.ShowTriangles` draws: owner ruling, *"the visible feedback to users should just show the furthest they could move accounting for both if they cross or go around the difficult"*, so it is one area, wherever the model gets round difficult terrain within the allowance or through it within the cap |
+| `MoveRegions.Bands(id)` | the area the model can reach, as triangles in three bands `MoveRegionNode.ShowBands` draws (`MoveBandLook`): owner ruling, *"the visible feedback to users should just show the furthest they could move accounting for both if they cross or go around the difficult"*, so it is one area, wherever the model gets round difficult terrain within the allowance or through it within the cap, split by what getting there costs: clear, only through difficult ground, only into terrain the Ask names dangerous to the move (spec `2026-11-09-move-area-bands-design.md`) |
 | `MoveRegions.Route(id, to, capped)` | the path a move there is measured along (`MoveReach.Route`); the ruler (`RulerNode`, `RulerPath.Lift`) draws it as a polyline and reads its length; the shortest once the unit is capped |
 | `MoveRegions.Clamp(id, target, cap)` | without Alt, the target, or the nearest point a path within the limit reaches (round walls and models too) |
 | `MoveRuler.Read(distance, allowance, minimum)` | `RulerReadout(Distance, Remaining, OverAllowance, UnderMinimum)` for a path's length |

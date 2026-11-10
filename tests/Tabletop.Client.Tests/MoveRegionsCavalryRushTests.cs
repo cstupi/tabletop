@@ -9,7 +9,7 @@ namespace Tabletop.Client.Tests;
 /// <summary>
 /// A 16" Rush (Fast) of five cavalry on 60 × 35 mm ovals, 4.43" tall, from 4.8" off the table's edge, on a 72 × 48 table with eighteen terrain
 /// pieces and fifty other models, a squad of them standing on a 3" steep hill: the table and Ask of a game where no reach area showed for the rush.
-/// The area is drawn when the thread pool has built it (MoveRegions.OutlinesAsync), so it has to build in seconds.
+/// The area is drawn when the thread pool has built it (MoveRegions.BandsAsync), so it has to build in seconds.
 /// </summary>
 public class MoveRegionsCavalryRushTests(ITestOutputHelper output)
 {
@@ -97,9 +97,9 @@ public class MoveRegionsCavalryRushTests(ITestOutputHelper output)
     {
         var (regions, ids) = Rush();
         var watch = Stopwatch.StartNew();
-        var area = regions.Outline(ids[0]);
-        output.WriteLine($"lead: {area.Count / 3} triangles, {watch.ElapsedMilliseconds} ms");
-        Assert.NotEmpty(area);
+        var area = regions.Bands(ids[0]);
+        output.WriteLine($"lead: {area.Clear.Count / 3}/{area.Difficult.Count / 3}/{area.Dangerous.Count / 3} triangles, {watch.ElapsedMilliseconds} ms");
+        Assert.NotEmpty(area.Clear);
         Assert.InRange(watch.ElapsedMilliseconds, 0, 5000);                                  // cold: about 1 s in a debug build
     }
 
@@ -119,9 +119,9 @@ public class MoveRegionsCavalryRushTests(ITestOutputHelper output)
     public async Task Every_riders_area_builds_at_once_in_the_order_asked()
     {
         var (regions, ids) = Rush();
-        var areas = await regions.OutlinesAsync(ids);
+        var areas = await regions.BandsAsync(ids);
         Assert.Equal(ids.Length, areas.Count);
-        Assert.All(areas, a => Assert.NotEmpty(a));
-        Assert.Equal(ids.Select(regions.Outline), areas);
+        Assert.All(areas, a => Assert.NotEmpty(a.Clear));
+        Assert.Equal(ids.Select(regions.Bands), areas);
     }
 }

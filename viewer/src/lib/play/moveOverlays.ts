@@ -1,9 +1,11 @@
 // viewer/src/lib/play/moveOverlays.ts
-// What RulerNode, LandingMarks, MoveRegionNode (as a circle), ViolationMarks and the pick box draw, as data and then as board Overlays.
+// What RulerNode, LandingMarks, MoveRegionNode (the area in its bands, or a circle until they are built), ViolationMarks and the pick box draw, as data
+// and then as board Overlays.
 
 import type { Overlay } from '../board/interaction';
 import { drawLabel } from '../board/labelPlacement';
-import type { XY } from '../geometry';
+import type { MoveBands, XY } from '../geometry';
+import { bandColour, layers, STRIPE_SPACING, striped } from './moveBandLook';
 import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
 import type { Violations } from './violations';
@@ -51,6 +53,37 @@ const circle = (ctx: CanvasRenderingContext2D, project: (p: XY) => XY, ppi: numb
 export const allowanceOverlay = (rings: readonly Ring[], colour: string): Overlay => (ctx, project, ppi) => {
   ctx.strokeStyle = colour; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
   for (const ring of rings) circle(ctx, project, ppi, ring);
+};
+
+/** MoveRegionNode.ShowBands: each band's triangles from every held model's area filled as one path (each triangle wound one way, so overlapping
+ *  areas fill once), the dangerous band striped across the table. */
+export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay => (ctx, project, ppi) => {
+  for (const { band, areas: parts } of layers(areas)) {
+    if (parts.every((t) => t.length < 3)) continue;
+    ctx.save();
+    ctx.beginPath();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const t of parts)
+      for (let i = 0; i + 2 < t.length; i += 3) {
+        let a = project(t[i]!), b = project(t[i + 1]!);
+        const c = project(t[i + 2]!);
+        if ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) < 0) [a, b] = [b, a];
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.closePath();
+        for (const q of [a, b, c]) { minX = Math.min(minX, q.x); minY = Math.min(minY, q.y); maxX = Math.max(maxX, q.x); maxY = Math.max(maxY, q.y); }
+      }
+    ctx.fillStyle = bandColour(band, team);
+    ctx.fill('nonzero');
+    if (striped(band)) {
+      // Diagonal stripes, half of each period drawn, clipped to the band.
+      ctx.clip('nonzero');
+      const period = Math.max(4, STRIPE_SPACING * ppi);
+      ctx.strokeStyle = bandColour(band, team); ctx.lineWidth = period / 2; ctx.setLineDash([]);
+      ctx.beginPath();
+      for (let x = minX - (maxY - minY); x <= maxX; x += period) { ctx.moveTo(x, maxY); ctx.lineTo(x + (maxY - minY), minY); }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 };
 
 export const rulerOverlay = (lines: readonly RulerLine[]): Overlay => (ctx, project) => {

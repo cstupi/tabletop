@@ -187,7 +187,7 @@ public class ViewModelTests
         Assert.Equal(30, MoveRuler.Minimum(start, legal, new TableSize(72, 48)));
         Assert.True(MoveRuler.Minimum(start with { Placement = new Placement(new Point3(15, 15, 0), new Yaw(0)) }, legal, new TableSize(30, 30)) < 30);
         Assert.Null(MoveRuler.Minimum(start, legal with { MinDistance = null }, new TableSize(72, 48)));
-        var ring = new MoveRegions(new Dictionary<Guid, PlacedModel> { [Samples.Model] = start }, legal, [], new TableSize(72, 48), []).Outline(Samples.Model);
+        var ring = new MoveRegions(new Dictionary<Guid, PlacedModel> { [Samples.Model] = start }, legal, [], new TableSize(72, 48), []).Bands(Samples.Model);
         Assert.False(Areas.Inside(ring, new Point2(40, 24)));
         Assert.True(Areas.Inside(ring, new Point2(67, 24)));
     }
@@ -203,7 +203,7 @@ public class ViewModelTests
         Assert.Equal(2, MoveRuler.UsedInFrame(a.Projection.Stack[0], Samples.Model), 6);
         var start = new PlacedModel(new ModelBody(Base.Circle(1.26), 1.5), new Placement(new Point3(36, 24, 0), new Yaw(0)));
         IReadOnlyList<Point2> Area(PlacedModel at, MoveRegion legal, IReadOnlyList<WorldVolume> volumes) =>
-            new MoveRegions(new Dictionary<Guid, PlacedModel> { [Samples.Model] = at }, legal, volumes, new TableSize(72, 48), []).Outline(Samples.Model);
+            new MoveRegions(new Dictionary<Guid, PlacedModel> { [Samples.Model] = at }, legal, volumes, new TableSize(72, 48), []).Bands(Samples.Model) is var b ? [.. b.Clear, .. b.Difficult, .. b.Dangerous] : [];
         var region = Area(start, new MoveRegion([Samples.Model], 6, [], [], null), []);
         Assert.True(Areas.Inside(region, new Point2(41.9, 24)) && !Areas.Inside(region, new Point2(42.1, 24)));
         var edge = Area(start with { Placement = new Placement(new Point3(71, 24, 0), new Yaw(0)) }, new MoveRegion([Samples.Model], 6, [], [], null), []);

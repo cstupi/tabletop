@@ -26,7 +26,7 @@ public static class MoveWarmup
         var regions = MoveRegions.Of(p, legal, volumes, size);
         var lead = p.Models[legal.ModelIds[0]];
         var start = ((OnTable)lead.Location).Placement;
-        _ = regions.Outline(lead.Id);
+        _ = regions.Bands(lead.Id);
         var target = regions.Clamp(lead.Id, start.Position.Horizontal + new Point2(2, 0));
         var held = new HeldBody(lead.Id, new PlacedModel(new ModelBody(lead.Slot.Base, lead.Slot.Height), start), target);
         var stationary = DragBodies.Stationary(p, [lead.Id]);

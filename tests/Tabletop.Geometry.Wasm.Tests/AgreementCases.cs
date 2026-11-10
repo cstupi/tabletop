@@ -205,6 +205,18 @@ public static class AgreementCases
         Exit("exit_yaw_in_a_volume_not_named", rider, new Point2(14, 10), false);
         Exit("exit_yaw_oval_within_reach", oval, new Point2(12, 11), false);
         Exit("exit_yaw_beyond_reach", rider, new Point2(30, 10), false);
+        // MoveBands: a 2.5" move capped at 1.5" past a wood, a pit and an unstable ruin (dangerous over 1.5"), round a standing model; small, as the
+        // answer is every triangle.
+        var wood = PieceAt(11.6, 10, 0, 1, Vol(VolumeKind.Area, Footprint.Circle(0.6), 4, TerrainDeclarations.Difficult));
+        var pit = PieceAt(10, 8.4, 0, 1, Vol(VolumeKind.Area, Footprint.Circle(0.5), 1, TerrainDeclarations.Dangerous));
+        var ruin = PieceAt(8.6, 11.2, 0, 1, Vol(VolumeKind.Area, Footprint.Rect(1, 1), 3, TerrainDeclarations.DangerousOnRushCharge));
+        Piece[] field = [wood, pit, ruin];
+        var mover = Model(10, 10);
+        PlacedModel[] standing = [Model(11, 11.6)];
+        var bands = MoveReach.Build(mover, 2.5, [], Volumes([wood]), 1.5, size, standing, Volumes(field), Volumes([pit]), Volumes([ruin]), 1.5).Bands();
+        Add("move_bands_wood_pit_and_ruin", "MoveBands",
+            new BandsRequest(mover, 2.5, [], [wood.Volumes[0].Id], 1.5, field, size, standing, Dangerous: [pit.Volumes[0].Id], Unstable: [ruin.Volumes[0].Id], UnstableOver: 1.5),
+            new BandsAnswer([.. bands.Clear], [.. bands.Difficult], [.. bands.Dangerous]));
         return cases;
     }
 

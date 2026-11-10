@@ -56,6 +56,23 @@ public static partial class GfMoves
             Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(), steep.Count == 0 ? null : steep);
     }
 
+    /// <summary>
+    /// A MoveRegion's dangerous terrain for this unit's move, as ApplyMove tests it: none for a unit that ignores it (Aircraft, Flying, the Banner of
+    /// Eternal Flame; Strider still tests). 3.5.1: every Dangerous volume, and on a Rush or a Charge every DangerousOnRushCharge one too (p.11, p.12),
+    /// at any length. 3.6.0: every Dangerous volume at any length, and the DangerousOnRushCharge ones as Unstable (p.12: "If any model in a unit moves
+    /// over 6” when moving into or through unstable terrain, then it counts as Dangerous terrain"), over what is left of 6" after `usedBefore`, the
+    /// earlier segments of the move. An empty list is null.
+    /// </summary>
+    public static (List<Guid>? Dangerous, List<Guid>? Unstable, double? UnstableOver) RegionDangers(GameState state, TerrainRules rules, string? action, double usedBefore = 0)
+    {
+        if (rules.IgnoresDangerous) return (null, null, null);
+        var terrain = SweptTerrain(state, rules);
+        static List<Guid>? Ids(IReadOnlyList<WorldVolume> volumes) => volumes.Count == 0 ? null : volumes.Select(v => v.Id).ToList();
+        if (!GfEdition.Of(state).UnstableByDistance) return (Ids(DangerousFor(terrain, RushOrCharge(action))), null, null);
+        var unstable = Ids(Declared(terrain, TerrainDeclarations.DangerousOnRushCharge));
+        return (Ids(Declared(terrain, TerrainDeclarations.Dangerous)), unstable, unstable is null ? null : Math.Max(0, GfNames.UnstableDistance - usedBefore));
+    }
+
     /// <summary>The Ask region of a move another team makes for this unit (a spell's move kind): the unit's alive models, the allowance, and the
     /// volumes, cap and separation its own move would have (TerrainFor; no separation for an Aircraft, p.13).</summary>
     public static MoveRegion ForcedMoveRegion(StepContext ctx, Guid unit, double allowance)

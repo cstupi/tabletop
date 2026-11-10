@@ -98,6 +98,20 @@ public class AskTests
     }
 
     [Fact]
+    public void A_move_region_carries_its_dangerous_and_unstable_volumes_and_leaves_them_off_the_wire_when_absent()
+    {
+        var plain = new MoveRegion([Guid.CreateVersion7()], 12, [], [], 6);
+        Assert.DoesNotContain("dangerous", WireJson.Serialize<LegalSet>(plain), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unstable", WireJson.Serialize<LegalSet>(plain), StringComparison.OrdinalIgnoreCase);
+        Guid pit = Guid.CreateVersion7(), ruin = Guid.CreateVersion7();
+        var back = Assert.IsType<MoveRegion>(WireJson.Deserialize<LegalSet>(WireJson.Serialize<LegalSet>(
+            plain with { DangerousVolumeIds = [pit], UnstableVolumeIds = [ruin], UnstableOver = 6 })));
+        Assert.Equal([pit], back.DangerousVolumeIds!);
+        Assert.Equal([ruin], back.UnstableVolumeIds!);
+        Assert.Equal(6, back.UnstableOver);
+    }
+
+    [Fact]
     public void An_option_carries_an_optional_note_that_is_left_off_the_wire_when_absent()
     {
         var unit = Guid.CreateVersion7();

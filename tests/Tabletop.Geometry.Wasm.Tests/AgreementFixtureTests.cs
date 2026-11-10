@@ -15,7 +15,7 @@ public class AgreementFixtureTests
     {
         var methods = typeof(Facade).GetMethods(BindingFlags.Public | BindingFlags.Static).Select(m => m.Name).ToHashSet();
         Assert.Equal(methods.OrderBy(m => m), AgreementCases.All.Select(c => c.Method).Distinct().OrderBy(m => m));
-        Assert.Equal(20, methods.Count);
+        Assert.Equal(21, methods.Count);
     }
 
     [Fact]

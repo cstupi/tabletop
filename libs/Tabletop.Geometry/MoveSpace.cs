@@ -4,11 +4,11 @@ namespace Tabletop.Geometry;
 /// One base's moves from where it stands, in its configuration space: every obstacle as a <see cref="MoveShape"/>, the table as the box the base
 /// centre must stay in, and the corners round each obstacle (<see cref="MoveShape.Ring"/>) that a shortest path bends at. Built once per base and
 /// asked many times (MoveSpace.Search.cs). Obstacles come in groups a search turns on or off: impassable walls, other models' bodies, and the
-/// difficult and dangerous volumes a path avoids when it can.
+/// difficult, dangerous and unstable (dangerous only to a path over a length) volumes a path avoids when it can.
 /// </summary>
 internal sealed partial class MoveSpace
 {
-    public const int Walls = 1, Bodies = 2, Difficult = 4, Dangerous = 8;
+    public const int Walls = 1, Bodies = 2, Difficult = 4, Dangerous = 8, Unstable = 16;
     /// <summary>How far outside an obstacle its graph corners stand.</summary>
     const double Margin = 1e-3;
 
@@ -42,7 +42,8 @@ internal sealed partial class MoveSpace
     /// body it starts in does not stop it; a model meets the base only where their heights overlap too, the base rested on `surfaces` where it stands.
     /// </summary>
     public MoveSpace(PlacedModel start, double reach, IReadOnlyList<WorldVolume> impassable, IReadOnlyList<WorldVolume> difficult,
-        IReadOnlyList<WorldVolume> dangerous, TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces)
+        IReadOnlyList<WorldVolume> dangerous, TableSize? table, IReadOnlyList<PlacedModel>? models, IReadOnlyList<WorldVolume>? surfaces,
+        IReadOnlyList<WorldVolume>? unstable = null)
     {
         _mover = start;
         Origin = start.Placement.Position.Horizontal;
@@ -69,6 +70,7 @@ internal sealed partial class MoveSpace
         Add(impassable, Walls);
         Add(difficult, Difficult);
         Add(dangerous, Dangerous);
+        Add(unstable ?? [], Unstable);
         foreach (var m in models ?? [])
         {
             var outline = m.BaseOutline();

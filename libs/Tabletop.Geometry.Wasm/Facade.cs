@@ -135,5 +135,28 @@ public static class Facade
         return Containment.ExitYaw(r.Body, r.Container, r.Within, r.At, impassable, r.Size) is { } yaw ? Write(yaw) : "null";
     }
 
+    /// <summary>MoveReach.Bands as the Godot client's MoveRegions builds them: the Ask's volumes by id (the steep ones the model starts outside added to
+    /// its difficult ones, Movement.SteepEntering), its cap, the volumes dangerous to the move, the standing models and the table; a MinDistance cuts
+    /// the middle out as MoveRuler.Minimum reads it (the farthest the table allows when that is less, in the direction the model goes).</summary>
+    public static string MoveBands(string json)
+    {
+        var r = Read<BandsRequest>(json);
+        var volumes = Volumes(r.Terrain);
+        List<WorldVolume> Named(IReadOnlyList<Guid>? ids) => ids is null ? [] : volumes.Where(v => ids.Contains(v.Id)).ToList();
+        var difficult = Named(r.Difficult);
+        if (r.Steep is { Count: > 0 }) difficult.AddRange(Movement.SteepEntering(r.Start, Named(r.Steep)));
+        var reach = MoveReach.Build(r.Start, Math.Max(0, r.Allowance), Named(r.Impassable), difficult, r.DifficultCap, r.Size, r.Stationary, volumes,
+            Named(r.Dangerous), Named(r.Unstable), r.UnstableOver ?? 0);
+        Func<Point2, double>? least = null;
+        if (r.MinDistance is { } m)
+        {
+            var origin = r.Start.Placement.Position.Horizontal;
+            var farthest = Movement.FarthestOnTable(r.Start, r.Size).Distance;
+            least = p => farthest >= m ? m : p.DistanceTo(origin) > 1e-6 ? Movement.RoomAlong(r.Start, p, r.Size) : farthest;
+        }
+        var bands = reach.Bands(least);
+        return Write(new BandsAnswer([.. bands.Clear], [.. bands.Difficult], [.. bands.Dangerous]));
+    }
+
     public static string TableHoldsBase(string json) { var r = Read<TableRequest>(json); return Write(Table.ContainsBase(r.Size, r.Model)); }
 }

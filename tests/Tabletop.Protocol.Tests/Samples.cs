@@ -34,6 +34,7 @@ public static class Samples
         new Assignment([new AskOption("g1", "Rifles", [Model]), new AskOption("g2", "Pistols", [Model])], [Unit, Container], 2,
             new Dictionary<string, IReadOnlyList<Guid>> { ["g1"] = [Unit, Container], ["g2"] = [Unit] }),      // per-group targets (p.8)
         new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
+        new MoveRegion([Model], 12, [], [], 6, DangerousVolumeIds: [Guid.CreateVersion7()], UnstableVolumeIds: [Guid.CreateVersion7()], UnstableOver: 6),
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([Container], null, null)),                 // may embark
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([], Container, 6)),                        // is disembarking
         new TokenSpend(new Dictionary<Guid, int> { [Model] = 2 }), new Confirmation(),

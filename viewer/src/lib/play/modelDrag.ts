@@ -2,7 +2,7 @@
 // TableInput's model drag (OnLeftDown's pick-up, Place, Arrange, Turn, OnLeftUp) over DragBodies, in the browser: held models are always
 // lifted (spec → Heights: no level keys), each landed by Geometry.landModels against the stationary models, the walls and the terrain. Alt
 // places freely: straight to the cursor, resting on the highest surface. In a charge Ask a landing within the Ask's ContactGrace of a target
-// model is drawn flush against it (abutmentOf, Collision.Abut). There is no reach outline (spec): inside a move's Ask (not a
+// model is drawn flush against it (abutmentOf, Collision.Abut). The drag is not held to the reach (the area in its bands is drawn, decisionBox.move.ts): inside a move's Ask (not a
 // disembark or a shelf placement) each held model's target is held to the Ask's allowance from its origin on the straight line (clampToReach)
 // before it lands.
 

@@ -1,4 +1,4 @@
-import type { Contact, Geometry, Nearest, PieceEnd, Segment, XY, HeldEnd } from './types';
+import type { Contact, Geometry, MoveBands, Nearest, PieceEnd, Segment, XY, HeldEnd } from './types';
 import type { Point3, Yaw } from './types';
 import { DownloadProgress } from './progress';
 
@@ -73,6 +73,7 @@ function wrap(exports: Exports): Geometry {
     tableHoldsBase: (size, model) => ask<boolean>('TableHoldsBase', { size, model }),
     exitYaw: (body, container, within, at, terrain, impassable, size) =>
       ask<Yaw | null>('ExitYaw', { body, container, within, at, impassable, terrain: pieces(terrain), size }),
+    moveBands: (request, terrain) => ask<MoveBands>('MoveBands', { ...request, terrain: pieces(terrain) }),
     call,
   };
 }

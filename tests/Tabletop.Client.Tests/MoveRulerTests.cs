@@ -72,14 +72,14 @@ public class MoveRulerTests
         var big = Wood(44, 24, 4);
         MoveRegions Make() => new(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [big.Id], 6), [big], Opr, []);
         var alone = Make();
-        var (a, b, clamp) = (alone.Outline(A), alone.Outline(B), alone.Clamp(B, new Point2(50, 10)));
+        var (a, b, clamp) = (alone.Bands(A).Clear, alone.Bands(B).Clear, alone.Clamp(B, new Point2(50, 10)));
         var shared = Make();
-        var outlines = await shared.OutlinesAsync([A, B]);
-        var raced = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => i % 2 == 0 ? shared.Outline(A).Count : shared.Clamp(B, new Point2(50, 10)).X)));
-        Assert.Equal(a, outlines[0]); Assert.Equal(b, outlines[1]);
+        var outlines = await shared.BandsAsync([A, B]);
+        var raced = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => i % 2 == 0 ? shared.Bands(A).Clear.Count : shared.Clamp(B, new Point2(50, 10)).X)));
+        Assert.Equal(a, outlines[0].Clear); Assert.Equal(b, outlines[1].Clear);
         Assert.Equal(clamp, shared.Clamp(B, new Point2(50, 10)));
         Assert.All(raced.Where((_, i) => i % 2 == 0), n => Assert.Equal(a.Count, n));
-        Assert.Same(shared.Outline(A), outlines[0]);                                                   // still computed once per model
+        Assert.Same(shared.Bands(A), outlines[0]);                                                   // still computed once per model
     }
 
     [Fact]
@@ -100,11 +100,29 @@ public class MoveRulerTests
         var big = Wood(44, 24, 4);
         var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = At(36, 24), [B] = At(36, 10) }, new MoveRegion([A, B], 12, [], [big.Id], 6),
             [big], Opr, []);
-        Assert.True(Areas.Inside(regions.Outline(A), new Point2(41, 24)));                         // into the wood, under 6"
-        Assert.False(Areas.Inside(regions.Outline(A), new Point2(43, 24)));                        // deeper in it, over 6"
-        Assert.True(Areas.Inside(regions.Outline(B), new Point2(47.5, 10)));                       // B's way east passes south of it
+        Assert.True(Areas.Inside(regions.Bands(A), new Point2(41, 24)));                         // into the wood, under 6"
+        Assert.False(Areas.Inside(regions.Bands(A), new Point2(43, 24)));                        // deeper in it, over 6"
+        Assert.True(Areas.Inside(regions.Bands(B), new Point2(47.5, 10)));                       // B's way east passes south of it
         Assert.Equal(new Point2(50, 10), regions.Clamp(Guid.CreateVersion7(), new Point2(50, 10)));   // a model the Ask does not move is not held
-        Assert.Same(regions.Outline(A), regions.Outline(A));                                       // computed once per model
+        Assert.Same(regions.Bands(A), regions.Bands(A));                                       // computed once per model
+    }
+
+    [Fact]
+    public void The_area_is_drawn_in_bands_by_the_volumes_the_ask_names()
+    {
+        // A wood east of A and a pit west of it, a ruin north that is dangerous only to a path over 6": a 12" Rush capped at 6".
+        var wood = Wood(44, 24, 4);
+        var pit = Wood(28, 24, 2);
+        var ruin = Wood(36, 34, 3);
+        var legal = new MoveRegion([A], 12, [], [wood.Id], 6, DangerousVolumeIds: [pit.Id], UnstableVolumeIds: [ruin.Id], UnstableOver: 6);
+        var bands = One(At(36, 24), legal, [wood, pit, ruin]).Bands(A);
+        Assert.Equal(MoveBand.Difficult, Areas.BandOf(bands, new Point2(41, 24)));     // into the wood, under 6"
+        Assert.Equal(MoveBand.Dangerous, Areas.BandOf(bands, new Point2(28, 24)));     // into the pit
+        Assert.Equal(MoveBand.Dangerous, Areas.BandOf(bands, new Point2(36, 32.5)));   // into the ruin, over 6"
+        Assert.Equal(MoveBand.Clear, Areas.BandOf(bands, new Point2(36, 28)));         // short of it
+        Assert.Equal(MoveBand.Clear, Areas.BandOf(bands, new Point2(36, 14)));
+        // The same Ask naming none of them: no dangerous band.
+        Assert.Empty(One(At(36, 24), legal with { DangerousVolumeIds = null, UnstableVolumeIds = null, UnstableOver = null }, [wood, pit, ruin]).Bands(A).Dangerous);
     }
 
     [Fact]
@@ -112,8 +130,8 @@ public class MoveRulerTests
     {
         var regions = One(At(36, 24), new MoveRegion([A], 36, [], [], null, MinDistance: 30), []);
         Assert.Equal(30, regions.Minimum(A));
-        Assert.False(Areas.Inside(regions.Outline(A), new Point2(40, 24)));
-        Assert.True(Areas.Inside(regions.Outline(A), new Point2(68, 24)));
+        Assert.False(Areas.Inside(regions.Bands(A), new Point2(40, 24)));
+        Assert.True(Areas.Inside(regions.Bands(A), new Point2(68, 24)));
     }
 
     [Fact]
@@ -148,7 +166,7 @@ public class MoveRulerTests
         Assert.True(MoveRuler.Read(new Point2(15, 15), new Point2(20, 15), 36, MoveRuler.Minimum(start, legal, size, new Point2(20, 15))).UnderMinimum);
         var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = start }, legal, [], size, []);
         Assert.Equal(east, regions.Minimum(A, new Point2(20, 15))!.Value, 6);
-        Assert.False(Areas.Inside(regions.Outline(A), new Point2(15 + east - 1, 15)));                                  // short of the edge: under the least
+        Assert.False(Areas.Inside(regions.Bands(A), new Point2(15 + east - 1, 15)));                                  // short of the edge: under the least
     }
 
     [Fact]
