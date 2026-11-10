@@ -20,6 +20,8 @@ namespace Tabletop.Geometry.Wasm;
 [JsonSerializable(typeof(NearestRequest))]
 [JsonSerializable(typeof(Nearest))]
 [JsonSerializable(typeof(RingRequest))]
+[JsonSerializable(typeof(ClearanceRequest))]
+[JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(Segment[]))]
 [JsonSerializable(typeof(ZoneRequest))]
 [JsonSerializable(typeof(TableRequest))]

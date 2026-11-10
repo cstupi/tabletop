@@ -3,8 +3,9 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>A deploy activation the server is waiting on: the unit picked at a deploy Ask, and the models of it still on the shelf.</summary>
-public sealed record MidDeploy(Guid UnitId, string Question, IReadOnlyList<Guid> ShelvedModelIds);
+/// <summary>A deploy activation the server is waiting on: the unit picked at a deploy Ask, the models of it still on the shelf, and the distance from
+/// enemy units the pick carried for it (PieceSelection.KeepAway: an Ambusher, a 3.6 Scout, a 3.6 Reinforcement copy), or null.</summary>
+public sealed record MidDeploy(Guid UnitId, string Question, IReadOnlyList<Guid> ShelvedModelIds, KeepAway? KeepAway = null);
 
 /// <summary>Deploying from the shelf. The deploy Asks pick a unit, and the activation ends only when every model of it is placed (scheduler → Deployment).</summary>
 public static class DeployView
@@ -37,7 +38,7 @@ public static class DeployView
         var answer = live.Select(e => e.Payload).OfType<AskClosed>().LastOrDefault(c => c.AskId == last.Id)?.Answers.FirstOrDefault(a => a.TeamId == team)?.Answer;
         if (answer is not SelectedPieces { PieceIds: [var unit] }) return null;
         var shelved = p.Models.Values.Where(m => m.UnitId == unit && m.Location is OnShelf).OrderBy(m => m.Slot.Ordinal).Select(m => m.Id).ToList();
-        return shelved.Count == 0 ? null : new MidDeploy(unit, last.Question, shelved);
+        return shelved.Count == 0 ? null : new MidDeploy(unit, last.Question, shelved, (last.Legal as PieceSelection)?.KeepAway?.GetValueOrDefault(unit));
     }
 
     /// <summary>

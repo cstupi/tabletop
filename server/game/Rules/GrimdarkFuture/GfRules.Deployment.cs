@@ -24,7 +24,14 @@ public sealed partial class GrimdarkFutureRules
         return phase == Deployment
             ? new TurnAsk(AskQuestions.Deploy, "Deploy one unit", new PieceSelection(ids, 1, 1), AllowPass: false)
             : new TurnAsk(AskQuestions.DeployScouts, again.Count == 0 ? "Deploy a Scout" : ids.Count == 0 ? "Re-deploy a unit or pass" : "Deploy a Scout or re-deploy a unit",
-                new PieceSelection([.. ids, .. again], 1, 1), AllowPass: ids.Count == 0);
+                Selection([.. ids, .. again], u => ids.Contains(u) ? GfKeepAway.Scout(state, u) : null), AllowPass: ids.Count == 0);
+    }
+
+    /// <summary>A one-unit deploy pick carrying each eligible unit's distance from enemy units (PieceSelection.KeepAway), where it has one.</summary>
+    static PieceSelection Selection(IReadOnlyList<Guid> eligible, Func<Guid, KeepAway?> keep)
+    {
+        var kept = eligible.Select(u => (u, k: keep(u))).Where(x => x.k is not null).ToDictionary(x => x.u, x => x.k!);
+        return new PieceSelection(eligible, 1, 1, kept.Count == 0 ? null : kept);
     }
 
     /// <summary>
@@ -75,12 +82,7 @@ public sealed partial class GrimdarkFutureRules
         {
             if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model) || model.Location is not OnShelf) continue;
             if (p.Units[model.UnitId].Conditions.Contains(GfAmbush.ReDeployed)) continue;
-            var team = Teams.Of(state, model.UnitId);
-            var placed = Battlefield.At(state, model.Id, at);
-            var near = p.Models.Values.Any(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team
-                && !GfAmbush.Carries(state, o.UnitId, Scout)
-                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= edition.ScoutClearance + 1e-6);
-            if (near)
+            if (GfKeepAway.Scout(state, model.UnitId) is { } keep && GfKeepAway.Broken(state, keep, Battlefield.At(state, model.Id, at), moving) is not null)
                 return new(ScoutDistanceRule, $"{model.Slot.Name} would be placed within {edition.ScoutClearance}\" of a non-Scout enemy unit: Scouts deploy over {edition.ScoutClearance}\" away from them");
         }
         return null;
@@ -103,10 +105,7 @@ public sealed partial class GrimdarkFutureRules
         foreach (var move in moves)
         {
             if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model)) continue;
-            var team = Teams.Of(state, model.UnitId);
-            var placed = Battlefield.At(state, model.Id, at);
-            if (p.Models.Values.Any(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team && !GfAmbush.Carries(state, o.UnitId, GfNames.Vanguard)
-                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= clearance + 1e-6))
+            if (GfKeepAway.Vanguard(state, model.UnitId) is { } keep && GfKeepAway.Broken(state, keep, Battlefield.At(state, model.Id, at), moving) is not null)
                 return new(GfNames.VanguardDistanceRule, $"{model.Slot.Name} would be placed within {clearance}\" of a non-Vanguard enemy unit: {frame.Context.Action} places it over {clearance}\" away from them");
         }
         return null;
@@ -126,17 +125,12 @@ public sealed partial class GrimdarkFutureRules
         {
             if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model) || model.Location is not OnShelf) continue;
             if (!p.Units[model.UnitId].Conditions.Contains(SetAside)) continue;
-            var team = Teams.Of(state, model.UnitId);
-            var placed = Battlefield.At(state, model.Id, at);
             // Army-book rules (batch 3): Ambush Beacon lifts the distance within 6" of a friendly beacon; Infiltrate deploys over 3"; Repel Ambushers
-            // holds an Ambusher over 12" from its own unit.
-            if (GfAmbush.NearBeacon(state, team, placed)) continue;
+            // holds an Ambusher over 12" from its own unit (GfKeepAway.Ambush).
             var reach = GfAmbush.Reach(state, model.UnitId);
-            var near = p.Models.Values.FirstOrDefault(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team
-                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= GfAmbush.Kept(state, o.UnitId, reach) + 1e-6);
-            if (near is not null)
+            if (GfKeepAway.Broken(state, GfKeepAway.Ambush(state, model.UnitId), Battlefield.At(state, model.Id, at), moving) is { } near)
             {
-                var kept = GfAmbush.Kept(state, near.UnitId, reach);
+                var kept = near.Over;
                 return new(AmbushDistanceRule, kept > reach
                     ? $"{model.Slot.Name} would be placed within {kept}\" of an enemy unit with Repel Ambushers: Ambushers set up over 12\" away from it"
                     : $"{model.Slot.Name} would be placed within {reach}\" of an enemy unit: Ambushers deploy over {reach}\" away from enemy units");
@@ -184,7 +178,7 @@ public sealed partial class GrimdarkFutureRules
             next = eligible.FirstOrDefault(t => TeamUnits.IndexOf(order, t) > lastIndex, eligible[0]);
         }
         var ask = new Ask(Guid.CreateVersion7(), AskQuestions.DeployAmbusher, "Deploy an Ambusher or pass", [next],
-            new PieceSelection(Ambushers(state, props, next), 1, 1), AllowPass: true, Sealed: false, WindowKind: null, FrameId: null);
+            Selection(Ambushers(state, props, next), u => GfKeepAway.Ambush(state, u)), AllowPass: true, Sealed: false, WindowKind: null, FrameId: null);
         return new HookEmit([new AskOpened(ask)]);
     }
 }

@@ -21,6 +21,8 @@ public static partial class Exports
     [JSExport] public static string EdgeToMarker(string json) => Facade.EdgeToMarker(json);
     [JSExport] public static string NearestPair(string json) => Facade.NearestPair(json);
     [JSExport] public static string RangeOutline(string json) => Facade.RangeOutline(json);
+    [JSExport] public static string ClearanceOutline(string json) => Facade.ClearanceOutline(json);
+    [JSExport] public static string ClearanceBreaks(string json) => Facade.ClearanceBreaks(json);
     [JSExport] public static string ZonePolygons(string json) => Facade.ZonePolygons(json);
     [JSExport] public static string ZoneContains(string json) => Facade.ZoneContains(json);
     [JSExport] public static string ZoneHoldsBase(string json) => Facade.ZoneHoldsBase(json);

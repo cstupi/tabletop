@@ -190,6 +190,15 @@ public class FacadeTests
     }
 
     [Fact]
+    public void Clearance_answers_equal_Clearance()
+    {
+        var enemies = new[] { Model(10, 10), Model(30, 10) }; double[] over = [9, 12]; var beacon = new[] { Model(20, 10) };
+        Assert.Equal(Clearance.Outline(enemies, over, beacon, 6).Select(s => new Segment(s.A, s.B)), R<Segment[]>(Facade.ClearanceOutline(W(new ClearanceRequest(enemies, over, beacon, 6)))));
+        Assert.Equal(1, R<int>(Facade.ClearanceBreaks(W(new ClearanceRequest(enemies, over, Placed: Model(30, 22))))));
+        Assert.Equal(-1, R<int>(Facade.ClearanceBreaks(W(new ClearanceRequest(enemies, over, beacon, 6, Model(20, 14))))));
+    }
+
+    [Fact]
     public void Zone_answers_equal_ZoneStyles()
     {
         var size = new TableSize(72, 48);

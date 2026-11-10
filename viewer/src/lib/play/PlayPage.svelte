@@ -32,6 +32,8 @@
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
+  import { midDeploy } from './deployView';
+  import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
   import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats } from './threatRings';
   import { SightCheck, sightOverlay } from './sightCheck';
   import { teamColour } from '../board/palette';
@@ -259,9 +261,21 @@
     if (allThreatsOn) for (const t of allThreats.of(geometry, game, p, actingTeam, snap.threats)) layers.push({ rings: t.rings, colour: teamColour(t.ordinal) });
     return layers.filter((l): l is RingLayer => l !== null);
   });
-  // Every layer in one overlay, so their labels are kept apart; the threats' labels place first.
+  // RangeRingNode's keep-away layer: while I place a unit held over a distance from enemy units (my deploy pick's or my open move Ask's KeepAway),
+  // the area it may not reach, in a dark shade; rebuilt when a listed unit's models move.
+  const keepAwayCache = new KeepAwayCache();
+  const keepAwayLayer = $derived.by((): RingLayer | null => {
+    const p = shown, s = snap;
+    if (geometry === null || p === null || s === null || isWatching(s)) return null;
+    const mid = [actingTeam, ...teams].map((t) => midDeploy(p, s.log, t)).find((m) => m !== null) ?? null;
+    const move = [...p.openAsks.values()].map((o) => o.ask).find((a) => a.legal.kind === 'move_region' && a.legal.keepAway != null && a.teams.some((t) => teams.includes(t))) ?? null;
+    const keep = keepAwayFor(mid, move);
+    const ring = keep === null ? null : keepAwayCache.of(geometry, p, keep);
+    return ring === null ? null : { rings: [ring], colour: SHADE, words: SHADE_WORDS, rim: SHADE_WORDS };
+  });
+  // Every layer in one overlay, so their labels are kept apart; the keep-away's and the threats' labels place first.
   const ringsDrawn = $derived.by((): Overlay | null => {
-    const layers = [...threatLayers, rangeLayer].filter((l): l is RingLayer => l !== null);
+    const layers = [keepAwayLayer, ...threatLayers, rangeLayer].filter((l): l is RingLayer => l !== null);
     return layers.length === 0 ? null : ringsOverlay(layers);
   });
 

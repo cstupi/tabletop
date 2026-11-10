@@ -524,10 +524,10 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 | `LegalSet` | Answer | Used for |
 | --- | --- | --- |
 | `Options(IRL<AskOption> Choices)` | `Chosen(OptionId)` | activate (unit x action), act-or-end-phase, react, ruleset yes/no questions |
-| `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Takedown`'s target model (p.14) |
+| `PieceSelection(Eligible, Min, Max, KeepAway?)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Takedown`'s target model (p.14) |
 | `Allocation(Targets, Amount, MaxTargets?)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly, and at most `MaxTargets` targets get a count above zero (null: any) |
 | `Assignment(Items, Targets, MaxDistinctTargets, TargetsByItem?)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8); `TargetsByItem` is each group's own valid targets, `Targets` their union (null: every item may take any of `Targets`); an answer names at least one item, and an item it leaves out holds fire |
-| `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?, …, SteepVolumeIds?, DangerousVolumeIds?, UnstableVolumeIds?, UnstableOver?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
+| `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?, …, SteepVolumeIds?, DangerousVolumeIds?, UnstableVolumeIds?, UnstableOver?, KeepAway?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
 | `TokenSpend(MaxByModel)` | `TokensSpent(Counts)` | casting's simultaneous token spend, per spending model (p.13) |
 | `Confirmation` | `Confirmed` | the wait-between-steps confirm gate, the round boundary |
 | any, when `AllowPass` | `Passed` | a window's pass, a team passing its turn |
@@ -540,7 +540,12 @@ are difficult for a model whose base centre starts outside the footprint and ope
 Steep; 3.5.1 p.12 Hills, *"Difficult when moving up"*); it rides apart from `DifficultVolumeIds` because the reading depends on
 each model's start (`Movement.SteepEntering`).
 
-`MoveContainment(Enterable, ExitingId, ExitWithin)` is the newest field in the contract.
+`KeepAway(Units, IgnoredNear?, IgnoredWithin?)` with `AwayFrom(UnitId, Over)` is a placement "over X away from enemy units" (p.13 Ambush, 3.6.0 p.15
+Scout, 3.6 Reinforcement, Fanatic, Vanguard): each unit the rule counts and its distance, and the models whose reach lifts it (Ambush Beacon).
+A deploy pick carries one per eligible unit (`PieceSelection.KeepAway`, keyed by unit), a Fanatic or Vanguard move Ask one (`MoveRegion.KeepAway`);
+the clients draw the area with `Clearance.Outline` and mark a ghost by `Clearance.Breaks`, the test the server judges the placement with.
+
+`MoveContainment(Enterable, ExitingId, ExitWithin)` lets the move Ask name containers.
 `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire, but nothing
 told the client where one is legal, so the move Ask carries it. `Enterable` are the containers a
 model reaching one embarks the **whole unit** into, since *"only one model needs to reach the
@@ -1176,6 +1181,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |
 | `sealed record Ask(...)`; `sealed record AskOption(string Id, string Label, IRL<Guid> Pieces, string? Note = null)`; `static class AskQuestions` | nine `const string` question names; `Note` is the ruleset's reason a choice set is limited, shown as sent |
 | `sealed record MoveContainment(IRL<Guid> Enterable, Guid? ExitingId, double? ExitWithin)` | not a union member, used as `MoveRegion.Containment` |
+| `sealed record KeepAway(IRL<AwayFrom> Units, IRL<Guid>? IgnoredNear, double? IgnoredWithin)`; `sealed record AwayFrom(Guid UnitId, double Over)` | not union members, used as `PieceSelection.KeepAway` and `MoveRegion.KeepAway` |
 | `sealed record TeamAnswer(Guid TeamId, AskAnswer Answer)`; `sealed record DieReplacement(int Index, Die Old, Die New)`; `sealed record DieValue(int Index, int Raw)` | |
 | `enum PlacementKind { Held, Proposed }`; `Presence`, `Cursor`, `Selection`, `PresencePlacement`, `Measurement`, `Ping` | |
 | `enum RejectReason { UpgradeRequired, InvalidSession, NotAParticipant }`; `enum RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown }` | |

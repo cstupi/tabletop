@@ -17,7 +17,15 @@ describe('DeployView', () => {
   it('a unit picked at deploy with models still on the shelf is mid deploy', () => {
     const ask = deployAsk();
     const a = applied(open(ask), { kind: 'ask_answered', askId: ask.id, teamId: TEAM1, answer: pick, outsideLegalSet: false }, closed(ask, pick));
-    expect(midDeploy(a.projection, a.log, TEAM1)).toEqual({ unitId: s.squad.id, question: 'deploy', shelvedModelIds: [s.model.id] });
+    expect(midDeploy(a.projection, a.log, TEAM1)).toEqual({ unitId: s.squad.id, question: 'deploy', shelvedModelIds: [s.model.id], keepAway: null });
+  });
+
+  it('a pick carries its unit\'s keep-away', () => {
+    const keepAway = { units: [{ unitId: newId(), over: 9 }] };
+    const ask = askOf({ kind: 'pieces', eligible: [s.squad.id], min: 1, max: 1, keepAway: { [s.squad.id]: keepAway } },
+      { question: 'deploy_ambusher', prompt: 'Deploy an Ambusher or pass', teams: [TEAM1], allowPass: true });
+    const a = applied(open(ask), closed(ask, pick));
+    expect(midDeploy(a.projection, a.log, TEAM1)!.keepAway).toEqual(keepAway);
   });
 
   it('a pick made again after an undo is mid deploy whatever the undone events were', () => {

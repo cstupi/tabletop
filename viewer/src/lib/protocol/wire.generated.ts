@@ -126,6 +126,11 @@ export interface AtRest {
   readonly seq: number;
 }
 
+export interface AwayFrom {
+  readonly unitId: string;
+  readonly over: number;
+}
+
 export interface Base {
   readonly shape: BaseShape;
   readonly a: number;
@@ -342,6 +347,12 @@ export interface Inside {
   readonly containerId: string;
 }
 
+export interface KeepAway {
+  readonly units: readonly AwayFrom[];
+  readonly ignoredNear?: readonly string[];
+  readonly ignoredWithin?: number;
+}
+
 export interface LeaveTeam {
   readonly kind: 'leave_team';
   readonly teamId: string;
@@ -439,6 +450,7 @@ export interface MoveRegion {
   readonly dangerousVolumeIds?: readonly string[];
   readonly unstableVolumeIds?: readonly string[];
   readonly unstableOver?: number;
+  readonly keepAway?: KeepAway;
 }
 
 export interface MoveSetupMarker {
@@ -521,6 +533,7 @@ export interface PieceSelection {
   readonly eligible: readonly string[];
   readonly min: number;
   readonly max: number;
+  readonly keepAway?: { readonly [key: string]: KeepAway };
 }
 
 export interface Placement {

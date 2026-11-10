@@ -109,6 +109,20 @@ public static class Facade
         return Write((r.Ranges is { } each ? Geometry.RangeOutline.Of(r.Models, each) : Geometry.RangeOutline.Of(r.Models, r.Range)).Select(s => new Segment(s.A, s.B)).ToArray());
     }
 
+    /// <summary>Clearance.Outline: the area a placed base's edge may not enter.</summary>
+    public static string ClearanceOutline(string json)
+    {
+        var r = Read<ClearanceRequest>(json);
+        return Write(Clearance.Outline(r.From, r.Over, r.Lifted ?? [], r.LiftedWithin).Select(s => new Segment(s.A, s.B)).ToArray());
+    }
+
+    /// <summary>Clearance.Breaks: the index into From the placed base comes within the distance of, or -1.</summary>
+    public static string ClearanceBreaks(string json)
+    {
+        var r = Read<ClearanceRequest>(json);
+        return Write(Clearance.Breaks(r.Placed ?? throw new JsonException("ClearanceBreaks needs a placed model."), r.From, r.Over, r.Lifted ?? [], r.LiftedWithin));
+    }
+
     public static string ZonePolygons(string json)
     {
         var r = Read<ZoneRequest>(json);

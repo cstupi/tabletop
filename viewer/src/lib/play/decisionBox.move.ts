@@ -9,9 +9,10 @@
 
 import { placed, type Geometry, type MoveBands, type RouteFound, type RoutesRequest, type XY } from '../geometry';
 import type { Projection } from '../live/apply';
-import type { Enforcement, ModelRelocation, MoveRegion, Placement, Point3, Yaw } from '../protocol/wire.generated';
+import type { Enforcement, KeepAway, ModelRelocation, MoveRegion, Placement, Point3, Yaw } from '../protocol/wire.generated';
 import type { AskView } from './askView';
 import { allWords, move as contactsOfMove, placement as contactsOfPlacement } from './contactCheck';
+import { withKeepAway } from './keepAwayArea';
 import { CommitHold } from './commitHold';
 import { button, type Control, type DecisionBox, type MoveHooks } from './decisionBox';
 import { barOf, ENTER, inches, STOP } from './decisionCard';
@@ -245,7 +246,8 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
         }
       }
       if (g !== null)
-        deps.violations.measure(legal.modelIds, allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)));
+        deps.violations.measure(legal.modelIds, withKeepAway(allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)),
+          g, p, legal.keepAway ?? null, new Map(box.ghosts), n.unit.bind(n)));
       current = gateOf(readouts, deps.enforcement(), marked(legal.modelIds));
       if (unit !== null) box.replace('bar', { kind: 'bar', id: 'bar', bar: barOf(readouts, unit, minimum) });
       show(box, current, ids);
@@ -292,9 +294,11 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
 
   // ---- deployment placement ----
 
+  let deployKeep: KeepAway | null = null;   // the pick's distance from enemy units (an Ambusher, a 3.6 Scout or Reinforcement copy)
+
   function startDeploy(box: DecisionBox, mid: MidDeploy, n: Names): void {
     const unit = mid.unitId;
-    box.deployUnit = unit;
+    box.deployUnit = unit; deployKeep = mid.keepAway;
     box.setHead({ icon: 'army', title: 'Place', subject: n.unit(unit), prompt: 'Click the table where the unit goes' });
     box.placementPoint = (at) => dropDeploy(box, unit, at);                // its own slot: a menu point pick cannot take it
     const p = box.host.state().projection;
@@ -343,7 +347,9 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       const g = deps.geometry();
       if (st.projection === null || st.game === null) return;
       const ids = [...box.ghosts.keys()];
-      if (g !== null) deps.violations.measure(ids, allWords(contactsOfPlacement(g, st.projection, new Map(box.ghosts)), undefined, (id) => st.projection!.units.get(id)?.definition.name ?? id));
+      const unitName = (id: string): string => st.projection!.units.get(id)?.definition.name ?? id;
+      if (g !== null) deps.violations.measure(ids, withKeepAway(allWords(contactsOfPlacement(g, st.projection, new Map(box.ghosts)), undefined, unitName),
+        g, st.projection, deployKeep, new Map(box.ghosts), unitName));
       current = gateOf([], deps.enforcement(), marked(ids));
       show(box, current, ['place']);
     };
