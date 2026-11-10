@@ -184,6 +184,19 @@ path) shifts every later die, and a seed-dependent game breaks with no rule wron
 4. Check the game on several seeds: `suite --only <game> --seed N` for seeds 1–5 and a few others. It is done when every seed passes.
 5. Never fix a broken game by changing its seed.
 
+### A game left at an Ask, for a look on screen
+
+The compose `game` service runs `main`; a worktree's server change is looked at on its own server:
+
+1. Run the worktree's game server on a free port: the `TABLETOP_*` lines of `.env` exported, `ASPNETCORE_ENVIRONMENT=Development`,
+   `TABLETOP_DEV_MODE=1`, `Kestrel__Endpoints__Http__Url=http://127.0.0.1:<port>`, `dotnet run --no-launch-profile --project server/game`.
+2. Add a throwaway scenario (never committed) with `SelfPlay()`, the table and terrain wanted, a script that answers up to the Ask and a
+   `.Match(question, …)` that throws there; run it with `--driver socket --no-recording`, `TABLETOP_DB_CONNECTION` from `.env`,
+   `TABLETOP_SIM_WS=ws://127.0.0.1:<port>/ws`. The run fails at that Ask and the game stays open on it.
+3. Sign in `sim-player-0` (`POST /v1/dev/sessions`) and open the game: Godot with `gameServerUrl` pointing at the port (client
+   `AGENTS.md` → Driving a game by eye; Home then Space then the wheel frames the acting unit from above).
+4. Delete the game's rows after (`game.game_event` by `game_id`, then `management.game`).
+
 ## The lifecycle suite
 
 - Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
