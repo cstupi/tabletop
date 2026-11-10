@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 namespace Tabletop.Geometry.Tests;
 
 /// <summary>MoveReach's bands: what reaching a point costs, and the area split by it.</summary>
+[Collection(TimingCollection.Name)]
 public class MoveBandsTests(ITestOutputHelper output)
 {
     static readonly PlacedModel Start = Fx.Model(0, 0);
@@ -232,7 +233,7 @@ public class MoveBandsTests(ITestOutputHelper output)
         var split = watch.ElapsedMilliseconds;
         output.WriteLine($"area {area} ms, bands {split} ms; {bands.Clear.Count / 3}/{bands.Difficult.Count / 3}/{bands.Dangerous.Count / 3} triangles");
         Assert.NotEmpty(bands.Dangerous);
-        Assert.InRange(split, 0, 3000);
+        Assert.InRange(split, 0, area * 2.5 + 200);                                            // measured back to back, so a loaded machine slows both
     }
 
     /// <summary>A drag frame clamps and routes each held model on the main thread. With the route's fields settled when the Ask opens (PrepareRoute,

@@ -11,6 +11,7 @@ namespace Tabletop.Client.Tests;
 /// pieces and fifty other models, a squad of them standing on a 3" steep hill: the table and Ask of a game where no reach area showed for the rush.
 /// The area is drawn when the thread pool has built it (MoveRegions.BandsAsync), so it has to build in seconds.
 /// </summary>
+[Collection(TimingCollection.Name)]
 public class MoveRegionsCavalryRushTests(ITestOutputHelper output)
 {
     static readonly TableSize Table = new(72, 48);

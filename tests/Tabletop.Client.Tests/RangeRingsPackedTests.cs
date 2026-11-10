@@ -9,6 +9,7 @@ using Xunit.Abstractions;
 namespace Tabletop.Client.Tests;
 
 /// <summary>20 carriers of a 24" rifle packed in a 5 × 4 grid, the case the performance review measured; one squad on 1" rounds, one on 2.5" × 1.5" ovals turned 30°.</summary>
+[Collection(TimingCollection.Name)]
 public class RangeRingsPackedTests(ITestOutputHelper output)
 {
     static readonly Guid T1 = Guid.CreateVersion7(), P1 = Guid.CreateVersion7();

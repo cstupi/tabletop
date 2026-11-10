@@ -7,6 +7,7 @@ namespace Tabletop.Geometry.Tests;
 /// Oval bases among many bodies and surfaces (CavalryRushScene): each rider's reach area, and routes and clamps across the table, are what the
 /// implementation before MoveShape's closed-form Interval and coarse bounds and MoveSpace's per-body rests answered, bit for bit.
 /// </summary>
+[Collection(TimingCollection.Name)]
 public class CavalryRushTests(ITestOutputHelper output)
 {
     static readonly Dictionary<string, string> Expected = new()

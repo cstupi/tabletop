@@ -69,4 +69,7 @@ TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Management.Tests --filter 
 - A game-server test over a real Kestrel calls `factory.UseKestrel()` with no port; `GameServerFactory` configures
   `127.0.0.1:0`. `UseKestrel(port)` writes the address while `Program.Main` is already starting Kestrel, which then binds
   `appsettings.json`'s 5200 when it wins the race.
+- A test with a time budget joins `[Collection(TimingCollection.Name)]` (Geometry and Client tests), which runs alone after the
+  parallel tests; other projects still run beside it, so a budget compares two timings taken back to back where it can
+  (`MoveBandsTests`: bands against the plain area), else stays several times the measured cost.
 - The web apps' tests are Vitest in `web/` and `viewer/`, not here.
