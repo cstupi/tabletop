@@ -1,5 +1,5 @@
 {
-  "id": "4e28296f-db91-4364-90d8-9c8ec12e05de",
+  "id": "3e07fdb1-92cd-4d94-8b6b-d9bd0380b1f2",
   "name": "Ruins planet",
   "size": {
     "width": 72,
@@ -10,325 +10,13 @@
   },
   "terrain": [
     {
-      "id": "4673b8c3-f594-4b81-98e8-7104fb9c3c74",
+      "id": "12bcf19a-c41a-415e-a986-da5b57bd3f8e",
       "mesh": {
         "builtin": "ruined-corner"
       },
       "position": {
-        "x": 24.752989266418382,
-        "y": 5.135989377804096,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 0
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "da5bcf40-11e1-408c-bfa1-c4a666598606",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 6
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 5,
-            "declarations": "cover, dangerous_on_rush_charge"
-          }
-        }
-      ]
-    },
-    {
-      "id": "0dc2448a-8e6f-4f45-a04e-28296fdb91e3",
-      "mesh": {
-        "builtin": "ruined-corner"
-      },
-      "position": {
-        "x": 47.24701073358162,
-        "y": 42.864010622195906,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 180
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "cecacac5-d841-44ac-9868-e885bf8bba00",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 6
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 5,
-            "declarations": "cover, dangerous_on_rush_charge"
-          }
-        }
-      ]
-    },
-    {
-      "id": "3958b2e5-5ecb-4525-8a19-6b3d3dd60520",
-      "mesh": {
-        "builtin": "ruined-corner"
-      },
-      "position": {
-        "x": 49.81513074869995,
-        "y": 27.135991943597787,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 150
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "9c8ec12e-05de-4baa-8dab-35c18c2d70f7",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 6
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 5,
-            "declarations": "cover, dangerous_on_rush_charge"
-          }
-        }
-      ]
-    },
-    {
-      "id": "fee4588a-b26a-49d0-899b-a3ec73ce6db6",
-      "mesh": {
-        "builtin": "crater"
-      },
-      "position": {
-        "x": 22.18486925130005,
-        "y": 20.864008056402213,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 330
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "6fb21e72-4c93-4eac-82c5-71996a8c9bfb",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "circle",
-              "a": 3,
-              "b": 3
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 1,
-            "declarations": "cover"
-          }
-        }
-      ]
-    },
-    {
-      "id": "39b357bb-f355-49c1-abff-3ab270ac07e0",
-      "mesh": {
-        "builtin": "rubble-field"
-      },
-      "position": {
-        "x": 29.3811716015363,
-        "y": 34.98265085508239,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 90
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "bbfe7d6f-3e58-4e7b-ae04-394d68b0ef52",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 4
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 1,
-            "declarations": "difficult"
-          }
-        }
-      ]
-    },
-    {
-      "id": "b5c7ccaf-419e-4765-84bb-833e1ecc0ac2",
-      "mesh": {
-        "builtin": "rubble-field"
-      },
-      "position": {
-        "x": 42.618828398463705,
-        "y": 13.01734914491761,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 270
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "771ee0a5-6e03-4f14-b72a-a64da0c296f9",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 4
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 1,
-            "declarations": "difficult"
-          }
-        }
-      ]
-    },
-    {
-      "id": "1fe45047-ec4d-496b-a497-8bfe1b2eb7d9",
-      "mesh": {
-        "builtin": "rubble-field"
-      },
-      "position": {
-        "x": 54.8515856633203,
-        "y": 9.237866189907242,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 90
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "6940fca8-df57-4ed8-a77a-e0b27f51f66b",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 4
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 1,
-            "declarations": "difficult"
-          }
-        }
-      ]
-    },
-    {
-      "id": "4c17a9ca-9bd9-4d1b-9690-c448cba0bdf8",
-      "mesh": {
-        "builtin": "rubble-field"
-      },
-      "position": {
-        "x": 17.1484143366797,
-        "y": 38.762133810092756,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 270
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "9a5ad5de-cf61-42a6-bafd-22556930b5d2",
-          "volume": {
-            "kind": "area",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 4
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 1,
-            "declarations": "difficult"
-          }
-        }
-      ]
-    },
-    {
-      "id": "1db9c73e-9d99-4a19-8029-916118905734",
-      "mesh": {
-        "builtin": "ruin"
-      },
-      "position": {
-        "x": 8.879923675619029,
-        "y": 2.5718056273515364,
+        "x": 37.81859358671056,
+        "y": 13.095607599753702,
         "z": 0
       },
       "yaw": {
@@ -337,13 +25,13 @@
       "scale": 1,
       "volumes": [
         {
-          "id": "02aa8dee-2bd4-42b3-a1b8-b10385ed3dc1",
+          "id": "21be0f3b-5358-40a3-a818-4be991eb81e3",
           "volume": {
             "kind": "area",
             "footprint": {
               "kind": "rect",
-              "a": 4,
-              "b": 4
+              "a": 6,
+              "b": 6
             },
             "offset": {
               "x": 0,
@@ -354,20 +42,20 @@
               "degrees": 0
             },
             "bottom": 0,
-            "top": 4,
-            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+            "top": 5,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous_on_rush_charge"
           }
         }
       ]
     },
     {
-      "id": "ca5607c1-505d-4068-8f73-ad0142a19b50",
+      "id": "9589d1d2-90b4-4e07-bdb1-92cd7d944b6b",
       "mesh": {
-        "builtin": "ruin"
+        "builtin": "ruined-corner"
       },
       "position": {
-        "x": 63.120076324380975,
-        "y": 45.42819437264846,
+        "x": 34.18140641328944,
+        "y": 34.904392400246294,
         "z": 0
       },
       "yaw": {
@@ -376,13 +64,13 @@
       "scale": 1,
       "volumes": [
         {
-          "id": "7bebc8f1-4b4e-4042-8d10-6712eeb973d6",
+          "id": "e610398f-9334-404d-9a3c-52f655b351d6",
           "volume": {
             "kind": "area",
             "footprint": {
               "kind": "rect",
-              "a": 4,
-              "b": 4
+              "a": 6,
+              "b": 6
             },
             "offset": {
               "x": 0,
@@ -393,20 +81,98 @@
               "degrees": 0
             },
             "bottom": 0,
-            "top": 4,
-            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+            "top": 5,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous_on_rush_charge"
           }
         }
       ]
     },
     {
-      "id": "e31eca60-21d7-41ef-80ec-7516b17131d8",
+      "id": "3192e2a1-63cf-45f0-a71d-98afd125a33a",
       "mesh": {
-        "builtin": "ruin"
+        "builtin": "ruined-corner"
       },
       "position": {
-        "x": 64.01341275871425,
-        "y": 24,
+        "x": 9.892976553129488,
+        "y": 40.85348436648654,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 345
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "a43f87c7-ca08-4634-84c6-ceec6dfd32d2",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 5,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous_on_rush_charge"
+          }
+        }
+      ]
+    },
+    {
+      "id": "d1ae7f5f-6c3c-48d4-ba96-e0ad704663df",
+      "mesh": {
+        "builtin": "ruined-corner"
+      },
+      "position": {
+        "x": 62.107023446870514,
+        "y": 7.146515633513459,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 165
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "f246ec74-b73f-42a8-9b98-79ce7d7f6bbf",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 5,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, dangerous_on_rush_charge"
+          }
+        }
+      ]
+    },
+    {
+      "id": "22a543ce-b51d-48f9-a05e-853754359aac",
+      "mesh": {
+        "builtin": "overgrown-ruins"
+      },
+      "position": {
+        "x": 24.367462355814624,
+        "y": 18.53465981899512,
         "z": 0
       },
       "yaw": {
@@ -415,7 +181,202 @@
       "scale": 1,
       "volumes": [
         {
-          "id": "75cec984-b08d-42c7-ab87-b6bb96c18995",
+          "id": "2710bd1a-f25f-4a06-8a56-f77367b1d8de",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "98684039-dec5-4409-b8c4-fa93da03b195",
+      "mesh": {
+        "builtin": "overgrown-ruins"
+      },
+      "position": {
+        "x": 47.632537644185376,
+        "y": 29.46534018100488,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 135
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "ea8544af-1393-4dff-b136-5e7d822378fc",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 6
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "60cd2540-3bb6-4f99-ba25-2e84c9c1379a",
+      "mesh": {
+        "builtin": "rubble-field"
+      },
+      "position": {
+        "x": 16.455180954400067,
+        "y": 28.729968367484382,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 120
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "29cb8f17-449c-4ebe-9a77-fde5899fecf4",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 1,
+            "declarations": "difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "c4a05b7d-64a1-4172-bcf6-1d1e6efaf5d8",
+      "mesh": {
+        "builtin": "rubble-field"
+      },
+      "position": {
+        "x": 55.54481904559994,
+        "y": 19.270031632515618,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 300
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "968f6f9c-b122-4a28-854b-5e4dfdad5164",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 1,
+            "declarations": "difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e1a56033-2f16-4188-9388-6d02bc0144d5",
+      "mesh": {
+        "builtin": "rubble-field"
+      },
+      "position": {
+        "x": 67.26385596919053,
+        "y": 24,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 60
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "42af9ad2-f401-4e7b-954b-ca486fcecd1c",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 6,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 1,
+            "declarations": "difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "43594f8f-b978-423a-993f-36f84f8f26e1",
+      "mesh": {
+        "builtin": "ruin"
+      },
+      "position": {
+        "x": 65.38385429670282,
+        "y": 39.67959102600794,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 150
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "8bd6f985-7580-444c-8687-d3b0fee00f06",
           "volume": {
             "kind": "area",
             "footprint": {
@@ -439,22 +400,61 @@
       ]
     },
     {
-      "id": "b955dd09-18e0-409d-9771-372a198f7ba4",
+      "id": "a764db5d-d894-4312-b3bf-2b3649ecfcb7",
       "mesh": {
-        "builtin": "ruined-wall"
+        "builtin": "ruin"
       },
       "position": {
-        "x": 64.4959284143969,
-        "y": 34.78790775071266,
+        "x": 6.616145703297178,
+        "y": 8.320408973992059,
         "z": 0
       },
       "yaw": {
-        "degrees": 180
+        "degrees": 330
       },
       "scale": 1,
       "volumes": [
         {
-          "id": "d9c7cc99-69cf-442a-9d2d-d984c4171b16",
+          "id": "d5db09b3-1f3e-4190-949c-c63e64043727",
+          "volume": {
+            "kind": "area",
+            "footprint": {
+              "kind": "rect",
+              "a": 4,
+              "b": 4
+            },
+            "offset": {
+              "x": 0,
+              "y": 0,
+              "length": 0
+            },
+            "yaw": {
+              "degrees": 0
+            },
+            "bottom": 0,
+            "top": 4,
+            "declarations": "blocks_line_of_sight, see_in_and_out, cover, difficult"
+          }
+        }
+      ]
+    },
+    {
+      "id": "4b47a79f-0fdc-4228-9551-4b7ed685199a",
+      "mesh": {
+        "builtin": "ruined-wall"
+      },
+      "position": {
+        "x": 50.65466290835974,
+        "y": 45.226576498349466,
+        "z": 0
+      },
+      "yaw": {
+        "degrees": 30
+      },
+      "scale": 1,
+      "volumes": [
+        {
+          "id": "e4d65507-0e50-4ab3-8909-4018f6ff5f13",
           "volume": {
             "kind": "solid",
             "footprint": {
@@ -478,22 +478,22 @@
       ]
     },
     {
-      "id": "19f28ed0-6d7c-42f8-b72e-81f7979a100e",
+      "id": "86f18c77-537d-4207-a32d-f2bd046cdc43",
       "mesh": {
         "builtin": "ruined-wall"
       },
       "position": {
-        "x": 7.5040715856031,
-        "y": 13.212092249287338,
+        "x": 21.34533709164026,
+        "y": 2.7734235016505338,
         "z": 0
       },
       "yaw": {
-        "degrees": 0
+        "degrees": 210
       },
       "scale": 1,
       "volumes": [
         {
-          "id": "79e29c4f-e5d7-4809-ac54-430b1e48e87b",
+          "id": "a660cee9-d52e-4b9c-9203-98e89b09e05c",
           "volume": {
             "kind": "solid",
             "footprint": {
@@ -517,22 +517,22 @@
       ]
     },
     {
-      "id": "c201efad-73e4-4793-99c7-61174ad35515",
+      "id": "1f8fded4-09b2-4248-8772-25518cc5c218",
       "mesh": {
         "builtin": "ruined-wall"
       },
       "position": {
-        "x": 66.48191351931631,
-        "y": 6.015987287282938,
+        "x": 49.74176110035822,
+        "y": 4.017368296169382,
         "z": 0
       },
       "yaw": {
-        "degrees": 225
+        "degrees": 90
       },
       "scale": 1,
       "volumes": [
         {
-          "id": "d6ec1f9f-8dfb-434d-baaa-fe738da7b07c",
+          "id": "2604ab08-5431-4231-af09-aa954c72c11f",
           "volume": {
             "kind": "solid",
             "footprint": {
@@ -556,22 +556,22 @@
       ]
     },
     {
-      "id": "410ba3db-644d-4cf2-848b-46c5994c0327",
+      "id": "01c712f8-572a-4e74-b162-00e10c30a46a",
       "mesh": {
         "builtin": "ruined-wall"
       },
       "position": {
-        "x": 5.518086480683692,
-        "y": 41.98401271271706,
+        "x": 22.258238899641782,
+        "y": 43.98263170383062,
         "z": 0
       },
       "yaw": {
-        "degrees": 45
+        "degrees": 270
       },
       "scale": 1,
       "volumes": [
         {
-          "id": "9937d9c0-5020-4c8d-b416-8d1cf8f38e90",
+          "id": "6011b065-448b-4b5b-b0b5-b4e6e60227b4",
           "volume": {
             "kind": "solid",
             "footprint": {
@@ -595,28 +595,28 @@
       ]
     },
     {
-      "id": "228dd999-074b-48b8-b2b8-0d68ec6e5276",
+      "id": "33e18aaa-4fbf-404a-9e54-ccecf2a4ec7e",
       "mesh": {
-        "builtin": "ruined-wall"
+        "builtin": "barricade"
       },
       "position": {
-        "x": 35.19887548088975,
-        "y": 47.125464878569105,
+        "x": 7.607517380084616,
+        "y": 24,
         "z": 0
       },
       "yaw": {
-        "degrees": 0
+        "degrees": 240
       },
       "scale": 1,
       "volumes": [
         {
-          "id": "1b2a1711-d319-4801-bdd8-2ff40b693381",
+          "id": "e454fdec-6205-4b71-90c5-b3c9c135e33c",
           "volume": {
             "kind": "solid",
             "footprint": {
               "kind": "rect",
-              "a": 6,
-              "b": 1.5
+              "a": 3,
+              "b": 1
             },
             "offset": {
               "x": 0,
@@ -627,125 +627,8 @@
               "degrees": 0
             },
             "bottom": 0,
-            "top": 4,
-            "declarations": "impassable, blocks_line_of_sight"
-          }
-        }
-      ]
-    },
-    {
-      "id": "de5cf584-614e-45d0-b25e-de1b0c0f144e",
-      "mesh": {
-        "builtin": "ruined-wall"
-      },
-      "position": {
-        "x": 36.80112451911025,
-        "y": 0.8745351214308954,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 180
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "c87fa100-b219-4c11-8984-cac9a9440931",
-          "volume": {
-            "kind": "solid",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 1.5
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 4,
-            "declarations": "impassable, blocks_line_of_sight"
-          }
-        }
-      ]
-    },
-    {
-      "id": "bfccf816-bc5b-4114-89e8-0159a4b749d3",
-      "mesh": {
-        "builtin": "ruined-wall"
-      },
-      "position": {
-        "x": 34.88486816495884,
-        "y": 19.225209237646876,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 75
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "dfd137e5-5d60-4c2e-aecb-1d2ed39996ab",
-          "volume": {
-            "kind": "solid",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 1.5
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 4,
-            "declarations": "impassable, blocks_line_of_sight"
-          }
-        }
-      ]
-    },
-    {
-      "id": "03662a07-c1be-4d84-b022-1b755ea28af7",
-      "mesh": {
-        "builtin": "ruined-wall"
-      },
-      "position": {
-        "x": 37.11513183504116,
-        "y": 28.774790762353124,
-        "z": 0
-      },
-      "yaw": {
-        "degrees": 255
-      },
-      "scale": 1,
-      "volumes": [
-        {
-          "id": "a0560ccd-3a2b-4a6a-8b7d-7d963c82e854",
-          "volume": {
-            "kind": "solid",
-            "footprint": {
-              "kind": "rect",
-              "a": 6,
-              "b": 1.5
-            },
-            "offset": {
-              "x": 0,
-              "y": 0,
-              "length": 0
-            },
-            "yaw": {
-              "degrees": 0
-            },
-            "bottom": 0,
-            "top": 4,
-            "declarations": "impassable, blocks_line_of_sight"
+            "top": 1,
+            "declarations": "cover, difficult"
           }
         }
       ]
@@ -753,7 +636,7 @@
   ],
   "markers": [
     {
-      "id": "93c98bfd-4633-45da-9bcf-4011e1e08c7f",
+      "id": "9ce3c117-6ce4-4e82-8e02-21be0f3b5358",
       "kind": "objective",
       "position": {
         "x": 18,
@@ -769,7 +652,7 @@
       }
     },
     {
-      "id": "a1c4a666-5986-4646-b3b8-c3f594bb8118",
+      "id": "f0a32818-4be9-41eb-81e3-12bcf19ac41a",
       "kind": "objective",
       "position": {
         "x": 54,
@@ -785,7 +668,7 @@
       }
     },
     {
-      "id": "e87104fb-9c3c-44ce-8aca-c5d84194ac18",
+      "id": "c15ea986-da5b-47bd-bf8e-e610398f9334",
       "kind": "objective",
       "position": {
         "x": 54,
@@ -801,7 +684,7 @@
       }
     },
     {
-      "id": "68e885bf-8bba-400d-8244-8a8e6fff45a0",
+      "id": "304d5a3c-52f6-45b3-91d6-9589d1d290b4",
       "kind": "objective",
       "position": {
         "x": 18,
@@ -819,12 +702,12 @@
   ],
   "zones": [
     {
-      "id": "c81945bc-ebfd-4206-8a08-cc98c4273aba",
+      "id": "46d08682-4097-44a3-95cf-ff46699c73c4",
       "shape": "frontline/1",
       "teamOrdinal": 1
     },
     {
-      "id": "01bfa420-a881-468d-b9f5-68278432205a",
+      "id": "a1cd1034-135b-4ea3-af84-a54adf7a0ea0",
       "shape": "frontline/2",
       "teamOrdinal": 2
     }
