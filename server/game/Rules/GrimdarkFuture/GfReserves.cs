@@ -173,12 +173,10 @@ public static class GfReserves
             var placed = Battlefield.At(state, model.Id, at);
             if (!NearEdge(state.Board.Table.Size, placed, reach))
                 return new(EdgeRule, $"{model.Slot.Name} would be placed beyond {reach:0.#}\" of every table edge: Reinforcement places the new copy fully within {reach:0.#}\" of any table edge");
-            if (edition.ReinforcementClearance is > 0 and var clear)
+            if (GfKeepAway.Reinforcement(state, model.UnitId) is { } keep && GfKeepAway.Broken(state, keep, placed, moving) is not null)
             {
-                var team = Teams.Of(state, model.UnitId);
-                if (p.Models.Values.Any(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team
-                        && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= clear + 1e-6))
-                    return new(DistanceRule, $"{model.Slot.Name} would be placed within {clear:0.#}\" of an enemy unit: Reinforcement places the new copy over {clear:0.#}\" away from enemy units");
+                var clear = edition.ReinforcementClearance;
+                return new(DistanceRule, $"{model.Slot.Name} would be placed within {clear:0.#}\" of an enemy unit: Reinforcement places the new copy over {clear:0.#}\" away from enemy units");
             }
         }
         return null;

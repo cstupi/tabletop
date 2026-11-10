@@ -38,6 +38,7 @@ public static class ContactCheck
         "path crosses a model" => $"{subject} would move through another model",
         "ends in impassable terrain" => $"{subject} would end its move in impassable terrain",
         _ when words.StartsWith("within ", StringComparison.Ordinal) => $"{subject} would end {words}",
+        _ when words.StartsWith("placed within ", StringComparison.Ordinal) => $"{subject} would be {words}",
         _ => words,
     };
 

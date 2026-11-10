@@ -6,7 +6,9 @@ namespace Tabletop.Client.Core;
 public sealed record RingLook(float FillAlpha, float LineWidth, string Icon)
 {
     public static readonly RingLook Charge = new(0.22f, 3f, "charge"), Shoot = new(0.12f, 3f, "shoot"), Range = new(0.08f, 2.5f, "shoot");
-    public static RingLook Of(RingKind kind) => kind switch { RingKind.Charge => Charge, RingKind.Shoot => Shoot, _ => Range };
+    /// <summary>The area a placement keeps out of: a heavy shade (<see cref="KeepAwayArea.Shade"/>, never a team colour), a thick rim, the warning icon.</summary>
+    public static readonly RingLook KeepAway = new(0.45f, 3.5f, "warning");
+    public static RingLook Of(RingKind kind) => kind switch { RingKind.Charge => Charge, RingKind.Shoot => Shoot, RingKind.KeepAway => KeepAway, _ => Range };
 }
 
 /// <summary>A ring's outline segments as closed loops, the area they enclose as triangles, and the points along them where a label may stand.

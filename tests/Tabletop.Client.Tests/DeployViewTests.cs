@@ -35,6 +35,18 @@ public class DeployViewTests
         Assert.Equal(Samples.Unit, DeployView.MidDeploy(a.Projection, a.Log, Samples.Team1)!.UnitId);
     }
 
+    [Fact]
+    public void A_pick_carries_its_units_keep_away_and_none_without_one()
+    {
+        var keep = new KeepAway([new AwayFrom(Guid.CreateVersion7(), 9)]);
+        var ask = DeployAsk(AskQuestions.DeployAmbusher) with { Legal = new PieceSelection([Samples.Unit], 1, 1, new Dictionary<Guid, KeepAway> { [Samples.Unit] = keep }) };
+        var a = Applier(new AskOpened(ask), Closed(ask, new SelectedPieces([Samples.Unit])));
+        Assert.Same(keep, DeployView.MidDeploy(a.Projection, a.Log, Samples.Team1)!.KeepAway);
+        var plain = DeployAsk();
+        var b = Applier(new AskOpened(plain), Closed(plain, new SelectedPieces([Samples.Unit])));
+        Assert.Null(DeployView.MidDeploy(b.Projection, b.Log, Samples.Team1)!.KeepAway);
+    }
+
     [Theory]
     [InlineData(AskQuestions.DeployScouts)]
     [InlineData(AskQuestions.DeployAmbusher)]

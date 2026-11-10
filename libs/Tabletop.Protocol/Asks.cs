@@ -57,8 +57,10 @@ public sealed record Options(IReadOnlyList<AskOption> Choices) : LegalSet;
 /// <summary>
 /// Pick between Min and Max of the Eligible ids. The ids are units (deploy, an Ambusher, a charge target) or models
 /// (a model-grain spell, a Takedown's target model — rulebook p.14); nothing here distinguishes the two grains.
+/// KeepAway, at a deploy question, is the distance from enemy units each eligible unit is placed by, keyed by the unit; a unit it does not name
+/// has none. Null: no eligible unit has one.
 /// </summary>
-public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max) : LegalSet;
+public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max, IReadOnlyDictionary<Guid, KeepAway>? KeepAway = null) : LegalSet;
 /// <summary>Distribute Amount over Targets, exactly (wound assignment, casualty removal): the counts sum to Amount, and at most
 /// MaxTargets targets get a count above zero (null: any number).</summary>
 public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount, int? MaxTargets = null) : LegalSet;
@@ -102,12 +104,13 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// model whose move is over UnstableOver (3.6.0 p.12 Unstable: "moves over 6” when moving into or through unstable terrain"), UnstableOver being what is
 /// left of that length after the earlier segments of the move. Both null for a unit that ignores dangerous terrain or a move that tests none. The client
 /// draws its area in bands by them (Tabletop.Geometry.MoveReach.Bands); they change no path and no reach.
+/// KeepAway: how far from enemy units the moving models are placed (3.6 Fanatic, Vanguard: "over 9” away from non-Vanguard enemy units"); null is none.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
     IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false,
     double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false, IReadOnlyList<Guid>? ContactWith = null, double? ContactGrace = null,
     IReadOnlyList<Guid>? SteepVolumeIds = null, IReadOnlyList<Guid>? DangerousVolumeIds = null, IReadOnlyList<Guid>? UnstableVolumeIds = null,
-    double? UnstableOver = null) : LegalSet;
+    double? UnstableOver = null, KeepAway? KeepAway = null) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId
@@ -116,6 +119,16 @@ public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, 
 /// an occupant has no position to move from. Never both — a unit may not embark and disembark in one activation.
 /// </summary>
 public sealed record MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin);
+/// <summary>
+/// A placement "over X away from enemy units" (OPR p.13 Ambush, 3.6.0 p.15 Scout, 3.6 Reinforcement, Fanatic, Vanguard): every base placed stays over
+/// each listed unit's Over from every base of that unit on the table, measured base to base (p.5); the units are the ones the rule counts
+/// (Scout: non-Scout enemy units), and Over may differ by unit (Repel Ambushers: 12"). A placed base within IgnoredWithin of a base of an
+/// IgnoredNear model ignores every distance (Ambush Beacon: "may ignore distance restrictions from enemies if they are deployed within 6” of this
+/// model"). The client draws the area with Tabletop.Geometry.Clearance.Outline and marks a ghost by Clearance.Breaks.
+/// </summary>
+public sealed record KeepAway(IReadOnlyList<AwayFrom> Units, IReadOnlyList<Guid>? IgnoredNear = null, double? IgnoredWithin = null);
+/// <summary>One unit a placement keeps away from, and how far: over Over inches.</summary>
+public sealed record AwayFrom(Guid UnitId, double Over);
 /// <summary>
 /// Spend spell tokens at the same time as every other addressed team, each token giving the caster +1/-1 on the one casting
 /// roll (rulebook p.13 Caster(X)). MaxByModel is every model that may pay — on the table, holding tokens, within 18" and in

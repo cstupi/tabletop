@@ -388,7 +388,7 @@ public static partial class GfMoves
                 var (dangerous, unstable, unstableOver) = RegionDangers(ctx.State, rules, null);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance:0.#}\"", ctx.ActorTeam!.Value,
                     new MoveRegion(movers, allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain, SteepVolumeIds: steep,
-                        DangerousVolumeIds: dangerous, UnstableVolumeIds: unstable, UnstableOver: unstableOver), allowPass: true)]);   // the cap ApplyMove holds the move to
+                        DangerousVolumeIds: dangerous, UnstableVolumeIds: unstable, UnstableOver: unstableOver, KeepAway: KeptBy(ctx, unit, entry)), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice, _, tested) = ApplyMove(ctx, unit, live, allowance, [.. GfAnswers.Moves(ctx.State, closed).Where(m => row.AmountDice is null || movers.Contains(m.ModelId))], null);
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
@@ -409,7 +409,7 @@ public static partial class GfMoves
             var models = Holders(ctx, unit, entry);
             if (ctx.History.LastClosed("move") is not { } placed)
                 return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
-                    PlacementRegion(models, distance, IsAircraft(ctx, unit)), allowPass: true)]);
+                    PlacementRegion(models, distance, IsAircraft(ctx, unit)) with { KeepAway = KeptBy(ctx, unit, entry) }, allowPass: true)]);
             var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
             if (changes.Count == 0) return new Complete([]);
             live.Read(source);
@@ -446,6 +446,9 @@ public static partial class GfMoves
 
         /// <summary>A placement has no path (PassesModels); its landing is judged by move_overlap, by move_separation and against impassable terrain,
         /// except an Aircraft's, p.13: "Aircraft ignore all units and terrain when moving and stopping".</summary>
+        /// <summary>3.6 Fanatic and Vanguard's "over 9” away from non-Vanguard enemy units" on the rule's move Ask (GrimdarkFutureRules.VanguardBreach judges it).</summary>
+        static KeepAway? KeptBy(StepContext ctx, Guid unit, string entry) => entry is GfNames.Fanatic or GfNames.Vanguard ? GfKeepAway.Vanguard(ctx.State, unit) : null;
+
         internal static MoveRegion PlacementRegion(IReadOnlyList<Guid> models, double distance, bool aircraft) =>
             new(models, distance, [], [], null, Separation: aircraft ? null : GfNames.Separation, PassesModels: true, IgnoresTerrain: aircraft);
 
