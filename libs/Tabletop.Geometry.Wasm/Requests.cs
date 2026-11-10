@@ -39,3 +39,12 @@ public sealed record BandsRequest(PlacedModel Start, double Allowance, IReadOnly
     IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null, IReadOnlyList<Guid>? Dangerous = null,
     IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null);
 public sealed record BandsAnswer(Point2[] Clear, Point2[] Difficult, Point2[] Dangerous);
+
+/// <summary>One held model's move: where it stands and where it is going.</summary>
+public sealed record RouteModel(Guid Id, PlacedModel Start, Point2 To);
+/// <summary>The paths the held models' moves are measured along, from the move Ask's parameters (as BandsRequest); `Capped`: the unit is held to the
+/// cap, each move judged by its shortest path within it.</summary>
+public sealed record RoutesRequest(IReadOnlyList<RouteModel> Models, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult,
+    double? DifficultCap, IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null,
+    IReadOnlyList<Guid>? Dangerous = null, IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, bool Capped = false);
+public sealed record RouteFound(Guid Id, Point2[] Points, double Distance, bool EntersDifficult);

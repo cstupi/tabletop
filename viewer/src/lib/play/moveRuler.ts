@@ -19,7 +19,11 @@ export interface MoveGate { readonly allowed: boolean; readonly reason: string |
 const EPS = 1e-6;
 
 export function read(start: XY, current: XY, allowance: number | null, minimum: number | null = null): RulerReadout {
-  const distance = Math.hypot(current.x - start.x, current.y - start.y);
+  return readDistance(Math.hypot(current.x - start.x, current.y - start.y), allowance, minimum);
+}
+
+/** MoveRuler.Read over a distance already measured (the path the move takes). */
+export function readDistance(distance: number, allowance: number | null, minimum: number | null = null): RulerReadout {
   const overAllowance = allowance !== null && distance > allowance + EPS;
   const underMinimum = minimum !== null && distance < minimum - EPS;
   return { distance, remaining: allowance === null ? null : Math.max(0, allowance - distance), overAllowance, underMinimum, outOfRange: overAllowance || underMinimum };

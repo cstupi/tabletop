@@ -42,6 +42,26 @@ describe('the move Ask', () => {
     expect(r.bandCalls).toHaveLength(2);
   });
 
+  it('each ghost reads the path the server measures, and the unit is held to the cap once any path goes in difficult ground', () => {
+    const r = moveRig();
+    const [a, b] = r.ids as [string, string];
+    r.openMove(region({ modelIds: [a, b], allowance: 12, difficultVolumeIds: ['w'], difficultCap: 6, dangerousVolumeIds: ['p'] }));
+    r.box.dragged(a, { position: { x: 10, y: 14, z: 0 }, yaw: { degrees: 0 } });                 // 4" north of where it stands
+    const bent = 2 * Math.hypot(1, 2);
+    expect((r.control('bar') as { bar: { used: number; allowance: number } }).bar).toMatchObject({ allowance: 12 });
+    expect((r.control('bar') as { bar: { used: number } }).bar.used).toBeCloseTo(bent, 9);
+    expect(r.routeCalls.at(-1)).toMatchObject({ models: [{ id: a, to: { x: 10, y: 14 } }], dangerous: ['p'] });
+    expect(r.routeCalls.at(-1)!.capped).toBeUndefined();
+    const held = { ids: [a], origins: new Map([[a, at(10, 10)]]), ends: new Map([[a, { drawn: { x: 10, y: 14, z: 0 }, lands: { x: 10, y: 14, z: 0 } }]]) } as unknown as Held;
+    const [readout] = r.hooks.readouts(held);
+    expect(readout!.path).toEqual([{ x: 10, y: 10 }, { x: 11, y: 12 }, { x: 10, y: 14 }]);
+    expect(readout!.readout.distance).toBeCloseTo(bent, 9);
+    // Into difficult ground (x > 30 in the rig): every model is held to 6" and measured by its shortest path within it.
+    r.box.dragged(b, { position: { x: 32, y: 10, z: 0 }, yaw: { degrees: 0 } });
+    expect(r.routeCalls.at(-1)!.capped).toBe(true);
+    expect(r.control('bar')).toMatchObject({ bar: { allowance: 6 } });
+  });
+
   it('a minimum distance marks the bar', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, allowance: 36, minDistance: 30 }));

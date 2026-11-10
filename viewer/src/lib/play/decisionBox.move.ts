@@ -1,11 +1,13 @@
 // viewer/src/lib/play/decisionBox.move.ts
 // client/src/Hud/DecisionBox.Move.cs: the move half of the decision box (a move Ask's ghosts, allowance, contacts, gate, commit, stop,
 // embark and refused commits) and deployment placement. The area drawn round each listed model is Godot's (MoveRegions.Bands through
-// Geometry.moveBands, in its bands). The spec's cuts: a target is held only to the allowance on a straight line (ModelDrag), the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
+// Geometry.moveBands, in its bands), and each ghost's ruler reads the path the server measures (Geometry.moveRoutes: MoveRegions.Route, the unit
+// held to the cap once any path goes in or through difficult ground, MoveRegions.Allowance). The spec's cuts: a target is held only to the allowance
+// on a straight line (ModelDrag), the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
 // starts its ghosts in rings about the container (DeployView.around) and the server judges p.15. Every ghost is a Placement in
 // `box.ghosts`: its position and the facing the player gave it, which the answer carries.
 
-import { placed, type Geometry, type MoveBands, type XY } from '../geometry';
+import { placed, type Geometry, type MoveBands, type RouteFound, type RoutesRequest, type XY } from '../geometry';
 import type { Projection } from '../live/apply';
 import type { Enforcement, ModelRelocation, MoveRegion, Placement, Point3, Yaw } from '../protocol/wire.generated';
 import type { AskView } from './askView';
@@ -18,7 +20,7 @@ import { around, layout, type MidDeploy } from './deployView';
 import { stationary } from './modelDrag';
 import { GhostStash } from './ghostStash';
 import type { Held } from './modelDrag';
-import { gate as gateOf, isDisembark, isShelfPlacement, read, type MoveGate, type RulerReadout } from './moveRuler';
+import { gate as gateOf, isDisembark, isShelfPlacement, read, readDistance, type MoveGate, type RulerReadout } from './moveRuler';
 import type { Names } from './names';
 import type { PendingDrops } from './pendingDrops';
 import type { Violations } from './violations';
@@ -37,8 +39,8 @@ export type MoveBoxHooks = MoveHooks & {
   allowance(): { readonly centre: XY; readonly radius: number }[];
   /** ShowRegions: each listed model's area in its bands, built once per model per Ask; empty without the geometry. */
   bands(): MoveBands[];
-  /** One readout per held proposing model from its origin, for the rulers. */
-  readouts(held: Held | null): { modelId: string; from: XY; to: XY; readout: RulerReadout }[];
+  /** One readout per held proposing model from its origin, for the rulers, with the path it is measured along when the geometry is loaded. */
+  readouts(held: Held | null): { modelId: string; from: XY; to: XY; readout: RulerReadout; path?: readonly XY[] }[];
   /** TableInput.PickedUp: the rings follow the models now in hand. */
   picked(ids: readonly string[]): void;
   /** TableInput.Region: the open move's Ask, null outside one. */
@@ -66,6 +68,40 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
   let minimum: number | null = null;
   let moving: { legal: MoveRegion; p: Projection; allowance: number | null } | null = null;
   let built: { legal: MoveRegion; byId: Map<string, MoveBands | null> } | null = null;
+
+  /** MoveRegions.Allowance and Route: each moved model's path from where it stands to its target, as the server measures it, and the unit's allowance
+   *  (the Ask's, or its cap once any path goes in or through difficult ground; then each path is the shortest within it). The last answer is kept
+   *  for the same targets, so a drag frame's gate and rulers ask once. */
+  let lastRoutes: { key: string; legal: MoveRegion; value: { allowance: number; routes: Map<string, RouteFound> } } | null = null;
+  const routesOf = (g: Geometry, p: Projection, legal: MoveRegion, targets: ReadonlyMap<string, XY>): { allowance: number; routes: Map<string, RouteFound> } => {
+    const models = [...targets].flatMap(([id, to]) => {
+      const m = p.models.get(id);
+      if (m === undefined || m.location.kind !== 'table') return [];
+      const from = m.location.placement.position;
+      return Math.hypot(to.x - from.x, to.y - from.y) <= 1e-6 ? [] : [{ id, start: placed(m.slot, m.location.placement), to }];
+    });
+    const key = JSON.stringify(models.map((m) => [m.id, m.to.x, m.to.y]));
+    if (lastRoutes !== null && lastRoutes.legal === legal && lastRoutes.key === key) return lastRoutes.value;
+    const allowance = Math.max(0, legal.allowance);
+    const request: RoutesRequest = {
+      models, allowance, impassable: legal.impassableVolumeIds, difficult: legal.difficultVolumeIds, size: p.board.table.size,
+      stationary: legal.passesModels ? [] : stationary(p, new Set(legal.modelIds)),
+      ...(legal.difficultCap === undefined ? {} : { difficultCap: legal.difficultCap }),
+      ...(legal.steepVolumeIds === undefined ? {} : { steep: legal.steepVolumeIds }),
+      ...(legal.dangerousVolumeIds === undefined ? {} : { dangerous: legal.dangerousVolumeIds }),
+      ...(legal.unstableVolumeIds === undefined ? {} : { unstable: legal.unstableVolumeIds }),
+      ...(legal.unstableOver === undefined ? {} : { unstableOver: legal.unstableOver }),
+    };
+    let found = g.moveRoutes(request, p.board.table.terrain);
+    let unit = allowance;
+    if (legal.difficultCap !== undefined && legal.difficultCap < allowance && found.some((r) => r.entersDifficult)) {
+      unit = legal.difficultCap;
+      found = g.moveRoutes({ ...request, capped: true }, p.board.table.terrain);
+    }
+    const value = { allowance: unit, routes: new Map(found.map((r) => [r.id, r])) };
+    lastRoutes = { key, legal, value };
+    return value;
+  };
 
   /** MoveRegions.ReachOf and Bands: the model's area from where it stands, by the Ask's parameters; null off the table. */
   const bandsOf = (g: Geometry, p: Projection, legal: MoveRegion, id: string): MoveBands | null => {
@@ -197,15 +233,21 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     regate = () => {
       const g = deps.geometry();
       const readouts: RulerReadout[] = [];
-      if (allowance !== null)
+      let unit = allowance;
+      if (allowance !== null) {
+        const measured = g === null ? null : routesOf(g, p, legal, new Map([...box.ghosts].map(([id, ghost]) => [id, xy(ghost.position)])));
+        if (measured !== null) unit = measured.allowance;
         for (const id of legal.modelIds) {
           const l = p.models.get(id)?.location, ghost = box.ghosts.get(id);
-          if (l?.kind === 'table' && ghost !== undefined) readouts.push(read(xy(l.placement.position), xy(ghost.position), allowance, minimum));
+          if (l?.kind !== 'table' || ghost === undefined) continue;
+          const route = measured?.routes.get(id);
+          readouts.push(route === undefined ? read(xy(l.placement.position), xy(ghost.position), unit, minimum) : readDistance(route.distance, unit, minimum));
         }
+      }
       if (g !== null)
         deps.violations.measure(legal.modelIds, allWords(contactsOfMove(g, p, legal, new Map(box.ghosts), size), legal.separation, n.unit.bind(n)));
       current = gateOf(readouts, deps.enforcement(), marked(legal.modelIds));
-      if (allowance !== null) box.replace('bar', { kind: 'bar', id: 'bar', bar: barOf(readouts, allowance, minimum) });
+      if (unit !== null) box.replace('bar', { kind: 'bar', id: 'bar', bar: barOf(readouts, unit, minimum) });
       show(box, current, ids);
     };
     regate();
@@ -358,12 +400,16 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
     },
     readouts(held) {
       if (held === null || moving === null || moving.allowance === null) return [];
-      const m = moving;
+      const m = moving, g = deps.geometry();
+      const ends = new Map(held.ids.flatMap((id) => { const end = held.ends.get(id); return end === undefined || !m.legal.modelIds.includes(id) ? [] : [[id, xy(end.lands)] as const]; }));
+      const measured = g === null ? null : routesOf(g, m.p, m.legal, ends);
+      const unit = measured?.allowance ?? m.allowance;
       return held.ids.flatMap((id) => {
-        const origin = held.origins.get(id), end = held.ends.get(id);
-        if (origin === undefined || end === undefined || !m.legal.modelIds.includes(id)) return [];
-        const from = xy(origin.position), to = xy(end.lands);
-        return [{ modelId: id, from, to, readout: read(from, to, m.allowance, minimum) }];
+        const origin = held.origins.get(id), to = ends.get(id);
+        if (origin === undefined || to === undefined) return [];
+        const from = xy(origin.position), route = measured?.routes.get(id);
+        return [route === undefined ? { modelId: id, from, to, readout: read(from, to, unit, minimum) }
+          : { modelId: id, from, to, readout: readDistance(route.distance, unit, minimum), path: route.points }];
       });
     },
     region() { return moving?.legal ?? null; },

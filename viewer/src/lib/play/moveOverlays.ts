@@ -10,15 +10,17 @@ import { readoutText, type RulerReadout } from './moveRuler';
 import type { Held } from './modelDrag';
 import type { Violations } from './violations';
 
-export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: string; readonly outOfRange: boolean }
+/** `path`: the bent path the move is measured along (from `from` to `to`), drawn instead of the straight line. */
+export interface RulerLine { readonly from: XY; readonly to: XY; readonly text: string; readonly outOfRange: boolean; readonly path?: readonly XY[] }
 export interface Ring { readonly centre: XY; readonly radius: number }
 export interface Label { readonly at: XY; readonly text: string }
 
 /** RulerNode: the line from where each piece started to where it is. One reading for the drag: the model that moved farthest, which binds
  *  the allowance; the other lines carry none. */
-export function rulerLines(readouts: readonly { from: XY; to: XY; readout: RulerReadout }[]): RulerLine[] {
+export function rulerLines(readouts: readonly { from: XY; to: XY; readout: RulerReadout; path?: readonly XY[] }[]): RulerLine[] {
   const far = readouts.reduce((best, r, i) => (best < 0 || r.readout.distance > readouts[best]!.readout.distance ? i : best), -1);
-  return readouts.map((r, i) => ({ from: r.from, to: r.to, text: i === far ? readoutText(r.readout) : '', outOfRange: r.readout.outOfRange }));
+  return readouts.map((r, i) => ({ from: r.from, to: r.to, text: i === far ? readoutText(r.readout) : '', outOfRange: r.readout.outOfRange,
+    ...(r.path !== undefined && r.path.length > 2 ? { path: r.path } : {}) }));
 }
 
 const apart = (a: number, b: number): boolean => Math.abs(a - b) > 1e-6;
@@ -89,10 +91,17 @@ export const bandsOverlay = (areas: readonly MoveBands[], team: string): Overlay
 export const rulerOverlay = (lines: readonly RulerLine[]): Overlay => (ctx, project) => {
   ctx.lineWidth = 1.5; ctx.font = '11px ui-monospace, monospace'; ctx.textAlign = 'center';
   for (const line of lines) {
-    const a = project(line.from), b = project(line.to);
+    const points = (line.path ?? [line.from, line.to]).map(project);
     const colour = line.outOfRange ? RED : '#ffffff';
     ctx.strokeStyle = colour; ctx.fillStyle = colour;
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(points[0]!.x, points[0]!.y);
+    for (const q of points.slice(1)) ctx.lineTo(q.x, q.y);
+    ctx.stroke();
+    // The reading sits over the middle of the longest leg.
+    let leg = 0;
+    for (let i = 1; i + 1 < points.length; i++)
+      if (Math.hypot(points[i + 1]!.x - points[i]!.x, points[i + 1]!.y - points[i]!.y) > Math.hypot(points[leg + 1]!.x - points[leg]!.x, points[leg + 1]!.y - points[leg]!.y)) leg = i;
+    const a = points[leg]!, b = points[leg + 1]!;
     if (line.text !== '') drawLabel(ctx, line.text, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 }, colour, { lineHeight: 13, grow: 'up' });
   }
 };

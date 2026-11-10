@@ -126,6 +126,21 @@ public class MoveRulerTests
     }
 
     [Fact]
+    public async Task The_ruler_goes_round_ground_the_ask_names_dangerous_as_the_server_measures_it()
+    {
+        var pit = Wood(44, 24, 2);
+        var legal = new MoveRegion([A], 12, [], [], null, DangerousVolumeIds: [pit.Id]);
+        var regions = One(At(36, 24), legal, [pit]);
+        await regions.Prepare();
+        var to = new Point2(46.9, 25.8);                                                        // its straight line crosses the pit
+        var route = regions.Route(A, to)!;
+        var server = Movement.Check(At(36, 24), to, 12, [], [], null, Opr, [], [pit], dangerous: [pit]);
+        Assert.Equal(server.Distance, route.Distance, 2);
+        Assert.True(route.Distance > new Point2(36, 24).DistanceTo(to) + 0.05);
+        Assert.True(One(At(36, 24), legal with { DangerousVolumeIds = null }, [pit]).Route(A, to)!.Distance < route.Distance);   // not named: straight through
+    }
+
+    [Fact]
     public void A_minimum_cuts_the_middle_out_of_each_area()
     {
         var regions = One(At(36, 24), new MoveRegion([A], 36, [], [], null, MinDistance: 30), []);

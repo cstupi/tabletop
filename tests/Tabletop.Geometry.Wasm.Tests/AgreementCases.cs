@@ -217,6 +217,24 @@ public static class AgreementCases
         Add("move_bands_wood_pit_and_ruin", "MoveBands",
             new BandsRequest(mover, 2.5, [], [wood.Volumes[0].Id], 1.5, field, size, standing, Dangerous: [pit.Volumes[0].Id], Unstable: [ruin.Volumes[0].Id], UnstableOver: 1.5),
             new BandsAnswer([.. bands.Clear], [.. bands.Difficult], [.. bands.Dangerous]));
+        // MoveRoutes: the same table, a 9" move past the wood and the pit, and the same moves capped.
+        var routeWood = PieceAt(16, 10, 0, 1, Vol(VolumeKind.Area, Footprint.Circle(2), 4, TerrainDeclarations.Difficult));
+        var routePit = PieceAt(10, 4, 0, 1, Vol(VolumeKind.Area, Footprint.Circle(1.5), 1, TerrainDeclarations.Dangerous));
+        var routeRuin = PieceAt(6, 16, 0, 1, Vol(VolumeKind.Area, Footprint.Rect(3, 3), 3, TerrainDeclarations.DangerousOnRushCharge));
+        Piece[] routeField = [routeWood, routePit, routeRuin];
+        var routeVolumes = Volumes(routeField);
+        RouteModel[] routeModels = [new(Id(), Model(10, 10), new Point2(10, 1.5)), new(Id(), Model(12, 10), new Point2(19, 10)), new(Id(), Model(8, 10), new Point2(5, 18.5))];
+        PlacedModel[] routeStanding = [Model(30, 30)];
+        RouteFound[] Routes(bool capped) => [.. routeModels.Select(m =>
+        {
+            var path = capped ? Movement.Check(m.Start, m.To, 6, [], [], null, size, routeStanding, routeVolumes)
+                : Movement.Measured(m.Start, m.To, 9, [], Volumes([routeWood]), 6, size, routeStanding, routeVolumes, Volumes([routePit]), Volumes([routeRuin]), 6, []);
+            return new RouteFound(m.Id, [.. path.Path], path.Distance, path.EntersDifficult);
+        })];
+        foreach (var capped in new[] { false, true })
+            Add(capped ? "move_routes_capped" : "move_routes_wood_pit_and_ruin", "MoveRoutes",
+                new RoutesRequest(routeModels, 9, [], [routeWood.Volumes[0].Id], 6, routeField, size, routeStanding, Dangerous: [routePit.Volumes[0].Id],
+                    Unstable: [routeRuin.Volumes[0].Id], UnstableOver: 6, Capped: capped), Routes(capped));
         return cases;
     }
 
