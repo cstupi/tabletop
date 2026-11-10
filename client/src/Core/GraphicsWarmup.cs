@@ -9,7 +9,7 @@ namespace Tabletop.Client.Core;
 public static class GraphicsWarmup
 {
     /// <summary>Raised when the warm-up's scene draws something new, so every install warms again.</summary>
-    const int SceneVersion = 2;
+    const int SceneVersion = 3;
 
     /// <summary>The player's Quality first: the one a game will use, compiled before the rest.</summary>
     public static IReadOnlyList<GraphicsQuality> Qualities(GraphicsQuality current) =>

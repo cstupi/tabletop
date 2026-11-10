@@ -127,6 +127,8 @@ public partial class WarmupScene : Node
         // The warm-up has no game, so the zone takes the 3.5.1 legs.
         var zone = new ZoneNode(); zone.Build(new DeploymentZone(Guid.NewGuid(), "frontline/1", 1), new TableSize(24, 16), ZoneLegs.Default, Palette.Team(1) with { A = 0.35f }); _root.AddChild(zone);
         var region = new MoveRegionNode(); _root.AddChild(region); region.Show([new Point2(14, 4), new Point2(20, 4), new Point2(20, 8), new Point2(14, 8)], Palette.Hovered);
+        var bands = new MoveRegionNode(); _root.AddChild(bands);
+        bands.ShowBands([new MoveBands([new(2, 12), new(4, 12), new(4, 14)], [new(5, 12), new(7, 12), new(7, 14)], [new(8, 12), new(10, 12), new(10, 14)])], Palette.Team(1));
         var ruler = new RulerNode(); _root.AddChild(ruler); ruler.Show(new Point3(14, 10, 0.1), new Point3(20, 10, 0.1), new RulerReadout(6, 2, false), Palette.Selected);
         var lines = new MeshInstance3D { Mesh = LineMesh.Of([(new Vector3(14, 0.5f, -6), new Vector3(20, 0.5f, -6), Palette.Hovered)]), MaterialOverride = LineMesh.Material() }; _root.AddChild(lines);
         foreach (var fx in BattleFx.WarmupNodes()) { fx.Position += new Vector3(22, 1, -4); _root.AddChild(fx); }

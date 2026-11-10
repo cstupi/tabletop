@@ -97,11 +97,17 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// SteepVolumeIds: volumes on the Board that count as difficult for a model whose base starts off the footprint (sharing no interior with it), and as
 /// open ground for one whose base starts on it (3.6.0 p.12 Steep; 3.5.1 p.12 Hills "Difficult when moving up"): Tabletop.Geometry.Movement.SteepEntering per model.
 /// Null is none.
+/// DangerousVolumeIds: volumes on the Board that are dangerous terrain to this move, entered at any length (OPR p.11 "moves in or through dangerous
+/// terrain"; 3.5.1 p.12's "Dangerous when using rush/charge" on a Rush or a Charge). UnstableVolumeIds: volumes that count as dangerous terrain only to a
+/// model whose move is over UnstableOver (3.6.0 p.12 Unstable: "moves over 6” when moving into or through unstable terrain"), UnstableOver being what is
+/// left of that length after the earlier segments of the move. Both null for a unit that ignores dangerous terrain or a move that tests none. The client
+/// draws its area in bands by them (Tabletop.Geometry.MoveReach.Bands); they change no path and no reach.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
     IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false,
     double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false, IReadOnlyList<Guid>? ContactWith = null, double? ContactGrace = null,
-    IReadOnlyList<Guid>? SteepVolumeIds = null) : LegalSet;
+    IReadOnlyList<Guid>? SteepVolumeIds = null, IReadOnlyList<Guid>? DangerousVolumeIds = null, IReadOnlyList<Guid>? UnstableVolumeIds = null,
+    double? UnstableOver = null) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId

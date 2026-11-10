@@ -27,6 +27,15 @@ export interface ContactTerms {
 export interface Contact { readonly modelId: string; readonly kind: ContactKind; readonly unitId?: string }
 export interface Nearest { readonly distance: number; readonly from: number; readonly to: number }
 export interface Segment { readonly a: XY; readonly b: XY }
+/** One model's move area from a move Ask (MoveRegion) for MoveReach.Bands: the Ask's volume ids, cap and minimum, the standing models (none when the Ask
+ *  passes models) and the table. */
+export interface BandsRequest {
+  readonly start: PlacedModel; readonly allowance: number; readonly impassable: readonly string[]; readonly difficult: readonly string[];
+  readonly difficultCap?: number; readonly size: TableSize; readonly stationary: readonly PlacedModel[]; readonly steep?: readonly string[];
+  readonly dangerous?: readonly string[]; readonly unstable?: readonly string[]; readonly unstableOver?: number; readonly minDistance?: number;
+}
+/** The area in its bands, each as triangles (three points each): clear, only through difficult ground, only into ground dangerous to the move. */
+export interface MoveBands { readonly clear: readonly XY[]; readonly difficult: readonly XY[]; readonly dangerous: readonly XY[] }
 type Terrain = readonly TerrainPlacement[];
 
 /** Tabletop.Geometry in the browser. Every call is synchronous once loaded; inches, table frame, Z up. */
@@ -61,6 +70,8 @@ export interface Geometry {
   tableHoldsBase(size: TableSize, model: PlacedModel): boolean;
   /** Containment.ExitYaw (p.7, p.15): a facing a disembarking model's position is legal at, or null; `impassable` are the volume ids the Ask names. */
   exitYaw(body: ModelBody, container: PlacedModel, within: number, at: XY, terrain: Terrain, impassable: readonly string[], size: TableSize): Yaw | null;
+  /** A model's move area in bands (MoveReach.Bands, as Godot's MoveRegions builds it). */
+  moveBands(request: BandsRequest, terrain: Terrain): MoveBands;
   /** One facade method by name on a JSON request: the agreement test's door. */
   call(method: string, json: string): string;
 }

@@ -101,6 +101,19 @@ through it within the cap, and the client draws that one area.
 `Movement.Region(…)` is `MoveReach.Build(…).Triangles(least)` as a `MovementRegion(Origin, Allowance,
 CappedByDifficultTerrain, Triangles)`.
 
+### Bands
+
+`MoveReach.Build(…, dangerous, unstable, unstableOver)` takes the volumes the move Ask names dangerous to the move: `dangerous` at any length,
+`unstable` only to a path longer than `unstableOver` (spec `2026-11-09-move-area-bands-design.md`). They change no reach, clamp or route. The client
+draws the area split by what reaching a point costs (`BandAt`, `Bands(least?)` as `MoveBands(Clear, Difficult, Dangerous)`):
+
+- Clear: within the allowance round every difficult volume (when the cap binds) and every volume dangerous to the path;
+- Difficult: else within the cap through difficult ground, round every volume dangerous to the path;
+- Dangerous: else reached at all.
+
+Each is a level of fields settled on first use, a field whose groups (`MoveSpace.Dangerous`, `MoveSpace.Unstable`) add nothing in reach being the
+reach's own. `ReachMesh` walks one quadtree for the three, a band one level less the one inside it, so the bands are disjoint and cover the area.
+
 ## The wire carries destinations, not paths
 
 `Destinations` stays a list of relocations; the path is not on the wire. Each side computes the same shortest path from the

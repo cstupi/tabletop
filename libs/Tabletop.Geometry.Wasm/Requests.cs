@@ -32,3 +32,10 @@ public sealed record Segment(Point2 A, Point2 B);
 public sealed record ZoneRequest(string Shape, TableSize Size, Point2? Point, PlacedModel? Model, ZoneLegs? Legs = null);
 public sealed record TableRequest(TableSize Size, PlacedModel Model);
 public sealed record ExitRequest(ModelBody Body, PlacedModel Container, double Within, Point2 At, IReadOnlyList<Guid> Impassable, IReadOnlyList<Piece> Terrain, TableSize Size);
+
+/// <summary>One model's move area in bands: the move Ask's parameters (MoveRegion's volume ids, cap, MinDistance), the board's terrain, the table and
+/// the models standing that stop it (none when the Ask PassesModels).</summary>
+public sealed record BandsRequest(PlacedModel Start, double Allowance, IReadOnlyList<Guid> Impassable, IReadOnlyList<Guid> Difficult, double? DifficultCap,
+    IReadOnlyList<Piece> Terrain, TableSize Size, IReadOnlyList<PlacedModel> Stationary, IReadOnlyList<Guid>? Steep = null, IReadOnlyList<Guid>? Dangerous = null,
+    IReadOnlyList<Guid>? Unstable = null, double? UnstableOver = null, double? MinDistance = null);
+public sealed record BandsAnswer(Point2[] Clear, Point2[] Difficult, Point2[] Dangerous);

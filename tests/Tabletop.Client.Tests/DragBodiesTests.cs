@@ -93,7 +93,7 @@ public class DragBodiesTests
         PlacedModel[] below = [M(12.8, 10)];                                                                   // on the ground at the roof's foot
         Assert.Equal(new Point3(11, 13, 4), Drag(big, new(11, 13), below, [roof], level: 4));
         var regions = new MoveRegions(new Dictionary<Guid, PlacedModel> { [A] = big }, new MoveRegion([A], 10, [], [], null), [roof], new TableSize(72, 48), below);
-        Assert.True(Areas.Inside(regions.Outline(A), new Point2(11, 12.9)));
+        Assert.True(Areas.Inside(regions.Bands(A), new Point2(11, 12.9)));
     }
 
     [Fact]
@@ -202,9 +202,9 @@ public class DragBodiesTests
     {
         var region = new MoveRegion([A], 6, [], [], null);
         MoveRegions Of(MoveRegion legal) => new(new Dictionary<Guid, PlacedModel> { [A] = M(10, 10) }, legal, [], new TableSize(72, 48), [M(13, 10)]);
-        Assert.False(Areas.Inside(Of(region).Outline(A), new Point2(13, 10)));
-        Assert.True(Areas.Inside(Of(region).Outline(A), new Point2(15, 10)));                                       // behind it, round it
-        Assert.True(Areas.Inside(Of(region with { PassesModels = true }).Outline(A), new Point2(13, 10)));
+        Assert.False(Areas.Inside(Of(region).Bands(A), new Point2(13, 10)));
+        Assert.True(Areas.Inside(Of(region).Bands(A), new Point2(15, 10)));                                       // behind it, round it
+        Assert.True(Areas.Inside(Of(region with { PassesModels = true }).Bands(A), new Point2(13, 10)));
     }
 
     static readonly Unit Squad = new(Guid.CreateVersion7(), 1, "Squad", new Dictionary<string, string>(), [],

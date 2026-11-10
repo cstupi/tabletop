@@ -1,11 +1,11 @@
 // viewer/src/lib/play/decisionBox.move.ts
 // client/src/Hud/DecisionBox.Move.cs: the move half of the decision box (a move Ask's ghosts, allowance, contacts, gate, commit, stop,
-// embark and refused commits) and deployment placement. The spec's cuts: no reach outline (MoveRegions is not ported), so a target is held
-// only to the allowance on a straight line (ModelDrag), the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
+// embark and refused commits) and deployment placement. The area drawn round each listed model is Godot's (MoveRegions.Bands through
+// Geometry.moveBands, in its bands). The spec's cuts: a target is held only to the allowance on a straight line (ModelDrag), the ruler is straight, the allowance is the Ask's and the difficult cap is the server's to judge; a disembark or a shelf placement
 // starts its ghosts in rings about the container (DeployView.around) and the server judges p.15. Every ghost is a Placement in
 // `box.ghosts`: its position and the facing the player gave it, which the answer carries.
 
-import type { Geometry, XY } from '../geometry';
+import { placed, type Geometry, type MoveBands, type XY } from '../geometry';
 import type { Projection } from '../live/apply';
 import type { Enforcement, ModelRelocation, MoveRegion, Placement, Point3, Yaw } from '../protocol/wire.generated';
 import type { AskView } from './askView';
@@ -15,6 +15,7 @@ import { button, type Control, type DecisionBox, type MoveHooks } from './decisi
 import { barOf, ENTER, inches, STOP } from './decisionCard';
 import { stopLabel } from './decisionView';
 import { around, layout, type MidDeploy } from './deployView';
+import { stationary } from './modelDrag';
 import { GhostStash } from './ghostStash';
 import type { Held } from './modelDrag';
 import { gate as gateOf, isDisembark, isShelfPlacement, read, type MoveGate, type RulerReadout } from './moveRuler';
@@ -34,6 +35,8 @@ export interface MoveDeps {
 export type MoveBoxHooks = MoveHooks & {
   /** The rings the board draws: each listed model's start and the Ask's allowance (ShowRegions' ids). */
   allowance(): { readonly centre: XY; readonly radius: number }[];
+  /** ShowRegions: each listed model's area in its bands, built once per model per Ask; empty without the geometry. */
+  bands(): MoveBands[];
   /** One readout per held proposing model from its origin, for the rulers. */
   readouts(held: Held | null): { modelId: string; from: XY; to: XY; readout: RulerReadout }[];
   /** TableInput.PickedUp: the rings follow the models now in hand. */
@@ -62,6 +65,23 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
   let rings: { ids: string[]; legal: MoveRegion; p: Projection } | null = null;
   let minimum: number | null = null;
   let moving: { legal: MoveRegion; p: Projection; allowance: number | null } | null = null;
+  let built: { legal: MoveRegion; byId: Map<string, MoveBands | null> } | null = null;
+
+  /** MoveRegions.ReachOf and Bands: the model's area from where it stands, by the Ask's parameters; null off the table. */
+  const bandsOf = (g: Geometry, p: Projection, legal: MoveRegion, id: string): MoveBands | null => {
+    const m = p.models.get(id);
+    if (m === undefined || m.location.kind !== 'table') return null;
+    return g.moveBands({
+      start: placed(m.slot, m.location.placement), allowance: Math.max(0, legal.allowance), impassable: legal.impassableVolumeIds,
+      difficult: legal.difficultVolumeIds, size: p.board.table.size, stationary: legal.passesModels ? [] : stationary(p, new Set(legal.modelIds)),
+      ...(legal.difficultCap === undefined ? {} : { difficultCap: legal.difficultCap }),
+      ...(legal.steepVolumeIds === undefined ? {} : { steep: legal.steepVolumeIds }),
+      ...(legal.dangerousVolumeIds === undefined ? {} : { dangerous: legal.dangerousVolumeIds }),
+      ...(legal.unstableVolumeIds === undefined ? {} : { unstable: legal.unstableVolumeIds }),
+      ...(legal.unstableOver === undefined ? {} : { unstableOver: legal.unstableOver }),
+      ...(legal.minDistance === undefined ? {} : { minDistance: legal.minDistance }),
+    }, p.board.table.terrain);
+  };
 
   const marked = (ids: Iterable<string>): Map<string, string> => {
     const out = new Map<string, string>();
@@ -322,6 +342,18 @@ export function moveHooks(deps: MoveDeps): MoveBoxHooks {
       return r.ids.flatMap((id) => {
         const l = r.p.models.get(id)?.location;
         return l?.kind === 'table' ? [{ centre: xy(l.placement.position), radius: moving!.allowance! }] : [];
+      });
+    },
+    bands() {
+      const g = deps.geometry();
+      if (rings === null || moving === null || moving.allowance === null || g === null) return [];
+      const r = rings;
+      if (built === null || built.legal !== r.legal) built = { legal: r.legal, byId: new Map() };
+      const byId = built.byId;
+      return r.ids.flatMap((id) => {
+        if (!byId.has(id)) byId.set(id, bandsOf(g, r.p, r.legal, id));
+        const b = byId.get(id);
+        return b === null || b === undefined ? [] : [b];
       });
     },
     readouts(held) {

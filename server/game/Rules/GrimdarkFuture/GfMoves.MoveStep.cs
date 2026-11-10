@@ -58,6 +58,7 @@ public static partial class GfMoves
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
                     // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (TerrainFor); PathBreach still judges where Flying ends.
                     var (impassable, difficult, steep) = RegionVolumes(ctx.State, rules);
+                    var (dangerous, unstable, unstableOver) = RegionDangers(ctx.State, rules, action, used);
                     var containment = Containers(ctx, unit, action, remaining, rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
                         : ignoreSeparation ? "Charge: move into contact" : aircraft ? AircraftPrompt(ctx, unit, remaining) : $"Move up to {remaining:0.#}\"";
@@ -67,7 +68,7 @@ public static partial class GfMoves
                     var stoppable = !aircraft &&ctx.Rules.ReactionsAt(ctx.State, ctx.Properties, GfNames.BeforeAttacking, ctx.Frame).Any(r => r.TeamId == ctx.ActorTeam);
                     var region = new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
                         ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
-                        contact, contact is null ? null : GfNames.ChargeContactGrace, steep);
+                        contact, contact is null ? null : GfNames.ChargeContactGrace, steep, dangerous, unstable, unstableOver);
                     // p.9: "Charging models must move by up to 12” to get into base contact"; p.7: only when "being within charge distance becomes
                     // impossible" may the unit "complete its move in any direction". So a charge that can still reach contact has no pass.
                     var mayPass = !aircraft && ChargeContactBreach(ctx.State, region, null) is null;

@@ -27,6 +27,21 @@ describe('the move Ask', () => {
     expect(r.control('commit')).toMatchObject({ label: 'Commit', key: '⏎', primary: true });
   });
 
+  it('each listed model\'s area is asked of the geometry once per Ask, with the Ask\'s dangerous and unstable volumes', () => {
+    const r = moveRig();
+    const [a, b] = r.ids as [string, string];
+    r.openMove(region({ modelIds: [a, b], allowance: 12, difficultVolumeIds: ['w'], difficultCap: 6, dangerousVolumeIds: ['p'], unstableVolumeIds: ['u'], unstableOver: 6 }));
+    expect(r.hooks.bands()).toHaveLength(1);
+    expect(r.bandCalls).toHaveLength(1);
+    expect(r.bandCalls[0]![0]).toMatchObject({ allowance: 12, difficult: ['w'], difficultCap: 6, dangerous: ['p'], unstable: ['u'], unstableOver: 6 });
+    expect((r.bandCalls[0]![0] as { stationary: unknown[] }).stationary.length).toBeGreaterThan(0);   // the rival and the truck stand in the way
+    r.hooks.bands();
+    expect(r.bandCalls).toHaveLength(1);                                                            // kept for the Ask
+    r.hooks.picked([b]);
+    expect(r.hooks.bands()).toHaveLength(2);
+    expect(r.bandCalls).toHaveLength(2);
+  });
+
   it('a minimum distance marks the bar', () => {
     const r = moveRig();
     r.openMove(region({ modelIds: r.ids, allowance: 36, minDistance: 30 }));
