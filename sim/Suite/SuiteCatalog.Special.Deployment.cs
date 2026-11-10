@@ -49,6 +49,16 @@ static partial class SpecialGames
                     if (rounds.Any(r => r < 2)) return $"Ambushers offered in rounds {string.Join(",", rounds)}";
                     return Each(Arrivals(run, "Red unit 2").Concat(Arrivals(run, "Blue unit 2")), "an Ambusher placement", a => OverNine(run, a));
                 }),
+                Exact("p.13 Ambush: \"over 9\" away from enemy units\": the Ambusher pick carries 9\" from every unit of the other army", ["Ambush"], run =>
+                    Each(Payloads(run).OfType<AskOpened>().Where(o => o.Ask.Question == AskQuestions.DeployAmbusher).SelectMany(o => ((PieceSelection)o.Ask.Legal).Eligible
+                        .Select(u => (Unit: u, Keep: ((PieceSelection)o.Ask.Legal).KeepAway?.GetValueOrDefault(u)))), "an Ambusher offered", x =>
+                    {
+                        var army = UnitName(run, x.Unit).Split(' ')[0];
+                        var enemies = run.Final.Units.Values.Where(u => !u.Definition.Name.StartsWith(army + " ", StringComparison.Ordinal)).Select(u => u.Id).Order();
+                        if (x.Keep is null) return $"{UnitName(run, x.Unit)} was offered with no distance from enemy units";
+                        return x.Keep.Units.Select(a => a.UnitId).Order().SequenceEqual(enemies) && x.Keep.Units.All(a => a.Over == 9) ? null
+                            : $"{UnitName(run, x.Unit)} keeps {string.Join(", ", x.Keep.Units.Select(a => $"{a.Over}\" from {UnitName(run, a.UnitId)}"))}";
+                    })),
                 Exact("p.15 Tough: \"heroes must be assigned wounds last\"", ["Hero"], run =>
                 {
                     var (heroes, others) = HeroSplit(run);

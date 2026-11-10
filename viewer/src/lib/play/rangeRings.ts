@@ -67,8 +67,9 @@ export class RangeRingCache {
   }
 }
 
-/** One set of rings in one colour: the hovered enemy's threat, or my selected unit's ranges. */
-export interface RingLayer { readonly rings: readonly RangeRing[]; readonly colour: string }
+/** One set of rings in one colour: the hovered enemy's threat, my selected unit's ranges, or the area a placement keeps out of; `words`, the
+ *  label's colour and `rim` the outline's when they are not the rings' (the keep-away's dark shade would not read on the pill or a dark board). */
+export interface RingLayer { readonly rings: readonly RangeRing[]; readonly colour: string; readonly words?: string; readonly rim?: string }
 
 const shapes = new WeakMap<RangeRing, RingShape>();
 function shapeOf(r: RangeRing): RingShape {
@@ -87,11 +88,15 @@ function viewportHeightOf(ctx: CanvasRenderingContext2D): number {
   return height / (typeof scale === 'number' && scale > 0 ? scale : 1);
 }
 
-/** The kind's icon in a box ICON wide, its top left at (x, y): a crosshair for shooting and ranges, two crossed blades for a charge. */
-function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot', x: number, y: number): void {
+/** The kind's icon in a box ICON wide, its top left at (x, y): a crosshair for shooting and ranges, two crossed blades for a charge, a warning
+ *  triangle for a keep-away. */
+function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot' | 'warning', x: number, y: number): void {
   const c = ICON / 2;
   ctx.beginPath();
-  if (icon === 'shoot') {
+  if (icon === 'warning') {
+    ctx.moveTo(x + c, y + 1); ctx.lineTo(x + ICON - 1, y + ICON - 1); ctx.lineTo(x + 1, y + ICON - 1); ctx.closePath();
+    ctx.moveTo(x + c, y + c * 0.7); ctx.lineTo(x + c, y + c * 1.3); ctx.moveTo(x + c, y + ICON - 3.5); ctx.lineTo(x + c, y + ICON - 3);
+  } else if (icon === 'shoot') {
     ctx.arc(x + c, y + c, c * 0.6, 0, 2 * Math.PI);
     ctx.moveTo(x + c, y); ctx.lineTo(x + c, y + c * 0.55); ctx.moveTo(x + c, y + ICON); ctx.lineTo(x + c, y + ICON - c * 0.55);
     ctx.moveTo(x, y + c); ctx.lineTo(x + c * 0.55, y + c); ctx.moveTo(x + ICON, y + c); ctx.lineTo(x + ICON - c * 0.55, y + c);
@@ -107,9 +112,9 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: 'charge' | 'shoot', x: nu
  * kept apart and inside the canvas (`placeRingLabels`), in layer order. */
 export const ringsOverlay = (layers: readonly RingLayer[]): Overlay => (ctx, project) => {
   ctx.save();
-  const labels: { text: string; icon: 'charge' | 'shoot'; colour: string; at: { x: number; y: number } }[] = [];
+  const labels: { text: string; icon: 'charge' | 'shoot' | 'warning'; colour: string; at: { x: number; y: number } }[] = [];
   const view: Rect = { x: 0, y: 0, w: viewportWidthOf(ctx), h: viewportHeightOf(ctx) };
-  for (const { rings, colour } of layers) for (const r of rings) {
+  for (const { rings, colour, words, rim } of layers) for (const r of rings) {
     if (r.segments.length === 0) continue;
     const look = ringLook(r.kind), shape = shapeOf(r);
     ctx.beginPath();
@@ -120,9 +125,9 @@ export const ringsOverlay = (layers: readonly RingLayer[]): Overlay => (ctx, pro
     ctx.globalAlpha = look.fillAlpha; ctx.fillStyle = colour; ctx.fill('evenodd');
     ctx.globalAlpha = 1; ctx.lineJoin = 'round';
     ctx.lineWidth = look.lineWidth + 2; ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'; ctx.stroke();
-    ctx.lineWidth = look.lineWidth; ctx.strokeStyle = colour; ctx.stroke();
+    ctx.lineWidth = look.lineWidth; ctx.strokeStyle = rim ?? colour; ctx.stroke();
     const at = ringAnchor(shape.candidates.map(project), view, 8);
-    if (at !== null) labels.push({ text: r.label, icon: look.icon, colour, at });
+    if (at !== null) labels.push({ text: r.label, icon: look.icon, colour: words ?? colour, at });
   }
   ctx.font = LABEL_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   const measure = measureOf(ctx);

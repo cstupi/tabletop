@@ -66,7 +66,7 @@ public partial class RangeRingNode : Node3D
         _picked.Show(_pinned is { } a && shown.Contains(a) ? ThreatOf(a) : null);
         _hovered.Show(hovered is { } b && b != _pinned && shown.Contains(b) ? ThreatOf(b) : null);
         _range.Show(RangeWanted());
-        _keepAway.Show(KeepAwayWanted(), Ui.Text);
+        _keepAway.Show(KeepAwayWanted(), Ui.Text, Ui.Of(KeepAwayArea.Rim));
     }
 
     /// <summary>The area the placement under way may not reach: my team's deploy pick's KeepAway (DeployView.MidDeploy, a pick by any team of mine), else
@@ -150,7 +150,7 @@ public partial class RangeRingNode : Node3D
         readonly MeshInstance3D _line = new() { MaterialOverride = RingMesh.LineMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         readonly MeshInstance3D _behind = new() { MaterialOverride = RingMesh.BehindMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         Control _parent = null!;
-        (Shaped Rings, Color Colour)? _drawn; Color? _words;
+        (Shaped Rings, Color Colour)? _drawn; Color? _words, _rim;
         public readonly List<(Vector3[] Candidates, Control Label)> Labels = new();
         public bool Shown => _drawn is not null;
 
@@ -167,18 +167,18 @@ public partial class RangeRingNode : Node3D
             Labels.Clear();
         }
 
-        /// <summary>`words`: the labels' colour when it is not the rings' (the keep-away's dark shade would not read on a panel).</summary>
-        public void Show((Shaped Rings, Color Colour)? want, Color? words = null)
+        /// <summary>`words` and `rim`: the labels' and the outline's colours when they are not the rings' (the keep-away's dark shade would not read on a panel or a dark board).</summary>
+        public void Show((Shaped Rings, Color Colour)? want, Color? words = null, Color? rim = null)
         {
-            if (want is { } w && _drawn is { } d && ReferenceEquals(w.Rings, d.Rings) && w.Colour == d.Colour && words == _words) return;
-            _words = words;
+            if (want is { } w && _drawn is { } d && ReferenceEquals(w.Rings, d.Rings) && w.Colour == d.Colour && words == _words && rim == _rim) return;
+            _words = words; _rim = rim;
             if (want is null && _drawn is null) return;
             Clear(); _drawn = want;
             if (want is not { } shown) return;
             var (rings, colour) = shown;
             var drawn = rings.Rings;
             _fill.Mesh = RingMesh.Fill(drawn.Select(x => (x.Shape, x.Look)).ToList(), colour);
-            _line.Mesh = _behind.Mesh = RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), colour);
+            _line.Mesh = _behind.Mesh = RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), rim ?? colour);
             foreach (var (ring, look, shape) in drawn)
             {
                 if (Labels.Count == _made.Count) { var made = Label(); _parent.AddChild(made); _made.Add(made); }

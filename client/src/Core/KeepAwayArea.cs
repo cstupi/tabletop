@@ -10,6 +10,8 @@ public static class KeepAwayArea
 {
     /// <summary>The fill and rim: a dark shade, apart from every team colour, the move area's bands and the activated green.</summary>
     public static readonly Rgba Shade = new(0.05f, 0.05f, 0.07f);
+    /// <summary>The outline: light over the shade, so the edge reads on any board.</summary>
+    public static readonly Rgba Rim = new(0.9f, 0.91f, 0.93f);
 
     /// <summary>The keep-away the placement under way is held to: the deploy pick's for its unit, else the open move Ask's.</summary>
     public static KeepAway? For(MidDeploy? deploy, Ask? move) => deploy?.KeepAway ?? (move?.Legal as MoveRegion)?.KeepAway;

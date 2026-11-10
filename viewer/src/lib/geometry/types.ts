@@ -68,6 +68,10 @@ export interface Geometry {
   nearestPair(from: readonly PlacedModel[], to: readonly PlacedModel[]): Nearest | null;
   /** The union outline of the rings at `range` from each model's base edge, or at `ranges[i]` from model i's when given (RangeOutline.Of). */
   rangeOutline(models: readonly PlacedModel[], range: number, ranges?: readonly number[]): Segment[];
+  /** Clearance.Outline: the area a placed base's edge may not enter, `from[i]` grown by `over[i]`, less the area within `liftedWithin` of `lifted`. */
+  clearanceOutline(from: readonly PlacedModel[], over: readonly number[], lifted?: readonly PlacedModel[], liftedWithin?: number): Segment[];
+  /** Clearance.Breaks: the index into `from` the placed base comes within `over[i]` of, or -1 (none, or within `liftedWithin` of a lifted base). */
+  clearanceBreaks(placed: PlacedModel, from: readonly PlacedModel[], over: readonly number[], lifted?: readonly PlacedModel[], liftedWithin?: number): number;
   /** `legs`: Side Battle's, from the game's Welcome; absent is ZoneLegs.Default. */
   zonePolygons(shape: string, size: TableSize, legs?: ZoneLegs): XY[][];
   zoneContains(shape: string, size: TableSize, point: XY, legs?: ZoneLegs): boolean;
