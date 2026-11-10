@@ -57,8 +57,7 @@ public class GfCastingTests
         Assert.DoesNotContain(hit.Values!.Keys, k => k.StartsWith("granted_"));                         // AP(1) is the spell's whole-group rule, not a per-die subset
         var block = sim.Steps("roll-to-block").Single().Rolls.Single();
         Assert.Contains(block.Modifiers, m => m.Source == "AP" && m.Amount == -1);
-        Assert.Equal(3, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);            // 2,3,4 −1 against 5+: three wounds
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [grunts.Models[0].Id] = 1, [grunts.Models[1].Id] = 1, [grunts.Models[2].Id] = 1 }));
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                   // 2,3,4 −1 against 5+: three wounds kill all three, nothing to allocate
         Assert.Equal(0, sim.Alive(grunts.Id)); Assert.Empty(sim.State.Projection.Stack);
         Assert.Contains("Fireball", GfCasting.TriedThisActivation(sim.State, wizard.Id));
     }

@@ -36,7 +36,7 @@ public class GfShootingTests
         var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
         Assert.Equal(a.Id, Assert.Single(attacks).Context.TargetUnitIds[0]);
         Assert.Equal(GfNames.Advance, attacks[0].Context.Action);
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [a.Models[0].Id] = 3 }));
+        Assert.Equal(0, sim.Alive(a.Id));                                                                                // three wounds on two models: removed with nothing asked
         Assert.Empty(sim.State.Projection.Stack);
     }
 

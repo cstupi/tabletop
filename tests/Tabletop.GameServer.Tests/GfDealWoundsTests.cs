@@ -90,10 +90,10 @@ public class GfDealWoundsTests
         var a = Unit("A", "4+", "4+", [], 1, []);
         var t = Unit("T", "4+", "4+", [], 3, []) with { Models = [.. Unit("T", "4+", "4+", [], 2, []).Models, Unit("Big", "4+", "4+", [], 1, [P("Tough", 3)]).Models[0] with { Ordinal = 3 }] };
         var (p1, p2, big) = (t.Models[0].Id, t.Models[1].Id, t.Models[2].Id);
-        var sim = StartWith(a, t, 3, [1], null, Enforcement.Strict, [(big, 2)], []);
+        var sim = StartWith(a, t, 3, [1], null, Enforcement.Strict, [(big, 1)], []);                                  // one wound short of the whole unit: asked
         Assert.Equal([p1, p2], Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Targets);
         sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [p1] = 2, [p2] = 1 }));
-        Assert.Equal(0, sim.Alive(t.Id));                                                                              // the Tough model dies and both plain models are removed
+        Assert.Equal((1, 2), (sim.Alive(t.Id), sim.Model(big).Wounds));                                               // both plain models are removed and the carried wound lands on the Tough model
         Assert.Equal(3, sim.Unit(t.Id).WoundsThisActivation);
         Assert.Empty(sim.State.Projection.Stack);
     }
@@ -243,7 +243,7 @@ public class GfDealWoundsTests
         var a = Unit("A", "4+", "4+", [], 1, []);
         var t = Unit("T", "4+", "4+", [], 2, []);
         var sim = Start(a, t, 5, [1]);
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [t.Models[0].Id] = 3, [t.Models[1].Id] = 2 }));
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                                  // every model dies whatever the allocation: nothing asked
         Assert.Equal(0, sim.Alive(t.Id));
         Assert.Equal(2, sim.Unit(t.Id).WoundsThisActivation);
         Assert.Empty(sim.State.Projection.Stack);
