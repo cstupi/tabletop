@@ -44,7 +44,7 @@ describe('orderDownloads', () => {
 
   it('every platform has first-run steps that name the unsigned build where the OS warns', () => {
     expect(FIRST_RUN.windows.join(' ')).toMatch(/SmartScreen.*Run anyway/);
-    expect(FIRST_RUN.macos.join(' ')).toMatch(/right-click.*Open/);
+    expect(FIRST_RUN.macos.join(' ')).toMatch(/Open Tabletop\.command.*Open Anyway/);
     expect(FIRST_RUN.linux.join(' ')).toMatch(/chmod \+x/);
   });
 });

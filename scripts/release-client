@@ -167,7 +167,12 @@ package_builds() {   # <version> <out>
     zip=$(zip_of "$version" "$p")
     [[ "${DRY_RUN:-}" == 1 ]] || [[ -d "$out/$p" ]] || die "$out/$p is missing; run export first"
     run rm -f "$out/$zip"
-    if [[ "$p" == macos ]]; then run cp "$out/$p/Tabletop.zip" "$out/$zip"    # Godot's zip already holds Tabletop.app, signature intact
+    if [[ "$p" == macos ]]; then
+      run cp "$out/$p/Tabletop.zip" "$out/$zip"    # Godot's zip already holds Tabletop.app, signature intact
+      # beside the app: the helper that clears the download quarantine from the whole bundle (deploy/README.md → Releases)
+      run bash -c 'cd "$1" && zip -q -X "$2" "Open Tabletop.command"' _ "$root/scripts/client-build/macos" "$out/$zip"
+      [[ "${DRY_RUN:-}" == 1 ]] || unzip -Z "$out/$zip" 'Open Tabletop.command' | grep -q '^-rwx' \
+        || die "the macOS zip lacks an executable Open Tabletop.command"
     else run bash -c 'cd "$1" && zip -qr -X "$2" .' _ "$out/$p" "$out/$zip"; fi
     [[ "${DRY_RUN:-}" == 1 ]] && continue
     size=$(stat -c %s "$out/$zip"); sha=$(sha256sum "$out/$zip" | cut -d' ' -f1)

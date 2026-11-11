@@ -33,9 +33,9 @@ export const FIRST_RUN: Record<ClientPlatform, string[]> = {
     'The build is not signed yet, so Windows SmartScreen may say it protected your PC: choose More info, then Run anyway.',
   ],
   macos: [
-    'Open the zip; move Tabletop.app to Applications.',
-    'The build is not signed or notarised yet, so the first time, right-click (or Control-click) Tabletop and choose Open, then Open again.',
-    'If macOS still refuses, open System Settings → Privacy & Security and choose Open Anyway beside Tabletop.',
+    'Open the zip; move Tabletop.app and Open Tabletop.command to Applications. Needs macOS 12 or later.',
+    'The build is not signed or notarised yet, so macOS blocks it. Double-click Open Tabletop.command; when macOS refuses it, open System Settings → Privacy & Security, choose Open Anyway beside it, then double-click it again.',
+    'It unblocks Tabletop and starts it. From then on, open Tabletop.app.',
   ],
   linux: [
     'Extract the zip to a folder of its own.',

@@ -35,7 +35,7 @@ All under the one bucket the servers use (`TABLETOP_S3_BUCKET`):
 | --- | --- |
 | `releases/X.Y.Z/tabletop-X.Y.Z-windows-x86_64.zip` | `Tabletop.exe`, `Tabletop.pck`, `data_Tabletop_windows_x86_64/` |
 | `releases/X.Y.Z/tabletop-X.Y.Z-linux-x86_64.zip` | `Tabletop.x86_64`, `Tabletop.pck`, `data_Tabletop_linuxbsd_x86_64/` |
-| `releases/X.Y.Z/tabletop-X.Y.Z-macos-universal.zip` | `Tabletop.app` (Godot's macOS zip, ad-hoc signed) |
+| `releases/X.Y.Z/tabletop-X.Y.Z-macos-universal.zip` | `Tabletop.app` (Godot's macOS zip, ad-hoc signed) and `Open Tabletop.command` (`scripts/client-build/macos/`), which clears the download quarantine from the whole bundle and opens it |
 | `releases/X.Y.Z/manifest.json` | That version's manifest |
 | `releases/latest.json` | A copy of the newest version's manifest |
 
@@ -100,7 +100,9 @@ writes under it. `UploadSweep` lists only `staging/`.
   platform entry whose key is outside `releases/` is dropped.
 - The web app's Download page (`/download`, signed in) shows the newest release, offers the detected OS first and all
   three, with size, SHA-256 and first-run steps for an unsigned build: Windows SmartScreen (More info → Run anyway),
-  macOS (right-click → Open, or System Settings → Privacy & Security → Open Anyway), Linux (`chmod +x`). With no
+  macOS (double-click `Open Tabletop.command`, allow it once under System Settings → Privacy & Security → Open
+  Anyway; Open Anyway on the app alone leaves the .NET libraries inside it quarantined and the client starts without its
+  code; macOS 12 or later), Linux (`chmod +x`). With no
   release it says none is published yet.
 
 ## Retention

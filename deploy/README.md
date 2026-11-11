@@ -219,7 +219,8 @@ creates the directory on the restart.
 ## Releases
 
 Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. A release is a `vX.Y.Z` tag. Its client builds
-(Windows x86_64, Linux x86_64, macOS universal; unsigned) go to the servers' bucket under `releases/`:
+(Windows x86_64, Linux x86_64, macOS universal for macOS 12 and later; unsigned; the macOS zip carries
+`Open Tabletop.command` beside the app, which clears the download quarantine from the bundle) go to the servers' bucket under `releases/`:
 `releases/X.Y.Z/tabletop-X.Y.Z-<platform>.zip`, `releases/X.Y.Z/manifest.json`, and `releases/latest.json`, which
 `GET /v1/client/latest` reads and the web app's Download page shows. Asset keys (`{owner}/{hash}`, `staging/`) never
 collide with it. Old versions stay until deleted by hand (`aws s3 rm --recursive s3://<bucket>/releases/X.Y.Z/`).
