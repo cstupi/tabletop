@@ -10,7 +10,7 @@ public class ArmyRules36Tests
     static readonly string[] AwaitingTheir36Text = [];
 
     /// <summary>The names whose printed text is the common-rules file's: no book and no rulebook page describes them (the other common rules are not 3.6.0 text for a hand entry).</summary>
-    static readonly string[] DescribedByCommonRules = ["Brace", "Parry"];
+    static readonly string[] DescribedByCommonRules = ["Banner", "Brace", "Parry"];
 
     static string? Up(string relative)
     {

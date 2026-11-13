@@ -39,9 +39,9 @@ public class GfTags36Tests
 
     [Theory]
     [InlineData(RuleSets.Gf360, "Test Tag", 3, -1, 2)]          // one token acts and goes
-    [InlineData(RuleSets.Gf360, "Test Spent Tag", 2, -2, 0)]    // every marker acts and they go together
-    [InlineData(RuleSets.Gf351, "Test Spent Tag", 2, -2, 0)]
-    public void One_token_acts_on_an_attack_and_goes_alone_while_spent_markers_go_together(string rules, string tag, int placed, int ap, int left)
+    [InlineData(RuleSets.Gf360, "Test Spent Tag", 2, 0, 2)]     // "friendly units may remove markers … when attacking": a rule's hits remove none (ArmyRuleAuditFinishSpotterTests)
+    [InlineData(RuleSets.Gf351, "Test Spent Tag", 2, 0, 2)]
+    public void One_token_acts_on_an_attack_and_goes_alone_while_spent_markers_act_only_when_removed(string rules, string tag, int placed, int ap, int left)
     {
         var s = Unit("S", "4+", "4+", [], 1, []); var e = Unit("E", "4+", "4+", [], 1, []);
         var state = State([s], [e]);

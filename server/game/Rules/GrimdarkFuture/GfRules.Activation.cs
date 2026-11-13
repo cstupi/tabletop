@@ -101,14 +101,18 @@ public sealed partial class GrimdarkFutureRules
 
     /// <summary>
     /// Instinctive: "When this model is activated, if it is able to shoot/charge an enemy unit, then it must immediately attack the closest valid target":
-    /// Charge when a charge is possible, else a shot when one is possible (Rush cannot shoot, p.7); null when it can do neither or does not hold it.
+    /// which of a charge and a shot is open to it; null when neither is, or no model of the unit holds the rule (a joined Hero's slot carries its own).
     /// </summary>
-    public static string? InstinctiveAttack(GameState state, PropertySet props, UnitInPlay unit)
+    public static (bool Charge, bool Shoot)? InstinctiveAttack(GameState state, PropertySet props, UnitInPlay unit)
     {
-        if (unit.Conditions.Contains(Shaken) || !Lookup.UnitHas(state, props, unit.Id, Instinctive)) return null;
-        if (GfMelee.ChargeTargets(state, props, unit.Id).Count > 0) return Charge;
+        if (unit.Conditions.Contains(Shaken)) return null;
+        // "When this model is activated": any living model holding it, whatever a joined Hero's slot holds.
+        if (!Lookup.UnitHas(state, props, unit.Id, Instinctive)
+            && !Lookup.LivingModels(state, unit.Id).Any(id => state.Projection.Models[id].Slot.Properties.Any(p => p.Name == Instinctive))) return null;
         var team = Teams.Of(state, unit.Id);
-        return state.Projection.Units.Values.Any(t => Teams.Of(state, t.Id) != team && Instance.Shooters(state, props, unit.Id, t.Id).Count > 0) ? Hold : null;
+        var charge = GfMelee.ChargeTargets(state, props, unit.Id).Count > 0;
+        var shoot = state.Projection.Units.Values.Any(t => Teams.Of(state, t.Id) != team && Instance.Shooters(state, props, unit.Id, t.Id).Count > 0);
+        return charge || shoot ? (charge, shoot) : null;
     }
 
     public const string InstinctiveNote = "Instinctive: must attack the closest valid target, with +1 to hit";

@@ -78,7 +78,8 @@ public class GfCombatLogTests
         var target = Unit("Target", "4+", "4+", [], 5, []);
         var sim = Sim.Gf(State([shooter], [target], x1: -6, x2: 6), 6, 6, 5, 5);
         sim.Start(GfNames.AttackSequence, Attack(shooter, target, GfNames.Hold));
-        var rolls = sim.Steps("roll-to-hit").Single().Rolls;
+        sim.Answer(Tabletop.Protocol.Tests.Samples.Team1, new Chosen("yes"));                       // "this model may roll +1 attack"
+        var rolls = sim.Steps("roll-to-hit").SelectMany(s => s.Rolls).ToList();
         Assert.Equal(2, rolls.Count);
         Assert.Equal([["Bloodborn +1 attack"]], rolls[0].Dice.Select(d => d.Triggered?.ToArray()));
         Assert.Equal([null], rolls[1].Dice.Select(d => d.Triggered?.ToArray()));

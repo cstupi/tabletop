@@ -25,7 +25,8 @@ sealed record Interaction(GameState State, PropertySet Properties, Party Attacke
     AttackKind? Attack, string? ActionTaken, double? RangeInches, IReadOnlyList<string> DefenderTerrain,
     string? Point = null, IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? Faces = null,
     IReadOnlyList<(string Entry, int? Parameter)>? SpellRules = null,
-    IReadOnlyList<string>? AttackerTerrain = null, SpellReach? SpellReach = null)
+    IReadOnlyList<string>? AttackerTerrain = null, SpellReach? SpellReach = null, bool UnarmedHits = false,
+    IReadOnlyDictionary<string, int>? RemovedTokens = null)
 {
     Party Of(Side side);
     static Side Other(Side side);
@@ -43,6 +44,23 @@ charge's recorded range and, for the unit charged, `ActionTaken` `Charge`; the r
 start, which the `charge-target` step records as `charge_range` in hundredths of an inch. `Party.Whole` uses `Lookup.AliveModels`, which is
 models still in play, container occupants included. An occupant unit's own properties are
 therefore still gathered when a wrecked transport wounds it.
+
+An attack's attacker party is the models carrying the weapons it resolves, and `GfGroups.Split` makes it
+homogeneous: a weapon group (one weapon name) resolves as one `attack-sequence` per carrier signature, the
+carrier's model rules (less unit-kind, *"This model and its unit"*, pick-entry and marker-only ones) with the weapon's rules and stats, so a
+joined Hero, a Sergeant or an upgraded model firing the squad's weapon attacks apart from the squad and a rule
+worded *"This model …"* reaches only its own carrier's attacks. A Takedown's picked model, and a model-grain spell's
+target, is the defender's party alone (`GfAttack.AttackInteraction`, *"resolved as if it was a unit of [1]"*), so the
+defender's `all` and `majority` rules are judged over that model; a *"This model and its unit"* Aura another living
+model of the unit carries still reaches it. `UnarmedHits` marks hits no weapon and no attack made (Impact's, and a
+`rule-hits` frame's: Retaliate, Deathstrike, Self-Destruct, Surprise Attack; `GfAttack.UnarmedHits`): `Gather` returns
+nothing on the attacker's side for them, since every attacker rule acting on a hit acts on its weapons or attacks;
+what the dealing rule adds itself (Heavy Impact's and Surprise Attack's AP(1)) its caller adds. `RemovedTokens` is set
+inside every step (`GfAttack.AttackInteraction`, from `GfChoice.Removed`): the `spent_marker` tokens per entry the
+attacking team removed from the defender for this attack. There `Gather` gathers no `spent_marker` grant and adds, on
+the defender's side, one instance of each entry's `spent_marker` row with its amount times the count removed
+(*"+AP(X) … where X is the number of removed tokens"*); outside a step (null) the grants are gathered as they lie. `holds_property` (*"If this model has X"*) is judged over the side's party (`Lookup.PartyHas`), the same
+models the base rule was gathered over.
 
 `self` and `opponent` on the effect resolve against the *holder*, not against attacker and
 defender. `AP(X)` on the attacker's weapon and `Stealth` on the target are written the same way
@@ -170,7 +188,7 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 8 | `OverrideResult` | two | nobody: it is the child of a kind-5 roll, and the step reads `TargetResult` to know what a success does | `Regeneration` (wound), `Fearless` (morale test) |
 | 9 | `GrantProperty` | one, or two when per-die | `LiveProperties.Settle` adds a `LiveProperty`; per-die, `RollEffects.PerDie` names it and the step folds it in with `LiveSet.WithGranted` | `Rending`, every spell grant |
 | 10 | `SuppressProperty` | one | `Settle` removes every instance of the entry on the acted-on side | `Bane`, `Rending` and `Unstoppable` ignoring `Regeneration` |
-| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter; a `floor` holds the sum at it and never raises a parameter already below it | `Counter` (−1 `Impact` rolls); AP(-1) *"to a min. of AP(0)"*, `floor: 0`: 3.5.1 `Fortified`, `Fortified Growth`, `Guardian`, `Guardian Boost` and `Primeborn`, 3.6.0 `Fortified`, `Fortified Growth`, `Guardian`, `Primeborn` and `Enhanced Guardian` (AP(-2) *"from Guardian"*) |
+| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter; on a weapon rule (`AP`) it changes the side's total once (`LiveProperties.Totals`); a `floor` holds the sum at it and never raises a parameter already below it | `Counter` (−1 `Impact` rolls); AP(-1) *"to a min. of AP(0)"*, `floor: 0`: 3.5.1 `Fortified`, `Fortified Growth`, `Guardian`, `Guardian Boost` and `Primeborn`, 3.6.0 `Fortified`, `Fortified Growth`, `Guardian`, `Primeborn` and `Enhanced Guardian` (AP(-2) *"from Guardian"*) |
 | 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, and `Blast` for cover |
 | 13 | `CountAsTerrain` | two | `GfMoves` reads the `TargetTerrain` row: `difficult` caps the holder's next move at 6", `dangerous` runs the `dangerous-terrain` test at its next activation, an idle one included | spells granting either terrain type |
 | 14 | `TakeTest` | two | `GfCasting`'s `effects` step pushes `spell-test`, which pushes `morale-test` for the target with p.10's consequence; the row's children apply when the test fails | morale-test spells |
@@ -339,15 +357,19 @@ is conditional and the other is not, and a single condition list on the entry wo
 `Indirect` is the same argument with three clauses, one conditional and two not.
 
 `Thrust` shows why an additive `AP` is a grant and not a `modify_parameter`. 3.5.1 writes both
-`Thrust`'s `AP(+1)` and `Rending`'s `AP(+4)` with the same `+`, and `Settle` applies a
-`modify_parameter` to **every** matching instance. Three cases separate them, and the grant is
-right in all three where the modifier was right in one: a weapon with `AP(1)` reaches 2 either way,
-because `LiveSet.Parameter` sums an entry's instances; a weapon with **no** `AP` gets 1 from the
-grant and nothing at all from the modifier; and a weapon whose `Rending` has already granted `AP(4)`
-on a 6 gets 6 from the grant and 7 from the modifier, which adds to both instances
+`Thrust`'s `AP(+1)` and `Rending`'s `AP(+4)` with the same `+`: a weapon with `AP(1)` reaches 2 either
+way, because `LiveSet.Parameter` sums an entry's instances, but a weapon with **no** `AP` gets 1 from the
+grant and nothing from a modifier, which needs an instance to act on
 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)).
-`ModifyParameter` keeps its place in the grammar for `Counter`, which genuinely modifies an existing
-instance's parameter rather than adding one.
+
+A `modify_parameter` on a **weapon** rule (`AP`: Fortified, Guardian, Primeborn, Fortified Growth's
+*"those hits count as having AP(-1), to a min. of AP(0)"*, Piercing Debuff's *"loses AP(1) on its weapons"*)
+changes the hit's total once (`TotalChange`, `LiveProperties.Totals`): the side's instances of the rule are
+summed, each change is added with its floor held on the sum, and the difference is written back onto the
+instances, largest first, each down to zero. An AP(1) weapon with Piercing Charge into Fortified is AP(1), not
+AP(0). `LiveSet.WithGranted` makes the changes again over pass one's instances plus the added one, so a per-die
+`Rending` AP(4) into Primeborn is AP(3) and Heavy Impact's AP(1) into Fortified is AP(0). A `modify_parameter`
+on any other rule (Enhanced Wolfborn's `Wolfborn +1`) modifies every matching instance.
 
 ## Name checks handled by `GameRules`
 

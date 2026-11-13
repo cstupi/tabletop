@@ -95,6 +95,7 @@ public class DiceEditTests
         var sim = Game([shooter], [target], dice);
         sim.Start(GfNames.AttackSequence, Shoot(shooter, target));
         Pass(sim);   // before pick-target-model
+        Pass(sim);   // before spotter-tokens
         Pass(sim);   // before roll-to-hit
         Assert.Single(sim.Steps("roll-to-hit"));
         Assert.Empty(sim.Steps("score-hits"));
@@ -146,7 +147,7 @@ public class DiceEditTests
         foreach (var effect in Props.Entry("Zeal")!.Effects)
             sim.Append([new GrantAdded(shooter.Id, new Grant(Guid.CreateVersion7(), effect.Id, "Zeal", shooter.Id, 1))]);
         sim.Start(GfNames.AttackSequence, Shoot(shooter, target));
-        Pass(sim); Pass(sim);
+        Pass(sim); Pass(sim); Pass(sim);
         Assert.Contains(sim.Steps("roll-to-hit").Single().Rolls[0].Modifiers, m => m.Source == "Zeal" && m.Amount == 1);
         Assert.Equal(2, sim.Unit(shooter.Id).Grants.Count);                                     // left for score-hits, which reads the Surge row
         Pass(sim);

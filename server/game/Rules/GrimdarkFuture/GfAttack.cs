@@ -9,10 +9,37 @@ public static partial class GfAttack
 {
     public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new GfReserves.SplitStep(), new DisgorgeStep(), new GfSpellSupport.TransferStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
 
-    public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
-        actor is { } a && kind == AttackKind.Spell && weapons.Count == 0
+    /// <summary>The attack's interaction inside a running step: the frame-optional core, plus what only the frames know. A spell's hits carry its weapon
+    /// rules and reach. Impact's and a rule's hits carry UnarmedHits. The spent_marker tokens the attack removed (GfChoice.Removed) ride it. A Takedown's picked model, or a model-grain spell's target, is the defender's party
+    /// alone (3.6.0 p.15 Takedown: "resolved as if it was a unit of [1]"; the book's example: a Hero with Stealth in a unit without it still gives the
+    /// attacker -1 to hit), so the defender's rules are judged over that model.</summary>
+    public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action)
+    {
+        var ix = actor is { } a && kind == AttackKind.Spell && weapons.Count == 0
             ? AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action, GfCasting.WeaponRules(ctx, a, target)) with { SpellReach = GfCasting.Reach(ctx, target) }
             : AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action);
+        ix = ix with { RemovedTokens = GfChoice.Removed(ctx.Frame) };   // Piercing / Precision Spotter: only the tokens this attack removed act
+        if (actor is null) return ix;
+        if (weapons.Count == 0 && kind == AttackKind.Melee && UnarmedHits(ctx.Frame)) ix = ix with { UnarmedHits = true };
+        if (TakedownModel(ctx.Frame) is { } picked && Lookup.AliveModels(ctx.State, target).Contains(picked)) ix = ix with { Defender = Party.Of(ctx.State, target, [picked], []) };
+        return ix;
+    }
+
+    /// <summary>The frame resolves hits no weapon makes: Impact's (its nearest resolve-hits frame, below any attack root, is the weapon-less one the melee
+    /// pushed; 3.6.0 p.14 Impact: "roll X dice … For each 2+ the target takes 1 hit"), or a rule's (its nearest attack root is `rule-hits`: Retaliate "the
+    /// attacker takes X hits per wound taken", Deathstrike and Self-Destruct "the attacking unit takes X hits", Surprise Attack "it takes one hit with
+    /// AP(1)"). No attacker rule worded for its weapons or its attacks ("hits from this model's weapons", "AP(+1) on its weapons") acts on them; a rule's
+    /// own AP is the rule's (Surprise Attack's in roll-to-block).</summary>
+    static bool UnarmedHits(FrameView? frame)
+    {
+        for (var f = frame; f is not null; f = f.Parent)
+        {
+            if (f.Frame.Sequence == GfNames.RuleHitsSeq) return f.Frame.Context.WeaponIds.Count == 0;
+            if (IsAttackRoot(f.Frame.Sequence)) return false;
+            if (f.Frame.Sequence == GfNames.ResolveHits) return f.Frame.Context.WeaponIds.Count == 0 && f.Parent?.Frame.Sequence is GfNames.Melee or GfNames.RuleHitsSeq;
+        }
+        return false;
+    }
 
     /// <summary>
     /// The attack's interaction from state, properties and, inside a running sequence, its frame: the frame gives a charge's recorded range and the
@@ -37,8 +64,9 @@ public static partial class GfAttack
         return null;
     }
 
-    /// <summary>p.8's steps; under GfEdition.DefenderChoice the defender's `attacked` choice follows determine-attacks (GfChoice.DefenderChoiceStep).</summary>
-    public static Sequence AttackSequence(GfEdition e) => new(GfNames.AttackSequence, [new DetermineAttacksStep(), .. e.DefenderChoice ? [new GfChoice.DefenderChoiceStep()] : (IStep[])[], new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep(), new AttackEndStep()]);
+    /// <summary>p.8's steps; under GfEdition.DefenderChoice the defender's `attacked` choice follows determine-attacks (GfChoice.DefenderChoiceStep); the
+    /// attacking team's removal of Spotter tokens (GfChoice.SpotterTokensStep) comes before the hit roll.</summary>
+    public static Sequence AttackSequence(GfEdition e) => new(GfNames.AttackSequence, [new DetermineAttacksStep(), .. e.DefenderChoice ? [new GfChoice.DefenderChoiceStep()] : (IStep[])[], new PickTargetModelStep(), new GfChoice.SpotterTokensStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep(), new AttackEndStep()]);
 
     /// <summary>The block and the wounds; under GfEdition.HasParry the Parry roll opens it (GfParry.ParryStep).</summary>
     public static Sequence ResolveHits(GfEdition e) => new(GfNames.ResolveHits, [.. e.HasParry ? [new GfParry.ParryStep()] : (IStep[])[], new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);

@@ -2,6 +2,33 @@
 
 What each batch built, with the owner's rulings made along the way. `docs/handoff.md` holds the current state.
 
+## 2026-11-12, v0.1.40, army rules audit
+
+Every special rule of the 49 3.6 army books (412 names, 288 spells, 90 generated wrappers) read against its text, and three Army Forge
+lists (Goblin Reclaimers `nsYPyI5HHwNM`, War Disciples `pW2ex9C2oidG`, HDF Artillery Blob `ipY2KtxH4tJG`).
+
+Owner rulings:
+- Instinctive: "still allowing moving (but requiring shooting the closest thing) OR charging".
+- "Some rules and auras are FROM specific models and if those models die the aura goes away."
+- "The unit would only move as fast as its slowest model to retain cohesion."
+- "The asigning of mesh's also needs to let the user know which one is the banner model".
+
+- **Mixed units.** A joined Hero's or a partial upgrade's rules act for the models that hold them and no others: a weapon group resolves
+  in parts per carrier (`GfGroups.Split`), `holds_property` is judged over the party, a "This model and its unit" rule reaches the whole
+  unit while a carrier lives, attack-start rolls and pick-one-effect choices are offered to the holders (`GfHooks.HolderParties`),
+  Frenzy and Growth tokens reach only models with the rule, a Takedown judges the picked model alone.
+- **Movement.** A unit's Advance, Rush and Charge distance is the least over its models (`GfMoves.SlowestDistance`); one Immobile,
+  Cumbersome or 3.5.1 Artillery model restricts the unit.
+- **Instinctive.** Charge when one is open, Hold or Advance when it can shoot, never Rush; holds for a unit a model without it joined.
+- **Arithmetic and scope.** An AP reduction (Fortified, Guardian, Primeborn, Piercing Debuff) comes off a hit's total AP once, per-die
+  AP included; hits no weapon dealt (Impact, rule-hits) take no weapon-worded rule; Heavy Impact's AP(1) is its own model's hits;
+  Dodge and 3.6 Impact are off while Shaken; Crossing Attack rolls per model that crossed; 3.6 Banner is morale from shooting or melee.
+- **Choices.** Asked instead of forced: Protection Feat (`use_rule`), the "may roll +1 attack" rules (`extra_attacks`), Spotter and Tag
+  tokens (`remove_tokens`, once per target).
+- **Other.** Ambush Re-Deployment after a Coordinate activation; Casting Buff picks a Caster Group's caster.
+- **Import and web.** An upgrade that arms nobody takes no weapon slot; a slot carrying an upgrade the rest of its entry lacks is named
+  for it (`Infantry Squad (Company Standard) 2`); the army page lists under each model the weapons and rules that set it apart.
+
 ## 2026-10-30, Grimdark Future 3.6.0 as a second edition
 
 Branch `gf-3-6-0`, not tagged. Specs `2026-10-29-rule-set-versions-design.md`, `2026-10-29-gf-3-6-0-rules-diff.md`,

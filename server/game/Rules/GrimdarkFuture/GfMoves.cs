@@ -20,6 +20,25 @@ public static partial class GfMoves
 
     static LiveSet Lone(StepContext ctx, Guid unit, string? action) => ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, action, null, Battlefield.TerrainUnder(ctx.State, unit)));
 
+    /// <summary>
+    /// Owner ruling: "The unit would only move as fast as its slowest model to retain cohesion." The action's distance is the least over the unit's
+    /// models in play of each model's own (StatReader.ActionDistance on a party of that one model: its own rules, the unit's own and granted rules, and
+    /// every "This model and its unit" rule a model of the unit carries, a Fast Aura or a Musician). The slowest model's set is settled again through
+    /// `settle` (a step's ctx.Settle, which lists what acted), the others with no recorder. `interaction` builds the read for a party.
+    /// </summary>
+    public static double SlowestDistance(GameState state, Guid unit, string action, Func<Party, Interaction> interaction, Func<Interaction, LiveSet>? settle = null)
+    {
+        var models = Lookup.AliveModels(state, unit);
+        var parties = models.Count == 0 ? [Party.Whole(state, unit)] : models.Select(m => Party.Of(state, unit, [m], [])).ToList();
+        var slowest = parties.MinBy(p => StatReader.ActionDistance(LiveProperties.Settle(interaction(p)), Side.Attacker, action))!;
+        return StatReader.ActionDistance((settle ?? (ix => LiveProperties.Settle(ix)))(interaction(slowest)), Side.Attacker, action);
+    }
+
+    /// <summary>A rule restricting "models with this special rule" to some actions (Immobile, 3.5.1 Artillery, 3.6 Cumbersome) restricts the whole unit
+    /// when any model in play holds it (owner ruling: the unit moves as its slowest model); the unit's own or granted instance as Lookup.UnitHas reads it.</summary>
+    public static bool AnyModelHas(GameState state, PropertySet props, Guid unit, string rule) =>
+        Lookup.UnitHas(state, props, unit, rule) || Lookup.AliveModels(state, unit).Any(m => state.Projection.Models[m].Slot.Properties.Any(p => p.Name == rule));
+
     /// <summary>A count_as_terrain row of this type live on the holder (spell library, kind 13), recorded as read so the step that acts spends it.</summary>
     static bool CountsAsIn(LiveSet live, TargetTerrain terrain)
     {
@@ -309,7 +328,7 @@ public static partial class GfMoves
             if (ctx.History.Children.Count > 0) return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete([]) : new OpenAsks([]);
             if (ctx.History.LastClosed() is { } closed) return closed.Single is Chosen { OptionId: "shoot" } ? new Push(GfNames.Shooting, ctx.Frame.Context) : new Complete([]);
             // 3.6.0 p.14 Cumbersome: "can’t shoot when moving" — any model of this activation's move went some distance.
-            if (ctx.Frame.Value("distance_used_tenths") > 0 && GfEdition.Of(ctx.State).HasCumbersome && Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Cumbersome))
+            if (ctx.Frame.Value("distance_used_tenths") > 0 && GfEdition.Of(ctx.State).HasCumbersome && AnyModelHas(ctx.State, ctx.Properties, unit, GfNames.Cumbersome))
                 return new Complete([], new Dictionary<string, int> { ["cumbersome_no_shot"] = 1 });
             var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit, null).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
             if (!canShoot) return new Complete([]);

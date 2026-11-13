@@ -97,12 +97,10 @@ public static partial class GfAttack
             var parried = Math.Min(GfParry.Parried(ctx.Frame), Math.Max(0, all));
             var hits = all - parried;
             if (hits <= 0) return new Finish([], new Dictionary<string, int> { ["wounds"] = 0 });
-            // Heavy Impact: "Counts as having Impact(X) with hits that have AP(1)": Impact's hits are the melee's weapon-less block.
-            if (parent.Frame.Sequence == GfNames.Melee && ctx.Frame.Context.WeaponIds.Count == 0 && Lookup.UnitHas(ctx.State, ctx.Properties, ix.Attacker.UnitId, GfNames.HeavyImpact))
-            {
-                live = live.WithGranted(Side.Attacker, "AP", 1);
-                ctx.Applied.Add(GfNames.HeavyImpact);
-            }
+            // Heavy Impact: "Counts as having Impact(X) with hits that have AP(1)": the hits of its own models' pool (GfMelee.HeavyImpactHits) block as a
+            // group with AP(1), in the melee's weapon-less block that is Impact's.
+            var heavy = parent.Frame.Sequence == GfNames.Melee && ctx.Frame.Context.WeaponIds.Count == 0 ? Math.Min(GfMelee.HeavyImpactHits(parent), all) : 0;
+            var heavyKey = GrantKey([("AP", 1)])!;
             // Surprise Attack: "For each 2+ it takes one hit with AP(1)".
             if (parent.Frame.Sequence == GfNames.RuleHitsSeq && GfRuleHits.Parse(parent.Frame.Context.Action) is (GfAmbush.SurpriseAttack, _)) live = live.WithGranted(Side.Attacker, "AP", 1);
             // p.11's majority is frozen with the attack counts (p.8: all weapons fire simultaneously), so a group firing after casualties reads the
@@ -125,6 +123,7 @@ public static partial class GfAttack
             var wounds = 0; var extraWounds = 0; var counted = 0;
             // The hits split only by the set of per-die grants each die carries; the parried ones go from the groups with the most grants first.
             var groups = parent.Values.Where(kv => kv.Key.StartsWith("granted_")).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (Key: kv.Key, Size: kv.Value * multiplier)).ToList();
+            if (heavy > 0) groups.Add((heavyKey, heavy));
             var plain = all - groups.Sum(g => g.Size);
             var toIgnore = parried;
             foreach (var i in Enumerable.Range(0, groups.Count).OrderByDescending(i => ParseGrantSet(groups[i].Key).Count).ThenBy(i => i).ToList())
@@ -159,9 +158,10 @@ public static partial class GfAttack
                 return sum;
             }
             // One live set carries every whole-group rule (a weapon's, a spell's); each group adds its per-die grants.
+            if (groups.Any(g => g.Key == heavyKey && g.Size > 0) && heavy > 0) ctx.Applied.Add(GfNames.HeavyImpact);
             foreach (var (key, group) in groups.Where(g => g.Size > 0))
             {
-                var granted = ParseGrantSet(key).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
+                var granted = ParseGrantSet(key).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount, heavy > 0 && key == heavyKey ? GfNames.HeavyImpact : null));
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels, cover, picked);
                 var record = ctx.Roll(plan, group, d => RollEffects.Triggers(granted, Side.Defender, d, GfNames.DefenseRoll));
                 MapFaces(granted, plan);

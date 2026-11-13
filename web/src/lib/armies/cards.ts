@@ -35,3 +35,20 @@ export function statBadges(unit: Unit): { key: string; icon: StatIcon | null; va
   const keys = Object.keys(unit.stats).sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
   return keys.map((key) => ({ key, icon: STAT_ICONS[key] ?? null, value: unit.stats[key]! }));
 }
+
+const label = (p: { name: string; parameter?: number }) => (p.parameter === undefined ? p.name : `${p.name}(${p.parameter})`);
+
+/** The imported entry a slot came from: its name without the upgrade it is named for and the import's number. */
+const entry = (name: string): string => name.replace(/(\s+\([^)]*\))?\s+\d+$/, '');
+
+/** What sets a model apart among the models it was imported with (a joined Hero is its own entry): its weapons, then its rules, that not
+ *  every one of them carries (a banner, a special weapon). */
+export function slotMarks(unit: Unit, m: ModelSlot): string[] {
+  const peers = unit.models.filter((x) => entry(x.name) === entry(m.name));
+  if (peers.length < 2) return [];
+  const everyWeapon = (name: string) => peers.every((x) => x.weapons.some((w) => w.name === name));
+  const everyRule = (l: string) => peers.every((x) => x.properties.some((p) => label(p) === l));
+  const weapons = [...new Set(m.weapons.map((w) => w.name))].filter((n) => !everyWeapon(n));
+  const rules = [...new Set(m.properties.map(label))].filter((l) => !everyRule(l));
+  return [...weapons, ...rules];
+}

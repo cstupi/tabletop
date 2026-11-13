@@ -71,9 +71,10 @@ public static class GfMelee
     static StepOutcome AfterChild(StepContext ctx, Func<StepOutcome> push, IReadOnlyList<StateChange>? onDone = null) =>
         ctx.History.Children.Count == 0 ? push() : ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete(onDone ?? []) : new OpenAsks([]);
 
-    /// <summary>The melee weapon groups of the given weapon ids (p.9's pool is one attack per weapon type, as p.8's shooting is), in GfGroups' order. Read from every model's slot, so the list is the same on each run of a step.</summary>
-    static IReadOnlyList<WeaponGroup> GroupsOf(GameState state, IReadOnlyList<Guid> ids) =>
-        GfGroups.Of(state, state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => ids.Contains(w.Id)));
+    /// <summary>The melee weapon groups of the given weapon ids (p.9's pool is one attack per weapon type, as p.8's shooting is), in GfGroups' order, each
+    /// struck as one attack per carrier signature (GfGroups.Split). Read from every model's slot, so the list is the same on each run of a step.</summary>
+    static IReadOnlyList<WeaponGroup> GroupsOf(StepContext ctx, IReadOnlyList<Guid> ids) =>
+        GfGroups.Split(ctx.State, ctx.Properties, GfGroups.Of(ctx.State, ctx.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => ids.Contains(w.Id))));
 
     /// <summary>
     /// p.9: "Sum the Attack value from the weapons of all models that can strike ... how many attacks the unit has in total for this
@@ -165,8 +166,7 @@ public static class GfMelee
     /// <summary>The charge distance at a target: the charger's own, and what the target's rules take from it ("Enemies get -3\" movement to a min. of 6\" when trying
     /// to charge units where all models have this rule").</summary>
     public static double ChargeDistance(GameState state, PropertySet props, Guid unit, Guid target) =>
-        StatReader.ActionDistance(LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), Party.Whole(state, target), AttackKind.Melee, GfNames.Charge, null, [])),
-            Side.Attacker, GfNames.Charge);
+        GfMoves.SlowestDistance(state, unit, GfNames.Charge, p => new Interaction(state, props, p, Party.Whole(state, target), AttackKind.Melee, GfNames.Charge, null, []));
 
     public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
     {
@@ -293,7 +293,7 @@ public static class GfMelee
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
             if (live.On(Side.Attacker).Any(p => p.Entry.Name == GfNames.CounterInMelee && p.ModelId is null)) values[CounterInMeleeKey] = 1;   // granted to the unit
             live.Use(Side.Attacker, GfNames.CounterInMelee);
-            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, ctx.Consume(live), values);
+            return Strike(ctx, Name, GroupsOf(ctx, counters), Defender(ctx), Charger(ctx), null, ctx.Consume(live), values);
         }
     }
 
@@ -314,11 +314,20 @@ public static class GfMelee
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
             var counterModels = !edition.CounterReducesImpact ? 0 : Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
             var brace = edition.ImpactBeforeCounter ? Brace(ctx, charger, defender) : 0;
-            var total = impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter));
+            // Heavy Impact: "Counts as having Impact(X) with hits that have AP(1)": its models' dice roll as their own pool, so only their hits get
+            // AP(1) (roll-to-block, HeavyImpactHits). The reductions come off the other dice first.
+            var heavy = impacts.Where(x => live.GrantorOf(x.Source) == GfNames.HeavyImpact).ToList();
+            var plainDice = impacts.Except(heavy).Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter));
+            var heavyDice = heavy.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter));
+            var total = plainDice + heavyDice;
             var dice = Math.Max(0, total - counterModels - brace);
+            heavyDice = Math.Min(heavyDice, dice); plainDice = dice - heavyDice;
             if (counterModels > 0) ctx.Applied.Add("Counter");
             if (brace > 0 && total > 0) ctx.Applied.Add(GfNames.Brace);
-            var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
+            Dice.RollPlan Plan(string name, Effect roll) => new(name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>());
+            var hits = 0;
+            if (plainDice > 0) hits += Dice.RollOutcome.Successes(ctx.Roll(Plan(impacts.Except(heavy).First().Source.Entry.Name, impacts.Except(heavy).First().Roll), plainDice));
+            if (heavyDice > 0) hits += Dice.RollOutcome.Successes(ctx.Roll(Plan(GfNames.HeavyImpact, heavy[0].Roll), heavyDice));
             return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: dice > 0);
         }
 
@@ -333,6 +342,10 @@ public static class GfMelee
         }
     }
 
+    /// <summary>The successes of the frame's Heavy Impact pool as its dice now stand: the Impact hits that have AP(1).</summary>
+    public static int HeavyImpactHits(FrameView frame) =>
+        frame.Frame.Steps.Where(s => s.Step == "impact").SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.HeavyImpact).Sum(Dice.RollOutcome.Successes);
+
     /// <summary>The successes of the frame's Impact roll as its dice now stand; null when the frame made none.</summary>
     public static int? ImpactHits(FrameView frame) =>
         frame.Frame.Steps.Where(s => s.Step == "impact").SelectMany(s => s.Rolls).ToList() is { Count: > 0 } rolls ? rolls.Sum(Dice.RollOutcome.Successes) : null;
@@ -344,7 +357,7 @@ public static class GfMelee
         {
             var weapons = ctx.Frame.Context.WeaponIds.Where(id => !StrikesLast(ctx, WeaponOf(ctx.State, id))).ToList();
             var lastOnes = ctx.Frame.Context.WeaponIds.Count > weapons.Count;
-            return Strike(ctx, Name, GroupsOf(ctx.State, weapons), Charger(ctx), Defender(ctx), GfNames.Charge, lastOnes ? [] : Fatigue(Charger(ctx)));
+            return Strike(ctx, Name, GroupsOf(ctx, weapons), Charger(ctx), Defender(ctx), GfNames.Charge, lastOnes ? [] : Fatigue(Charger(ctx)));
         }
     }
 
@@ -364,7 +377,7 @@ public static class GfMelee
             if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete(spent);
             // The charger's other weapons may have destroyed the defender: nothing is struck, but the fatigue charger-attacks deferred is still owed.
             if (!Recorded(ctx, Name) && Lookup.LivingModels(ctx.State, Defender(ctx)).Count == 0) return new Complete([.. spent, .. Fatigue(Charger(ctx))]);
-            return Strike(ctx, Name, GroupsOf(ctx.State, weapons), Charger(ctx), Defender(ctx), GfNames.Charge, [.. spent, .. Fatigue(Charger(ctx))]);
+            return Strike(ctx, Name, GroupsOf(ctx, weapons), Charger(ctx), Defender(ctx), GfNames.Charge, [.. spent, .. Fatigue(Charger(ctx))]);
         }
     }
 
@@ -405,13 +418,13 @@ public static class GfMelee
             var first = StrikesFirst(ctx);
             var weapons = MeleeWeapons(ctx.State, defender, w => !first(w));   // p.13: the Counter weapon's strike already happened in `counter`
             // Striking under way comes before the living-model checks: a strike back that destroys the charger still fatigues (p.9).
-            if (Recorded(ctx, Name)) return Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
+            if (Recorded(ctx, Name)) return Strike(ctx, Name, GroupsOf(ctx, weapons), defender, charger, null, Fatigue(defender));
             if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
             if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             if (edition.StrikeTurnRolls)   // the choice was asked by strike-choice, before the strike rolls
-                return ctx.Frame.Value(StrikeBackChosenKey) == 1 && weapons.Count > 0 ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
+                return ctx.Frame.Value(StrikeBackChosenKey) == 1 && weapons.Count > 0 ? Strike(ctx, Name, GroupsOf(ctx, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (ctx.History.LastClosed("strike_back") is { } closed)
-                return closed.Single is Chosen { OptionId: "strike" } ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
+                return closed.Single is Chosen { OptionId: "strike" } ? Strike(ctx, Name, GroupsOf(ctx, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             return new OpenAsks([StrikeBackAsk(ctx, defender)]);
         }

@@ -21,14 +21,14 @@ public static partial class SuiteCatalog
 
         static string Slug(string s) => s.ToLowerInvariant().Replace(' ', '-');
 
-        /// <summary>A pick entry with an X on model 1 of unit 1, every use taken.</summary>
         /// <summary>
         /// A marker pick on unit 1's first model, both sides holding, the units deployed 4" across the zones' edges (AnchoredH: the rule's at y length - 11,
-        /// the opponents' at 11), so the pick's range reaches whatever the seed's placement. A Spotter's own die (dice) is set where its 4+ decides.
+        /// the opponents' at 11), so the pick's range reaches whatever the seed's placement. A Spotter's own die (dice) is set where its 4+ decides. Every
+        /// remove_tokens Ask (Spotters, 3.5.1 Tags: "friendly units may remove markers from their target") removes them all (RemoveAll).
         /// </summary>
         static TestGame Marking((string Uid, string Army) book, string entry, int x, IReadOnlyList<GameCheck> checks, double length = 26, IReadOnlyList<DiceFix>? dice = null) =>
             AnchoredH(Game(book, $"{Slug(book.Army)}-{Slug(entry)}", Play.Shoots, [entry], [], dice ?? [], checks, carriers: [new ScenarioModel(1, 1, [R(1, entry, x)])], units: 2,
-                enemyUnits: 1, length: length, more: UsePicks(book.Army, 1, entry)), length - 11, 11);
+                enemyUnits: 1, length: length, more: s => { UsePicks(book.Army, 1, entry)(s); RemoveAll(s); }), length - 11, 11);
 
         /// <summary>Fortified Growth: "For every two markers, enemies attacking this unit get AP(-1) to a min. of AP(0)": against AP(1), blocks of a unit with two or
         /// more markers roll under no AP, with fewer under AP(1).</summary>
@@ -64,14 +64,14 @@ public static partial class SuiteCatalog
                 [PerMarker("Piercing Growth", "defense", -1, onTarget: false, GrowthText + ", models with this rule in this unit get AP(+1) on their weapons\"", perTwo: true, ap: true)]),
             Game(Infected, "infected-colonies-precision-growth", Play.Shoots, ["Precision Growth"], [R(1, "Precision Growth"), R(2, "Precision Growth")], [],
                 [PerMarker("Precision Growth", "hit", 1, onTarget: false, GrowthText + ", models with this rule in this unit get +1 to hit rolls\"", perTwo: true)]),
-            Marking(HighElves, "Piercing Spotter", 0, [PerMarker("Piercing Spotter", "defense", -1, onTarget: true, SpotterText + ". When attacking, friendly units may remove markers … to get +AP(X)\"", ap: true),
-                SpentTogether("Piercing Spotter", SpotterText + "\": the markers removed when used")], length: 30, dice: [Fix("Piercing Spotter", 6)]),
-            Marking(Dao, "Precision Spotter", 0, [PerMarker("Precision Spotter", "hit", 1, onTarget: true, SpotterText + ". Friendly units may remove markers … to get +X to hit rolls\""),
-                SpentTogether("Precision Spotter", SpotterText + "\": the markers removed when used")], length: 30, dice: [Fix("Precision Spotter", 6)]),
-            Marking(Guerrillas, "Piercing Tag", 2, [PerMarker("Piercing Tag", "defense", -1, onTarget: true, "\"place X markers on it. When attacking, friendly units may remove markers … to get +AP(Y)\" (X 2)", ap: true),
-                SpentTogether("Piercing Tag", "\"may remove markers from their target before rolling to block\"")]),
-            Marking(Jackals, "Precision Tag", 2, [PerMarker("Precision Tag", "hit", 1, onTarget: true, "\"place X markers on it. When attacking, friendly units may remove markers … to get +Y to hit rolls\" (X 2)"),
-                SpentTogether("Precision Tag", "\"may remove markers from their target before rolling to hit\"")]),
+            Marking(HighElves, "Piercing Spotter", 0, [PerRemoved("Piercing Spotter", "defense", -1, SpotterText + ". When attacking, friendly units may remove markers … to get +AP(X)\"", ap: true),
+                RemovedAsChosen("Piercing Spotter", SpotterText + "\": the markers removed as chosen")], length: 30, dice: [Fix("Piercing Spotter", 6)]),
+            Marking(Dao, "Precision Spotter", 0, [PerRemoved("Precision Spotter", "hit", 1, SpotterText + ". Friendly units may remove markers … to get +X to hit rolls\""),
+                RemovedAsChosen("Precision Spotter", SpotterText + "\": the markers removed as chosen")], length: 30, dice: [Fix("Precision Spotter", 6)]),
+            Marking(Guerrillas, "Piercing Tag", 2, [PerRemoved("Piercing Tag", "defense", -1, "\"place X markers on it. When attacking, friendly units may remove markers … to get +AP(Y)\" (X 2)", ap: true),
+                RemovedAsChosen("Piercing Tag", "\"may remove markers from their target before rolling to block\"")]),
+            Marking(Jackals, "Precision Tag", 2, [PerRemoved("Precision Tag", "hit", 1, "\"place X markers on it. When attacking, friendly units may remove markers … to get +Y to hit rolls\" (X 2)"),
+                RemovedAsChosen("Precision Tag", "\"may remove markers from their target before rolling to hit\"")]),
             Marking(Custodians, "Piercing Target", 2, [PerMarker("Piercing Target", "defense", -1, onTarget: true, "\"place X markers on it. Friendly units get +AP(X) on their weapons when attacking it\" (X 2)", ap: true)]),
             Marking(Sisters, "Precision Target", 2, [PerMarker("Precision Target", "hit", 1, onTarget: true, "\"place X markers on it. Friendly units get +X to hit rolls when attacking it\" (X 2)")]),
             Game(Dynasty, "eternal-dynasty-vengeance", Play.Exchange, ["Vengeance"], [R(1, "Vengeance"), R(2, "Vengeance"), R(3, "Vengeance")], [],

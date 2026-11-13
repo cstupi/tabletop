@@ -163,6 +163,7 @@ public static class ArmyForgeImport
         var slotProps = Enumerable.Range(0, u.Size).Select(_ => new List<PropertyInstance>()).ToList();
         var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
         var slotBodies = Enumerable.Repeat(Body(u.Bases), u.Size).ToList();
+        var slotGear = Enumerable.Range(0, u.Size).Select(_ => new List<string>()).ToList();   // the upgrades only some models carry, by name
         var cursor = 0;
 
         void Place(PropertyInstance p, List<int> carriers)
@@ -177,6 +178,17 @@ public static class ArmyForgeImport
             if (count >= u.Size) return Enumerable.Range(0, u.Size).ToList();
             var at = Enumerable.Range(cursor, count).Select(i => i % u.Size).ToList();
             cursor += count;
+            return at;
+        }
+
+        // An upgrade that arms nobody (a banner, a medic) is carried by a model that keeps its weapon, so it takes no place among the
+        // weapons: its carriers come from a cursor of their own.
+        var unarmed = 0;
+        List<int> Bearers(int count)
+        {
+            if (count >= u.Size) return Enumerable.Range(0, u.Size).ToList();
+            var at = Enumerable.Range(unarmed, count).Select(i => i % u.Size).ToList();
+            unarmed += count;
             return at;
         }
 
@@ -196,7 +208,8 @@ public static class ArmyForgeImport
             else if (item.Type == "ArmyBookItem")
             {
                 // One upgrade's rules and weapons go to the same models.
-                var carriers = Carriers(item.Count);
+                var carriers = (item.Content ?? []).Any(e => e.IsWeapon) ? Carriers(item.Count) : Bearers(item.Count);
+                if (carriers.Count < u.Size) foreach (var i in carriers) if (!slotGear[i].Contains(item.Name)) slotGear[i].Add(item.Name);
                 if (ParseBase(item.Bases) is { } mount) foreach (var i in carriers) slotBodies[i] = new ModelBody(mount, HeightFromBase(mount));
                 foreach (var entry in item.Content ?? [])
                     if (entry.IsWeapon) Arm(carriers, entry.Name, entry.Attacks, entry.Range, entry.SpecialRules);
@@ -210,7 +223,11 @@ public static class ArmyForgeImport
         for (var i = 0; i < u.Size; i++)
         {
             slotWeapons[i].AddRange(ArmyBookAdditions.Weapons(slotProps[i].Concat(unitProps ?? []), slotWeapons[i]));
-            into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
+            // A model carrying an upgrade the rest of its unit does not (a banner, a weapon team) is named for it, so it can be told apart
+            // when a mesh is picked: "Infantry Squad (Company Standard) 2".
+            var named = slotGear[i].Count > 0 ? $"{u.Name} ({string.Join(", ", slotGear[i])}) {i + 1}" : null;
+            var slotName = named is { Length: <= Limits.Name } ? named : $"{u.Name} {i + 1}";
+            into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, slotName, new Dictionary<string, string>(slotStats),
                 Stacked(slotProps[i]), slotBodies[i].Base, slotBodies[i].Height, null, slotWeapons[i], u.ArmyId));
         }
     }

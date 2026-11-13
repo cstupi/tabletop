@@ -434,13 +434,23 @@ public partial class ArmyRuleHookTests
         }
     }
 
+    /// <summary>The charger's hit rolls once its team took the extra attacks it was offered ("may roll +1 attack"): the pool and the added dice,
+    /// rolled in two runs of its `roll-to-hit`, read as one completion.</summary>
+    static StepCompleted ChargerHits(Sim sim)
+    {
+        if (sim.AskForOrNull(Samples.Team1) is { Question: GfNames.ExtraAttacks }) sim.Answer(Samples.Team1, new Chosen("yes"));
+        var steps = sim.Steps("roll-to-hit");
+        var own = steps.Where(x => x.FrameId == steps[0].FrameId).ToList();
+        return own[0] with { Rolls = own.SelectMany(x => x.Rolls).ToList(), Changes = own.SelectMany(x => x.Changes).ToList() };
+    }
+
     [Fact]
     public void Each_six_to_hit_adds_an_attack_whose_own_six_adds_none()
     {
         var a = Unit("A", "4+", "4+", [], 1, [P("Primal")], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
         var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([6, 3, 6, .. Enumerable.Repeat(6, 10)]));
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
-        var hit = sim.Steps("roll-to-hit").First();
+        var hit = ChargerHits(sim);
         Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));   // two attacks, one 6, one added attack (whose 6 adds nothing)
     }
 
@@ -450,7 +460,7 @@ public partial class ArmyRuleHookTests
         var a = Unit("A", "4+", "4+", [], 1, [P("Primal"), P("Primal Boost")], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
         var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([5, 6, 2, 2, .. Enumerable.Repeat(6, 10)]));
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
-        Assert.Equal([2, 2], sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+        Assert.Equal([2, 2], ChargerHits(sim).Rolls.Select(r => r.Dice.Count));
     }
 
     [Fact]
@@ -461,7 +471,7 @@ public partial class ArmyRuleHookTests
             var a = Unit("A", "4+", "4+", [], 1, rules.Select(r => P(r)).ToArray(), Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
             var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([.. dice, .. Enumerable.Repeat(2, 10)]));
             sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
-            Assert.Equal(expected, sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+            Assert.Equal(expected, ChargerHits(sim).Rolls.Select(r => r.Dice.Count));
         }
     }
 
@@ -471,7 +481,7 @@ public partial class ArmyRuleHookTests
         var a = Unit("A", "4+", "4+", [], 1, [P("Primal")], Melee("Claws", 2, P("Rending"))); var b = Unit("B", "4+", "2+", [], 1, []);
         var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([6, 3, 6, .. Enumerable.Repeat(2, 20)]));
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
-        var hit = sim.Steps("roll-to-hit").First();
+        var hit = ChargerHits(sim);
         Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));                                   // the added six adds no third attack
         Assert.Equal(2, hit.Rolls.Sum(r => r.Dice.Count(d => d.Success)));                           // the first six and the added die's six
         Assert.Equal(2, sim.Steps("score-hits").First().Values!.Where(kv => kv.Key.StartsWith("granted_AP_")).Sum(kv => kv.Value));   // AP(4) granted on the added die too
@@ -487,8 +497,9 @@ public partial class ArmyRuleHookTests
         var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, props, new ScriptedDice([6, 3, 6, .. Enumerable.Repeat(2, 20)]));
         sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Test Frenzy")!.Effects[0].Id, "Test Frenzy", a.Id, 1))]);
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
-        Assert.Equal([2, 1], sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
-        Assert.Empty(sim.Steps("roll-to-hit").First().Changes.OfType<GrantRemoved>());
+        var hit = ChargerHits(sim);
+        Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));
+        Assert.Empty(hit.Changes.OfType<GrantRemoved>());
         Assert.Empty(sim.Steps("score-hits").First().Changes.OfType<GrantRemoved>());
         Assert.Single(sim.Steps("attack-end").First().Changes.OfType<GrantRemoved>());
         Assert.Empty(sim.Unit(a.Id).Grants);

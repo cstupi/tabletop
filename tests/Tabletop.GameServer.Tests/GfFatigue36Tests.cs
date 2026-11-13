@@ -64,7 +64,8 @@ public class GfFatigue36Tests
         sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, tired.Id), GfNames.Fatigued, true)]);
         sim.Start(GfNames.Melee, MeleeOf(charger, tired));
         sim.Answer(Samples.Team2, new Chosen("strike"));
-        Assert.Equal(pools, sim.Steps("roll-to-hit").Last().Rolls.Count);
+        if (sim.AskForOrNull(Samples.Team2) is { Question: GfNames.ExtraAttacks }) sim.Answer(Samples.Team2, new Chosen("yes"));   // "may roll +1 attack"
+        Assert.Equal(pools, sim.Steps("roll-to-hit").Skip(1).Sum(s => s.Rolls.Count));                  // the strike-back's pool, and its added die
     }
 
     /// <summary>3.6 Hazardous: "on unmodified results of 1 to hit this model takes one wound". A 1 is no hit, so fatigue's clause leaves it.</summary>

@@ -173,8 +173,10 @@ whose children are chosen by the face:
 A property's own roll is a `RollRecord` named for the entry (effect grammar → *`Roll` nests*), and the children's
 `roll_result` condition names that roll, which the validator admits for a child of a `roll` row naming its own
 entry. **The attack-start step** (new first step of `shooting`; for melee, `melee-start` for each side) settles
-each attacking side's lone interaction, takes its live `roll` rows at `attack-start` whose conditions hold, rolls
-each once, and records the face as `face_<unit>_<entry>` in its values (both sides of a melee may hold the same rule). `GfAttack.AttackInteraction` reads the faces
+each attacking side's lone interaction, and, for a rule of `all` aggregation worded for "models with this rule" that only some
+of the side's models hold (a joined Hero's slot carries its own rules), the interaction of those models
+(`GfHooks.HolderParties`); it takes the live `roll` rows at `attack-start` whose conditions hold, rolls each entry
+once, and records the face as `face_<unit>_<entry>` in its values (both sides of a melee may hold the same rule). `GfAttack.AttackInteraction` reads the faces
 recorded on the nearest `shooting` or `melee` ancestor frame into a new `Interaction.Faces` (side → entry → raw),
 and `LiveProperties.Settle` treats a live `roll` row with a recorded face as its children whose `roll_result`
 holds against that face, a pass-one child in pass one and the rest in pass two. So the AP(+1) or the +1 to hit

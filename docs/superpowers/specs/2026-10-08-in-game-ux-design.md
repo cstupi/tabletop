@@ -293,8 +293,8 @@ public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, boo
 The session answers from the current state with `Sight.From(state, observer)`, one `SightLine` per model pair.
 `BlockedBy` is `LineOfSightResult.ObstructedBy`. `CanShoot` is the observer's models that may fire at the target
 under p.8's *Who can shoot* (line of sight and a weapon in range), from the ruleset. `Ranges` is each ranged weapon
-type's printed range and its range against this target as the rules leave it (`IGameRules.ShotRanges`), `By` the rules
-that changed it. A query appends nothing,
+type's printed range and its range against this target as the rules leave it (`IGameRules.ShotRanges`; a type fired in
+parts, `GfGroups.Split`, shows its longest part's), `By` the rules that changed it; `CanShoot` judges each part as its attack does. A query appends nothing,
 broadcasts nothing and produces no `AtRest`. Any participant may ask about any two units on the table; a unit off the
 table gives empty lists.
 

@@ -10,7 +10,7 @@ public partial class Batch1AurasTests
 {
     static readonly PropertySet Core = TestProperties.Core;
 
-    /// <summary>A three-model unit whose first model carries the Aura, attacking with every model or with the two that do not carry it.</summary>
+    /// <summary>A three-model unit whose first model carries the Aura, attacking with every model or with the two that do not carry it ("This model and its unit").</summary>
     internal static LiveSet Holds(string aura, AttackKind kind, bool carrierAttacks = true, string? action = null)
     {
         var u = Unit("A", "4+", "4+", [], 3, [], Gun("Gun", "24\"", 1));
@@ -34,11 +34,11 @@ public partial class Batch1AurasTests
     [InlineData("Thrust in Melee Aura", "Thrust", AttackKind.Melee, AttackKind.Shooting)]
     [InlineData("Unstoppable in Melee Aura", "Unstoppable", AttackKind.Melee, AttackKind.Shooting)]
     [InlineData("Unstoppable when Shooting Aura", "Unstoppable", AttackKind.Shooting, AttackKind.Melee)]
-    public void An_aura_gives_the_unit_its_rule_in_its_attack_kind_while_its_carrier_is_in_the_attack(string aura, string granted, AttackKind yes, AttackKind no)
+    public void An_aura_gives_the_unit_its_rule_in_its_attack_kind_whichever_of_its_models_attack(string aura, string granted, AttackKind yes, AttackKind no)
     {
         Assert.True(Holds(aura, yes).Has(Side.Attacker, granted));
         Assert.False(Holds(aura, no).Has(Side.Attacker, granted));
-        Assert.False(Holds(aura, yes, carrierAttacks: false).Has(Side.Attacker, granted));
+        Assert.True(Holds(aura, yes, carrierAttacks: false).Has(Side.Attacker, granted));
     }
 
     static int Mod(LiveSet l, string roll) => l.Effects(roll == "defense" ? Side.Defender : Side.Attacker, EffectKind.ModifyRoll)
@@ -51,7 +51,7 @@ public partial class Batch1AurasTests
         var fast = Holds("Fast Aura", AttackKind.Shooting);
         Assert.Equal((8.0, 16.0, 16.0), (StatReader.ActionDistance(fast, Side.Attacker, GfNames.Advance), StatReader.ActionDistance(fast, Side.Attacker, GfNames.Rush), StatReader.ActionDistance(fast, Side.Attacker, GfNames.Charge)));
         Assert.Equal(16.0, StatReader.ActionDistance(Holds("Rapid Charge Aura", AttackKind.Melee), Side.Attacker, GfNames.Charge));
-        Assert.Equal(6.0, StatReader.ActionDistance(Holds("Fast Aura", AttackKind.Shooting, carrierAttacks: false), Side.Attacker, GfNames.Advance));
+        Assert.Equal(8.0, StatReader.ActionDistance(Holds("Fast Aura", AttackKind.Shooting, carrierAttacks: false), Side.Attacker, GfNames.Advance));
     }
 
     [Fact]
@@ -74,6 +74,6 @@ public partial class Batch1AurasTests
         Assert.Equal((1, 0), (Mod(Holds("Precision Charge Aura", AttackKind.Melee, action: GfNames.Charge), "hit"), Mod(Holds("Precision Charge Aura", AttackKind.Melee), "hit")));
         Assert.Equal((1, 0), (Mod(Holds("Precision Fighter Aura", AttackKind.Melee), "hit"), Mod(Holds("Precision Fighter Aura", AttackKind.Shooting), "hit")));
         Assert.Equal((1, 0), (Mod(Holds("Precision Shooter Aura", AttackKind.Shooting), "hit"), Mod(Holds("Precision Shooter Aura", AttackKind.Melee), "hit")));
-        Assert.Equal(0, Mod(Holds("Precision Shooter Aura", AttackKind.Shooting, carrierAttacks: false), "hit"));
+        Assert.Equal(1, Mod(Holds("Precision Shooter Aura", AttackKind.Shooting, carrierAttacks: false), "hit"));
     }
 }

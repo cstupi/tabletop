@@ -120,17 +120,46 @@ public static class GfHooks
                 foreach (var (model, reserve) in GfReserves.SpawnOffers(state, unit))
                     reactions.Add(new Reaction(team, $"{GfReserves.Spawn}|{model:N}", $"{GfReserves.Spawn} ({state.Projection.Models[model].Slot.Name}): place {state.Projection.Units[reserve].Definition.Name}",
                         GfReserves.PlaceReserveSeq, new SequenceContext(unit, [reserve], [], GfReserves.Spawn)));
-            var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
+            // "When this unit is activated, pick one effect: … all models with this rule in this unit …": offered when any model in play holds the
+            // rule, asked over each holder party (HolderParties); the chosen effect's rows reach the holders.
+            var terrain = Battlefield.TerrainUnder(state, unit);
+            var atPoint = HolderParties(state, props, unit)
+                .SelectMany(p => LiveProperties.Settle(new Interaction(state, props, p, null, null, frame.Context.Action, null, terrain, point)).AtPoint(Side.Attacker, point)).ToList();
             if (point == GfNames.ActivationEnd && GfAmbush.MayReDeploy(state, unit))
                 reactions.Add(new Reaction(team, $"{GfAmbush.AmbushReDeployment}|{unit:N}", $"{GfAmbush.AmbushReDeployment}: remove, and deploy as an Ambusher next round",
                     GfAmbush.AmbushRedeploySeq, new SequenceContext(unit, [], [], GfAmbush.AmbushReDeployment)));
             // A set_condition row at a point is one effect of a rule's choice ("pick one effect"): the rule offers one choose-effect use, which asks which.
-            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place or EffectKind.SetCondition).DistinctBy(x => x.Source.Entry.Name))
+            foreach (var (source, row) in atPoint.Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place or EffectKind.SetCondition).DistinctBy(x => x.Source.Entry.Name))
                 reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source, row),
                     row.Kind == EffectKind.SetCondition ? GfNames.ChooseEffectSeq : GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
         }
         return reactions;
     }
+
+    /// <summary>
+    /// The parties a unit-level trigger is asked over: the whole unit, then, for each played model entry of aggregation all whose text acts on
+    /// "models with this rule" ("roll one die and apply one effect to all models with this rule", "pick one effect: … all models with this rule in
+    /// this unit") and that some but not all of the unit's models in play hold, the models holding it. Army Forge puts a joined Hero's rules on its
+    /// own slot only, so such a rule triggers when any model holds it and its effect reaches the holders (LiveProperties.Gather admits an all entry
+    /// over a party only when every model of it holds the entry). A rule worded "all its models have this rule" stays the whole unit's.
+    /// </summary>
+    public static IReadOnlyList<Party> HolderParties(GameState state, PropertySet props, Guid unit)
+    {
+        var whole = Party.Whole(state, unit);
+        var parties = new List<Party> { whole };
+        var seen = new HashSet<string> { string.Join(",", whole.ModelIds.Order()) };
+        foreach (var group in Lookup.ModelProperties(state, unit, whole.ModelIds).GroupBy(x => x.Property.Name))
+        {
+            if (props.Entry(group.Key) is not { Kind: CatalogKind.Model, Aggregation: Aggregation.All, Played: true } e || !HoldersText(e)) continue;
+            var holders = group.Select(x => x.ModelId).Distinct().ToList();
+            if (holders.Count == whole.ModelIds.Count || !seen.Add(string.Join(",", holders.Order()))) continue;
+            parties.Add(whole with { ModelIds = holders });
+        }
+        return parties;
+    }
+
+    /// <summary>"… all models with this rule …", or a model's enhancement of such a rule ("If this model has Versatile Attack, it always gets …").</summary>
+    static bool HoldersText(CatalogEntry e) => e.RuleText.Contains("models with this rule", StringComparison.Ordinal) || e.RuleText.StartsWith("If this model has", StringComparison.Ordinal);
 
     /// <summary>The effective log's index of the actor's activation: its last root sequence, which only the scheduler starts (nested frames inherit the
     /// action name in their context, R-N3). -1 when there is none.</summary>

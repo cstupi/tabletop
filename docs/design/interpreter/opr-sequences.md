@@ -152,7 +152,12 @@ face a die shows when they are dealt; `Values["wounds"]` and `Values["extra_woun
 
 Under 3.6.0 (`GfEdition.HasParry`) a `parry` step opens the frame when it sits under a melee, an `attack-sequence` the melee pushed or Impact's hits (3.6.0 Parry, Army Forge's common rules: *"roll X dice per model with this rule in it, up to as many dice as hits taken. For each 6+ one hit is ignored (defender picks which)"*). Its dice are the sum over the defender's living models of the highest Parry X among that model's melee weapons, at most the hits; each 6+ ignores one hit, taken from the hits carrying the most per-die grants, with no Ask because the hits it chooses between differ only by their grants. `roll-to-block` reads the hits less `GfParry.Parried`, as the dice now stand.
 
-`Impact` hits enter here directly, skipping the hit roll. Spell hits enter from `spell-hits`: after a hit roll
+`Impact` hits enter here directly, skipping the hit roll. They are no weapon's hits (3.6.0 p.14 *"For each 2+ the target
+takes 1 hit"*): the interaction carries `UnarmedHits` (`GfAttack.UnarmedHits`), so no attacker rule acts on them
+(Piercing Charge, Havocbound, Warbound, Mischievous); a `rule-hits` frame's hits (Retaliate, Deathstrike, Self-Destruct,
+Surprise Attack) carry it too, Surprise Attack keeping its own AP(1). `impact` rolls Heavy Impact's dice as their own pool (a roll named
+`Heavy Impact`, after any reduction comes off the other dice), and `roll-to-block` blocks that pool's hits
+(`GfMelee.HeavyImpactHits`) as a group with AP(1) (*"Counts as having Impact(X) with hits that have AP(1)"*). Spell hits enter from `spell-hits`: after a hit roll
 that cannot fail when the spell prints *"Roll as many dice as hits"*, so *on rolls of 6* rules read a real die,
 and with no die rolled when it does not.
 
@@ -301,7 +306,12 @@ every segment a cast splits the move into: once a segment went in or through dif
 `Values["entered_difficult"]` and clamps every later segment's allowance to what is left of the cap. p.11 also holds
 *every* model of the unit to the cap once any one enters; the answer is judged for that by `GfMoves.DifficultCapBreach`
 at dispatch (`IGameRules.AnswerBreach`, rule `difficult_cap`), which reads the recorded flag for an earlier segment. The allowance is `StatReader.ActionDistance(live, side, action)`, so
-`Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. That is the reason an
+`Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. Owner ruling: "The unit would only move as fast as its
+slowest model to retain cohesion." The allowance is the least over the unit's models in play of `ActionDistance` on a party of that
+one model (`GfMoves.SlowestDistance`; the unit's own and granted rules and a "This model and its unit" rule of any model, a Fast Aura
+or a Musician, reach every party), so a Slow squad with a joined Hero without Slow moves at Slow's distance and a Fast squad with one
+without Fast does not get Fast; the threat ranges read the same. Immobile, 3.5.1 Artillery and 3.6 Cumbersome ("models with this special
+rule may only use …") restrict the whole unit when any model in play holds them (`GfMoves.AnyModelHas`). That is the reason an
 action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 `Movement.Check(...).Distance` over the moved models, in tenths of an inch, because `Values` is a
 map of integers. A `Passed` answer is a zero move. A once grant the allowance reads (Shock Speed's +2"/+4") holds for
@@ -382,14 +392,20 @@ and push: the activation, the move, and transport destruction.
 `declare-targets` opens `Assignment(Items = GfShooting.Groups(...), Targets = valid target units,
 MaxDistinctTargets = 2, TargetsByItem = each group's own valid targets)`. p.8: targets are declared
 *before any roll*, and up to two different targets; a target is valid for a group when a model can see
-it and has a weapon of that group in range (`GfShooting.ValidTargets` per group), so each group may be
+it and has a weapon of that group in range (`GfShooting.ValidTargets` per group, asked of each of the group's parts below), so each group may be
 assigned only a unit on its own list. `GfShooting.Declared` drops any aim off that list. A group the
 answer leaves out holds fire (p.8: models "may" shoot); `fire-groups` fires only the groups with a target. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
 every group's attack counts and the defending unit's model count as `Values["attacks_<i>"]`, one
 `Values["attacks_<i>_q<n>"]` per Quality value that group's models bring, and
 `Values["defender_models_<i>"]`, `Values["in_cover_<i>"]` with `cover_models_<i>`, `cover_of_<i>` and `cover_indirect_<i>`, before it pushes anything, pushes
-one `attack-sequence` per group with `Takedown` groups first (p.14), and completes when the last has
-finished.
+one `attack-sequence` per group part with `Takedown` groups first (p.14), and completes when the last has
+finished. A group's parts (`GfGroups.Split`, also melee's striking steps) split its weapons by carrier signature: the
+carrier's model rules, less unit-kind and *"This model and its unit"* ones, pick entries (a Buff, Mark or Debuff acts
+through its grants) and rules acting on the unit only through markers (unless any model may carry them), and the
+weapon's rules and stats. A joined
+Hero, a Sergeant or an upgraded model firing the squad's weapon is its own part, so its rules and its weapon's AP act on
+its own hits and the squad's `all` rules (Good Shot, Piercing Charge) hold for the squad's; every part fires at the target
+declared for the group's name, and the `_<i>` keys index the parts.
 
 `GfShooting.Groups` is one `WeaponGroup(Name, WeaponIds, Takedown)` per ranged weapon **type** across
 living models, excluding `Limited` weapons already used this game. A type carrying `Takedown` is the
@@ -408,7 +424,9 @@ first without also being offered the pick. The pick is per **model**, which is w
 buys: p.14 reads *"This model may pick"*, so two takedown models sharing a weapon
 type are two groups and name a model each. The picked model is *resolved as if it was a unit of [1]*:
 `roll-to-hit` caps `Blast` at one model, and `roll-to-block` reads cover over that model alone and passes it to
-`GfRolls.DefensePlan` as the lone model, so a picked joined hero blocks on its own `Defense` (the plan's ruling 7).
+`GfRolls.DefensePlan` as the lone model, so a picked joined hero blocks on its own `Defense` (the plan's ruling 7). Once
+picked, the model is the attack's defender party alone (`GfAttack.AttackInteraction`), so the defender's rules are judged
+over it: a picked Hero with Stealth in a unit without it gives the attacker -1 to hit (3.6.0 p.15's example).
 
 ## Charge and melee
 

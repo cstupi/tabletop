@@ -27,10 +27,12 @@ public static partial class GfMoves
             var aircraft = rules.Aircraft;
             // A charge's distance at its target: the target's rules may take from it (Melee Shrouding).
             var target = action == GfNames.Charge ? GfAnswers.Pieces(ctx.State, ctx.Frame, "charge-target", "charge_target").FirstOrDefault() : Guid.Empty;
-            var own = StatReader.ActionDistance(live, Side.Attacker, action);   // read on the unit's own set too, which spends what it read
+            StatReader.ActionDistance(live, Side.Attacker, action);   // read on the unit's own set too, which spends what it read
+            // The unit moves as its slowest model (SlowestDistance); a charge's distance at its target: the target's rules may take from it (Melee Shrouding).
+            var terrainUnder = Battlefield.TerrainUnder(ctx.State, unit);
             var allowance = (target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
-                ? StatReader.ActionDistance(ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Party.Whole(ctx.State, target), AttackKind.Melee, GfNames.Charge, null, [])), Side.Attacker, action)
-                : own) + (aircraft ? GfNames.AircraftMove : 0);
+                ? SlowestDistance(ctx.State, unit, action, p => new Interaction(ctx.State, ctx.Properties, p, Party.Whole(ctx.State, target), AttackKind.Melee, GfNames.Charge, null, []), ctx.Settle)
+                : SlowestDistance(ctx.State, unit, action, p => new Interaction(ctx.State, ctx.Properties, p, null, null, action, null, terrainUnder), ctx.Settle)) + (aircraft ? GfNames.AircraftMove : 0);
             // A once grant read here acts when the unit moves: listed as applied on each segment that moved, not on every run of the step
             // (a window, a dangerous test, a segment that went nowhere). The segment holds it and the move's end spends it.
             var granted = live.GrantsRead.Select(r => ctx.Projection.Units.GetValueOrDefault(r.UnitId)?.Grants.FirstOrDefault(g => g.Id == r.GrantId)?.EntryName)
