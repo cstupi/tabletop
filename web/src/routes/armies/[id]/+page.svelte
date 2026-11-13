@@ -9,7 +9,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import MeshPicker from '$lib/components/MeshPicker.svelte';
   import Thumb from '$lib/components/Thumb.svelte';
-  import { meshLine, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
+  import { meshLine, slotGroups, statBadges, systemName } from '$lib/armies/cards';
   import { importErrorMessage, reimport } from '$lib/armies/import';
   import { rename, slotBase, slotHeight, slotSummary } from '$lib/armies/patches';
   import { buildIndex } from '$lib/meshpicker/search';
@@ -78,15 +78,14 @@
 
 <svelte:head><title>{army ? `${army.name} · Armies` : 'Army'} · Tabletop</title></svelte:head>
 
-{#snippet row(unit: Unit, m: ModelSlot, all: boolean, label: string)}
-  {@const ids = all ? unit.models.map((x) => x.id) : [m.id]}
+{#snippet row(unit: Unit, slots: ModelSlot[], label: string, marks: string[], sub: boolean)}
+  {@const m = slots[0]!}
+  {@const ids = slots.map((x) => x.id)}
   {@const mesh = m.assetId ? byId.get(m.assetId) : undefined}
-  {@const sub = !all && unit.models.length > 1 && slotRows(unit).shared}
-  {@const marks = all ? [] : slotMarks(unit, m)}
   <div class="slot" class:sub>
     <span class="slot-name" title={slotSummary(m)}>{label}{#if marks.length}<small class="marks">{marks.join(' · ')}</small>{/if}</span>
     <button type="button" class="mesh-btn" class:none={!m.assetId} aria-haspopup="dialog" aria-label="Mesh for {label}: {mesh?.name ?? 'none'}" title="Pick a mesh"
-      onclick={() => (target = { unit, slots: all ? unit.models : [m], row: all ? 'shared' : sub ? 'sub' : 'single', label: all ? unit.name : label })}>
+      onclick={() => (target = { unit, slots, row: slots.length > 1 ? 'shared' : sub ? 'sub' : 'single', label })}>
       <Thumb url={mesh?.thumbnail} alt="" size="2.75rem" />
       <span class="mesh-name">{m.assetId ? (mesh?.name ?? 'Mesh') : 'No mesh'}</span>
       <Icon name="caret" size="1em" />
@@ -126,19 +125,18 @@
     <p class="quiet-band"><Icon name="mesh" />No miniatures in the <a href="/library">Library</a></p>
   {/if}
   {#each army.units as unit (unit.id)}
-    {@const view = slotRows(unit)}
     <section class="panel unit" aria-labelledby="unit-{unit.id}">
       <div class="unit-head">
         <h2 id="unit-{unit.id}" title={props(unit.properties) || undefined}>{unit.name}{#if unit.models.length > 1}<span class="count num">×{unit.models.length}</span>{/if}</h2>
         <span class="stats">{#each statBadges(unit) as s (s.key)}<span class="stat" title={s.key}>{#if s.icon}<Icon name={s.icon} label={s.key} />{:else}<small>{s.key}</small>{/if}<strong class="num">{s.value}</strong></span>{/each}</span>
       </div>
-      {#if view.shared}
-        {@render row(unit, unit.models[0]!, true, 'every model')}
-        <button class="quiet per" aria-expanded={!!perModel[unit.id]} onclick={() => (perModel[unit.id] = !perModel[unit.id])}><span class="chev"><Icon name="chevron" size="1em" /></span>per model</button>
-        {#if perModel[unit.id]}{#each unit.models as m (m.id)}{@render row(unit, m, false, m.name)}{/each}{/if}
-      {:else}
-        {#each unit.models as m (m.id)}{@render row(unit, m, false, m.name)}{/each}
-      {/if}
+      {#each slotGroups(unit) as g (g.id)}
+        {@render row(unit, g.slots, g.label, g.marks, false)}
+        {#if g.slots.length > 1}
+          <button class="quiet per" aria-expanded={!!perModel[g.id]} onclick={() => (perModel[g.id] = !perModel[g.id])}><span class="chev"><Icon name="chevron" size="1em" /></span>per model</button>
+          {#if perModel[g.id]}{#each g.slots as m (m.id)}{@render row(unit, [m], m.name, [], true)}{/each}{/if}
+        {/if}
+      {/each}
     </section>
   {/each}
   {#if target}

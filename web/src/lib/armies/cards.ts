@@ -52,3 +52,19 @@ export function slotMarks(unit: Unit, m: ModelSlot): string[] {
   const rules = [...new Set(m.properties.map(label))].filter((l) => !everyRule(l));
   return [...weapons, ...rules];
 }
+
+export interface SlotGroup { /** The first slot's id: stable while meshes change. */ id: string; label: string; marks: string[]; slots: ModelSlot[] }
+
+/** A unit's rows: models alike in name, in what sets them apart and in mesh, base and height are one row (`Infantry Squad ×12`),
+ *  opened per model on demand; a model unlike the rest is its own row. In slot order of each group's first model. */
+export function slotGroups(unit: Unit): SlotGroup[] {
+  const groups: SlotGroup[] = [];
+  const kind = (name: string) => name.replace(/\s+\d+$/, '');
+  for (const m of unit.models) {
+    const marks = slotMarks(unit, m);
+    const g = groups.find((x) => kind(x.slots[0]!.name) === kind(m.name) && x.marks.join('|') === marks.join('|') && sameSlot(x.slots[0]!, m));
+    if (g) g.slots.push(m); else groups.push({ id: m.id, label: m.name, marks, slots: [m] });
+  }
+  for (const g of groups) if (g.slots.length > 1) g.label = `${kind(g.slots[0]!.name)} ×${g.slots.length}`;
+  return groups;
+}

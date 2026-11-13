@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelSlot, Unit } from '$lib/api/types';
-import { meshLine, meshPips, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
+import { meshLine, meshPips, slotGroups, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
 
 const slot = (over: Partial<ModelSlot> = {}): ModelSlot => ({
   id: crypto.randomUUID(), ordinal: 0, name: 'Trooper', stats: {}, properties: [], base: { shape: 'circle', a: 1.26, b: 1.26 }, height: 1.9, weapons: [], ...over,
@@ -64,5 +64,19 @@ describe('army cards', () => {
     const same = unit([{ ...rifle(), name: 'Trooper 1' }, { ...rifle(), name: 'Trooper 2' }]);
     expect(slotMarks(same, same.models[0]!)).toEqual([]);
     expect(slotMarks(unit([banner]), banner)).toEqual([]);
+  });
+  it('draws alike models as one row and a model unlike the rest as its own', () => {
+    const w = (name: string) => ({ id: crypto.randomUUID(), name, stats: {}, properties: [] });
+    const rifle = (n: number, over: Partial<ModelSlot> = {}) => slot({ name: `Trooper ${n}`, weapons: [w('Rifle')], ...over });
+    const banner = slot({ name: 'Trooper 4', weapons: [w('Rifle')], properties: [{ name: 'Bravery Aura' }] });
+    const squad = unit([rifle(1), rifle(2), rifle(3), banner, slot({ name: 'Trooper 5', weapons: [w('Laser')] }), slot({ name: 'Captain 1' })]);
+    expect(slotGroups(squad).map((g) => [g.label, g.marks, g.slots.length])).toEqual([
+      ['Trooper ×3', ['Rifle'], 3], ['Trooper 4', ['Rifle', 'Bravery Aura'], 1], ['Trooper 5', ['Laser'], 1], ['Captain 1', [], 1],
+    ]);
+    // One of the three given its own mesh leaves the group; the other two stay one row.
+    const meshed = unit([rifle(1), rifle(2, { assetId: 'a1' }), rifle(3)]);
+    expect(slotGroups(meshed).map((g) => [g.label, g.slots.length])).toEqual([['Trooper ×2', 2], ['Trooper 2', 1]]);
+    const same = unit([rifle(1), rifle(2)]);
+    expect(slotGroups(same).map((g) => [g.label, g.marks])).toEqual([['Trooper ×2', []]]);
   });
 });

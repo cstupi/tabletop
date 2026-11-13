@@ -16,7 +16,7 @@ export function scopes(army: Army, unit: Unit, rowSlots: ModelSlot[], row: RowKi
   const names = [...new Set(rowSlots.map((s) => modelName(s.name)))];
   const named = (m: ModelSlot) => names.includes(modelName(m.name));
   const all: Scope[] = [
-    { kind: 'row', label: row === 'shared' ? 'every model' : 'this model', slotIds: rowSlots.map((s) => s.id) },
+    { kind: 'row', label: rowSlots.length === 1 ? 'this model' : rowSlots.length === unit.models.length ? 'every model' : `these ${rowSlots.length} models`, slotIds: rowSlots.map((s) => s.id) },
     { kind: 'type', label: `every ${list(names)} in ${unit.name}`, slotIds: unit.models.filter(named).map((m) => m.id) },
     { kind: 'army', label: `every ${list(names)} in the army`, slotIds: army.units.flatMap((u) => u.models).filter(named).map((m) => m.id) },
   ];
@@ -24,9 +24,9 @@ export function scopes(army: Army, unit: Unit, rowSlots: ModelSlot[], row: RowKi
   return all.filter((s, i) => all.findIndex((t) => key(t) === key(s)) === i);
 }
 
-/** The shared row and the rows under it set just themselves; any other row sets every model of its name in the unit. */
-export function defaultScope(available: Scope[], row: RowKind): ScopeKind {
-  return row === 'single' && available.some((s) => s.kind === 'type') ? 'type' : 'row';
+/** A pick sets the row it was opened from and nothing else: one model, or the shared row's every model. A wider scope is the player's choice. */
+export function defaultScope(_available: Scope[], _row: RowKind): ScopeKind {
+  return 'row';
 }
 
 /** One SlotPatch per slot; null clears. */
