@@ -297,7 +297,9 @@ public class ArmyForgeImportTests
     public void Weapon_attacks_counts_and_ranges_are_bounded()
     {
         var w = ArmyForgeImport.ToArmy(ListOf(Entry(loadout: $"[{Weapon(range: "120", attacks: "100", count: 20)}]")), "x", Catalog).Units[0].Models[0].Weapons;
-        Assert.Equal(("120\"", "100"), (Assert.Single(w).Stats["Range"], w[0].Stats["Attacks"]));
+        // A count of four per model is four copies on each model ("4x Rifle").
+        Assert.Equal(4, w.Count);
+        Assert.All(w, x => Assert.Equal(("120\"", "100"), (x.Stats["Range"], x.Stats["Attacks"])));
         Assert.Equal("Unit 'Squad': weapon 'Rifle' has 101 attacks; the range is 1–100.", Refused(ListOf(Entry(loadout: $"[{Weapon(attacks: "101")}]"))));
         Assert.Equal("Unit 'Squad': weapon 'Rifle' has 0 attacks; the range is 1–100.", Refused(ListOf(Entry(loadout: $"[{Weapon(attacks: "0")}]"))));
         Assert.Equal("Unit 'Squad': weapon 'Rifle' count 21 is outside 0–20.", Refused(ListOf(Entry(loadout: $"[{Weapon(count: 21)}]"))));

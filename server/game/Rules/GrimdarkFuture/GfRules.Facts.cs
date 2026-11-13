@@ -112,14 +112,17 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>
     /// p.15: "May transport up to X models or Heroes with up to Tough(6), and non-Heroes with up to Tough(3) which occupy 3 spaces each", and its
     /// example: "Regular models and Heroes with Tough(3) or Tough(6) occupy 1 space, Tough(3) models occupy 3 spaces, and models with Tough(6) or
-    /// higher can't be transported". The unit's models plus the other units already inside take at most X spaces.
+    /// higher can't be transported". The unit's models (in play, <paramref name="living"/>: its living models only) plus the other units already inside
+    /// take at most X spaces. Read for deploying inside and for embarking in play (GfMoves.IsFriendlyContainer).
     /// </summary>
-    static bool Fits(GameState state, UnitInPlay unit, Guid containerModelId)
+    static bool Fits(GameState state, UnitInPlay unit, Guid containerModelId) => Fits(state, unit.Id, unit.Definition.Models.Select(m => m.Id), containerModelId);
+
+    internal static bool Fits(GameState state, Guid unitId, IEnumerable<Guid> models, Guid containerModelId)
     {
         if (Lookup.ModelParameter(state, containerModelId, GfNames.Transport) is not { } room) return false;
-        var mine = unit.Definition.Models.Select(m => Spaces(state, m.Id)).ToList();
+        var mine = models.Select(m => Spaces(state, m)).ToList();
         if (mine.Any(s => s is null)) return false;
-        var others = state.Projection.Models.Values.Where(m => m.UnitId != unit.Id && m.Location is Inside i && i.ContainerId == containerModelId)
+        var others = state.Projection.Models.Values.Where(m => m.UnitId != unitId && m.Location is Inside i && i.ContainerId == containerModelId)
             .Sum(m => Spaces(state, m.Id) ?? 0);
         return others + mine.Sum(s => s!.Value) <= room;
     }

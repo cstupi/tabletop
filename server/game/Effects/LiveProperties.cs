@@ -42,9 +42,12 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
     /// Spending a property also spends the granted pass-one effects that changed its parameter.</summary>
     public void Spend(LiveProperty source)
     {
-        if (source.GrantId is { } g && source.GrantRow?.Duration != EffectDuration.Marker)   // a Marker grant stays for the game
+        // A Marker grant stays for the game ("until the end of the game"): the grant itself, and an instance its grant_property row derived (Piercing
+        // Frenzy, Piercing Growth: "get AP(+1)"), which carries the grant's id but not its row, so the row is read off the grant.
+        if (source.GrantId is { } g && source.GrantRow?.Duration != EffectDuration.Marker)
             foreach (var unit in new[] { Interaction.Attacker.UnitId, Interaction.Defender?.UnitId })
-                if (unit is { } u && Interaction.State.Projection.Units[u].Grants.Any(x => x.Id == g)) _read.Add((u, g));
+                if (unit is { } u && Interaction.State.Projection.Units[u].Grants.FirstOrDefault(x => x.Id == g) is { } held
+                    && Interaction.Properties.EffectById(held.EffectId)?.Duration != EffectDuration.Marker) _read.Add((u, g));
         if (_acts.Modified.TryGetValue(PassOneActs.Key(source), out var by)) foreach (var m in by) Spend(m);
     }
 

@@ -121,6 +121,7 @@ public static class GfNames
     public const string QuickThrow = "Quick Throw";
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover
     public const string Hazardous = "Hazardous";                                                                        // a weapon property; 3.6 GfAttack.HazardRollers
+    public const string TakedownShot = "Takedown Shot", TakedownStrike = "Takedown Strike";                              // army rules; the import adds a weapon named after each
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup
     public const string SetAside = "set-aside";                                                                         // menu-written condition on a shelved unit
     public const double AmbushDistance = 9;

@@ -22,7 +22,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// Reinforcement 3.6 (GfEdition.ReinforcementOnShaken, ReinforcementEdgeReach, ReinforcementClearance): "When a unit where all models have this rule is Shaken,
 /// you may remove it from the table as destroyed. At the beginning of the next round after a unit where all models have this rule is destroyed, after Ambushers
 /// have been deployed, you may place a new copy of it fully within 9" of any table edge, over 9" away from enemy units." The morale test's `reinforcement` step
-/// offers the removal when the test made the unit Shaken; the round boundary offers only a destroyed original's copy; `reinforcement_distance` judges the 9".
+/// offers the removal when the test made the unit Shaken; the round boundary offers only a destroyed original's copy, and only at the start of the round after the one it was destroyed in; `reinforcement_distance` judges the 9".
 /// </summary>
 public static class GfReserves
 {
@@ -96,7 +96,9 @@ public static class GfReserves
         {
             var reserve = ctx.Frame.Context.TargetUnitIds[0];
             var rule = ctx.Frame.Context.Action!;
-            var anchor = rule == Spawn ? ctx.Projection.Units[reserve].Definition.Reserve!.Of : Anchor(ctx.State, ctx.Frame.Context.ActorUnitId!.Value);
+            // Split's anchor: the last model `assign` kept, or a routed unit's one model left (GfMorale's consequence, p.10: a Rout "counts as destroyed").
+            var anchor = rule == Spawn ? ctx.Projection.Units[reserve].Definition.Reserve!.Of
+                : Anchor(ctx.State, ctx.Frame.Context.ActorUnitId!.Value) ?? (Lookup.LivingModels(ctx.State, ctx.Frame.Context.ActorUnitId!.Value) is [var last] ? last : null);
             if (anchor is not { } at || Battlefield.Placed(ctx.State, at) is null) return new Finish([]);
             var models = TeamUnits.ModelsOf(ctx.State, ctx.Projection.Units[reserve]).Where(m => m.Location is OnShelf).Select(m => m.Id).ToList();
             if (ctx.History.LastClosed("place") is not { } closed)
@@ -132,8 +134,20 @@ public static class GfReserves
     public static IReadOnlyList<Guid> Reinforcements(GameState state, Guid team) =>
         TeamUnits.Of(state, team).Where(u => u.Definition.Reserve is { Property: Reinforcement } r && state.Projection.Units.TryGetValue(r.Of, out var original)
                 && Waiting(state, Reinforcement, r.Of) == u.Id
-                && (GfEdition.Of(state).ReinforcementOnShaken ? Destroyed(state, original) : ShakenOrDestroyed(state, original)))
+                && (GfEdition.Of(state).ReinforcementOnShaken ? Destroyed(state, original) && DestroyedLastRound(state, original) : ShakenOrDestroyed(state, original)))
             .Select(u => u.Id).ToList();
+
+    /// <summary>3.6: "At the beginning of the next round after a unit where all models have this rule is destroyed": the original's last model left
+    /// the table since the round before this one started, so the copy is offered at that one round's start and at no later one.</summary>
+    static bool DestroyedLastRound(GameState state, UnitInPlay original)
+    {
+        var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
+        var rounds = Enumerable.Range(0, log.Count).Where(i => log[i].Payload is RoundStarted).ToList();
+        if (rounds.Count < 2) return true;
+        var models = original.Definition.Models.Select(m => m.Id).ToHashSet();
+        var gone = log.FindLastIndex(e => Changes(e.Payload).OfType<ModelsMoved>().Any(m => m.Moves.Any(r => r.To is not OnTable && models.Contains(r.ModelId))));
+        return gone > rounds[^2];
+    }
 
     static bool ShakenOrDestroyed(GameState state, UnitInPlay unit)
     {

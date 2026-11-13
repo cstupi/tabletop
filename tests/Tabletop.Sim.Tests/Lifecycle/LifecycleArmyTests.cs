@@ -65,4 +65,42 @@ public class LifecycleArmyTests
             Assert.NotEqual(LifecycleArmy.List(book, edition: ArmyEditions.V35).ToJsonString(), LifecycleArmy.List(book).ToJsonString());
         }
     }
+
+    [Theory]
+    [InlineData("goblin-reclaimers", "Goblin Reclaimers", 8, 5)]
+    [InlineData("war-disciples", "War Disciples", 6, 5)]
+    [InlineData("hdf-artillery-blob", "HDF Artillery Blob", 7, 5)]
+    [InlineData("ratmen-clans", "Ratmen Clans", 6, 4)]
+    public void A_whole_list_is_the_army_forge_export_with_joined_entries_counted_once(string list, string name, int entries, int units)
+    {
+        var body = LifecycleArmy.Whole(list);
+        Assert.Equal(name, (string)body["name"]!);
+        Assert.Equal("gf", (string)body["gameSystem"]!);
+        Assert.Equal(1000, (int)body["pointsLimit"]!);
+        Assert.Equal(entries, body["units"]!.AsArray().Count);
+        Assert.Equal(units, LifecycleArmy.UnitsOf(body));
+        Assert.Equal(body.ToJsonString(), LifecycleArmy.For(new Seat(0, 1, List: list), false, ArmyEditions.V36).ToJsonString());
+    }
+
+    [Fact]
+    public void A_seat_without_a_list_takes_its_books_cut_and_a_whole_list_takes_no_ambush_and_no_other_edition()
+    {
+        Assert.Equal(LifecycleArmy.List(2).ToJsonString(), LifecycleArmy.For(new Seat(0, 1, 2), false, ArmyEditions.V36).ToJsonString());
+        Assert.Equal(3, LifecycleArmy.UnitsOf(LifecycleArmy.List(2)));
+        Assert.Throws<ArgumentException>(() => LifecycleArmy.For(new Seat(0, 1, List: "ratmen-clans"), true, ArmyEditions.V36));
+        Assert.Throws<ArgumentException>(() => LifecycleArmy.For(new Seat(0, 1, List: "ratmen-clans"), false, ArmyEditions.V35));
+        Assert.Throws<ArgumentException>(() => LifecycleArmy.Whole("nope"));
+    }
+
+    [Fact]
+    public void Every_list_plays_once_in_a_two_player_whole_game_and_the_self_play_one_seats_ratmen_and_hdf_on_one_account()
+    {
+        var whole = LifecycleShapes.All.Where(s => s.Whole).ToList();
+        Assert.Equal(["goblins-vs-disciples", "hdf-vs-ratmen", "self-play-ratmen-hdf"], whole.Select(s => s.Name));
+        Assert.All(whole, s => Assert.Equal(Tabletop.Content.RuleSets.Gf360, s.Rules));
+        Assert.Equal(LifecycleArmy.Lists.Order(), whole.Where(s => s.Accounts.Count == 2).SelectMany(s => s.Seats).Select(s => s.List!).Order());
+        var self = whole.Single(s => s.Accounts.Count == 1);
+        Assert.Equal(["ratmen-clans", "hdf-artillery-blob"], self.Seats.Select(s => s.List));
+        Assert.DoesNotContain(LifecycleShapes.All.Where(s => !s.Whole), s => s.Seats.Any(x => x.List is not null));
+    }
 }

@@ -18,6 +18,8 @@
     <EmbeddedResource Include="Lifecycle/Armies/*.json" LogicalName="lifecycle-army-%(Filename).json" />
     <!-- The 3.6 cut of a book, for the 3.6 shape. -->
     <EmbeddedResource Include="Lifecycle/Armies/3.6/*.json" LogicalName="lifecycle-army-3.6-%(Filename).json" />
+    <!-- Whole Army Forge lists (export bodies), for the real-list shapes. -->
+    <EmbeddedResource Include="Lifecycle/Armies/3.6/lists/*.json" LogicalName="lifecycle-list-3.6-%(Filename).json" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../server/game/Tabletop.GameServer.csproj" />

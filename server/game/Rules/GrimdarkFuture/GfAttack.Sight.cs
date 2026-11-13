@@ -18,6 +18,9 @@ public static partial class GfAttack
     /// </summary>
     public static IReadOnlyList<Guid> EligibleModels(GameState state, LiveSet live, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind)
     {
+        // Quick Shot: "This model may shoot after using Rush actions" (p.7 Rush "can't shoot"): after a Rush only a party Quick Shot is live on
+        // (its models hold it, GfGroups.Split keeping them apart, or it is granted on the unit) has models that may shoot.
+        if (kind == AttackKind.Shooting && live.Interaction.ActionTaken == GfNames.Rush && !live.Has(Side.Attacker, GfNames.QuickShot)) return [];
         if (Battlefield.InsideReach(state, attacker, target) is { } reaches)
             return reaches ? Lookup.AliveModels(state, attacker).Where(m => state.Projection.Models[m].Slot.Weapons.Any(w => weapons.Contains(w.Id))).ToList() : [];
         var targets = Lookup.LivingModels(state, target);

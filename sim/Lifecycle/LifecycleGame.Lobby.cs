@@ -96,9 +96,12 @@ public sealed partial class LifecycleGame
     {
         var account = _players[seat.Account];
         var ambush = shape.Ambush && seat.Account == 0;
-        var army = await account.ImportArmyAsync(LifecycleArmy.List(seat.Book, ambush, shape.Edition), shape.Edition, ct);
+        var list = LifecycleArmy.For(seat, ambush, shape.Edition);
+        var army = await account.ImportArmyAsync(list, shape.Edition, ct);
         _armies.Add((account, army.Id));
-        Check(army.Units.Count == 3 && army.Source == LifecycleArmy.Source && army.Edition == shape.Edition, $"the import holds {army.Units.Count} units from {army.Source}, edition {army.Edition}");
+        var units = army.Units.Count(u => u.Reserve is null);
+        Check(units == LifecycleArmy.UnitsOf(list), $"the import of {seat.List ?? $"book {seat.Book}"} holds {units} units, not the list's {LifecycleArmy.UnitsOf(list)}");
+        Check(army.Source == LifecycleArmy.Source && army.Edition == shape.Edition, $"the import comes from {army.Source}, edition {army.Edition}");
         if (ambush)
             Check(army.Units.Single(u => u.Name == LifecycleArmy.AmbushUnit(shape.Edition)).Properties.Any(p => p.Name == "Ambush"), $"the imported {LifecycleArmy.AmbushUnit(shape.Edition)} do not carry Ambush");
         var team = TeamId(CreatorSocket.Game, seat.Team);

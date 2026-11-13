@@ -58,15 +58,16 @@ public static class GfRuleHits
     /// <summary>
     /// deal-wounds' last step: wounds an attack in melee dealt set off the wounded models' rules on the attacking unit. Deathstrike and Self-Destruct:
     /// "If this model is killed in melee, the attacking unit takes X hits"; Retaliate: "When this model takes wounds in melee, the attacker takes X hits
-    /// per wound taken". Only a weapon or Impact attack sets them off: the hits they deal set off nothing in turn.
+    /// per wound taken". A weapon or Impact attack sets them off, and so do the wounds a unit's strike rolls deal at its turn to strike (Ravage, Regenerative
+    /// Strength: "the target takes one wound", taken in melee; MeleeStriker). The hits these rules deal set off nothing in turn: a Retaliate wound taken
+    /// from another unit's Retaliate hits deals none back.
     /// </summary>
     public sealed class RetaliationStep : IStep
     {
         public string Name => "retaliation";
         public StepOutcome Run(StepContext ctx)
         {
-            if (ctx.Frame.Context.ActorUnitId is not { } attacker || ctx.Frame.Context.TargetUnitIds is not [var target, ..]) return new Complete([]);
-            if (!InMeleeAttack(ctx.Frame)) return new Complete([]);
+            if (MeleeStriker(ctx.Frame) is not { } attacker || ctx.Frame.Context.TargetUnitIds is not [var target, ..]) return new Complete([]);
             var due = new List<string>();
             foreach (var (key, n) in ctx.Frame.Values)
             {
@@ -82,19 +83,28 @@ public static class GfRuleHits
             if (pushed >= due.Count || Lookup.LivingModels(ctx.State, attacker).Count == 0) return new Complete([]);
             return new Push(GfNames.RuleHitsSeq, new SequenceContext(target, [attacker], [], due[pushed]));
         }
+    }
 
-        /// <summary>Under a melee frame, and under an attack-sequence or Impact's resolve-hits rather than under hits a rule dealt.</summary>
-        static bool InMeleeAttack(FrameView frame)
+    /// <summary>The unit whose strike in melee dealt this deal-wounds frame's wounds: the frame's actor under a melee's attack-sequence or Impact's
+    /// resolve-hits, or the striking unit of a Ravage or Regenerative Strength `rule-wounds` frame under a melee. Null under hits a rule or a spell dealt,
+    /// outside melee, and for any other rule's wounds.</summary>
+    public static Guid? MeleeStriker(FrameView frame)
+    {
+        Guid? striker = frame.Context.ActorUnitId;
+        var melee = false; var attack = false;
+        for (var f = frame.Parent; f is not null; f = f.Parent)
         {
-            var melee = false; var attack = false;
-            for (var f = frame.Parent; f is not null; f = f.Parent)
+            if (f.Frame.Sequence is GfNames.RuleHitsSeq or GfNames.SpellHitsSeq) return null;
+            if (f.Frame.Sequence == GfNames.RuleWoundsSeq)
             {
-                if (f.Frame.Sequence is GfNames.RuleHitsSeq or GfNames.RuleWoundsSeq or GfNames.SpellHitsSeq) return false;
-                if (f.Frame.Sequence == GfNames.AttackSequence || (f.Frame.Sequence == GfNames.ResolveHits && f.Parent?.Frame.Sequence == GfNames.Melee)) attack = true;
-                if (f.Frame.Sequence == GfNames.Melee) melee = true;
+                if (Parse(f.Context.Action)?.Rule is not (GfNames.Ravage or GfNames.RegenerativeStrength)) return null;
+                striker ??= f.Context.ActorUnitId;
+                attack = true;
             }
-            return melee && attack;
+            if (f.Frame.Sequence == GfNames.AttackSequence || (f.Frame.Sequence == GfNames.ResolveHits && f.Parent?.Frame.Sequence == GfNames.Melee)) attack = true;
+            if (f.Frame.Sequence == GfNames.Melee) melee = true;
         }
+        return melee && attack ? striker : null;
     }
 
     /// <summary>Ravage: "When it's this model's turn to attack in melee, roll X dice. For each 6+ the target takes one wound." The striking unit's turn: the

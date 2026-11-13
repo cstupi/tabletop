@@ -52,13 +52,13 @@ public static class GfActivationEnd
         return live.AtPoint(Side.Attacker, point).Any(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place);
     }
 
-    /// <summary>The units Coordinate may activate now: the unit's team's others within 12" that have not activated this round and are not Shaken
-    /// (a Shaken unit's activation is idle, p.10). Empty when the unit does not hold Coordinate or is Shaken ("use any active special rules", p.10).</summary>
+    /// <summary>The units Coordinate may activate now: "another friendly unit within 12" that hasn't activated yet", a Shaken one included (its
+    /// activation is idle, p.10, offered as ActivationChoices' Idle). Empty when the unit does not hold Coordinate or is Shaken ("use any active special rules", p.10).</summary>
     public static IReadOnlyList<UnitInPlay> Coordinated(GameState state, PropertySet props, Guid unit)
     {
         var self = state.Projection.Units[unit];
         if (self.Conditions.Contains(GfNames.Shaken) || !Lookup.UnitHas(state, props, unit, GfNames.Coordinate) || Teams.Of(state, unit) is not { } team) return [];
-        return TeamUnits.Of(state, team).Where(u => u.Id != unit && u.Actions.Count == 0 && !u.Conditions.Contains(GfNames.Shaken) && TeamUnits.AnyOnTable(state, u)
+        return TeamUnits.Of(state, team).Where(u => u.Id != unit && u.Actions.Count == 0 && TeamUnits.AnyOnTable(state, u)
             && Battlefield.UnitDistance(state, unit, u.Id) is { } d && d <= CoordinateRange).ToList();
     }
 
@@ -101,7 +101,9 @@ public static class GfActivationEnd
         }
     }
 
-    /// <summary>The coordinated activation's own end: its activation-end window, then a morale test for each unit its wounds left at half or less (p.10).</summary>
+    /// <summary>The coordinated activation's own end: its activation-end window, then a morale test for each unit its wounds left at half or less (p.10),
+    /// then p.10's "Shaken units must spend their activation being idle …, which stops them from being Shaken at the end of their activation" for the
+    /// coordinated unit, as GfHooks.OnTurnEnded does for the scheduled one.</summary>
     sealed class EndStep : IStep
     {
         public string Name => "coordinate-end";
@@ -118,7 +120,7 @@ public static class GfActivationEnd
             var tested = started.Where(s => s.Sequence == GfNames.MoraleTest).Select(s => s.Context.ActorUnitId).ToHashSet();
             if (GfHooks.UnitsToTestAtEndOfActivation(ctx.State, ctx.Properties, unit).FirstOrDefault(u => !tested.Contains(u)) is { } next && next != Guid.Empty)
                 return new Push(GfNames.MoraleTest, new SequenceContext(next, [], [], "wounds"));
-            return new Complete([]);
+            return new Complete(GfHooks.IdledOffShaken(ctx.State, ctx.Properties, new Scheduler.Activation(unit, action, true, [])));
         }
     }
 }

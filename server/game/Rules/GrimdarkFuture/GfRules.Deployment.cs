@@ -139,11 +139,11 @@ public sealed partial class GrimdarkFutureRules
         return null;
     }
 
-    /// <summary>The set-aside units of the team that may deploy as Ambushers now: those holding Ambush (Surprise Attack counts as having Infiltrate, which counts as having Ambush), or removed by Ambush Re-Deployment ("deploy it as if it had Ambush"),
-    /// from round two; in round one only those with Rapid Ambush ("may be deployed at the start of any round, including the first").</summary>
+    /// <summary>The set-aside units of the team that may deploy as Ambushers now: those holding Ambush (Surprise Attack counts as having Infiltrate, which counts as having Ambush), or removed by Ambush Re-Deployment in the
+    /// round before this one ("deploy it as if it had Ambush at the beginning of the next round", GfAmbush.RemovedToAmbushLastRound), from round two; in round one only those with Rapid Ambush ("may be deployed at the start of any round, including the first").</summary>
     public static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>
         TeamUnits.Of(state, teamId).Where(u => u.Conditions.Contains(SetAside) && TeamUnits.AllShelved(state, u)
-            && (Lookup.UnitHas(state, props, u.Id, Ambush) || GfAmbush.RemovedToAmbush(state, u.Id) || GfAmbush.Carries(state, u.Id, GfAmbush.SurpriseAttack))
+            && (Lookup.UnitHas(state, props, u.Id, Ambush) || GfAmbush.RemovedToAmbushLastRound(state, u.Id) || GfAmbush.Carries(state, u.Id, GfAmbush.SurpriseAttack))
             && (state.Projection.Scheduler.Round >= 2 || GfAmbush.Carries(state, u.Id, GfAmbush.RapidAmbush))).Select(u => u.Id).ToList();
 
     /// <summary>

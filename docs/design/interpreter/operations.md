@@ -88,8 +88,8 @@ a *current* column means the event spine has been broken.
 - **`GameRules` is unpinned**, so an ended game restarted after a deploy may replay differently.
   Accepted in identity and enumerations: the alternative makes every deploy a wall old games
   cannot cross.
-- **Capacity is never enforced.** `Transport(X)`'s parameter is carried by the catalog entry and
-  read by nothing. Game flow rules it explicitly.
+- **Transport capacity is p.15's spaces.** `Transport(X)` is read when a unit deploys inside and when a move
+  offers a Transport to embark in (`GrimdarkFutureRules.Fits`).
 - **Unit coherency is judged on a move answer:** a move answer that takes a unit in coherency out of it is `move_coherency` (`GfMoves.CoherencyBreach`, p.7 with p.11's 3" at different elevation); a hand move or a placement is not judged for it. The 1-inch separation, base overlap and a path through a model are
   judged by `GfMoves.ContactBreach` and `OverlapBreach` under the enforcement setting; `MoveRegion.Separation` and
   `PassesModels` carry the Ask's terms (Separation 1 except the Charge move, close-in, consolidation and an Aircraft's

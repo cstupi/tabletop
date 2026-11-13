@@ -36,10 +36,17 @@ public static partial class GfAttack
             if (kind == AttackKind.Shooting)
                 foreach (var (shooter, target, point) in Aims(ctx.State, live, ix.Attacker.UnitId, ix.Defender.UnitId, eligible, ctx.Frame.Context.WeaponIds))
                     values[$"aim_{shooter}_{target}"] = point;
+            if (values["attacks"] > 0) foreach (var w in LimitedUsed(ctx.State, eligible, ctx.Frame.Context.WeaponIds)) values[LimitedKey + w.ToString("N")] = 1;
             return values["attacks"] == 0 ? new Finish([.. ctx.Consume(live), .. Closing(ctx)], values) : new Complete(ctx.Consume(live), values);
         }
 
+        /// <summary>p.14 Limited "may only be used once per game": a Limited weapon of the group is used when its model is eligible and the group attacks.</summary>
+        static IEnumerable<Guid> LimitedUsed(Rules.GameState state, IReadOnlyList<Guid> eligible, IReadOnlyList<Guid> weapons) =>
+            eligible.SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => weapons.Contains(w.Id) && w.Properties.Any(p => p.Name == "Limited")).Select(w => w.Id);
     }
+
+    /// <summary>determine-attacks' `limited_&lt;weapon&gt;` value: that Limited weapon attacked in this attack-sequence (FiredLimited).</summary>
+    internal const string LimitedKey = "limited_";
 
     /// <summary>
     /// A number the pushing step settled for this child before it pushed anything, keyed by the child's ordinal among that step's
@@ -62,7 +69,7 @@ public static partial class GfAttack
     /// before this group's hit roll (p.8), and after determine-attacks, so a group with nothing in range never asks. One pick per
     /// group and not per shot: GfGroups gives a takedown weapon type one group per model, so the group is one model's dice
     /// at one Quality value and roll-to-hit pools them into one roll. deal-wounds reads the answer
-    /// back through TakedownModel and assigns to that model without opening an allocation.
+    /// back through TakedownModel and assigns to that model without opening an allocation; a pass ("may pick") leaves the group an ordinary one.
     /// </summary>
     sealed class PickTargetModelStep : IStep
     {
@@ -75,8 +82,9 @@ public static partial class GfAttack
             var models = Lookup.AliveModels(ctx.State, target);
             if (models.Count < 2) return new Complete([]);   // one model to choose from: the ordinary allocation reaches it anyway
             var reachable = Pickable(ctx, weapons, target, models);
+            // "This model may pick any model in the target unit": a pass picks none, and the weapon attacks the unit as any other weapon does.
             return new OpenAsks([ctx.Ask("takedown_target", "Pick the model this takedown weapon targets", ctx.ActorTeam!.Value,
-                new PieceSelection(reachable.Count > 0 ? reachable : models, 1, 1))]);
+                new PieceSelection(reachable.Count > 0 ? reachable : models, 1, 1), allowPass: true)]);
         }
 
         /// <summary>

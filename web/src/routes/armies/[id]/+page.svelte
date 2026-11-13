@@ -9,7 +9,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import MeshPicker from '$lib/components/MeshPicker.svelte';
   import Thumb from '$lib/components/Thumb.svelte';
-  import { meshLine, slotGroups, statBadges, systemName } from '$lib/armies/cards';
+  import { meshLine, shownUnits, slotGroups, statBadges, systemName } from '$lib/armies/cards';
   import { importErrorMessage, reimport } from '$lib/armies/import';
   import { rename, slotBase, slotHeight, slotSummary } from '$lib/armies/patches';
   import { buildIndex } from '$lib/meshpicker/search';
@@ -32,7 +32,9 @@
   async function picked(scope: Scope, assetId: Guid | null) { await apply(scopePatch(scope, assetId)); void loadUses(); }
   const fail = (e: unknown) => { error = errorMessage(e); };
   const nameError = $derived(army ? nameProblem(name, 'Army name') : null);
-  const slots = $derived(army ? army.units.flatMap((u) => u.models) : []);
+  // What the page draws and counts: the army without its reserve copies.
+  const shown = $derived(army ? { ...army, units: shownUnits(army) } : null);
+  const slots = $derived(shown ? shown.units.flatMap((u) => u.models) : []);
   const withMesh = $derived(slots.filter((m) => m.assetId).length);
   const byId = $derived(new Map(assets.map((a) => [a.id, a])));
   const forgeUrl = $derived(army ? (army.source.startsWith('http') ? army.source : `https://army-forge.onepagerules.com/share?id=${army.source}`) : '');
@@ -117,14 +119,14 @@
     </div>
     {#if nameError && editing}<p><small>{nameError}</small></p>{/if}
     <div class="facts-row">
-      <p class="facts">{plural(army.units.length, 'unit')} · {plural(slots.length, 'model')} · {meshLine(withMesh, slots.length)}</p>
+      <p class="facts">{plural(shown!.units.length, 'unit')} · {plural(slots.length, 'model')} · {meshLine(withMesh, slots.length)}</p>
       <span class="status saved" role="status">{status}</span>
     </div>
   </header>
   {#if assetsLoaded && assets.length === 0}
     <p class="quiet-band"><Icon name="mesh" />No miniatures in the <a href="/library">Library</a></p>
   {/if}
-  {#each army.units as unit (unit.id)}
+  {#each shown!.units as unit (unit.id)}
     <section class="panel unit" aria-labelledby="unit-{unit.id}">
       <div class="unit-head">
         <h2 id="unit-{unit.id}" title={props(unit.properties) || undefined}>{unit.name}{#if unit.models.length > 1}<span class="count num">×{unit.models.length}</span>{/if}</h2>
@@ -140,7 +142,7 @@
     </section>
   {/each}
   {#if target}
-    <MeshPicker open={!!target} {army} unit={target.unit} slots={target.slots} row={target.row} label={target.label} {index} {folders} {uses}
+    <MeshPicker open={!!target} army={shown!} unit={target.unit} slots={target.slots} row={target.row} label={target.label} {index} {folders} {uses}
       accountId={session.account?.id ?? null} onpick={picked} onclose={() => (target = null)} />
   {/if}
 {:else if !loadFailed}

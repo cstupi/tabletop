@@ -136,16 +136,18 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   round`, set on arrival and cleared as a round starts. Re-Deployment's units are picked at the Scouts phase's deploy
   Ask beside the Scouts, up to two per side, each removed to the shelf and placed again within the zone (p.6, not a
   Scout's 12"). Ambush Re-Deployment is offered in the activation-end window of a unit all of whose models hold it,
-  once a game; the unit goes to the shelf set aside and is one of the next round's Ambushers. Fanatic and Vanguard are
+  once a game; the unit goes to the shelf set aside and is one of the next round's Ambushers, at that round only. Fanatic and Vanguard are
   `place 9` rows at a point, `after-deploy`, whose window opens when a deployment turn's unit is fully placed (a Scout's
   too; an Ambusher's arrival is a round boundary, not a deployment turn, and opens none). Surprise Attack is a pick
-  entry offered only in the unit's first activation and once a game for the unit: it rolls X dice and its one target
+  entry offered only in the unit's first activation (an idle one counts) and once a game for the unit: it rolls X dice and its one target
   takes one hit per 2+ (`rule-hits`, blocked under AP(1)). Takedown Shot and Takedown Strike are each an attack with a
   profile no weapon carries: the import (`ArmyBookAdditions`) gives the carrying model a weapon named after the rule, Attacks 1,
   AP(2), Deadly(3), Reliable (p.14's Quality 2+), Takedown and Limited (p.14's once per game). The Shot's range is the model's
   longest gun, and a model with no gun gets none; it fires as one more group of the model's shooting, which may be left
-  unassigned (*"may"*). The Strike strikes with the model's other melee weapons the first time it attacks in melee; a fired
-  Limited weapon is left out of later melee as it is out of shooting. The engine lists the rule when its weapon attacks.
+  unassigned (*"may"*), and only at a unit the model's other weapons are declared at (*"against the target"*; a model firing
+  nothing else may aim it at any target). The Strike is asked before it strikes at the model's turn to strike (*"may"*,
+  `takedown_strike`); declined, it stays for a later melee. A Limited weapon is used when it attacks (its model eligible and
+  the group attacking) and is then left out of later melee as it is out of shooting; one whose model could not reach stays. The engine lists the rule when its weapon attacks.
   An army imported before the import added these weapons holds the rule and no weapon: the rule does nothing until the army
   is imported again.
 - **Batch 4.** Bounding and Dash are `place` rows of *"D3+1"* (`amountDice d3+1`); Dash's *"at the end of this unit's
@@ -158,7 +160,7 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   offered: deployment opens no point. Re-Position Artillery is a pick entry (a friendly model within 6" with Artillery,
   used before attacking as every pick is) whose `move 9` row moves the picked model's unit under its own move rules.
   Coordinate runs after the activation's morale tests: the team may activate another of its units within 12" that has
-  not activated and is not Shaken (its activation is idle, p.10); that activation is followed by its own end-of-
+  not activated, a Shaken one included (its activation is idle, p.10, and ends its Shaken); that activation is followed by its own end-of-
   activation window and morale tests, and offers no Coordinate. Delayed Action is offered as the activation option
   `Delay` while an opponent has more units on the table left to activate, once a round; the turn ends and the unit stays
   unactivated. Inquisitorial Agent and Martial Prowess offer a unit that has activated this round its actions again, once
@@ -168,8 +170,9 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   player picks; a unit that shoots takes its shot without being asked; its only target is the closest valid one, and
   the shooting or charging attacks of the models holding it get +1 to hit that activation.
 - **Batch 5.** *"The attacking unit takes X hits"* and *"the attacker takes X hits per wound taken"* are hits with no roll to
-  hit (`rule-hits`), blocked as melee hits, dealt by the wounded model's unit; only wounds from a weapon or Impact attack in a
-  melee set them off, so they set off nothing in turn. Deathstrike and Self-Destruct count a model killed by those wounds;
+  hit (`rule-hits`), blocked as melee hits, dealt by the wounded model's unit; wounds taken in melee set them off: from a weapon
+  or Impact attack, and from the dice a unit rolls at its turn to strike (Ravage, Regenerative Strength), each on that striking
+  unit; the hits these rules deal set off nothing in turn. Deathstrike and Self-Destruct count a model killed by those wounds;
   Retaliate counts each wound a carrier took. Self-Destruct's survivors are removed after the Unwieldy strike, *"after both
   sides have finished attacking"*, then each side's hits are dealt. Ravage rolls at its unit's turn to attack: the
   charger's before its strikes, the defender's after it struck back (or struck first with Counter); each 6 is a wound with
@@ -185,21 +188,21 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   rows act only through those grants. *"For every two markers"* is two marker rows the markers cycle through, the first
   of each pair never acting. Steadfast, Battleborn and Honor Code roll at the round boundary, before the Ambushers. The
   Frenzies and Vengeance read *"fully destroys an enemy unit"* as an attack's wounds leaving the unit with no model in
-  play (a unit Routed by a morale test is not counted); Vengeance places one marker per model that carried it at the start
+  play, or the unit Routing after the melee (p.10: it *"counts as destroyed"*), by the unit it fought; Vengeance places one marker per model that carried it at the start
   of the game, for its own side. The Growths place their marker as the round starts. Spotters and Tags are pick entries
   (used before attacking); *"friendly units may remove markers … before rolling"* is asked of the attacking team before
   the hit roll (`remove_tokens`, how many), once per target per shooting or melee strike, and X is the count removed. A marker its holder's own side placed (Fortified Growth's *"enemies attacking this unit get AP(-1)"*)
   reaches every opponent. Regenerative Strength's markers are the wounds its model ignored, and its *"+X attacks"* go to
   the model's first melee weapon.
-- **Batch 7.** Caster Group's caster is the group's first model in play (the pick made for the player), Caster(X) with X its
-  models in play; it gets X tokens at the round start in place of what it held, and a killed caster's tokens pass to the
-  next. Spell Accumulator's tokens pay a friendly caster's spell value after the caster's own, and count in its spend for
+- **Batch 7.** Caster Group's caster is the group model the owning team picks (`caster_group`) at the first round start it
+  holds no picked model in play, Caster(X) with X its models in play; until a pick it is the first model by slot; it gets X
+  tokens at the round start in place of what it held, and when it is killed the team picks the next, which gets its tokens. Spell Accumulator's tokens pay a friendly caster's spell value after the caster's own, and count in its spend for
   the roll, from a model within 12" of the caster in another unit that is not Shaken. Spell Conduit adds a `cast_from`
   choice after the spell is picked; a cast from a conduit measures its targets from the conduit and rolls +1. Extended
   Buff Range adds to a Hero's Buff picks (range alone, unit grain) the friendly units holding it within 24" of the Hero's
   unit, when that unit holds it too. Reanimation rolls as its activation starts, one die per killed model and per wound
-  its models carry; each 5+ restores a killed model first (placed by the engine within 1" of a model in play, on no base),
-  then a wound. Any X or count from an imported army is bounded where it becomes grants or dice: 20 markers of one rule
+  its models carry; the owning team is asked once whether to restore (`reanimation`); on Restore each 5+ restores a killed
+  model first (placed by the engine within 1" of a model in play, on no base), then a wound. Any X or count from an imported army is bounded where it becomes grants or dice: 20 markers of one rule
   on a unit, 60 hits or dice for one use. Spawn, Split and Reinforcement each place a unit the list does not
   hold (*"a new unit of X"*, *"a new copy of it"*). Army Forge gives X as the rule's rating, *"Bot Swarms [3]"*: a unit
   of the carrying entry's book and its size. The generator writes every unit a book's Spawn or Split names, in the TTS
@@ -211,7 +214,9 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   p.10's *"active special rules"*); `place-reserve` asks for the reserve's models fully within 6" of the model, judged as
   a disembark is (`move_exit`), and may be passed, which spends nothing. Split: `assign` leaves the unit's last model on
   the table while its reserve waits; deal-wounds' `split` step asks for the reserve's models fully within 6" of it, then
-  removes it; only wounds destroy a unit fully (a Routed unit is removed, not destroyed). Reinforcement: at each round
+  removes it; a unit that Routs after a melee is destroyed too (p.10 *"counts as destroyed"*): its other models leave, the
+  reserve is placed within 6" of the last, which then goes, and a Routed Reinforcement unit's copy is offered as a destroyed
+  one's is. Reinforcement: at each round
   boundary from round two, after the Ambushers, teams alternate as Ambushers do, each picking (`deploy_reinforcement`)
   the copy of a unit that is Shaken on the table or destroyed, or passing; a Shaken original is removed, and the copy is
   placed by hand, every base fully within 12" of one table edge (`reinforcement_edge`); it neither seizes nor contests

@@ -24,7 +24,9 @@ public static partial class SuiteCatalog
             Exact(entry, quote, (run, _) =>
             {
                 var weapons = run.Final.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => w.Name == entry).Select(w => w.Id).ToHashSet();
-                var frames = LogQueries.Of(run).FramesOf(GfNames.AttackSequence).Where(f => f.Context.WeaponIds.Any(weapons.Contains)).ToList();
+                // p.14 Limited: a weapon is used when it attacks, so an attack-sequence its model could not reach (0 attacks) is no use of it.
+                var frames = LogQueries.Of(run).FramesOf(GfNames.AttackSequence).Where(f => f.Context.WeaponIds.Any(weapons.Contains)
+                    && f.Steps.Any(s => s.Step.Step == "determine-attacks" && s.Value("attacks") > 0)).ToList();
                 return frames.GroupBy(f => f.Context.WeaponIds.First(weapons.Contains)).Select(g => g.Count() > 1 ? $"attacked {g.Count()} times" : null)
                     .Concat(frames.SelectMany(f => f.Steps).SelectMany(s => s.Rolls("hit")).Select(r => r.Roll.Threshold == 2 ? null : $"hit at {r.Roll.Threshold}+"))
                     .ToList();
@@ -64,14 +66,22 @@ public static partial class SuiteCatalog
 
         static Action<ScriptBuilder> Picks(string question, Func<Ask, Projection, AskAnswer?> pick) => s => s.Match(question, pick);
 
+        /// <summary>Takedown Shot's "extra attacks against the target": every group the model fires is declared at one unit the Takedown Shot group may take.</summary>
+        internal static void TakedownShotTogether(ScriptBuilder s) => s.Match("declare_targets", (ask, _) =>
+            ask.Legal is Assignment a && a.Items.Any(i => i.Id == "Takedown Shot") && a.TargetsOf("Takedown Shot") is [var target, ..]
+                ? new Assigned(a.Items.Where(i => a.TargetsOf(i.Id).Contains(target)).ToDictionary(i => i.Id, _ => target)) : null);
+
+        /// <summary>Takedown Strike's "it may make X attacks": the suite's player uses it when asked.</summary>
+        internal static void TakedownStrikeUsed(ScriptBuilder s) => s.Match("takedown_strike", (ask, _) => AskPicks.Labeled(ask, "Yes"));
+
         public static IReadOnlyList<TestGame> Batch9 =>
         [
             Game(Inquisition, "human-inquisition-takedown-shot", Play.Shoots, ["Takedown Shot"], [], [],
                 [OnceAtTwoPlus("Takedown Shot", "\"Once per game, when this model shoots, it may make one extra attack against the target at Quality 2+\"")],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Shot")], Weapons: [Gun(1, [], 60), TakedownWeapon("Takedown Shot", 60), Blade(1)])], units: 1),
+                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Shot")], Weapons: [Gun(1, [], 60), TakedownWeapon("Takedown Shot", 60), Blade(1)])], units: 1, more: TakedownShotTogether),
             Game(Ratmen, "ratmen-clans-takedown-strike", Play.Charges, ["Takedown Strike"], [], [],
                 [OnceAtTwoPlus("Takedown Strike", "\"Once per game, when it's this model's turn to attack in melee, it may make one attack at Quality 2+\"")],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Strike")], Weapons: [Blade(1), TakedownWeapon("Takedown Strike", null)])], units: 1),
+                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Strike")], Weapons: [Blade(1), TakedownWeapon("Takedown Strike", null)])], units: 1, more: TakedownStrikeUsed),
             Game(Robots, "robot-legions-spawn", Play.Shoots, ["Spawn"], [], [],
                 [Places("Spawn", "\"Once per game, when this model is activated, you may place a new unit of X fully within 6\" of it\"")],
                 carriers: [new ScenarioModel(1, 1, [R(1, "Spawn")])], units: 2, sizes: new Dictionary<int, int> { [1] = 1, [2] = 3 }, reserves: [new ScenarioReserve(2, "Spawn", 1, 1)],

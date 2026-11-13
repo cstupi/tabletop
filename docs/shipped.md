@@ -2,6 +2,38 @@
 
 What each batch built, with the owner's rulings made along the way. `docs/handoff.md` holds the current state.
 
+## 2026-11-13, v0.1.42, clause tests, importer check, whole-list games
+
+Clause-by-clause tests written from the 3.6.0 rule texts (`tests/Tabletop.GameServer.Tests/Clauses*Tests.cs`) and the engine
+fixes they asked for, applied to 3.5.1 where its text says the same.
+
+Rulings:
+- No Retreat answers only "a Morale Test that causes it to be Shaken or Routed": an already-Shaken unit that does not rout rolls nothing.
+- Transport capacity (p.15's spaces) holds for embarking in play as for deploying inside.
+- Ravage and Regenerative Strength wounds are taken in melee: they set off Deathstrike, Retaliate and Self-Destruct.
+
+- **Activation.** Coordinate offers a Shaken friendly unit, which spends the activation idle and stops being Shaken; Surprise
+  Attack's "first time this unit is activated" counts an idle activation.
+- **Asked instead of forced.** Reanimation's restores (`reanimation`, one Ask per roll), Takedown's model pick may be passed
+  (`takedown_target`), Takedown Strike before it strikes (`takedown_strike`), Caster Group's caster at the first round start and
+  when it is killed (`caster_group`).
+- **Attacks.** After a Rush only the models Quick Shot is live for shoot; Takedown Shot fires only at the model's other weapons'
+  target; a Limited weapon is used only when its model attacked with it.
+- **Deployment.** A unit inside an Ambushing Transport neither seizes nor contests in the round it arrives, disembarked or not;
+  Ambush Re-Deployment's unit is an Ambusher at the next round only; a Transport without room is not offered to embark in.
+- **Destroyed.** A Rout counts as destroyed (p.10, both editions): Frenzy and Vengeance tokens, Split's new unit before the last
+  model goes, and Reinforcement's copy next round.
+- **Markers.** Piercing Frenzy and Piercing Growth tokens stay for the game (an AP grant derived from a marker was spent at the
+  first attack's end).
+- **Reinforcement.** The copy is offered at the start of the round after its original was destroyed and at no later one; it is
+  snapshotted on its original's mesh, base and height (`Army.WithCopiesBodied`); the web's army page and the army counts leave copies out.
+- **Import.** Every unit and upgrade option of every book is imported and held to loadout invariants (`ArmyBookLoadoutInvariantTests`);
+  the importer replays the export's selected upgrades over the book loadout (`ArmyForgeModels`), so a replacement's gains go to the
+  model that gave up its targets; 2x weapons give two copies; combined entries keep their own loadouts; Takedown Shot and Strike make X attacks.
+- **Whole-list games.** Four Army Forge lists (Goblin Reclaimers, War Disciples, HDF Artillery Blob, Ratmen Clans) are lifecycle
+  shapes played to the end of round four against the stack (`sim/Lifecycle/Armies/3.6/lists/`).
+- **v0.1.41.** A mesh pick sets the row it was opened from; alike models are one row with **per model** under it.
+
 ## 2026-11-12, v0.1.40, army rules audit
 
 Every special rule of the 49 3.6 army books (412 names, 288 spells, 90 generated wrappers) read against its text, and three Army Forge

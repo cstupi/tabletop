@@ -3,8 +3,11 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Sim.Lifecycle;
 
-/// <summary>An account of the shape (an index into LifecycleRunner.Players) on a team ordinal, bringing an army of its own from a book (an index into LifecycleArmy.Books).</summary>
-public sealed record Seat(int Account, int Team, int Book = 0);
+/// <summary>
+/// An account of the shape (an index into LifecycleRunner.Players) on a team ordinal, bringing an army of its own: a whole list when List names
+/// one (LifecycleArmy.Lists), else the three-unit cut of a book (an index into LifecycleArmy.Books).
+/// </summary>
+public sealed record Seat(int Account, int Team, int Book = 0, string? List = null);
 
 /// <summary>
 /// One game the lifecycle suite plays from creation to deletion. Account 0 creates it. Seats are taken in order: a team no other account
@@ -19,6 +22,9 @@ public sealed record LifecycleShape(string Name, string Summary, Enforcement Enf
     /// <summary>The army edition the shape's rule set takes; its armies are imported stamped with it.</summary>
     public string Edition => RuleSets.EditionOf(Rules);
     public int Teams => Seats.Append(Late).OfType<Seat>().Select(s => s.Team).DefaultIfEmpty(2).Max();
+    /// <summary>A seat brings a whole list: the game is checked as a whole game (LifecycleGame.Whole.cs), and every seat sets aside before
+    /// deployment every unit the server's ModelFacts says it may (Scout, Ambush), as a player who uses those rules does.</summary>
+    public bool Whole => Seats.Append(Late).OfType<Seat>().Any(s => s.List is not null);
     public IReadOnlyList<int> Accounts => Seats.Append(Late).OfType<Seat>().Select(s => s.Account).Append(0).Distinct().Order().ToList();
 }
 
@@ -34,6 +40,12 @@ public static class LifecycleShapes
         new("ambusher", "two accounts; the creator's riders ambush after round one", Enforcement.Strict, [new(0, 1), new(1, 2)], Ambush: true),
         new("four-teams", "eight accounts, two a team on four teams, armies from four books; the creator places the second of each", Enforcement.Strict,
             [new(0, 1, 0), new(2, 2, 1), new(4, 3, 2), new(6, 4, 3), new(1, 1, 1), new(3, 2, 2), new(5, 3, 3), new(7, 4, 0)]),
+        new("goblins-vs-disciples", "two accounts, the whole Goblin Reclaimers and War Disciples lists", Enforcement.Strict,
+            [new(0, 1, List: "goblin-reclaimers"), new(1, 2, List: "war-disciples")]),
+        new("hdf-vs-ratmen", "two accounts, the whole HDF Artillery Blob and Ratmen Clans lists", Enforcement.Strict,
+            [new(0, 1, List: "hdf-artillery-blob"), new(1, 2, List: "ratmen-clans")]),
+        new("self-play-ratmen-hdf", "one account holds both teams, the whole Ratmen Clans and HDF Artillery Blob lists", Enforcement.Warn,
+            [new(0, 1, List: "ratmen-clans"), new(0, 2, List: "hdf-artillery-blob")]),
         new("leave-and-delete", "a lobby game: a player joins, takes a team and leaves; the creator deletes it", Enforcement.Strict, [new(0, 1), new(1, 2)], LobbyOnly: true),
     ];
 

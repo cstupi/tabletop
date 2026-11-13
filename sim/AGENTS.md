@@ -13,7 +13,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `SuiteReportFiles`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
 - `Serve/`: `ServeApp` (the runner's minimal API), `ServeArguments`, `SuiteRun`.
 - `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `ISocketRows` (`SocketRowSeeder`, its Postgres implementation), `ScenarioRows`, `RecorderClient`, `IWebSocketConnector` (`ClientWebSocketConnector` offers permessage-deflate as the Godot client does, `Connect` and `Reauth` uncompressed), `SocketFrames` (the client socket's read loop).
-- `Lifecycle/`: the lifecycle suite. `LifecycleShape` (`LifecycleShapes`), `LifecycleRunner` (`LifecycleEndpoints`, `LifecycleResult`), `LifecycleGame` (partials `.Lobby`, `.Play`, `.Leave`), `LifecycleScenario`, `ClientSocket`, `ManagementApi`, `LifecycleArmy`.
+- `Lifecycle/`: the lifecycle suite. `LifecycleShape` (`LifecycleShapes`), `LifecycleRunner` (`LifecycleEndpoints`, `LifecycleResult`), `LifecycleGame` (partials `.Lobby`, `.Play`, `.Leave`, `.Whole` with `WholeGame` and `WholeGameRecord`), `LifecycleScenario`, `ClientSocket`, `ManagementApi`, `LifecycleArmy`, `LifecyclePlayer`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
 - `Invariants/`: `Invariants` (the checks), `ProjectionComparer`.
 - `Recording/`: `Recording`, `RecordingJson` (`SchemaVersion`), `FrameProjector`, `LogLines`.
@@ -201,14 +201,26 @@ The compose `game` service runs `main`; a worktree's server change is looked at 
 
 - Spec `docs/superpowers/specs/2026-10-20-lifecycle-suite-design.md`. Every step goes through management's `/v1` (`ManagementApi`) or
   the game socket (`ClientSocket` outside play, `SocketDriver` in it); nothing is written to Postgres, so it needs no database connection.
-- Shapes (`LifecycleShapes.All`): `two-players`, `two-players-3.5`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`, `leave-and-delete`.
+- Shapes (`LifecycleShapes.All`): `two-players`, `two-players-3.5`, `self-play`, `team-game`, `late-joiner`, `ambusher`, `four-teams`,
+  `goblins-vs-disciples`, `hdf-vs-ratmen`, `self-play-ratmen-hdf`, `leave-and-delete`.
   Account 0 creates; `lifecycle-player-0..7` take seats, `lifecycle-spectator` joins every played game and is the driver's recorder. Never deleted.
 - Armies come from `POST /v1/dev/armies/import` (dev mode only) with the body `LifecycleArmy.List(book, ambush, edition)` builds. 3.6
   (the default): `Lifecycle/Armies/3.6/<uid>.json`, three units of each book at their default loadout, cut from the 3.6 Army Forge dump:
   book 0 Daemons of War (Blood Warriors, Blood Hounds, Blood Beast Riders), then Human Defense Force, Battle Brothers and Orc Marauders.
   3.5: book 0 is management's Army Forge fixture (embedded from `tests/Tabletop.Management.Tests/Fixtures/`), cut to three units; books
   1..3 are `Lifecycle/Armies/<uid>.json`. The `ambusher` shape adds Ambush to book 0's riders (`LifecycleArmy.AmbushUnit(edition)`). A
-  `Seat` names its book. Nothing calls Army Forge.
+  `Seat` names its book, or a whole list (`Seat.List`, `LifecycleArmy.Lists`: `Lifecycle/Armies/3.6/lists/<name>.json`, 1000-point Army
+  Forge export bodies imported as they stand, joined Heroes, combined units and upgrades included); `LifecycleArmy.For(seat, …)` gives the
+  body and the lobby asserts the import holds `LifecycleArmy.UnitsOf(body)` units besides reserve copies (entries that join no other). Nothing calls Army Forge.
+- A shape with a whole-list seat is `Whole`: after EndSetup every unit the creator socket's `ModelFacts.MaySetAside` names is set aside
+  (Scout, Ambush, an Ambush Aura), it is played by `LifecyclePlayer` (the uniform policy over each Ask's legal set, taking a charge or a shot
+  when offered and moving toward the nearest enemy model, a `MoveGoal`), `FreeForAllChecks.DeployedInZones` is skipped (a Scout deploys
+  outside the zone, a Vanguard moves out of it; the server judges both), and `WholeGame` asserts: every non-reserve unit came on by its own
+  deploy Ask (set aside: `deploy_scouts`, or `deploy_ambusher` from round two), four rounds and `game_ended`, at least one shooting attack, one
+  melee attack and one morale test, no event accepted with a warning, each Reinforcement copy offered (`deploy_reinforcement`) in the round
+  after its original was destroyed and no other, placed only by that Ask, and bodied on its original's slots in the board's snapshot. Its
+  `WholeGameRecord` (rounds, attacks, wounds as failed defense dice, casualties, units destroyed, copies and placed, morale tests, Asks
+  answered by question) is printed as the shape finishes. `TABLETOP_SIM_LIFECYCLE_SEED` sets the policy's and placement's seed (default 1).
 - `LifecycleShape.Rules` (default `Gf360`) is the game-rules id the game is created on and `Edition` the army edition it takes; the import
   body carries `edition`, and the lobby step asserts a `Gf360` game's set is the default. `two-players-3.5` is `two-players` on `Gf351`
   with the 3.5 lists, the one shape that keeps 3.5.1 covered.
@@ -223,6 +235,16 @@ The compose `game` service runs `main`; a worktree's server change is looked at 
   the seats, the recorder last), then `SocketDriver` and `RunLoop` with the default policy, round cap 5: the game ends by its rules.
 - Every step asserts the status (`GET /v1/games/{id}` and each participant's `?joined=true` row); a failure names its step. Each shape
   deletes its game and armies in `finally`; a run first sweeps lifecycle games and armies older than an hour.
+
+### Adding a real Army Forge list as a lifecycle shape
+
+1. Save the list's Army Forge export body (the JSON management's import reads; fetched by hand, never by a test) as
+   `sim/Lifecycle/Armies/3.6/lists/<name>.json`; the `lists/*.json` glob in `Tabletop.Sim.csproj` embeds it.
+2. Add `<name>` to `LifecycleArmy.Lists`, and an `InlineData` (entries, units that join no other) to
+   `LifecycleArmyTests.A_whole_list_is_the_army_forge_export_with_joined_entries_counted_once`.
+3. Add a shape seating it: `new Seat(account, team, List: "<name>")`, a name of at most 21 characters (the game name's 64). `Whole` follows.
+4. `dotnet run --project sim -- lifecycle --only <shape>` against the stack (`TABLETOP_SIM_MANAGEMENT=http://127.0.0.1:5173` on WSL), on
+   `TABLETOP_SIM_LIFECYCLE_SEED` 1..3. A refusal, stall or warning names the game, Ask and frames; that is the server's finding, not the script's.
 
 ## Commands
 
@@ -245,7 +267,7 @@ dotnet test tests/Tabletop.Sim.Tests                           # unit; --setting
   recordings), `--verbose`, `--list`, `--seed N`. Read `recordings/suite-latest.md` after a run; each failing game also prints its lines and replay command.
 
 - Lifecycle options: `--only A,B` (shape names), `--list`. Environment: `TABLETOP_SIM_MANAGEMENT` and `TABLETOP_SIM_WS` (defaults as
-  below); no database connection.
+  below), `TABLETOP_SIM_LIFECYCLE_SEED`; no database connection.
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
 - `--driver socket` needs Postgres, the game server and management running, both servers in dev mode (Development and `TABLETOP_DEV_MODE=1`; the game

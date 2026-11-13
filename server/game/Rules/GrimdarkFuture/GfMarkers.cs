@@ -47,32 +47,42 @@ public static class GfMarkers
             .SelectMany(u => Growths.Where(g => props.Entry(g) is { Played: true } && Lookup.UnitHas(state, props, u.Id, g)).SelectMany(g => Place(props.Entry(g)!, u, u.Id, 1, GrowthCap)))
             .ToList();
 
-    /// <summary>deal-wounds' step after the wounds: an attack that left its target with no model in play fully destroyed it. The attacker's Frenzies each
-    /// place a marker; the target's Vengeance places one marker per model that carried it at the beginning of the game on the attacker, for the target's side.</summary>
+    /// <summary>deal-wounds' step after the wounds: an attack that left its target with no model in play fully destroyed it (OnDestroyed).</summary>
     public sealed class DestroyedStep : IStep
     {
         public string Name => "destroyed";
         public StepOutcome Run(StepContext ctx)
         {
             if (ctx.Frame.Context.ActorUnitId is not { } attacker || ctx.Frame.Context.TargetUnitIds is not [var target, ..]) return new Complete([]);
-            if (!ctx.Frame.Values.Keys.Any(k => k.StartsWith("killed_", StringComparison.Ordinal)) || Lookup.AliveModels(ctx.State, target).Count > 0
-                || ctx.TeamOf(attacker) == ctx.TeamOf(target) || !ctx.Projection.Units.TryGetValue(attacker, out var by)) return new Complete([]);
-            var changes = new List<StateChange>();
-            foreach (var rule in Frenzies.Where(r => ctx.Properties.Entry(r) is { Played: true } && Lookup.UnitHas(ctx.State, ctx.Properties, attacker, r)))
-            {
-                var placed = Place(ctx.Properties.Entry(rule)!, by, attacker, 1, FrenzyCap);
-                if (placed.Count > 0) ctx.Applied.Add(rule);
-                changes.AddRange(placed);
-            }
-            var avengers = ctx.Projection.Units[target].Definition.Models.Count(m => m.Properties.Any(p => p.Name == Vengeance))
-                + (ctx.Projection.Units[target].Definition.Properties.Any(p => p.Name == Vengeance) ? ctx.Projection.Units[target].Definition.Models.Count : 0);
-            if (avengers > 0 && ctx.Properties.Entry(Vengeance) is { Played: true } vengeance)
-            {
-                changes.AddRange(Place(vengeance, by, target, avengers));
-                ctx.Applied.Add(Vengeance);
-            }
-            return new Complete(changes);
+            if (!ctx.Frame.Values.Keys.Any(k => k.StartsWith("killed_", StringComparison.Ordinal)) || Lookup.AliveModels(ctx.State, target).Count > 0) return new Complete([]);
+            return new Complete(OnDestroyed(ctx, attacker, target));
         }
+    }
+
+    /// <summary>
+    /// The target was fully destroyed by the attacker: by an attack's wounds (DestroyedStep), or by Routing after a melee (p.10: "the unit Routs and counts
+    /// as destroyed"; 3.5.1 p.10: "If one of the two units was destroyed (by removing all models as casualties, or by routing …)", GfMorale's consequence).
+    /// The attacker's Frenzies each place a marker ("when it fully destroys an enemy unit"); the target's Vengeance places one marker per model that carried
+    /// it at the beginning of the game on the attacker ("on the unit that destroyed it"), for the target's side. Nothing between units of one team.
+    /// </summary>
+    public static IReadOnlyList<StateChange> OnDestroyed(StepContext ctx, Guid attacker, Guid target)
+    {
+        if (ctx.TeamOf(attacker) == ctx.TeamOf(target) || !ctx.Projection.Units.TryGetValue(attacker, out var by)) return [];
+        var changes = new List<StateChange>();
+        foreach (var rule in Frenzies.Where(r => ctx.Properties.Entry(r) is { Played: true } && Lookup.UnitHas(ctx.State, ctx.Properties, attacker, r)))
+        {
+            var placed = Place(ctx.Properties.Entry(rule)!, by, attacker, 1, FrenzyCap);
+            if (placed.Count > 0) ctx.Applied.Add(rule);
+            changes.AddRange(placed);
+        }
+        var avengers = ctx.Projection.Units[target].Definition.Models.Count(m => m.Properties.Any(p => p.Name == Vengeance))
+            + (ctx.Projection.Units[target].Definition.Properties.Any(p => p.Name == Vengeance) ? ctx.Projection.Units[target].Definition.Models.Count : 0);
+        if (avengers > 0 && ctx.Properties.Entry(Vengeance) is { Played: true } vengeance)
+        {
+            changes.AddRange(Place(vengeance, by, target, avengers));
+            ctx.Applied.Add(Vengeance);
+        }
+        return changes;
     }
 
     /// <summary>`rally`: the round-start roll of a Shaken unit holding Steadfast, Battleborn or Honor Code; a 4+ ends its Shaken.</summary>

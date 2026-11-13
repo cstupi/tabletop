@@ -41,9 +41,10 @@ public static class GfPick
     /// first activation.</summary>
     static bool OneTarget(CatalogEntry e) => e.Name == GfAmbush.SurpriseAttack;
 
-    /// <summary>The unit's root action sequences in the game: one while its first activation runs.</summary>
+    /// <summary>The unit's root action sequences in the game: one while its first activation runs. An activation spent idle (p.10, Shaken) is one:
+    /// Surprise Attack's "The first time this unit is activated" is then past.</summary>
     static int Activations(GameState state, Guid unit) =>
-        EventApplier.EffectiveLog(state.Applier.Log).Count(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s
+        EventApplier.EffectiveLog(state.Applier.Log).Count(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq or GfNames.IdleSeq } s
             && s.Context.ActorUnitId == unit);
 
     /// <summary>

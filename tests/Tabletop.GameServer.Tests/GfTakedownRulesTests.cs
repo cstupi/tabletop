@@ -25,7 +25,9 @@ public class GfTakedownRulesTests
         var strike = a.Models[0].Weapons[1].Id;
         Assert.Equal([a.Models[0].Weapons[0].Id, strike], GfMelee.MeleeWeapons(sim.State, a.Id));
         var fired = Guid.CreateVersion7();
-        sim.Append([new SequenceStarted(fired, GfNames.AttackSequence, new SequenceContext(a.Id, [], [strike], GfNames.Charge)), new SequenceFinished(fired)]);
+        sim.Append([new SequenceStarted(fired, GfNames.AttackSequence, new SequenceContext(a.Id, [], [strike], GfNames.Charge)),
+            new StepCompleted(fired, "determine-attacks", null, [], []) { Values = new Dictionary<string, int> { ["attacks"] = 1, [$"limited_{strike:N}"] = 1 } },   // it attacked
+            new SequenceFinished(fired)]);
         Assert.Equal([a.Models[0].Weapons[0].Id], GfMelee.MeleeWeapons(sim.State, a.Id));
     }
 
@@ -36,6 +38,7 @@ public class GfTakedownRulesTests
         var b = Unit("B", "4+", "4+", [], 2, []);
         var sim = Sim.Gf(State([a], [b], x1: -0.5, x2: 0.5), 4);
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], a.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Charge));
+        sim.Answer(Samples.Team1, new Chosen("yes"));                                                    // "it may make X attacks"
         Assert.Contains("Takedown Strike", Applied(sim, "charger-attacks"));
     }
 

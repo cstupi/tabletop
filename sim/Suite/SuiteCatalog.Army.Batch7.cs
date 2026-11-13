@@ -37,14 +37,19 @@ public static partial class SuiteCatalog
                 let sets = s.Step.Changes.OfType<SpellTokensSet>().ToList()
                 select sets.Count >= 2 && sets[0].Tokens == 0 ? null : "an accumulator paid while the caster kept tokens");
 
-        /// <summary>Reanimation: each roll is at 5+, and its successes restore no more than that many models and wounds.</summary>
+        /// <summary>Reanimation: each roll is at 5+; a roll with a 5+ that can restore is followed by one `reanimation` Ask in its step, and the step
+        /// run after the Ask (the script answers Restore) restores no more models than 5+ results, and at least one model or wound.</summary>
         static GameCheck Reanimates(string quote) =>
             Exact("Reanimation", quote, (_, log) =>
                 from s in log.Steps.Where(s => s.Rolls("Reanimation").Any())
                 let roll = s.Rolls("Reanimation").Single()
-                let restored = s.Step.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Count(m => m.From is OnShelf && m.To is OnTable)
-                let healed = s.Step.Changes.OfType<WoundsSet>().Count()
-                select roll.Threshold != 5 ? $"threshold {roll.Threshold}" : restored > roll.Dice.Count(d => d.Raw >= 5) ? $"{restored} restored for {Faces(roll.Dice)}" : null);
+                let ask = log.Asks.FirstOrDefault(a => a.Ask.Question == "reanimation" && a.Frame?.FrameId == s.Frame.FrameId && a.Steps > s.Index)
+                let after = ask is null ? null : log.Steps.FirstOrDefault(x => x.Frame.FrameId == s.Frame.FrameId && x.Index >= ask.Steps)
+                let restored = after?.Step.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Count(m => m.From is OnShelf && m.To is OnTable) ?? 0
+                let healed = after?.Step.Changes.OfType<WoundsSet>().Count() ?? 0
+                select roll.Threshold != 5 ? $"threshold {roll.Threshold}"
+                    : restored > roll.Dice.Count(d => d.Raw >= 5) ? $"{restored} restored for {Faces(roll.Dice)}"
+                    : ask is not null && restored + healed == 0 ? $"Restore answered, nothing restored for {Faces(roll.Dice)}" : null);
 
         public static IReadOnlyList<TestGame> Batch7 =>
         [
@@ -61,7 +66,8 @@ public static partial class SuiteCatalog
             // Played under Rebel Guerrillas, whose Courage Buff is the pick it extends (Human Defense Force prints the rule).
             ExtendedBuffRange(Guerrillas, "rebel-guerrillas-extended-buff-range", "Courage Buff"),
             Game(Robots, "robot-legions-reanimation", Play.Shot, ["Reanimation"], [R(1, "Reanimation"), R(1, "Tough", 3), R(2, "Reanimation"), R(2, "Tough", 3)], [],
-                [Reanimates("\"roll as many dice as the max. number of models/wounds it could restore. For each 5+ you may restore one model/wound\"")], enemyAttacks: 4, units: 2),
+                [Reanimates("\"roll as many dice as the max. number of models/wounds it could restore. For each 5+ you may restore one model/wound\"")], enemyAttacks: 4, units: 2,
+                more: s => s.Match("reanimation", (ask, _) => AskPicks.Labeled(ask, "Restore"))),
         ];
 
         /// <summary>Extended Buff Range on a Hero that carries the book's pick Buff (buff), which it extends.</summary>
