@@ -112,7 +112,7 @@ one draws the `ready` mark:
 - **every ‹name› in ‹unit›**: the unit's slots named in N.
 - **every ‹name› in the army**: the army's slots named in N.
 
-Default: the shared row and a per-model row under it → S; any other row → every ‹name› in ‹unit›. The line under the choice names the
+Default: S, for every row: a pick sets the row it was opened from (one model, or the shared row's every model) and nothing else; a wider scope is chosen. The line under the choice names the
 model count, the units touched and how many of them now hold a mesh other than the highlighted tile (`replaces 2 meshes`). A pick is one click (or Enter) with
 the scope chosen; the patch is one `PATCH /v1/armies/{id}` with a `SlotPatch` per slot (`clearAsset` for **No mesh**).
 

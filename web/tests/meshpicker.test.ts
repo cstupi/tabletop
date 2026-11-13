@@ -123,7 +123,7 @@ describe('scopes', () => {
     expect(s.map((x) => [x.kind, x.label, x.slotIds])).toEqual([
       ['row', 'this model', ['b1']], ['type', 'every Boy in Orc Boyz', ['b1', 'b2', 'b3']], ['army', 'every Boy in the army', ['b1', 'b2', 'b3', 'm0', 'm1']],
     ]);
-    expect(defaultScope(s, 'single')).toBe('type');
+    expect(defaultScope(s, 'single')).toBe('row');   // one model's row sets that model alone
     expect(defaultScope(s, 'sub')).toBe('row');
   });
   it('leaves out a scope with the same models as a narrower one', () => {

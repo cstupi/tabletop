@@ -21,7 +21,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   open folder per account: `tabletop.meshRecent.<accountId>`, `tabletop.meshFolder.<accountId>`).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `OfferDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `MeshPicker` (the army page's mesh dialog), `FolderTree`, `LibraryTabs`, `Icon`
   (paths in `icons.ts`), `ThemeSwitch` (the two theme swatch tiles), `Menu` (a thing's ▸ menu), `Thumb` (an asset's thumbnail, else its icon).
-- `src/lib/armies/cards.ts` `systemName`, `meshPips`, `meshLine`, `slotRows`, `statBadges`, `slotMarks` (the weapons and rules a model carries that the rest of its unit does not, drawn under its slot name: the banner, the special weapon): the army cards and the army page's unit cards.
+- `src/lib/armies/cards.ts` `systemName`, `meshPips`, `meshLine`, `slotRows`, `statBadges`, `slotGroups` (a unit's rows: models alike in name, marks, mesh, base and height are one row, `Infantry Squad ×12`, with **per model** under it; a model unlike the rest is its own row), `slotMarks` (the weapons and rules a model carries that the rest of its unit does not, drawn under its slot name: the banner, the special weapon): the army cards and the army page's unit cards.
 - `src/lib/thumbnail/` `frame.ts` (`thumbnailView`, `THUMBNAIL_SIZE`), `render.ts` (`renderThumbnail`, `sendThumbnail`: three.js
   offscreen, WebP or PNG, `PUT /v1/assets/{id}/thumbnail`).
 - `src/lib/theme/theme.ts` `THEMES`, `resolveTheme`, `loadTheme`, `saveTheme`, `applyTheme` (`tabletop.theme` in `localStorage`).
@@ -60,7 +60,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - Army page: each slot row's mesh button opens the one `MeshPicker` (spec `2026-11-07-mesh-picker-design.md`). The page loads every
   miniature once (keyset pages of 200), `buildIndex`es it once and fetches `GET /v1/armies/meshes` for the suggestions; search,
   chips and folders filter in the browser, and the grid draws only the rows in view. A pick is one `PATCH` with a `SlotPatch` per
-  slot of the chosen scope. Slot names carry the import's number (`Orc Boyz 3`); `modelName` drops it to group a unit's models.
+  slot of the chosen scope, which starts as the row the picker was opened from (one model, or a group row's models); a wider scope is chosen. Slot names carry the import's number (`Orc Boyz 3`); `modelName` drops it to group a unit's models.
 - Upload: `classifyFiles` sorts the drop into STLs, one GLB or one image. `UploadDialog` runs `convertInWorker` (a module Web Worker over `convert`).
 - `convert` order: parse, merge, weld, recentre on the footprint, decimate to a triangle budget, creased normals, export GLB, then analysis (bounds, supports, `Proposal`, terrain `Volume`).
 - `guess.ts` proposes millimetres (`scale = mmToInches(1)`) and an up axis: `y` when the model is tallest along Y, else `z`. Y-up gets `pitch: 90`.
