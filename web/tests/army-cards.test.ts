@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelSlot, Unit } from '$lib/api/types';
-import { meshLine, meshPips, slotGroups, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
+import { meshLine, meshPips, shownUnits, slotGroups, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
 
 const slot = (over: Partial<ModelSlot> = {}): ModelSlot => ({
   id: crypto.randomUUID(), ordinal: 0, name: 'Trooper', stats: {}, properties: [], base: { shape: 'circle', a: 1.26, b: 1.26 }, height: 1.9, weapons: [], ...over,
@@ -78,5 +78,12 @@ describe('army cards', () => {
     expect(slotGroups(meshed).map((g) => [g.label, g.slots.length])).toEqual([['Trooper ×2', 2], ['Trooper 2', 1]]);
     const same = unit([rifle(1), rifle(2)]);
     expect(slotGroups(same).map((g) => [g.label, g.marks])).toEqual([['Trooper ×2', []]]);
+  });
+  it('leaves a reserve copy of a unit off the page and keeps any other reserve unit', () => {
+    const of = unit([slot(), slot()]);
+    const copy = { ...unit([slot(), slot()]), reserve: { property: 'Reinforcement', of: of.id } };
+    const spawn = { ...unit([slot()]), name: 'Spawned Thing', reserve: { property: 'Spawn', of: of.id } };
+    const army = { id: 'a', name: 'A', gameSystem: 'grimdark-future', edition: '3.6', source: 'x', units: [of, copy, spawn] };
+    expect(shownUnits(army).map((u) => u.id)).toEqual([of.id, spawn.id]);
   });
 });

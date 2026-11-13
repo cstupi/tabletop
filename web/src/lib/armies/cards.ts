@@ -1,5 +1,5 @@
 // web/src/lib/armies/cards.ts — what the army cards and the army page's unit cards draw (UX redesign, web → Armies, Army page).
-import type { ModelSlot, Unit } from '$lib/api/types';
+import type { Army, ModelSlot, Unit } from '$lib/api/types';
 import { sameBase } from '$lib/units/bases';
 
 const SYSTEMS: Record<string, string> = { 'grimdark-future': 'Grimdark Future', 'age-of-fantasy': 'Age of Fantasy' };
@@ -67,4 +67,11 @@ export function slotGroups(unit: Unit): SlotGroup[] {
   }
   for (const g of groups) if (g.slots.length > 1) g.label = `${kind(g.slots[0]!.name)} ×${g.slots.length}`;
   return groups;
+}
+
+/** The units the army page draws: every unit but a reserve copy of another (Reinforcement's "new copy": same name, as many models),
+ *  which stands on its original's miniatures and is given none of its own. */
+export function shownUnits(army: Army): Unit[] {
+  const copy = (u: Unit) => { const of = u.reserve && army.units.find((x) => x.id === u.reserve!.of); return !!of && of.name === u.name && of.models.length === u.models.length; };
+  return army.units.filter((u) => !copy(u));
 }

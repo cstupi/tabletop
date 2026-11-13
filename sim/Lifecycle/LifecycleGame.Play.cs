@@ -28,6 +28,16 @@ public sealed partial class LifecycleGame
             setAside[army.ParticipantId] = [riders.Ordinal];
             ambusher = riders.Id;
         }
+        var setAsideUnits = new HashSet<Guid>();
+        if (shape.Whole)
+        {
+            // A whole list's player uses Scout and Ambush: every unit the server's ModelFacts lets a player set aside before round one is set aside.
+            await CreatorSocket.UntilAsync(() => CreatorSocket.Facts?.MaySetAside is not null, "the ModelFacts naming the units that may be set aside", ct);
+            setAsideUnits.UnionWith(CreatorSocket.Facts!.MaySetAside!);
+            foreach (var army in board.Armies)
+                if (army.Snapshot.Units.Where(u => setAsideUnits.Contains(u.Id)).Select(u => u.Ordinal).ToList() is { Count: > 0 } aside)
+                    setAside[army.ParticipantId] = aside;
+        }
         var compiled = LifecycleScenario.From(name, Seed, info, board, recorder.Id, SelfPlay, setAside, RoundCap, shape.Rules);
         var accounts = _players.Append(_spectator).ToDictionary(a => a.AccountId);
         var credentials = LifecycleScenario.Credentials(compiled, accounts.ToDictionary(kv => kv.Key, kv => kv.Value.Session), async (account, token) =>
@@ -37,21 +47,35 @@ public sealed partial class LifecycleGame
         });
 
         await using var driver = await SocketDriver.StartAsync(compiled, new ClientWebSocketConnector(endpoints.GameServer), credentials, ct);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, compiled.Scenario.Policy()), HandPlacement.ChooserFor(Seed));
+        var loop = new RunLoop(driver, compiled, shape.Whole ? new ComposedAnswers(LifecyclePlayer.Script, LifecyclePlayer.Policy(Seed)) : new ComposedAnswers(AnswerScript.Empty, compiled.Scenario.Policy()), HandPlacement.ChooserFor(Seed));
         var report = await loop.RunAsync(ct);
         Check(report.Outcome is RunOutcome.Ended && report.Failures.Count == 0,
             $"the game played to {report.Outcome.Kind} at round {report.Rounds}:\n{string.Join("\n", report.Failures)}");
         var final = await driver.ProjectionAsync(ct);
 
+        // A whole list's Scouts deploy outside the zone (deploy_scouts) and its Vanguards move out of it after deploying, which DeployedInZones
+        // reads as a placement without a deploy pick; under strict the server refuses deploy_zone, scout_distance and vanguard_distance itself.
         _step = "turn order";
         var log = new LogQueries(loop.Log, final);
         var ordinals = info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
         foreach (var failure in new[]
         {
-            FreeForAllChecks.RollOff(log, shape.Teams), FreeForAllChecks.DeploymentRotation(log), FreeForAllChecks.DeployedInZones(log, ordinals, compiled.Zones),
+            FreeForAllChecks.RollOff(log, shape.Teams), FreeForAllChecks.DeploymentRotation(log), shape.Whole ? null : FreeForAllChecks.DeployedInZones(log, ordinals, compiled.Zones),
             FreeForAllChecks.TurnOrder(log), FreeForAllChecks.TurnRotation(log), FreeForAllChecks.EveryTeamActivated(log), FreeForAllChecks.Winners(log),
         })
             Check(failure is null, failure!);
+
+        if (shape.Whole)
+        {
+            _step = "whole game";
+            Record = WholeGame.Record(log, board.Armies, loop.Answers.History);
+            var failures = WholeGame.Deployed(log, board.Armies, setAsideUnits)
+                .Concat(WholeGame.Played(log, Record))
+                .Concat(WholeGame.ReinforcementTiming(log, board.Armies))
+                .Concat(WholeGame.CopiesBodied(board.Armies))
+                .Concat(WholeGame.Warnings(loop.Log)).ToList();
+            Check(failures.Count == 0, $"game {GameId}:\n{string.Join("\n", failures)}\n{Record}");
+        }
 
         if (ambusher is { } unit)
         {

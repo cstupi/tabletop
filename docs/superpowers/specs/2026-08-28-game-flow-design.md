@@ -210,9 +210,9 @@ could reach, one reaching model embarking the whole unit, or the container it is
 with the 6" its models must be placed fully within of. Enterable and exiting are never both set,
 which is where "never both in one activation" is enforced.
 
-**Capacity is not enforced in play.** `Transport(X)` carries its number as a property parameter because
-every property may; only a unit put in a Transport before deployment is held to p.15's spaces
-(`2026-10-16-passengers-design.md`). A building's capacity — which the rulebook
+**Transport capacity is p.15's spaces.** `Transport(X)` carries its number as a property parameter; a unit put in a
+Transport before deployment (`2026-10-16-passengers-design.md`) and a unit embarking in play (a move offers only a
+Transport with room for its living models) are held to p.15's spaces. A building's capacity — which the rulebook
 leaves to the players, *"you have to decide how many models can be inside by yourself"* — is not
 recorded at all. This is the same position as scoring: players count their own points, and
 nothing recorded here is an invariant.

@@ -38,13 +38,18 @@ public static class GfHooks
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
         // p.13: an Aircraft "may only use Advance actions … (even if Shaken)" and "their mandatory move doesn't break the staying idle requirement
         // to stop being Shaken" — so a Shaken Aircraft's Advance counts as having idled.
-        if (turn.Activation is { } act && state.Projection.Units[act.UnitId].Conditions.Contains(GfNames.Shaken)
-            && (act.Action == Scheduler.ActivationOption.Idle || (act.Action == GfNames.Advance && Lookup.UnitHas(state, props, act.UnitId, GfNames.Aircraft))))
-            changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, act.UnitId), GfNames.Shaken, false));
+        if (turn.Activation is { } act) changes.AddRange(IdledOffShaken(state, props, act));
         // p.14 Scout (3.6.0 p.15 the same): "May be set aside before deployment. After all other units are deployed, may be deployed ..." — once deployed it is no longer set aside.
         if (turn.Activation is { Action: GfNames.Deploy } deployed) changes.AddRange(ArrivedFromSetAside(state, deployed.UnitId));
         return changes;
     }
+
+    /// <summary>p.10's Shaken clearing for an activation spent idle (or a Shaken Aircraft's Advance, p.13); nothing otherwise.</summary>
+    public static IReadOnlyList<StateChange> IdledOffShaken(GameState state, PropertySet props, Scheduler.Activation act) =>
+        state.Projection.Units[act.UnitId].Conditions.Contains(GfNames.Shaken)
+            && (act.Action == Scheduler.ActivationOption.Idle || (act.Action == GfNames.Advance && Lookup.UnitHas(state, props, act.UnitId, GfNames.Aircraft)))
+            ? [new ConditionSet(new Subject(SubjectKind.Unit, act.UnitId), GfNames.Shaken, false)]
+            : [];
 
     /// <summary>The set-aside conditions a deployed unit clears: its own, and (p.15: "units inside Transports are deployed at the same time as the Transport") those of the units inside its models.</summary>
     public static IReadOnlyList<StateChange> ArrivedFromSetAside(GameState state, Guid unitId)

@@ -31,10 +31,10 @@ public static partial class SuiteCatalog
                  OneTokenH("Precision Target", TargetH + "\" (X 1)")]), 15, 11).In36(),
             Game(Books36.HumanInquisition, "human-inquisition-takedown-shot", Play.Shoots, ["Takedown Shot"], [], [],
                 [OnceAtTwoPlus("Takedown Shot", "\"Once per game, when this model shoots, it may make X extra attacks against the target at Quality 2+\" (X 1)")],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Shot", 1)], Weapons: [Gun(1, [], 60), TakedownWeapon("Takedown Shot", 60), Blade(1)])], units: 1).In36(),
+                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Shot", 1)], Weapons: [Gun(1, [], 60), TakedownWeapon("Takedown Shot", 60), Blade(1)])], units: 1, more: ArmyGames.TakedownShotTogether).In36(),
             Game(Books36.RatmenClans, "ratmen-clans-takedown-strike", Play.Charges, ["Takedown Strike"], [], [],
                 [OnceAtTwoPlus("Takedown Strike", "\"Once per game, when it's this model's turn to strike in melee, it may make X attacks at Quality 2+\" (X 1)")],
-                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Strike", 1)], Weapons: [Blade(1), TakedownWeapon("Takedown Strike", null)])], units: 1).In36(),
+                carriers: [new ScenarioModel(1, 1, [R(1, "Takedown Strike", 1)], Weapons: [Blade(1), TakedownWeapon("Takedown Strike", null)])], units: 1, more: ArmyGames.TakedownStrikeUsed).In36(),
             IndirectAuraH(),
             // Only the opponents move, so every melee is a charge at the Buff's unit, which buffs itself each activation; every counter Ask is answered strike.
             Pick(Books36.VoidspaceStalkers, "voidspace-stalkers-counter-in-melee-buff", Play.Charged, "Counter in Melee Buff",

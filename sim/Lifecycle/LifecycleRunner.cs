@@ -18,7 +18,7 @@ public sealed record LifecycleEndpoints(Uri Management, Uri GameServer)
 }
 
 /// <summary>One shape's verdict: every failure line (the step and what did not hold), and the game it created, if it got that far.</summary>
-public sealed record LifecycleResult(string Shape, IReadOnlyList<string> Failures, double Seconds, Guid? GameId)
+public sealed record LifecycleResult(string Shape, IReadOnlyList<string> Failures, double Seconds, Guid? GameId, WholeGameRecord? Record = null)
 {
     public bool Passed => Failures.Count == 0;
 }
@@ -37,6 +37,9 @@ public sealed class LifecycleRunner(LifecycleEndpoints endpoints)
     /// <summary>How old a lifecycle game or army must be before a run's sweep deletes it: older than any run.</summary>
     public static readonly TimeSpan SweepAge = TimeSpan.FromHours(1);
 
+    /// <summary>Where a whole-list game's record line goes as it finishes (the console; null for none).</summary>
+    public static TextWriter? Notes { get; set; } = Console.Out;
+
     public static string GameName(Guid runId, string shape) => $"{GamePrefix}{runId:N} {shape}";
 
     public async Task<IReadOnlyList<LifecycleResult>> RunAsync(IReadOnlyList<LifecycleShape> shapes, IProgress<LifecycleResult>? progress, CancellationToken ct)
@@ -50,7 +53,8 @@ public sealed class LifecycleRunner(LifecycleEndpoints endpoints)
             var clock = Stopwatch.StartNew();
             var game = new LifecycleGame(shape, GameName(runId, shape.Name), endpoints);
             var failures = await game.PlayAsync(ct);
-            var result = new LifecycleResult(shape.Name, failures, clock.Elapsed.TotalSeconds, game.GameId);
+            var result = new LifecycleResult(shape.Name, failures, clock.Elapsed.TotalSeconds, game.GameId, game.Record);
+            if (game.Record is { } record) Notes?.WriteLine($"      {shape.Name} (game {game.GameId}, seed {LifecycleGame.SeedOf}): {record}");
             results.Add(result);
             progress?.Report(result);
         }

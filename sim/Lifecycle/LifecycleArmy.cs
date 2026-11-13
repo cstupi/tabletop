@@ -37,6 +37,29 @@ public static class LifecycleArmy
         return list;
     }
 
+    /// <summary>
+    /// Whole Army Forge lists (export bodies, sim/Lifecycle/Armies/3.6/lists/), 1000 points each, imported as they stand: joined Heroes,
+    /// combined units, upgrades and all. By the name a Seat gives.
+    /// </summary>
+    public static IReadOnlyList<string> Lists { get; } = ["goblin-reclaimers", "war-disciples", "hdf-artillery-blob", "ratmen-clans"];
+
+    /// <summary>A whole list by name. Every list is a 3.6 one.</summary>
+    public static JsonObject Whole(string name) =>
+        Lists.Contains(name) ? Read($"lifecycle-list-3.6-{name}.json") : throw new ArgumentException($"no lifecycle list {name}; known: {string.Join(", ", Lists)}", nameof(name));
+
+    /// <summary>The export body a seat imports: its whole list when it names one, else its book's cut (List).</summary>
+    public static JsonObject For(Seat seat, bool ambush, string edition)
+    {
+        if (seat.List is not { } name) return List(seat.Book, ambush, edition);
+        if (edition != ArmyEditions.V36) throw new ArgumentException($"the whole lists are 3.6; the shape plays edition {edition}", nameof(edition));
+        if (ambush) throw new ArgumentException("a whole list keeps its own rules", nameof(ambush));
+        return Whole(name);
+    }
+
+    /// <summary>The units an import of the body holds besides reserve copies: one per entry that joins no other (a joined Hero and a
+    /// combined unit's second half are one unit with the entry they join).</summary>
+    public static int UnitsOf(JsonObject list) => list["units"]!.AsArray().Count(u => u!["joinToUnit"] is null);
+
     /// <summary>The list cut to the first unit of each name that joins no other.</summary>
     static JsonObject FirstOfEachName(JsonObject list)
     {

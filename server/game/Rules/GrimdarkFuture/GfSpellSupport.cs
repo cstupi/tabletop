@@ -20,9 +20,56 @@ public static class GfSpellSupport
 
     static bool Carries(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule);
 
-    /// <summary>The Caster Group model that has Caster(X): the group's first model still in play, by its place in the unit (the pick made for the player).</summary>
+    /// <summary>The model condition naming the Caster Group model the player picked ("Pick one model with this rule in this unit to have Caster(X)").</summary>
+    public const string GroupCaster = "group caster";
+    public const string PickSeq = "caster-group-pick", Question = "caster_group";
+
+    /// <summary>The Caster Group's models still in play, in slot order.</summary>
+    static IReadOnlyList<Guid> Group(GameState state, Guid unit) =>
+        Lookup.AliveModels(state, unit).Where(m => Carries(state, m, CasterGroup)).OrderBy(m => state.Projection.Models[m].Slot.Ordinal).ToList();
+
+    /// <summary>The Caster Group model that has Caster(X): the one picked (GroupCaster) while it is in play, else, until a pick is made, the group's first
+    /// model in play by its place in the unit.</summary>
     public static Guid? DesignatedCaster(GameState state, Guid unit) =>
-        Lookup.AliveModels(state, unit).Where(m => Carries(state, m, CasterGroup)).OrderBy(m => state.Projection.Models[m].Slot.Ordinal).Select(m => (Guid?)m).FirstOrDefault();
+        Group(state, unit) is { Count: > 0 } group ? group.FirstOrDefault(m => state.Projection.Models[m].Conditions.Contains(GroupCaster), group[0]) : null;
+
+    /// <summary>The units whose Caster Group has no picked model in play: asked at the round's start (GrimdarkFutureRules.RoundBoundaryStep), the first
+    /// time the group gains tokens, and again when a caster killed outside deal-wounds left none.</summary>
+    public static IReadOnlyList<Guid> Unpicked(GameState state) =>
+        state.Projection.Units.Values.Where(u => Group(state, u.Id) is { Count: > 0 } group && !group.Any(m => state.Projection.Models[m].Conditions.Contains(GroupCaster)))
+            .Select(u => u.Id).ToList();
+
+    public static Sequence Pick() => new(PickSeq, [new PickStep()]);
+
+    /// <summary>The pick: the owning team chooses a group model (PieceSelection, a pass keeps the designated one); it gets the condition and the
+    /// designated model's tokens. With one model left there is nothing to ask.</summary>
+    sealed class PickStep : IStep
+    {
+        public string Name => "pick-caster";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var unit = ctx.Frame.Context.ActorUnitId!.Value;
+            var group = Group(ctx.State, unit);
+            if (group.Count == 0 || DesignatedCaster(ctx.State, unit) is not { } current) return new Complete([]);
+            if (group.Count > 1 && ctx.History.LastClosed(Question) is null) return new OpenAsks([Ask(ctx, unit, group)]);
+            var picked = ctx.History.LastClosed(Question)?.Single is SelectedPieces { PieceIds: [var m] } && group.Contains(m) ? m : current;
+            ctx.Applied.Add(CasterGroup);
+            return new Complete(Designate(ctx.State, current, picked, ctx.Projection.Models[current].SpellTokens));
+        }
+    }
+
+    static Ask Ask(StepContext ctx, Guid unit, IReadOnlyList<Guid> group) =>
+        ctx.Ask(Question, $"Caster Group: pick the caster of {ctx.Projection.Units[unit].Definition.Name}", ctx.TeamOf(unit)!.Value, new PieceSelection(group, 1, 1), allowPass: true);
+
+    /// <summary>The picked model gets the condition and `tokens`; the model that held them (when another) gets none.</summary>
+    static IReadOnlyList<StateChange> Designate(GameState state, Guid from, Guid to, int tokens)
+    {
+        var changes = new List<StateChange>();
+        if (from != to) changes.Add(new SpellTokensSet(from, 0));
+        changes.Add(new SpellTokensSet(to, Math.Min(GfNames.TokenCap, (from == to ? 0 : state.Projection.Models[to].SpellTokens) + tokens)));
+        if (!state.Projection.Models[to].Conditions.Contains(GroupCaster)) changes.Add(new ConditionSet(new Subject(SubjectKind.Model, to), GroupCaster, true));
+        return changes;
+    }
 
     /// <summary>A model's Caster(X): its own, or the group's X when it is its Caster Group's designated caster. Null when it is no caster.</summary>
     public static int? CasterValue(GameState state, Guid model)
@@ -80,7 +127,8 @@ public static class GfSpellSupport
     public static IReadOnlyList<Guid> Conduits(GameState state, Guid casterModel) =>
         state.Projection.Models.Values.Where(m => Carries(state, m.Id, SpellConduit) && Reaches(state, casterModel, m)).Select(m => m.Id).ToList();
 
-    /// <summary>deal-wounds' step for a Caster Group whose caster was killed: its tokens pass to the new caster ("transfer all spell tokens to it").</summary>
+    /// <summary>deal-wounds' step for a Caster Group whose caster was killed: "If the model is killed, pick another to be the new caster, and transfer all
+    /// spell tokens to it": the owning team picks among the group's models left (the same Ask as the round start's; one left needs none) and the tokens pass.</summary>
     public sealed class TransferStep : IStep
     {
         public string Name => "caster-group";
@@ -88,12 +136,16 @@ public static class GfSpellSupport
         {
             if (ctx.Frame.Context.TargetUnitIds is not [var unit, ..]) return new Complete([]);
             var dead = ctx.Frame.Values.Keys.Where(k => k.StartsWith("killed_", StringComparison.Ordinal)).Select(k => Guid.ParseExact(k["killed_".Length..], "N"))
-                .Where(m => ctx.Projection.Models.TryGetValue(m, out var d) && d.SpellTokens > 0 && d.UnitId == unit && Carries(ctx.State, m, CasterGroup)).ToList();
-            if (dead.Count == 0 || DesignatedCaster(ctx.State, unit) is not { } heir) return new Complete([]);
+                .Where(m => ctx.Projection.Models.TryGetValue(m, out var d) && d.UnitId == unit && Carries(ctx.State, m, CasterGroup)
+                    && (d.SpellTokens > 0 || d.Conditions.Contains(GroupCaster))).ToList();
+            var group = Group(ctx.State, unit);
+            if (dead.Count == 0 || group.Count == 0) return new Complete([]);
+            if (group.Count > 1 && ctx.History.LastClosed(Question) is null) return new OpenAsks([Ask(ctx, unit, group)]);
+            var heir = ctx.History.LastClosed(Question)?.Single is SelectedPieces { PieceIds: [var m] } && group.Contains(m) ? m : group[0];
             ctx.Applied.Add(CasterGroup);
             var tokens = dead.Sum(m => ctx.Projection.Models[m].SpellTokens);
-            return new Complete([.. dead.Select(m => (StateChange)new SpellTokensSet(m, 0)),
-                new SpellTokensSet(heir, Math.Min(GfNames.TokenCap, ctx.Projection.Models[heir].SpellTokens + tokens))]);
+            return new Complete([.. dead.Where(m => ctx.Projection.Models[m].SpellTokens > 0).Select(m => (StateChange)new SpellTokensSet(m, 0)),
+                .. Designate(ctx.State, heir, heir, ctx.Projection.Models[heir].SpellTokens + tokens)]);
         }
     }
 }

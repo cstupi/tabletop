@@ -131,13 +131,16 @@ public static partial class GfMoves
         return (moves.Any(r => r.To is Inside), moves.Any(r => r.From is Inside));
     }
 
-    /// <summary>p.15: a model that can hold others — `Transport` is on it. The (X) is read only for deploying inside (GrimdarkFutureRules.MayDeployInside); game flow leaves capacity unenforced in play. The name lives here because `Effects/` may not name an OPR rule (constraint 1, Task 18).</summary>
+    /// <summary>p.15: a model that can hold others — `Transport` is on it. Its (X) is read by GrimdarkFutureRules.Fits. The name lives here because `Effects/` may not name an OPR rule (constraint 1, Task 18).</summary>
     public static bool IsContainer(GameState state, Guid modelId) => Lookup.ModelParameter(state, modelId, GfNames.Transport) is not null;
 
-    /// <summary>p.15: a container this unit may be inside — a Transport on the table belonging to another unit of the unit's team. Capacity is not checked in play (game flow); deploying inside is (GrimdarkFutureRules.MayDeployInside).</summary>
+    /// <summary>p.15: a container this unit may be inside — a Transport on the table belonging to another unit of the unit's team, with room for the unit's
+    /// living models: "May transport up to X friendly models or Heroes with up to Tough(6), and non-Heroes with up to Tough(3) which occupy 3 spaces each"
+    /// (GrimdarkFutureRules.Fits, as deploying inside reads it).</summary>
     public static bool IsFriendlyContainer(GameState state, Guid unit, Guid containerModelId) =>
         state.Projection.Models.TryGetValue(containerModelId, out var c) && c.Location is OnTable && c.UnitId != unit && IsContainer(state, c.Id)
-        && Teams.Of(state, c.UnitId) is { } team && team == Teams.Of(state, unit);
+        && Teams.Of(state, c.UnitId) is { } team && team == Teams.Of(state, unit)
+        && GrimdarkFutureRules.Fits(state, unit, Lookup.LivingModels(state, unit), c.Id);
 
     /// <summary>
     /// p.15: the containers a model of this unit could reach — a friendly container (IsFriendlyContainer) within the move's
@@ -200,9 +203,13 @@ public static partial class GfMoves
                 if (GrimdarkFutureRules.InstinctiveAttack(ctx.State, ctx.Properties, ctx.Projection.Units[unit]) is not null)
                     marks.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.InstinctiveCondition, true));
                 // Reanimation: "When a unit … is activated, roll as many dice as … it could restore" (GfReanimation).
-                marks.AddRange(GfReanimation.Reanimate(ctx, unit));
-                if (marks.Count > 0 || ctx.Rolls.Count > 0) return new Complete(marks, new Dictionary<string, int> { ["activation_marked"] = 1 }, Repeat: true);
+                var restores = GfReanimation.Roll(ctx, unit);
+                if (marks.Count > 0 || ctx.Rolls.Count > 0)
+                    return new Complete(marks, new Dictionary<string, int> { ["activation_marked"] = 1, ["reanimation_restores"] = restores }, Repeat: true);
             }
+            // "For each 5+ you may restore one model/wound": asked once, then applied (GfReanimation.Offer).
+            if (ctx.Frame.Value("reanimation_restores") > 0 && ctx.Frame.Value("reanimation_asked") == 0 && ctx.Frame.Value("dangerous_dice") == 0
+                && GfReanimation.Offer(ctx, unit, ctx.Frame.Value("reanimation_restores")) is { } offered) return offered;
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             var rules = TerrainFor(ctx, unit, live);
             if (rules.Aircraft) return new Complete([]);                                                 // p.13: Aircraft "ignore all units and terrain when moving and stopping"

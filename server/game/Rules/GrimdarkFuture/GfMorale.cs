@@ -72,6 +72,10 @@ public static class GfMorale
             cause == AttackKind.Shooting ? range : null, terrain);
     }
 
+    /// <summary>The other unit of the melee frame.</summary>
+    static Guid? Opponent(FrameView melee, Guid unit) =>
+        unit == melee.Frame.Context.TargetUnitIds.FirstOrDefault() ? melee.Frame.Context.ActorUnitId : melee.Frame.Context.TargetUnitIds.FirstOrDefault();
+
     static FrameView? MeleeOf(FrameView frame)
     {
         for (var f = frame.Parent; f is not null; f = f.Parent)
@@ -145,6 +149,7 @@ public static class GfMorale
     /// </summary>
     sealed class ConsequenceStep : IStep
     {
+        const string SplitKeptKey = "split_kept";
         public string Name => "consequence";
         public StepOutcome Run(StepContext ctx)
         {
@@ -152,12 +157,27 @@ public static class GfMorale
             var passed = Passed(ctx.Frame);
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0, ["routed"] = 0 };
             if (passed) return new Complete([], values);
-            if (NoRetreat(ctx, unit) is { } holding) return holding;
-            if (ctx.Frame.Context.Action == "melee" && GfHooks.AtHalfOrLess(ctx.State, ctx.Properties, unit))
+            var routs = ctx.Frame.Context.Action == "melee" && GfHooks.AtHalfOrLess(ctx.State, ctx.Properties, unit);
+            // No Retreat's "fails a Morale Test that causes it to be Shaken or Routed": a unit already Shaken that does not rout is caused nothing.
+            if ((routs || !ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken) || ctx.Frame.Value("no_retreat") == 1) && NoRetreat(ctx, unit) is { } holding) return holding;
+            if (routs)
             {
                 values["routed"] = 1;
                 var living = Lookup.AliveModels(ctx.State, unit);
-                return new Complete([new ModelsMoved(living.Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList())], values);
+                // p.10: "the unit Routs and counts as destroyed": destroyed by the unit it fought (GfMarkers.OnDestroyed: Frenzies, Vengeance).
+                var destroyed = MeleeOf(ctx.Frame) is { } melee && Opponent(melee, unit) is { } by ? GfMarkers.OnDestroyed(ctx, by, unit) : [];
+                IReadOnlyList<StateChange> Removed() => [new ModelsMoved(living.Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList()), .. destroyed];
+                // Split: "When this unit is fully destroyed, you may place a new unit of X fully within 6" of it before removing the last model": the others
+                // leave first (a repeat), then place-reserve anchors on the last model, which goes once it is done.
+                if (ctx.History.Children.Count > 0) return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete(Removed(), values) : new OpenAsks([]);
+                if (GfReserves.KeepsLastModel(ctx.State, unit) && GfReserves.Waiting(ctx.State, GfReserves.Split, unit) is { } reserve && living.Count > 0)
+                {
+                    if (ctx.Frame.Value(SplitKeptKey) == 0)
+                        return new Complete([new ModelsMoved(living.Skip(1).Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList())],
+                            new Dictionary<string, int>(values) { [SplitKeptKey] = 1 }, Repeat: true);
+                    return new Push(GfReserves.PlaceReserveSeq, new SequenceContext(unit, [reserve], [], GfReserves.Split));
+                }
+                return new Complete(Removed(), values);
             }
             return new Complete([new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true)], values);
         }

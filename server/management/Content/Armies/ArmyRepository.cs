@@ -6,7 +6,7 @@ using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Content.Armies;
 
-/// <summary><c>Meshes</c>: the model slots with a mesh set.</summary>
+/// <summary><c>Meshes</c>: the model slots with a mesh set. A Reinforcement copy counts in none of the three: it stands on its original's miniatures.</summary>
 public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models, string Edition = ArmyEditions.V35, int Meshes = 0);
 public sealed record ImportRequest(string Source);
 public sealed record UnitPatch(Guid UnitId, Guid? AssetId);
@@ -86,10 +86,10 @@ public sealed class ArmyRepository(Database db) : IArmyRepository
     {
         await using var c = await db.Open();
         return (await c.QueryAsync<ArmySummary>(@"select a.id as Id, a.name as Name, a.game_system as GameSystem, a.source as Source,
-            (select count(*) from unit u where u.army_id = a.id)::int as Units,
-            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id)::int as Models, a.edition as Edition,
-            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id and s.asset_id is not null)::int as Meshes
-            from army a where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) order by a.id limit @limit", new { ownerId, after = page.After, limit = page.Limit })).ToList();
+            (select count(*) from unit u where u.army_id = a.id and u.reserve_property is distinct from @copy)::int as Units,
+            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id and u.reserve_property is distinct from @copy)::int as Models, a.edition as Edition,
+            (select count(*) from model_slot s join unit u on u.id = s.unit_id where u.army_id = a.id and u.reserve_property is distinct from @copy and s.asset_id is not null)::int as Meshes
+            from army a where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) order by a.id limit @limit", new { ownerId, after = page.After, limit = page.Limit, copy = ArmyBookReserves.Reinforcement })).ToList();
     }
 
     public async Task<IReadOnlyList<ArmyMeshUse>> MeshUses(Guid ownerId)

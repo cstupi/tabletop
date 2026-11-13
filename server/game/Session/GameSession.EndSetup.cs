@@ -23,6 +23,7 @@ public sealed partial class GameSession
         {
             if (p.ArmyId is not { } armyId) { armies[p.Id] = null; continue; }
             var owned = await rows.ReadArmyAsync(armyId, ct);
+            if (owned is not null) owned = owned with { Army = owned.Army.WithCopiesBodied() };   // a copy stands on its original's miniatures
             // The army is snapshotted as it stands, so it is checked as it stands: it may have been edited since it was picked.
             if (owned is not null && ArmyLimits.EditionBreach(owned.Army.Edition, Info.GameRules) is { } edition)
             { await RefuseEdit(from, editId, RefusalReason.NotPermitted, $"{p.Name}'s army cannot be played: {edition}"); return; }

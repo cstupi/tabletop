@@ -57,6 +57,16 @@ public static class GfAmbush
     public static bool RemovedToAmbush(GameState state, Guid unit) =>
         EventApplier.EffectiveLog(state.Applier.Log).Any(e => e.Payload is SequenceStarted { Sequence: AmbushRedeploySeq } s && s.Context.ActorUnitId == unit);
 
+    /// <summary>"deploy it as if it had Ambush at the beginning of the next round": removed in the round before the one now started, so it is an Ambusher
+    /// at that one round's start and at no later one (the shape of GfReserves.DestroyedLastRound).</summary>
+    public static bool RemovedToAmbushLastRound(GameState state, Guid unit)
+    {
+        var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
+        var rounds = Enumerable.Range(0, log.Count).Where(i => log[i].Payload is RoundStarted).ToList();
+        var removed = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: AmbushRedeploySeq } s && s.Context.ActorUnitId == unit);
+        return removed >= 0 && (rounds.Count < 2 || removed > rounds[^2]);
+    }
+
     public static Sequence AmbushRedeploy() => new(AmbushRedeploySeq, [new RemoveStep()]);
 
     /// <summary>Every model of the unit to the shelf, set aside: the next round's Ambushers include it.</summary>

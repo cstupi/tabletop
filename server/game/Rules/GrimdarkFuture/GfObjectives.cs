@@ -72,7 +72,8 @@ public static class GfObjectives
     }
 
     /// <summary>Units named by a deploy_ambusher Ask closed since this round's round_started (the Asks RoundBoundaryStep reads); under 3.6 (GfEdition.PlacedUnitsHoldNoObjectives)
-    /// also the reserves a `place-reserve` started this round placed (Spawn / Split: "Units placed via Spawn can’t seize or contest objectives on the round they are placed").</summary>
+    /// also the reserves a `place-reserve` started this round placed (Spawn / Split: "Units placed via Spawn can’t seize or contest objectives on the round they are placed");
+    /// and the units that rode in with any of them (Passengers).</summary>
     static HashSet<Guid> ArrivedByAmbushThisRound(GameState state)
     {
         var since = SchedulerLog.Of(state).SinceRound.Select(e => e.Payload).ToList();
@@ -82,6 +83,23 @@ public static class GfObjectives
             .SelectMany(c => c.Answers).Select(a => a.Answer).OfType<SelectedPieces>().SelectMany(s => s.PieceIds).ToHashSet();
         if (GfEdition.Of(state).PlacedUnitsHoldNoObjectives)
             arrived.UnionWith(since.OfType<SequenceStarted>().Where(s => s.Sequence == GfReserves.PlaceReserveSeq && s.Context.TargetUnitIds.Count > 0).Select(s => s.Context.TargetUnitIds[0]));
+        arrived.UnionWith(Passengers(state, arrived, since));
         return arrived;
+    }
+
+    /// <summary>p.15 Transport: "units inside Transports are deployed at the same time as the Transport", so a unit that rode in an arrived unit's model
+    /// arrived with it, inside it still or disembarked since: a unit with a model inside one of those models now, or moved out of one this round, unless
+    /// it boarded from the table this round.</summary>
+    static IEnumerable<Guid> Passengers(GameState state, HashSet<Guid> arrived, IReadOnlyList<EventPayload> since)
+    {
+        if (arrived.Count == 0) return [];
+        var p = state.Projection;
+        var carriers = arrived.Where(p.Units.ContainsKey).SelectMany(u => p.Units[u].Definition.Models.Select(m => m.Id)).ToHashSet();
+        var moves = since.SelectMany(e => e is StepCompleted sc ? sc.Changes.Cast<EventPayload>() : [e]).OfType<ModelsMoved>().SelectMany(m => m.Moves).ToList();
+        var boarded = moves.Where(r => r.From is OnTable && r.To is Inside i && carriers.Contains(i.ContainerId)).Select(r => r.ModelId).ToHashSet();
+        var rode = p.Models.Values.Where(m => m.Location is Inside i && carriers.Contains(i.ContainerId)).Select(m => m.Id)
+            .Concat(moves.Where(r => r.From is Inside i && carriers.Contains(i.ContainerId)).Select(r => r.ModelId))
+            .Where(m => !boarded.Contains(m)).ToHashSet();
+        return rode.Where(p.Models.ContainsKey).Select(m => p.Models[m].UnitId).Distinct();
     }
 }

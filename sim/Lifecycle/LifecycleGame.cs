@@ -15,8 +15,11 @@ public sealed class LifecycleCheckException(string message) : Exception(message)
 /// </summary>
 public sealed partial class LifecycleGame(LifecycleShape shape, string name, LifecycleEndpoints endpoints)
 {
-    /// <summary>The policy's and hand placement's seed. The dice are the game's own: management draws its rng_seed at creation.</summary>
-    const ulong Seed = 1;
+    /// <summary>The policy's and hand placement's seed (TABLETOP_SIM_LIFECYCLE_SEED, default 1). The dice are the game's own: management draws its
+    /// rng_seed at creation, so two runs on one seed still differ from the first roll.</summary>
+    public static ulong SeedOf => Seed;
+    static ulong Seed => ulong.TryParse(Environment.GetEnvironmentVariable(SeedVariable), out var seed) ? seed : 1;
+    public const string SeedVariable = "TABLETOP_SIM_LIFECYCLE_SEED";
     /// <summary>Above four: the game ends by its rules at round 4's end (strict's game_ended, warn's game_over answered End), not by the cap.</summary>
     const int RoundCap = 5;
     static readonly TimeSpan EndedWithin = TimeSpan.FromSeconds(10);
@@ -30,6 +33,8 @@ public sealed partial class LifecycleGame(LifecycleShape shape, string name, Lif
     bool _deleted;
 
     public Guid? GameId { get; private set; }
+    /// <summary>A whole-list game's record once it was played; null for any other shape.</summary>
+    public WholeGameRecord? Record { get; private set; }
     ManagementApi Creator => _players[0];
     ClientSocket CreatorSocket => _sockets[0];
 

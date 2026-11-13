@@ -1,5 +1,6 @@
 using Tabletop.Content;
 using Tabletop.Management.Content.Armies;
+using Tabletop.Management.Http;
 
 namespace Tabletop.Management.Tests;
 
@@ -39,5 +40,42 @@ public class ArmyListImportTests : IClassFixture<ManagementFactory>
 
         var veterans = army.Units.Single(u => u.Name == "Veterans");
         Assert.All(veterans.Models, m => Assert.Equal(["Strike", "Shotgun"], m.Weapons.Select(w => w.Name)));
+    }
+
+    /// <summary>Ratmen Clans: three units carry Reinforcement on every model (two combined Operators, Elite Operators, Saboteurs). Each gets a
+    /// reserve copy without the rule, which the army's counts leave out: the copy stands on its original's miniatures.</summary>
+    [Fact]
+    public async Task A_reinforcement_unit_gets_a_copy_that_the_armys_counts_leave_out()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var army = await c.PostJson<Army>("/v1/armies/import", new ImportRequest("https://army-forge.onepagerules.com/share?id=Wo0xOxxgRADS&name=Ratmen_Clans"));
+        var copies = army.Units.Where(u => u.Reserve is not null).ToList();
+        Assert.Equal(["Operators", "Elite Operators", "Saboteurs"], copies.Select(u => u.Name));
+        Assert.All(copies, u => Assert.Equal("Reinforcement", u.Reserve!.Property));
+        Assert.All(copies, u => Assert.NotNull(army.CopiedBy(u)));
+        Assert.All(copies, u => Assert.DoesNotContain(u.Properties.Concat(u.Models.SelectMany(m => m.Properties)), p => p.Name == "Reinforcement"));
+        Assert.Equal(20, copies[0].Models.Count);
+        // Elite Operators: the Flamer model and the four Shotgun models each hold one gun and one Strike.
+        var elite = army.Units.First(u => u.Name == "Elite Operators");
+        Assert.All(elite.Models, m => Assert.Equal(2, m.Weapons.Count));
+        Assert.Equal((1, 4, 5), (elite.Models.Count(m => m.Weapons.Any(w => w.Name == "Flamer")), elite.Models.Count(m => m.Weapons.Any(w => w.Name == "Shotgun")),
+            elite.Models.Count(m => m.Weapons.Any(w => w.Name == "Strike"))));
+        var summary = (await c.GetJson<Page<ArmySummary>>("/v1/armies")).Items.Single(a => a.Id == army.Id);
+        Assert.Equal((4, 34, 0), (summary.Units, summary.Models, summary.Meshes));
+    }
+
+    /// <summary>Army Forge lists a loadout as flat lines with counts. A model holds one line of the guns and one of the melee weapons, so
+    /// the two are dealt out apart: the sergeant's Pistol and Sword land on one model, and nobody holds two guns or no melee weapon.</summary>
+    [Fact]
+    public async Task Guns_and_melee_weapons_are_dealt_to_the_models_apart()
+    {
+        var id = "t" + Guid.NewGuid().ToString("N");
+        static string W(string name, int count, int range) => $$"""{"type":"ArmyBookWeapon","name":"{{name}}","count":{{count}},"range":{{range}},"attacks":1}""";
+        var loadout = string.Join(",", W("Rifle", 4, 24), W("Strike", 4, 0), W("Pistol", 1, 12), W("Sword", 1, 0));
+        FakeArmyForge.Lists[id] = """{"id":"t","name":"T","gameSystem":"gf","units":[{"selectionId":"a","name":"Squad","size":5,"quality":4,"defense":4,"combined":false,"joinToUnit":null,"loadout":[""" + loadout + "]}]}";
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var squad = (await c.PostJson<Army>("/v1/armies/import", new ImportRequest(id))).Units.Single();
+        Assert.Equal(4, squad.Models.Count(m => m.Weapons.Select(w => w.Name).SequenceEqual(["Rifle", "Strike"])));
+        Assert.Single(squad.Models, m => m.Weapons.Select(w => w.Name).SequenceEqual(["Pistol", "Sword"]));
     }
 }

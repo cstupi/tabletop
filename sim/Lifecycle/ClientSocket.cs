@@ -45,6 +45,8 @@ public sealed class ClientSocket : IAsyncDisposable
     /// <summary>The latest AtRest's seq: the log's high-water mark as far as this socket knows; -1 before the first.</summary>
     public long Rest { get; private set; } = -1;
     public IReadOnlyList<GameEvent> Events => _events;
+    /// <summary>The latest ModelFacts (sent on connect once playing and after a batch that changes them); null before the first.</summary>
+    public ModelFacts? Facts { get; private set; }
 
     /// <summary>Forgets the latest rest, so a wait for Rest &gt;= 0 is a wait for the next AtRest (EndSetup's, a late army's).</summary>
     public void ExpectRest() => Rest = -1;
@@ -130,6 +132,7 @@ public sealed class ClientSocket : IAsyncDisposable
             case BoardMessage b: Board = b.Board; break;
             case EventsMessage e: _events.AddRange(e.Events); break;
             case AtRest r: Rest = r.Seq; break;
+            case ModelFacts f: Facts = f; break;
             case Refused r: return r;
         }
         return null;

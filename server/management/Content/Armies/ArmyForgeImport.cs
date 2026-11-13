@@ -36,7 +36,7 @@ public static class ArmyForgeImport
         var merged = Merge(list.Units);
         if (merged.Count > ArmyLimits.MaxUnits) throw new InvalidArmyException($"The list has {merged.Count} units; at most {ArmyLimits.MaxUnits} import.");
         var units = merged.Select((m, i) => Unit(m, i + 1, catalog)).ToList();
-        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog), edition);
+        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Combined, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, [], []), ordinal, catalog), edition);
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units) { Edition = edition };
     }
 
@@ -112,35 +112,33 @@ public static class ArmyForgeImport
         return b.Shape == BaseShape.Circle ? F(b.A) : $"{F(b.A)}x{F(b.B)}";
     }
 
-    /// <summary>A unit as it will be built: the host entry, then the entries whose models join it.</summary>
-    private sealed record Merged(AfUnit Host, List<AfUnit> Joined);
+    /// <summary>A unit as it will be built: the host entry, the entry combined with it, then the entries whose models join it.</summary>
+    private sealed record Merged(AfUnit Host, List<AfUnit> Combined, List<AfUnit> Joined);
 
-    /// <summary>Two combined entries are one unit: sizes add, loadout counts add. Then a joining entry becomes a section of the entry
-    /// it names, an absorbed partner's id resolving to the entry that absorbed it. A name nothing answers, and a name whose entry
-    /// itself joins, leave the joining entry as its own unit — which is also what breaks a cycle without walking one.</summary>
+    /// <summary>Two combined entries are one unit: the partner's models follow the host's, each entry's loadout on its own models. Then a
+    /// joining entry becomes a section of the entry it names, an absorbed partner's id resolving to the entry that absorbed it. A name nothing
+    /// answers, and a name whose entry itself joins, leave the joining entry as its own unit — which is also what breaks a cycle without
+    /// walking one.</summary>
     private static List<Merged> Merge(List<AfUnit> units)
     {
-        var survivors = new List<AfUnit>();
+        var survivors = new List<(AfUnit Host, List<AfUnit> Combined)>();
         var absorbed = new Dictionary<string, string>();          // a combined partner's selectionId → the id that absorbed it
         foreach (var u in units)
         {
             if (absorbed.ContainsKey(u.SelectionId)) continue;
-            var partner = u.Combined ? units.FirstOrDefault(o => o.Combined && o.SelectionId != u.SelectionId && (o.JoinToUnit == u.SelectionId || u.JoinToUnit == o.SelectionId)) : null;
-            if (partner is null) { survivors.Add(u); continue; }
+            var partner = u.Combined ? units.FirstOrDefault(o => o.Combined && o.SelectionId != u.SelectionId && !absorbed.ContainsKey(o.SelectionId) && (o.JoinToUnit == u.SelectionId || u.JoinToUnit == o.SelectionId)) : null;
+            if (partner is null) { survivors.Add((u, [])); continue; }
             absorbed[partner.SelectionId] = u.SelectionId;
-            var loadout = (u.Loadout ?? []).Concat(partner.Loadout ?? [])
-                .GroupBy(l => (l.Type, l.Name))
-                .Select(g => g.First() with { Count = g.Sum(l => l.Count) }).ToList();
-            survivors.Add(u with { Size = u.Size + partner.Size, Loadout = loadout, JoinToUnit = null });
+            survivors.Add((u with { JoinToUnit = null }, [partner]));
         }
 
-        var byId = survivors.ToDictionary(u => u.SelectionId);
+        var byId = survivors.ToDictionary(s => s.Host.SelectionId, s => s.Host);
         AfUnit? Host(string id) => byId.GetValueOrDefault(absorbed.GetValueOrDefault(id, id));
         bool Joins(AfUnit u) => u.JoinToUnit is not null && Host(u.JoinToUnit) is { JoinToUnit: null };
 
-        var result = survivors.Where(u => !Joins(u)).Select(u => new Merged(u, [])).ToList();
+        var result = survivors.Where(s => !Joins(s.Host)).Select(s => new Merged(s.Host, s.Combined, [])).ToList();
         var hosts = result.ToDictionary(m => m.Host.SelectionId);
-        foreach (var j in survivors.Where(Joins)) hosts[Host(j.JoinToUnit!)!.SelectionId].Joined.Add(j);
+        foreach (var j in survivors.Where(s => Joins(s.Host))) hosts[Host(j.Host.JoinToUnit!)!.SelectionId].Joined.Add(j.Host);
         return result;
     }
 
@@ -150,46 +148,36 @@ public static class ArmyForgeImport
         var stats = new Dictionary<string, string> { ["Quality"] = Target(host.Quality), ["Defense"] = Target(host.Defense) };
         var unitProps = new List<PropertyInstance>();
         var models = new List<ModelSlot>();
-        Section(host, catalog, unitProps, models);
-        foreach (var joined in m.Joined) Section(joined, catalog, null, models);
+        Section([host, .. m.Combined], catalog, unitProps, models);
+        foreach (var joined in m.Joined) Section([joined], catalog, null, models);
         return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, Stacked(unitProps), models);
     }
 
-    /// <summary>One entry's slots, appended to the unit being built. `unitProps` is null for a joined entry: every rule of it goes on
-    /// its own slots whatever level the catalog gives the name, and its Quality and Defense become slot stats, because the unit's own
-    /// stats and properties stay the host's. The cursor is per section, so a joined hero's loadout never reaches a host slot.</summary>
-    private static void Section(AfUnit u, IReadOnlyDictionary<string, PropertyLevel> catalog, List<PropertyInstance>? unitProps, List<ModelSlot> into)
+    /// <summary>One section's slots, appended to the unit being built: an entry and the entry combined with it, or a joined entry.
+    /// `unitProps` is null for a joined entry: every rule of it goes on its own slots whatever level the catalog gives the name, and its
+    /// Quality and Defense become slot stats, because the unit's own stats and properties stay the host's. Which models hold which loadout
+    /// line is ArmyForgeModels' reading of each entry alone, so a joined hero's loadout never reaches a host slot, nor one combined
+    /// entry's another's.</summary>
+    private static void Section(IReadOnlyList<AfUnit> entries, IReadOnlyDictionary<string, PropertyLevel> catalog, List<PropertyInstance>? unitProps, List<ModelSlot> into)
     {
-        var slotProps = Enumerable.Range(0, u.Size).Select(_ => new List<PropertyInstance>()).ToList();
-        var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
-        var slotBodies = Enumerable.Repeat(Body(u.Bases), u.Size).ToList();
-        var slotGear = Enumerable.Range(0, u.Size).Select(_ => new List<string>()).ToList();   // the upgrades only some models carry, by name
-        var cursor = 0;
+        var u = entries[0];
+        var size = entries.Sum(e => e.Size);
+        var slotProps = Enumerable.Range(0, size).Select(_ => new List<PropertyInstance>()).ToList();
+        var slotWeapons = Enumerable.Range(0, size).Select(_ => new List<Weapon>()).ToList();
+        var slotBodies = entries.SelectMany(e => Enumerable.Repeat(Body(e.Bases), e.Size)).ToList();
+        var slotBooks = entries.SelectMany(e => Enumerable.Repeat(e.ArmyId, e.Size)).ToList();
+        var slotGear = Enumerable.Range(0, size).Select(_ => new List<string>()).ToList();   // the upgrades only some models carry, by name
 
+        // A rule every model of the section carries alike is the unit's (unless the catalog says model), once per copy; anything else is
+        // its carriers'.
         void Place(PropertyInstance p, List<int> carriers)
         {
-            if (carriers.Count == u.Size && unitProps is not null && catalog.GetValueOrDefault(p.Name) != PropertyLevel.Model) { unitProps.Add(p); return; }
+            if (unitProps is not null && carriers.Count % size == 0 && carriers.Distinct().Count() == size && catalog.GetValueOrDefault(p.Name) != PropertyLevel.Model)
+            {
+                for (var k = 0; k < carriers.Count / size; k++) unitProps.Add(p);
+                return;
+            }
             foreach (var i in carriers) slotProps[i].Add(p);
-        }
-
-        // The models an entry of `count` goes to: every model, else the next `count` from the cursor.
-        List<int> Carriers(int count)
-        {
-            if (count >= u.Size) return Enumerable.Range(0, u.Size).ToList();
-            var at = Enumerable.Range(cursor, count).Select(i => i % u.Size).ToList();
-            cursor += count;
-            return at;
-        }
-
-        // An upgrade that arms nobody (a banner, a medic) is carried by a model that keeps its weapon, so it takes no place among the
-        // weapons: its carriers come from a cursor of their own.
-        var unarmed = 0;
-        List<int> Bearers(int count)
-        {
-            if (count >= u.Size) return Enumerable.Range(0, u.Size).ToList();
-            var at = Enumerable.Range(unarmed, count).Select(i => i % u.Size).ToList();
-            unarmed += count;
-            return at;
         }
 
         void Arm(List<int> carriers, string name, int? attacks, JsonElement? rangeValue, List<AfRule>? rules)
@@ -201,34 +189,48 @@ public static class ArmyForgeImport
             foreach (var i in carriers) slotWeapons[i].Add(new(Guid.CreateVersion7(), name, new Dictionary<string, string>(wstats), props));
         }
 
-        foreach (var r in u.Rules ?? []) Place(new PropertyInstance(r.Name, Rating(r.Rating)), Carriers(u.Size));
-        foreach (var item in u.Loadout ?? [])
+        foreach (var r in u.Rules ?? []) Place(new PropertyInstance(r.Name, Rating(r.Rating)), Enumerable.Range(0, size).ToList());
+        var offset = 0;
+        foreach (var entry in entries)
         {
-            if (item.Type == "ArmyBookWeapon") Arm(Carriers(item.Count), item.Name, item.Attacks, item.Range, item.SpecialRules);
-            else if (item.Type == "ArmyBookItem")
+            var lines = entry.Loadout ?? [];
+            var carriersOf = ArmyForgeModels.Carriers(entry);
+            for (var l = 0; l < lines.Count; l++)
             {
-                // One upgrade's rules and weapons go to the same models.
-                var carriers = (item.Content ?? []).Any(e => e.IsWeapon) ? Carriers(item.Count) : Bearers(item.Count);
-                if (carriers.Count < u.Size) foreach (var i in carriers) if (!slotGear[i].Contains(item.Name)) slotGear[i].Add(item.Name);
-                if (ParseBase(item.Bases) is { } mount) foreach (var i in carriers) slotBodies[i] = new ModelBody(mount, HeightFromBase(mount));
-                foreach (var entry in item.Content ?? [])
-                    if (entry.IsWeapon) Arm(carriers, entry.Name, entry.Attacks, entry.Range, entry.SpecialRules);
-                    else Place(new PropertyInstance(entry.Name, Rating(entry.Rating)), carriers);
+                var item = lines[l];
+                var carriers = carriersOf[l].Select(i => i + offset).ToList();
+                if (item.Type == "ArmyBookWeapon") Arm(carriers, item.Name, item.Attacks, item.Range, item.SpecialRules);
+                else if (item.Type == "ArmyBookItem")
+                {
+                    // One upgrade's rules and weapons go to the same models.
+                    foreach (var i in carriers) if (!slotGear[i].Contains(item.Name)) slotGear[i].Add(item.Name);
+                    if (ParseBase(item.Bases) is { } mount) foreach (var i in carriers) slotBodies[i] = new ModelBody(mount, HeightFromBase(mount));
+                    foreach (var content in item.Content ?? [])
+                        if (content.IsWeapon) Arm(carriers, content.Name, content.Attacks, content.Range, content.SpecialRules);
+                        else Place(new PropertyInstance(content.Name, Rating(content.Rating)), carriers);
+                }
             }
+            offset += entry.Size;
         }
 
-        var slotStats = unitProps is null
-            ? new Dictionary<string, string> { ["Quality"] = Target(u.Quality), ["Defense"] = Target(u.Defense) }
-            : new Dictionary<string, string>();
-        for (var i = 0; i < u.Size; i++)
+        // An upgrade every model carries (in one line or several) names no one.
+        foreach (var everyone in slotGear.SelectMany(g => g).Distinct().Where(g => slotGear.All(x => x.Contains(g))).ToList())
+            foreach (var g in slotGear) g.Remove(everyone);
+
+        for (var i = 0; i < size; i++)
         {
+            var e = entries[0];
+            for (int at = 0, sum = 0; at < entries.Count; sum += entries[at].Size, at++) if (i >= sum) e = entries[at];
+            var slotStats = unitProps is null
+                ? new Dictionary<string, string> { ["Quality"] = Target(e.Quality), ["Defense"] = Target(e.Defense) }
+                : new Dictionary<string, string>();
             slotWeapons[i].AddRange(ArmyBookAdditions.Weapons(slotProps[i].Concat(unitProps ?? []), slotWeapons[i]));
             // A model carrying an upgrade the rest of its unit does not (a banner, a weapon team) is named for it, so it can be told apart
             // when a mesh is picked: "Infantry Squad (Company Standard) 2".
             var named = slotGear[i].Count > 0 ? $"{u.Name} ({string.Join(", ", slotGear[i])}) {i + 1}" : null;
             var slotName = named is { Length: <= Limits.Name } ? named : $"{u.Name} {i + 1}";
-            into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, slotName, new Dictionary<string, string>(slotStats),
-                Stacked(slotProps[i]), slotBodies[i].Base, slotBodies[i].Height, null, slotWeapons[i], u.ArmyId));
+            into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, slotName, slotStats,
+                Stacked(slotProps[i]), slotBodies[i].Base, slotBodies[i].Height, null, slotWeapons[i], slotBooks[i]));
         }
     }
 

@@ -30,6 +30,20 @@ public sealed record Army(Guid Id, string Name, string GameSystem, string Source
 {
     /// <summary>One of <see cref="ArmyEditions.All"/>. An init property, so positional construction stays 3.5.</summary>
     public string Edition { get; init; } = ArmyEditions.V35;
+
+    /// <summary>The unit a reserve unit is a copy of: the unit it is reserved of, when that holds the same name and as many models (a rule
+    /// that places "a new copy" of a unit); null for any other unit.</summary>
+    public Unit? CopiedBy(Unit unit) =>
+        unit.Reserve is { } r && Units.FirstOrDefault(u => u.Id == r.Of) is { } of && of.Name == unit.Name && of.Models.Count == unit.Models.Count ? of : null;
+
+    /// <summary>The army with each copy's models on the bodies of the unit it copies, slot for slot: mesh, base and height. A copy is the
+    /// same miniatures put back on the table, so only the original is given them.</summary>
+    public Army WithCopiesBodied() => this with
+    {
+        Units = Units.Select(u => CopiedBy(u) is { } of
+            ? u with { Models = u.Models.Select((m, i) => m with { AssetId = of.Models[i].AssetId, Base = of.Models[i].Base, Height = of.Models[i].Height }).ToList() }
+            : u).ToList(),
+    };
 }
 
 /// <summary>

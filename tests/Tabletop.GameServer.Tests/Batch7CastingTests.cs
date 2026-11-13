@@ -103,6 +103,7 @@ public class Batch7CastingTests
         var sim = new Sim(state, GrimdarkFutureRules.Instance, Core, new ScriptedDice([5, 4, 4, 4]));
         sim.Append([new ActionRecorded(u.Id, GfNames.Hold)]);
         sim.Start(GfNames.HoldSeq, new SequenceContext(u.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen("restore"));                                              // "you may restore"
         var roll = sim.Emitted.OfType<StepCompleted>().SelectMany(s => s.Rolls).Single(r => r.Roll == "Reanimation");
         Assert.Equal((1, 5), (roll.Dice.Count, roll.Threshold));
         Assert.IsType<OnTable>(sim.Model(u.Models[2].Id).Location);

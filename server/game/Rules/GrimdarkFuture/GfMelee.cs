@@ -85,9 +85,29 @@ public static class GfMelee
     /// </summary>
     static StepOutcome Strike(StepContext ctx, string step, IReadOnlyList<WeaponGroup> groups, Guid attacker, Guid target, string? action, IReadOnlyList<StateChange>? onDone = null, IReadOnlyDictionary<string, int>? values = null)
     {
-        if (Recorded(ctx, step)) return EachGroup(ctx, groups, attacker, target, action, onDone, values);
+        if (Recorded(ctx, step))
+        {
+            var declined = ctx.Frame.Frame.Steps[^1].Values!.GetValueOrDefault(TakedownStrikeDeclinedKey) == 1;
+            return EachGroup(ctx, declined ? [.. groups.Where(g => !IsTakedownStrike(ctx.State, g))] : groups, attacker, target, action, onDone, values);
+        }
         if (groups.Count == 0) return new Complete(onDone ?? [], values);
         var settled = values is null ? new Dictionary<string, int>() : new Dictionary<string, int>(values);
+        // Takedown Strike: "Once per game, when it's this model's turn to strike in melee, it may make X attacks …": asked when its weapon could strike;
+        // declined, the weapon does not strike and stays unused (Limited).
+        if (groups.Where(g => IsTakedownStrike(ctx.State, g)).ToList() is { Count: > 0 } strikes
+            && strikes.Any(g => GfAttack.EligibleModels(ctx.State, LiveProperties.Settle(GfAttack.AttackInteraction(ctx, attacker, target, g.WeaponIds, AttackKind.Melee, action)),
+                attacker, target, g.WeaponIds, AttackKind.Melee).Count > 0))
+        {
+            if (ctx.History.LastClosed(TakedownStrikeQuestion) is not { } closed)
+                return new OpenAsks([ctx.Ask(TakedownStrikeQuestion, "Use Takedown Strike?", ctx.TeamOf(attacker)!.Value,
+                    new Options([new AskOption("yes", "Yes", [attacker]), new AskOption("no", "No", [])]), allowPass: true)]);
+            if (closed.Single is not Chosen { OptionId: "yes" })
+            {
+                settled[TakedownStrikeDeclinedKey] = 1;
+                groups = [.. groups.Except(strikes)];
+                if (groups.Count == 0) return new Complete(onDone ?? [], values);
+            }
+        }
         var defenderModels = Lookup.LivingModels(ctx.State, target).Count;
         foreach (var (g, i) in groups.Select((g, i) => (g, i)))
         {
@@ -99,6 +119,14 @@ public static class GfMelee
         }
         return new Complete([], settled, Repeat: true);
     }
+
+    public const string TakedownStrikeQuestion = "takedown_strike";
+    const string TakedownStrikeDeclinedKey = "takedown_strike_declined";
+
+    /// <summary>A group of the weapon the import adds for Takedown Strike, carried by a model holding the rule.</summary>
+    static bool IsTakedownStrike(GameState state, WeaponGroup g) =>
+        state.Projection.Models.Values.Any(m => m.Slot.Properties.Any(p => p.Name == GfNames.TakedownStrike)
+            && m.Slot.Weapons.Any(w => g.WeaponIds.Contains(w.Id) && w.Name == GfNames.TakedownStrike));
 
     /// <summary>The step's last completion on this frame was its own recording run: the groups are being pushed.</summary>
     static bool Recorded(StepContext ctx, string step) =>

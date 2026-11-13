@@ -66,7 +66,21 @@ public static class GfShooting
     public static Assigned? Declared(StepContext ctx)
     {
         if (ctx.Frame.Frame.Steps.FirstOrDefault(s => s.Step == "declare-targets")?.Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return null;
-        return answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.TargetsOf(kv.Key).Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
+        var targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.TargetsOf(kv.Key).Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        return answered with { Targets = targets.Where(kv => TakedownShotHolds(ctx, offer, targets, kv.Key, kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
+    }
+
+    /// <summary>Takedown Shot: "when this model shoots, it may make X extra attacks against the target": the import's Takedown Shot weapon fires only at
+    /// a unit its model's other weapons are declared at; a model firing nothing else may aim it at any target offered. Every other group holds.</summary>
+    static bool TakedownShotHolds(StepContext ctx, Assignment offer, IReadOnlyDictionary<string, Guid> targets, string group, Guid target)
+    {
+        var weapons = offer.Items.First(i => i.Id == group).Pieces;
+        var carriers = ctx.Projection.Models.Values.Where(m => m.Slot.Properties.Any(p => p.Name == GfNames.TakedownShot)
+            && m.Slot.Weapons.Any(w => weapons.Contains(w.Id) && w.Name == GfNames.TakedownShot)).ToList();
+        if (carriers.Count == 0) return true;
+        var others = carriers.SelectMany(m => m.Slot.Weapons).Where(w => !weapons.Contains(w.Id)).Select(w => w.Id).ToHashSet();
+        var aimed = targets.Where(kv => kv.Key != group && offer.Items.First(i => i.Id == kv.Key).Pieces.Any(others.Contains)).Select(kv => kv.Value).ToList();
+        return aimed.Count == 0 || aimed.Contains(target);
     }
 
     /// <summary>

@@ -71,6 +71,20 @@ public class GfReserves36Tests
         Assert.Equal([copy.Id], GfReserves.Reinforcements(sim.State, Samples.Team1));                               // destroyed: both editions
     }
 
+    /// <summary>3.6: "At the beginning of the next round after a unit where all models have this rule is destroyed": that round's start, and no later one.</summary>
+    [Fact]
+    public void A_copy_is_offered_at_the_start_of_the_round_after_its_original_was_destroyed_and_not_at_a_later_one()
+    {
+        var (rats, copy, _, state) = Game(RuleSets.Gf360);
+        var sim = Sim.Gf(RuleSets.Gf360, state);
+        sim.Append([new RoundStarted(1, [Samples.Team1, Samples.Team2], [])]);
+        sim.Append([new ModelsMoved(rats.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new OnShelf())).ToList())]);   // destroyed in round one
+        sim.Append([new RoundStarted(2, [Samples.Team1, Samples.Team2], [])]);
+        Assert.Equal([copy.Id], GfReserves.Reinforcements(sim.State, Samples.Team1));
+        sim.Append([new RoundStarted(3, [Samples.Team1, Samples.Team2], [])]);
+        Assert.Empty(GfReserves.Reinforcements(sim.State, Samples.Team1));
+    }
+
     [Theory]
     [InlineData(RuleSets.Gf351, false)]
     [InlineData(RuleSets.Gf360, true)]

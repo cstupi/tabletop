@@ -36,6 +36,19 @@ public class ArmyBookAdditionsTests
         Assert.Equal(["AP", "Deadly", "Reliable", "Takedown", "Limited"], strike.Properties.Select(p => p.Name));
     }
 
+    /// <summary>3.6: "it may make X extra attacks" (Takedown Shot(X)), "it may make X attacks" (Takedown Strike(X)); 3.5.1's unrated rule
+    /// is "one". Ratings stack as `Stacked` adds them.</summary>
+    [Fact]
+    public void A_rated_takedown_makes_X_attacks()
+    {
+        var model = Import("""{"name":"Takedown Shot","rating":2},{"name":"Takedown Strike","rating":3}""", $"{Rifle},{Ccw}").Units[0].Models[0];
+        Assert.Equal("2", model.Weapons.Single(w => w.Name == "Takedown Shot").Stats["Attacks"]);
+        Assert.Equal("3", model.Weapons.Single(w => w.Name == "Takedown Strike").Stats["Attacks"]);
+        var item = """{"name":"Hitman","type":"ArmyBookItem","count":1,"content":[{"name":"Takedown Strike","type":"ArmyBookRule","rating":1}]}""";
+        var stacked = Import("""{"name":"Takedown Strike","rating":1}""", $"{Ccw},{item}").Units[0].Models[0];
+        Assert.Equal("2", stacked.Weapons.Single(w => w.Name == "Takedown Strike").Stats["Attacks"]);
+    }
+
     [Fact]
     public void Only_the_carrying_model_gets_the_weapon_and_a_model_with_no_gun_gets_no_shot()
     {
