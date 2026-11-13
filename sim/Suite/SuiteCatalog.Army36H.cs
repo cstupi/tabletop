@@ -97,8 +97,8 @@ public static partial class SuiteCatalog
             AnchoredH(Pick(Books36.DaoUnion, "dao-union-piercing-shooting-mark", Play.Shoots, "Piercing Shooting Mark",
                 [BlocksUnder("Piercing Shooting Mark", Granted("Piercing Shooting Mark", onTarget: true), 1, MarkText + "s AP(+1) on their weapons when shooting against once\"")]), 15, 11).In36(),
             AnchoredH(Marking(Books36.HighElfFleets, "Piercing Spotter", 0,
-                [TokensH(PerMarker("Piercing Spotter", "defense", -1, onTarget: true, SpotterH + ". When attacking, friendly units may remove tokens … to get +AP(X) on their weapons\"", ap: true)),
-                 TokensH(SpentTogether("Piercing Spotter", SpotterH + "\": the tokens removed when used"))], length: 30) with { Dice = [RollOff, new DiceFix("Piercing Spotter", 0, [6])] }, 19, 11).In36(),
+                [TokensH(PerRemoved("Piercing Spotter", "defense", -1, SpotterH + ". When attacking, friendly units may remove tokens … to get +AP(X) on their weapons\"", ap: true)),
+                 TokensH(RemovedAsChosen("Piercing Spotter", SpotterH + "\": the tokens removed as chosen"))], length: 30) with { Dice = [RollOff, new DiceFix("Piercing Spotter", 0, [6])] }, 19, 11).In36(),
 
             // Precision
             Game(Books36.DwarfGuilds, "dwarf-guilds-precision-frenzy", Play.Moves, ["Precision Frenzy"], Both("Precision Frenzy"), [],
@@ -106,8 +106,8 @@ public static partial class SuiteCatalog
             Game(Books36.InfectedColonies, "infected-colonies-precision-growth", Play.Shoots, ["Precision Growth"], Both("Precision Growth"), [],
                 [TokensH(PerMarker("Precision Growth", "hit", 1, onTarget: false, GrowthH + ", models with this rule in this unit get +1 to hit rolls\"", perTwo: true))]).In36(),
             AnchoredH(Marking(Books36.DaoUnion, "Precision Spotter", 0,
-                [TokensH(PerMarker("Precision Spotter", "hit", 1, onTarget: true, SpotterH + ". Friendly units may remove tokens … to get +X to hit rolls\"")),
-                 TokensH(SpentTogether("Precision Spotter", SpotterH + "\": the tokens removed when used"))], length: 30) with { Dice = [RollOff, new DiceFix("Precision Spotter", 0, [6])] }, 19, 11).In36(),
+                [TokensH(PerRemoved("Precision Spotter", "hit", 1, SpotterH + ". Friendly units may remove tokens … to get +X to hit rolls\"")),
+                 TokensH(RemovedAsChosen("Precision Spotter", SpotterH + "\": the tokens removed as chosen"))], length: 30) with { Dice = [RollOff, new DiceFix("Precision Spotter", 0, [6])] }, 19, 11).In36(),
 
             // Rending
             Game(Books36.RobotLegions, "robot-legions-rending-in-melee", Play.Charges, ["Rending in Melee"], All3("Rending in Melee"), [],

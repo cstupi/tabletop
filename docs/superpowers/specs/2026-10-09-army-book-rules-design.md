@@ -163,9 +163,10 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   `Delay` while an opponent has more units on the table left to activate, once a round; the turn ends and the unit stays
   unactivated. Inquisitorial Agent and Martial Prowess offer a unit that has activated this round its actions again, once
   a game, at most ⌈n/3⌉ such units a round (n: the army's units holding the rule), clearing fatigue. Instinctive is
-  read when the activation starts: a unit that can charge is offered only Charge, one that can shoot may not Rush and
-  takes its shot without being asked; its only target is the closest valid one, and its shooting or charging attacks
-  that activation get +1 to hit.
+  read when the activation starts, for a unit any of whose models holds it (a joined Hero's slot carries its own
+  rules): it is offered Charge when a charge is open and Hold and Advance when it can shoot, never Rush, and the
+  player picks; a unit that shoots takes its shot without being asked; its only target is the closest valid one, and
+  the shooting or charging attacks of the models holding it get +1 to hit that activation.
 - **Batch 5.** *"The attacking unit takes X hits"* and *"the attacker takes X hits per wound taken"* are hits with no roll to
   hit (`rule-hits`), blocked as melee hits, dealt by the wounded model's unit; only wounds from a weapon or Impact attack in a
   melee set them off, so they set off nothing in turn. Deathstrike and Self-Destruct count a model killed by those wounds;
@@ -173,20 +174,21 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   sides have finished attacking"*, then each side's hits are dealt. Ravage rolls at its unit's turn to attack: the
   charger's before its strikes, the defender's after it struck back (or struck first with Counter); each 6 is a wound with
   no block (`rule-wounds`). Crossing Attack and Strafing read *"moves through enemy units"* as an action's move segment
-  crossing an enemy model's base; after the move the player picks one unit it crossed (once: one move per activation);
-  Strafing's weapon is in no shooting group (*"may only be used in this way"*) and makes its attack as a shot.
-  Protection Feat is a roll to ignore wounds at 5+, *"once per game"* read as every wound of the first attack it is
-  rolled against (it is used automatically, the first time). Regenerative Strength moves to batch 6 (a marker on a
+  crossing an enemy model's base; after the move each model with the rule that crossed one picks one unit it crossed and
+  rolls its own X or attacks with its own weapon (once: one move per activation); a model without the rule crossing sets
+  nothing off. Strafing's weapon is in no shooting group (*"may only be used in this way"*) and makes its attack as a shot.
+  Protection Feat is a roll to ignore wounds at 5+, *"once per game"* read as every wound of one attack: its team is
+  asked (`use_rule`, Yes or No) each time wounds are dealt to the unit until it says Yes. Regenerative Strength moves to batch 6 (a marker on a
   model); Takedown Shot and Takedown Strike are under batch 3.
-- **Batch 6.** A marker is a grant of the rule's marker row (duration `marker`, kept for the game, or `spent_marker`, spent
-  with its fellows the first time one applies), so *"for each marker"* is the sum of its grants; a carried rule's marker
+- **Batch 6.** A marker is a grant of the rule's marker row (duration `marker`, kept for the game, or `spent_marker`, removed
+  as the attacking team chooses), so *"for each marker"* is the sum of its grants; a carried rule's marker
   rows act only through those grants. *"For every two markers"* is two marker rows the markers cycle through, the first
   of each pair never acting. Steadfast, Battleborn and Honor Code roll at the round boundary, before the Ambushers. The
   Frenzies and Vengeance read *"fully destroys an enemy unit"* as an attack's wounds leaving the unit with no model in
   play (a unit Routed by a morale test is not counted); Vengeance places one marker per model that carried it at the start
   of the game, for its own side. The Growths place their marker as the round starts. Spotters and Tags are pick entries
-  (used before attacking); *"friendly units may remove markers … before rolling"* removes them all at the attack that
-  reads them. A marker its holder's own side placed (Fortified Growth's *"enemies attacking this unit get AP(-1)"*)
+  (used before attacking); *"friendly units may remove markers … before rolling"* is asked of the attacking team before
+  the hit roll (`remove_tokens`, how many), once per target per shooting or melee strike, and X is the count removed. A marker its holder's own side placed (Fortified Growth's *"enemies attacking this unit get AP(-1)"*)
   reaches every opponent. Regenerative Strength's markers are the wounds its model ignored, and its *"+X attacks"* go to
   the model's first melee weapon.
 - **Batch 7.** Caster Group's caster is the group's first model in play (the pick made for the player), Caster(X) with X its
@@ -221,8 +223,8 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   Grounded Precision reads the attacker's own terrain (`Interaction.AttackerTerrain`). Entrenched and Mobile Artillery
   read *"hasn't moved during the round"* as the unit condition `moved this round`, set by its moves and cleared as a round
   starts. Quick Readjustment is a `suppress_property` naming a roll: Indirect's modifiers of the hit roll go, Indirect
-  stays. Heavy Impact grants Impact with its own X (a `grant_property` from the parameter) and its Impact hits are
-  blocked under AP(1). No Retreat turns the failed test into a pass, rolls one die per wound left to the unit and deals
+  stays. Heavy Impact grants Impact with its own X (a `grant_property` from the parameter); its models' Impact dice roll as
+  their own pool and only that pool's hits are blocked under AP(1). No Retreat turns the failed test into a pass, rolls one die per wound left to the unit and deals
   a wound on each 1-3 through deal-wounds with no roll to ignore it.
 - **Order.** Batch 3 is taken after batches 4–8, on the Ambush placement code another branch wrote.
 

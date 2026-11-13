@@ -60,6 +60,22 @@ public static class Lookup
         };
     }
 
+    /// <summary>UnitHas over a party: the entry's aggregation counts the party's models (an attack's carriers, a Takedown's picked model) rather than
+    /// the unit's living ones. A party naming no model is the unit.</summary>
+    public static bool PartyHas(GameState state, PropertySet props, Party party, string entry)
+    {
+        if (party.ModelIds.Count == 0) return UnitHas(state, props, party.UnitId, entry);
+        if (UnitProperties(state, props, party.UnitId).Any(p => p.Name == entry) || AuraGrants(state, props, party.UnitId).Contains(entry)) return true;
+        if (props.Entry(entry) is not { } e) return false;
+        if (e.Kind == CatalogKind.Unit) return UnitKindOnSlots(state, props, party.UnitId).Any(x => x.Property.Name == entry);
+        var with = party.ModelIds.Count(id => state.Projection.Models[id].Slot.Properties.Any(p => p.Name == entry));
+        return e.Aggregation switch
+        {
+            Aggregation.All => with == party.ModelIds.Count, Aggregation.Any or Aggregation.None => with > 0,
+            Aggregation.Majority => with * 2 > party.ModelIds.Count, _ => false,
+        };
+    }
+
     /// <summary>The unit-kind properties written onto the unit's model slots, over the definition rather than the projection: a rule scoped to the unit
     /// does not depend on which of its models are standing, and a deployment rule is read before anything has a position at all.</summary>
     public static IEnumerable<(PropertyInstance Property, CatalogEntry Entry)> UnitKindOnSlots(GameState state, PropertySet props, Guid unitId) =>

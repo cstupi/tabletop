@@ -111,7 +111,9 @@ public static class GfActivationEnd
             var log = EventApplier.EffectiveLog(ctx.State.Applier.Log).ToList();
             var from = log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == ctx.Frame.Id);
             var started = log.Skip(from + 1).Select(e => e.Payload).OfType<SequenceStarted>().ToList();
-            if (!started.Any(s => s.Sequence == GfNames.ActivationEndSeq) && HasRows(ctx.State, ctx.Properties, unit, GfNames.ActivationEnd, action))
+            // As at a scheduled activation's end (Sequences): its rows, or Ambush Re-Deployment ("when a unit where all models have this rule ends its activation").
+            if (!started.Any(s => s.Sequence == GfNames.ActivationEndSeq)
+                && (HasRows(ctx.State, ctx.Properties, unit, GfNames.ActivationEnd, action) || GfAmbush.MayReDeploy(ctx.State, unit)))
                 return new Push(GfNames.ActivationEndSeq, new SequenceContext(unit, [], [], action));
             var tested = started.Where(s => s.Sequence == GfNames.MoraleTest).Select(s => s.Context.ActorUnitId).ToHashSet();
             if (GfHooks.UnitsToTestAtEndOfActivation(ctx.State, ctx.Properties, unit).FirstOrDefault(u => !tested.Contains(u)) is { } next && next != Guid.Empty)

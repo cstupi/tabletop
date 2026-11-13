@@ -18,7 +18,10 @@ public static partial class GfAttack
     {
         if (Lookup.LivingModels(ctx.State, unit).Count == 0) return;
         var rolled = new HashSet<string>();
-        foreach (var ix in AttackStartInteractions(ctx, unit, opponents, kind, withFaces: false))
+        // "Roll one die and apply one effect to all models with this rule": the die is rolled once when any model in play holds the rule (a joined
+        // Hero without it, or a Hero with it in a unit without), asked over each holder party (GfHooks.HolderParties); the face reaches the holders.
+        var parties = GfHooks.HolderParties(ctx.State, ctx.Properties, unit);
+        foreach (var ix in AttackStartInteractions(ctx, unit, opponents, kind, withFaces: false).SelectMany(ix => parties.Select(p => ix with { Attacker = p })))
         {
             var live = ctx.Settle(ix);
             foreach (var (source, row) in live.AtPoint(Side.Attacker, GfNames.AttackStart).Where(x => x.Effect.Kind == EffectKind.Roll))

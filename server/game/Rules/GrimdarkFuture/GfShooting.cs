@@ -42,11 +42,15 @@ public static class GfShooting
         {
             // Offering a target is no attack: the live set records nothing into Applied, so a once grant read here (a range Mark at a unit
             // it does not shoot) is neither listed nor spent; the attack that follows lists and spends what it reads.
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, group.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
-            // p.7: "Rush - Moves 12" but can't shoot", unless Quick Shot is live for this target ("This model may shoot after using Rush actions"):
-            // innate, or granted against this target (army-rule hooks → Shooting after Rush). Offering reads nothing; FireGroupsStep spends it.
-            if (ctx.Frame.Context.Action == GfNames.Rush && !live.Has(Side.Attacker, GfNames.QuickShot)) return false;
-            return GfAttack.EligibleModels(ctx.State, live, unit, target, group.WeaponIds, AttackKind.Shooting).Count > 0;
+            // The group fires as its parts (GfGroups.Split): a target is the group's when some part has a model that can shoot it.
+            return GfGroups.Split(ctx.State, ctx.Properties, [group]).Any(part =>
+            {
+                var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, part.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
+                // p.7: "Rush - Moves 12" but can't shoot", unless Quick Shot is live for this target ("This model may shoot after using Rush actions"):
+                // innate, or granted against this target (army-rule hooks → Shooting after Rush). Offering reads nothing; FireGroupsStep spends it.
+                if (ctx.Frame.Context.Action == GfNames.Rush && !live.Has(Side.Attacker, GfNames.QuickShot)) return false;
+                return GfAttack.EligibleModels(ctx.State, live, unit, target, part.WeaponIds, AttackKind.Shooting).Count > 0;
+            });
         }).ToList();
     }
 
@@ -109,7 +113,8 @@ public static class GfShooting
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             if (Declared(ctx) is not { } assigned) return new Complete([]);
-            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Where(g => assigned.Targets.ContainsKey(g.Name)).ToList();
+            // Each group fires as one attack per carrier signature (GfGroups.Split), at the target declared for its name.
+            var groups = GfGroups.Split(ctx.State, ctx.Properties, GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Where(g => assigned.Targets.ContainsKey(g.Name)));
             if (groups.Count == 0) return new Complete([]);                                   // nothing was assigned a target: also the guard that bounds the recording phase
             if (!ctx.Frame.Values.ContainsKey("attacks_0"))
             {

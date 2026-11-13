@@ -132,10 +132,12 @@ tokens on one enemy unit …, or one token on X enemy units"*; every shipped X i
 
 A `one_marker` row is one token a rule places; its grants stack as `marker` grants do, but `LiveProperties.Gather` keeps one
 instance of the entry per side (the first grant), so one token acts on an attack, and `LiveSet.Spend` spends that grant
-alone: *"may remove one token from their target before rolling to block to get AP(+1)"*. `spent_marker` keeps its 3.5.1
-meaning, every grant of the rule going together (*"may remove markers … to get +X"*, 3.5.1 Piercing Tag, Precision Tag,
-and both editions' Spotters). The token is spent whenever its row applies: a modifier is never a player choice
-(dice-are-never-edited ruling), and nothing in the text makes saving a token a decision the engine should ask.
+alone: *"may remove one token from their target before rolling to block to get AP(+1)"*; it is spent whenever its row
+applies, since nothing in its text makes saving it a choice. `spent_marker` (3.5.1 Piercing Tag, Precision Tag, both
+editions' Spotters: *"friendly units may remove tokens from their target … where X is the number of removed tokens"*) is
+the attacking team's choice of how many: `attack-sequence`'s `spotter-tokens` step asks `remove_tokens` before the hit roll,
+once per target per shooting or melee strike of the unit, removes that many and gives every attack of that strike at that
+target X equal to the count (grants.md → A marker is a grant).
 
 ### `attacked` (a point for the defender's choice)
 

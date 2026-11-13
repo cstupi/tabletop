@@ -124,6 +124,15 @@ public static partial class GfAttack
                 return Apply(ctx, target, pending, RecordedAllocation(rolled), TakedownModel(ctx.Frame) is { } t && Lookup.AliveModels(ctx.State, target).Contains(t) || SelfWoundModels(ctx, target) is not null, last.Rolls);
             var wounds = ctx.Frame.Values.ContainsKey("wounds_left") ? ctx.Frame.Value("wounds_left") : WoundsToDeal(ctx.Frame);
             if (wounds <= 0) return new Finish([]);
+            // Protection Feat: "Once per game, when this unit takes wounds …, you may use this rule and roll one die per wound": until it is used its team is
+            // asked once per deal-wounds frame on the unit; the answer rides the frame as use_<entry> for every segment of it (WoundEffects).
+            if (Lookup.AliveModels(ctx.State, target).Count > 0 && OnceUnused(ctx, target) is { } once && !ctx.Frame.Values.ContainsKey(UseKey(once)))
+            {
+                if (ctx.History.LastClosed(UseRule) is not { } use)
+                    return new OpenAsks([ctx.Ask(UseRule, $"Use {once} on {wounds} {(wounds == 1 ? "wound" : "wounds")}?", ctx.TeamOf(target)!.Value,
+                        new Options([new AskOption("yes", "Yes", [target]), new AskOption("no", "No", [])]), allowPass: true)]);
+                return new Complete([], new Dictionary<string, int> { [UseKey(once)] = use.Single is Chosen { OptionId: "yes" } ? 1 : 0 }, Repeat: true);
+            }
             // 3.6 Hazardous: "this model takes one wound": each self wound on the model that rolled it, nothing asked, nothing carried over.
             if (SelfWoundModels(ctx, target) is { } own) return Apply(ctx, target, wounds, own, fixedModels: true, null);
             var team = ctx.TeamOf(target) ?? throw new InvalidOperationException("target unit has no team");
@@ -191,20 +200,29 @@ public static partial class GfAttack
         static (int Multiplier, (LiveProperty Source, Effect Roll) Regen) WoundEffects(StepContext ctx, Guid target, LiveSet live)
         {
             var actor = ctx.Frame.Context.ActorUnitId;
-            var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
             // Regeneration is aggregation all under 3.5.1 ("a unit where all models have this rule") and majority under 3.6.0 (3.6.0 p.14: "most models"), so LiveProperties.Gather settles it
             // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
             // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
-            // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … roll one die per wound") is this unit's for every wound of
-            // the first attack it is rolled against, and for no later one.
+            // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … you may use this rule and roll one die per wound") rolls for
+            // every wound of the frame its team chose to use it in (use_<entry>), and in no later frame.
             // No Retreat's wounds "can't be ignored": no roll is made for them.
-            var regen = ctx.Frame.Context.Action == GfNames.NoRetreat ? default
-                : RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
-                    (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
+            var regen = IgnoreRolls(ctx, live, (source, roll) => !OncePerGame(roll) || (!RolledInAnotherFrame(ctx, source.Entry.Name, target) && ctx.Frame.Value(UseKey(source.Entry.Name)) == 1))
+                .FirstOrDefault();
             return (multiplier, regen);
         }
+
+        static IReadOnlyList<(LiveProperty Source, Effect Roll)> IgnoreRolls(StepContext ctx, LiveSet live, Func<LiveProperty, Effect, bool> keep) =>
+            ctx.Frame.Context.Action == GfNames.NoRetreat ? []
+                : RollEffects.OwnRolls(live, ctx.Frame.Context.ActorUnitId is null ? Side.Attacker : Side.Defender, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound }, keep);
+
+        /// <summary>The once-per-game roll to ignore wounds the unit holds and has not rolled in another deal-wounds frame: the rule its team is asked to use.</summary>
+        static string? OnceUnused(StepContext ctx, Guid target) =>
+            IgnoreRolls(ctx, LiveProperties.Settle(WoundInteraction(ctx, target)), (source, roll) => OncePerGame(roll) && !RolledInAnotherFrame(ctx, source.Entry.Name, target))
+                .Select(x => x.Source.Entry.Name).FirstOrDefault();
+
+        static string UseKey(string entry) => $"use_{entry}";
 
         /// <summary>The allocation a rolling run recorded, in its order.</summary>
         static IReadOnlyList<(Guid Model, int Count)> RecordedAllocation(IReadOnlyDictionary<string, int> values) =>
@@ -283,6 +301,9 @@ public static partial class GfAttack
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
     }
+
+    /// <summary>The Ask that offers a once-per-game rule ("you may use this rule"): Yes or No, a pass is No.</summary>
+    public const string UseRule = "use_rule";
 
     static bool OncePerGame(Effect roll) => roll.Conditions.Any(c => c is { Kind: ConditionKind.UsageCount, Values: ["game", ..] });
 

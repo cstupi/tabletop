@@ -39,12 +39,12 @@ public class FaceDecisionEditTests
 
     static SequenceContext Shoot(Unit a, Unit t) => new(a.Id, [t.Id], a.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold);
 
-    /// <summary>The attack up to the gate after roll-to-block: pick-target-model, roll-to-hit, score-hits and resolve each pass a gate.</summary>
+    /// <summary>The attack up to the gate after roll-to-block: pick-target-model, spotter-tokens, roll-to-hit, score-hits and resolve each pass a gate.</summary>
     static Sim Blocked(Unit shooter, Unit target, params int[] dice)
     {
         var sim = Game([shooter], [target], -4, 4, null, dice);
         sim.Start(GfNames.AttackSequence, Shoot(shooter, target));
-        for (var i = 0; i < 4; i++) Pass(sim);
+        for (var i = 0; i < 5; i++) Pass(sim);
         Assert.Single(sim.Steps("roll-to-block"));
         Assert.Empty(sim.Steps("assign"));
         return sim;

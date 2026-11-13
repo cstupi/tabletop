@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
@@ -132,6 +133,55 @@ public class Batch4ActivationTests
         var declare = sim.AskFor(Samples.Team1);                                            // no shoot_or_not: the shot is taken
         Assert.Equal("declare_targets", declare.Question);
         Assert.Equal([near.Id], ((Assignment)declare.Legal).Targets);   // Near (unit 1 of team 2) stands nearer than Far
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void Instinctive_in_charge_distance_may_charge_or_shoot_but_not_rush(string rules)
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Instinctive")], Gun("Gun", "48\"", 1));
+        var state = State([a], [Unit("E", "4+", "4+", [], 1, [])], x1: -4, x2: 4).Under(rules);
+        var props = rules == RuleSets.Gf360 ? TestProperties.Core36 : Core;
+        var (actions, note) = GrimdarkFutureRules.ActivationChoices(state, props, state.Projection.Units[a.Id], ["Hold", "Advance", "Rush", "Charge"]);
+        Assert.Equal(["Hold", "Advance", "Charge"], actions);
+        Assert.Equal(GrimdarkFutureRules.InstinctiveNote, note);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void Instinctive_with_only_a_charge_open_must_charge(string rules)
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Instinctive")], Melee("Blade", 1));
+        var state = State([a], [Unit("E", "4+", "4+", [], 1, [])], x1: -4, x2: 4).Under(rules);
+        var props = rules == RuleSets.Gf360 ? TestProperties.Core36 : Core;
+        var (actions, _) = GrimdarkFutureRules.ActivationChoices(state, props, state.Projection.Units[a.Id], ["Hold", "Advance", "Rush", "Charge"]);
+        Assert.Equal(["Charge"], actions);
+    }
+
+    [Theory]
+    [InlineData(RuleSets.Gf351)]
+    [InlineData(RuleSets.Gf360)]
+    public void Instinctive_holds_for_a_unit_a_model_without_it_has_joined_and_adds_one_to_its_carriers_hits_only(string rules)
+    {
+        // A joined Hero carries its own rules on its own slot: the mob's models still hold Instinctive ("When this model is activated").
+        var mob = Unit("Mob", "5+", "5+", [], 3, [P("Instinctive")], Gun("Scrap Gun", "48\"", 1));
+        var hero = mob.Models[^1] with { Properties = [], Weapons = [Gun("Boss Pistol", "48\"", 1)] };
+        var a = mob with { Models = [.. mob.Models.Take(2), hero] };
+        var e = Unit("E", "4+", "4+", [], 1, []);
+        var state = State([a], [e]).Under(rules);
+        var props = rules == RuleSets.Gf360 ? TestProperties.Core36 : Core;
+        var (actions, note) = GrimdarkFutureRules.ActivationChoices(state, props, state.Projection.Units[a.Id], ["Hold", "Advance", "Rush", "Charge"]);
+        Assert.Equal(["Hold", "Advance"], actions);
+        Assert.Equal(GrimdarkFutureRules.InstinctiveNote, note);
+        Assert.NotNull(GrimdarkFutureRules.InstinctiveAttack(state, props, state.Projection.Units[a.Id]));
+
+        state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null, new ConditionSet(new Subject(SubjectKind.Unit, a.Id), GfNames.InstinctiveCondition, true), null));
+        int Bonus(Weapon w) => LiveProperties.Settle(GfAttack.AttackInteraction(state, props, null, a.Id, e.Id, [w.Id], AttackKind.Shooting, GfNames.Hold))
+            .Has(Side.Attacker, GfNames.Instinctive) ? 1 : 0;
+        Assert.Equal(1, Bonus(a.Models[0].Weapons[0]));
+        Assert.Equal(0, Bonus(hero.Weapons[0]));
     }
 
     [Fact]

@@ -15,7 +15,8 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>
     /// p.8, Who can shoot: "All models in a unit with line of sight to the target, and that have a weapon that is within range of it, may fire
     /// at it" — GfAttack.EligibleModels per ranged weapon group (p.8, Multiple weapon types), united. Each group's live set is
-    /// GfAttack.AttackInteraction's with no frame: no charge range, no faces, under the action of the unit's running activation.
+    /// GfAttack.AttackInteraction's with no frame: no charge range, no faces, under the action of the unit's running activation. A group is judged in
+    /// the parts its attack resolves as (GfGroups.Split), each over its own carriers, as `fire-groups` and `GfShooting.ValidTargets` judge it.
     /// </summary>
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId)
     {
@@ -23,17 +24,18 @@ public sealed partial class GrimdarkFutureRules
         if (!p.Units.ContainsKey(unitId) || !p.Units.ContainsKey(targetUnitId)) return [];
         if (Lookup.AliveModels(state, unitId).Count == 0 || Lookup.LivingModels(state, targetUnitId).Count == 0) return [];
         var action = p.Stack.FirstOrDefault(f => f.Context.ActorUnitId == unitId)?.Context.Action;
-        return GfShooting.Groups(state, properties, unitId, null).SelectMany(group =>
+        return GfGroups.Split(state, properties, GfShooting.Groups(state, properties, unitId, null)).SelectMany(part =>
         {
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting, action));
-            return GfAttack.EligibleModels(state, live, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting);
+            var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, part.WeaponIds, AttackKind.Shooting, action));
+            return GfAttack.EligibleModels(state, live, unitId, targetUnitId, part.WeaponIds, AttackKind.Shooting);
         }).Distinct().ToList();
     }
 
     /// <summary>
     /// Each ranged weapon group's range against the target, on the live set Shooters judges it with: the printed range, the range a model of
     /// the group reaches with (the longest of its weapons), and the rules that changed it (Shadowborn's "-4\" range"), so a client can say why a
-    /// model that sees the target cannot shoot it.
+    /// model that sees the target cannot shoot it. Each part of the group (GfGroups.Split) is read on its own live set, as its attack reads it, and the group
+    /// shows the longest part's range and the rules that changed that part's.
     /// </summary>
     public IReadOnlyList<ShotRange> ShotRanges(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId)
     {
@@ -44,11 +46,14 @@ public sealed partial class GrimdarkFutureRules
         var weapons = p.Models.Values.SelectMany(m => m.Slot.Weapons).ToDictionary(w => w.Id);
         return GfShooting.Groups(state, properties, unitId, null).Select(group =>
         {
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting, action));
-            var by = new List<string>();
-            var inches = group.WeaponIds.Max(w => StatReader.WeaponRange(live, Side.Attacker, w, by) ?? 0);
             var printed = group.WeaponIds.Max(w => StatValue.Read(StatKind.Distance, weapons[w].Stats[GfNames.Range]).Inches);
-            return new ShotRange(group.Name, printed, inches, inches == printed ? [] : by);
+            var (inches, by) = GfGroups.Split(state, properties, [group]).Select(part =>
+            {
+                var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, part.WeaponIds, AttackKind.Shooting, action));
+                var changed = new List<string>();
+                return (Inches: part.WeaponIds.Max(w => StatReader.WeaponRange(live, Side.Attacker, w, changed) ?? 0), By: changed);
+            }).MaxBy(x => x.Inches);
+            return new ShotRange(group.Name, printed, inches, inches == printed ? [] : by.Distinct().ToList());
         }).ToList();
     }
 

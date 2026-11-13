@@ -9,7 +9,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import MeshPicker from '$lib/components/MeshPicker.svelte';
   import Thumb from '$lib/components/Thumb.svelte';
-  import { meshLine, slotRows, statBadges, systemName } from '$lib/armies/cards';
+  import { meshLine, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
   import { importErrorMessage, reimport } from '$lib/armies/import';
   import { rename, slotBase, slotHeight, slotSummary } from '$lib/armies/patches';
   import { buildIndex } from '$lib/meshpicker/search';
@@ -82,8 +82,9 @@
   {@const ids = all ? unit.models.map((x) => x.id) : [m.id]}
   {@const mesh = m.assetId ? byId.get(m.assetId) : undefined}
   {@const sub = !all && unit.models.length > 1 && slotRows(unit).shared}
+  {@const marks = all ? [] : slotMarks(unit, m)}
   <div class="slot" class:sub>
-    <span class="slot-name" title={slotSummary(m)}>{label}</span>
+    <span class="slot-name" title={slotSummary(m)}>{label}{#if marks.length}<small class="marks">{marks.join(' · ')}</small>{/if}</span>
     <button type="button" class="mesh-btn" class:none={!m.assetId} aria-haspopup="dialog" aria-label="Mesh for {label}: {mesh?.name ?? 'none'}" title="Pick a mesh"
       onclick={() => (target = { unit, slots: all ? unit.models : [m], row: all ? 'shared' : sub ? 'sub' : 'single', label: all ? unit.name : label })}>
       <Thumb url={mesh?.thumbnail} alt="" size="2.75rem" />
@@ -172,6 +173,7 @@
   .slot { display: grid; grid-template-columns: minmax(7rem, 11rem) minmax(12rem, 1fr) auto auto; align-items: center; gap: var(--s2) var(--s3); padding: var(--s1) 0 }
   .slot.sub { margin-left: var(--s5) }
   .slot-name { overflow-wrap: anywhere }
+  .marks { display: block }
   .cell { display: inline-flex; align-items: center; gap: var(--s1); min-width: 0; flex-wrap: wrap }
   .cell :global(.icon) { color: var(--dim) }
   .mesh-btn { justify-content: flex-start; gap: var(--s3); min-height: 3.25rem; padding: var(--s1) var(--s3) var(--s1) var(--s1); min-width: 0; max-width: 100%; text-align: left; white-space: normal }

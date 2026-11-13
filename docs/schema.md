@@ -176,7 +176,7 @@ self-referencing and nullable; one level covers the whole rulebook and nothing f
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): a `once` effect, when it
 applies, writes a grant onto its target — a fourth in-play store on the unit, rebuilt from the
 log and never a row — consumed the first time that grant's effect applies. Every core rule is
-`interaction`. A `marker` or `spent_marker` row is one marker a rule places on a unit: one grant per marker, stacking; a `marker` grant stays for the game, a `spent_marker` grant is consumed with its fellows the first time one applies (army-book rules spec, batch 6). A `one_marker` row is one token: its grants stack, and one is spent alone when it applies (*"may remove one token"*); it belongs to an entry with a target.
+`interaction`. A `marker` or `spent_marker` row is one marker a rule places on a unit: one grant per marker, stacking; a `marker` grant stays for the game, a `spent_marker` grant is a token the attacking team may remove, as many as it chooses, for X equal to the count removed (army-book rules spec, batch 6). A `one_marker` row is one token: its grants stack, and one is spent alone when it applies (*"may remove one token"*); it belongs to an entry with a target.
 
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
 first"*, `Blast` applies *"after resolving other special rules"* — and four of the twenty kinds

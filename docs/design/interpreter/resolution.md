@@ -83,7 +83,7 @@ properties are live and what their parameters are must be settled before anythin
 ```mermaid
 flowchart TD
     ix["Interaction: state, set, attacker Party, defender Party, attack kind (shooting, melee, spell), action, range, defender terrain, point, a spell's rules"]
-    gather["Gather: unit properties, grants, model properties under aggregation, weapon properties"]
+    gather["Gather: unit properties, grants, model properties under aggregation over the party, weapon properties"]
     collapse["Collapse duplicates by (holder, entry) unless the entry takes (X)"]
     pass1["Pass one, ordinal order: grant_property, suppress_property, modify_parameter, suppress_modifiers"]
     ls["LiveSet: Live, SuppressedModifiers, Applied"]
@@ -125,8 +125,10 @@ Two details inside pass one:
 - **Aggregation is a field on the entry, not a predicate.** `Stealth` is *"units where all models
   have this rule"* and reads `all`. `Tough(X)` reads `none` and yields one `LiveProperty` per
   model. `Gather` computes the count of distinct models carrying the entry and applies
-  `all | any | majority | none`. `majority` has no tie rule beyond `count * 2 > models.Count`;
-  identity and enumerations fixes none.
+  `all | any | majority | none` over the party's models (an attack's carriers, `GfGroups.Split`). `majority` has no tie
+  rule beyond `count * 2 > models.Count`; identity and enumerations fixes none. A marker of a rule any model may carry
+  (*"all models with this rule in this unit get AP(+1)"*: the Piercing and Precision Frenzies and Growths), on a unit
+  some of whose models carry the rule, reaches only a party whose models all carry it.
 - **A `unit`-kind entry on a model slot is the unit's rule.** Aggregation is declared exactly when
   the kind is `model`, so a `unit`-kind entry carries none and aggregation cannot answer for it.
   Import produces the shape two ways: a rule whose count is smaller than the unit, and a hero

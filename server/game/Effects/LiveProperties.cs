@@ -20,8 +20,10 @@ public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Paramete
 
 /// <summary>Pass one's result: the properties that are live, the modifier classes suppressed, and what was applied to get there.</summary>
 public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty> live, IReadOnlySet<TargetModifier> suppressedModifiers,
-    IReadOnlyList<(LiveProperty Source, Effect Effect)> applied, HashSet<(Guid UnitId, Guid GrantId)>? read = null, PassOneActs? acts = null, AppliedEntries? recorder = null)
+    IReadOnlyList<(LiveProperty Source, Effect Effect)> applied, HashSet<(Guid UnitId, Guid GrantId)>? read = null, PassOneActs? acts = null, AppliedEntries? recorder = null,
+    IReadOnlyList<TotalChange>? totals = null)
 {
+    private readonly IReadOnlyList<TotalChange> _totals = totals ?? [];
     private readonly HashSet<(Guid UnitId, Guid GrantId)> _read = read ?? [];
     private readonly PassOneActs _acts = acts ?? new();
     /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set spends them through StepContext.Consume.</summary>
@@ -36,7 +38,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 
     /// <summary>Records a granted source as used, under the unit that holds the grant (a derived instance's Holder is the side it acts on, which an opponent-subject grant makes the other unit),
     /// without saying it changed anything: "next time the effect would apply" spends a grant whatever the dice then show. It marks that grant alone;
-    /// RollEffects.Consume takes its fellows with it unless it is a one_marker token.
+    /// RollEffects.Consume takes its fellows with it unless it is a one_marker token (a spent_marker grant is read only outside a step: Interaction.RemovedTokens).
     /// Spending a property also spends the granted pass-one effects that changed its parameter.</summary>
     public void Spend(LiveProperty source)
     {
@@ -128,9 +130,16 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
                 && Conditions.Hold(Interaction, p.Holder, e, p, null, this)).Select(e => (p, e)));
 
     /// <summary>The live set with one per-die grant added (a block group's hits, keyed by score-hits). The added instance's Via is the
-    /// live rule whose per-die grant_property row names that entry and amount, which is what the dice set off.</summary>
-    public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
-        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null, Via: PerDieGrantor(holder, entry, parameter))], SuppressedModifiers, Applied, _read, _acts, recorder) : this;
+    /// live rule whose per-die grant_property row names that entry and amount, which is what the dice set off, or `via` when the caller names the
+    /// rule that gave the hits it (Heavy Impact's AP(1)). The changes to a weapon rule's total (LiveProperties.Totals) are made again over the
+    /// instances as pass one left them plus this one, so a reduction comes off the hit's whole total once.</summary>
+    public LiveSet WithGranted(Side holder, string entry, int? parameter, string? via = null)
+    {
+        if (Interaction.Properties.Entry(entry) is not { } ce) return this;
+        var raw = Live.Select(p => _acts.Raw.TryGetValue(p, out var r) ? r : p).ToList();
+        raw.Add(new LiveProperty(holder, ce, parameter, null, null, null, Via: via ?? PerDieGrantor(holder, entry, parameter)));
+        return new LiveSet(Interaction, LiveProperties.Totals(raw, _totals, _acts), SuppressedModifiers, Applied, _read, _acts, recorder, _totals);
+    }
 
     string? PerDieGrantor(Side holder, string entry, int? parameter) => PerDieGrantorOf(holder, entry, parameter)?.Entry.Name;
 
@@ -170,10 +179,16 @@ public sealed class PassOneActs
 {
     public static (Side, string, Guid?, Guid?, Guid?) Key(LiveProperty p) => (p.Holder, p.Entry.Name, p.ModelId, p.WeaponId, p.GrantId);
     public Dictionary<LiveProperty, LiveProperty> GrantedBy { get; } = new(ReferenceEqualityComparer.Instance);
+    /// <summary>An instance a weapon rule's total change (LiveProperties.Totals) rewrote, to the instance as pass one left it.</summary>
+    public Dictionary<LiveProperty, LiveProperty> Raw { get; } = new(ReferenceEqualityComparer.Instance);
     public List<(LiveProperty Source, LiveProperty Removed)> Removed { get; } = [];
     public Dictionary<(Side, string, Guid?, Guid?, Guid?), List<LiveProperty>> Modified { get; } = [];
     public List<(LiveProperty Source, TargetModifier Modifier)> SuppressedModifiers { get; } = [];
 }
+
+/// <summary>A modify_parameter row on a weapon rule (AP: "those hits count as having AP(-1), to a min. of AP(0)", "loses AP(1) on its weapons"): it changes
+/// the total the side's instances of the rule sum to on a hit, once, with its floor held on that total.</summary>
+public sealed record TotalChange(Side Side, string Entry, int Amount, int? Floor, LiveProperty Source);
 
 public static class LiveProperties
 {
@@ -192,6 +207,7 @@ public static class LiveProperties
         // Each instance is scanned once, and a grant row adds once per holder instance, so a rule that grants itself stops.
         var scanned = new HashSet<LiveProperty>(ReferenceEqualityComparer.Instance);
         var granted = new HashSet<(Guid, (Side, string, Guid?, Guid?, Guid?))>();
+        var totals = new List<TotalChange>();
         while (true)
         {
             var candidates = live.Where(p => !scanned.Contains(p)).ToList();
@@ -221,6 +237,10 @@ public static class LiveProperties
                     case EffectKind.SuppressProperty:
                         foreach (var gone in live.Where(p => p.Holder == side && p.Entry.Name == effect.TargetEntry).ToList()) acts.Removed.Add((source, gone));
                         live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
+                    // A weapon rule sums over the hit: AP(1) on the weapon and AP(+1) from Piercing Charge are AP(2) on each of its hits, and "those hits
+                    // count as having AP(-1)" makes it AP(1), not AP(0). The change is made on the total once pass one is done (Totals).
+                    case EffectKind.ModifyParameter when ix.Properties.Entry(effect.TargetEntry!) is { Kind: CatalogKind.Weapon }:
+                        totals.Add(new TotalChange(side, effect.TargetEntry!, effect.EffectiveAmount(source.Parameter), effect.Floor, source)); break;
                     case EffectKind.ModifyParameter:
                         for (var i = 0; i < live.Count; i++)
                             if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) {
@@ -239,17 +259,71 @@ public static class LiveProperties
                 applied.Add((source, effect));
             }
         }
-        return new LiveSet(ix, live, suppressed, applied, null, acts, recorder);
+        return new LiveSet(ix, Totals(live, totals, acts), suppressed, applied, null, acts, recorder, totals);
     }
 
+    /// <summary>
+    /// The instances with each weapon rule's total changed (TotalChange): per side and rule, the instances' parameters summed, each change added in
+    /// ordinal order with its floor held on the sum (a floor never raises a total already below it), and the difference written back onto the
+    /// instances. A reduction comes off the instances carrying the most first, each down to zero, and what an unfloored change takes beyond that
+    /// goes on one instance. A rewritten instance keeps its grantor and records the changes as having modified it, as a per-instance change does, and PassOneActs.Raw maps it back.
+    /// </summary>
+    public static IReadOnlyList<LiveProperty> Totals(IReadOnlyList<LiveProperty> live, IReadOnlyList<TotalChange> totals, PassOneActs acts)
+    {
+        if (totals.Count == 0) return live;
+        var result = live.ToList();
+        foreach (var key in totals.Select(t => (t.Side, t.Entry)).Distinct())
+        {
+            var at = Enumerable.Range(0, result.Count).Where(i => result[i].Holder == key.Side && result[i].Entry.Name == key.Entry).ToList();
+            if (at.Count == 0) continue;
+            var changes = totals.Where(t => (t.Side, t.Entry) == key).ToList();   // pass one's order, which is the rows' ordinals
+            var raw = ParameterSum.Of(at.Select(i => result[i].Parameter));
+            var total = raw;
+            foreach (var t in changes)
+            {
+                var sum = total + t.Amount;
+                total = t.Floor is { } floor ? Math.Max(sum, Math.Min(total, floor)) : sum;
+            }
+            var delta = total - raw;
+            var next = at.ToDictionary(i => i, i => result[i].Parameter ?? 0);
+            if (delta > 0) next[at[0]] += delta;
+            foreach (var i in at.OrderByDescending(i => next[i]))
+            {
+                if (delta >= 0) break;
+                var cut = Math.Min(Math.Max(0, next[i]), -delta);
+                next[i] -= cut; delta += cut;
+            }
+            if (delta < 0) next[at[0]] += delta;   // an unfloored change takes the total below zero, on one instance
+            foreach (var i in at.Where(i => next[i] != (result[i].Parameter ?? 0)))
+            {
+                var was = result[i];
+                result[i] = was with { Parameter = next[i] };
+                acts.Raw[result[i]] = acts.Raw.TryGetValue(was, out var original) ? original : was;
+                if (acts.GrantedBy.TryGetValue(was, out var grantor)) acts.GrantedBy[result[i]] = grantor;
+                if (!acts.Modified.TryGetValue(PassOneActs.Key(result[i]), out var by)) acts.Modified[PassOneActs.Key(result[i])] = by = [];
+                foreach (var t in changes.Where(t => !by.Contains(t.Source))) by.Add(t.Source);
+            }
+        }
+        return result;
+    }
+
+    const string UnitWideText = "This model and its unit";
+
+    /// <summary>"This model and its unit get X" (an Aura, Banner, Musician): a model entry one living carrier anywhere in the unit holds for every party of it.</summary>
+    public static bool IsUnitWide(CatalogEntry e) => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any } && e.RuleText.StartsWith(UnitWideText, StringComparison.Ordinal);
+
     /// <summary>Unit properties and grants, unit-kind properties on the unit's slots, model properties under aggregation, weapon properties;
-    /// duplicates collapsed unless the rule takes (X).</summary>
+    /// duplicates collapsed unless the rule takes (X). Hits no weapon made (Interaction.UnarmedHits) gather nothing on the attacker's side.</summary>
     static IEnumerable<LiveProperty> Gather(Interaction ix, Side side)
     {
+        // Hits no weapon and no attack made: every attacker rule that acts on a hit acts on its weapons or its attacks ("its weapons get AP(+1)",
+        // "hits from weapons", "hits from this model's weapons"), so none acts on these. What the rule dealing them adds is its own caller's.
+        if (side == Side.Attacker && ix.UnarmedHits) return [];
         var party = ix.Of(side);
         var state = ix.State;
         var unit = state.Projection.Units[party.UnitId];
         var result = new List<LiveProperty>();
+        var models = party.ModelIds.Count > 0 ? party.ModelIds : Lookup.LivingModels(state, party.UnitId);
         // A text-only entry (Played false) plays as an absent name does (army-book rules spec → Played flag).
         CatalogEntry? Playing(string name) => ix.Properties.Entry(name) is { Played: true } e ? e : null;
         foreach (var p in unit.Definition.Properties) if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
@@ -262,19 +336,33 @@ public static class LiveProperties
         foreach (var g in unit.Grants)
         {
             if (ix.Properties.Entry(g.EntryName) is not { } spell || ix.Properties.EffectById(g.EffectId) is not { } row) continue;
+            // "Friendly units may remove tokens from their target … where X is the number of removed tokens": inside a step a spent_marker
+            // grant acts only through the count its attack removed (RemovedTokens, below), never as it lies.
+            if (row.Duration == EffectDuration.SpentMarker && ix.RemovedTokens is not null) continue;
             var casterTeam = Interpreter.Teams.Of(state, g.CasterUnitId);
             var ownMarker = casterTeam == holderTeam && row.Duration is EffectDuration.Marker or EffectDuration.SpentMarker or EffectDuration.OneMarker;
             if (row.Subject == EffectSubject.Opponent && ix.Defender is not null && !ownMarker
                 && Interpreter.Teams.Of(state, ix.Of(Interaction.Other(side)).UnitId) != casterTeam) continue;
             if (row.Duration == EffectDuration.OneMarker && !tokens.Add(g.EntryName)) continue;
+            // "For each token all models with this rule in this unit get AP(+1)": the tokens of a rule any model may carry, placed on a unit some of
+            // whose models carry it, reach only a party whose models all carry it, so neither a joined Hero without it nor the squad beside a Hero
+            // with it gets them. A rule granted to the unit with no model carrying it (a relic's) reaches every party.
+            if (ownMarker && spell is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any } && !IsUnitWide(spell)
+                && unit.Definition.Models.Any(m => m.Properties.Any(p => p.Name == spell.Name))
+                && !models.All(m => state.Projection.Models[m].Slot.Properties.Any(p => p.Name == spell.Name))) continue;
             result.Add(new LiveProperty(side, spell, null, null, null, g.Id, row));
         }
         // A unit-kind entry on a model slot is the unit's rule, not a per-model one, and aggregation is not declared for the kind. Import produces the
         // shape two ways — a rule whose count is smaller than the unit, and a joined leader, whose rules all land on its slot whatever their kind — so it
         // is read off the definition, holder-less, and Lookup.UnitHas reads it the same way. Its effects therefore act on the whole unit.
         foreach (var (p, e) in Lookup.UnitKindOnSlots(state, ix.Properties, party.UnitId)) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
-        var models = party.ModelIds.Count > 0 ? party.ModelIds : Lookup.LivingModels(state, party.UnitId);
-        foreach (var group in Lookup.ModelProperties(state, party.UnitId, models).GroupBy(x => x.Property.Name))
+        // "This model and its unit get X" (an Aura, Banner, Musician): one living carrier anywhere in the unit holds it for every party of the
+        // unit, so a joined Hero's Aura reaches the weapons of the models it joined. Any other any entry ("its weapons get…") stays its party's.
+        var living = Lookup.LivingModels(state, party.UnitId);
+        var others = living.Except(models).ToList();
+        var unitWide = others.Count == 0 ? [] : Lookup.ModelProperties(state, party.UnitId, others)
+            .Where(x => ix.Properties.Entry(x.Property.Name) is { } e && IsUnitWide(e)).ToList();
+        foreach (var group in Lookup.ModelProperties(state, party.UnitId, models).Concat(unitWide).GroupBy(x => x.Property.Name))
         {
             if (Playing(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
             var count = group.Select(x => x.ModelId).Distinct().Count();
@@ -292,7 +380,18 @@ public static class LiveProperties
         // instance per model; a weapon rule is one rule per weapon *type*, so three of the same weapon's AP(1) are one AP(1), not three summed.
         string WeaponName(Guid? id) => id is { } w ? state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(x => x.Id == w).Name : "";
         return result.GroupBy(p => (p.Entry.Name, p.Entry.Aggregation == Aggregation.None ? p.ModelId ?? Guid.Empty : Guid.Empty, p.WeaponId is null ? "" : WeaponName(p.WeaponId), p.GrantId ?? Guid.Empty))
-            .Select(g => WithFace(ix, g.First()));
+            .Select(g => WithFace(ix, g.First())).Concat(side == Side.Defender ? RemovedTokens(ix) : []);
+    }
+
+    /// <summary>The tokens the attacking team removed from the defender for this attack ("+AP(X)" / "+X to hit rolls … where X is the number of removed
+    /// tokens"): per entry, one instance on the defender of its spent_marker row with the row's amount times the count. It names no grant, so nothing
+    /// spends it; the tokens went when they were removed.</summary>
+    static IEnumerable<LiveProperty> RemovedTokens(Interaction ix)
+    {
+        foreach (var (name, n) in ix.RemovedTokens ?? new Dictionary<string, int>())
+            if (n > 0 && ix.Properties.Entry(name) is { Played: true } entry
+                && entry.Effects.SelectMany(e => e.Kind == EffectKind.Roll ? e.Children : [e]).FirstOrDefault(e => e.Duration == EffectDuration.SpentMarker) is { } row)
+                yield return new LiveProperty(Side.Defender, entry, null, null, null, null, row with { Amount = row.EffectiveAmount(null) * n, AmountFromParameter = false });
     }
 
     /// <summary>

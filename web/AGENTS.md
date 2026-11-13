@@ -21,7 +21,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   open folder per account: `tabletop.meshRecent.<accountId>`, `tabletop.meshFolder.<accountId>`).
 - `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `OfferDialog`, `ScaleOrientation` (Scale and Orientation fieldsets, shared by the dialog and the asset page), `VolumeEditor`, `BasePicker`, `MeshPicker` (the army page's mesh dialog), `FolderTree`, `LibraryTabs`, `Icon`
   (paths in `icons.ts`), `ThemeSwitch` (the two theme swatch tiles), `Menu` (a thing's ▸ menu), `Thumb` (an asset's thumbnail, else its icon).
-- `src/lib/armies/cards.ts` `systemName`, `meshPips`, `meshLine`, `slotRows`, `statBadges`: the army cards and the army page's unit cards.
+- `src/lib/armies/cards.ts` `systemName`, `meshPips`, `meshLine`, `slotRows`, `statBadges`, `slotMarks` (the weapons and rules a model carries that the rest of its unit does not, drawn under its slot name: the banner, the special weapon): the army cards and the army page's unit cards.
 - `src/lib/thumbnail/` `frame.ts` (`thumbnailView`, `THUMBNAIL_SIZE`), `render.ts` (`renderThumbnail`, `sendThumbnail`: three.js
   offscreen, WebP or PNG, `PUT /v1/assets/{id}/thumbnail`).
 - `src/lib/theme/theme.ts` `THEMES`, `resolveTheme`, `loadTheme`, `saveTheme`, `applyTheme` (`tabletop.theme` in `localStorage`).

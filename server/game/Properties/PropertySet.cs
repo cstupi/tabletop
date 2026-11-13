@@ -43,8 +43,8 @@ public enum TargetResult { Wound, MoraleTest }
 public enum TargetModifier { Cover, ToHitPenalties, RangePenalties, ForeignToHitPenalties, PositiveDefense }
 public enum CapKind { ModelsInTargetUnit }
 /// <summary>Interaction: the row acts whenever it holds. Once: a grant spent the next time it applies (spell library). Marker and SpentMarker: one grant per
-/// marker a rule places on a unit (army-book rules spec, batch 6), stacking; a Marker stays for the game, a SpentMarker goes with its fellows the first time
-/// one applies ("may remove markers … to get"). A OneMarker row is one token a rule places: its grants stack, one acts on an attack and only that one
+/// marker a rule places on a unit (army-book rules spec, batch 6), stacking; a Marker stays for the game, a SpentMarker is a token the attacking team
+/// may remove, X the count removed ("may remove tokens … where X is the number of removed tokens", GfChoice.SpotterTokensStep). A OneMarker row is one token a rule places: its grants stack, one acts on an attack and only that one
 /// is spent ("may remove one token … to get"). A carried entry's marker rows act only through those grants.</summary>
 public enum EffectDuration { Interaction, Once, Marker, SpentMarker, OneMarker }
 

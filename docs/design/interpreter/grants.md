@@ -75,12 +75,20 @@ too, or a granted hook-name rule would never fire.
 **A marker is a grant.** A row with duration `marker`, `spent_marker` or `one_marker` is one marker a rule places on a unit: the
 ruleset writes one `GrantAdded` of the row per marker (a pick entry's use, a unit destroyed, a round's start), and grants of one
 rule stack, so *"for each marker"* is the sum of the instances. A carried entry exposes none of its marker rows. A `marker`
-grant is never spent (`LiveSet.Spend` skips it); a `spent_marker` grant is consumed with every grant of its rule on the
-unit, as a once grant is (*"may remove markers … to get +X"*). A `one_marker` grant is one token: grants of the entry stack,
+grant is never spent (`LiveSet.Spend` skips it). A `spent_marker` grant is a token the attacking team may remove (*"When
+attacking, friendly units may remove tokens from their target before rolling to block to get +AP(X) on their weapons, where
+X is the number of removed tokens"*): `attack-sequence`'s `spotter-tokens` step asks the attacking team how many
+(`remove_tokens`, 0 to all, per entry with the team's tokens on the target), removes that many at once and records
+`tokens_<entry>`; inside a step `LiveProperties.Gather` gathers no `spent_marker` grant and acts with the count removed
+(`Interaction.RemovedTokens`). The unit's attack on that target asks once: every later `attack-sequence` the same shooting
+or melee strike pushes at the same target copies the first one's count and removes nothing. Hits no attack makes
+(`rule-hits`, spell hits, Impact) remove none. A `one_marker` grant is one token: grants of the entry stack,
 but `LiveProperties.Gather` keeps one instance of the entry per side, the first grant, so one token acts on an attack, and
 `RollEffects.Release` spends that grant alone (*"may remove one token from their target before rolling to block to get
 AP(+1)"*). The token is spent whenever its row applies, since a modifier is never a player choice. A subject-opponent marker
-row the holder's own side placed reaches every opponent.
+row the holder's own side placed reaches every opponent. A marker of an `any` entry some of the unit's models carry
+(*"all models with this rule in this unit get AP(+1)"*) reaches only a party whose models all carry the rule, so a joined
+Hero without it, or the squad beside a Hero with it, attacks without the bonus.
 
 **A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`, an
 optional `requires`: the rule the picked unit or model must hold, *"with Caster"*) whose rows all carry `at_point

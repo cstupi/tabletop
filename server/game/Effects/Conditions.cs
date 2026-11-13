@@ -52,7 +52,9 @@ public static class Conditions
             // (army-book rules spec → the pick). Any other row holds only at its point.
             case ConditionKind.AtPoint: return source.GrantRow is not null || (ix.Point is { } point && Membership(c, point));
             // The side holds the entry under its own aggregation, a granted instance included; a suppression does not unhold (spell library spec).
-            case ConditionKind.HoldsProperty: return c.Values.Count == 1 && Lookup.UnitHas(ix.State, ix.Properties, ix.Of(side).UnitId, c.Values[0]);
+            // "If this model has X" is judged over the side's party, the models whose rules the live set gathered: an attack's carriers, so a joined
+            // Hero without X leaves the squad's Enhanced rule standing.
+            case ConditionKind.HoldsProperty: return c.Values.Count == 1 && Lookup.PartyHas(ix.State, ix.Properties, ix.Of(side), c.Values[0]);
             case ConditionKind.MostModels: return c.Values.Count == 1 && MostModels(ix, side, c);
             // Remaining size against starting size, both as Lookup.RemainingSize counts them; the value names the rule that is one model's size.
             case ConditionKind.RemainingSize:

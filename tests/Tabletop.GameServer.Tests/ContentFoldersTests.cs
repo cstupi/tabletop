@@ -10,7 +10,7 @@ public class ContentFoldersTests
 
     [Fact]
     public void The_3_5_1_set_hash_is_pinned() =>
-        Assert.Equal("sha256:e1c3397c8c73adeca399ccbc7fd53d0db0d55d7e534d3dcc4b0367703d8ed0cb",
+        Assert.Equal("sha256:c43d9fb4898fbe174847a458a77b167e6bd561b1f8cff1634654d899eefa457b",
             PropertiesJson.Hash(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == RuleSets.Gf351)));
 
     [Fact]

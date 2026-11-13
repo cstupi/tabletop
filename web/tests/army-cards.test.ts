@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelSlot, Unit } from '$lib/api/types';
-import { meshLine, meshPips, slotRows, statBadges, systemName } from '$lib/armies/cards';
+import { meshLine, meshPips, slotMarks, slotRows, statBadges, systemName } from '$lib/armies/cards';
 
 const slot = (over: Partial<ModelSlot> = {}): ModelSlot => ({
   id: crypto.randomUUID(), ordinal: 0, name: 'Trooper', stats: {}, properties: [], base: { shape: 'circle', a: 1.26, b: 1.26 }, height: 1.9, weapons: [], ...over,
@@ -48,5 +48,21 @@ describe('army cards', () => {
     expect(statBadges(unit([], { Defense: '5+', Quality: '4+', Wounds: '3' }))).toEqual([
       { key: 'Quality', icon: 'quality', value: '4+' }, { key: 'Defense', icon: 'defense', value: '5+' }, { key: 'Wounds', icon: null, value: '3' },
     ]);
+  });
+  it('marks a model with the weapons and rules the rest of its unit lacks', () => {
+    const w = (name: string) => ({ id: crypto.randomUUID(), name, stats: {}, properties: [] });
+    const rifle = () => slot({ weapons: [w('Battle Rifle'), w('Strike')], properties: [{ name: 'Hold the Line' }] });
+    const banner = slot({ weapons: [w('Battle Rifle'), w('Strike')], properties: [{ name: 'Hold the Line' }, { name: 'Bravery Aura' }] });
+    const team = slot({ weapons: [w('Autocannon'), w('Strike')], properties: [{ name: 'Hold the Line' }, { name: 'Tough', parameter: 3 }] });
+    const hero = slot({ name: 'Captain 1', weapons: [w('Pistol')], properties: [{ name: 'Hero' }] });
+    banner.name = 'Trooper (War Banner) 3'; team.name = 'Trooper (Weapon Team) 4';
+    const squad = unit([{ ...rifle(), name: 'Trooper 1' }, { ...rifle(), name: 'Trooper 2' }, banner, team, hero]);
+    expect(slotMarks(squad, hero)).toEqual([]);
+    expect(slotMarks(squad, squad.models[0]!)).toEqual(['Battle Rifle']);
+    expect(slotMarks(squad, banner)).toEqual(['Battle Rifle', 'Bravery Aura']);
+    expect(slotMarks(squad, team)).toEqual(['Autocannon', 'Tough(3)']);
+    const same = unit([{ ...rifle(), name: 'Trooper 1' }, { ...rifle(), name: 'Trooper 2' }]);
+    expect(slotMarks(same, same.models[0]!)).toEqual([]);
+    expect(slotMarks(unit([banner]), banner)).toEqual([]);
   });
 });

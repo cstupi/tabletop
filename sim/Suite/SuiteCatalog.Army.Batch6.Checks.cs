@@ -1,4 +1,5 @@
 using Tabletop.Protocol;
+using Tabletop.Sim.Answers;
 
 namespace Tabletop.Sim.Suite;
 
@@ -52,15 +53,35 @@ public static partial class SuiteCatalog
                 where expected != 0 && !(r.Threshold == 6 && r.Modifiers.Count == 0)
                 select actual == expected ? null : $"{actual:+0;-0} with {held} markers, expected {expected:+0;-0}");
 
-        /// <summary>Markers spent on use ("may remove markers … to get"): no roll carries the entry after the markers it read are gone, and the attack
-        /// whose step read them removes them all (LogQueries.SpentBy).</summary>
-        static GameCheck SpentTogether(string entry, string quote) =>
-            Exact(entry, quote, (run, log) =>
-                from x in Marked(run, entry)
-                where x.Step.Rolls.Any(r => r.Modifiers.Any(m => m.Source == entry || m.Via == entry))
-                let unit = x.Frame.Context.TargetUnitIds.FirstOrDefault()
-                let removed = log.SpentBy(x.Step).OfType<GrantRemoved>().Count()
-                select removed >= x.Held.GetValueOrDefault(unit) && x.Held.GetValueOrDefault(unit) > 0 ? null : $"{removed} removed of {x.Held.GetValueOrDefault(unit)} markers");
+        /// <summary>Every remove_tokens Ask is answered with the most tokens offered.</summary>
+        static void RemoveAll(ScriptBuilder s) =>
+            s.Match("remove_tokens", (ask, _) => ask.Legal is Options o && o.Choices.MaxBy(c => int.TryParse(c.Id, out var n) ? n : -1) is { } most ? new Chosen(most.Id) : null);
+
+        /// <summary>"Where X is the number of removed markers": every roll of the kind in an attack whose team removed the entry's markers (its attack-sequence's
+        /// `spotter-tokens` value `tokens_&lt;entry&gt;`) carries the entry's modifier at the stated size per removed marker, and none in an attack that removed none;
+        /// AP rows are read as the AP modifiers the entry granted (RollModifier.Via).</summary>
+        static GameCheck PerRemoved(string entry, string roll, int amount, string quote, bool ap = false) =>
+            Exact(entry, $"{quote}: {roll} {amount:+0;-0} per removed marker", (run, _) =>
+                from r in LogQueries.Of(run).Rolls(roll)
+                let attack = r.Frame.Nearest("attack-sequence")
+                where attack is not null
+                let removed = attack.Steps.Where(s => s.Name == "spotter-tokens").Sum(s => s.Value("tokens_" + entry))
+                let expected = amount * removed
+                let actual = r.Roll.Modifiers.Where(m => ap ? m.Source == "AP" && m.Via == entry : m.Source == entry).Sum(m => m.Amount)
+                // A fatigued unit's melee roll ("only hit on unmodified rolls of 6", p.9) takes no modifier.
+                where (expected != 0 || actual != 0) && !(r.Roll.Threshold == 6 && r.Roll.Modifiers.Count == 0)
+                select actual == expected ? null : $"{actual:+0;-0} with {removed} removed, expected {expected:+0;-0}");
+
+        /// <summary>"May remove markers from their target": the attack that asked removes exactly the markers its team chose, and an attack of the same
+        /// unit at the same target that shares that choice (a weapon group in parts) removes none.</summary>
+        static GameCheck RemovedAsChosen(string entry, string quote) =>
+            Exact(entry, quote, (run, _) =>
+                from s in LogQueries.Of(run).Steps.Where(s => s.Name == "spotter-tokens")
+                let asked = s.Asks.Any(a => a.Question == "remove_tokens" && a.Prompt.StartsWith(entry + ":", StringComparison.Ordinal))
+                let chosen = s.Value("tokens_" + entry)
+                where asked || chosen > 0
+                let removed = s.Step.Changes.OfType<GrantRemoved>().Count()
+                select removed == (asked ? chosen : 0) ? null : $"{removed} removed, {chosen} chosen{(asked ? "" : " by an earlier attack")}");
 
         /// <summary>Round-start rallies: each rally die is one die at 4+, rolled for a Shaken unit, and the unit stops being Shaken exactly when it scores.</summary>
         static GameCheck Rallies(string entry, string quote) =>

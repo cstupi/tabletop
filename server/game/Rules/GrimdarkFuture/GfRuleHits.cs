@@ -143,8 +143,9 @@ public static class GfRuleHits
 
     /// <summary>
     /// Crossing Attack and Strafing, after an action's move: "Once per activation, when this model moves through enemy units, pick one of them and roll X
-    /// dice. For each 6+ the target takes one wound" / "… and attack it with this weapon as if it was shooting". The enemy units a carrier's move segments
-    /// crossed (Collision.Crosses over their models where they stand) are offered; the pick rolls the dice or makes the attack.
+    /// dice. For each 6+ the target takes one wound" / "… and attack it with this weapon as if it was shooting". Each carrier, in the unit's model order,
+    /// is asked in turn about the enemy units its own move segments crossed (Collision.Crosses over their models where they stand), and rolls its own X
+    /// or attacks with its own weapon; a model without the rule crossing sets nothing off. The carrier reached rides `crossings` across repeats.
     /// </summary>
     public sealed class CrossingStep : IStep
     {
@@ -152,37 +153,46 @@ public static class GfRuleHits
         public StepOutcome Run(StepContext ctx)
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
-            var (rule, weapon, x) = Carried(ctx, unit);
+            var carriers = Carriers(ctx, unit);
+            var done = ctx.Frame.Value("crossings");
+            if (done >= carriers.Count) return new Complete([]);
+            var (model, rule, weapon, x) = carriers[done];
+            StepOutcome Next() => new Complete([], new Dictionary<string, int> { ["crossings"] = done + 1 }, Repeat: done + 1 < carriers.Count);
             if (ctx.History.Children.Count > 0)
             {
-                if (rule is { } strafing && GfNames.IsStrafing(strafing)) ctx.Applied.Add(strafing);   // the weapon's attack is the rule acting; Crossing Attack's dice name it themselves
-                return new Complete([]);
+                if (GfNames.IsStrafing(rule)) ctx.Applied.Add(rule);   // the weapon's attack is the rule acting; Crossing Attack's dice name it themselves
+                return Next();
             }
-            if (rule is null) return new Complete([]);
-            var crossed = Crossed(ctx, unit);
-            if (crossed.Count == 0) return new Complete([]);
+            var crossed = ctx.Projection.Models[model].Location is OnTable ? Crossed(ctx, unit, model) : [];
+            if (crossed.Count == 0) return Next();
             if (ctx.History.LastClosed("crossing_target") is { } closed)
             {
-                if (GfAnswers.Pieces(closed.Single, closed.Ask) is not [var target, ..]) return new Complete([]);
+                if (GfAnswers.Pieces(closed.Single, closed.Ask) is not [var target, ..]) return Next();
                 return GfNames.IsStrafing(rule)
                     ? new Push(GfNames.AttackSequence, new SequenceContext(unit, [target], [weapon!.Value], ctx.Frame.Context.Action))
                     : new Push(GfNames.RuleWoundsSeq, new SequenceContext(unit, [target], [], Key(rule, x)));
             }
-            return new OpenAsks([ctx.Ask("crossing_target", $"{rule}: pick an enemy unit it moved through", ctx.ActorTeam!.Value, new PieceSelection(crossed, 1, 1), allowPass: true)]);
+            return new OpenAsks([ctx.Ask("crossing_target", $"{rule} ({ctx.Projection.Models[model].Slot.Name}): pick an enemy unit it moved through", ctx.ActorTeam!.Value,
+                new PieceSelection(crossed, 1, 1), allowPass: true)]);
         }
 
-        /// <summary>The unit's crossing rule: a living model's Crossing Attack (with its X), else a Strafing weapon of a living model.</summary>
-        static (string? Rule, Guid? Weapon, int X) Carried(StepContext ctx, Guid unit)
+        /// <summary>The unit's carriers in its definition's model order, a fixed list across the step's repeats: each model's Crossing Attack (with its X),
+        /// then each model's Strafing weapons. A unit property counts for every model.</summary>
+        static IReadOnlyList<(Guid Model, string Rule, Guid? Weapon, int X)> Carriers(StepContext ctx, Guid unit)
         {
-            foreach (var m in Lookup.LivingModels(ctx.State, unit))
-                if (Lookup.ModelParameter(ctx.State, m, GfNames.CrossingAttack) is { } x) return (GfNames.CrossingAttack, null, x);
-            foreach (var m in Lookup.LivingModels(ctx.State, unit))
-                if (ctx.Projection.Models[m].Slot.Weapons.SelectMany(w => w.Properties.Where(p => GfNames.IsStrafing(p.Name)).Select(p => (w, p.Name))).FirstOrDefault() is ({ } w, { } name)) return (name, w.Id, 0);
-            return (null, null, 0);
+            var definition = ctx.Projection.Units[unit].Definition;
+            var own = definition.Properties.FirstOrDefault(p => p.Name == GfNames.CrossingAttack)?.Parameter;
+            var list = new List<(Guid, string, Guid?, int)>();
+            foreach (var m in definition.Models)
+                if ((Lookup.ModelParameter(ctx.State, m.Id, GfNames.CrossingAttack) ?? own) is { } x) list.Add((m.Id, GfNames.CrossingAttack, null, x));
+            foreach (var m in definition.Models)
+                foreach (var (w, name) in ctx.Projection.Models[m.Id].Slot.Weapons.SelectMany(w => w.Properties.Where(p => GfNames.IsStrafing(p.Name)).Select(p => (w, p.Name))))
+                    list.Add((m.Id, name, w.Id, 0));
+            return list;
         }
 
-        /// <summary>Enemy units one of this frame's move segments carried a model across: the segment from where the model stood to where it landed.</summary>
-        static IReadOnlyList<Guid> Crossed(StepContext ctx, Guid unit)
+        /// <summary>Enemy units one of this frame's move segments carried the model across: the segment from where it stood to where it landed.</summary>
+        static IReadOnlyList<Guid> Crossed(StepContext ctx, Guid unit, Guid model)
         {
             var team = ctx.ActorTeam;
             var enemies = ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team).Select(u => u.Id).ToList();
@@ -191,7 +201,7 @@ public static class GfRuleHits
             var terrain = Battlefield.Terrain(ctx.State);
             foreach (var step in ctx.Frame.Frame.Steps.Where(s => s.Step == "move"))
                 foreach (var moved in step.Changes.OfType<ModelsMoved>())
-                    foreach (var mv in moved.Moves.Where(mv => mv.From is OnTable && mv.To is OnTable && ctx.Projection.Models.TryGetValue(mv.ModelId, out var mm) && mm.UnitId == unit))
+                    foreach (var mv in moved.Moves.Where(mv => mv.ModelId == model && mv.From is OnTable && mv.To is OnTable && ctx.Projection.Models.TryGetValue(mv.ModelId, out var mm) && mm.UnitId == unit))
                     {
                         var from = ((OnTable)mv.From).Placement;
                         var body = new PlacedModel(new ModelBody(ctx.Projection.Models[mv.ModelId].Slot.Base, ctx.Projection.Models[mv.ModelId].Slot.Height), from);

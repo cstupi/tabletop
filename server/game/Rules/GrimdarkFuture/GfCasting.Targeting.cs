@@ -76,7 +76,11 @@ public static partial class GfCasting
         return moved;
     }
 
-    static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule || rule == GfNames.Hero && GfNames.IsHero(p.Name));
+    /// <summary>The model carries the rule. "With Caster" also holds for a Caster Group's designated caster ("Pick one model with this rule in this unit
+    /// to have Caster(X)", GfSpellSupport.CasterValue).</summary>
+    static bool Holds(GameState state, Guid model, string rule) =>
+        state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule || rule == GfNames.Hero && GfNames.IsHero(p.Name))
+        || rule == GfNames.Caster && GfSpellSupport.CasterValue(state, model) is not null;
 
     public const string ExtendedBuffRange = "Extended Buff Range";
     const double ExtendedReach = 24;

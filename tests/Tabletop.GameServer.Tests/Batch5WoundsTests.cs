@@ -69,19 +69,31 @@ public class Batch5WoundsTests
         Assert.Contains(Started(sim, GfNames.RuleHitsSeq), s => s.Context.Action == "Self-Destruct|2" && s.Context.TargetUnitIds[0] == defender.Id);
     }
 
+    /// <summary>Protection Feat: "Once per game, when this unit takes wounds …, you may use this rule and roll one die per wound": its team is asked at each
+    /// deal-wounds frame on the unit until it is used, then never again.</summary>
     [Fact]
-    public void Protection_feat_rolls_for_the_first_attack_that_wounds_the_unit_and_not_again()
+    public void Protection_feat_is_asked_until_used_and_rolls_only_when_taken()
     {
         var a = Unit("A", "4+", "4+", [], 1, [], Gun("Gun", "24\"", 2));
         var b = Unit("B", "4+", "4+", [], 1, [P("Protection Feat"), P("Tough", 9)]);
         var sim = new Sim(State([a], [b]), GrimdarkFutureRules.Instance, TestProperties.Core, new ScriptedDice(Enumerable.Repeat(1, 40).ToArray()));
-        // Two attacks of two hits each, every block failing: each deal-wounds frame assigns two wounds to B.
-        var first = new SequenceContext(a.Id, [b.Id], [], null);
-        sim.Start(GfNames.RuleHitsSeq, first with { Action = "Test|2" });
-        Assert.Contains(sim.Emitted.OfType<StepCompleted>(), s => s.Step == "assign" && s.Rolls.Any(r => r.Roll == "Protection Feat"));
-        var before = sim.Emitted.Count;
-        sim.Start(GfNames.RuleHitsSeq, first with { Action = "Test|2" });
-        Assert.DoesNotContain(sim.Emitted.Skip(before).OfType<StepCompleted>(), s => s.Step == "assign" && s.Rolls.Any(r => r.Roll == "Protection Feat"));
+        // Three attacks of two hits each, every block failing: each deal-wounds frame assigns two wounds to B.
+        var hits = new SequenceContext(a.Id, [b.Id], [], "Test|2");
+        bool Rolled(int from) => sim.Emitted.Skip(from).OfType<StepCompleted>().Any(s => s.Step == "assign" && s.Rolls.Any(r => r.Roll == "Protection Feat"));
+        sim.Start(GfNames.RuleHitsSeq, hits);
+        var ask = sim.AskFor(Samples.Team2);
+        Assert.Equal((GfAttack.UseRule, "Use Protection Feat on 2 wounds?"), (ask.Question, ask.Prompt));
+        sim.Answer(Samples.Team2, new Chosen("no"));
+        Assert.False(Rolled(0));
+        Assert.Equal(2, sim.Model(b.Models[0].Id).Wounds);
+        var second = sim.Emitted.Count;
+        sim.Start(GfNames.RuleHitsSeq, hits);
+        sim.Answer(Samples.Team2, new Chosen("yes"));
+        Assert.True(Rolled(second));
+        var third = sim.Emitted.Count;
+        sim.Start(GfNames.RuleHitsSeq, hits);
+        Assert.Null(sim.AskForOrNull(Samples.Team2));
+        Assert.False(Rolled(third));
     }
 
     [Fact]
