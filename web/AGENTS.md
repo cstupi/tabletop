@@ -11,7 +11,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/validation.ts` `nameProblem`, `sizeProblem`, `MAX_NAME`, `MAX_BYTES`, `ASSET_QUOTA`, `libraryUsage`, `formatBytes`: management's limits, checked before sending.
 - `src/lib/mesh/` STL to GLB: `stl.ts` (parse, `mergeSoups`), `weld.ts`, `decimate.ts` (`BUDGETS`), `normals.ts` (creased), `glb.ts`, `supports.ts`, `bounds.ts` (`terrainVolume`), `guess.ts`, `size.ts` (`GLB_DEFAULTS`, `suggestUnit`, `describeSize`, `toggleUpright`), `three-frame.ts` (`eulerFor`), `convert.ts` (`convert`, `convertInWorker`, `describeGlb`), `convert.worker.ts`.
 - `src/lib/units/` `units.ts` (`mmToInches`, `inchesToMm`, `UNIT_SCALES`), `bases.ts` (`BASE_PRESETS`), `volumes.ts` (eight declarations, `defaultVolume`).
-- `src/lib/upload/` `intake.ts` (`classifyFiles`, `assetName`, `ACCEPT`, `PICKER_TYPES`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
+- `src/lib/upload/` `intake.ts` (`classifyFiles`, `assetName`, `PICKS`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
 - `src/lib/library/` `folders.ts` (`moveTargets`), `selection.ts` (multi-select: `click`, `selectAll`, `keepOnly`), `bulk.ts` (`uploadTarget`,
   `folderOptions`, `holdersIn`, `runBulk` in chunks of `BULK_MAX` = 200, `ASSET_DRAG`), `volume-edit.ts` (`toDraft`, `fromDraft`), `offers.ts` (`playerContext`, `filterPlayers`, `offerSummary`, `STATE_LABELS`, `stateChip`, `alreadyHeld`, `appendPage`), `shared.ts` (`usernameProblem`, `sharedFolders`, `copySummary`).
 - `src/lib/download/` `platforms.ts` (`detectPlatform`, `orderDownloads`, `FIRST_RUN`): the Download page's OS pick and unsigned-build steps.
@@ -63,7 +63,7 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
   slot of the chosen scope, which starts as the row the picker was opened from (one model, or a group row's models); a wider scope is chosen. Slot names carry the import's number (`Orc Boyz 3`); `modelName` drops it to group a unit's models.
 - Upload: `classifyFiles` sorts the drop into STLs (one kit, merged), one GLB, one image, or a batch of several GLBs and images. `UploadDialog` runs `convertInWorker` (a module Web Worker over `convert`).
 - A batch has no preview: its table names each file (editable), one folder, kind and modelled base apply to all, each GLB takes `GLB_DEFAULTS`, and the files go up one after another; a file that fails says why in its row and the rest carry on.
-- **Choose files** opens `showOpenFilePicker` with `PICKER_TYPES` where the browser has it (Chromium), so the picker starts on GLB files with STL and textures in its type list; elsewhere it is a file input with `ACCEPT`.
+- The drop zone has one button per file type (`PICKS`: **Choose GLB files**, **STL files**, **Textures**), each opening the one hidden file input with that type's `accept`: a single-type filter shows that type alone, where a list of types shows as "all supported types".
 - `convert` order: parse, merge, weld, recentre on the footprint, decimate to a triangle budget, creased normals, export GLB, then analysis (bounds, supports, `Proposal`, terrain `Volume`).
 - `guess.ts` proposes millimetres (`scale = mmToInches(1)`) and an up axis: `y` when the model is tallest along Y, else `z`. Y-up gets `pitch: 90`.
 - A dropped GLB takes `GLB_DEFAULTS` (glTF: metres, Y up, front +Z → scale 39.37, pitch 90, yaw 180); `suggestUnit` offers mm or cm

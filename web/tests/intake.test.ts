@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACCEPT, assetName, classifyFiles, PICKER_TYPES } from '../src/lib/upload/intake';
+import { assetName, classifyFiles, PICKS } from '../src/lib/upload/intake';
 import { MAX_NAME } from '../src/lib/validation';
 describe('classifyFiles', () => {
   it('merges STLs, takes one GLB or one image, and rejects the rest', () => {
@@ -22,9 +22,8 @@ describe('classifyFiles', () => {
     expect(assetName('kit.part.STL')).toBe('kit.part');
     expect(assetName('x'.repeat(200) + '.glb')).toHaveLength(MAX_NAME);
   });
-  it('offers GLB first in the file picker, then every kind it takes', () => {
-    expect(PICKER_TYPES[0]!.accept).toEqual({ 'model/gltf-binary': ['.glb'] });
-    expect(PICKER_TYPES.flatMap((t) => Object.values(t.accept).flat())).toEqual(expect.arrayContaining(['.glb', '.stl', '.png', '.jpg', '.jpeg', '.webp']));
-    expect(ACCEPT.split(',')[0]).toBe('.glb');
+  it('opens the file picker on GLB, with STL and textures as their own choices', () => {
+    expect(PICKS.map((p) => p.accept)).toEqual(['.glb', '.stl', '.png,.jpg,.jpeg,.webp']);
+    expect(PICKS[0]!.label).toBe('Choose GLB files');
   });
 });

@@ -9,13 +9,12 @@ export type Intake<F extends { name: string } = File> =
 
 const IMAGES: Record<string, ImageType> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
-/** The file input's filter: GLB first. */
-export const ACCEPT = '.glb,.stl,.png,.jpg,.jpeg,.webp';
-/** `showOpenFilePicker` filters. The browser opens on the first, so the picker starts on GLB files. */
-export const PICKER_TYPES: { description: string; accept: Record<string, string[]> }[] = [
-  { description: 'GLB models', accept: { 'model/gltf-binary': ['.glb'] } },
-  { description: 'STL files', accept: { 'model/stl': ['.stl'] } },
-  { description: 'Board textures', accept: { 'image/png': ['.png'], 'image/jpeg': ['.jpg', '.jpeg'], 'image/webp': ['.webp'] } },
+/** The file picker's choices, one filter each: a browser shows a single-type filter as that type alone, and a list of types
+ * as "all supported types", so GLB gets the main button and its own filter. */
+export const PICKS: { label: string; accept: string }[] = [
+  { label: 'Choose GLB files', accept: '.glb' },
+  { label: 'STL files', accept: '.stl' },
+  { label: 'Textures', accept: '.png,.jpg,.jpeg,.webp' },
 ];
 
 /** An asset's name from its file: the extension dropped, cut to the longest name management takes. */

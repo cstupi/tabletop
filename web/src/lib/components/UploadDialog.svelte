@@ -12,7 +12,7 @@
   import type { Bounds } from '$lib/mesh/types';
   import type { UpAxis } from '$lib/mesh/guess';
   import { terrainVolume } from '$lib/mesh/bounds';
-  import { ACCEPT, assetName, classifyFiles, PICKER_TYPES, type BatchItem, type Intake } from '$lib/upload/intake';
+  import { assetName, classifyFiles, PICKS, type BatchItem, type Intake } from '$lib/upload/intake';
   import { STAGE_LABELS, stepStates, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
   import { circle } from '$lib/units/bases';
   import { GLB_DEFAULTS } from '$lib/mesh/size';
@@ -51,13 +51,9 @@
   const batchOk = $derived(rows.length > 0 && rows.every((r) => !rowProblem(r)));
   const added = $derived(rows.filter((r) => r.state === 'done').length);
   const busy = $derived(stage === 'uploading' || stage === 'batch-run');
-  /** The browser's own picker where it has one: it opens filtered to GLB, with STL and images one choice away. */
-  type Picker = (o: object) => Promise<{ getFile(): Promise<File> }[]>;
-  const picker = typeof window === 'undefined' ? undefined : (window as unknown as { showOpenFilePicker?: Picker }).showOpenFilePicker;
-  async function pick() {
-    try { const handles = await picker!.call(window, { multiple: true, types: PICKER_TYPES }); void onfiles(await Promise.all(handles.map((h) => h.getFile()))); }
-    catch (e) { if (!(e instanceof DOMException && e.name === 'AbortError')) error = `The files could not be opened: ${e instanceof Error ? e.message : String(e)}`; }
-  }
+  /** One hidden file input; each button opens it with its own filter, so **Choose GLB files** shows GLB files only. */
+  let fileInput = $state<HTMLInputElement>();
+  function choose(accept: string) { if (!fileInput) return; fileInput.accept = accept; fileInput.value = ''; fileInput.click(); }
 
   // A real modal: focus stays inside, Escape closes, the page behind is inert.
   $effect(() => { if (open && dialog && !dialog.open) { target = folderId ?? ''; dialog.showModal(); heading?.focus(); } });
@@ -189,13 +185,15 @@
   <header class="head"><h2 id="upload-heading" tabindex="-1" bind:this={heading}><Icon name="upload" />Add to library</h2><button onclick={close} disabled={busy}><Icon name="close" size="1em" />Close</button></header>
 
   {#if stage === 'drop'}
-    <label class="drop" class:over={dragOver} ondragenter={() => (dragOver = true)} ondragleave={() => (dragOver = false)} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.preventDefault(); dragOver = false; void onfiles(Array.from(e.dataTransfer?.files ?? [])); }}>
+    <div class="drop" role="group" aria-label="Files to add" class:over={dragOver} ondragenter={() => (dragOver = true)} ondragleave={() => (dragOver = false)} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.preventDefault(); dragOver = false; void onfiles(Array.from(e.dataTransfer?.files ?? [])); }}>
       <Icon name="upload" size="2.5rem" />
       <span>Drop <code>.glb</code> models, <code>.png</code>/<code>.jpg</code>/<code>.webp</code> board textures, or the <code>.stl</code> parts of one kit (they merge as placed) here, or choose files:</span>
-      {#if picker}<button type="button" class="primary" onclick={() => void pick()}>Choose files</button>
-      {:else}<input type="file" multiple accept={ACCEPT} onchange={(e) => void onfiles(Array.from(e.currentTarget.files ?? []))} />{/if}
+      <span class="actions">
+        {#each PICKS as p, i (p.accept)}<button type="button" class={i === 0 ? 'primary' : ''} onclick={() => choose(p.accept)}>{p.label}</button>{/each}
+      </span>
+      <input bind:this={fileInput} type="file" multiple hidden aria-hidden="true" tabindex="-1" onchange={(e) => void onfiles(Array.from(e.currentTarget.files ?? []))} />
       <small>A mesh is at most 64 MB after conversion, a texture at most 16 MB.</small>
-    </label>
+    </div>
   {:else if stage === 'converting'}
     <div role="status">
       <p class="loading">Converting in your browser: step {Math.max(stepIndex, 1)} of {STEPS.length}, {stepLabel.toLowerCase()}…</p>
@@ -309,7 +307,6 @@
   @media (max-width: 48rem) { .preview { grid-template-columns: minmax(0, 1fr); } .view { height: 20rem; position: static; } }
   .drop { display: flex; flex-direction: column; align-items: center; gap: var(--s3); border: 2px dashed var(--accent); padding: var(--s7) var(--s4); text-align: center; color: var(--text); background: var(--rule); }
   .drop :global(.icon) { color: var(--accent); }
-  .drop input { display: block; margin: var(--s2) auto; max-width: 100%; }
   .drop.over { border-style: solid; background: var(--panel-solid); }
   :global([data-theme='fantasy']) .drop { border-color: var(--wood); border-radius: 4px; }
   progress { width: 100%; }
