@@ -12,7 +12,7 @@
   import type { Bounds } from '$lib/mesh/types';
   import type { UpAxis } from '$lib/mesh/guess';
   import { terrainVolume } from '$lib/mesh/bounds';
-  import { classifyFiles, type Intake } from '$lib/upload/intake';
+  import { ACCEPT, assetName, classifyFiles, PICKER_TYPES, type BatchItem, type Intake } from '$lib/upload/intake';
   import { STAGE_LABELS, stepStates, upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
   import { circle } from '$lib/units/bases';
   import { GLB_DEFAULTS } from '$lib/mesh/size';
@@ -22,7 +22,10 @@
   /** `folderId`: the folder selected in the Library when the dialog opens; each upload is filed there unless the user picks another or none. */
   let { open, onclose, onuploaded, folders = [], folderId = null }: { open: boolean; onclose: () => void; onuploaded: (o: UploadOutcome) => void; folders?: FolderDto[]; folderId?: Guid | null } = $props();
 
-  type Stage = 'drop' | 'converting' | 'preview' | 'uploading' | 'done';
+  type Stage = 'drop' | 'converting' | 'preview' | 'uploading' | 'done' | 'batch' | 'batch-run' | 'batch-done';
+  /** One file of a batch: each becomes its own asset, a GLB at the glTF defaults. */
+  type Row = BatchItem & { name: string; state: 'waiting' | 'sending' | 'done' | 'failed'; note: string | null };
+  const ROW_STATE: Record<Row['state'], string> = { waiting: 'Ready', sending: 'Uploading…', done: 'Added', failed: 'Failed' };
   let stage = $state<Stage>('drop');
   let intake = $state<Intake | null>(null);
   let step = $state<Progress['step'] | null>(null);
@@ -41,6 +44,20 @@
   let target = $state<Guid | ''>(''); let filed = $state<string | null>(null); let fileError = $state<string | null>(null);
   const targets = $derived(folderOptions(folders));
   let dialog = $state<HTMLDialogElement>(); let heading = $state<HTMLHeadingElement>(); let dragOver = $state(false);
+  let rows = $state<Row[]>([]);
+  const isMesh = (r: BatchItem) => r.contentType === 'model/gltf-binary';
+  const hasMesh = $derived(rows.some(isMesh));
+  const rowProblem = (r: Row) => nameProblem(r.name) ?? sizeProblem(isMesh(r) ? kind : 'texture', r.file.size);
+  const batchOk = $derived(rows.length > 0 && rows.every((r) => !rowProblem(r)));
+  const added = $derived(rows.filter((r) => r.state === 'done').length);
+  const busy = $derived(stage === 'uploading' || stage === 'batch-run');
+  /** The browser's own picker where it has one: it opens filtered to GLB, with STL and images one choice away. */
+  type Picker = (o: object) => Promise<{ getFile(): Promise<File> }[]>;
+  const picker = typeof window === 'undefined' ? undefined : (window as unknown as { showOpenFilePicker?: Picker }).showOpenFilePicker;
+  async function pick() {
+    try { const handles = await picker!.call(window, { multiple: true, types: PICKER_TYPES }); void onfiles(await Promise.all(handles.map((h) => h.getFile()))); }
+    catch (e) { if (!(e instanceof DOMException && e.name === 'AbortError')) error = `The files could not be opened: ${e instanceof Error ? e.message : String(e)}`; }
+  }
 
   // A real modal: focus stays inside, Escape closes, the page behind is inert.
   $effect(() => { if (open && dialog && !dialog.open) { target = folderId ?? ''; dialog.showModal(); heading?.focus(); } });
@@ -52,11 +69,15 @@
   const bytes = $derived(intake?.kind === 'image' ? intake.file.size : glb?.byteLength ?? 0);
   const tooBig = $derived(intake && intake.kind !== 'rejected' ? sizeProblem(kind, bytes) : null);
 
-  async function onfiles(list: FileList | null) {
+  async function onfiles(list: File[]) {
     error = null; result = null; glbInfo = null; meshBounds = null; forcedAxis = null;
-    intake = classifyFiles(Array.from(list ?? []));
+    intake = classifyFiles(list);
     if (intake.kind === 'rejected') { error = intake.reason; return; }
-    name = (intake.kind === 'stl' ? intake.files[0]!.name.replace(/\.stl$/i, '') : intake.file.name.replace(/\.[^.]+$/, '')).slice(0, MAX_NAME);
+    if (intake.kind === 'batch') {
+      rows = intake.items.map((i) => ({ ...i, name: assetName(i.file.name), state: 'waiting' as const, note: null }));
+      stage = 'batch'; return;
+    }
+    name = assetName(intake.kind === 'stl' ? intake.files[0]!.name : intake.file.name);
     if (intake.kind === 'image') {
       const big = sizeProblem('texture', intake.file.size);
       if (big) { error = big; intake = null; return; }
@@ -101,7 +122,7 @@
   }
   async function confirm(e: SubmitEvent) {
     e.preventDefault();
-    if (!intake || intake.kind === 'rejected' || nameError || tooBig) return;
+    if (!intake || intake.kind === 'rejected' || intake.kind === 'batch' || nameError || tooBig) return;
     stage = 'uploading'; error = null; sent = null;
     try {
       const bytes = intake.kind === 'image' ? new Uint8Array(await intake.file.arrayBuffer()) : glb!;
@@ -122,23 +143,57 @@
       stage = 'done'; onuploaded(outcome);
     } catch (err) { error = err instanceof Error ? err.message : String(err); stage = 'preview'; }
   }
-  function reset() { ++convToken; stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; filed = null; fileError = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; step = null; uploadStage = null; sent = null; }
+  /** A batch goes up one file after another; a file that fails says why and the rest carry on. */
+  async function runBatch(e: SubmitEvent) {
+    e.preventDefault();
+    if (!batchOk) return;
+    stage = 'batch-run'; error = null;
+    const into = target ? targets.find((t) => t.id === target) : undefined;
+    let last: UploadOutcome | null = null;
+    for (const r of rows) {
+      r.state = 'sending'; r.note = null;
+      try {
+        const bytes = new Uint8Array(await r.file.arrayBuffer());
+        const mesh = isMesh(r);
+        const k: AssetKind = mesh ? kind : 'texture';
+        const s = mesh ? GLB_DEFAULTS.scale : 1;
+        const o: Orientation = mesh ? { ...GLB_DEFAULTS.orientation } : { pitch: 0, yaw: 0, roll: 0 };
+        let volume: ReturnType<typeof terrainVolume> | undefined;
+        if (mesh) {
+          let d: Awaited<ReturnType<typeof describeGlb>>;
+          try { d = await describeGlb(bytes); } catch (err) { throw new Error(`That GLB could not be read: ${err instanceof Error ? err.message : String(err)}.`); }
+          if (k === 'terrain') volume = terrainVolume(d.bounds, { scale: s, orientation: o });
+        }
+        const out = await upload({ name: r.name.trim(), kind: k, contentType: r.contentType, bytes, scale: s, orientation: o, modelledBase: k === 'miniature' ? base : null, volume }, () => {}, () => {});
+        if (mesh) await sendThumbnail(out.asset.id, bytes, s, o);
+        const notes: string[] = [];
+        if (out.deduplicated) notes.push('already stored');
+        if (out.warning) notes.push(out.warning);
+        if (into) { try { await api.folders.addAsset(into.id, out.asset.id); } catch (err) { notes.push(`not added to ${into.label}: ${errorMessage(err)}`); } }
+        r.state = 'done'; r.note = notes.join('; ') || null; last = out;
+      } catch (err) { r.state = 'failed'; r.note = err instanceof Error ? err.message : String(err); }
+    }
+    stage = 'batch-done';
+    if (last) onuploaded(last);
+  }
+  function reset() { ++convToken; rows = []; stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; filed = null; fileError = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; step = null; uploadStage = null; sent = null; }
   /** Every way out (Close, Done, Escape, Open it) closes the element; its close event resets and tells the page. */
   const close = () => dialog?.close();
   function onDialogClose() { reset(); onclose(); }
   // Escape during an upload would hide a request still running; the dialog stays until it finishes.
-  function oncancel(e: Event) { if (stage === 'uploading') e.preventDefault(); }
+  function oncancel(e: Event) { if (busy) e.preventDefault(); }
 </script>
 
 {#if open}
 <dialog bind:this={dialog} aria-labelledby="upload-heading" {oncancel} onclose={onDialogClose}>
-  <header class="head"><h2 id="upload-heading" tabindex="-1" bind:this={heading}><Icon name="upload" />Add to library</h2><button onclick={close} disabled={stage === 'uploading'}><Icon name="close" size="1em" />Close</button></header>
+  <header class="head"><h2 id="upload-heading" tabindex="-1" bind:this={heading}><Icon name="upload" />Add to library</h2><button onclick={close} disabled={busy}><Icon name="close" size="1em" />Close</button></header>
 
   {#if stage === 'drop'}
-    <label class="drop" class:over={dragOver} ondragenter={() => (dragOver = true)} ondragleave={() => (dragOver = false)} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.preventDefault(); dragOver = false; void onfiles(e.dataTransfer?.files ?? null); }}>
+    <label class="drop" class:over={dragOver} ondragenter={() => (dragOver = true)} ondragleave={() => (dragOver = false)} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.preventDefault(); dragOver = false; void onfiles(Array.from(e.dataTransfer?.files ?? [])); }}>
       <Icon name="upload" size="2.5rem" />
-      <span>Drop one or more <code>.stl</code> (a kit's parts merge as placed), one <code>.glb</code>, or a <code>.png</code>/<code>.jpg</code>/<code>.webp</code> board texture here, or choose files:</span>
-      <input type="file" multiple accept=".stl,.glb,.png,.jpg,.jpeg,.webp" onchange={(e) => void onfiles(e.currentTarget.files)} />
+      <span>Drop <code>.glb</code> models, <code>.png</code>/<code>.jpg</code>/<code>.webp</code> board textures, or the <code>.stl</code> parts of one kit (they merge as placed) here, or choose files:</span>
+      {#if picker}<button type="button" class="primary" onclick={() => void pick()}>Choose files</button>
+      {:else}<input type="file" multiple accept={ACCEPT} onchange={(e) => void onfiles(Array.from(e.currentTarget.files ?? []))} />{/if}
       <small>A mesh is at most 64 MB after conversion, a texture at most 16 MB.</small>
     </label>
   {:else if stage === 'converting'}
@@ -196,6 +251,45 @@
         {#if kind !== 'texture' && !previewed && stage === 'preview'}<p><small>Waiting for the preview to draw before upload.</small></p>{/if}
       </form>
     </div>
+  {:else if stage === 'batch' || stage === 'batch-run' || stage === 'batch-done'}
+    <form class="stack" onsubmit={runBatch}>
+      <div class="scroll-x"><table class="batch">
+        <thead><tr><th scope="col">Name</th><th scope="col">File</th><th scope="col">Size</th><th scope="col">State</th></tr></thead>
+        <tbody>
+          {#each rows as r, i (i)}
+            {@const problem = stage === 'batch' ? rowProblem(r) : null}
+            <tr>
+              <td><input bind:value={r.name} maxlength={MAX_NAME} aria-label="Name for {r.file.name}" aria-invalid={!!problem} disabled={stage !== 'batch'} /></td>
+              <td>{r.file.name}</td>
+              <td class="num">{formatBytes(r.file.size)}</td>
+              <td class={r.state} role={r.state === 'failed' || problem ? 'alert' : undefined}>{problem ?? ROW_STATE[r.state]}{#if r.note}{': '}{r.note}{/if}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table></div>
+      <label>Adds to <select bind:value={target} disabled={stage !== 'batch'}>
+        <option value="">No folder</option>
+        {#each targets as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
+      </select></label>
+      {#if hasMesh}
+        <label>Kind <select value={kind} onchange={(e) => setKind(e.currentTarget.value as 'miniature' | 'terrain')} disabled={stage !== 'batch'}>
+          <option value="miniature">Miniature</option><option value="terrain">Terrain</option>
+        </select></label>
+        {#if kind === 'miniature'}<label>Modelled base <BasePicker bind:value={base} label="Modelled base" /></label>{/if}
+        <p><small>Each GLB is read as glTF: metres, Y up, front +Z. Scale and orientation are set on a model's page.</small></p>
+      {/if}
+      {#if stage === 'batch'}
+        <div class="actions">
+          <button type="submit" class="primary" disabled={!batchOk}>Upload {rows.length} files</button>
+          <button type="button" onclick={reset}>Choose other files</button>
+        </div>
+      {:else if stage === 'batch-run'}
+        <p class="loading" role="status">Uploading {Math.min(added + rows.filter((r) => r.state === 'failed').length + 1, rows.length)} of {rows.length}…</p>
+      {:else}
+        <p class="notice" role="status">Added {added} of {rows.length} to your library.</p>
+        <div class="actions"><button type="button" onclick={reset}>Add more</button><button type="button" class="primary" onclick={close}>Done</button></div>
+      {/if}
+    </form>
   {:else if stage === 'done' && outcome}
     <p class="notice" role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if filed}{' '}in <strong>{filed}</strong>{/if}{#if outcome.deduplicated}{' '}(already stored; nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
     {#if fileError}<p role="alert">{fileError}</p>{/if}
@@ -219,6 +313,10 @@
   .drop.over { border-style: solid; background: var(--panel-solid); }
   :global([data-theme='fantasy']) .drop { border-color: var(--wood); border-radius: 4px; }
   progress { width: 100%; }
+  .batch { width: 100%; border-collapse: collapse; }
+  .batch th, .batch td { text-align: left; padding: var(--s1) var(--s2); vertical-align: middle; }
+  .batch td input { width: 100%; min-width: 10rem; }
+  .batch td.done { color: var(--success); }
   .stepper { list-style: none; padding: 0; margin: var(--s3) 0; display: grid; gap: var(--s2); }
   .stepper li { display: grid; grid-template-columns: 1.6rem 1fr; align-items: center; gap: var(--s2); color: var(--dim); }
   .stepper li.current, .stepper li.done { color: var(--text); }

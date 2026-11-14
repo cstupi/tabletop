@@ -333,7 +333,7 @@ The pipeline is built from existing libraries, not from a WebAssembly build of
 
 ```mermaid
 flowchart TD
-    Drop["drop: N x .stl, or one .glb, or one image"] --> Class["classifyFiles — intake.ts"]
+    Drop["drop: N x .stl (one kit), or one .glb, or one image, or a batch of .glb and images"] --> Class["classifyFiles — intake.ts"]
     Class -->|"glb"| Describe["describeGlb: readGlb, triangles + bounds"]
     Class -->|"image"| Tex["texture: no mesh path at all"]
     Class -->|"stl"| Parse["parseStl per file — ASCII or binary"]
