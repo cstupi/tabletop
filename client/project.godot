@@ -25,6 +25,10 @@ window/size/viewport_height=720
 
 project/assembly_name="Tabletop"
 
+[gui]
+
+timers/tooltip_delay_sec=0.15
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true
