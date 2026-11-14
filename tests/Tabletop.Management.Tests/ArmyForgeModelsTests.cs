@@ -39,6 +39,17 @@ public class ArmyForgeModelsTests
         Assert.Equal(["Heavy Daemon Hammer", "Heavy Daemon Hammer", "Stomp"], u.Models[0].Weapons.Select(w => w.Name));
     }
 
+    /// <summary>A selection naming more gains than any Army Forge option holds is not replayed: the lines are dealt as they stand.</summary>
+    [Fact]
+    public void A_selection_with_too_many_gains_is_dealt_not_replayed()
+    {
+        var entry = new ArmyForgeExportBuilder(Book("Squad", 5, W("Rifle", 5, 24), W("Strike", 5))).Entry("a", null);
+        var gain = """{"name":"Rifle","type":"ArmyBookWeapon","count":1,"range":24,"attacks":1,"specialRules":[]}""";
+        var gains = string.Join(",", Enumerable.Repeat(gain, ArmyForgeModels.MaxPerSelection + 1));
+        entry["selectedUpgrades"] = JsonNode.Parse("""[{"option":{"gains":[""" + gains + """]},"upgrade":{"variant":"upgrade","affects":{"type":"all"},"targets":[]}}]""");
+        Assert.All(Import(entry).Models, m => Assert.Equal(["Rifle", "Strike"], m.Weapons.Select(w => w.Name)));
+    }
+
     /// <summary>Operators: the sergeant (one Battle Rifle and Strike for a Sgt. Pistol and Sgt. Hand Weapon), then two special rifles. The
     /// export appends the specials after the sergeant's lines, and the sergeant's pistol and sword stay on one model.</summary>
     [Fact]

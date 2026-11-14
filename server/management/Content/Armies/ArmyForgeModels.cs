@@ -12,6 +12,9 @@ namespace Tabletop.Management.Content.Armies;
 public static class ArmyForgeModels
 {
     public const int MaxSelections = 200;
+    /// <summary>The most gains or targets one selection may name, and the most entries a model may come to hold, before the replay gives
+    /// way to the deal: an export past these is no Army Forge selection, and the bounds keep every scan of the replay small.</summary>
+    public const int MaxPerSelection = 16, MaxHeldPerModel = 32;
     const string Weapon = "ArmyBookWeapon", Item = "ArmyBookItem";
 
     public sealed record Selection(Section? Upgrade, Option? Option);
@@ -92,7 +95,8 @@ public static class ArmyForgeModels
         {
             var gains = (s.Option?.Gains ?? []).Where(g => g.Type is Weapon or Item && g.Name is not null).ToList();
             var gainKeys = gains.Select(Key).ToList();
-            if (gains.Any(g => g.Count > ArmyLimits.WeaponsPerModel)) return null;
+            if (gains.Count > MaxPerSelection || gains.Any(g => g.Count > ArmyLimits.WeaponsPerModel)) return null;
+            if ((s.Upgrade?.Targets?.Count ?? 0) > MaxPerSelection) return null;
             var targets = (s.Upgrade?.Targets ?? []).Where(t => t is not null).Select(Target).ToList();
             var affects = s.Upgrade?.Affects?.Type;
             var value = s.Upgrade?.Affects?.Value is { ValueKind: JsonValueKind.Number } v && v.TryGetInt32(out var x) ? Math.Clamp(x, 1, n) : 1;
@@ -166,6 +170,7 @@ public static class ArmyForgeModels
                 foreach (var m in to.Distinct()) changed[m]++;
                 for (var gi = 0; gi < gains.Count; gi++) for (var k = 0; k < Math.Max(1, gains[gi].Count); k++) held[to[gi]].Add((gains[gi].Name, gainKeys[gi], Kind(gains[gi])));
             }
+            if (held.Any(h => h.Count > MaxHeldPerModel)) return null;
         }
 
         // The selections must give exactly the loadout's lines; each line then takes its copies from the models holding them, in order.
