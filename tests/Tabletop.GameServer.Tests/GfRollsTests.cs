@@ -213,13 +213,16 @@ public class GfRollsTests
         var fireball = new EntryDocument("Fireball", CatalogKind.Spell, false, null, 2, "Test Book", "Target enemy unit within 12\" takes 3 hits.",
             new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12), []);
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
-        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4);
         var frame = new FrameView(new Frame(Guid.CreateVersion7(), "x", new SequenceContext(wizard.Id, [], [], GfNames.Hold)), 0, new Dictionary<string, int>(), StepHistory.Empty, null);
         state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
         Assert.Empty(GfHooks.ReactionsAt(state, Core, GfNames.BeforeAttacking, frame));                                      // tokens but no spell in the set
         Assert.Single(GfHooks.ReactionsAt(state, TestProperties.WithSpells(fireball), GfNames.BeforeAttacking, frame));
         state.Applier.Apply(new GameEvent(3, null, new SpellTokensSet(wizard.Models[0].Id, 1), null));
         Assert.Empty(GfHooks.ReactionsAt(state, TestProperties.WithSpells(fireball), GfNames.BeforeAttacking, frame));       // one token, a two-token spell
+        var far = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        far.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+        Assert.Empty(GfHooks.ReactionsAt(far, TestProperties.WithSpells(fireball), GfNames.BeforeAttacking, frame));         // tokens and a spell, but no target within its 12"
     }
 
     [Fact]

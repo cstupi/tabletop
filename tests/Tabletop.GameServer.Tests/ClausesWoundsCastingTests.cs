@@ -153,7 +153,7 @@ public class ClausesWoundsCastingTests
         var friend = Unit("F", "4+", "4+", [], 1, [P("Caster", 3)]);
         var foe = Unit("G", "4+", "4+", [], 1, [P("Caster", 3)]);
         var sim = Game([w, friend], [foe], 1);
-        Put(sim, w.Models[0].Id, 0, 0); Put(sim, friend.Models[0].Id, -15, 0); Put(sim, foe.Models[0].Id, 15, 0);
+        Put(sim, w.Models[0].Id, 0, 0); Put(sim, friend.Models[0].Id, -15, 0); Put(sim, foe.Models[0].Id, 11, 0);   // the foe within the Bolt's 12" and the 18" of token spending
         Tokens(sim, w.Models[0].Id, 2); Tokens(sim, friend.Models[0].Id, 3); Tokens(sim, foe.Models[0].Id, 3);
         Offered(sim, w.Id);
         sim.Answer(Samples.Team1, new Chosen(Pick(Bolt, w.Models[0].Id)));

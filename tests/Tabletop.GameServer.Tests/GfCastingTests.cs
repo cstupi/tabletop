@@ -62,6 +62,32 @@ public class GfCastingTests
         Assert.Contains("Fireball", GfCasting.TriedThisActivation(sim.State, wizard.Id));
     }
 
+    /// <summary>3.6.0 p.13 and p.13 alike: "Pick a target and roll one die". A spell with no target to pick is not offered, and a caster
+    /// whose every spell is without one is offered no cast at all, so no window opens that only a wasted cast could leave.</summary>
+    [Fact]
+    public void A_spell_with_no_target_in_reach_is_not_offered()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var far = State([wizard], [Unit("G", "4+", "4+", [], 2, [])], x1: -30, x2: 30);
+        var sim = new Sim(far, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Book, new ScriptedDice());
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        Assert.Equal([$"Ward|{wizard.Models[0].Id}"], GfCasting.SpellOptions(sim.State, Book, wizard.Id).Select(o => o.Id));   // its own unit is a friendly target; no enemy within 12"
+        Assert.Empty(GfCasting.SpellOptions(sim.State, TestProperties.WithSpells(Fireball), wizard.Id));
+    }
+
+    /// <summary>Opening the spell list commits to nothing: the pick may be passed, which casts nothing and spends nothing.</summary>
+    [Fact]
+    public void The_spell_pick_can_be_passed()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = Casting(wizard, [], [Unit("G", "4+", "4+", [], 2, [])]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        Assert.True(sim.AskFor(Samples.Team1).AllowPass);
+        sim.Answer(Samples.Team1, new Passed());
+        Assert.Equal(3, sim.Model(wizard.Models[0].Id).SpellTokens);
+        Assert.Empty(GfCasting.TriedThisActivation(sim.State, wizard.Id));
+    }
+
     [Fact]
     public void A_failed_roll_ends_casting_and_a_tried_spell_is_not_offered_again_this_activation()
     {
@@ -284,7 +310,7 @@ public class GfCastingTests
             Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("book-a", "Book A", "1", ["Fireball"]), new BookRecord("book-b", "Book B", "1", ["Other Fireball"])],
         }, Guid.CreateVersion7);
         var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
-        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4);   // a target within Fireball's 12"
         state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
         Assert.Equal([$"Fireball|{wizard.Models[0].Id}"], GfCasting.SpellOptions(state, props, wizard.Id).Select(o => o.Id));
     }
@@ -301,7 +327,7 @@ public class GfCastingTests
         }, Guid.CreateVersion7);
         Assert.Equal(["Fireball"], props.SpellsOf("book-a").Select(e => e.Name));
         var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
-        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4);   // a target within Fireball's 12"
         state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
         Assert.Equal([$"Fireball|{wizard.Models[0].Id}"], GfCasting.SpellOptions(state, props, wizard.Id).Select(o => o.Id));
     }
@@ -313,7 +339,7 @@ public class GfCastingTests
         {
             var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
             wizard = wizard with { Models = wizard.Models.Select(m => m with { ArmyBook = book }).ToList() };
-            var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+            var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4);   // a target within Fireball's 12"
             state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
             Assert.Empty(GfCasting.SpellOptions(state, Book, wizard.Id));
         }

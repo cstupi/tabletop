@@ -25,15 +25,20 @@ public static partial class GfCasting
     /// <summary>
     /// p.13: a caster may "spend as many tokens as the spell's value to try casting one or more spells (only one try per spell)": one option per
     /// caster model and spell of that model's own army book
-    /// (ModelSlot.ArmyBook; "the Caster's spells must be picked from their own faction") it can afford and has not tried this activation. Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
+    /// (ModelSlot.ArmyBook; "the Caster's spells must be picked from their own faction") it can afford, has not tried this activation and has a
+    /// target for now (p.13 and 3.6.0 p.13: "Pick a target and roll one die"; HasTarget). Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
     /// </summary>
     public static IReadOnlyList<AskOption> SpellOptions(GameState state, PropertySet props, Guid unit)
     {
         var tried = TriedPicks(state, unit);
         return Casters(state, unit).SelectMany(m => props.SpellsOf(state.Projection.Models[m].Slot.ArmyBook)
-                .Where(e => !tried.Contains((e.Name, m)) && e.Cost <= GfSpellSupport.Available(state, m))
+                .Where(e => !tried.Contains((e.Name, m)) && e.Cost <= GfSpellSupport.Available(state, m) && HasTarget(state, m, e))
             .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
     }
+
+    /// <summary>A spell with no targeting needs no target; any other needs one in reach of the caster model or of a conduit it may cast from (OriginStep).</summary>
+    static bool HasTarget(GameState state, Guid caster, CatalogEntry spell) => spell.Targeting is not { } targeting
+        || GfSpellSupport.Conduits(state, caster).Prepend(caster).Any(origin => Targets(state, origin, targeting, spell: true).Count > 0);
 
     /// <summary>
     /// Spells picked by a closed pick-spell since this unit's activation began (OneTryPerSpellScope = activation). The activation is
@@ -141,7 +146,7 @@ public static partial class GfCasting
                 return new Complete(paid);
             }
             var options = SpellOptions(ctx.State, ctx.Properties, unit);
-            return options.Count == 0 ? new Finish([]) : new OpenAsks([ctx.Ask("cast", "Cast which spell?", ctx.ActorTeam!.Value, new Options(options))]);
+            return options.Count == 0 ? new Finish([]) : new OpenAsks([ctx.Ask("cast", "Cast which spell?", ctx.ActorTeam!.Value, new Options(options), allowPass: true)]);
         }
     }
 
