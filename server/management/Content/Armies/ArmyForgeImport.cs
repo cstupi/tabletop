@@ -150,7 +150,32 @@ public static class ArmyForgeImport
         var models = new List<ModelSlot>();
         Section([host, .. m.Combined], catalog, unitProps, models);
         foreach (var joined in m.Joined) Section([joined], catalog, null, models);
-        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, Stacked(unitProps), models);
+        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, Stacked(unitProps), models, Points: Points([host, .. m.Combined, .. m.Joined]));
+    }
+
+    /// <summary>What the list says a unit cost: each of its entries' `cost` and, per selected upgrade, the option's cost for that entry (its
+    /// `costs` row naming the entry's `id`, else its plain `cost`). Null when no entry carries a cost; kept within ArmyLimits.MaxPoints.</summary>
+    private static int? Points(IReadOnlyList<AfUnit> entries)
+    {
+        long total = 0; var any = false;
+        foreach (var u in entries)
+        {
+            if (u.Cost is not { ValueKind: JsonValueKind.Number } cost || !cost.TryGetInt32(out var own)) continue;
+            any = true; total += own;
+            if (u.SelectedUpgrades is not { ValueKind: JsonValueKind.Array } selected) continue;
+            foreach (var s in selected.EnumerateArray())
+            {
+                if (s.ValueKind != JsonValueKind.Object || !s.TryGetProperty("option", out var option) || option.ValueKind != JsonValueKind.Object) continue;
+                int? price = null;
+                if (u.Id is not null && option.TryGetProperty("costs", out var costs) && costs.ValueKind == JsonValueKind.Array)
+                    foreach (var row in costs.EnumerateArray())
+                        if (row.ValueKind == JsonValueKind.Object && row.TryGetProperty("unitId", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() == u.Id
+                            && row.TryGetProperty("cost", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var n)) { price = n; break; }
+                if (price is null && option.TryGetProperty("cost", out var plain) && plain.ValueKind == JsonValueKind.Number && plain.TryGetInt32(out var p)) price = p;
+                total += price ?? 0;
+            }
+        }
+        return any ? (int)Math.Clamp(total, 0, ArmyLimits.MaxPoints) : null;
     }
 
     /// <summary>One section's slots, appended to the unit being built: an entry and the entry combined with it, or a joined entry.

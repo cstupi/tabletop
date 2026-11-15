@@ -29,6 +29,8 @@ export interface UnitSheetModel {
   readonly unitId: string; readonly team: string; readonly name: string; readonly alive: number; readonly size: number;
   readonly quality: string | null; readonly defense: string | null; readonly chips: readonly SheetChip[]; readonly weapons: readonly SheetWeapon[];
   readonly rules: readonly SheetRule[]; readonly models: readonly SheetModel[];
+  /** What the army list says the unit cost; absent when the list gave none. */
+  readonly points?: number;
 }
 
 /** The army list's Hero entry: the card marks the model's group with it and computes nothing from it. */
@@ -69,6 +71,7 @@ export function unitSheetOf(p: Projection, n: Names, unitId: string, rules: Rule
     unitId, team: t !== null ? n.team(t) : '', name: n.unit(unitId), alive: models.filter((m) => !m.removed).length, size: slots.length,
     quality: stat(unit.definition, first, 'Quality'), defense: stat(unit.definition, first, 'Defense'),
     chips: chipsOf(p, n, unit), weapons: weaponsOf(standing, rules), rules: rulesOf(unit.definition, standing, rules), models,
+    ...(unit.definition.points === undefined ? {} : { points: unit.definition.points }),
   };
 }
 

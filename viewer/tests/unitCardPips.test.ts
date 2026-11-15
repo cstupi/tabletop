@@ -30,6 +30,8 @@ describe('UnitCardContent pips', () => {
 
   it('the note is the count alone without tough models and sums several', () => {
     expect(countNote(card(m('Warrior', 1, 1, false, 'w')))).toBe('1 model');
+    const priced = card(m('Warrior', 1, 1, false, 'w'));
+    expect(countNote({ ...priced, sheet: { ...priced.sheet, points: 170 } })).toBe('1 model · 170 pts');   // the army list's points
     expect(countNote(card(m('Ogre', 2, 3, false, 'o'), m('Ogre', 3, 3, false, 'o')))).toBe('2 models · 5 wounds left');
   });
 

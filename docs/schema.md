@@ -372,6 +372,10 @@ management's `005_spell_library.sql`.
 slot with no book, or a book the set does not list, casts nothing. It is the slot's and not the unit's because every
 entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a model rule.
 
+`unit.points int null` (0–100,000) is what the army list says the unit cost: each of its entries' cost and their selected
+upgrades', written at import (`ArmyForgeImport.Points`) and shown on the unit card; null for an army imported before
+management's `034_unit_points.sql`, until it is imported again. Nothing in the rules reads it.
+
 `unit.reserve_property text null` and `unit.reserve_of uuid null`, both set or both null, mark a unit the army holds off
 the table until a rule places it (`Unit.Reserve`): the rule (Spawn, Split, Reinforcement) and the model slot or unit of
 the same army that holds it. The import writes them (army-book rules spec → Readings, batch 7); management's

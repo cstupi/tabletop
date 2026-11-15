@@ -967,6 +967,7 @@ export interface Unit {
   readonly properties: readonly PropertyInstance[];
   readonly models: readonly ModelSlot[];
   readonly reserve?: UnitReserve;
+  readonly points?: number;
 }
 
 export interface UnitReserve {

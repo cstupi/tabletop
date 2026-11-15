@@ -100,4 +100,15 @@ public class UnitCardContentTests
         SheetModel[] Two(string kind) => [M(Ids[0], "Trooper", 1, 1, false, "t", ["Rifle"]), M(Ids[1], "Trooper", 1, 1, false, kind, ["Rifle"])];
         Assert.NotEqual(new UnitCardContent(Sheet(models: Two("t")), 1, null), new UnitCardContent(Sheet(models: Two("u")), 1, null));
     }
+
+    /// <summary>The owner, 2026-11-14: "Add the amount of points to the unit details card so a user can see how much something was worth from
+    /// the army list". The count line ends with the unit's points when its army list gave them.</summary>
+    [Fact]
+    public void The_count_line_ends_with_the_units_points()
+    {
+        var sheet = new UnitSheetModel(Guid.CreateVersion7(), "Team 1", "Squad", 2, 2, "4+", "5+", [], [], [],
+            [new SheetModel(Guid.CreateVersion7(), "Trooper", 1, 1, false, "t", [], false), new SheetModel(Guid.CreateVersion7(), "Trooper", 1, 1, false, "t", [], false)]);
+        Assert.Equal("2 models", new UnitCardContent(sheet, 1, null).CountNote);
+        Assert.Equal("2 models · 170 pts", new UnitCardContent(sheet with { Points = 170 }, 1, null).CountNote);
+    }
 }

@@ -16,11 +16,12 @@ public sealed record ModelSlot(
     Base Base, double Height, Guid? AssetId,
     IReadOnlyList<Weapon> Weapons, string? ArmyBook = null);
 
-/// <summary>Reserve is set on a unit the army holds off the table until a property places it (null for every other unit).</summary>
+/// <summary>Reserve is set on a unit the army holds off the table until a property places it (null for every other unit). Points is what the
+/// army list says the unit cost, upgrades and joined entries included; null when the list gave none. Nothing in the rules reads it.</summary>
 public sealed record Unit(
     Guid Id, int Ordinal, string Name,
     IReadOnlyDictionary<string, string> Stats, IReadOnlyList<PropertyInstance> Properties,
-    IReadOnlyList<ModelSlot> Models, UnitReserve? Reserve = null);
+    IReadOnlyList<ModelSlot> Models, UnitReserve? Reserve = null, int? Points = null);
 
 /// <summary>What places a reserve unit: Property, a property name held at Of, which is a model slot id or a unit id of the same army.</summary>
 public sealed record UnitReserve(string Property, Guid Of);

@@ -15,7 +15,7 @@ public sealed record SheetWeapon(string Name, int Count, string Range, string At
 /// the card's badge; Hero marks a slot carrying the army list's Hero entry.</summary>
 public sealed record SheetModel(Guid Id, string Label, int Left, int Max, bool Removed, string Kind, IReadOnlyList<string> Loadout, bool Hero);
 public sealed record UnitSheetModel(Guid UnitId, string Team, string Name, int Alive, int Size, string? Quality, string? Defense,
-    IReadOnlyList<SheetChip> Chips, IReadOnlyList<SheetWeapon> Weapons, IReadOnlyList<SheetRule> Rules, IReadOnlyList<SheetModel> Models);
+    IReadOnlyList<SheetChip> Chips, IReadOnlyList<SheetWeapon> Weapons, IReadOnlyList<SheetRule> Rules, IReadOnlyList<SheetModel> Models, int? Points = null);
 
 /// <summary>
 /// The unit card (client UX spec → Unit card) from the army snapshot, the projection, the pinned catalog and the server's model
@@ -34,7 +34,7 @@ public static partial class UnitSheet
         var team = first is not null && n.TeamOfModel(first.Id) is { } t ? n.Team(t) : "";
         return new UnitSheetModel(unitId, team, n.Unit(unitId), models.Count(m => !m.Removed), unit.Definition.Models.Count,
             Stat(unit.Definition, first, "Quality"), Stat(unit.Definition, first, "Defense"),
-            Chips(p, n, unit), Weapons(standing, rules), Rules(unit.Definition, standing, rules), models);
+            Chips(p, n, unit), Weapons(standing, rules), Rules(unit.Definition, standing, rules), models, unit.Definition.Points);
     }
 
     static SheetModel Model(ModelInPlay m, Unit unit, ModelSlot? first, IReadOnlyDictionary<Guid, int> maxWounds)

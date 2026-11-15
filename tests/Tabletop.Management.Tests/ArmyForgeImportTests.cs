@@ -139,6 +139,29 @@ public class ArmyForgeImportTests
     public void An_item_weapon_is_bounded_like_any_weapon() =>
         Assert.Contains("attacks", Refused(ListOf(Entry(loadout: """[{"name":"Beast","type":"ArmyBookItem","count":1,"content":[{"name":"Stomp","type":"ArmyBookWeapon","count":1,"range":0,"attacks":0,"specialRules":[]}]}]"""))));
 
+    /// <summary>The owner, 2026-11-14: "Add the amount of points to the unit details card". A unit's points are its entry's cost and each
+    /// selected upgrade's cost for that entry (the option's `costs` row naming the entry's `id`, else its plain `cost`); a combined or
+    /// joined entry adds its own. An export without costs has none.</summary>
+    [Fact]
+    public void A_unit_carries_its_points_from_the_list()
+    {
+        var json = """
+          {"id":"t","name":"T","gameSystem":"gf","units":[
+          {"selectionId":"sq","id":"SQ1","name":"Squad","size":5,"quality":4,"defense":5,"cost":100,"rules":[],"combined":false,"joinToUnit":null,
+           "bases":{"round":"25","square":"20"},"loadout":[{"name":"Rifle","type":"ArmyBookWeapon","count":5,"range":24,"attacks":1,"specialRules":[]}],
+           "selectedUpgrades":[{"upgrade":{"variant":"upgrade","affects":{"type":"all"},"targets":[]},
+             "option":{"cost":null,"costs":[{"cost":99,"unitId":"OTHER"},{"cost":15,"unitId":"SQ1"}],"gains":[]}}]},
+          {"selectionId":"champ","id":"CH1","name":"Champion","size":1,"quality":3,"defense":4,"cost":50,"combined":false,"joinToUnit":"sq",
+           "rules":[{"name":"Hero"}],"bases":{"round":"40","square":"40"},
+           "loadout":[{"name":"Great Weapon","type":"ArmyBookWeapon","count":1,"range":0,"attacks":3,"specialRules":[]}],
+           "selectedUpgrades":[{"upgrade":{"variant":"upgrade","affects":{"type":"all"},"targets":[]},"option":{"cost":5,"gains":[]}}]},
+          {"selectionId":"old","name":"Old","size":1,"quality":4,"defense":4,"combined":false,"joinToUnit":null,"rules":[],
+           "bases":{"round":"25","square":"25"},"loadout":[{"name":"Rifle","type":"ArmyBookWeapon","count":1,"range":24,"attacks":1,"specialRules":[]}]}]}
+          """;
+        var units = ArmyForgeImport.ToArmy(ArmyForgeClient.Parse(json), "x", Catalog).Units;
+        Assert.Equal([("Squad", (int?)170), ("Old", null)], units.Select(u => (u.Name, u.Points)));      // 100 + 15, and the joined champion's 50 + 5
+    }
+
     [Fact]
     public void A_joined_hero_becomes_a_model_of_the_unit_it_joined()
     {

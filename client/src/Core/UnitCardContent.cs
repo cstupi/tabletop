@@ -58,18 +58,19 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     /// <summary>One pip per model, survivors first as the models row and the roster draw them; past twelve `alive/size`.</summary>
     public string Pips => Sheet.Models.Count <= RosterPipsMax ? RosterView.Pips(Sheet.Models.Count(m => !m.Removed), Sheet.Models.Count) : $"{Sheet.Alive}/{Sheet.Size}";
 
-    /// <summary>`5 models · 2 wounds left on Sergeant`: the count of standing models, then the wounds left when a standing model has more than
-    /// one (on that model by name when it is the only one, else summed).</summary>
+    /// <summary>`5 models · 2 wounds left on Sergeant · 170 pts`: the count of standing models, then the wounds left when a standing model has
+    /// more than one (on that model by name when it is the only one, else summed), then the unit's points from its army list when it gave them.</summary>
     public string CountNote
     {
         get
         {
+            var points = Sheet.Points is { } pts ? $" · {pts} pts" : "";
             var count = Sheet.Alive == 1 ? "1 model" : $"{Sheet.Alive} models";
             var tough = Sheet.Models.Where(m => !m.Removed && m.Max > 1).ToList();
-            if (tough.Count == 0) return count;
+            if (tough.Count == 0) return count + points;
             var left = tough.Sum(m => m.Left);
             var wounds = left == 1 ? "1 wound left" : $"{left} wounds left";
-            return tough.Count == 1 ? $"{count} · {wounds} on {tough[0].Label}" : $"{count} · {wounds}";
+            return (tough.Count == 1 ? $"{count} · {wounds} on {tough[0].Label}" : $"{count} · {wounds}") + points;
         }
     }
 
@@ -106,7 +107,7 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
 
     static bool Same(UnitSheetModel a, UnitSheetModel b) =>
         a.UnitId == b.UnitId && a.Team == b.Team && a.Name == b.Name && a.Alive == b.Alive && a.Size == b.Size
-        && a.Quality == b.Quality && a.Defense == b.Defense
+        && a.Quality == b.Quality && a.Defense == b.Defense && a.Points == b.Points
         && a.Chips.SequenceEqual(b.Chips) && a.Rules.SequenceEqual(b.Rules)
         && a.Weapons.Count == b.Weapons.Count && a.Weapons.Zip(b.Weapons).All(w => Same(w.First, w.Second));
 
