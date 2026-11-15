@@ -20,9 +20,14 @@ describe('play settings', () => {
 
   it('a saved setting reads back', () => {
     const storage = memory();
-    const saved = { mutedWindowKinds: ['casting', 'reaction'], rangeRings: true, logOpen: true, logFilter: 'mine' as const, logDetailed: true };
+    const saved = { mutedWindowKinds: ['casting', 'reaction'], rangeRings: false, logOpen: true, logFilter: 'mine' as const, logDetailed: true };
     saveSettings(storage, saved);
     expect(loadSettings(storage)).toEqual(saved);
+  });
+
+  it('range rings are on by default, and an earlier save\'s off is not kept', () => {
+    expect(DEFAULT_SETTINGS.rangeRings).toBe(true);
+    expect(loadSettings(memory({ 'tabletop.play': '{"rangeRings":false,"logOpen":false}' }))).toMatchObject({ rangeRings: true, logOpen: false });
   });
 
   it('mute adds a kind once and unmute removes it', () => {

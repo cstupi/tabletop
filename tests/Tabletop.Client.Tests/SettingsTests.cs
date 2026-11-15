@@ -89,18 +89,33 @@ public class SettingsTests : IDisposable
     public void Settings_round_trip_every_new_field()
     {
         var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;
-        Assert.Equal(("scifi", true, true, false), (d.Theme, d.CameraFollow, d.TurnBanner, d.RangeRings));
-        Assert.NotEqual(d, d with { Theme = "fantasy" }); Assert.NotEqual(d, d with { CameraFollow = false }); Assert.NotEqual(d, d with { TurnBanner = false }); Assert.NotEqual(d, d with { RangeRings = true }); Assert.NotEqual(d, d with { MeasureMode = MeasureMode.Straight });
-        var s = d with { Theme = "fantasy", CameraFollow = false, TurnBanner = false, RangeRings = true, MeasureMode = MeasureMode.Straight }; s.Save(path);
+        Assert.Equal(("scifi", true, true, true), (d.Theme, d.CameraFollow, d.TurnBanner, d.RangeRings));
+        Assert.NotEqual(d, d with { Theme = "fantasy" }); Assert.NotEqual(d, d with { CameraFollow = false }); Assert.NotEqual(d, d with { TurnBanner = false }); Assert.NotEqual(d, d with { RangeRings = false }); Assert.NotEqual(d, d with { MeasureMode = MeasureMode.Straight });
+        var s = d with { Theme = "fantasy", CameraFollow = false, TurnBanner = false, RangeRings = false, MeasureMode = MeasureMode.Straight }; s.Save(path);
         var back = ClientSettings.Load(path);
-        Assert.Equal(("fantasy", false, false, true, MeasureMode.Straight), (back.Theme, back.CameraFollow, back.TurnBanner, back.RangeRings, back.MeasureMode)); Assert.Equal(s, back);
+        Assert.Equal(("fantasy", false, false, false, MeasureMode.Straight), (back.Theme, back.CameraFollow, back.TurnBanner, back.RangeRings, back.MeasureMode)); Assert.Equal(s, back);
+    }
+
+    /// <summary>The owner, 2026-11-14: "It is not showing the range of friendly units for some players". Range rings were off unless a player
+    /// turned them on, and every save wrote that off into settings.json. They are on by default and stored under a new name, so a file from
+    /// an older build, whose "rangeRings": false nobody chose, reads as on.</summary>
+    [Fact]
+    public void Range_rings_are_on_by_default_and_an_older_files_off_is_not_kept()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        Assert.True(ClientSettings.Load(path).RangeRings);                                             // no file
+        File.WriteAllText(path, """{ "animate": true, "rangeRings": false }""");
+        Assert.True(ClientSettings.Load(path).RangeRings);                                             // an older build's file
+        (ClientSettings.Load(path) with { RangeRings = false }).Save(path);
+        Assert.False(ClientSettings.Load(path).RangeRings);                                            // turned off in this build: kept
+        Assert.DoesNotContain("rangeRings", File.ReadAllText(path));
     }
 
     [Theory, InlineData("""{ "theme": "steampunk" }"""), InlineData("""{ "animate": false }""")]
     public void Unknown_theme_in_settings_reads_scifi(string json)
     {
         var path = Path.Combine(_dir, "settings.json"); File.WriteAllText(path, json); var s = ClientSettings.Load(path);
-        Assert.Equal(("scifi", true, true, false), (s.Theme, s.CameraFollow, s.TurnBanner, s.RangeRings));
+        Assert.Equal(("scifi", true, true, true), (s.Theme, s.CameraFollow, s.TurnBanner, s.RangeRings));
     }
 
     [Fact]
