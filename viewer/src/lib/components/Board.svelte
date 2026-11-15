@@ -3,15 +3,15 @@
   import { draw } from '../board/draw';
   import { boardColoursOf, type BoardColours } from '../board/style';
   import type { Glow } from '../play/decisionBox';
-  import type { BoardHit, BoardInteraction, Modifiers, Overlay } from '../board/interaction';
+  import type { BoardHit, BoardInteraction, FloatingLayer, Modifiers, Overlay } from '../board/interaction';
   import { pickAt } from '../board/pick';
   import { SLOP_PIXELS } from '../board/tablePick';
   import { IDLE_POINTER, step, type PointerEffect, type PointerInput, type PointerState } from '../board/pointer';
-  import { type Point, type View, fit, fitBox, panBy, toTable, zoomAt } from '../board/transform';
+  import { type Point, type View, fit, fitBox, panBy, toScreen, toTable, zoomAt } from '../board/transform';
 
   let {
     scene, view = $bindable(null), extent, interaction, overlays = [], selected = new Set<string>(), models = 'bases',
-    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed,
+    showGrid = true, showZones = true, showLabels = true, glow, marks, warned, dimmed, floating,
   }: {
     scene: Scene;
     /** The parent holds the view, so setup and play share one pan and zoom; null fits the extent. */
@@ -30,6 +30,8 @@
     warned?: ReadonlySet<string> | undefined;
     /** Models darkened by the sight check. */
     dimmed?: ReadonlySet<string> | undefined;
+    /** What moves for a moment (the wound numbers), on a canvas of its own: animated only while it draws something. */
+    floating?: FloatingLayer | undefined;
   } = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -59,6 +61,24 @@
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw(ctx, scene, current, box, { selected, hovered, models, overlays, showGrid, showZones, showLabels, glow, marks, warned, dimmed, colours });
+  });
+
+  // The floating layer: one animation frame after another while it draws something, none while idle; the board below is not redrawn.
+  let floatCanvas: HTMLCanvasElement | undefined = $state();
+  $effect(() => {
+    const layer = floating, top = floatCanvas;
+    if (layer === undefined || top === undefined) return;
+    let frame = 0;
+    const tick = (now: number): void => {
+      const dpr = window.devicePixelRatio || 1, w = Math.round(box.width * dpr), h = Math.round(box.height * dpr);
+      if (top.width !== w || top.height !== h) { top.width = w; top.height = h; }
+      const ctx = top.getContext('2d')!;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const view = current, table = scene.table;
+      frame = layer.draw(ctx, (p) => toScreen(view, table, p), view.scale, now) ? requestAnimationFrame(tick) : 0;
+    };
+    const stop = layer.onStart(() => { if (frame === 0) frame = requestAnimationFrame(tick); });
+    return () => { stop(); if (frame !== 0) cancelAnimationFrame(frame); };
   });
 
   $effect(() => {
@@ -146,6 +166,7 @@
       if (interaction?.onKey?.(e.key, modsOf(e)) === true) e.preventDefault();
     }}
   ></canvas>
+  {#if floating !== undefined}<canvas class="floating" bind:this={floatCanvas} aria-hidden="true"></canvas>{/if}
   <button class="small reset" title="Fit the table to the window" onclick={() => (view = null)}>Reset view</button>
 </div>
 
@@ -153,5 +174,6 @@
   .board { position: relative; width: 100%; height: 100%; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
   canvas:focus-visible { box-shadow: inset 0 0 0 1px var(--muted); }
+  canvas.floating { position: absolute; inset: 0; pointer-events: none; cursor: default; }
   .reset { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; }
 </style>

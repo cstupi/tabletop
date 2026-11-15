@@ -49,39 +49,32 @@ public static class MarkerDeclutter
     }
 }
 
-/// <summary>Spec → Floating results: a StepCompleted that removes models, wounds one or sets a condition (not Bookkeeping's) floats a line per unit. Wounds on the wire are totals, so this
-/// keeps each model's last total. A batch while Session is catching up (a join or a resync) or with an undo only re-reads the totals and floats nothing.</summary>
+/// <summary>Spec → Floating results: a StepCompleted that removes models or sets a condition (not Bookkeeping's) floats a line per unit; a
+/// model's wounds float as WoundNumbers over its head. A batch while Session is catching up (a join or a resync) or with an undo floats nothing.</summary>
 public sealed class FloatingResults
 {
     public const double Seconds = 1.2;
-    readonly Dictionary<Guid, int> _wounds = new();
-    public void Seed(Projection p) { _wounds.Clear(); foreach (var m in p.Models.Values) _wounds[m.Id] = m.Wounds; }
-    public void OnBoard() => _wounds.Clear();
 
     /// <summary>Results by event seq, shown when the Animator plays that event.</summary>
     public IReadOnlyDictionary<long, IReadOnlyList<FloatingResult>> OnBatch(IReadOnlyList<GameEvent> batch, Projection p, bool catchingUp)
     {
-        var silent = catchingUp || batch.Any(e => e.Payload is Undone);
         var shown = new Dictionary<long, IReadOnlyList<FloatingResult>>();
-        foreach (var e in batch) if (Of(e.Payload, p) is { Count: > 0 } r && !silent) shown[e.Seq] = r;
-        if (silent) Seed(p);
+        if (catchingUp || batch.Any(e => e.Payload is Undone)) return shown;
+        foreach (var e in batch) if (Of(e.Payload, p) is { Count: > 0 } r) shown[e.Seq] = r;
         return shown;
     }
 
     IReadOnlyList<FloatingResult> Of(EventPayload payload, Projection p)
     {
-        IReadOnlyList<StateChange> changes = payload switch { StepCompleted s => s.Changes, RoundStarted r => r.Changes, StateChange c => [c], _ => [] };
+        if (payload is not StepCompleted step) return [];
+        var changes = step.Changes;
         Guid UnitOf(Guid model) => p.Models[model].UnitId;
         var gone = changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Where(r => r.From is not OnShelf && r.To is OnShelf).ToList();
         var removed = gone.Select(r => r.ModelId).ToHashSet();
-        var taken = changes.OfType<WoundsSet>().Where(w => !removed.Contains(w.ModelId)).Select(w => (Unit: UnitOf(w.ModelId), Taken: w.Wounds - _wounds.GetValueOrDefault(w.ModelId))).Where(w => w.Taken > 0).ToList();
-        foreach (var w in changes.OfType<WoundsSet>()) _wounds[w.ModelId] = w.Wounds;
-        if (payload is not StepCompleted) return [];
         // A unit wiped out has no centroid left: it floats where its first removed model stood.
         Point3? At(Guid unit) => CameraFocus.Centroid(p, unit) ?? gone.Where(r => UnitOf(r.ModelId) == unit).Select(r => r.From).OfType<OnTable>().Select(o => (Point3?)o.Placement.Position).FirstOrDefault();
         FloatingResult Line(Guid unit, string text) => new(unit, text, At(unit));
         return removed.GroupBy(UnitOf).Select(g => Line(g.Key, $"-{g.Count()} model{(g.Count() == 1 ? "" : "s")}"))
-            .Concat(taken.GroupBy(w => w.Unit).Select(g => { var k = g.Sum(w => w.Taken); return Line(g.Key, $"-{k} wound{(k == 1 ? "" : "s")}"); }))
             .Concat(changes.OfType<ConditionSet>().Where(c => c.Present && Bookkeeping.Shown(c.Condition)).Select(c => Line(c.Subject.Kind == SubjectKind.Unit ? c.Subject.Id : UnitOf(c.Subject.Id), RosterView.Words(c.Condition))))
             .ToList();
     }

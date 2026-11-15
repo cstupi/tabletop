@@ -28,7 +28,7 @@ public sealed record CueAt(Cue Cue, double Delay, int Variant = 0, double Pitch 
 /// answer casts at the caster's team or another; a ModelsMoved landing a model on the table is a move; WoundsSet totals that rose, or a
 /// model leaving the table for the shelf, are a wound. Every cue but a volley's plays at most once between volleys, so each weapon
 /// group sounds its own result and a step's many wounds one. Each starts after the one before by that one's Gap (a volley's next group
-/// by GroupGap). Wounds on the wire are totals, so this keeps each model's last, as FloatingResults does. A silent batch (catching up), an empty
+/// by GroupGap). Wounds on the wire are totals, so this keeps each model's last, as WoundNumbers does. A silent batch (catching up), an empty
 /// one (a replay's jump redraws, then raises one) or one with an undo plays nothing and re-reads the totals and the open frames from the
 /// projection, so a replay's forward step plays from where it stands.
 /// </summary>

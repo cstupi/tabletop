@@ -44,3 +44,11 @@ export interface BoardInteraction {
 
 /** Drawn after the scene, in table inches: ghosts, landing rings, rulers, rings. */
 export type Overlay = (ctx: CanvasRenderingContext2D, project: (p: Point) => Point, pixelsPerInch: number) => void;
+
+/** What moves on the board for a moment (the wound numbers): drawn on a canvas of its own over the board, one animation frame after
+ *  another only while `draw` says something still moves. `onStart` hears when something starts to move. */
+export interface FloatingLayer {
+  onStart(listener: () => void): () => void;
+  /** Draws the layer at `now` (ms, performance.now()); false when nothing is left to draw. */
+  draw(ctx: CanvasRenderingContext2D, project: (p: Point) => Point, pixelsPerInch: number, now: number): boolean;
+}

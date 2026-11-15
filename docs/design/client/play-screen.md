@@ -44,9 +44,11 @@ p.5) gets no beam, and no beam passes through what hides it.
 `UnitMarkerNodes` and `FloatingText` draw in that canvas layer at projected anchors and take no clicks: `UnitMarkers`
 rows (activated, each condition by the server's name with the theme's icon or a text chip, a wounded multi-wound
 model's pips) over each unit's centroid above its tallest model, hidden at End's pitch and behind the camera;
-`FloatingResults` lines (`-2 models`, `-1 wound`, a condition) rising for 1.2 s as the `Animator` plays their event
-(`Animator.Played`), wounds diffed against the last total seen, silent while `Session.CatchingUp` and on a batch with
-an undo. `FloatingText` subscribes to `EventsApplied` before the `Animator` is made, so it reads each batch before the
+`FloatingResults` lines (`-2 models`, a condition) rising for 1.2 s as the `Animator` plays their event
+(`Animator.Played`), silent while `Session.CatchingUp` and on a batch with an undo; with Animate on, `WoundNumbers`: a red
+`-1` per wound over the head of each model still standing after it (not one removed or at its max wounds), rising and fading
+over 1.2 s, a model's numbers 0.15 s apart, wounds diffed against the last total seen, silent on the same batches and on an
+empty one. `FloatingText` subscribes to `EventsApplied` before the `Animator` is made, so it reads each batch before the
 Animator plays it. `RangeRingNode`: with V on (`ClientSettings.RangeRings`) and a unit of mine selected, `RangeRings`'
 union outline per printed `Range` around the models carrying it, labelled with the printed value; a melee weapon draws
 none. Hovering a unit of another team (`ThreatRings.OfAnotherTeam`; a watcher's every unit) draws its threat rings in its team

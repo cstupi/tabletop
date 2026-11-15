@@ -45,27 +45,28 @@ public class UnitMarkersTests
     }
 
     [Fact]
-    public void A_step_floats_models_removed_wounds_taken_and_conditions_set_per_unit()
+    public void A_step_floats_models_removed_and_conditions_set_per_unit_and_leaves_wounds_to_the_wound_numbers()
     {
-        var a = TableUx.Applier(TableUx.Deploy, Shoot); var f = new FloatingResults(); f.Seed(a.Projection);
+        var a = TableUx.Applier(TableUx.Deploy, Shoot); var f = new FloatingResults();
         GameEvent[] first = [Step(3, new WoundsSet(A, 1), new WoundsSet(B, 1), new ModelsMoved([new(B, new OnTable(new Placement(new Point3(12, 10, 0), new Yaw(0))), new OnShelf())]),
             new ConditionSet(new Subject(SubjectKind.Unit, TableUx.Squad.Id), "shaken", true), new ConditionSet(new Subject(SubjectKind.Unit, TableUx.Squad.Id), "moved this round", true))];
         a.ApplyAll(first);
-        Assert.Equal(new[] { "-1 model", "-1 wound", "Shaken" }, f.OnBatch(first, a.Projection, catchingUp: false)[3].Select(r => r.Text));   // B's wound is its removal
+        Assert.Equal(new[] { "-1 model", "Shaken" }, f.OnBatch(first, a.Projection, catchingUp: false)[3].Select(r => r.Text));
         GameEvent[] second = [Step(4, new WoundsSet(A, 2))]; a.ApplyAll(second);
-        Assert.Equal("-1 wound", f.OnBatch(second, a.Projection, catchingUp: false)[4].Single().Text);                                         // the total went 1 → 2
+        Assert.Empty(f.OnBatch(second, a.Projection, catchingUp: false));
     }
 
     /// <summary>Review Focus 3: the join's catch-up arrives in several pages, all silent until Session stops catching up.</summary>
     [Fact]
     public void The_catch_up_batch_after_a_board_floats_nothing()
     {
-        var f = new FloatingResults(); f.OnBoard();
-        var a = TableUx.Applier(); var history = TableUx.Events(TableUx.Deploy, Shoot, new StepCompleted(Frame, "s", null, [], [new WoundsSet(A, 1)]));
+        var f = new FloatingResults();
+        var a = TableUx.Applier(); var shaken = new ConditionSet(new Subject(SubjectKind.Unit, TableUx.Squad.Id), "shaken", true);
+        var history = TableUx.Events(TableUx.Deploy, Shoot, new StepCompleted(Frame, "s", null, [], [shaken]));
         GameEvent[] page1 = [.. history.Take(2)], page2 = [history[2]];
         a.ApplyAll(page1); Assert.Empty(f.OnBatch(page1, a.Projection, catchingUp: true));
         a.ApplyAll(page2); Assert.Empty(f.OnBatch(page2, a.Projection, catchingUp: true));
-        GameEvent[] next = [Step(4, new WoundsSet(A, 2))]; a.ApplyAll(next);
-        Assert.Equal("-1 wound", f.OnBatch(next, a.Projection, catchingUp: false)[4].Single().Text);
+        GameEvent[] next = [Step(4, shaken)]; a.ApplyAll(next);
+        Assert.Equal("Shaken", f.OnBatch(next, a.Projection, catchingUp: false)[4].Single().Text);
     }
 }

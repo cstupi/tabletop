@@ -180,9 +180,10 @@ viewer's board draws the same as a green band round the outside of the base, eve
 never covers a base, with the Ask's glow and the pick ring moved out beyond it. Marks follow their model's node through
 glides and drags.
 
-**Floating results.** After a `StepCompleted` whose changes remove models, wound a model or set a condition, a label rises
-over the unit for 1.2 s: `-2 models`, `-1 wound`, `Shaken`. Paced by the `AnimationQueue` with Animate on; with Animate
-off they show together.
+**Floating results.** After a `StepCompleted` whose changes remove models or set a condition, a label rises
+over the unit for 1.2 s: `-2 models`, `Shaken`. Paced by the `AnimationQueue` with Animate on; with Animate
+off they show together. Each wound a model takes and survives floats a red `-1` over that model's head instead, one per
+wound, 0.15 s apart, rising and fading over 1.2 s (Animate on only; a model removed by the same wounds shows none).
 
 `UnitMarkers` (Core) computes each unit's icon list and floating results from the projection and the applied events;
 `ModelMarks` (Core) each model's dots, the ringed models and the ring's outline.

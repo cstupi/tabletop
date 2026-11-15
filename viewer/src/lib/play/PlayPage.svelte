@@ -19,6 +19,7 @@
   import DecisionBoxView from './DecisionBox.svelte';
   import GameOverModal from './GameOverModal.svelte';
   import Banner from './Banner.svelte';
+  import { WoundFloats, WoundNumbers } from './woundNumbers';
   import HeaderBar from './HeaderBar.svelte';
   import InfoColumn from './InfoColumn.svelte';
   import Roster from './Roster.svelte';
@@ -129,6 +130,21 @@
   });
   $effect(() => { void panel; untrack(() => drags.boxChanged()); });      // the Ask ended mid-drag: its ghosts are dropped, not sent
   // ---- end D2 ----
+
+  // A "-1" over a model per wound it takes and survives, live batches only (woundNumbers.ts).
+  const woundFloats = new WoundFloats();
+  $effect(() => {
+    const conn = connection;
+    const numbers = new WoundNumbers();
+    untrack(() => { if (conn.state.projection !== null) numbers.seed(conn.state.projection); });
+    const stop = conn.onEvents((events) => {
+      const s = conn.state;
+      if (s.projection === null) return;
+      if (s.catchingUp || events.length === 0 || events.some((e) => e.payload.kind === 'undone')) woundFloats.clear();
+      woundFloats.add(numbers.onBatch(events, s.projection, s.catchingUp, s.maxWounds), performance.now());
+    });
+    return () => { stop(); woundFloats.clear(); };
+  });
 
   $effect(() => {
     const conn = connection;
@@ -436,7 +452,7 @@
     {#if scene === null || snap === null}
       <Loading text={waitText(snap)} />
     {:else}
-      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} />
+      <Board {scene} bind:view {extent} {interaction} selected={drawnSelection} overlays={[...overlays, ...(ringsDrawn === null ? [] : [ringsDrawn]), ...(sightDrawn === null ? [] : [sightDrawn]), ...(infoOverlay === null ? [] : [infoOverlay])]} {warned} dimmed={sightView?.dimmed} models="circles" {glow} {marks} floating={woundFloats} />
     {/if}
     {#if scene !== null && !$tools.finished}<Loading strip text={tableToolsText($tools)} done={$tools.done} total={$tools.total} />{/if}
     {#if terrainHover !== null}<TerrainHoverPanel hover={terrainHover} at={stagePointer} />{/if}
