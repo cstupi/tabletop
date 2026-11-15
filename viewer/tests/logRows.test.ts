@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivationBlock } from '../src/lib/play/combatLog';
-import { FILTER_LABELS, bandOf, faded, rowText, strike, trayLines, undoHere } from '../src/lib/play/logRows';
+import { FILTER_LABELS, bandOf, faded, trayLines, undoHere } from '../src/lib/play/logRows';
 import { type LineEntry, type RollEntry } from '../src/lib/play/rollEntry';
 import { Enemy, Frame, GameSample, Round1, Unit, buildSample, ctx, finished, hit, started, step, undone } from './logSamples';
 import type { LogEntry } from '../src/lib/play/rollEntry';
@@ -25,18 +25,8 @@ describe('logRows band (CombatLogRows.Band)', () => {
 });
 
 describe('logRows', () => {
-  it('a folded block shows its chain and an open one does not', () => {
-    const { block } = rolled();
-    expect(rowText(block, false)).toBe(`▸ ${block.header}  ·  Hit 1`);
-    expect(rowText(block, true)).toBe(`▾ ${block.header}`);
+  it('the filters are LogFilter\'s, in order', () => {
     expect(FILTER_LABELS).toEqual(['All', 'Rolls', 'My units', 'This unit']);
-  });
-
-  it('a roll row is its collapsed line', () => {
-    const { roll, round } = rolled();
-    expect(rowText(roll, false)).toBe('▸ Hit · 4+ (AP(1)) → needs 5 · 2 dice: ⚅ ⚁ · 1 hit');
-    expect(rowText(roll, true).startsWith('▾ Hit')).toBe(true);
-    expect(rowText(round, false)).toBe('Round 1');
   });
 
   it('rows past a pending undo fade', () => {
@@ -47,16 +37,11 @@ describe('logRows', () => {
     expect(faded({ ...round, undone: true }, null)).toBe(true);
   });
 
-  it('strike puts a combining stroke after each character', () => {
-    expect(strike('ab')).toBe('a̶b̶');
-    expect(strike('')).toBe('');
-  });
-
   it('undo to here skips rolls, undone rows, undo markers and watchers', () => {
     const { block, roll, round } = rolled();
     expect(undoHere(block, false)).toBe(true);
     expect(undoHere(round, false)).toBe(true);
-    expect(undoHere(roll, false)).toBe(true);                        // CombatLog.UndoHere: a roll offers it in its expansion
+    expect(undoHere(roll, false)).toBe(true);
     expect(undoHere({ ...roll, undone: true }, false)).toBe(false);
     expect(undoHere(roll, true)).toBe(false);
     expect(undoHere({ ...block, undone: true }, false)).toBe(false);

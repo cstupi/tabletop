@@ -52,6 +52,18 @@ export interface RollEntry {
   readonly attack: readonly string[] | null;
   /** Set on the first roll of a step: the rules a suppression removed in the step that no record of it names. */
   readonly stepIgnored: readonly IgnoredEffect[] | null;
+  /** Set by the log build: the attack the roll belongs to (logSheet.ts draws an attack's rolls together). */
+  readonly inAttack: AttackTag | null;
+  /** Set on a hit roll: what its step multiplied the hits by (`hit_multiplier`, Blast); 1 otherwise. */
+  readonly hitMultiplier: number;
+  /** Set by the log build: the unit the roll's frame acts for (the unit a morale test tests), else null. */
+  readonly unit: string | null;
+}
+
+/** CombatLog's AttackTag: the frame whose hits the roll resolves, who attacks whom, a melee, the rule that dealt the hits when no weapon
+ * did, the weapons. Rolls of one attack share frame. */
+export interface AttackTag {
+  readonly frame: string; readonly actor: string; readonly targets: string; readonly melee: boolean; readonly source: string | null; readonly weapons: string;
 }
 
 /** The record has a target number or a required face (a roll-off or a property's own unjudged roll has neither). */
@@ -119,7 +131,7 @@ export function rollEntryOf(
   return {
     type: 'roll', seq: e.seq, event: e, undone, frameId: step.frameId, record: { ...r, dice }, context: c, label: RollWords.label(r.roll),
     target: RollWords.target(r), dice: views, amendments: amended, applied: step.applied ?? [], details, sequence, consequence: null, dieLabels: null,
-    attack: null, stepIgnored: null,
+    attack: null, stepIgnored: null, inAttack: null, hitMultiplier: 1, unit: null,
   };
 }
 
@@ -129,7 +141,7 @@ const FACES = ['', 'one', 'two', 'three', 'four', 'five', 'six'];
 interface TriggerGroup { readonly text: string; readonly extra: number; readonly word: string }
 
 /** `Rule +N things` or `Rule`; the thing singular. */
-function parseTrigger(trigger: string): { rule: string; amount: number; word: string } {
+export function parseTrigger(trigger: string): { rule: string; amount: number; word: string } {
   const plus = trigger.lastIndexOf(' +');
   if (plus < 0) return { rule: trigger, amount: 0, word: '' };
   const rest = trigger.slice(plus + 2);

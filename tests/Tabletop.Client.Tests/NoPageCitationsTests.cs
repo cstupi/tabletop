@@ -25,9 +25,9 @@ public partial class NoPageCitationsTests
     {
         var block = new RollRecord(Guid.CreateVersion7(), "defense", 5, [new RollModifier("AP", -4)],
             [new Die(6, 2, true), new Die(1, 1, false)], null, new ThresholdBasis("Defense", 5, []));
-        var roll = Assert.IsType<RollEntry>(Assert.Single(DetailedLogTests.Block(new StepCompleted(Samples.Frame, "roll-to-block", null, [block], []))));
-        Assert.Contains("  a 6 always succeeds, a 1 always fails", roll.Worked);
-        Assert.All(roll.Worked, line => Assert.DoesNotMatch(Citation(), line));
+        var lines = Assert.Single(DetailedLogTests.Block(new StepCompleted(Samples.Frame, "roll-to-block", null, [block], []))).Lines;
+        Assert.Contains("a 6 always succeeds, a 1 always fails", lines);
+        Assert.All(lines, line => Assert.DoesNotMatch(Citation(), line));
     }
 
     [GeneratedRegex(@"""(?:[^""\\]|\\.)*""")]

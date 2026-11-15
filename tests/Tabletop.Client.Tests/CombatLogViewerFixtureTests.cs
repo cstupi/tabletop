@@ -8,9 +8,11 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Tests;
 
 /// <summary>
-/// Renders Godot's combat log over three recorded logs into viewer/tests/fixtures/combatlog.json, which the viewer's Vitest renders
-/// through its TypeScript port and compares line for line (browser play plan D3). `skirmish` and `terrain` are the viewer's whole sim
-/// games with their welcome and board; `charge` is the owner's game 01a126db with no projection. Written only with
+/// Renders Godot's combat log, and its text (LogSheet, summary and detailed), into viewer/tests/fixtures/combatlog.json, which the viewer's
+/// Vitest renders through its TypeScript port and compares line for line (browser play plan D3). `skirmish` and `terrain` are the viewer's
+/// whole sim games with their welcome and board; `charge` is the owner's game 01a126db with no projection; `worked` a built attack with every
+/// detailed-log field; `spears`, `gunline`, `indirect` and `spells` are 3.6 rules-suite games (viewer/tests/fixtures/log/, written by
+/// tests/Tabletop.Viewer.Tests/CombatLogFixtureLogTests.cs): Impact and melee, faces that set off rules, cover applied and ignored, spell hits. Written only with
 /// TABLETOP_WRITE_FIXTURES=1; a plain run fails when the checked-in file differs.
 /// </summary>
 public class CombatLogViewerFixtureTests
@@ -19,6 +21,12 @@ public class CombatLogViewerFixtureTests
         string? Outcome = null, string? Chain = null, IReadOnlyList<string>? Details = null, IReadOnlyList<string>? Worked = null);
 
     sealed record Undo(long ToSeq, string Tooltip, IReadOnlyList<string> LostRolls);
+
+    /// <summary>A LogSheet paragraph: its entry's seq, its depth, how many entries it draws and its lines.</summary>
+    sealed record Paragraph(long Seq, int Depth, int Entries, IReadOnlyList<string> Lines);
+
+    static IReadOnlyList<Paragraph> Sheet(IReadOnlyList<LogEntry> entries, bool detailed) =>
+        LogSheet.Of(entries, detailed).Select(p => new Paragraph(p.Entry.Seq, p.Depth, p.Entries.Count, p.Lines)).ToList();
 
     static readonly JsonSerializerOptions RowOptions = new()
     {
@@ -44,7 +52,7 @@ public class CombatLogViewerFixtureTests
                     foreach (var r in Rows(b.Entries, depth + 1)) yield return r;
                     break;
                 case RollEntry r:
-                    yield return new Row(depth, "roll", r.Seq, r.Undone, r.Collapsed(CombatLog.Pip), r.Title, r.Result, r.Outcome, r.Chain, [.. r.Details], [.. r.Worked]);
+                    yield return new Row(depth, "roll", r.Seq, r.Undone, r.Collapsed(CombatLog.Pip), r.Title, r.Result, r.Outcome, r.Chain, [.. r.Details]);
                     break;
                 case LineEntry l:
                     yield return new Row(depth, "line", l.Seq, l.Undone, l.Text, Worked: l.Worked);
@@ -74,19 +82,22 @@ public class CombatLogViewerFixtureTests
             ["rows"] = JsonSerializer.SerializeToNode(Rows(entries).ToList(), RowOptions),
             ["latest"] = latest?.Collapsed(CombatLog.Pip),
             ["undo"] = plan is null ? null : JsonSerializer.SerializeToNode(new Undo(plan.ToSeq, plan.Tooltip, plan.LostRolls), RowOptions),
+            ["sheet"] = JsonSerializer.SerializeToNode(Sheet(entries, false), RowOptions),
+            ["sheetDetailed"] = JsonSerializer.SerializeToNode(Sheet(entries, true), RowOptions),
         };
     }
 
-    static JsonObject Recorded(string name)
+    static JsonObject Recorded(string name, string folder = "")
     {
-        var dir = Path.Combine(RepoRoot(), "viewer", "tests", "fixtures");
+        var dir = Path.Combine(RepoRoot(), "viewer", "tests", "fixtures", folder);
         var welcome = (Welcome)WireJson.Deserialize(File.ReadAllText(Path.Combine(dir, name + ".welcome.json")));
         var board = (BoardMessage)WireJson.Deserialize(File.ReadAllText(Path.Combine(dir, name + ".board.json")));
         var events = (EventsMessage)WireJson.Deserialize(File.ReadAllText(Path.Combine(dir, name + ".events.json")));
         return CaseOf(name, welcome.Game, board.Board, events.Events);
     }
 
-    static JsonArray Cases() => [Recorded("skirmish"), Recorded("terrain"), CaseOf("charge", CombatLogFixtureTests.Game with { Id = Guid.Parse("01a126db-0000-7000-8000-000000000001"), CreatedBy = Guid.Parse("01a126db-1bb1-77b2-9c9e-cef42380f3c4") }, null, CombatLogFixtureTests.Log()), Worked()];
+    static JsonArray Cases() => [Recorded("skirmish"), Recorded("terrain"), CaseOf("charge", CombatLogFixtureTests.Game with { Id = Guid.Parse("01a126db-0000-7000-8000-000000000001"), CreatedBy = Guid.Parse("01a126db-1bb1-77b2-9c9e-cef42380f3c4") }, null, CombatLogFixtureTests.Log()), Worked(),
+        .. new[] { "spears", "gunline", "indirect", "spells" }.Select(n => Recorded(n, "log"))];
 
     /// <summary>The skirmish game with one shooting attack built after it that carries every detailed-log field (detailed-log spec): a Bad Shot unit
     /// firing Unstoppable rifles, a block in cover with a forced reroll, Regeneration removed on the deal-wounds step, a model removed, a morale test.</summary>

@@ -37,43 +37,47 @@ R2 · Team 1 · [unit] · Hold → shoots [target]
 `moved` is the farthest any model of the actor moved in the action, to 0.5". A spell cast inside an action is a nested header,
 `Cast [spell] → [target]`, with its casting roll and its hits beneath it.
 
-**Roll.** One line per `RollRecord`:
+**Attack.** An attack's rolls (its hit rolls, Impact's roll, its blocks and its rolls per wound) are one line, the hits that reached the
+block, the wounds dealt and the cover verdict:
 
 ```
-Hit · Quality 3+ · 8 dice: ⚁ ⚅ ⚀ ⚅ ⚅ ⚀ ⚄ ⚀ · 4 hits (3 sixes: Rending)
-Block · Defense 5+ (cover +1, AP(1)) → needs 5 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds
-Block · Defense 5+ (no cover: 2/6 models, AP(1), Rending AP(+4)) → needs 6 · ⚀ · 0 blocked, 1 wound
-Block · Defense 4+ (cover ignored (Blast)) · ⚁ ⚅ · 1 blocked, 1 wound
-Block · 5+ (AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound
-Regeneration · 5+ · 3 wounds: ⚀ ⚅ ⚀ · 1 ignored, 2 wounds stand
-Morale · Quality 4+ · ⚀ · failed → Shaken
-Casting · 4+ (+1 token) · ⚅ · cast
-Dangerous terrain · 1 fails · ⚁ ⚀ · 1 wound
-Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
+Shooter Mob → Death Walkers  H: 19  W: 9  Cover: Y
+Brute Mob → Death Walkers (melee)  H: 7  W: 3  Cover: N
+Red unit 1 → Blue unit 1 (Impact)  H: 2  W: 1  Cover: N
+Daemons of Change unit 1 → Targets unit 1 (Mutating Inferno)  H: 3  W: 2  Cover: N
+Red unit 1 → Blue unit 1  H: 7  W: 3  Cover: Y
+Regeneration 5+: rolled 6 2 3 1, 1 ignored, 3 wounds stand
 ```
 
-- **Faces only.** A die shows its raw face. The modifiers fold into the target instead: the printed value (`Defense 5+`), each
-  change with the rule behind it and its signed amount as the record carries it (`cover +1`, a spell's `-1`), AP as p.13 and
-  p.14 write it (`AP(1)` for the weapon's own, `Rending AP(+4)` for a granted one), then `needs N`. Past 6 it reads `needs 6` and below 2 `needs 2`, by p.5. With no modifier the `needs` part is
-  left off. A record without a basis (a log written before it) starts from its threshold: `Block · 5+ (AP(1)) → needs 6`.
-- **Cover on every shooting block.** The clause is the target unit's one verdict (p.11's majority), the same on every block group
-  of the attack, and always on the collapsed line: `cover +1` in cover, `no cover: M/N models` when the majority failed (M models
-  fully inside cover terrain or behind a sight blocker, of N living), `cover ignored (Rule)` when the unit was in cover and a
-  rule took the +1 away (Blast, Ignores Cover, Indirect's dropped sight half). Melee blocks have none.
-- **What the dice set off.** A die that triggered a rule is counted on the line: `(3 sixes: Rending)`, `(2 sixes: Furious +2
-  hits)`. The hit total is the successes plus the extra hits, so the line adds up.
-- **Pass and fail** are shown by the die (bright or faded, per theme), not by words. The result uses p.8's words: hits,
-  blocked, wounds; a single-die test reads passed or failed, then its consequence.
-- **A rule's forced reroll and a `SetDice`** (the rules suite's) stay on the roll's line: the faces now standing, with `rerolled ⚀ → ⚄` or `set by hand ⚀ → ⚅`.
+- **Which rolls are one attack.** A block or a roll per wound belongs to the frame that pushed the `resolve-hits` frame above it
+  (`attack-sequence`, `spell-hits`, `rule-hits`, or the `melee` frame for Impact); a hit roll to its own frame. Consecutive rolls
+  of one attack, live or undone alike, draw as one line. A group with neither a hit roll nor a block (Ravage's dice, a self-wound's
+  Regeneration) reads as rolls.
+- **H** is the dice the attack's blocks rolled (every hit that reached them, bonus hits and multipliers included); with no block,
+  the hits its rolls scored with the extra hits their faces set off, times `hit_multiplier`. **W** is the blocks' failed dice and
+  the extra wounds their faces set off, less the wounds a roll per wound ignored. **Cover** is `Y` when a block's verdict applied.
+- `(melee)` marks a melee frame's weapons; a rule that dealt the hits with no weapon names itself (`(Impact)`, a spell, Deathstrike).
+- A roll per wound in the attack reads under it as a roll.
+
+**Roll.** Any other roll is one line, its faces as numbers:
+
+```
+Blue unit 1 · Morale Quality 4+: rolled 3, failed → Shaken
+Casting 4+ (tokens +2) → needs 2: rolled 6, cast
+Dangerous terrain 1 fails: rolled 1 4 5, 1 wound
+Roll-off: Team 1 rolled 3 · Team 2 rolled 2, Team 1 wins
+```
+
+- The target folds its modifiers in: the printed value (`Quality 4+`), each change with the rule behind it and its signed amount
+  as the record carries it, AP as p.13 and p.14 write it, then `needs N` (past 6 `needs 6`, below 2 `needs 2`, by p.5); none
+  without a modifier. A record without a basis starts from its threshold. A roll judged on the raw face reads `unmodified 6+`.
+- A test (one judged die, not a hit, a block or a roll per wound) names its unit first when it is not the block's actor.
+- **Consequence.** A test takes the change words of its frame's later steps that roll nothing, up to the frame's end, after its
+  result: `failed → Shaken`, `failed → [unit] Fled!`. Those steps draw no change line of their own.
+- A rule's forced reroll and a `SetDice` (the rules suite's) follow the faces now standing: `· rerolled 1 → 5`, `· set by hand 2 → 6`.
 - A roll with no threshold and no required face (a property's own roll) shows its faces and no result.
-- A roll judged on the raw face alone reads `unmodified 6+`; one every face passes (a spell's hits) reads no target. A roll made
-  once per wound being dealt counts its dice as wounds (`3 wounds:`) and reads `N ignored, N wounds stand`.
-- **Consequence.** A single-die test (not a hit, a block or a roll per wound) takes the change words of its frame's later steps
-  that roll nothing, up to the frame's end, after its result: `failed → Shaken`, `failed → [unit] Fled!`. Those steps draw no
-  change line of their own.
 - **Roll-off ties.** Each record's dice are labelled by the teams they belong to, in ordinal order: every team on the first
-  record, then the teams still tied, as the server rolls them. `Team k wins` goes on the record after which no team is tied:
-  `Roll-off · Team 1 ⚂ · Team 2 ⚂`, then `Roll-off · Team 1 ⚀ · Team 2 ⚃ · Team 2 wins`.
+  record, then the teams still tied. `Team k wins` goes on the record after which no team is tied.
 
 **Change.** What a step did to the table, after the rolls that caused it: `2 models removed`, `1 model wounded`, `Shaken`,
 `Shaken cleared`, and `[unit] Fled!` for models a step sent to the shelf with no wound on them (a rout after a failed morale
@@ -88,9 +92,12 @@ Army roster) draws no line: the header's `moved 2"` says it. A grant reads `[uni
 `sequence_started` without an action, `sequence_finished`, `sequence_abandoned`, `turn_started`, `turn_ended`, and a passed
 react window. The events stay in the log the server keeps; the combat log does not draw them.
 
-**Clicking a line** expands it under the line: Undo to here, the rule chips with their text
-(`StepCompleted.Applied`). Clicking it again collapses it. The filters (All, Rolls, My units, This unit), the drawer, the
-follow-the-newest scrolling and the dice tray (the latest roll's line) are unchanged.
+**The text.** Both clients draw the log as one text (`LogSheet`, the viewer's `logSheet.ts`), one paragraph per entry, two spaces of
+indent per block: Godot one selectable `RichTextLabel`, the browser one `<pre>`. A drag selects across any number of entries and a copy
+holds the lines as drawn and nothing else; an undone entry is struck, one past a pending undo faded, a block's header in its team's
+colour, by style only. A click that selects nothing picks the entry under it (tinted, its pieces lit on the table); **Undo to here**
+in the log's head undoes to the picked entry; **Copy** puts the whole log as shown on the clipboard. The filters (All, Rolls, My units,
+This unit), the drawer, the follow-the-newest scrolling and the dice tray (the latest roll's line) are unchanged.
 
 ## What the server adds
 
@@ -131,14 +138,17 @@ The rules stay on the server: the client reads names and numbers from the record
   `SpellWeaponRuleTests` (Crack on a spell's hit roll) and `GfCoverTests` (screened, half, Blast, Indirect, a Hold
   action, melee).
 - `client/src/Core`: `CombatLog` (`CombatLog.Words`: change lines, the nested block's and header's words, the consequences and
-  roll-off labels) and `RollEntry` produce the three line kinds and the dropped set; `LogText` keeps its words for the lines
-  outside actions. `CombatLogTests` on built records: cover in, out and ignored, an old record, Rending and Furious triggers, a
+  roll-off labels; `CombatLog.Attacks`: `AttackTag`, the frame tree) and `RollEntry` produce the entries and the dropped set;
+  `LogSheet` (`LogSheet.Detail`) the text, `LogBbcode` Godot's drawing of it; `LogText` keeps its words for the lines
+  outside actions. `LogSheetTests`, `LogBbcodeTests`. `CombatLogTests` on built records: cover in, out and ignored, an old record, Rending and Furious triggers, a
   basis change, a reroll and an edit, a fled unit, the dropped set, the header's move. `CombatLogBlockTests`: `shoots`, an
   answered target, a strike-back, the nested cast, a consequence, condition subjects, a grant, repeated undos, deployment and a
   round end's changes, roll-off ties. `RollLineTests`: raw-face and all-pass targets, a roll per wound, `cast`, dangerous terrain.
   `CombatLogFixtureTests` against the owner's game `01a126db`, seq 245 and 251–354.
-- `client/src/Hud/CombatLogPanel.cs`, `DiceTray.cs`: one row per entry, expand on click; a roll row wraps to the panel's width;
-  the tray clips a long line and carries all of it as its tooltip.
+- `client/src/Hud/CombatLogPanel.cs`: one `RichTextLabel` of `LogBbcode`; `DiceTray.cs`: the tray clips a long line and carries all of
+  it as its tooltip.
+- `viewer/src/lib/play/`: `combatLogAttacks.ts`, `logSheet.ts`, `CombatLogPanel.svelte` (one `<pre>`); `tests/fixtures/combatlog.json`
+  carries each case's paragraphs, summary and detailed, over the recorded games and four 3.6 suite games (`tests/fixtures/log/`).
 - `viewer/src/lib/live/logLines.ts` reads the same records; it is not changed by this spec.
 
 ## Out of scope

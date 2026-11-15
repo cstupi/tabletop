@@ -1,22 +1,12 @@
 // viewer/src/lib/play/logRows.ts
-// The row text CombatLogPanel.cs and DiceTray.cs draw. Every word is the combat log's.
+// What the log panel and DiceTray.cs draw besides logSheet.ts's text. Every word is the combat log's.
 
 import type { GameInfo } from '../protocol/wire.generated';
-import { blockChain, pip } from './combatLog';
+import { pip } from './combatLog';
 import type { Names } from './names';
 import { type DieView, type LogEntry, type RollEntry, collapsed, judged, outcome, result, successes, title } from './rollEntry';
 
 export const FILTER_LABELS: readonly string[] = ['All', 'Rolls', 'My units', 'This unit'];   // LogFilter's order
-
-/** `▾`/`▸` + header (+ `  ·  {chain}` folded), a roll collapsed, a line. A roll-off shows its team words between the faces: its collapsed line. */
-export function rowText(e: LogEntry, open: boolean): string {
-  const mark = open ? '▾' : '▸';
-  switch (e.type) {
-    case 'block': return `${mark} ${e.header}${open || blockChain(e).length === 0 ? '' : `  ·  ${blockChain(e)}`}`;
-    case 'roll': return `${mark} ${collapsed(e, pip)}`;
-    case 'line': return e.text;
-  }
-}
 
 /** CombatLogRows.Band: the team ordinal whose band leads a block's header (its actor's team); 0 for a block with no actor of a known team
  * and any other entry. */
@@ -29,10 +19,7 @@ export function bandOf(e: LogEntry, n: Names, game: GameInfo): number {
 /** Undone, or past a pending undo. */
 export const faded = (e: LogEntry, pendingUndoTo: number | null): boolean => e.undone || (pendingUndoTo !== null && e.seq > pendingUndoTo);
 
-/** A Button has no strike style: U+0336 after each character. */
-export const strike = (s: string): string => Array.from(s).map((c) => `${c}̶`).join('');
-
-/** CombatLog.UndoHere: a live row, not an undo marker, for a player (not a watcher). A roll offers it in its expansion, a block or line on the row. */
+/** CombatLog.UndoHere: a live entry, not an undo marker, for a player (not a watcher): the picked entry Undo to here undoes to. */
 export const undoHere = (e: LogEntry, watching: boolean): boolean => !watching && !e.undone && e.event.payload.kind !== 'undone';
 
 export interface TrayLines { title: string; faces: readonly DieView[]; result: string | null; success: boolean; tooltip: string }

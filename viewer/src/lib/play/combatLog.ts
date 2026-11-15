@@ -7,6 +7,7 @@
 import { effectiveLog } from '../live/apply';
 import type { EventPayload, GameEvent, IgnoredEffect, SequenceContext, SequenceStarted, StepCompleted } from '../protocol/wire.generated';
 import { attackLines } from './workedLines';
+import { FrameTree } from './combatLogAttacks';
 import { Aftermath, Draft, changeEntries, deployed } from './combatLogWords';
 import { describe, roundChange } from './logText';
 import type { Names } from './names';
@@ -60,6 +61,7 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
     amendments.set(p.rollId, list);
   }
   const after = Aftermath.of(log, frames, isDead, n, amendments);
+  const tree = FrameTree.of(log);
 
   const top: LogEntry[] = [];
   const drafts: Draft[] = [];
@@ -108,12 +110,17 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
       const frameStart = frames.get(p.frameId);
       const context = frameStart?.context ?? NO_CONTEXT;
       const ignored = stepIgnored(p);
+      tree.see(p);
+      const times = p.values?.['hit_multiplier'];
+      const multiplier = times !== undefined && times > 1 ? times : 1;
       for (const roll of p.rolls) {
         const first = roll.id === p.rolls[0]!.id;
         const base = rollEntryOf(e, dead, p, roll, context, frameStart?.sequence ?? null, (amendments.get(roll.id) ?? []).map((x) => ({ event: x.event, undone: x.dead })), n);
         const entry: RollEntry = {
           ...base, consequence: after.consequence(roll.id), dieLabels: after.labels.get(roll.id) ?? null,
           attack: first && roll.roll === 'hit' && firstOf(attacked, `${p.frameId}|${dead}`) ? attackLines(context, n) : null, stepIgnored: first ? ignored : null,
+          inAttack: tree.tag(p, roll, context, n), hitMultiplier: roll.roll === 'hit' ? multiplier : 1,
+          unit: context.actorUnitId !== undefined ? n.unit(context.actorUnitId) : null,
         };
         here.push(entry);
         chain(rollChain(entry));

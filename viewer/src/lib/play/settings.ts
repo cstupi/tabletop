@@ -8,7 +8,7 @@ export interface PlaySettings {
   readonly rangeRings: boolean;
   readonly logOpen: boolean;
   readonly logFilter: LogFilter;
-  /** The combat log draws each roll as a worked resolution (detailed-log spec). */
+  /** The combat log draws each roll as tables of its dice, its modifiers and its totals (detailed-log spec). */
   readonly logDetailed: boolean;
 }
 

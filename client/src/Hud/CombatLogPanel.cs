@@ -3,35 +3,37 @@ using Tabletop.Client.Core;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
-using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>The play log (combat-log spec → The log): a filter over CombatLog's blocks, rolls and lines. A block shows its lines beneath its header
-/// until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Detailed (beside the filter, ClientSettings.LogDetailed)
-/// draws each roll and named change as its worked lines in monospace (detailed-log spec). Every row's words are selectable text (SelectableText):
-/// a drag selects within the row, Ctrl+C or the right-click menu copies, and a click without a drag is the row's; Copy puts the rows as drawn
-/// on the clipboard (LogCopy), and an activation's own Copy that activation with every roll open (LogCopy.Activation). Renders only; every word is CombatLog's.</summary>
+/// <summary>The play log (combat-log spec → The log): a filter over CombatLog's entries drawn as LogSheet's text, summary or Detailed (beside
+/// the filter, ClientSettings.LogDetailed; monospace). The whole log is one selectable text: a drag selects across any number of entries and
+/// Ctrl+C or the right-click menu copies them as plain lines; the head's Copy puts the whole log as shown on the clipboard. A click that
+/// selects nothing picks the entry under it (lit; its pieces lit on the table) and gives the focus back, and the head's Undo to here undoes
+/// to the picked entry. Renders only; every word is LogSheet's.</summary>
 public partial class CombatLogPanel : VBoxContainer
 {
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
     Session _s = null!; TableView _view = null!; Action<string> _report = _ => { };
     readonly OptionButton _filter = new();
-    Button _copy = null!;
-    readonly CheckBox _detailed = new() { Text = "Detailed", TooltipText = "Each roll as a worked resolution: every modifier, what was ignored, every die" };
-    readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
-    readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-    readonly HashSet<string> _open = [], _folded = [];   // rolls opened, blocks folded
-    Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
-    readonly List<LogEntry> _drawn = []; readonly List<int> _rowStarts = [];   // the top-level entries on screen and the index of each one's first row
-    (LogFilter, bool, Guid?, long?, bool, RuleTexts)? _mode;                    // what every row was drawn under
+    Button _copy = null!, _undo = null!;
+    readonly CheckBox _detailed = new() { Text = "Detailed", TooltipText = "Each roll as tables of its dice, its modifiers and its totals" };
+    readonly RichTextLabel _text = new()
+    {
+        BbcodeEnabled = true, SelectionEnabled = true, ContextMenuEnabled = true, ScrollActive = true, FocusMode = FocusModeEnum.All,
+        AutowrapMode = TextServer.AutowrapMode.WordSmart, MetaUnderlined = false, SizeFlagsVertical = SizeFlags.ExpandFill,
+        SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new(160, 0),
+    };
+    IReadOnlyList<LogParagraph> _paragraphs = [];
+    string _drawn = "", _picked = "";   // the bbcode on screen; the picked entry's key
+    Guid? _reveal, _focus; bool _shown, _stale, _follow = true, _setting;
     Action<RenderCause>? _onFrame; Action? _onTheme;
 
     /// <summary>The unit on the card, which the This unit filter keeps; set by the screen when the card changes.</summary>
     public Guid? FocusUnit
     {
         get => _focus;
-        set { if (_focus == value) return; _focus = value; if (_s is not null && _s.Settings.LogFilter == LogFilter.Unit) Render(false); }
+        set { if (_focus == value) return; _focus = value; if (_s is not null && _s.Settings.LogFilter == LogFilter.Unit) Render(); }
     }
 
     public void Bind(Session s, TableView view, Action<string> report)
@@ -40,25 +42,32 @@ public partial class CombatLogPanel : VBoxContainer
         SizeFlagsVertical = SizeFlags.ExpandFill;
         for (var i = 0; i < FilterLabels.Length; i++) _filter.AddItem(FilterLabels[i], i);
         _filter.Selected = (int)s.Settings.LogFilter;
-        _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(false); };
+        _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(); };
         _detailed.ButtonPressed = s.Settings.LogDetailed;
-        _detailed.Toggled += on => { _s.UpdateSettings(x => x with { LogDetailed = on }); Render(false); };
-        // The head: the log's icon and name, the filter, Detailed, and Copy (the whole log as shown) as its icon.
+        _detailed.Toggled += on => { _s.UpdateSettings(x => x with { LogDetailed = on }); Render(); };
+        // The head: the log's icon and name, the filter, Detailed, Undo to here (the picked entry) and Copy (the whole log as shown).
         var top = new HBoxContainer(); top.AddThemeConstantOverride("separation", 10);
         top.AddChild(HudBits.Icon("log", Ui.Accent, 18)); top.AddChild(new Label { Text = "LOG", ThemeTypeVariation = Variation.Display });
+        _undo = HudBits.IconButton("undo", "Undo to here: pick an entry first", 18); _undo.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         _copy = HudBits.IconButton("copy", "Copy the log as shown", 18); _copy.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-        _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed); top.AddChild(_copy);
-        _copy.Pressed += () => DisplayServer.ClipboardSet(LogCopy.Text(_drawn, _s.Settings.LogDetailed, IsOpen));
-        AddChild(top); AddChild(_scroll); _scroll.AddChild(_rows);
-        // The newest entry stays in view: the bar's range changes after the rows are laid out, a frame after a render, so the jump
-        // to the end happens then. Scrolling away from the end lets go; scrolling back to it follows again.
-        var bar = _scroll.GetVScrollBar();
-        bar.Changed += () => { if (_toEnd && _revealed is null) _scroll.ScrollVertical = (int)bar.MaxValue; };
-        bar.ValueChanged += v => _toEnd = v >= bar.MaxValue - bar.Page - 1;
-        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(true); };
+        _filter.SizeFlagsHorizontal = SizeFlags.ExpandFill; top.AddChild(_filter); top.AddChild(_detailed); top.AddChild(_undo); top.AddChild(_copy);
+        _copy.Pressed += () => DisplayServer.ClipboardSet(LogSheet.Text(_paragraphs));
+        _undo.Pressed += () => { if (Picked() is { } e && CombatLog.UndoHere(e, _s.IsWatching)) Guarded.Run(() => _s.UndoToAsync(e.Seq), _report); };
+        AddChild(top); AddChild(_text);
+        _text.MetaClicked += meta => { if (_text.GetSelectedText().Length == 0 && int.TryParse(meta.AsString(), out var i)) Pick(i); };
+        _text.MetaHoverStarted += meta => _text.TooltipText = int.TryParse(meta.AsString(), out var i) && i < _paragraphs.Count
+            && _paragraphs[i].Entry is ActivationBlock { Spell: { } spell } cast ? SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "" : "";
+        _text.MetaHoverEnded += _ => _text.TooltipText = "";
+        // A left click that selected nothing gives the focus back, so the table's keys work again; a selection keeps it until Ctrl+C.
+        _text.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left } && _text.GetSelectedText().Length == 0) _text.ReleaseFocus(); };
+        // The newest entry stays in view: scrolling away from the end lets go; scrolling back to it follows again.
+        var bar = _text.GetVScrollBar();
+        bar.Changed += () => { if (_follow) bar.Value = bar.MaxValue; };
+        bar.ValueChanged += v => { if (!_setting) _follow = v >= bar.MaxValue - bar.Page - 1; };   // not the reset a new text makes
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
         s.Frame.Render += _onFrame;
-        _onTheme = () => Render(false); Ui.Changed += _onTheme;   // the rows' dice faces are the theme's
-        Render(true);
+        _onTheme = () => { _drawn = ""; Render(); }; Ui.Changed += _onTheme;   // the colours are the theme's
+        Render();
     }
 
     public override void _ExitTree()
@@ -67,7 +76,7 @@ public partial class CombatLogPanel : VBoxContainer
         if (_s is not null) _s.Frame.Render -= _onFrame;
     }
 
-    /// <summary>Whether the drawer shows the panel. Closed, a render only marks the rows stale; opening renders them and shows the newest entry.</summary>
+    /// <summary>Whether the drawer shows the panel. Closed, a render only marks the text stale; opening renders it and shows the newest entry.</summary>
     public bool Shown
     {
         get => _shown;
@@ -75,182 +84,82 @@ public partial class CombatLogPanel : VBoxContainer
         {
             _shown = value;
             if (!value) return;
-            if (_stale) Render(true);
-            else { _toEnd = true; CallDeferred(nameof(Scroll)); }
+            _follow = true;
+            if (_stale) Render(); else CallDeferred(nameof(ToEnd));
         }
     }
 
-    /// <summary>Expand the block and the roll holding this RollRecord and scroll to it.</summary>
-    public void Reveal(Guid rollId) { _reveal = rollId; Render(false); }
+    /// <summary>Pick the entry holding this RollRecord and scroll to it.</summary>
+    public void Reveal(Guid rollId) { _reveal = rollId; Render(); }
 
-    /// <summary>A render for new events (toEnd) keeps the rows of the leading top-level entries that draw as before (CombatLogRows.Kept) and
-    /// rebuilds from the first that differs: an append rebuilds the last block and adds the new ones, an undo rebuilds from the first entry it
-    /// strikes. A toggle, a reveal, the filter, the focus, the theme, a pending undo, watching or the rule texts rebuild every row.</summary>
-    void Render(bool toEnd)
+    static string Key(LogEntry e) => e is RollEntry r ? $"r{r.Record.Id}" : $"{e.GetType().Name}{e.Seq}";
+
+    LogEntry? Picked() => _paragraphs.FirstOrDefault(p => Key(p.Entry) == _picked)?.Entry;
+
+    void Pick(int i)
+    {
+        if (i >= _paragraphs.Count) return;
+        var e = _paragraphs[i].Entry;
+        _picked = _picked == Key(e) ? "" : Key(e);
+        Highlight(_picked.Length > 0 ? e : null);
+        Render();
+    }
+
+    /// <summary>LogSheet over the filtered entries, drawn through LogBbcode; set only when it changed. The scroll stays at the end when it
+    /// was there, else where it was; a reveal scrolls to the picked roll's paragraph.</summary>
+    void Render()
     {
         if (!_shown) { _stale = true; return; }
         _stale = false;
-        _revealed = null; if (toEnd) _toEnd = true;
         IReadOnlyList<LogEntry> next = [];
-        if (_s.Projection is not null && _s.CombatLog is { } log)
+        var state = _s.Projection is not null ? _s.CombatLog : null;
+        if (state is not null)
         {
-            var n = log.Names;
-            next = CombatLog.Filter(log.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus);
+            var n = state.Names;
+            next = CombatLog.Filter(state.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus);
         }
-        var mode = (_s.Settings.LogFilter, _s.Settings.LogDetailed, _focus, _s.PendingUndoTo, _s.IsWatching, _s.Rules);
-        var kept = toEnd && _reveal is null && _mode == mode ? CombatLogRows.Kept(_drawn, next) : 0;
-        _mode = mode;
-        var from = kept < _rowStarts.Count ? _rowStarts[kept] : _rows.GetChildCount();
-        foreach (var c in _rows.GetChildren().Skip(from).ToList()) { _rows.RemoveChild(c); c.QueueFree(); }
-        _drawn.RemoveRange(kept, _drawn.Count - kept); _rowStarts.RemoveRange(kept, _rowStarts.Count - kept);
-        for (var i = kept; i < next.Count; i++) { _rowStarts.Add(_rows.GetChildCount()); _drawn.Add(next[i]); Add(_rows, next[i]); }
-        _reveal = null;
-        CallDeferred(nameof(Scroll));
-    }
-
-    bool IsOpen(LogEntry e) => e is ActivationBlock ? !_folded.Contains(Key(e)) : _open.Contains(Key(e));
-
-    static string Key(LogEntry e) => e is RollEntry r ? r.Record.Id.ToString() : e.Seq.ToString();
-    bool Holds(LogEntry e) => _reveal is { } id && (e is RollEntry r && r.Record.Id == id || e is ActivationBlock b && b.Entries.Any(Holds));
-
-    void Add(VBoxContainer into, LogEntry e)
-    {
-        if (Holds(e)) { _open.Add(Key(e)); _folded.Remove(Key(e)); }
-        var open = IsOpen(e);
-        var faded = e.Undone || _s.PendingUndoTo is { } to && e.Seq > to;
-        var set = e is ActivationBlock ? _folded : _open;   // a block starts open, a roll closed
-        void Toggle() { Highlight(e); if (e is LineEntry) return; if (!set.Remove(Key(e))) set.Add(Key(e)); Render(false); }
-        Control shown;
         var detailed = _s.Settings.LogDetailed;
-        if (detailed && e is RollEntry worked) into.AddChild(shown = MonoRow(worked.Worked, e.Undone, faded, Toggle));
-        else if (detailed && e is LineEntry { Worked: { } lines }) into.AddChild(shown = MonoRow(lines, e.Undone, faded, Toggle));
-        else if (e is RollEntry roll && roll.DieLabels is not { Count: > 0 }) into.AddChild(shown = RollRow(roll, open, faded, Toggle));
-        else
+        _paragraphs = LogSheet.Of(next, detailed);
+        int? revealAt = null;
+        if (_reveal is { } id && _paragraphs.Select((p, i) => (p, i)).FirstOrDefault(x => x.p.Entries.Any(e => e is RollEntry r && r.Record.Id == id)) is { p: not null } hit)
         {
-            var text = e switch
-            {
-                ActivationBlock b => $"{(open ? "▾" : "▸")} {b.Header}{(open || b.Chain.Length == 0 ? "" : $"  ·  {b.Chain}")}",
-                RollEntry r => $"{(open ? "▾" : "▸")} {r.Collapsed(CombatLog.Pip)}",   // a roll-off: the team words go between the faces
-                LineEntry l => l.Text,
-                _ => "",
-            };
-            var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Pass }; row.AddThemeConstantOverride("separation", 6); into.AddChild(row);
-            // A block leads with its actor's team band (UX redesign part 2 → Log and undo).
-            if (e is ActivationBlock && _s.CombatLog is { } state && _s.Game is { } game && CombatLogRows.Band(e, state.Names, game) is var band and > 0)
-            {
-                var bar = HudBits.Band(band, 4); if (faded) bar.Modulate = Ui.Faded; row.AddChild(bar);
-            }
-            var words = SelectableText(text, e.Undone, "", Toggle);
-            if (faded) words.Modulate = Ui.Faded;
-            if (e is ActivationBlock { Spell: { } spell } cast) words.TooltipText = SpellText.Tooltip(_s.Rules, spell, cast.SpellCost) ?? "";
-            row.AddChild(words);
-            // Undo to here and Copy as icons at the row's right, shown while the pointer is over the row.
-            var actions = new List<Control>();
-            if (e is not RollEntry && CombatLog.UndoHere(e, _s.IsWatching)) actions.Add(AddButton(row, "undo", "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report)));
-            if (e is ActivationBlock whole) actions.Add(AddButton(row, "copy", "Copy this activation", () => DisplayServer.ClipboardSet(LogCopy.Activation(whole, _s.Settings.LogDetailed))));
-            if (actions.Count > 0) { HudBits.OnHover(row, [.. actions]); HudBits.OnHover(words, [.. actions]); }
-            shown = words;
+            _picked = Key(hit.p.Entry); revealAt = hit.i;
         }
-        if (e is RollEntry revealed && revealed.Record.Id == _reveal) _revealed = shown;
-        if (!open) return;
-        var inner = new VBoxContainer(); var indent = new MarginContainer(); indent.AddThemeConstantOverride("margin_left", 16);
-        indent.AddChild(inner); into.AddChild(indent);
-        if (e is ActivationBlock block) foreach (var x in block.Entries) Add(inner, x);
-        if (e is RollEntry opened) Details(inner, opened, detailed);
+        _reveal = null;
+        if (Picked() is null) _picked = "";
+        _undo.Disabled = Picked() is not { } picked || !CombatLog.UndoHere(picked, _s.IsWatching);
+        _undo.TooltipText = _undo.Disabled ? "Undo to here: pick an entry first" : "Undo to here";
+        _undo.Visible = !_s.IsWatching;
+        _text.ThemeTypeVariation = detailed ? Variation.Mono : "";
+        var bbcode = Bbcode(state, out var lineOf);
+        if (bbcode == _drawn && revealAt is null) return;
+        var bar = _text.GetVScrollBar(); var was = bar.Value;
+        _setting = true;
+        _drawn = bbcode; _text.Text = bbcode;
+        _text.GetContentHeight();   // lays the text out now, so the bar's range is the new text's
+        if (revealAt is { } at) { _follow = false; _text.ScrollToParagraph(lineOf[at]); }
+        else bar.Value = _follow ? bar.MaxValue : was;
+        _setting = false;
     }
 
-    /// <summary>Worked lines in the monospace face, one text, wrapping only past the panel's width. A click without a drag is the row's.</summary>
-    static Control MonoRow(IReadOnlyList<string> lines, bool undone, bool faded, Action clicked)
+    /// <summary>LogBbcode over the paragraphs: an undone one struck and faded, one past a pending undo faded, a block's header in its team's colour, the picked one tinted.</summary>
+    string Bbcode(CombatLogState? state, out IReadOnlyList<int> lineOf)
     {
-        var text = SelectableText(string.Join("\n", lines), undone, Variation.Mono, clicked);
-        if (faded) text.Modulate = Ui.Faded;
-        return text;
-    }
-
-    /// <summary>A row's words as text the mouse selects: a drag selects, Ctrl+C or the right-click menu copies. A left click that selected
-    /// nothing is the row's (clicked) and gives the focus back, so the table's keys work again; a selection keeps it until Ctrl+C. Wraps
-    /// to the panel's width with a 160 px floor; the wheel passes through to the scroll. Struck with [s], so a copy holds plain words.</summary>
-    static RichTextLabel SelectableText(string text, bool undone, string variation, Action? clicked)
-    {
-        var words = text.Replace("[", "[lb]");
-        var label = new RichTextLabel
+        var faded = $"#{(Ui.Text with { A = 0.45f }).ToHtml()}"; var lit = $"#{(Ui.Accent with { A = 0.22f }).ToHtml()}";
+        return LogBbcode.Of(_paragraphs, p =>
         {
-            BbcodeEnabled = true, Text = undone ? $"[s]{words}[/s]" : words, FitContent = true, ScrollActive = false, SelectionEnabled = true,
-            ContextMenuEnabled = true, FocusMode = FocusModeEnum.All, AutowrapMode = TextServer.AutowrapMode.WordSmart, ThemeTypeVariation = variation,
-            CustomMinimumSize = new(160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill,
-        };
-        if (clicked is null) return label;
-        label.GuiInput += ev =>
-        {
-            if (ev is not InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left } || label.GetSelectedText().Length > 0) return;
-            label.ReleaseFocus(); clicked();
-        };
-        return label;
+            var dim = p.Undone || _s.PendingUndoTo is { } to && p.Entry.Seq > to;
+            var band = p.Entry is ActivationBlock && state is not null && _s.Game is { } game ? CombatLogRows.Band(p.Entry, state.Names, game) : 0;
+            return new ParagraphLook(p.Undone, dim ? faded : band > 0 ? $"#{Ui.Team(band).ToHtml(false)}" : null, Key(p.Entry) == _picked ? lit : null);
+        }, out lineOf);
     }
 
-    /// <summary>The roll as its title, its raw faces (bright on a success, faded on a failure, an unjudged die plain), then its outcome and
-    /// live amendments, wrapping to the panel's width; each text keeps a width floor. A press on the faces, or a click without a drag on
-    /// the words, is the row's; the wheel passes through to the scroll.</summary>
-    static Control RollRow(RollEntry r, bool open, bool faded, Action clicked)
-    {
-        var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        row.GuiInput += ev => { if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) { row.AcceptEvent(); clicked(); } };
-        var flow = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        foreach (var d in r.Dice) flow.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success), judged: d.Judged));
-        Ignore(flow); row.MouseFilter = MouseFilterEnum.Pass;
-        row.AddChild(SelectableText($"{(open ? "▾" : "▸")} {r.Title}", r.Undone, "", clicked)); row.AddChild(flow);
-        var tail = string.Join(" · ", new[] { r.Outcome }.Concat(r.Amendments.Where(a => !a.Undone).Select(a => a.Line(CombatLog.Pip))).Where(t => t.Length > 0));
-        if (tail.Length > 0) flow.AddChild(SelectableText(tail, r.Undone, faded ? Variation.Dim : "", clicked));
-        if (faded) row.Modulate = Ui.Faded;
-        return row;
-    }
+    void ToEnd() { if (IsInstanceValid(_text)) _text.GetVScrollBar().Value = _text.GetVScrollBar().MaxValue; }
 
-    /// <summary>A press on the faces belongs to the row: nothing in them takes the mouse.</summary>
-    static void Ignore(Control c)
-    {
-        c.MouseFilter = MouseFilterEnum.Ignore;
-        foreach (var child in c.GetChildren()) if (child is Control k) Ignore(k);
-    }
-
-    /// <summary>A roll's expansion: its details and each die (not in the detailed log, whose lines already hold them), the amendments, the rule
-    /// chips, Undo to here.</summary>
-    void Details(VBoxContainer into, RollEntry r, bool detailed)
-    {
-        if (!detailed) foreach (var line in r.Details) into.AddChild(SelectableText(line, false, "", null));
-        foreach (var d in detailed ? [] : r.Dice)
-        {
-            // An unjudged die shows neither pass nor fail: a plain face and an unstyled label.
-            var line = new HBoxContainer(); into.AddChild(line);
-            line.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success), judged: d.Judged));
-            line.AddChild(SelectableText(d.Text, false, !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure, null));
-        }
-        foreach (var a in detailed ? [] : r.Amendments) into.AddChild(SelectableText(a.Text, a.Undone, a.Undone ? Variation.Dim : "", null));
-        var chips = new HFlowContainer(); if (r.Applied.Count > 0) into.AddChild(chips); else chips.QueueFree();   // the rules that acted in the step, with their catalog text
-        foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
-        if (!CombatLog.UndoHere(r, _s.IsWatching)) return;
-        var actions = new HBoxContainer(); into.AddChild(actions);
-        AddButton(actions, "undo", "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(r.Seq), _report));
-    }
-
-    /// <summary>An action on a row as its icon, the words in the tooltip.</summary>
-    /// <summary>A row's hover action: the icon at 22 px in a hit area of at least 28 px.</summary>
-    static Button AddButton(Container row, string icon, string tooltip, Action then)
-    {
-        var b = HudBits.IconButton(icon, tooltip, 22); b.CustomMinimumSize = new Vector2(28, 28); b.IconAlignment = HorizontalAlignment.Center; b.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-        b.Pressed += then; row.AddChild(b); return b;
-    }
-
-    void Highlight(LogEntry e)
+    void Highlight(LogEntry? e)
     {
         if (!IsInstanceValid(_view)) return;
         foreach (var piece in _view.Pieces.OfType<PieceNode>()) piece.SetHighlight(null);
-        foreach (var id in LogText.Touched(e.Event)) _view.PieceAt(id)?.SetHighlight(Ui.Accent);
-    }
-
-    void Scroll()
-    {
-        if (!IsInstanceValid(_scroll)) return;
-        if (_revealed is not null && IsInstanceValid(_revealed)) _scroll.EnsureControlVisible(_revealed);
-        else if (_toEnd) _scroll.ScrollVertical = (int)_scroll.GetVScrollBar().MaxValue;   // the bar's Changed finishes it once the rows are laid out
+        if (e is not null) foreach (var id in LogText.Touched(e.Event)) _view.PieceAt(id)?.SetHighlight(Ui.Accent);
     }
 }

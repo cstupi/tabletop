@@ -18,62 +18,58 @@ settings (`ClientSettings.LogDetailed`, the viewer's `logDetailed`). The filter 
 
 ## What it shows
 
-Each block header and line stays. Each roll is drawn as monospace lines (its `Worked` lines), and each change line that names
+Each block header and line stays, in monospace. An attack is its weapons, a table per roll of how many dice show each face, a table
+per reroll and per rule a face set off, its hits, each block's modifiers over its table, and its totals; each change line that names
 models lists them. One shooting attack:
 
 ```
 R2 · Team 1 · Marksmen · Hold → Blue unit 1
-  Attack: Marksmen (3 models) → Blue unit 1
+  Marksmen → Blue unit 1 · Plasma Rifle
     Plasma Rifle ×3 (24", A1, AP(4), Unstoppable)
-  Hit
-    Quality          4+   printed
-    Bad Shot         -1   ignored: Unstoppable
-    target 4+
-    rolled   2  6  4
-    hits     ·  ✓  ✓
-    rules: Unstoppable
-    = 2 hits
-  Block
-    Defense          4+   printed
-    cover            +1   2/3 models in cover
-    AP(4)            -4
-    target 4+, roll -3
-    rolled   2  1
-    final   -1 -2
-    blocks   ·  ·
-    rerolled die 1: 6 → 2 (Bane)
-    = 0 blocked, 2 wounds
+  Hit roll · Quality 4+ · Bad Shot -1 ignored (Unstoppable) (3 dice)
+   1  2  3  4  5  6
+   0  1  0  1  0  1
+  2 hits
+
+  Defense 4+ · Cover +1 · AP(4) -4 · needs 6+ (2 dice)
+   1  2  3  4  5  6
+   1  0  0  0  0  1
+  Rerolled (Bane): 6 → 2
+  H: 2  W: 2
+  Rules: Unstoppable
+
   Regeneration ignored: Unstoppable
   Blue unit 1 (Blue 1.2) · 1 wound
+
   Blue unit 1 (Blue 1.1) · removed
-  Morale
-    Quality          4+   printed
-    target 4+
-    rolled   3
-    passes   ·
-    = failed → Shaken
+  Blue unit 1 · Morale · Quality 4+
+  rolled 3
+  failed → Shaken
 ```
 
-- **Attack:** on the first hit roll of a step: the attacking unit, how many models hold the weapons that attack, the target, then
-  one line per weapon name with its count, its stats (`24"`, `A1`) and its rules as the army lists them.
-- **Target number:** the stat and its printed value; each replace_stat (`Hero 3+  set`) and modify_stat row (`Shaken +1 → 5+`);
-  each stat row a suppression took away (`... ignored: Rule`); the shooting block's cover verdict (`cover +1  3/5 models in
-  cover`, `cover --  no cover: 2/6 models in cover`, `cover +1  ignored: Blast (4/5 models in cover)`, p.11); each roll modifier
-  (`AP(1) -1`, `Rending AP(+4) -4`, `Stealth -1`); each roll modifier a suppression took away (`Bad Shot -1  ignored:
-  Unstoppable`); then `target N+` and the net roll modifier. A roll judged on the raw face reads `target unmodified 6`.
-- **Dice,** ten to a row: `rolled` (raw faces in order), `final` (raw plus the net modifier, when it is not zero), and a pass row
-  named for the roll (`hits`, `blocks`, `passes`, `ignored` for a roll per wound) with `✓` or `·`. A roll with no target shows
-  `rolled` only; a roll-off one line per team. When a 6 passed or a 1 failed against its final value: `a 6 always succeeds, a 1
-  always fails (p.5)` (p.5: "a roll of 6 always counts as a success and a roll of 1 always counts as a fail").
-- **Rerolls and edits:** `rerolled die 3: 1 → 5 (Rule)`, `set by hand die 2: 4 → 6`.
-- **Rules a suppression removed** in the step that no record above names: `Regeneration ignored: Rending` (on a roll-less step, ahead of its change lines). Then `rules:` and the
-  step's `Applied`.
-- **Result:** `= ` and the normal log's result with its consequence.
+- **Head:** `{unit} → {targets}` (with `(melee)`, or the rule that dealt the hits), the weapons, then from the first hit roll one line per
+  weapon name with its count, stats (`24"`, `A1`) and rules as the army lists them.
+- **Tables:** a `1 … 6` row over the count of dice per face, columns two wide (wider for a count past 99). A roll's table holds its
+  faces as rolled; each live reroll or edit follows (`Rerolled (Bane): 6 → 2` for one die, a labelled table of the new faces for
+  more); each rule its faces set off follows as a table of the dice that set it off (`Relentless (6s: +1 hit)`).
+- **Target:** after the roll's label, ` · ` between the parts: the stat and its printed value (`Quality 4+`); each replace_stat
+  (`Hero 3+`) and modify_stat row (`Shaken +1`); each stat row a suppression took away (`Hero 3+ ignored (Curse)`); a cover verdict
+  not applied (`No cover (2/6)`, `Cover ignored (Blast)`); each roll modifier with the sign the roll applies (`AP(1) -1`,
+  `Rending AP(4) -4`, `Cover +1`, `Stealth -1`); each roll modifier a suppression took away (`Bad Shot -1 ignored (Unstoppable)`);
+  `needs N+` when anything changed it. A roll judged on the raw face reads `unmodified 6+`. When a 6 passed or a 1 failed against
+  its final value: `a 6 always succeeds, a 1 always fails` (p.5).
+- **Hits:** under the hit tables `X hits · Y bonus hits` (bonus: the hits past the ones rolled, from the faces' extra hits and
+  `Hits ×N`, a multiplier); with no hit roll the rule's line, `Deathstrike: 3 hits`. **Totals:** under the blocks and the rolls per
+  wound (`Regeneration · 5+ (3 wounds)`, its table, `N ignored`), `H: X  W: Y` as the summary counts them, then `Rules:` (the steps'
+  `Applied`) and each rule a suppression removed in a rolling step that no record names (`Regeneration ignored (Unstoppable)`).
+- **Other rolls:** the label and target, `rolled N` for one die (`Team 1 rolled 3` per team for a roll-off) or a table, the
+  rerolls, the result with its consequence, `Rules:`.
 - **Wounds:** a change line of models wounded or removed lists each model: `Raider (Raiders) · 2 wounds` (the wounds it now
-  carries), `Raider (Raiders) · removed`.
+  carries), `Raider (Raiders) · removed`; a roll-less step's removed rules lead it (`Regeneration ignored: Rending`).
+- A paragraph of several lines ends with an empty line.
 
-Melee (strikes, strike back, fatigue's `target unmodified 6`), casting, dangerous terrain, regeneration rolls and the roll-off
-read the same way: the client composes from the record; it names no rule.
+Melee (strikes, strike back, fatigue's `unmodified 6+`), casting, dangerous terrain, regeneration rolls and the roll-off read the same
+way: the client composes from the record; it names no rule.
 
 ## What the server adds
 
@@ -96,7 +92,7 @@ Nothing here changes a rules outcome: the writes sit beside the reads that alrea
 - `libs/Tabletop.Protocol`: the fields; viewer's generated types.
 - `server/game`: `LiveSet`, `AppliedEntries`, `RollEffects`, `StatReader`, `RollPlan`, `Roller`, `StepContext`,
   `SequenceInterpreter`. Tests in `GfDetailedLogTests`.
-- `client/src/Core`: `RollEntry.Worked`, `LineEntry.Worked`, `RollWords` (`Worked`), `CombatLog` (the attack lines, the per-model
-  change lines), `Names` (weapons), `ClientSettings.LogDetailed`. `client/src/Hud/CombatLogPanel.cs`: the checkbox and monospace
-  rows (`Variation.Mono`).
-- `viewer/src/lib/play/`: the port; `combatlog.json` carries each case's detailed lines and a built `worked` case.
+- `client/src/Core`: `LogSheet.Detail` (the tables, targets and totals), `LineEntry.Worked`, `WorkedLines.Attack` (the weapon lines),
+  `Names` (weapons), `ClientSettings.LogDetailed`. `client/src/Hud/CombatLogPanel.cs`: the checkbox and the monospace text
+  (`Variation.Mono`). `DetailedLogTests`.
+- `viewer/src/lib/play/`: the port (`logSheet.ts`); `combatlog.json` carries each case's detailed paragraphs and a built `worked` case.

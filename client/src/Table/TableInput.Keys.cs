@@ -21,7 +21,7 @@ public partial class TableInput
 
     /// <summary>A text field in the window's own viewport (the terrain card's notes, the setup toolbar's fields) has the key: the
     /// table's viewport hears it too, so a typed space, letter or Enter never reaches a hotkey. So does a selectable text holding a
-    /// selection (the log's rows), so the Ctrl of its Ctrl+C starts no ruler. Releases still pass.</summary>
+    /// selection (the log), so the Ctrl of its Ctrl+C starts no ruler. Releases still pass.</summary>
     bool TextFocused() => GetTree().Root.GuiGetFocusOwner() switch
     {
         LineEdit or TextEdit or SpinBox => true,

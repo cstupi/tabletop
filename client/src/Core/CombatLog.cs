@@ -39,6 +39,7 @@ public static partial class CombatLog
         var amendments = log.Where(e => e.Payload is DiceRerolled or DiceEdited)
             .ToLookup(e => e.Payload is DiceRerolled r ? r.RollId : ((DiceEdited)e.Payload).RollId, e => (e, Dead(e)));
         var after = Aftermath.Of(log, frames, Dead, n, amendments);
+        var tree = FrameTree.Of(log);
 
         var top = new List<LogEntry>(); var drafts = new List<Draft>(); var open = new Dictionary<Guid, GameEvent>(); var round = 0;
         var started = new List<(long Seq, string Header)>(); var undos = new List<(long Seq, long ToSeq)>();
@@ -84,6 +85,8 @@ public static partial class CombatLog
                     var frameStart = frames.GetValueOrDefault(step.FrameId);
                     var context = frameStart?.Context ?? NoContext;
                     var ignored = StepIgnored(step);
+                    tree.See(step);
+                    var multiplier = step.Values?.GetValueOrDefault("hit_multiplier") is > 1 and var times ? times : 1;
                     foreach (var roll in step.Rolls)
                     {
                         var first = roll.Id == step.Rolls[0].Id;
@@ -92,6 +95,8 @@ public static partial class CombatLog
                             {
                                 Consequence = after.Consequence(roll.Id), DieLabels = after.Labels.GetValueOrDefault(roll.Id),
                                 Attack = first && roll.Roll == "hit" && attacked.Add((step.FrameId, dead)) ? WorkedLines.Attack(context, n) : null, StepIgnored = first ? ignored : null,
+                                InAttack = tree.Tag(step, roll, context, n), HitMultiplier = roll.Roll == "hit" ? multiplier : 1,
+                                Unit = context.ActorUnitId is { } unit ? n.Unit(unit) : null,
                             };
                         into.Add(entry); Chain(entry.Chain);
                     }

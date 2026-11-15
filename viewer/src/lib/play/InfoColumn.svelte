@@ -203,7 +203,7 @@
           <select class="filter" aria-label="Log filter" value={logFilter} onchange={(ev) => setFilter(ev.currentTarget.value as LogFilter)}>
             {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
           </select>
-          <label class="detailed" title="Each roll as a worked resolution: every modifier, what was ignored, every die">
+          <label class="detailed" title="Each roll as tables of its dice, its modifiers and its totals">
             <input type="checkbox" checked={logDetailed} onchange={(ev) => setDetailed(ev.currentTarget.checked)} /> Detailed
           </label>
         {/if}

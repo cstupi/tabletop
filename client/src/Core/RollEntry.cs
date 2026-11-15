@@ -57,8 +57,14 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
     /// <summary>Set by CombatLog on the first roll of a step: the rules a suppression removed in the step that no record of it names.</summary>
     public IReadOnlyList<IgnoredEffect>? StepIgnored { get; init; }
 
-    /// <summary>The roll as a worked resolution, for the detailed log (detailed-log spec → What it shows).</summary>
-    public IReadOnlyList<string> Worked => WorkedLines.Of(this);
+    /// <summary>Set by CombatLog: the attack the roll belongs to (LogSheet draws an attack's rolls together).</summary>
+    public AttackTag? InAttack { get; init; }
+
+    /// <summary>Set by CombatLog on a hit roll: what its step multiplied the hits by (`hit_multiplier`, Blast); 1 otherwise.</summary>
+    public int HitMultiplier { get; init; } = 1;
+
+    /// <summary>Set by CombatLog: the unit the roll's frame acts for (the unit a morale test tests), else null.</summary>
+    public string? Unit { get; init; }
 
     /// <summary>One judged die read passed or failed (not a hit, a block or a roll per wound): what a Consequence follows.</summary>
     public static bool IsTest(RollRecord r, string? sequence) =>
@@ -191,7 +197,7 @@ public static class RollWords
     }
 
     /// <summary>`Rule +N things` or `Rule`; the thing singular.</summary>
-    static (string Rule, int Amount, string Word) Parse(string trigger)
+    public static (string Rule, int Amount, string Word) Parse(string trigger)
     {
         var plus = trigger.LastIndexOf(" +", StringComparison.Ordinal);
         if (plus < 0) return (trigger, 0, "");
