@@ -49,4 +49,19 @@ public static class Formation
     }
 
     static PlacedModel At(Base b, Point2 p) => new(new ModelBody(b, 1), new Placement(new Point3(p.X, p.Y, 0), new Yaw(0)));
+
+    /// <summary>
+    /// The held pieces as one body: each grab moved by the cursor's travel (dx, dy) and turned by <paramref name="degrees"/> (counter-clockwise)
+    /// about the centre of the grabs, its facing turned with it and its height kept. One piece turns where it stands.
+    /// </summary>
+    public static Dictionary<Guid, Placement> Spun(IReadOnlyDictionary<Guid, Placement> grabs, double degrees, double dx, double dy)
+    {
+        var cx = grabs.Values.Average(g => g.Position.X); var cy = grabs.Values.Average(g => g.Position.Y);
+        var r = degrees * Math.PI / 180; var (sin, cos) = Math.SinCos(r);
+        return grabs.ToDictionary(kv => kv.Key, kv =>
+        {
+            var x = kv.Value.Position.X - cx; var y = kv.Value.Position.Y - cy;
+            return new Placement(new Point3(cx + x * cos - y * sin + dx, cy + x * sin + y * cos + dy, kv.Value.Position.Z), new Yaw(kv.Value.Yaw.Degrees + degrees));
+        });
+    }
 }

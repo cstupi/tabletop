@@ -1,6 +1,6 @@
 namespace Tabletop.Client.Core;
 
-/// <summary>What a key asks for (in-game UX spec → Hotkeys). The caller reads it in context: options or rows, Q/E turn the held models (each about its own centre, or the rows) and otherwise orbit the camera.</summary>
+/// <summary>What a key asks for (in-game UX spec → Hotkeys). The caller reads it in context: options or rows, Q/E turn the held models (as one body about their centre, or the rows; with Shift each where it stands) and otherwise orbit the camera.</summary>
 public enum Intent
 {
     Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Confirm, Cancel, SingleModel, Sight,

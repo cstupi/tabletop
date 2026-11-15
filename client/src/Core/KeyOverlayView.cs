@@ -53,7 +53,7 @@ public static class KeyOverlayView
         AskMode.Move =>
         [
             R("commit the move", "⏎"), .. stoppable ? [R("stop here", "C")] : Array.Empty<KeyRow>(), R("reset", "Esc"),
-            R("rows while holding", "1–5"), R("turn held models", "Q", "E"), R("pick a model", "⇧", "Click"), R("box models", "⇧", "Drag"),
+            R("rows while holding", "1–5"), R("turn the held unit", "Q", "E"), R("turn each held model", "⇧", "Q", "E"), R("pick a model", "⇧", "Click"), R("box models", "⇧", "Drag"),
             R("place freely", "Alt"), R("lower or raise held", "PgDn", "PgUp"),
         ],
         AskMode.Assign => [R("aim at a target", "Click"), R("fire", "⏎"), R("clear", "Esc")],

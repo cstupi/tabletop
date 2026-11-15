@@ -89,4 +89,22 @@ public class FormationTests
             for (var j = i + 1; j < placed.Count; j++)
                 Assert.True(Distance.EdgeToEdge(placed[i], placed[j]) >= Formation.Gap - 1e-6, $"{i} and {j} are closer than the gap");
     }
+
+    /// <summary>The owner, 2026-11-14: "q and e shouldnt rotate models in place - it should rotate the full unit similar to terrain". The held
+    /// models keep their arrangement and turn as one body about their centre, each taking the turn in its facing; the cursor's travel moves them.</summary>
+    [Fact]
+    public void A_held_unit_turns_as_one_body_about_its_centre()
+    {
+        Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7();
+        var grabs = new Dictionary<Guid, Placement> { [a] = new(new Point3(10, 20, 1), new Yaw(0)), [b] = new(new Point3(14, 20, 2), new Yaw(30)) };
+        var still = Formation.Spun(grabs, 0, 3, -1);
+        Assert.Equal((new Point3(13, 19, 1), new Yaw(0)), (still[a].Position, still[a].Yaw));
+        Assert.Equal((new Point3(17, 19, 2), new Yaw(30)), (still[b].Position, still[b].Yaw));
+        var quarter = Formation.Spun(grabs, 90, 0, 0);                                    // counter-clockwise about (12, 20): a goes below, b above
+        Assert.Equal(12, quarter[a].Position.X, 9); Assert.Equal(18, quarter[a].Position.Y, 9); Assert.Equal(1, quarter[a].Position.Z);
+        Assert.Equal(12, quarter[b].Position.X, 9); Assert.Equal(22, quarter[b].Position.Y, 9); Assert.Equal(2, quarter[b].Position.Z);
+        Assert.Equal((new Yaw(90), new Yaw(120)), (quarter[a].Yaw, quarter[b].Yaw));
+        var one = Formation.Spun(new Dictionary<Guid, Placement> { [a] = grabs[a] }, 45, 0, 0);
+        Assert.Equal((grabs[a].Position, new Yaw(45)), (one[a].Position, one[a].Yaw));     // one piece turns where it stands, as terrain does
+    }
 }

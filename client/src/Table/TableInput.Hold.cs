@@ -6,8 +6,8 @@ namespace Tabletop.Client.Table;
 
 /// <summary>
 /// Models in hand (spec → Formations): 1–5 lay them out in that many rows about the cursor, the rows across the screen as the
-/// camera sees it; Q/E held turn the rows, or with no rows each held model about its own centre, smoothly (p.7: models may move and
-/// turn in any direction). The drop is the drag's: a move step waits for Enter, anything else is a hand move.
+/// camera sees it; Q/E held turn the rows, or with no rows the held models as one body about their centre, as a terrain piece turns;
+/// Shift+Q/E turn each held model where it stands, smoothly (p.7: models may move and turn in any direction). The drop is the drag's: a move step waits for Enter, anything else is a hand move.
 /// </summary>
 public partial class TableInput
 {
@@ -25,20 +25,30 @@ public partial class TableInput
 
     void Arrange(int rows) { _drag!.Rows = rows; Place(Arranged(_drag.Cursor)); }
 
-    void Turn(double degrees)
+    void Turn(double degrees, bool inPlace = false)
     {
         if (_drag is not { } drag) return;
-        if (drag.Rows > 0) { drag.Turn += degrees; Place(Arranged(drag.Cursor)); return; }
-        foreach (var id in drag.ModelIds) drag.Yaws[id] = new Yaw(drag.Yaws[id].Degrees + degrees);
-        Place(drag.Current.ToDictionary(kv => kv.Key, kv => kv.Value));
+        if (inPlace) drag.Twist += degrees; else if (drag.Rows > 0) drag.Turn += degrees; else drag.Spin += degrees;
+        Place(drag.Rows > 0 ? Arranged(drag.Cursor) : Free(drag.Cursor));
     }
 
-    /// <summary>The held models in Rows rows about the point, facing away from the viewer turned by Q/E; the models take that facing.</summary>
+    /// <summary>The held pieces with no rows: where they were picked up, turned as one body by Spin about their centre and carried by the
+    /// cursor's travel (Formation.Spun); each takes the body's turn and its own Twist in its facing.</summary>
+    Dictionary<Guid, Point3> Free(Point3 cursor)
+    {
+        var drag = _drag!;
+        var spun = Formation.Spun(drag.Grabs, drag.Spin, cursor.X - drag.Start.X, cursor.Y - drag.Start.Y);
+        foreach (var (id, at) in spun) drag.Yaws[id] = new Yaw(at.Yaw.Degrees + drag.Twist);
+        return spun.ToDictionary(kv => kv.Key, kv => kv.Value.Position);
+    }
+
+    /// <summary>The held models in Rows rows about the point, facing away from the viewer turned by Q/E; the models take that facing, each
+    /// turned by its Twist (Shift+Q/E).</summary>
     Dictionary<Guid, Point3> Arranged(Point3 centre)
     {
         var drag = _drag!; var p = _session.Projection!;
         var yaw = new Yaw(CameraYaw() + drag.Turn);
-        foreach (var id in drag.ModelIds) drag.Yaws[id] = yaw;
+        foreach (var id in drag.ModelIds) drag.Yaws[id] = new Yaw(yaw.Degrees + drag.Twist);
         var at = Formation.Arrange(drag.ModelIds.Select(id => p.Models[id].Slot.Base).ToList(), drag.Rows, centre, yaw);
         return drag.ModelIds.Select((id, i) => (id, at[i])).ToDictionary(x => x.id, x => x.Item2);
     }
@@ -137,7 +147,7 @@ public partial class TableInput
             ? Collision.Surfaces(new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), at), _view.Volumes)
             : _session.Draft is { } d && d.Terrain.Any(t => t.Id == lead) ? DragBodies.Surfaces(d.Terrain, lead, at) : [];
         drag.Level = up ? HoldLevel.Raise(drag.Level, surfaces) : HoldLevel.Lower(drag.Level, surfaces);
-        Place(drag.Rows > 0 ? Arranged(drag.Cursor) : drag.Grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position with { X = kv.Value.Position.X + drag.Cursor.X - drag.Start.X, Y = kv.Value.Position.Y + drag.Cursor.Y - drag.Start.Y }));
+        Place(drag.Rows > 0 ? Arranged(drag.Cursor) : Free(drag.Cursor));
     }
 
     void ShowRulers(IReadOnlyList<(IReadOnlyList<Point3> Path, RulerReadout Readout)> lines)

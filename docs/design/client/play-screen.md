@@ -53,7 +53,7 @@ none. Hovering a unit of another team (`ThreatRings.OfAnotherTeam`; a watcher's 
 colour whatever V says (threat range plan): `ThreatRings` over `Session.Threats` (`ModelFacts.Threats`), a `Charge` outline at
 the unit's charge move round every model and a `Shoot` outline per distinct `ShootMove` + range round the models with that reach;
 the outlines and their fill shapes build on the thread pool (`RingBuilds`, keyed by unit and `RingStamp`: the unit's models' slots and placements and its threat), each kept until its stamp changes, and a layer draws once its build lands. `OrbitCamera` orbits a moving focus (`CameraFocus`): WASD and Q/E read held each frame, ignored while a text
-field has focus, Q/E the held unit's turn while one is in hand; pan speed scales with distance and the focus stays
+field has focus, Q/E the held unit's turn while one is in hand (the rows, or the unit as one body about its centre; with Shift each held model where it stands); pan speed scales with distance and the focus stays
 within the table plus 12"; Space, Tab and a roster click glide 0.3 s; an action frame's start glides to its actor
 (`CameraFocus.FollowTarget`) unless the camera moved in the last 2 s, a unit is held, `ClientSettings.CameraFollow` is
 off or `Session.CatchingUp`.

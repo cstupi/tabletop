@@ -86,6 +86,10 @@ public partial class TableInput : Node
         public bool Armed { get; set; }
         public int Rows { get; set; }
         public double Turn { get; set; }
+        /// <summary>Q/E with no rows: the held pieces turned as one body about their centre by this many degrees (Formation.Spun).</summary>
+        public double Spin { get; set; }
+        /// <summary>Shift+Q/E: each held model turned where it stands by this many degrees, on top of the body's or the rows' turn.</summary>
+        public double Twist { get; set; }
         public Point3 Cursor { get; set; } = start;
         /// <summary>Held pieces lift over spec → Held: null is lifted, every pick-up's start; else the height PageDown and PageUp chose, which each held
         /// piece rests nearest as the drag moves.</summary>
@@ -198,14 +202,16 @@ public partial class TableInput : Node
 
     /// <summary>A release the table's viewport never heard (after a drag it can reach the window and not the table's container)
     /// still drops what is held: the button's state, not the event, ends the drag, so no drag outlives the press. Q/E held turn
-    /// what is in hand smoothly (CameraFocus.HeldTurn).</summary>
+    /// what is in hand smoothly (CameraFocus.HeldTurn): the held unit as one body, with Shift each held model where it stands.</summary>
     public override void _Process(double delta)
     {
         if ((_drag is not null || _box is not null) && !Input.IsMouseButtonPressed(MouseButton.Left)) Observe(OnLeftUp());
         var held = new HashSet<Intent>();
         if (Input.IsKeyPressed(Key.Q)) held.Add(Intent.TurnLeft);
         if (Input.IsKeyPressed(Key.E)) held.Add(Intent.TurnRight);
-        if (CameraFocus.HeldTurn(held, HoldingTurnable, TextFocused(), Input.IsKeyPressed(Key.Shift), delta) is var turn and not 0) Turn(turn);
+        // Shift with models in hand turns each where it stands; with a terrain piece, which turns one way only, it turns finer.
+        var shift = Input.IsKeyPressed(Key.Shift); var models = HoldingModels;
+        if (CameraFocus.HeldTurn(held, HoldingTurnable, TextFocused(), shift && !models, delta) is var turn and not 0) Turn(turn, inPlace: shift && models);
     }
 
     /// <summary>A move that ends while its models are in hand (a reconnect, an undo, the Ask closing): the drag goes with it, its
@@ -246,8 +252,7 @@ public partial class TableInput : Node
         if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
         if (!_drag.Armed) { _drag.Armed = true; PickedUp?.Invoke(_drag.ModelIds); }
         _drag.Cursor = point;
-        var dx = point.X - _drag.Start.X; var dy = point.Y - _drag.Start.Y;
-        Place(_drag.Rows > 0 ? Arranged(point) : _drag.Grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position with { X = kv.Value.Position.X + dx, Y = kv.Value.Position.Y + dy }));
+        Place(_drag.Rows > 0 ? Arranged(point) : Free(point));
     }
 
     /// <summary>The pointer left the table for a Hud part: nothing is hovered.</summary>

@@ -169,7 +169,8 @@ piece, and its details show in the terrain card in the unit card's slot (the uni
 
 **Formations.** While a unit is held in a drag, **1–5** arranges it in that many rows around the cursor, the models
 split as evenly as they go (10 models in 3 rows is 4-3-3). Rows run across the screen as the camera sees it; **Q/E**
-turn the arrangement 15°. Bases sit with a fixed gap that keeps unit coherency (p.7). Release drops it as any drag
+turn the arrangement, and with no rows the held models as one body about their centre, as a terrain piece turns;
+**Shift+Q/E** turn each held model where it stands. Bases sit with a fixed gap that keeps unit coherency (p.7). Release drops it as any drag
 does: inside a move step it waits for **Enter**, and a model beyond its move distance shows red; outside one it is a
 hand move.
 
