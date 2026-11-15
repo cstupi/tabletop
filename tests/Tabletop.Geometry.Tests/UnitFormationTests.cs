@@ -16,7 +16,7 @@ public class UnitFormationTests
         var landed = Pair.Select(p => Fx.Model(formed[p.Id].X, formed[p.Id].Y)).ToList();
         Assert.Contains(landed, l => Distance.EdgeToEdge(l, target) <= 2 * UnitFormation.ContactGap);
         Assert.True(Coherency.Check(landed, 1, 3, 9).Coherent);
-        Assert.All(Pair, p => Assert.True(p.Start.Placement.Position.Horizontal.DistanceTo(formed[p.Id]) <= 12 + 1e-6));
+        Assert.All(Pair, p => Assert.True(p.Start.Placement.Position.Horizontal.DistanceTo(formed[p.Id].Horizontal) <= 12 + 1e-6));
     }
 
     [Fact]

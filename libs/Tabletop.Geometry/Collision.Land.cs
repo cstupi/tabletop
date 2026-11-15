@@ -1,7 +1,13 @@
 namespace Tabletop.Geometry;
 
-/// <summary>The models a landing is drawn into base contact with, and how near it must already end (a charge: MoveRegion.ContactWith and ContactGrace).</summary>
-public sealed record Abutment(IReadOnlyList<PlacedModel> Models, double Within);
+/// <summary>The models a landing is drawn into base contact with, and how near it must already end (a charge: MoveRegion.ContactWith and ContactGrace).
+/// `Vertical`, when set, is how far a landing's rest may be above or below a model's base for it to be drawn against that model (a charge:
+/// MoveRegion.ContactVertical); null is any height.</summary>
+public sealed record Abutment(IReadOnlyList<PlacedModel> Models, double Within, double? Vertical = null)
+{
+    /// <summary>Whether a body resting at `z` is within the vertical reach of the model's base.</summary>
+    public bool Reaches(PlacedModel model, double z) => Vertical is not { } v || Math.Abs(model.Bottom() - z) <= v + Tolerance.Distance;
+}
 
 public static partial class Collision
 {
@@ -49,7 +55,8 @@ public static partial class Collision
     /// <summary>
     /// A landing whose base ends apart from the nearest of `abut.Models` by no more than `abut.Within`, moved straight toward that model by the gap
     /// between their closest points (<see cref="Outline.Separation"/>), so the bases touch, when that spot is free as a landing's is (no Solid wall,
-    /// no model overlapped, `within` takes it); otherwise where it landed.
+    /// no model overlapped, `within` takes it); otherwise where it landed. With `abut.Vertical` only the models within it of the landing's rest are
+    /// drawn against, and only when the flush spot's rest is still within it.
     /// </summary>
     public static Point3 Abut(PlacedModel moving, Point3 landed, Abutment abut, IReadOnlyList<PlacedModel> models, IReadOnlyList<WorldVolume> walls,
         IReadOnlyList<WorldVolume> volumes, Func<Point2, bool>? within = null) =>
@@ -58,12 +65,15 @@ public static partial class Collision
     static Point3 Abut(PlacedModel moving, Point3 landed, Abutment abut, IReadOnlyList<Outline> solid, IReadOnlyList<PlacedModel> models,
         LandGround volumes, Func<Point2, bool>? within)
     {
-        if (abut.Models.Count == 0) return landed;
+        var reached = abut.Models.Where(m => abut.Reaches(m, landed.Z)).ToList();
+        if (reached.Count == 0) return landed;
         var outline = (moving with { Placement = moving.Placement with { Position = landed } }).BaseOutline();
-        var nearest = abut.Models.Select(m => Outline.Separation(outline, m.BaseOutline())).MinBy(s => s.Distance);
+        var (target, nearest) = reached.Select(m => (Model: m, Gap: Outline.Separation(outline, m.BaseOutline()))).MinBy(s => s.Gap.Distance);
         if (nearest.Distance <= Tolerance.Distance || nearest.Distance > abut.Within + Tolerance.Distance) return landed;
         var flush = landed.Horizontal + (nearest.OnB - nearest.OnA);
-        return Free(moving, flush, solid, models, volumes, within) ? Rested(moving, flush, volumes) : landed;
+        if (!Free(moving, flush, solid, models, volumes, within)) return landed;
+        var rested = Rested(moving, flush, volumes);
+        return abut.Reaches(target, rested.Z) ? rested : landed;
     }
 
     static List<Outline> Solids(IReadOnlyList<WorldVolume> walls) => walls.Where(w => w.Volume.Kind == VolumeKind.Solid).Select(w => w.WorldOutline()).ToList();

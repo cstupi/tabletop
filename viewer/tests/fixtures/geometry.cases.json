@@ -855,6 +855,148 @@
     ]
   },
   {
+    "name": "land_models_abut_beyond_the_vertical_reach",
+    "method": "LandModels",
+    "request": {
+      "held": [
+        {
+          "id": "0000000e-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1.26,
+                "b": 1.26
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 20,
+                "y": 20,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 28.44,
+            "y": 20.2,
+            "length": 34.88371539844917
+          }
+        },
+        {
+          "id": "0000000f-0000-0000-0000-000000000001",
+          "at": {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1.26,
+                "b": 1.26
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 20,
+                "y": 22,
+                "z": 0
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          },
+          "to": {
+            "x": 27.5,
+            "y": 22,
+            "length": 35.21718330588067
+          }
+        }
+      ],
+      "stationary": [
+        {
+          "body": {
+            "base": {
+              "shape": "circle",
+              "a": 1.26,
+              "b": 1.26
+            },
+            "height": 1.5
+          },
+          "placement": {
+            "position": {
+              "x": 30,
+              "y": 20,
+              "z": 4
+            },
+            "yaw": {
+              "degrees": 0
+            }
+          }
+        }
+      ],
+      "walls": [],
+      "terrain": [],
+      "abut": {
+        "models": [
+          {
+            "body": {
+              "base": {
+                "shape": "circle",
+                "a": 1.26,
+                "b": 1.26
+              },
+              "height": 1.5
+            },
+            "placement": {
+              "position": {
+                "x": 30,
+                "y": 20,
+                "z": 4
+              },
+              "yaw": {
+                "degrees": 0
+              }
+            }
+          }
+        ],
+        "within": 0.5,
+        "vertical": 3
+      }
+    },
+    "expected": [
+      {
+        "id": "0000000e-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 28.44,
+          "y": 20.2,
+          "z": 0.5
+        },
+        "lands": {
+          "x": 28.44,
+          "y": 20.2,
+          "z": 0
+        }
+      },
+      {
+        "id": "0000000f-0000-0000-0000-000000000001",
+        "drawn": {
+          "x": 27.5,
+          "y": 22,
+          "z": 0.5
+        },
+        "lands": {
+          "x": 27.5,
+          "y": 22,
+          "z": 0
+        }
+      }
+    ]
+  },
+  {
     "name": "land_piece_beside_an_impassable_block",
     "method": "LandPiece",
     "request": {

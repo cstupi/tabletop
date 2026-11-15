@@ -113,9 +113,10 @@ public sealed partial class AnswerPolicy
 
     /// <summary>
     /// p.9 "or as close as possible, whilst still maintaining unit coherency": the charging unit in base contact with a ContactWith model and in
-    /// coherency, found as the server's charge_contact looks for it (UnitFormation.InContact over the Ask's own parameters). Null when there is none.
+    /// coherency, found as the server's charge_contact looks for it (UnitFormation.InContact over the Ask's own parameters, its ContactVertical
+    /// included), each landing at the height it rests at there. Null when there is none.
     /// </summary>
-    private static IReadOnlyDictionary<Guid, Point2>? ChargeFormation(MoveRegion m, PolicyView view)
+    private static IReadOnlyDictionary<Guid, Point3>? ChargeFormation(MoveRegion m, PolicyView view)
     {
         var chargers = m.ModelIds.Select(id => (Id: id, Start: view.PlacedOf(id))).Where(c => c.Start is not null).Select(c => (c.Id, Start: c.Start!.Value)).ToList();
         var targets = m.ContactWith!.Select(view.PlacedOf).OfType<PlacedModel>().ToList();
@@ -124,7 +125,8 @@ public sealed partial class AnswerPolicy
         var standing = view.Projection.Models.Keys.Where(x => !m.ModelIds.Contains(x)).Select(x => (Id: x, At: view.PlacedOf(x))).Where(x => x.At is not null).ToList();
         var terms = new FormationTerms(m.Allowance, view.VolumesById(m.ImpassableVolumeIds), view.VolumesById(m.DifficultVolumeIds), m.DifficultCap,
             m.IgnoresTerrain ? [] : view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList(), view.Volumes, view.Table,
-            standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread, SteepOf(m, view));
+            standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread, SteepOf(m, view),
+            ContactVertical: m.ContactVertical);
         return UnitFormation.InContact(chargers, standing.Where(x => units.Contains(view.ModelOf(x.Id).UnitId)).Select(x => x.At!.Value).ToList(), targets, terms);
     }
 

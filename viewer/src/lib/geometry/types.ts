@@ -9,8 +9,9 @@ export interface PlacedModel { readonly body: ModelBody; readonly placement: Pla
 export interface HeldModel { readonly id: string; readonly at: PlacedModel; readonly to: XY }
 /** Where a held model is drawn (0.5" over the highest top under it) and where it lands. */
 export interface HeldEnd { readonly id: string; readonly drawn: Point3; readonly lands: Point3 }
-/** A charge's landing pull (Collision.Abut): the target's models and how near a landing must end to be drawn flush against one. */
-export interface Abutment { readonly models: readonly PlacedModel[]; readonly within: number }
+/** A charge's landing pull (Collision.Abut): the target's models, how near a landing must end to be drawn flush against one, and how far above
+ *  or below a model's base the landing may rest for it (absent: any height). */
+export interface Abutment { readonly models: readonly PlacedModel[]; readonly within: number; readonly vertical?: number }
 export interface PieceEnd { readonly drawn: Point3; readonly lands: Point3 }
 export type ContactKind = 'on_base' | 'crosses' | 'too_close' | 'in_impassable';
 /** A model on the table (`at` set) or off it; proposed placements go in `contacts`' map. */

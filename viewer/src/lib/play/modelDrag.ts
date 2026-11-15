@@ -35,8 +35,8 @@ export function stationary(p: Projection, held: ReadonlySet<string>, ghosts: Rea
   return out;
 }
 
-/** DragBodies.Abutment: a charge's landing pull, the Ask's ContactWith models where they stand and its ContactGrace; undefined for any other
- *  move (and a disembark). */
+/** DragBodies.Abutment: a charge's landing pull, the Ask's ContactWith models where they stand, its ContactGrace and its ContactVertical (a
+ *  landing resting farther above or below a model's base is not drawn against it); undefined for any other move (and a disembark). */
 export function abutmentOf(p: Projection, region: MoveRegion | null): Abutment | undefined {
   if (region === null || region.contactWith === undefined || region.contactWith.length === 0 || region.contactGrace === undefined || isDisembark(region))
     return undefined;
@@ -45,7 +45,7 @@ export function abutmentOf(p: Projection, region: MoveRegion | null): Abutment |
     const m = p.models.get(id);
     if (m?.location.kind === 'table') models.push({ body: { base: m.slot.base, height: m.slot.height }, placement: m.location.placement });
   }
-  return { models, within: region.contactGrace };
+  return region.contactVertical === undefined ? { models, within: region.contactGrace } : { models, within: region.contactGrace, vertical: region.contactVertical };
 }
 
 /** DragBodies.Grabs: where each picked-up model starts: a proposed model where it is drawn, anything else where the projection has it. */

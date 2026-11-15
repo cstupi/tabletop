@@ -120,6 +120,7 @@ describe('ModelDrag', () => {
       ignoresTerrain: false, contactWith: [rival], contactGrace: 0.5 };
     expect(abutmentOf(p, charge)).toEqual({ models: [{ body: { base: { shape: 'circle', a: 1, b: 1 }, height: 1 }, placement: at(40, 30) }], within: 0.5 });
     const { contactWith: _w, contactGrace: _g, ...advance } = charge;
+    expect(abutmentOf(p, { ...charge, contactVertical: 3 })?.vertical).toBe(3);
     expect(abutmentOf(p, advance)).toBeUndefined();
     expect(abutmentOf(p, { ...charge, containment: { enterable: [], exitingId: rival, exitWithin: 6 } })).toBeUndefined();
     expect(abutmentOf(p, null)).toBeUndefined();

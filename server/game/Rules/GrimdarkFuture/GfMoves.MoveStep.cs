@@ -70,7 +70,8 @@ public static partial class GfMoves
                     var stoppable = !aircraft &&ctx.Rules.ReactionsAt(ctx.State, ctx.Properties, GfNames.BeforeAttacking, ctx.Frame).Any(r => r.TeamId == ctx.ActorTeam);
                     var region = new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null, stoppable,
                         ignoreSeparation || aircraft ? null : GfNames.Separation, rules.PassesImpassable, rules.IgnoresAllTerrain,
-                        contact, contact is null ? null : GfNames.ChargeContactGrace, steep, dangerous, unstable, unstableOver);
+                        contact, contact is null ? null : GfNames.ChargeContactGrace, steep, dangerous, unstable, unstableOver,
+                        ContactVertical: contact is null ? null : GfEdition.Of(ctx.State).MeleeVertical);
                     // p.9: "Charging models must move by up to 12” to get into base contact"; p.7: only when "being within charge distance becomes
                     // impossible" may the unit "complete its move in any direction". So a charge that can still reach contact has no pass.
                     var mayPass = !aircraft && ChargeContactBreach(ctx.State, region, null) is null;

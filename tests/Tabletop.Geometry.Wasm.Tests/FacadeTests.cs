@@ -47,6 +47,15 @@ public class FacadeTests
     }
 
     [Fact]
+    public void LandModels_does_not_draw_a_charger_against_a_target_beyond_the_abutment_s_vertical_reach()
+    {
+        var target = Model(30, 20) with { Placement = new Placement(new Point3(30, 20, 4), new Yaw(0)) };   // 4" above the landing
+        var held = new[] { new HeldModel(Guid.CreateVersion7(), Model(20, 20), new Point2(28.7, 20)) };
+        Assert.Equal(28.7, R<HeldEnd[]>(Facade.LandModels(W(new LandRequest(held, [target], [], [], new Abutment([target], 0.5, 3)))))[0].Lands.X, 9);
+        Assert.Equal(29, R<HeldEnd[]>(Facade.LandModels(W(new LandRequest(held, [target], [], [], new Abutment([target], 0.5, 4)))))[0].Lands.X, 9);
+    }
+
+    [Fact]
     public void LandModels_ignores_volumes_not_named_walls()
     {
         var block = PieceAt(10, 10, Box(4, 4, 0, 3, TerrainDeclarations.Impassable));

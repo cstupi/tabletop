@@ -80,6 +80,10 @@ public static class AgreementCases
         var abut = new Abutment([chargeTarget], 0.5);
         HeldModel[] charging = [new(Id(), Model(20, 20, 0, 1.26), new Point2(28.44, 20.2)), new(Id(), Model(20, 22, 0, 1.26), new Point2(27.5, 22))];
         Add("land_models_abut_a_charge_target", "LandModels", new LandRequest(charging, [chargeTarget], [], [], abut), Land(charging, [chargeTarget], [], abut));
+        // The same target 4" up: beyond a 3" vertical reach the landing is not drawn against it.
+        var raised = chargeTarget with { Placement = chargeTarget.Placement with { Position = chargeTarget.Placement.Position with { Z = 4 } } };
+        var high = new Abutment([raised], 0.5, 3);
+        Add("land_models_abut_beyond_the_vertical_reach", "LandModels", new LandRequest(charging, [raised], [], [], high), Land(charging, [raised], [], high));
 
         // LandPiece, TurnPiece, surfaces, rests: DragBodies.Piece, Turn, Surfaces and the free branch's RestNear.
         PieceEnd LandP(IReadOnlyList<Piece> terrain, Piece piece, Placement at, Point2 to)

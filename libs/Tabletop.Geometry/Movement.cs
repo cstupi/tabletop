@@ -154,6 +154,35 @@ public static class Movement
     }
 
     /// <summary>
+    /// Whether the start has a path within `limit` to a landing in base contact with `target` (ContactDistance) that rests within `vertical` of the
+    /// target's base: the landing on its open surface nearest the target's level (Collision.RestNear, as a move settles a landing sent at that
+    /// level), on one of 16 bearings about the target (ContactPoints, UnitFormation.ContactGap clear), on a path round the impassable volumes and on
+    /// the table. Where no volume near the target has a surface above `vertical` and the target stands within it of the table, every landing is in
+    /// reach and only the plan path is measured.
+    /// </summary>
+    public static bool ContactInReach(PlacedModel start, PlacedModel target, double limit, IReadOnlyList<WorldVolume> impassable, TableSize? table,
+        IReadOnlyList<WorldVolume> volumes, double vertical)
+    {
+        if (ContactDistance(start, target, limit, impassable, table) is null) return false;
+        var level = target.Bottom();
+        var origin = start.Placement.Position.Horizontal;
+        var (centre, bound) = start.BaseOutline().BoundingCircle();
+        var across = 2 * (bound + centre.DistanceTo(origin));                // a landing touching the target lies within this of its base
+        var near = volumes.Where(v => Distance.EdgeToEdge(target, v) <= across + UnitFormation.ContactGap + Tolerance.Distance).ToList();
+        if (level <= vertical + Tolerance.Distance && near.All(v => (v.Volume.Kind == VolumeKind.Solid ? v.WorldTop() : v.WorldBottom()) <= vertical + Tolerance.Distance))
+            return true;
+        var reach = limit + UnitFormation.ContactGap;
+        foreach (var at in ContactPoints(start, target, UnitFormation.ContactGap, 16))
+        {
+            if (origin.DistanceTo(at) > reach + Tolerance.Distance) continue;
+            var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, level) } };
+            if (Math.Abs(Collision.RestNear(there, near, level) - level) > vertical + Tolerance.Distance) continue;
+            if (Check(start, at, reach, impassable, [], null, table) is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Where the start's base (its own facing) stands `gap` clear of the target's base, one point on each of `bearings` directions about the
     /// target's centre: the direction facing the start first, then alternately either side of it. A charge's landings in base contact (p.9);
     /// the caller judges each as a move.

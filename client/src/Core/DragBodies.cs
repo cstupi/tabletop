@@ -30,12 +30,13 @@ public static class DragBodies
         ? volumes.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList()
         : volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
 
-    /// <summary>A charge's landing pull (Collision.Abut): the Ask's ContactWith models where they stand, and its ContactGrace; null for any other
-    /// move (and a disembark, which the server reads as it is).</summary>
+    /// <summary>A charge's landing pull (Collision.Abut): the Ask's ContactWith models where they stand, its ContactGrace and its ContactVertical (a
+    /// landing resting farther above or below a model's base than that is not drawn against it); null for any other move (and a disembark, which the
+    /// server reads as it is).</summary>
     public static Abutment? Abutment(Projection p, MoveRegion? region) =>
         region is { ContactWith: { Count: > 0 } contact, ContactGrace: { } grace } && region.Containment?.ExitingId is null
             ? new Abutment(contact.Where(p.Models.ContainsKey).Select(id => p.Models[id]).Where(m => m.Location is OnTable)
-                .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList(), grace)
+                .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList(), grace, region.ContactVertical)
             : null;
 
     /// <summary>

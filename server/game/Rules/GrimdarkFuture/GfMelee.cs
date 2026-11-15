@@ -210,7 +210,10 @@ public static class GfMelee
     /// <summary>
     /// The enemy units this unit could charge: p.7 "Units may only take a Charge action if at least one model is within charge distance of the
     /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
-    /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target.
+    /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target. A charging model reaches a target model only at a landing in base
+    /// contact within p.9's vertical strike reach of it (Movement.ContactInReach, GfEdition.MeleeVertical; owner ruling: "The fight cant happen if no
+    /// one can strike so the charge should be rejected if nothing would reach the 3" threshold."), the landing resting where a move sent at the
+    /// target's level settles it.
     /// </summary>
     /// <summary>The charge distance at a target: the charger's own, and what the target's rules take from it ("Enemies get -3\" movement to a min. of 6\" when trying
     /// to charge units where all models have this rule").</summary>
@@ -227,6 +230,8 @@ public static class GfMelee
         // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
         var inside = Lookup.ContainerOf(state, unit);
         var own = Lookup.LivingModels(state, unit);
+        var terrain = Battlefield.Terrain(state);
+        var vertical = GfEdition.Of(state).MeleeVertical;
         return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t =>
         {
             var enemies = Lookup.LivingModels(state, t);
@@ -238,7 +243,7 @@ public static class GfMelee
                 ? enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
                 : own.Any(m => enemies.Any(e => Battlefield.Placed(state, m) is { } from && Battlefield.Placed(state, e) is { } to
                     && Battlefield.Distance(state, m, e) <= distance
-                    && Movement.ContactDistance(from, to, distance, impassable, state.Board.Table.Size) is not null));
+                    && Movement.ContactInReach(from, to, distance, impassable, state.Board.Table.Size, terrain, vertical)));
         }).ToList();
     }
 

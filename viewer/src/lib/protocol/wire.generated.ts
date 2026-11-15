@@ -451,6 +451,7 @@ export interface MoveRegion {
   readonly unstableVolumeIds?: readonly string[];
   readonly unstableOver?: number;
   readonly keepAway?: KeepAway;
+  readonly contactVertical?: number;
 }
 
 export interface MoveSetupMarker {

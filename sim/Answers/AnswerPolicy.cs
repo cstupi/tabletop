@@ -145,7 +145,7 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
         // p.9: a charge forms up in base contact and coherency when it can, as the server looks for it (UnitFormation.InContact).
         if (m.ContactWith is { Count: > 0 } && m.Containment?.ExitingId is null && ChargeFormation(m, view) is { } formed)
             return new Destinations(m.ModelIds.Where(formed.ContainsKey)
-                .Select(id => new ModelRelocation(id, view.LocationOf(id), new OnTable(Landing(id, view.PlacedOf(id), formed[id], view).Placement))).ToList());
+                .Select(id => new ModelRelocation(id, view.LocationOf(id), new OnTable(new Placement(formed[id], view.PlacedOf(id)?.Placement.Yaw ?? new Yaw(0))))).ToList());
 
         var impassable = view.VolumesById(m.ImpassableVolumeIds);
         var difficult = view.VolumesById(m.DifficultVolumeIds);

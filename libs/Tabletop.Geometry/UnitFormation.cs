@@ -5,12 +5,13 @@ namespace Tabletop.Geometry;
 /// standing models (none when it passes models), the difficult volumes and their cap (held over the whole unit once one path enters, as p.11
 /// holds it), the table, a landing on no other base and in no landing volume, and the unit's coherency after it (a chain within `Chain`, or
 /// `Elevated` between models at different heights, every model within `Spread` of the rest). `Steep` volumes are difficult for a model whose move
-/// starts outside them (Movement.SteepEntering).
+/// starts outside them (Movement.SteepEntering). `ContactVertical`, when set, holds a contact landing to that height from the target's base, the
+/// landing resting on its open surface nearest the target's level (Collision.RestNear); null judges contact in plan.
 /// </summary>
 public sealed record FormationTerms(double Allowance, IReadOnlyList<WorldVolume> Impassable, IReadOnlyList<WorldVolume> Difficult, double? DifficultCap,
     IReadOnlyList<WorldVolume> Landing, IReadOnlyList<WorldVolume> Volumes, TableSize Table, IReadOnlyList<PlacedModel> Standing, bool PassesModels,
     double Chain, double Elevated, double Spread, IReadOnlyList<WorldVolume>? Steep = null,
-    IReadOnlyList<PlacedModel>? Apart = null, double Separation = 0);
+    IReadOnlyList<PlacedModel>? Apart = null, double Separation = 0, double? ContactVertical = null);
 
 /// <summary>
 /// A unit moved together: one model to a chosen landing and the rest formed up on it. Deterministic, so whoever asks gets the same answer: the
@@ -32,9 +33,11 @@ public static class UnitFormation
     /// The unit (`unit`, every model on the table, in order) with one model in base contact with a `targets` model and every model's move within
     /// the terms, or null when the attempts find none. Leads are tried nearest a target first, each at the first trial landing in contact
     /// (Movement.ContactPoints, ContactGap clear) its own move reaches, against each target nearest first, up to `Attempts` landings; each is
-    /// formed up on (Follow). `members` are the unit's models that do not move, held where they stand for coherency.
+    /// formed up on (Follow). `members` are the unit's models that do not move, held where they stand for coherency. With `ContactVertical` the
+    /// lead rests on its open surface nearest the target's level, and a landing whose rest is farther than that from the target's base is no
+    /// contact. Each landing is given with the height it rests at.
     /// </summary>
-    public static IReadOnlyDictionary<Guid, Point2>? InContact(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members,
+    public static IReadOnlyDictionary<Guid, Point3>? InContact(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members,
         IReadOnlyList<PlacedModel> targets, FormationTerms t)
     {
         var tries = 0;
@@ -42,10 +45,12 @@ public static class UnitFormation
             foreach (var target in targets.OrderBy(x => Distance.EdgeToEdge(lead.Start, x)))
             {
                 if (Movement.ContactDistance(lead.Start, target, t.Allowance, t.Impassable, t.Table) is null) continue;
+                double? level = t.ContactVertical is null ? null : target.Bottom();
                 foreach (var at in Movement.ContactPoints(lead.Start, target, ContactGap))
                 {
-                    if (!Fits(lead.Start, at, t, [])) continue;
-                    if (Follow(unit, members, lead.Id, at, t) is { } formed) return formed;
+                    if (t.ContactVertical is { } reach && Math.Abs(Rest(lead.Start, at, t, level).Bottom() - target.Bottom()) > reach + Tolerance.Distance) continue;
+                    if (!Fits(lead.Start, at, t, [], level)) continue;
+                    if (Follow(unit, members, lead.Id, at, t, level) is { } formed) return formed;
                     if (++tries >= Attempts) return null;
                     break;
                 }
@@ -56,15 +61,16 @@ public static class UnitFormation
     /// <summary>
     /// The lead at `leadAt`, and each other model in order at the first landing its move reaches: its start moved as the lead moved, else beside a
     /// model already placed (the newest first) or a standing member, at each of Gaps on 16 bearings (Movement.ContactPoints, the side facing the
-    /// model first). Null when a model has nowhere, the unit is out of coherency, or the difficult cap over the unit is broken.
+    /// model first). Null when a model has nowhere, the unit is out of coherency, or the difficult cap over the unit is broken. The lead rests on
+    /// its open surface nearest `leadLevel` (the highest when null), every other model on its highest.
     /// </summary>
-    public static IReadOnlyDictionary<Guid, Point2>? Follow(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members, Guid lead,
-        Point2 leadAt, FormationTerms t)
+    public static IReadOnlyDictionary<Guid, Point3>? Follow(IReadOnlyList<(Guid Id, PlacedModel Start)> unit, IReadOnlyList<PlacedModel> members, Guid lead,
+        Point2 leadAt, FormationTerms t, double? leadLevel = null)
     {
         var start = unit.Single(u => u.Id == lead).Start;
         var shift = leadAt - start.Placement.Position.Horizontal;
         var result = new Dictionary<Guid, Point2> { [lead] = leadAt };
-        var placed = new List<PlacedModel> { Rest(start, leadAt, t) };
+        var placed = new List<PlacedModel> { Rest(start, leadAt, t, leadLevel) };
         foreach (var (id, from) in unit.Where(u => u.Id != lead))
         {
             var moved = from.Placement.Position.Horizontal + shift;
@@ -82,13 +88,16 @@ public static class UnitFormation
             var paths = unit.Select(u => Path(u.Start, result[u.Id], t, t.Allowance, t.Difficult, cap, t.Steep)).ToList();
             if (paths.Any(p => p.EntersDifficult) && unit.Any(u => Path(u.Start, result[u.Id], t, cap, [], null, null).Distance > cap + Tolerance.Distance)) return null;
         }
-        return result;
+        var rests = placed.Zip(unit.Where(u => u.Id != lead).Select(u => u.Id).Prepend(lead)).ToDictionary(x => x.Second, x => x.First.Bottom());
+        return result.ToDictionary(kv => kv.Key, kv => new Point3(kv.Value.X, kv.Value.Y, rests[kv.Key]));
     }
 
-    static PlacedModel Rest(PlacedModel start, Point2 at, FormationTerms t)
+    /// <summary>The body at a point, rested on its highest surface there, or with a `level` on its open surface nearest it (Collision.RestNear).</summary>
+    static PlacedModel Rest(PlacedModel start, Point2 at, FormationTerms t, double? level = null)
     {
         var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, 0) } };
-        return there with { Placement = there.Placement with { Position = new Point3(at.X, at.Y, Collision.RestHeight(there, t.Volumes)) } };
+        var z = level is { } l ? Collision.RestNear(there, t.Volumes, l) : Collision.RestHeight(there, t.Volumes);
+        return there with { Placement = there.Placement with { Position = new Point3(at.X, at.Y, z) } };
     }
 
     static MoveCheck Path(PlacedModel start, Point2 to, FormationTerms t, double allowance, IReadOnlyList<WorldVolume> difficult, double? cap, IReadOnlyList<WorldVolume>? steep) =>
@@ -96,9 +105,9 @@ public static class UnitFormation
 
     /// <summary>One model's landing: on no standing or placed base, in no landing volume, on a path within the allowance (and cap) that goes round
     /// what it may not pass and stays on the table.</summary>
-    static bool Fits(PlacedModel start, Point2 at, FormationTerms t, IReadOnlyList<PlacedModel> placed)
+    static bool Fits(PlacedModel start, Point2 at, FormationTerms t, IReadOnlyList<PlacedModel> placed, double? level = null)
     {
-        var landed = Rest(start, at, t);
+        var landed = Rest(start, at, t, level);
         if (t.Standing.Any(o => Overlap.Bases(landed, o)) || placed.Any(o => Overlap.Bases(landed, o))) return false;
         if (t.Apart is { } apart && apart.Any(o => Distance.BodyToBody(landed, o) < t.Separation - 1e-6)) return false;   // other units' models a landing keeps Separation from
         if (t.Landing.Count > 0 && Movement.Check(landed, at, 0, t.Landing, [], null, null).CrossesImpassable) return false;
