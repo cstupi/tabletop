@@ -32,6 +32,7 @@
   import { intentOf, textFocused } from './keys';
   import { isWatching } from './waiting';
   import { RangeRingCache, ringsOverlay, type RingLayer } from './rangeRings';
+  import { sheetFocusOf, teamOf } from './sheetFocus';
   import { midDeploy } from './deployView';
   import { KeepAwayCache, keepAwayFor, SHADE, SHADE_WORDS } from './keepAwayArea';
   import { AllThreatCache, ThreatRingCache, pinnedThreat, shownThreats } from './threatRings';
@@ -224,11 +225,12 @@
   // D4: range rings for my selected unit when V has them on (RangeRingNode).
   const ringCache = new RangeRingCache();
   const rangeLayer = $derived.by((): RingLayer | null => {
-    const p = shown, game = snap?.game, unit = selection?.pieceId;
-    if (!settings.rangeRings || geometry === null || p === null || game == null || unit === undefined) return null;
-    const u = p.units.get(unit);
-    const team = u === undefined ? undefined : game.participants.find((x) => x.id === u.participantId)?.teamId;
-    if (team === undefined || team !== actingTeam) return null;                  // mine only
+    const p = shown, game = snap?.game;
+    if (!settings.rangeRings || geometry === null || p === null || game == null || actingTeam == null) return null;
+    // mine only: my selected unit, else my team's activating unit with nothing selected (RangeRings.UnitFor)
+    const unit = sheetFocusOf(p, game, actingTeam, selection?.pieceId ?? null);
+    const team = unit === null ? undefined : teamOf(p, game, unit)?.id;
+    if (unit === null || team !== actingTeam) return null;
     const ordinal = game.teams.find((t) => t.id === team)?.ordinal ?? 1;
     return { rings: ringCache.of(geometry, p, unit), colour: teamColour(ordinal) };
   });

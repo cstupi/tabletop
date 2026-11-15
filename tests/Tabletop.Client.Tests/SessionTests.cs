@@ -30,6 +30,25 @@ public class SessionTests : IDisposable
     public void Dispose() => Directory.Delete(_dir, true);
 
     async Task LoggedIn() { _http.Answer(HttpStatusCode.OK, new SessionResponse(Jwt1, Clay)); await _s.LoginWithPasswordAsync("c@example.com", "pw"); }
+    /// <summary>The owner, 2026-11-14: "the team of 2 was unable to select their unit and see its range". The second player on a team, whose
+    /// teammate brought the army: the team is theirs, they are not watching, and the teammate's unit is one they get weapon ranges for.</summary>
+    [Fact]
+    public async Task The_second_player_on_a_team_plays_its_units()
+    {
+        await LoggedIn();
+        var mate = Guid.CreateVersion7();
+        var game = Game with { Status = GameStatus.Playing, Participants = [.. Game.Participants, new Participant(mate, Guid.CreateVersion7(), "Mate", Samples.Team1, null)] };
+        await _s.ConnectAsync(game.Id);
+        var sock = _sockets.Last;
+        sock.Deliver(new Welcome(mate, game));
+        sock.Deliver(new BoardMessage(Samples.Board));
+        sock.Deliver(new EventsMessage([new GameEvent(1, Samples.P1, new ScoreSet(Samples.Team1, 1), null)]));
+        Assert.Equal([Samples.Team1], _s.MyTeamIds);
+        Assert.Equal(((Guid?)Samples.Team1, false), (_s.MyTeamId, _s.IsWatching));
+        Assert.Equal(Samples.Team1, new Names(_s.Game!, _s.Projection!).TeamOfUnit(Samples.Unit));
+        Assert.Equal(Samples.Unit, RangeRings.UnitFor(_s.Projection!, _s.Game!, _s.MyTeamId, Samples.Unit));
+    }
+
     async Task<FakeGameSocket> ConnectedAtPlaying()
     {
         await LoggedIn();
