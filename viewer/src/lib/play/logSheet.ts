@@ -1,6 +1,6 @@
 // viewer/src/lib/play/logSheet.ts
 // client/src/Core/LogSheet.cs and LogSheet.Detail.cs: the log as plain text, what the panel draws and what a copy holds, one entry per
-// paragraph. The summary gives each entry one line (an attack `{unit} → {target}  H: {hits}  W: {wounds}  Cover: Y/N`); the detailed log
+// paragraph. The summary gives each entry one line (an attack `{unit} → {target}  H: {hits}  W: {wounds}`, then `  with cover` when cover applied); the detailed log
 // gives an attack 1–6 tables of its faces, each block's modifiers over its table and `H: X  W: Y`. Words come from the log's entries.
 
 import type { RollModifier, RollRecord } from '../protocol/wire.generated';
@@ -76,7 +76,7 @@ function totals(group: readonly RollEntry[]): Totals {
 
 function attackSummary(group: readonly RollEntry[]): string[] {
   const t = totals(group);
-  return [`${who(group[0]!.inAttack!)}  H: ${t.hits}  W: ${t.wounds}  Cover: ${t.cover ? 'Y' : 'N'}`, ...group.filter(perWound).map((r) => rollLine(r, null))];
+  return [`${who(group[0]!.inAttack!)}  H: ${t.hits}  W: ${t.wounds}${t.cover ? '  with cover' : ''}`, ...group.filter(perWound).map((r) => rollLine(r, null))];
 }
 
 /** The unit a test is for, ahead of its line, when it is not the block's actor. */

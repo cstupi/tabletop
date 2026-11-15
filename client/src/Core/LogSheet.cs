@@ -13,7 +13,7 @@ public sealed record LogParagraph(LogEntry Entry, IReadOnlyList<LogEntry> Entrie
 /// <summary>
 /// The log as plain text (combat-log spec → The log's text; detailed-log spec): what both panels draw and what a copy holds, one entry per
 /// paragraph. The summary gives each entry one line: a block's header, a change line as CombatLog words it, an attack as
-/// `{unit} → {target}  H: {hits}  W: {wounds}  Cover: Y/N` (with the attack's rolls per wound under it), any other roll as
+/// `{unit} → {target}  H: {hits}  W: {wounds}`, then `  with cover` when cover applied (with the attack's rolls per wound under it), any other roll as
 /// `{Label} {target}: rolled {faces}, {result}`. The detailed log gives an attack its weapons, a 1–6 table of the faces per roll, a table per
 /// reroll and per rule a face set off, the hits, each block's modifiers over its table, and `H: X  W: Y`; any other roll its target, its
 /// faces and its result; a change line each model. Words come from CombatLog's entries; no rule is named here.
@@ -91,7 +91,7 @@ public static partial class LogSheet
     static IReadOnlyList<string> AttackSummary(IReadOnlyList<RollEntry> group)
     {
         var t = Sum(group);
-        return [$"{Who(group[0].InAttack!)}  H: {t.Hits}  W: {t.Wounds}  Cover: {(t.Cover ? "Y" : "N")}", .. group.Where(PerWound).Select(r => RollLine(r, null))];
+        return [$"{Who(group[0].InAttack!)}  H: {t.Hits}  W: {t.Wounds}{(t.Cover ? "  with cover" : "")}", .. group.Where(PerWound).Select(r => RollLine(r, null))];
     }
 
     /// <summary>The unit a test is for, ahead of its line, when it is not the block's actor: `Blue unit 1 · `.</summary>

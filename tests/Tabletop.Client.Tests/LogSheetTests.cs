@@ -54,7 +54,7 @@ public class LogSheetTests
         Assert.Equal(3, lines.Length);
         Assert.Equal("Round 1", lines[0]);
         Assert.StartsWith($"R1 · Team 1 · {Unit} · Hold", lines[1]);
-        Assert.Equal($"  {Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 4  Cover: Y", lines[2]);
+        Assert.Equal($"  {Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 4  with cover", lines[2]);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class LogSheetTests
         var events = Shooting(Hit, Block);
         events[7] = new StepCompleted(F(4), "assign", null, [regen], []);
         var summary = LogSheet.Of(Build(events), false).Single(p => p.Entries.Count == 3).Lines;
-        Assert.Equal($"{Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 3  Cover: Y", summary[0]);
+        Assert.Equal($"{Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 3  with cover", summary[0]);
         Assert.Equal("Regeneration 5+: rolled 6 2 3 1, 1 ignored, 3 wounds stand", summary[1]);
         var detailed = LogSheet.Of(Build(events), true).Single(p => p.Entries.Count == 3).Lines;
         Assert.Contains("Regeneration · 5+ (4 wounds)", detailed);
@@ -128,7 +128,7 @@ public class LogSheetTests
     {
         var events = Shooting(Hit, Block);   // four blocks fail
         events[7] = new StepCompleted(F(4), "assign", null, [], []) { Values = new Dictionary<string, int> { ["wound_multiplier"] = 3 } };
-        Assert.Equal($"{Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 12  Cover: Y", LogSheet.Of(Build(events), false).Single(p => p.Entries.Count == 2).Lines[0]);
+        Assert.Equal($"{Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 12  with cover", LogSheet.Of(Build(events), false).Single(p => p.Entries.Count == 2).Lines[0]);
         Assert.Contains("Wounds ×3", LogSheet.Of(Build(events), true).Single(p => p.Entries.Count == 2).Lines);
 
         var regen = Roll("Regeneration", 5, [], [D(6, true), D(5, true), D(2, false)]);
@@ -136,7 +136,7 @@ public class LogSheetTests
         events[7] = new StepCompleted(F(4), "assign", null, [regen], []);
         var after = new StepCompleted(F(4), "assign", null, [], []) { Values = new Dictionary<string, int> { ["wound_multiplier"] = 3 } };
         var summary = LogSheet.Of(Build([.. events[..8], after, .. events[8..]]), false).Single(p => p.Entries.Count == 3).Lines;
-        Assert.Contains("H: 7  W: 10  Cover: Y", summary[0]);
+        Assert.Contains("H: 7  W: 10  with cover", summary[0]);
     }
 
     [Fact]

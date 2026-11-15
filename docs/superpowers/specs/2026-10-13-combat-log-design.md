@@ -41,11 +41,11 @@ R2 · Team 1 · [unit] · Hold → shoots [target]
 block, the wounds dealt and the cover verdict:
 
 ```
-Shooter Mob → Death Walkers  H: 19  W: 9  Cover: Y
-Brute Mob → Death Walkers (melee)  H: 7  W: 3  Cover: N
-Red unit 1 → Blue unit 1 (Impact)  H: 2  W: 1  Cover: N
-Daemons of Change unit 1 → Targets unit 1 (Mutating Inferno)  H: 3  W: 2  Cover: N
-Red unit 1 → Blue unit 1  H: 7  W: 3  Cover: Y
+Shooter Mob → Death Walkers  H: 19  W: 9  with cover
+Brute Mob → Death Walkers (melee)  H: 7  W: 3
+Red unit 1 → Blue unit 1 (Impact)  H: 2  W: 1
+Daemons of Change unit 1 → Targets unit 1 (Mutating Inferno)  H: 3  W: 2
+Red unit 1 → Blue unit 1  H: 7  W: 3  with cover
 Regeneration 5+: rolled 6 2 3 1, 1 ignored, 3 wounds stand
 ```
 

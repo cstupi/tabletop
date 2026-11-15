@@ -40,12 +40,12 @@ describe('logSheet', () => {
 
   it('an attack in the summary is one line of hits, wounds and cover', () => {
     const lines = sheetOf(entriesOf('worked'), false).flatMap((p) => p.lines);
-    expect(lines).toContain('Marksmen → Blue unit 1  H: 2  W: 2  Cover: Y');
+    expect(lines).toContain('Marksmen → Blue unit 1  H: 2  W: 2  with cover');
   });
 
   it('a Deadly attack counts each unblocked wound times what the server multiplied it by', () => {
     const entries = entriesOf('deadly');
-    expect(sheetOf(entries, false).flatMap((p) => p.lines)).toContain('Red unit 1 → Blue unit 2  H: 2  W: 3  Cover: N');
+    expect(sheetOf(entries, false).flatMap((p) => p.lines)).toContain('Red unit 1 → Blue unit 2  H: 2  W: 3');
     const detailed = sheetOf(entries, true).find((p) => p.lines.includes('Wounds ×3'))!;
     expect(detailed.lines).toContain('H: 2  W: 3');
   });
