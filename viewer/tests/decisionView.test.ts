@@ -69,6 +69,9 @@ describe('DecisionView', () => {
     const other = newId();
     const options = { kind: 'options', choices: [option('a', 'Advance', [s.squad.id]), option('h', 'Hold', [s.squad.id]), option('s', 'Strike', [other])] } as const;
     expect([...clickAnswers(options)]).toEqual([other]);
+    expect([...clickAnswers(options, 'activate')]).toEqual([]);            // picking a unit to activate is never a click's answer
+    expect([...clickAnswers(options, 'act_or_end_phase')]).toEqual([]);
+    expect([...clickAnswers(options, 'charge_target')]).toEqual([other]);
   });
 
   it('a unit narrows the box to its choices numbered from one', () => {

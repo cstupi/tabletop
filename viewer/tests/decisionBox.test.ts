@@ -106,7 +106,7 @@ describe('the decision box controller', () => {
 
   it('a click on a piece one choice names answers it', () => {
     const r = rig();
-    const ask = askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id]), option('s', 'Strike', [r.s.rivals.id])));
+    const ask = askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id]), option('s', 'Strike', [r.s.rivals.id])), { question: 'charge_target' });
     r.apply(open(ask));
     r.box.render();
     expect([...r.box.eligible]).toEqual([r.s.rivals.id]);
@@ -114,6 +114,15 @@ describe('the decision box controller', () => {
     expect(r.sent).toHaveLength(0);
     r.box.target(r.s.rival.id);
     expect(answerOf(r.sent[0]!)).toEqual({ kind: 'chosen', optionId: 's' });
+  });
+
+  it('picking a unit to activate is never answered by a click on it, even with one action', () => {
+    const r = rig();
+    r.apply(open(askOf(opts(option('a', 'Advance', [r.s.squad.id]), option('h', 'Hold', [r.s.squad.id]), option('i', 'Idle', [r.s.rivals.id])))));   // question: activate
+    r.box.render();
+    expect([...r.box.eligible]).toEqual([]);
+    r.box.target(r.s.rival.id);
+    expect(r.sent).toHaveLength(0);
   });
 
   it('a unit several choices name narrows the box, renumbered, and Esc widens it', () => {

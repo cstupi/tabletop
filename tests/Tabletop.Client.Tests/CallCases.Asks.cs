@@ -85,12 +85,12 @@ public static partial class CallCases
                             answerOf: _ => ch);
                     if (take("choose/clickNone"))
                         yield return Make("choose/clickNone", Choice("click", ("pieceId", S(picked.Pieces[0]))),
-                            s => AskAnswers.ChosenByClick(o, s.P!, picked.Pieces[0]) is { } hit ? Send(s, hit) : null);
+                            s => AskAnswers.ChosenByClick(o, s.P!, picked.Pieces[0], ask.Question) is { } hit ? Send(s, hit) : null);
                 }
-                else if (picked.Pieces.FirstOrDefault(pc => AskAnswers.ChosenByClick(o, CallState.Playing(log, upTo, player).P!, pc)?.OptionId == ch.OptionId) is var piece && piece != Guid.Empty
+                else if (picked.Pieces.FirstOrDefault(pc => AskAnswers.ChosenByClick(o, CallState.Playing(log, upTo, player).P!, pc, ask.Question)?.OptionId == ch.OptionId) is var piece && piece != Guid.Empty
                     && take("choose/click"))
                     yield return Make("choose/click", Choice("click", ("pieceId", S(piece))),
-                        s => AskAnswers.ChosenByClick(o, s.P!, piece) is { } hit ? Send(s, hit) : null, answerOf: _ => ch);
+                        s => AskAnswers.ChosenByClick(o, s.P!, piece, ask.Question) is { } hit ? Send(s, hit) : null, answerOf: _ => ch);
                 break;
 
             case (_, Passed) when ask.AllowPass:

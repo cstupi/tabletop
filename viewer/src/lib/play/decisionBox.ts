@@ -340,8 +340,9 @@ export class DecisionBox {
     };
     show(all, full);
     this.handlers.onNumber = (option) => this.#send(mine.ask, { kind: 'chosen', optionId: option });
-    this.#eligible = clickAnswers(options);
+    this.#eligible = clickAnswers(options, mine.ask.question);
     this.handlers.onTarget = (clicked) => {
+      if (this.#eligible.size === 0) return;
       const hits = all.filter((c) => this.#resolve(clicked, c.pieces) !== null);
       if (hits.length === 1) this.#send(mine.ask, { kind: 'chosen', optionId: hits[0]!.id });
     };

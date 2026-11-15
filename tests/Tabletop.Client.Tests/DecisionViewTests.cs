@@ -92,6 +92,19 @@ public class DecisionViewTests
         Assert.Equal([other], DecisionView.ClickAnswers(options));
     }
 
+    /// <summary>The owner, 2026-11-14: "Selecting a unit shouldnt automatically execute idle (unshake them) it needs to be explicit like every
+    /// other action". Picking a unit to activate never answers by a click on it, even when it has one action (a Shaken unit's Idle): the
+    /// click selects it and narrows the box, and the action is its button.</summary>
+    [Fact]
+    public void A_click_never_answers_which_unit_to_activate()
+    {
+        var other = Guid.CreateVersion7();
+        var options = new Options([new AskOption("a", "Advance", [Samples.Unit]), new AskOption("h", "Hold", [Samples.Unit]), new AskOption("i", "Idle", [other])]);
+        Assert.Empty(DecisionView.ClickAnswers(options, AskQuestions.Activate));
+        Assert.Empty(DecisionView.ClickAnswers(options, AskQuestions.ActOrEndPhase));
+        Assert.Equal([other], DecisionView.ClickAnswers(options, "charge_target"));
+    }
+
     [Fact]
     public void A_unit_narrows_the_box_to_its_choices_numbered_from_one()
     {

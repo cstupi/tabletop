@@ -45,7 +45,9 @@ export function number(choices: readonly AskOption[]): Numbered[] { return keys(
  * The pieces a table click answers with: those exactly one choice names. A piece several choices name (activate: one option per unit and
  * action) cannot answer; a click on it selects the unit and narrows the box (choicesOf).
  */
-export function clickAnswers(options: Options): Set<string> {
+export function clickAnswers(options: Options, question?: string): Set<string> {
+  // Picking a unit to activate never answers by a click: a unit with one action (a Shaken unit's Idle) is selected, and the action is its button.
+  if (question === 'activate' || question === 'act_or_end_phase') return new Set();
   const counts = new Map<string, number>();
   for (const c of options.choices) for (const id of new Set(c.pieces)) counts.set(id, (counts.get(id) ?? 0) + 1);
   return new Set([...counts].filter(([, count]) => count === 1).map(([id]) => id));

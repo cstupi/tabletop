@@ -301,10 +301,10 @@ public partial class DecisionBox : PanelContainer
         }
         Show(all, full);
         _onNumber = option => Send(mine.Ask, new Chosen(option));
-        _input.Eligible = DecisionView.ClickAnswers(options);
+        _input.Eligible = DecisionView.ClickAnswers(options, mine.Ask.Question);
         _onTarget = clicked =>
         {
-            if (_s.Projection is { } p && AskAnswers.ChosenByClick(options, p, clicked) is { } chosen) Send(mine.Ask, chosen);
+            if (_s.Projection is { } p && AskAnswers.ChosenByClick(options, p, clicked, mine.Ask.Question) is { } chosen) Send(mine.Ask, chosen);
         };
         _onUnit = unit =>
         {

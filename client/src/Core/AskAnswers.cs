@@ -29,6 +29,11 @@ public static class AskAnswers
         return hits.Count == 1 ? new Chosen(hits[0].Id) : null;
     }
 
+    /// <summary><see cref="ChosenByClick(Options, Projection, Guid)"/> for an Ask: nothing when it picks a unit to activate (DecisionView.ClickAnswers),
+    /// where a click selects the unit and its action is a button.</summary>
+    public static Chosen? ChosenByClick(Options options, Projection p, Guid clicked, string question) =>
+        question is AskQuestions.Activate or AskQuestions.ActOrEndPhase ? null : ChosenByClick(options, p, clicked);
+
     public static TokensSpent Spent(IReadOnlyDictionary<Guid, int> values) =>
         new(values.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value));
 

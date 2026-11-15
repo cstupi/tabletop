@@ -50,6 +50,11 @@ public static class DecisionView
     public static IReadOnlySet<Guid> ClickAnswers(Options options) =>
         options.Choices.SelectMany(c => c.Pieces.Distinct()).GroupBy(id => id).Where(g => g.Count() == 1).Select(g => g.Key).ToHashSet();
 
+    /// <summary><see cref="ClickAnswers(Options)"/> for an Ask: none when it picks a unit to activate (activate, act_or_end_phase). A unit
+    /// with one action there (a Shaken unit's Idle) is selected by the click like any other, and the action is its button.</summary>
+    public static IReadOnlySet<Guid> ClickAnswers(Options options, string question) =>
+        question is AskQuestions.Activate or AskQuestions.ActOrEndPhase ? new HashSet<Guid>() : ClickAnswers(options);
+
     /// <summary>The choices that name a unit, by its id or one of its models' ids, in their order.</summary>
     public static IReadOnlyList<AskOption> ChoicesOf(Options options, Projection p, Guid unitId) =>
         options.Choices.Where(c => c.Pieces.Any(id => id == unitId || p.Models.GetValueOrDefault(id)?.UnitId == unitId)).ToList();
