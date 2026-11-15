@@ -123,7 +123,7 @@ team_id)`). Units, armies and turns keep their participant, so nothing in the ru
   socket cap (4) closes the oldest.
 - The client acts for the team of the first Ask waiting on one of its teams (`Seats.Acting`): the
   decision box and the game-over modal say "Playing as Team 2", and the roster, unit card and
-  camera follow that team.
+  camera follow that team; the camera goes to the team's side only between activations, never on the Asks inside one.
 
 ## What a unit in play records
 

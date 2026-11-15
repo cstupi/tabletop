@@ -77,3 +77,77 @@ public class CameraFocusTests
         Assert.Null(CameraFocus.FollowTarget(TableUx.Events(Start(TableUx.Reserve.Id, "Advance")), p));   // nothing on the table
     }
 }
+
+/// <summary>The recorded 3.6 charge into spears (viewer/tests/fixtures/log/spears.*): two charges, each with Impact, a melee, wounds to
+/// allocate, strike back, a morale test and consolidation, the Asks passing between the teams. Played one event a batch, as the follow
+/// sees them, by a client holding both teams (Seats.Acting over both).</summary>
+public class CameraFollowMeleeTests
+{
+    sealed record Move(long Seq, string Kind, Point3 At);
+    sealed record Played(List<Move> Moves, List<(long Seq, Guid? Acting)> Acting, Dictionary<long, Point3> MeleeMiddle, IReadOnlyList<GameEvent> Log);
+
+    static Played Play()
+    {
+        var dir = Path.Combine(Root(), "viewer", "tests", "fixtures", "log");
+        var game = ((Welcome)WireJson.Deserialize(File.ReadAllText(Path.Combine(dir, "spears.welcome.json")))).Game;
+        var board = ((BoardMessage)WireJson.Deserialize(File.ReadAllText(Path.Combine(dir, "spears.board.json")))).Board;
+        var events = ((EventsMessage)WireJson.Deserialize(File.ReadAllText(Path.Combine(dir, "spears.events.json")))).Events;
+        var mine = game.Teams.OrderBy(t => t.Ordinal).Select(t => t.Id).ToList();
+        var applier = new EventApplier(board, game); Guid? acting = null;
+        var played = new Played([], [], [], applier.Log);
+        foreach (var e in events)
+        {
+            applier.Apply(e); var p = applier.Projection; GameEvent[] batch = [e];
+            if (e.Payload is SequenceStarted { Sequence: "melee", Context: { ActorUnitId: { } actor } c })
+            {
+                var at = p.Models.Values.Where(m => m.UnitId == actor || c.TargetUnitIds.Contains(m.UnitId)).Select(m => m.Location).OfType<OnTable>().Select(o => o.Placement.Position).ToList();
+                played.MeleeMiddle[e.Seq] = new(at.Average(q => q.X), at.Average(q => q.Y), at.Average(q => q.Z));
+            }
+            if (CameraFocus.FollowTarget(batch, p) is { } to) played.Moves.Add(new(e.Seq, "follow", to));
+            var now = Seats.Acting(p, mine, applier.Log);
+            if (CameraFocus.SideOnSwitch(p, game, acting, now) is { } side) played.Moves.Add(new(e.Seq, "side", side));
+            played.Acting.Add((e.Seq, now)); acting = now;
+        }
+        return played;
+    }
+
+    static string Root()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "Tabletop.sln"))) return dir.FullName;
+        throw new InvalidOperationException("Tabletop.sln not found above " + AppContext.BaseDirectory);
+    }
+
+    /// <summary>Each melee: from its frame's start to the end of the charge, the camera moves once, at the start, to the middle of the
+    /// charging and charged units. The acting team changes several times in that span (the camera used to go to that team's whole army on
+    /// each change) and the morale test is an action frame of the defender (the camera used to glide to it).</summary>
+    [Fact]
+    public void A_melee_is_framed_once_at_its_start_and_the_camera_stays_through_its_asks_and_morale()
+    {
+        var run = Play();
+        Assert.Equal(2, run.MeleeMiddle.Count);
+        foreach (var (start, middle) in run.MeleeMiddle)
+        {
+            var charge = run.Log.Last(e => e.Seq < start && e.Payload is SequenceStarted { Sequence: "charge" });
+            var end = run.Log.First(e => e.Payload is SequenceFinished f && f.FrameId == ((SequenceStarted)charge.Payload).FrameId).Seq;
+            Assert.True(run.Acting.Where(a => a.Seq > start && a.Seq < end).Select(a => a.Acting).Distinct().Count() > 1);
+            Assert.Contains(run.Log, e => e.Seq > start && e.Seq < end && e.Payload is SequenceStarted { Sequence: "morale-test", Context.Action: not null });
+
+            var moves = run.Moves.Where(m => m.Seq >= start && m.Seq <= end).ToList();
+            var only = Assert.Single(moves);
+            Assert.Equal((start, "follow"), (only.Seq, only.Kind));
+            Assert.Equal(middle, only.At);
+        }
+    }
+
+    /// <summary>Between activations the camera still follows: each activation's own frame glides to its actor, and a change of acting
+    /// team with no frame open goes to that team's side.</summary>
+    [Fact]
+    public void Activations_and_turns_still_move_the_camera()
+    {
+        var run = Play();
+        foreach (var e in run.Log.Where(e => e.Payload is SequenceStarted { Sequence: "charge" or "hold" }))
+            Assert.Contains(run.Moves, m => m.Seq == e.Seq && m.Kind == "follow");
+        Assert.Contains(run.Moves, m => m.Kind == "side");
+    }
+}

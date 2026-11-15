@@ -42,11 +42,7 @@ public static class CameraFocus
     /// <summary>End's pitch: the markers hide so the sight check stays clean.</summary>
     public static bool TableLevel(double pitch) => pitch < TableLevelPitch;
 
-    public static Point3? Centroid(Projection p, Guid unitId)
-    {
-        var at = p.Models.Values.Where(m => m.UnitId == unitId).Select(m => m.Location).OfType<OnTable>().Select(o => o.Placement.Position).ToList();
-        return at.Count == 0 ? null : new Point3(at.Average(q => q.X), at.Average(q => q.Y), at.Average(q => q.Z));
-    }
+    public static Point3? Centroid(Projection p, Guid unitId) => Centroid(p, [unitId]);
 
     /// <summary>Where the camera goes when a client holding several teams starts acting for another (Seats.Acting): that team's units on the
     /// table, else the middle of its deployment zone, else nowhere.</summary>
@@ -63,7 +59,51 @@ public static class CameraFocus
         return corners.Count == 0 ? null : new Point3(corners.Average(c => c.X), corners.Average(c => c.Y), 0);
     }
 
-    /// <summary>Where follow glides: the actor of the last action frame (SequenceStarted with an action) the batch starts.</summary>
-    public static Point3? FollowTarget(IReadOnlyList<GameEvent> batch, Projection p) =>
-        batch.Select(e => e.Payload).OfType<SequenceStarted>().LastOrDefault(s => s.Context is { Action: not null, ActorUnitId: not null }) is { } s ? Centroid(p, s.Context.ActorUnitId!.Value) : null;
+    /// <summary>Where follow glides after a batch: to the last frame the batch starts that is an activation's own action frame (an
+    /// action and an actor, no frame open under it), at its actor; or a melee frame, at the charging and charged units together. The frames
+    /// nested in an activation (attacks, strike back, morale, wounds) leave the camera where it is, so a melee stays framed to its end.</summary>
+    public static Point3? FollowTarget(IReadOnlyList<GameEvent> batch, Projection p)
+    {
+        var open = OpenBefore(batch, p); Point3? at = null;
+        foreach (var e in batch)
+            switch (e.Payload)
+            {
+                case SequenceStarted { Context: { Action: not null, ActorUnitId: { } actor } c } s when open.Count == 0 || s.Sequence == MeleeSequence:
+                    at = s.Sequence == MeleeSequence ? Centroid(p, [actor, .. c.TargetUnitIds]) : Centroid(p, actor);
+                    open.Add(s.FrameId); break;
+                case SequenceStarted s: open.Add(s.FrameId); break;
+                case SequenceFinished f: Close(open, f.FrameId); break;
+                case SequenceAbandoned f: Close(open, f.FrameId); break;
+            }
+        return at;
+    }
+
+    const string MeleeSequence = "melee";
+
+    /// <summary>Playing several teams: where the camera goes when the acting team changes (TeamSide), but only between activations. Inside
+    /// a frame the Asks pass between the teams (wounds to allocate, strike back, a defender's move, consolidation) and the camera stays.</summary>
+    public static Point3? SideOnSwitch(Projection p, GameInfo game, Guid? was, Guid? acting, ZoneLegs? legs = null) =>
+        acting is { } team && acting != was && p.Stack.Count == 0 ? TeamSide(p, game, team, legs) : null;
+
+    /// <summary>The frames open before the batch: the projection's stack after it, with the batch's frames taken back off.</summary>
+    static List<Guid> OpenBefore(IReadOnlyList<GameEvent> batch, Projection p)
+    {
+        var open = p.Stack.Select(f => f.Id).ToList();
+        for (var i = batch.Count - 1; i >= 0; i--)
+            switch (batch[i].Payload)
+            {
+                case SequenceStarted s: open.Remove(s.FrameId); break;
+                case SequenceFinished f when !open.Contains(f.FrameId): open.Add(f.FrameId); break;
+                case SequenceAbandoned f when !open.Contains(f.FrameId): open.Add(f.FrameId); break;
+            }
+        return open;
+    }
+
+    static void Close(List<Guid> open, Guid frame) { var i = open.IndexOf(frame); if (i >= 0) open.RemoveRange(i, open.Count - i); }
+
+    static Point3? Centroid(Projection p, IReadOnlyList<Guid> units)
+    {
+        var at = p.Models.Values.Where(m => units.Contains(m.UnitId)).Select(m => m.Location).OfType<OnTable>().Select(o => o.Placement.Position).ToList();
+        return at.Count == 0 ? null : new Point3(at.Average(q => q.X), at.Average(q => q.Y), at.Average(q => q.Z));
+    }
 }

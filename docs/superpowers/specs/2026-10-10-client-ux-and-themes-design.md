@@ -221,8 +221,10 @@ WASD and Q/E read held keys every frame (`_Process`), so movement is continuous.
 focus. `Hotkeys` gains `CameraForward`, `CameraBack`, `CameraLeft`, `CameraRight`; Q/E map to `TurnLeft`/`TurnRight` and
 `TableInput` reroutes them to the camera when nothing is held. The key overlay (F1) lists the new keys.
 
-**Follow.** When my team's or another team's action frame starts, the focus glides to the actor unit's centroid, unless
-the player moved the camera in the last 2 s or is holding a unit. Off by the follow setting.
+**Follow.** When my team's or another team's activation starts (its action frame, no frame open under it), the focus glides to
+the actor unit's centroid; when a melee frame starts, to the centroid of the charging and charged units together. Frames nested
+in an activation (attacks, strike back, morale) leave the focus where it is. Not when the player moved the camera in the last
+2 s or is holding a unit. Off by the follow setting.
 
 ## Physical collision
 
