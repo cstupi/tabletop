@@ -145,6 +145,29 @@ public class GfCasting36Tests
         if (!offeredAfterMove) Assert.Empty(sim.State.Projection.Stack);
     }
 
+    /// <summary>A caster whose only spell targets a friendly unit, with no enemy in reach, is offered the cast window on every action and may pick the spell
+    /// (its own unit is a friendly unit within range).</summary>
+    [Theory]
+    [InlineData(RuleSets.Gf360, GfNames.HoldSeq, GfNames.Hold)]
+    [InlineData(RuleSets.Gf360, GfNames.AdvanceSeq, GfNames.Advance)]
+    [InlineData(RuleSets.Gf351, GfNames.HoldSeq, GfNames.Hold)]
+    public void A_caster_with_only_a_friendly_spell_is_offered_the_cast_window(string rules, string sequence, string action)
+    {
+        var shaman = Unit("Shaman", "4+", "4+", [], 1, [P("Caster", 1)]);
+        var (state, inner) = Under(rules, State([shaman], [Unit("B", "4+", "4+", [], 1, [])], x1: -30, x2: 30));
+        var sim = new Sim(state, inner, TestProperties.WithSpells(Shroud), new ScriptedDice(5));
+        sim.Append([new SpellTokensSet(shaman.Models[0].Id, 1)]);
+        sim.Start(sequence, new SequenceContext(shaman.Id, [], [], action));
+        if (sequence == GfNames.AdvanceSeq) sim.Answer(Samples.Team1, new Destinations([Shifted(sim, shaman.Models[0].Id, 3)]));   // the window follows the move
+        var window = sim.AskFor(Samples.Team1);
+        Assert.Equal(AskQuestions.React, window.Question);
+        Assert.Contains(Assert.IsType<Options>(window.Legal).Choices, c => c.Id == GfCasting.CastOption);
+        sim.Answer(Samples.Team1, new Chosen(GfCasting.CastOption));
+        var pick = sim.AskFor(Samples.Team1);
+        Assert.Equal("cast", pick.Question);
+        Assert.Equal([$"Shroud|{shaman.Models[0].Id}"], Assert.IsType<Options>(pick.Legal).Choices.Select(c => c.Id));
+    }
+
     /// <summary>An Aircraft's checkpoint before its one segment, passed, leaves the cast to the checkpoint after it; a cast before the move ends the window.</summary>
     [Theory]
     [InlineData(false, true)]

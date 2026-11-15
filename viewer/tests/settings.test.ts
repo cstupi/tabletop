@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, loadSettings, mute, saveSettings, unmute, type StorageLike } from '../src/lib/play/settings';
+import { DEFAULT_SETTINGS, loadSettings, mute, mutedPrompts, promptLabel, promptWords, saveSettings, unmute, type StorageLike } from '../src/lib/play/settings';
 
 const memory = (initial: Record<string, string> = {}): StorageLike & { data: Record<string, string> } => ({
   data: { ...initial }, getItem(k) { return this.data[k] ?? null; }, setItem(k, v) { this.data[k] = v; },
@@ -34,5 +34,13 @@ describe('play settings', () => {
     const once = mute(mute(DEFAULT_SETTINGS, 'casting'), 'casting');
     expect(once.mutedWindowKinds).toEqual(['casting']);
     expect(unmute(once, 'casting').mutedWindowKinds).toEqual([]);
+  });
+
+  it('a window kind reads as words, and the muted kinds list in order with their labels (MutedPrompts)', () => {
+    expect([promptWords('before-attacking'), promptLabel('before-attacking'), promptWords('activation_end'), promptLabel('casting')])
+      .toEqual(['before attacking', 'Before attacking', 'activation end', 'Casting']);
+    const s = mute(mute(DEFAULT_SETTINGS, 'casting'), 'before-attacking');
+    expect(mutedPrompts(s)).toEqual([{ kind: 'before-attacking', label: 'Before attacking' }, { kind: 'casting', label: 'Casting' }]);
+    expect(mutedPrompts(DEFAULT_SETTINGS)).toEqual([]);
   });
 });

@@ -50,3 +50,13 @@ export const mute = (s: PlaySettings, kind: string): PlaySettings =>
 
 /** ClientSettings.Unmute. */
 export const unmute = (s: PlaySettings, kind: string): PlaySettings => ({ ...s, mutedWindowKinds: s.mutedWindowKinds.filter((k) => k !== kind) });
+
+/** MutedPrompts.Words: "before-attacking" → "before attacking". */
+export const promptWords = (kind: string): string => kind.replaceAll('-', ' ').replaceAll('_', ' ');
+
+/** MutedPrompts.Label: "before-attacking" → "Before attacking". */
+export const promptLabel = (kind: string): string => { const w = promptWords(kind); return w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : kind; };
+
+/** MutedPrompts.Of: every muted kind with its label, in ordinal order. A muted window auto-passes every time it opens; this list is where it is undone. */
+export const mutedPrompts = (s: PlaySettings): { kind: string; label: string }[] =>
+  [...s.mutedWindowKinds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((kind) => ({ kind, label: promptLabel(kind) }));

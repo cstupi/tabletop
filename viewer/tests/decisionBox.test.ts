@@ -305,6 +305,7 @@ describe('the decision box controller', () => {
     const r = rig();
     r.apply(open(askOf(opts(option('a', 'Advance')), { windowKind: 'casting', allowPass: true })));
     r.box.render();
+    expect(r.button('mute')!.label).toBe('Mute casting');
     r.box.press('mute');
     r.box.press('mute');
     expect(r.settings.mutedWindowKinds).toEqual(['casting']);
@@ -338,6 +339,17 @@ describe('the decision box controller', () => {
     expect(r.button('unmute')).toBeDefined();
     r.box.press('unmute');
     expect(r.settings.mutedWindowKinds).toEqual([]);
+  });
+
+  it('a hyphenated window kind reads as words on Mute and on the auto-pass note', () => {
+    const r = rig();
+    r.apply(open(askOf(opts(option('cast', 'Cast a spell')), { windowKind: 'before-attacking', allowPass: true })));
+    r.box.render();
+    expect(r.button('mute')!.label).toBe('Mute before attacking');
+    const m = rig({ settings: { ...DEFAULT_SETTINGS, mutedWindowKinds: ['before-attacking'] } });
+    m.apply(open(askOf(opts(option('cast', 'Cast a spell')), { windowKind: 'before-attacking', allowPass: true })));
+    m.box.render();
+    expect(m.panel.note).toBe('Auto-passed: before attacking');
   });
 
   it('a refused auto-pass renders the Ask with its Pass button', async () => {

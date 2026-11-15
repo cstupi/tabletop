@@ -246,7 +246,7 @@ public partial class DecisionBox : PanelContainer
         Glow(mine.Highlights);
         if (model.AutoPass && _refusal is null)   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
         {
-            Send(mine.Ask, new Passed()); _note.Text = $"Auto-passed: {mine.Ask.WindowKind!.Replace('_', ' ')}";
+            Send(mine.Ask, new Passed()); _note.Text = $"Auto-passed: {MutedPrompts.Words(mine.Ask.WindowKind!)}";
             Foot(Act("Unmute", "", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!))));
             return;
         }
@@ -262,7 +262,7 @@ public partial class DecisionBox : PanelContainer
             default: RenderPicks(mine, p, names); break;                       // PickPieces, Assign, Allocate
         }
         if (mine.Ask.AllowPass) Foot(Act(mine.Ask.Question == AskQuestions.ActOrEndPhase ? "End phase" : "Pass", "", () => Send(mine.Ask, new Passed())));
-        if (mine.Ask.WindowKind is { } kind) Foot(Act($"Mute {kind.Replace('_', ' ')}", "", () => _s.UpdateSettings(x => x.Mute(kind))));
+        if (mine.Ask.WindowKind is { } kind) Foot(Act($"Mute {MutedPrompts.Words(kind)}", "", () => _s.UpdateSettings(x => x.Mute(kind))));
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 
