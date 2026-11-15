@@ -87,8 +87,9 @@ public static class GfMelee
     {
         if (Recorded(ctx, step))
         {
-            var declined = ctx.Frame.Frame.Steps[^1].Values!.GetValueOrDefault(TakedownStrikeDeclinedKey) == 1;
-            return EachGroup(ctx, declined ? [.. groups.Where(g => !IsTakedownStrike(ctx.State, g))] : groups, attacker, target, action, onDone, values);
+            var recorded = ctx.Frame.Frame.Steps[^1].Values!;
+            var declined = recorded.GetValueOrDefault(TakedownStrikeDeclinedKey) == 1;
+            return EachGroup(ctx, [.. groups.Where(g => !(declined && IsTakedownStrike(ctx.State, g)) && !recorded.ContainsKey(LimitedSavedKey + g.Name))], attacker, target, action, onDone, values);
         }
         if (groups.Count == 0) return new Complete(onDone ?? [], values);
         var settled = values is null ? new Dictionary<string, int>() : new Dictionary<string, int>(values);
@@ -108,6 +109,20 @@ public static class GfMelee
                 if (groups.Count == 0) return new Complete(onDone ?? [], values);
             }
         }
+        // p.14 Limited: "Weapons with this rule may only be used once per game", so the player picks the melee it is used in. Each Limited group
+        // that could strike is asked; saved, it does not strike and stays unused.
+        foreach (var g in groups.Where(g => IsLimited(ctx.State, g) && !IsTakedownStrike(ctx.State, g)).ToList())
+        {
+            if (GfAttack.EligibleModels(ctx.State, LiveProperties.Settle(GfAttack.AttackInteraction(ctx, attacker, target, g.WeaponIds, AttackKind.Melee, action)),
+                    attacker, target, g.WeaponIds, AttackKind.Melee).Count == 0) continue;
+            if (ctx.History.LastClosed(LimitedQuestion + g.Name) is not { } use)
+                return new OpenAsks([ctx.Ask(LimitedQuestion + g.Name, $"Use {g.Name}?", ctx.TeamOf(attacker)!.Value,
+                    new Options([new AskOption("yes", "Use it", [attacker]), new AskOption("no", "Save it", [])]), allowPass: true)]);
+            if (use.Single is Chosen { OptionId: "yes" }) continue;
+            settled[LimitedSavedKey + g.Name] = 1;
+            groups = [.. groups.Where(x => x.Name != g.Name)];
+            if (groups.Count == 0) return new Complete(onDone ?? [], values);
+        }
         var defenderModels = Lookup.LivingModels(ctx.State, target).Count;
         foreach (var (g, i) in groups.Select((g, i) => (g, i)))
         {
@@ -119,6 +134,12 @@ public static class GfMelee
         }
         return new Complete([], settled, Repeat: true);
     }
+
+    /// <summary>The question of a Limited group's "Use it?" in melee, followed by the group's name: one Ask per group.</summary>
+    public const string LimitedQuestion = "use_limited:";
+    const string LimitedSavedKey = "limited_saved:";
+    /// <summary>A group of a Limited weapon (p.14): every weapon of a group is the same weapon, so one carries the rule for all.</summary>
+    static bool IsLimited(GameState state, WeaponGroup g) => g.WeaponIds.Count > 0 && WeaponOf(state, g.WeaponIds[0]).Properties.Any(p => p.Name == "Limited");
 
     public const string TakedownStrikeQuestion = "takedown_strike";
     const string TakedownStrikeDeclinedKey = "takedown_strike_declined";

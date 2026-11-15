@@ -48,6 +48,7 @@ public class ClausesAttackTakedownLimitedTests
             {
                 { Question: "strike_back" } => new Chosen("strike"),
                 { Question: GfMelee.TakedownStrikeQuestion } => new Chosen("yes"),
+                { Question: var q } when q.StartsWith(GfMelee.LimitedQuestion, StringComparison.Ordinal) => new Chosen("yes"),
                 { Question: "counter" } => new Chosen("pass"),
                 { Legal: Allocation al } => new Allocated(new Dictionary<Guid, int> { [al.Targets[0]] = al.Amount }),
                 { Legal: PieceSelection ps } when ps.Min > 0 => new SelectedPieces([ps.Eligible[0]]),
@@ -252,6 +253,34 @@ public class ClausesAttackTakedownLimitedTests
         sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Missile"] = t.Id }));
         Drain(sim);
         Assert.Equal(["Rifle"], Declare(sim, a).Items.Select(i => i.Id));
+    }
+
+    /// <summary>The owner, 2026-11-14: "The demo charges limited dont seem to ever show up as an option to use". p.14: "Weapons with this rule
+    /// may only be used once per game", so the player picks the melee: a Limited weapon that could strike is asked before it does. Saved, it
+    /// does not strike and stays unused; used, it strikes and is gone.</summary>
+    [Fact]
+    public void A_limited_weapon_asks_before_it_strikes_in_melee()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Melee("Knife", 1), Gun("Demo Charge", "6\"", 1, P("AP", 4), P("Limited"), P(GfNames.Assault)));
+        var t = Unit("T", "4+", "4+", [], 1, [P("Tough", 9)]);
+        var charge = a.Models[0].Weapons[1].Id;
+        var sim = Sim.Gf36(State([a], [t], x1: -1.3, x2: 0), Enumerable.Repeat(1, 40).ToArray());
+        sim.Start(GfNames.Melee, new SequenceContext(a.Id, [t.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+        var ask = sim.AskFor(Samples.Team1);
+        Assert.Equal((GfMelee.LimitedQuestion + "Demo Charge", "Use Demo Charge?", true), (ask.Question, ask.Prompt, ask.AllowPass));
+        Assert.DoesNotContain(Attacks(sim), s => s.Context.WeaponIds.Contains(charge));
+        sim.Answer(Samples.Team1, new Chosen("no"));                                                     // saved for a later melee
+        Drain(sim);
+        Assert.Contains(Attacks(sim), s => s.Context.ActorUnitId == a.Id && s.Context.WeaponIds.Contains(a.Models[0].Weapons[0].Id));   // the knife struck
+        Assert.DoesNotContain(Attacks(sim), s => s.Context.WeaponIds.Contains(charge));
+        Assert.Contains(charge, GfMelee.MeleeWeapons(sim.State, a.Id));
+
+        var again = Sim.Gf36(State([a], [t], x1: -1.3, x2: 0), Enumerable.Repeat(1, 40).ToArray());
+        again.Start(GfNames.Melee, new SequenceContext(a.Id, [t.Id], GfMelee.MeleeWeapons(again.State, a.Id), GfNames.Charge));
+        again.Answer(Samples.Team1, new Chosen("yes"));
+        Drain(again);
+        Assert.Contains(Attacks(again), s => s.Context.WeaponIds.Contains(charge));
+        Assert.DoesNotContain(charge, GfMelee.MeleeWeapons(again.State, a.Id));                          // once per game
     }
 
     [Fact]
