@@ -95,6 +95,14 @@ public class WireJsonTests
     }
 
     [Fact]
+    public void Model_facts_carry_the_units_in_cover()
+    {
+        var json = WireJson.Serialize(new ModelFacts(new Dictionary<Guid, int>(), InCover: [Guid.Empty]));
+        Assert.Contains("\"inCover\":[\"00000000-0000-0000-0000-000000000000\"]", json);
+        Assert.Equal([Guid.Empty], Assert.IsType<ModelFacts>(WireJson.Deserialize<SocketMessage>(json)).InCover);
+    }
+
+    [Fact]
     public void A_sequence_without_an_outline_writes_no_outline_key()
     {
         var json = WireJson.Serialize<EventPayload>(new SequenceStarted(Guid.Empty, "hold", new SequenceContext(null, [], [], null)));

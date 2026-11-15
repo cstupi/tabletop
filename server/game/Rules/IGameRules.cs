@@ -95,6 +95,9 @@ public interface IGameRules
     /// <summary>Per unit with a living model on the table, how far its next activation reaches (threat range plan; OPR p.7 Advance and Charge, p.8 Who can
     /// shoot). Empty by default. Wrapping rulesets must forward it.</summary>
     IReadOnlyDictionary<Guid, UnitThreat> Threats(GameState state, PropertySet properties) => new Dictionary<Guid, UnitThreat>();
+    /// <summary>The units in cover where they stand, by the part of the cover rule that needs no shooter (OPR p.11, 3.6.0 p.12: the majority of
+    /// models inside Cover terrain), for the unit card. Empty by default. Wrapping rulesets must forward it.</summary>
+    IReadOnlyList<Guid> InCover(GameState state) => [];
 
     // Optional rules (optional-rules spec). The map is GameInfo.OptionalRules; nothing outside the ruleset reads its keys.
     /// <summary>The ruleset's optional rules and presets, sent in Welcome for the lobby. Empty by default. Wrapping rulesets must forward it.</summary>

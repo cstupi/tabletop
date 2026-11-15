@@ -41,6 +41,8 @@ export interface ConnectionState {
   readonly maySetAside: ReadonlySet<string>;
   /** Each unit's reach in its next activation (ModelFacts.threats); an absent unit has none. */
   readonly threats: ReadonlyMap<string, UnitThreat>;
+  /** The units in cover where they stand (ModelFacts.inCover): the unit card's shield. */
+  readonly inCover: ReadonlySet<string>;
   /** From a board until a model_facts frame or an empty events page (Session.CatchingUp). */
   readonly catchingUp: boolean;
   /** Player text for the last close or rejection (feedback.ts); null while nothing went wrong. */
@@ -109,7 +111,7 @@ type Send = {
 
 const INITIAL: ConnectionState = {
   phase: 'connecting', game: null, participantId: null, options: NO_OPTIONS, zones: null, terrainWords: null, terrainRules: null, markerRange: null, draft: null, board: null, log: [], projection: null,
-  maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), catchingUp: true, closeReason: null,
+  maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), inCover: new Set(), catchingUp: true, closeReason: null,
 };
 
 export function connectGame(options: ConnectionOptions): GameConnection {
@@ -156,7 +158,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
     settled.clear();
     publish({
       game: null, participantId: null, draft: null, board: null, log: [], projection: null,
-      maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), catchingUp: true,
+      maxWounds: new Map(), deployInside: new Map(), maySetAside: new Set(), threats: new Map(), inCover: new Set(), catchingUp: true,
     });
   }
 
@@ -309,6 +311,7 @@ export function connectGame(options: ConnectionOptions): GameConnection {
           deployInside: new Map(Object.entries(frame.deployInside ?? {})),
           maySetAside: new Set(frame.maySetAside ?? []),
           threats: new Map(Object.entries(frame.threats ?? {})),
+          inCover: new Set(frame.inCover ?? []),
           catchingUp: false,
         });
         return;

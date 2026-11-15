@@ -46,11 +46,15 @@ public sealed record ModelGroup(string Label, string Loadout, bool Hero, int Ali
 
 /// <summary>
 /// What the unit card draws: the sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's
-/// wound total, and the picked models (the selection's model ids), whose groups' rows are marked. Equal by value, lists element by element, so the card rebuilds only when what it shows changed and otherwise keeps its
-/// scroll and tooltip.
+/// wound total, and the picked models (the selection's model ids), whose groups' rows are marked. InCover: the server's ModelFacts names the
+/// unit in cover where it stands, and the Quality / Defense line ends in a shield. Equal by value, lists element by element, so the card
+/// rebuilds only when what it shows changed and otherwise keeps its scroll and tooltip.
 /// </summary>
-public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Note, IReadOnlyList<Guid>? Picked = null)
+public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Note, IReadOnlyList<Guid>? Picked = null, bool InCover = false)
 {
+    /// <summary>The cover shield's tooltip, its only words; null when the unit is not in cover and no shield shows.</summary>
+    public string? CoverTip => InCover ? "In cover" : null;
+
     public IReadOnlyList<ModelGroup> Groups { get; } = Group(Sheet.Models);
     public int WoundsLeft => Groups.Sum(g => g.WoundsLeft);
     public int WoundsMax => Groups.Sum(g => g.WoundsMax);
@@ -100,7 +104,7 @@ public sealed record UnitCardContent(UnitSheetModel Sheet, int Team, string? Not
     }
 
     public bool Equals(UnitCardContent? other) =>
-        other is not null && Team == other.Team && Note == other.Note && Same(Sheet, other.Sheet) && Groups.SequenceEqual(other.Groups)
+        other is not null && Team == other.Team && Note == other.Note && InCover == other.InCover && Same(Sheet, other.Sheet) && Groups.SequenceEqual(other.Groups)
         && (Picked ?? []).SequenceEqual(other.Picked ?? []);
 
     public override int GetHashCode() => HashCode.Combine(Sheet.UnitId, Sheet.Alive, Team, Note);

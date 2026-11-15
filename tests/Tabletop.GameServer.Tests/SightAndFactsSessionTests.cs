@@ -174,6 +174,23 @@ public class SightAndFactsSessionTests
     }
 
     [Fact]
+    public async Task Facts_carry_InCover_and_are_broadcast_when_it_changes()
+    {
+        var rules = FakeRules.Gf();
+        rules.InCoverHook = s => s.Projection.Scores.Values.Sum() > 0 ? [Samples.Unit] : [];
+        var (session, _, _, _, _) = await PlayingAsync(rules: rules);
+        var clay = new RecordingClient(Samples.P1);
+        await session.ConnectAsync(clay);
+        Assert.Empty(clay.Received.OfType<ModelFacts>().Single().InCover!);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 2)));
+        Assert.Equal([Samples.Unit], clay.Received.OfType<ModelFacts>().Single().InCover!);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 3)));
+        Assert.DoesNotContain(clay.Received, m => m is ModelFacts);
+    }
+
+    [Fact]
     public async Task Facts_carry_each_units_threat_and_are_broadcast_when_it_changes()
     {
         var (session, _, _, observers, targets) = await PlayingAsync();

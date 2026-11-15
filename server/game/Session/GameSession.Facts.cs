@@ -33,13 +33,13 @@ public sealed partial class GameSession
 
     ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)), state.Rules.DeployInside(state),
         Engine?.Properties is { } properties ? state.Rules.MaySetAside(state, properties) : [],
-        Engine?.Properties is { } props ? state.Rules.Threats(state, props) : new Dictionary<Guid, UnitThreat>());
+        Engine?.Properties is { } props ? state.Rules.Threats(state, props) : new Dictionary<Guid, UnitThreat>(), state.Rules.InCover(state));
 
     static bool Same(ModelFacts a, ModelFacts b) =>
         a.MaxWounds.Count == b.MaxWounds.Count && b.MaxWounds.All(kv => a.MaxWounds.TryGetValue(kv.Key, out var v) && v == kv.Value)
         && (a.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var x && (b.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var y
         && x.Count == y.Count && y.All(kv => x.TryGetValue(kv.Key, out var v) && v.SequenceEqual(kv.Value))
-        && (a.MaySetAside ?? []).SequenceEqual(b.MaySetAside ?? [])
+        && (a.MaySetAside ?? []).SequenceEqual(b.MaySetAside ?? []) && (a.InCover ?? []).SequenceEqual(b.InCover ?? [])
         && SameThreats(a.Threats ?? new Dictionary<Guid, UnitThreat>(), b.Threats ?? new Dictionary<Guid, UnitThreat>());
 
     static bool SameThreats(IReadOnlyDictionary<Guid, UnitThreat> a, IReadOnlyDictionary<Guid, UnitThreat> b) =>

@@ -40,6 +40,8 @@ public sealed class FakeRules : IGameRules
     public Func<GameState, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>>? DeployInsideHook { get; set; }
     /// <summary>Replaces Grimdark Future's MaySetAside, likewise.</summary>
     public Func<GameState, IReadOnlyList<Guid>>? MaySetAsideHook { get; set; }
+    /// <summary>Replaces Grimdark Future's InCover, likewise.</summary>
+    public Func<GameState, IReadOnlyList<Guid>>? InCoverHook { get; set; }
 
     public FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams) => FirstTeamHook?.Invoke(state, round, teams) ?? new OrderedTeams(teams);
     public TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => LegalTurnHook is { } h ? h(state, properties, teamId) : _inner.LegalTurn(state, properties, teamId);
@@ -57,6 +59,7 @@ public sealed class FakeRules : IGameRules
     public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => DeployInsideHook?.Invoke(state) ?? _inner.DeployInside(state);
     public IReadOnlyList<Guid> MaySetAside(GameState state, PropertySet properties) => MaySetAsideHook?.Invoke(state) ?? _inner.MaySetAside(state, properties);
     public IReadOnlyDictionary<Guid, UnitThreat> Threats(GameState state, PropertySet properties) => _inner.Threats(state, properties);
+    public IReadOnlyList<Guid> InCover(GameState state) => InCoverHook?.Invoke(state) ?? _inner.InCover(state);
 
     // The interpreter plan's members.
     public Func<string, Sequence>? SequenceHook { get; set; }

@@ -99,6 +99,17 @@ public class SessionFactsTests : IDisposable
     }
 
     [Fact]
+    public async Task Model_facts_carry_the_units_in_cover()
+    {
+        var sock = await Connected(Game);
+        Assert.Empty(_s.InCover);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>(), InCover: [Samples.Unit]));
+        Assert.Equal([Samples.Unit], _s.InCover);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>()));                                   // a server that sends none: none
+        Assert.Empty(_s.InCover);
+    }
+
+    [Fact]
     public async Task A_sight_query_goes_out_and_only_its_answer_comes_back()
     {
         await LoggedIn();

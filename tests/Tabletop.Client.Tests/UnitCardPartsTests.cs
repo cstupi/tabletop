@@ -31,6 +31,7 @@ public class UnitCardPartsTests
         Assert.Empty(UnitCardParts.Changed(before, C(Sheet())));
         Assert.Equal([UnitCardPart.State], UnitCardParts.Changed(before, C(Sheet(chip: "Activated: Advance"))));   // moved: the activated chip
         Assert.Equal([UnitCardPart.State], UnitCardParts.Changed(before, C(Sheet(quality: "5+"))));
+        Assert.Equal([UnitCardPart.State], UnitCardParts.Changed(before, C(Sheet()) with { InCover = true }));   // the cover shield
         Assert.Equal([UnitCardPart.Count, UnitCardPart.Models], UnitCardParts.Changed(before, C(Sheet(left: 1))));   // a wound
         Assert.Equal([UnitCardPart.Note], UnitCardParts.Changed(before, C(Sheet(), note: "Shaken: may only Idle.")));
         Assert.Equal([UnitCardPart.Models], UnitCardParts.Changed(before, C(Sheet(), picked: [Model])));

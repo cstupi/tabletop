@@ -35,6 +35,17 @@ public class UnitCardContentTests
     }
 
     [Fact]
+    public void The_cover_shield_shows_exactly_when_the_facts_put_the_unit_in_cover()
+    {
+        var open = new UnitCardContent(Sheet(), 1, null);
+        var covered = new UnitCardContent(Sheet(), 1, null, InCover: true);
+        Assert.Null(open.CoverTip);
+        Assert.Equal("In cover", covered.CoverTip);
+        Assert.NotEqual(open, covered);
+        Assert.Equal(covered, new UnitCardContent(Sheet(), 1, null, InCover: true));
+    }
+
+    [Fact]
     public void A_group_holding_a_picked_model_is_marked_and_a_change_of_picks_is_a_change()
     {
         var models = new[] { M(Ids[0], "Warrior", 1, 1, false, "w", ["Rifle"]), M(Ids[1], "Warrior", 1, 1, false, "w", ["Rifle"]),

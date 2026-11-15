@@ -94,7 +94,7 @@ public partial class UnitCard : VBoxContainer
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
         var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, u),
-            _input.Selected is { } sel && sel.PieceId == u ? sel.ModelIds : null);
+            _input.Selected is { } sel && sel.PieceId == u ? sel.ModelIds : null, _s.InCover.Contains(u));
         if (content != _content)
         {
             // The same unit's card keeps its place in the scroll; another unit's starts at the top.
@@ -196,6 +196,7 @@ public partial class UnitCard : VBoxContainer
                 });
                 var chips = Kids(state).Begin();
                 Stat(chips, "quality", "Q", m.Quality, "Quality"); Stat(chips, "defense", "D", m.Defense, "Defense");
+                if (c.CoverTip is { } coverTip) Shield(chips, coverTip);
                 foreach (var chip in m.Chips) StatusChip(chips, chip);
                 chips.End();
                 break;
@@ -240,6 +241,19 @@ public partial class UnitCard : VBoxContainer
         var row = badge.GetChild(0);
         Look.Icon((TextureRect)row.GetChild(0), icon, Ui.Accent);
         Look.Text((Label)row.GetChild(1), $"{letter} {value ?? "-"}");
+    }
+
+    /// <summary>The cover shield ending the Quality / Defense badges: the theme's cover icon, its tooltip the only words.</summary>
+    static void Shield(Kept into, string tip)
+    {
+        var shield = into.Take("cover", () =>
+        {
+            var b = new PanelContainer { ThemeTypeVariation = Variation.Badge, MouseFilter = MouseFilterEnum.Stop };
+            b.AddChild(HudBits.Icon("cover", Ui.Accent, 16));
+            return b;
+        });
+        Look.Tip(shield, tip);
+        Look.Icon((TextureRect)shield.GetChild(0), "cover", Ui.Accent);
     }
 
     /// <summary>A group row's controls, made once: the frame (a chip around a row holding a picked model), the pips, the Hero badge, the name

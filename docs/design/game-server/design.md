@@ -436,12 +436,14 @@ is answered from the current state with the same `Sight` the rules use: one `Sig
 the obstructing volumes (a terrain volume's id or a model's), `Seen` on a clear line the target point it reaches (its top,
 centre or rim; `SightReading.Seen`), and `CanShoot` the observer's models that p.8's *Who can
 shoot* lets fire at the target (`IGameRules.Shooters`). It goes to the asker alone; nothing is appended, broadcast or
-followed by `AtRest`. `ModelFacts(MaxWounds, DeployInside, MaySetAside, Threats)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
+followed by `AtRest`. `ModelFacts(MaxWounds, DeployInside, MaySetAside, Threats, InCover)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
 `Tough(X)`, else 1), `IGameRules.DeployInside` (each unit that may be put in a Transport now, and the Transport models;
 passengers spec) and `IGameRules.MaySetAside` (each unit that may be set aside before deployment now or returned to it;
 Grimdark Future, p.13 and p.14: before round one, never deployed, every model on the shelf, Ambush or Scout by `Lookup.UnitHas` with its
 counts-as chains, or Surprise Attack) and `IGameRules.Threats` (per unit with a living model on the table, `UnitThreat(Charge,
-ShootMove, Ranges)`: its next activation's reach; Grimdark Future, p.7 and p.13–15, `GfRules.Threats.cs`; threat range plan), sent to a client on connect once the game is playing and broadcast after a batch whenever a value
+ShootMove, Ranges)`: its next activation's reach; Grimdark Future, p.7 and p.13–15, `GfRules.Threats.cs`; threat range plan) and `IGameRules.InCover` (the units in cover where they
+stand, for the unit card's shield; Grimdark Future, p.11 and 3.6.0 p.12, `GfRules.Cover.cs`: the majority of living models fully inside
+Cover terrain, a single-model unit's base centre inside it; the behind-a-sight-blocker half depends on the shooter and is left out), sent to a client on connect once the game is playing and broadcast after a batch whenever a value
 differs from the last facts sent. `SequenceStarted.Outline` lists a sequence's labelled steps (`IStep.Label`) in order;
 a step with no label is internal, a sequence with no labelled step writes none, and a log written before outlines
 replays with none.

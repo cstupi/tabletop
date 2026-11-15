@@ -1,12 +1,12 @@
 <!-- viewer/src/lib/play/UnitCard.svelte -->
 <!-- UnitCard.cs (UX redesign part 2 → Unit card): the band and the name alone; a pip per model and the count note; Quality and Defense
-     badges with their icons and the state chips with theirs; the decision note; one row per group of like models (its pips, its name, its
+     badges with their icons, a cover shield after them while the server's facts put the unit in cover, and the state chips with theirs; the decision note; one row per group of like models (its pips, its name, its
      wound pips; a group holding a picked model framed); the weapons grid and the unit's rules with their texts as tooltips. Every word is
      cardText.ts's, unitCard.ts's or the sheet's. -->
 <script lang="ts">
   import { teamColour } from '../board/palette';
   import { WEAPON_HEADINGS, ruleChip, ruleTooltip, weaponName } from './cardText';
-  import { cardPips, chipText, countNote, groupLine, groupMarked, groupName, groupPips, groupWoundCount, groupWoundPips, nextModel, type UnitCardContent } from './unitCard';
+  import { cardPips, chipText, coverTip, countNote, groupLine, groupMarked, groupName, groupPips, groupWoundCount, groupWoundPips, nextModel, type UnitCardContent } from './unitCard';
   import { HERO_LABEL } from './unitSheet';
   import Icon from '../../../../web/src/lib/components/Icon.svelte';
   import HudIcon from './HudIcon.svelte';
@@ -26,6 +26,7 @@
   <div class="flow">
     <span class="stat" title={`Quality ${sheet.quality ?? '-'}`}><HudIcon name="quality" size={15} />Q {sheet.quality ?? '-'}</span>
     <span class="stat" title={`Defense ${sheet.defense ?? '-'}`}><HudIcon name="defense" size={15} />D {sheet.defense ?? '-'}</span>
+    {#if coverTip(card) !== null}<span class="stat" title={coverTip(card)}><HudIcon name="cover" size={15} /></span>{/if}
     {#each sheet.chips as chip, i (i)}
       <span class="chip" class:warn={chip.kind === 'condition'} class:dim={chip.kind === 'activated'} title={chip.text}>
         {#if chip.kind === 'activated'}<Icon name="activated" size=".95rem" />{/if}{chipText(chip)}

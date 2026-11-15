@@ -387,6 +387,7 @@ export interface ModelFacts {
   readonly deployInside?: { readonly [key: string]: readonly string[] };
   readonly maySetAside?: readonly string[];
   readonly threats?: { readonly [key: string]: UnitThreat };
+  readonly inCover?: readonly string[];
 }
 
 export interface ModelRelocation {

@@ -1,5 +1,7 @@
+import { render } from 'svelte/server';
 import { describe, expect, it } from 'vitest';
-import { groupLine, groupMarked, groupTitle, groupWounds, nextModel, sameCard, unitCardOf } from '../src/lib/play/unitCard';
+import UnitCard from '../src/lib/play/UnitCard.svelte';
+import { coverTip, groupLine, groupMarked, groupTitle, groupWounds, nextModel, sameCard, unitCardOf } from '../src/lib/play/unitCard';
 import type { SheetModel, UnitSheetModel } from '../src/lib/play/unitSheet';
 import { newId } from './play';
 
@@ -34,6 +36,20 @@ describe('UnitCardContent', () => {
     expect(sameCard(before, unitCardOf(sheet({ weaponRule: 'AP(2)' }), 1, null))).toBe(false);
     expect(sameCard(before, unitCardOf(sheet(), 2, null))).toBe(false);
     expect(sameCard(before, unitCardOf(sheet(), 1, 'Shaken: may only Idle.'))).toBe(false);
+  });
+
+  it('the cover shield shows exactly when the facts put the unit in cover', () => {
+    const open = unitCardOf(sheet(), 1, null), covered = unitCardOf(sheet(), 1, null, true);
+    expect(coverTip(open)).toBeNull();
+    expect(coverTip(covered)).toBe('In cover');
+    expect(sameCard(open, covered)).toBe(false);
+    expect(sameCard(covered, unitCardOf(sheet(), 1, null, true))).toBe(true);
+    const shields = (body: string) => body.match(/title="In cover"/g)?.length ?? 0;
+    expect(shields(render(UnitCard, { props: { card: open, onPick: () => {} } }).body)).toBe(0);
+    const body = render(UnitCard, { props: { card: covered, onPick: () => {} } }).body;
+    expect(shields(body)).toBe(1);
+    expect(body.indexOf('title="In cover"')).toBeGreaterThan(body.indexOf('title="Defense 5+"'));   // ends the Quality / Defense badges
+    expect(body).not.toMatch(/>In cover</);                                                        // the tooltip is its only words
   });
 
   it('a group holding a picked model is marked', () => {

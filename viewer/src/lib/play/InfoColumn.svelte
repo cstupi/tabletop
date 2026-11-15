@@ -86,7 +86,7 @@
   const card = $derived.by(() => {
     const s = sheet;
     if (s === null || shown === null || snap.game === null || focus === null) { lastCard = null; return null; }
-    const next = unitCardOf(s, teamOf(shown, snap.game, focus)?.ordinal ?? 0, noteOf(shown, snap.game, myTeam, focus));
+    const next = unitCardOf(s, teamOf(shown, snap.game, focus)?.ordinal ?? 0, noteOf(shown, snap.game, myTeam, focus), snap.inCover.has(focus));
     if (sameCard(lastCard, next)) return lastCard;
     lastCard = next;
     return next;

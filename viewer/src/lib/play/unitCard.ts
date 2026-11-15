@@ -65,16 +65,20 @@ export const chipText = (c: { kind: string; text: string }): string =>
 /** UnitCardContent.Marked: the group holds a picked model (the selection's model ids), so its row is marked. */
 export const groupMarked = (g: ModelGroup, picked: readonly string[]): boolean => g.standing.some((id) => picked.includes(id));
 
-/** The sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's wound total. */
+/** The sheet, the team's ordinal for its colour bar, the limited-choice note, the model groups and the unit's wound total. inCover: the
+ * server's ModelFacts names the unit in cover where it stands, and the Quality / Defense line ends in a shield. */
 export interface UnitCardContent {
   readonly sheet: UnitSheetModel; readonly team: number; readonly note: string | null;
-  readonly groups: readonly ModelGroup[]; readonly woundsLeft: number; readonly woundsMax: number;
+  readonly groups: readonly ModelGroup[]; readonly woundsLeft: number; readonly woundsMax: number; readonly inCover: boolean;
 }
 
-export function unitCardOf(sheet: UnitSheetModel, team: number, note: string | null): UnitCardContent {
+export function unitCardOf(sheet: UnitSheetModel, team: number, note: string | null, inCover = false): UnitCardContent {
   const groups = groupModels(sheet.models);
-  return { sheet, team, note, groups, woundsLeft: groups.reduce((s, g) => s + g.woundsLeft, 0), woundsMax: groups.reduce((s, g) => s + g.woundsMax, 0) };
+  return { sheet, team, note, groups, woundsLeft: groups.reduce((s, g) => s + g.woundsLeft, 0), woundsMax: groups.reduce((s, g) => s + g.woundsMax, 0), inCover };
 }
+
+/** UnitCardContent.CoverTip: the cover shield's tooltip, its only words; null when the unit is not in cover and no shield shows. */
+export const coverTip = (c: UnitCardContent): string | null => (c.inCover ? 'In cover' : null);
 
 function groupModels(models: readonly SheetModel[]): ModelGroup[] {
   const byKind = new Map<string, SheetModel[]>();
@@ -114,5 +118,5 @@ function sameSheet(a: UnitSheetModel, b: UnitSheetModel): boolean {
 
 export function sameCard(a: UnitCardContent | null, b: UnitCardContent | null): boolean {
   if (a === null || b === null) return a === b;
-  return a.team === b.team && a.note === b.note && sameSheet(a.sheet, b.sheet) && sameList(a.groups, b.groups, sameGroup);
+  return a.team === b.team && a.note === b.note && a.inCover === b.inCover && sameSheet(a.sheet, b.sheet) && sameList(a.groups, b.groups, sameGroup);
 }

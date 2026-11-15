@@ -18,7 +18,7 @@ public static class UnitCardParts
         var changed = new List<UnitCardPart>();
         if (before.Team != now.Team || a.Name != b.Name) changed.Add(UnitCardPart.Title);
         if (before.Team != now.Team || before.Pips != now.Pips || before.CountNote != now.CountNote) changed.Add(UnitCardPart.Count);
-        if (a.Quality != b.Quality || a.Defense != b.Defense || !a.Chips.SequenceEqual(b.Chips)) changed.Add(UnitCardPart.State);
+        if (a.Quality != b.Quality || a.Defense != b.Defense || before.InCover != now.InCover || !a.Chips.SequenceEqual(b.Chips)) changed.Add(UnitCardPart.State);
         if (before.Note != now.Note) changed.Add(UnitCardPart.Note);
         if (before.Team != now.Team || !before.Groups.SequenceEqual(now.Groups) || !before.Groups.Select(before.Marked).SequenceEqual(now.Groups.Select(now.Marked)))
             changed.Add(UnitCardPart.Models);

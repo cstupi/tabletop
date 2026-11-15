@@ -99,9 +99,10 @@ public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, boo
 /// <summary>The ruleset's facts, sent on connect once playing, then whenever a value changes. MaxWounds: wounds a model takes before it is killed. DeployInside: for each unit that may be put
 /// inside a Transport now, before either deploys, the Transport models it may go in (passengers spec); null from a server that does not send it. MaySetAside: the units a player may set aside before
 /// deployment now, or return to deployment (Ambush, Scout and what counts as having them); null from a server that does not send it. Threats: per unit
-/// with a living model on the table, how far its next activation reaches (threat range plan); null from a server that does not send it.</summary>
+/// with a living model on the table, how far its next activation reaches (threat range plan); null from a server that does not send it. InCover: the
+/// units in cover where they stand, the rules' terrain test needing no shooter (the unit card's shield); null from a server that does not send it.</summary>
 public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? DeployInside = null,
-    IReadOnlyList<Guid>? MaySetAside = null, IReadOnlyDictionary<Guid, UnitThreat>? Threats = null) : SocketMessage;
+    IReadOnlyList<Guid>? MaySetAside = null, IReadOnlyDictionary<Guid, UnitThreat>? Threats = null, IReadOnlyList<Guid>? InCover = null) : SocketMessage;
 /// <summary>A unit's reach in its next activation, in inches from each model's base edge. Charge: its charge move, null when it may not charge.
 /// ShootMove: the move it may shoot after (0 when it shoots only standing), null when it may not shoot. Ranges: per living model on the table with a
 /// ranged weapon, its longest range as its rules leave it.</summary>
