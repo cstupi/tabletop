@@ -92,6 +92,24 @@ public class InCoverFactsTests
         Assert.DoesNotContain(unit.Id, inCover);
     }
 
+    /// <summary>A 3.6 Ruins piece (Cover, Unstable, Sight blocking, Dense, 0–4"), 4"×4", and a lone Flying Tough(6) model on a 60 mm base
+    /// whose centre is inside and whose rim sticks out: on the ground of an area, or resting on a solid's top.</summary>
+    [Theory]
+    [InlineData(VolumeKind.Area, 0.0)]
+    [InlineData(VolumeKind.Solid, 4.0)]
+    public void A_lone_large_flying_model_in_ruins_is_in_cover(VolumeKind kind, double z)
+    {
+        var ruins = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruins"), Wood, new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(kind, Footprint.Rect(4, 4), new Point2(0, 0), new Yaw(0), 0, 4,
+                TerrainDeclarations.Cover | TerrainDeclarations.DangerousOnRushCharge | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut, null))]);
+        var horror = Unit("Horror", "4+", "3+", [], 1, [P("Flying"), P("Tough", 6)]);
+        horror = horror with { Models = [horror.Models[0] with { Base = Base.Circle(2.36), Height = 3.54 }] };
+        var sim = Sim.Gf36(State([Unit("Other", "4+", "4+", [], 1, [])], [horror], terrain: [ruins]));
+        sim.Append([new ModelsMoved([new ModelRelocation(horror.Models[0].Id, sim.Model(horror.Models[0].Id).Location,
+            new OnTable(new Placement(new Point3(Wood.X + 1.2, Wood.Y, z), new Yaw(0))))])]);
+        Assert.Contains(horror.Id, ((IGameRules)GrimdarkFutureRules.V360).InCover(sim.State));
+    }
+
     [Fact]
     public void Wrapping_rulesets_forward_it()
     {
