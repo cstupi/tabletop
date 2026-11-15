@@ -141,6 +141,27 @@ public class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void Frame_rate_limit_defaults_to_unlimited_and_round_trips()
+    {
+        var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;
+        Assert.Equal(0, d.FpsCap);
+        Assert.Equal(new[] { 0, 30, 60, 120, 144, 240 }, ClientSettings.FpsCaps);
+        Assert.NotEqual(d, d with { FpsCap = 60 });
+        foreach (var cap in ClientSettings.FpsCaps) { (d with { FpsCap = cap }).Save(path); Assert.Equal(cap, ClientSettings.Load(path).FpsCap); }
+        File.WriteAllText(path, """{ "animate": false }"""); Assert.Equal(0, ClientSettings.Load(path).FpsCap);
+    }
+
+    [Theory]
+    [InlineData(45)]
+    [InlineData(-30)]
+    [InlineData(100000)]
+    public void An_unknown_frame_rate_limit_loads_as_unlimited(int stored)
+    {
+        var path = Path.Combine(_dir, "settings.json"); File.WriteAllText(path, $$"""{ "fpsCap": {{stored}} }""");
+        Assert.Equal(0, ClientSettings.Load(path).FpsCap);
+    }
+
+    [Fact]
     public void Graphics_round_trip_and_each_field_counts_for_equality()
     {
         var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;

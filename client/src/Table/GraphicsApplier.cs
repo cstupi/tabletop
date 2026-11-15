@@ -14,6 +14,7 @@ public static class GraphicsApplier
     {
         var vsync = s.VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled;
         if (DisplayServer.WindowGetVsyncMode() != vsync) DisplayServer.WindowSetVsyncMode(vsync);
+        if (Engine.MaxFps != s.FpsCap) Engine.MaxFps = s.FpsCap;
         var full = window.Mode is Window.ModeEnum.Fullscreen or Window.ModeEnum.ExclusiveFullscreen;
         if (s.Display == DisplayMode.Fullscreen) { if (!full) window.Mode = Window.ModeEnum.Fullscreen; }
         else if (full)

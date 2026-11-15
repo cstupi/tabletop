@@ -60,6 +60,11 @@ public partial class SettingsDialog : AcceptDialog
         scale.ValueChanged += v => { session.UpdateSettings(s => s with { RenderScale = (int)v }); scaleValue.Text = $"{(int)v} %"; };
         var scaleRow = Labelled(graphics, "Render scale", scale); scaleRow.AddChild(scaleValue);
         Check(graphics, "VSync", session.Settings.VSync, session, (s, on) => s with { VSync = on });
+        var fps = new OptionButton();
+        foreach (var cap in ClientSettings.FpsCaps) fps.AddItem(cap == 0 ? "Unlimited" : $"{cap} fps");
+        fps.Selected = Array.IndexOf(ClientSettings.FpsCaps, session.Settings.FpsCap);
+        fps.ItemSelected += i => session.UpdateSettings(s => s with { FpsCap = ClientSettings.FpsCaps[(int)i] });
+        Labelled(graphics, "Frame rate limit", fps);
     }
 
     /// <summary>A caption in the left column and a wrapping row of controls in the right.</summary>
