@@ -3,6 +3,9 @@
 # Godot's import wipes client/.godot/mono/temp/bin/, so let the editor rebuild if scripts fail to load after an import.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# A checkout Godot has never imported has no client/.godot/imported: every font, icon, sound and print (the board, the table's
+# wood) fails to load at run time. Import it first; the build after puts back the assemblies the import wipes.
+if [[ ! -d client/.godot/imported ]]; then ./scripts/godot --headless --import; fi
 dotnet build client/Tabletop.csproj
 ./scripts/check-client
 exec ./scripts/godot "$@"
