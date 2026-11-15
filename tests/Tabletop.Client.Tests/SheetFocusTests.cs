@@ -35,6 +35,19 @@ public class SheetFocusTests
         Assert.Null(SheetFocus.Of(Activating(null), Game, TeamA, null));
     }
 
+    /// <summary>The owner, 2026-11-14: "it doesn't show your current unit's weapon range". The weapon range rings are the card's unit when it is
+    /// my team's: the selected one, else my team's activating unit with nothing selected; never another team's.</summary>
+    [Fact]
+    public void Range_rings_are_for_my_selected_unit_else_my_activating_one()
+    {
+        Assert.Equal(Blue.Id, RangeRings.UnitFor(Activating(null), Game, TeamA, Blue.Id));
+        Assert.Equal(Blue.Id, RangeRings.UnitFor(Activating(Blue.Id), Game, TeamA, null));        // activated from the decision box, never clicked
+        Assert.Equal(Blue2.Id, RangeRings.UnitFor(Activating(Blue.Id), Game, TeamA, Blue2.Id));
+        Assert.Null(RangeRings.UnitFor(Activating(Blue.Id), Game, TeamA, Red.Id));                // an enemy selected: its threat rings draw instead
+        Assert.Null(RangeRings.UnitFor(Activating(Red.Id), Game, TeamA, null));
+        Assert.Null(RangeRings.UnitFor(Activating(Blue.Id), Game, null, null));
+    }
+
     [Fact]
     public void An_activation_never_changes_a_selection()
     {

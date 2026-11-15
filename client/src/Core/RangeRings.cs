@@ -16,6 +16,11 @@ public static class RangeRings
 
     public static IReadOnlyList<RangeRing> Of(Projection p, Guid unitId) => Builder(p, unitId)();
 
+    /// <summary>The unit whose weapon ranges draw: the unit the card shows (SheetFocus: the selected unit, else my team's activating unit) when it
+    /// is of the team I act for; null for another team's unit, whose threat rings draw instead, and for a watcher.</summary>
+    public static Guid? UnitFor(Projection p, GameInfo game, Guid? myTeamId, Guid? selectedPiece) =>
+        myTeamId is { } mine && SheetFocus.Of(p, game, mine, selectedPiece) is { } unit && SheetFocus.TeamOf(p, game, unit)?.Id == mine ? unit : null;
+
     /// <summary><see cref="Of"/> in two halves: the unit's models and printed ranges read now, on the caller's thread; the outlines built when the returned function runs, on any thread.</summary>
     public static Func<IReadOnlyList<RangeRing>> Builder(Projection p, Guid unitId)
     {

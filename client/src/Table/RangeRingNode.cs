@@ -100,8 +100,8 @@ public partial class RangeRingNode : Node3D
 
     (Shaped Rings, Color Colour)? RangeWanted()
     {
-        if (!_s.Settings.RangeRings || _s.Projection is not { } p || _s.Game is not { } game || _input.Selected?.PieceId is not { } unit || p.Units.GetValueOrDefault(unit) is not { } u) return null;
-        if (game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId is not { } team || team != _s.MyTeamId) return null;   // mine only
+        if (!_s.Settings.RangeRings || _s.Projection is not { } p || _s.Game is not { } game || _s.MyTeamId is not { } team) return null;
+        if (RangeRings.UnitFor(p, game, team, _input.Selected?.PieceId) is not { } unit) return null;   // mine only: selected, else my team's activating unit
         var build = RangeRings.Builder(p, unit);
         return _ranges.Get(unit, [RingStamp.Of(p, unit, null)], () => Shape(build())) is { } rings ? (rings, Palette.Team(game.Teams.First(t => t.Id == team).Ordinal)) : null;
     }
