@@ -24,7 +24,6 @@ import { choose, pieceMenu, rosterMenu, teamMenu, type MenuContext } from '../sr
 import { Names } from '../src/lib/play/names';
 import { PendingDrops } from '../src/lib/play/pendingDrops';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
-import { DEFAULT_SETTINGS } from '../src/lib/play/settings';
 import { UndoPrediction, undoPlanOf } from '../src/lib/play/undo';
 import { Violations } from '../src/lib/play/violations';
 import { waitingLines, waitingTeams } from '../src/lib/play/waiting';
@@ -40,7 +39,7 @@ import type { Board, Command, Edit, GameEvent, GameInfo, TableState } from '../s
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface CallCase {
   name: string; log: string; upTo: number; status: 'playing' | 'lobby' | 'setup'; participantId?: string; creator?: boolean;
-  muted: string[]; maxWounds: Record<string, number>; deployInside: Record<string, string[]>; maySetAside: string[];
+  maxWounds: Record<string, number>; deployInside: Record<string, string[]>; maySetAside: string[];
   grantable: { label: string; entryName: string; effectId: string }[]; undoneTo?: number;
   choice: any; decisions: any; message: unknown | null;
 }
@@ -86,7 +85,7 @@ function contextOf(c: CallCase, st: ConnectionState): MenuContext {
   const p = st.projection!, game = st.game!;
   const myTeam = acting(p, teamsOf(game, st.participantId), st.log);
   return {
-    game, p, log: st.log, watching: false, myTeam, mine: myAsk(p, game, myTeam, new Set(c.muted)), grantable: c.grantable,
+    game, p, log: st.log, watching: false, myTeam, mine: myAsk(p, game, myTeam), grantable: c.grantable,
     deployInside: new Map(Object.entries(c.deployInside)), maySetAside: new Set(c.maySetAside), locks: new MarkerLocks(),
   };
 }
@@ -121,16 +120,15 @@ export function decisionsOf(c: CallCase, st: ConnectionState, log: CallLogFiles)
     const p = st.projection;
     const myTeams = teamsOf(game, pid);
     const team = acting(p, myTeams, st.log);
-    const muted = new Set(c.muted);
     const names = new Names(game, p);
-    const mine = myAsk(p, game, team, muted);
+    const mine = myAsk(p, game, team);
     const mid = [team, ...myTeams].map((t) => midDeploy(p, st.log, t)).find((m) => m !== null) ?? null;
     out.myTeams = myTeams; out.acting = team;
     out.mine = mine === null ? null : { askId: mine.ask.id, mode: mine.mode };
     out.midDeploy = mid === null ? null : { unitId: mid.unitId, question: mid.question, shelved: [...mid.shelvedModelIds] };
     if (want.includes('numbered')) {
       const numbered = c.choice.kind === 'unitKey' && mine !== null && mine.ask.legal.kind === 'options'
-        ? numberChoices(choicesOf(mine.ask.legal, p, c.choice.unitId)) : decisionOf(p, game, names, team, muted).numbered;
+        ? numberChoices(choicesOf(mine.ask.legal, p, c.choice.unitId)) : decisionOf(p, game, names, team).numbered;
       out.numbered = numbered.map((n) => [n.key, n.optionId]);
     }
     if (want.includes('pickable')) out.pickable = pickable(p, mine!.ask);
@@ -202,7 +200,7 @@ export async function replay(c: CallCase, st: ConnectionState, g: Geometry, log:
   const myTeams = teamsOf(game, pid);
   const box = new DecisionBox({
     state: () => st, myTeams: () => myTeams, acting: () => acting(p, myTeams, st.log),
-    settings: () => ({ ...DEFAULT_SETTINGS, mutedWindowKinds: c.muted }), updateSettings: () => {}, rules: () => RuleTexts.empty,
+    rules: () => RuleTexts.empty,
     send, onRefused: () => () => {},
   }, moveHooks({ geometry: () => g, violations: new Violations(), enforcement: () => 'silent', drops: new PendingDrops() }));
   box.render();
@@ -212,7 +210,6 @@ export async function replay(c: CallCase, st: ConnectionState, g: Geometry, log:
     case 'unitKey': box.unit(choice.unitId); box.number(choice.key); break;
     case 'click': box.target(choice.pieceId); break;
     case 'pass': box.press('pass'); break;
-    case 'autoPass': break;
     case 'confirm': box.enter(); break;
     case 'spend':
       for (const [id, n] of Object.entries<number>(choice.values)) box.spin(`spin:${id}`, n);

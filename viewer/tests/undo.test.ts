@@ -64,7 +64,7 @@ describe('UndoPlan', () => {
     expect(plan(engine(Round1), me(mv), engine(phase), them(score), me(undone(3)), me(undone(1))).plan).toBeNull();
   });
 
-  // A pass on a window is not the action Undo steps back to: a muted window is passed again at once, so the press would do nothing.
+  // A pass on a window is not the action Undo steps back to: undoing only the pass reopens the window it passed.
   it('a pass on a window is not an action and goes with the one before', () => {
     const window = askOf({ kind: 'options', choices: [option('cast', 'Cast a spell', [Unit])] }, { question: 'window', windowKind: 'before-attacking' });
     const passed = { kind: 'passed' as const };

@@ -8,7 +8,7 @@ namespace Tabletop.Client.Core;
 public enum LogFilter { All, Rolls, Mine, Unit }
 
 /// <summary>Per-player, per-machine settings. Presentation and convenience only; nothing here reaches the server.</summary>
-public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl, LogFilter LogFilter = LogFilter.All, bool LogOpen = false)
+public sealed record ClientSettings(bool Animate, bool RememberMe, string ManagementUrl, string GameServerUrl, LogFilter LogFilter = LogFilter.All, bool LogOpen = false)
 {
     public string Theme { get; init; } = UiThemes.DefaultId;
     public bool CameraFollow { get; init; } = true;
@@ -51,14 +51,14 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     /// /v1 and /ws; a development build reaches the local stack.</summary>
     public static ClientSettings DefaultFor(BuildInfo build)
     {
-        if (build.WebUrl is not { } web) return new(true, new HashSet<string>(), false, "http://127.0.0.1:5100", "ws://127.0.0.1:5200/ws");
+        if (build.WebUrl is not { } web) return new(true, false, "http://127.0.0.1:5100", "ws://127.0.0.1:5200/ws");
         var socket = new UriBuilder(web) { Scheme = web.StartsWith("https:", StringComparison.OrdinalIgnoreCase) ? "wss" : "ws", Path = "/ws" };
-        return new(true, new HashSet<string>(), false, web, socket.Uri.ToString()) { WebUrl = web };
+        return new(true, false, web, socket.Uri.ToString()) { WebUrl = web };
     }
 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
-    sealed record Dto(bool? Animate, string[]? MutedWindowKinds, bool? RememberMe, string? ManagementUrl, string? GameServerUrl, string? LogFilter, bool? LogOpen,
+    sealed record Dto(bool? Animate, bool? RememberMe, string? ManagementUrl, string? GameServerUrl, string? LogFilter, bool? LogOpen,
         string? Theme = null, bool? CameraFollow = null, bool? TurnBanner = null, bool? RangeRings = null, string? WebUrl = null, string? MeasureMode = null, bool? ShowHitboxes = null, bool? ShowTerrainHitboxes = null, bool? Sound = null, int? Volume = null,
         string? Display = null, string? Quality = null, int? RenderScale = null, bool? VSync = null, WindowRect? Window = null, bool? LogDetailed = null, bool? WeaponRanges = null, int? FpsCap = null);
 
@@ -74,7 +74,7 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
         var d = Read(path);
         if (d is null) return def;
         var release = build.WebUrl is not null;
-        return new ClientSettings(d.Animate ?? def.Animate, new HashSet<string>(d.MutedWindowKinds ?? []), d.RememberMe ?? def.RememberMe,
+        return new ClientSettings(d.Animate ?? def.Animate, d.RememberMe ?? def.RememberMe,
             release ? def.ManagementUrl : d.ManagementUrl ?? def.ManagementUrl, release ? def.GameServerUrl : d.GameServerUrl ?? def.GameServerUrl,
             Enum.TryParse<LogFilter>(d.LogFilter, true, out var f) && Enum.IsDefined(f) && !int.TryParse(d.LogFilter, out _) ? f : def.LogFilter, d.LogOpen ?? def.LogOpen)
             with { Theme = UiThemes.Resolve(d.Theme).Id, CameraFollow = d.CameraFollow ?? true, TurnBanner = d.TurnBanner ?? true, RangeRings = d.WeaponRanges ?? true, LogDetailed = d.LogDetailed ?? false, ShowHitboxes = d.ShowHitboxes ?? true, ShowTerrainHitboxes = d.ShowTerrainHitboxes ?? true, Sound = d.Sound ?? true, Volume = Math.Clamp(d.Volume ?? 70, 0, 100),
@@ -102,16 +102,13 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
     {
         var dev = build.WebUrl is null;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(new Dto(Animate, MutedWindowKinds.Order().ToArray(), RememberMe, dev ? ManagementUrl : null, dev ? GameServerUrl : null,
+        File.WriteAllText(path, JsonSerializer.Serialize(new Dto(Animate, RememberMe, dev ? ManagementUrl : null, dev ? GameServerUrl : null,
             LogFilter.ToString(), LogOpen, Theme, CameraFollow, TurnBanner, null, dev ? WebUrl : null, MeasureMode.ToString(), ShowHitboxes, ShowTerrainHitboxes, Sound, Volume,
             Display.ToString(), Quality.ToString(), RenderScale, VSync, Window, LogDetailed, RangeRings, FpsCap), Json));
     }
 
-    public ClientSettings Mute(string windowKind) => this with { MutedWindowKinds = new HashSet<string>(MutedWindowKinds) { windowKind } };
-    public ClientSettings Unmute(string windowKind) => this with { MutedWindowKinds = MutedWindowKinds.Where(k => k != windowKind).ToHashSet() };
-
     public bool Equals(ClientSettings? other) => other is not null && Animate == other.Animate && RememberMe == other.RememberMe
         && ManagementUrl == other.ManagementUrl && GameServerUrl == other.GameServerUrl && LogFilter == other.LogFilter && LogOpen == other.LogOpen
-        && Theme == other.Theme && CameraFollow == other.CameraFollow && TurnBanner == other.TurnBanner && RangeRings == other.RangeRings && LogDetailed == other.LogDetailed && ShowHitboxes == other.ShowHitboxes && ShowTerrainHitboxes == other.ShowTerrainHitboxes && MeasureMode == other.MeasureMode && Sound == other.Sound && Volume == other.Volume && Display == other.Display && Quality == other.Quality && RenderScale == other.RenderScale && VSync == other.VSync && FpsCap == other.FpsCap && Window == other.Window && WebUrl == other.WebUrl && MutedWindowKinds.SetEquals(other.MutedWindowKinds);
-    public override int GetHashCode() => HashCode.Combine(Animate, RememberMe, ManagementUrl, GameServerUrl, MutedWindowKinds.Count, LogFilter, Theme);
+        && Theme == other.Theme && CameraFollow == other.CameraFollow && TurnBanner == other.TurnBanner && RangeRings == other.RangeRings && LogDetailed == other.LogDetailed && ShowHitboxes == other.ShowHitboxes && ShowTerrainHitboxes == other.ShowTerrainHitboxes && MeasureMode == other.MeasureMode && Sound == other.Sound && Volume == other.Volume && Display == other.Display && Quality == other.Quality && RenderScale == other.RenderScale && VSync == other.VSync && FpsCap == other.FpsCap && Window == other.Window && WebUrl == other.WebUrl;
+    public override int GetHashCode() => HashCode.Combine(Animate, RememberMe, ManagementUrl, GameServerUrl, LogFilter, Theme);
 }

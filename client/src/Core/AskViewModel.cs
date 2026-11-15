@@ -5,7 +5,7 @@ namespace Tabletop.Client.Core;
 public enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }
 
 /// <summary>What the decision box renders. Highlights are the pieces the legal set names.</summary>
-public sealed record AskView(Ask Ask, AskMode Mode, IReadOnlyList<Guid> Highlights, IReadOnlyList<string> AnsweredTeams, bool AutoPass);
+public sealed record AskView(Ask Ask, AskMode Mode, IReadOnlyList<Guid> Highlights, IReadOnlyList<string> AnsweredTeams);
 
 public static class AskViewModel
 {
@@ -34,7 +34,7 @@ public static class AskViewModel
     /// team (rulebook p.50 Team Games). Null for a watcher: a participant with no team is never Asked. `myTeam` comes from the participant's row by way of `Welcome`, so a player who reconnects mid-Ask is addressed by
     /// it again (game flow → Teams are frozen at the flip); callers pass null only for a real watcher, never for a client that is mid-reconnect.
     /// </summary>
-    public static AskView? Mine(Projection p, GameInfo game, Guid? myTeam, IReadOnlySet<string> muted)
+    public static AskView? Mine(Projection p, GameInfo game, Guid? myTeam)
     {
         if (myTeam is not { } team) return null;
         var open = p.OpenAsks.Values.OrderBy(a => a.Ask.Id).FirstOrDefault(a => a.Ask.Teams.Contains(team) && !a.Answers.ContainsKey(team));
@@ -48,8 +48,7 @@ public static class AskViewModel
             TokenSpend t => SpendableBy(p, game, team, t).Keys.ToList(),          // my own spenders only (p.13)
             _ => (IReadOnlyList<Guid>)[],
         };
-        var autoPass = ask.WindowKind is { } kind && muted.Contains(kind) && ask.AllowPass;
-        return new AskView(ask, ModeOf(ask.Legal), highlights, open.Answers.Keys.Select(names.Team).ToList(), autoPass);
+        return new AskView(ask, ModeOf(ask.Legal), highlights, open.Answers.Keys.Select(names.Team).ToList());
     }
 
     /// <summary>

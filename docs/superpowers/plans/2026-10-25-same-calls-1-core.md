@@ -44,7 +44,7 @@ Every outbound message, where each client builds it, and whether Godot's site is
 | --- | --- | --- | --- | --- | --- |
 | 1 | `AnswerAsk(Chosen)`: an option button, its 1–9 key, a key after a unit click narrows the list | `Hud/DecisionBox.cs` `RenderChoose`, `Answer` (`new AnswerAsk(ask.Id, answer, _answering)`) | Hud | `play/decisionBox.ts` `#renderChoose`, `#answer` | 1 |
 | 2 | `AnswerAsk(Chosen)`: a table click on a piece one option names | `DecisionBox.RenderChoose` `_onTarget`, `DecisionBox.Resolve` | Hud | `decisionBox.ts` `handlers.onTarget`, `#resolve` | 1 |
-| 3 | `AnswerAsk(Passed)`: Pass, and the auto-pass of a muted window | `DecisionBox.RenderAsk` | Hud | `decisionBox.ts` `#renderAsk` | 1 |
+| 3 | `AnswerAsk(Passed)`: Pass | `DecisionBox.RenderAsk` | Hud | `decisionBox.ts` `#renderAsk` | 1 |
 | 4 | `AnswerAsk(Confirmed)`: Continue, End the round | `DecisionBox.RenderAsk` | Hud | `decisionBox.ts` `#renderAsk` | 1 |
 | 5 | `AnswerAsk(TokensSpent)` | `DecisionBox.RenderSpend` (`AskViewModel.SpendableBy` is Core) | Hud | `decisionBox.ts` `#renderSpend` | 1 |
 | 6 | `AnswerAsk(SelectedPieces)`: picks, the deploy pick, the Ambusher pick | `Hud/DecisionBox.Picks.cs` `RenderPick` (`DeployView.Pickable`, `OffTable` are Core) | Hud | `decisionBox.ts` `#renderPick` | 2 |

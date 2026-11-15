@@ -5,7 +5,7 @@
 
 **Goal:** In a playing game the browser answers every Ask the server puts to the player's team, as Godot's decision box does:
 Choose (numbered, narrowed to a clicked unit, an option's unit lit on hover), PickPieces (a deploy pick included), Assign
-(declare targets), Allocate (casualties), TokenSpend, Confirm, Pass and mute, the sealed reveal, the server's refusal, and the
+(declare targets), Allocate (casualties), TokenSpend, Confirm, Pass, the sealed reveal, the server's refusal, and the
 `game_over` choice with the Game over modal. Moves and deploy placement are D2.
 
 **Architecture:** `viewer/src/lib/play/` holds one TypeScript module per ported Godot core file, members camelCased, bodies
@@ -39,7 +39,7 @@ The builder's calls → the decision box). Prerequisites: `2026-10-24-browser-pl
 - **Godot's table raises three click events** (`TableInput`): `UnitClicked` on every model click (the selection),
   `TargetClicked` for a piece in `Eligible`, `ModelClicked(id, right)`. C1's `BoardInteraction` gives `onSelect(hit, mods)` and
   `onContextMenu(hit, …)`; `PlayPage` maps them the same way (Task 7), so the controller keeps Godot's handler shape.
-- **Settings Godot keeps in `settings.json`** that play reads (`MutedWindowKinds`, `RangeRings`, `LogOpen`, `LogFilter`) are
+- **Settings Godot keeps in `settings.json`** that play reads (`RangeRings`, `LogOpen`, `LogFilter`) are
   per-viewer conveniences: `localStorage` `tabletop.play`, every access in try/catch, defaults when it throws (Task 6).
 - **Rule texts** come from `GET /v1/properties/{hash}/rules` and grantable effects from `/grants` (`ManagementClient`); C1's
   `Api` has neither. Task 2 adds both; the cast option's tooltip (`SpellText.OfOption`) needs the texts in D1.
@@ -62,8 +62,6 @@ The builder's calls → the decision box). Prerequisites: `2026-10-24-browser-pl
   an answer sends nothing` (Task 6).
 - A refusal of the box's last command shows `The server refused: {detail}` over the same Ask, rebuilt; another Ask clears it.
   Test: `a refusal re-renders the Ask with the server's words and a new Ask clears them` (Task 6).
-- A muted window that the server refuses must not auto-pass again: the box falls through to its Pass button. Test: `a refused
-  auto-pass renders the Ask with its Pass button` (Task 6).
 - Self-play: an answer carries the team the Ask was rendered for, not the acting team when it is sent. Test: `the answer names
   the team the Ask was rendered for` (Task 6).
 - Hover lighting (commit f34f24cd): the hovered option's pieces in `GLOW.hovered`, the rest of the Ask's glow dark, restored on
@@ -182,10 +180,10 @@ export function playingAs(game: GameInfo, mine: readonly string[], acting: strin
 // askView.ts — AskViewModel
 export type AskMode = 'choose' | 'pickPieces' | 'allocate' | 'assign' | 'move' | 'tokenSpend' | 'confirm';
 export interface AskView { readonly ask: Ask; readonly mode: AskMode; readonly highlights: readonly string[];
-  readonly answeredTeams: readonly string[]; readonly autoPass: boolean }
+  readonly answeredTeams: readonly string[] }
 export function modeOf(legal: LegalSet): AskMode;
 export function spendableBy(p: Projection, game: GameInfo, team: string, legal: TokenSpend): Map<string, number>;
-export function mine(p: Projection, game: GameInfo, myTeam: string | null, muted: ReadonlySet<string>): AskView | null;
+export function mine(p: Projection, game: GameInfo, myTeam: string | null): AskView | null;
 export function waitingFor(p: Projection, game: GameInfo, myTeam: string | null): string | null;
 export function confirmLabel(ask: Ask): string;
 export function answeredBy(log: readonly GameEvent[], askId: string, myTeam: string | null, me: string | null, n: Names): string | null;
@@ -220,7 +218,7 @@ export function isWatching(state: ConnectionState): boolean;
 
 - [ ] Tests first, Godot's cases: `seats.test.ts` (SeatsTests' first four, TeamAsksTests' three); `askView.test.ts`
   (ViewModelTests: `my ask is the one addressed to my team and others are a wait`, `answered by names a teammate's live answer for
-  my team only`, `a muted window auto passes and a simultaneous spend shows who answered without what`; plus `the spend map keeps
+  my team only`, `a simultaneous spend shows who answered without what`; plus `the spend map keeps
   my own models only`, `a move's highlights add the containers it offers`, `end_round confirms as End the round`);
   `headerView.test.ts` (HeaderViewTests' eleven, HeaderAdditionsTests' two); `waiting.test.ts` (SeatsTests' last three, `a team
   with a seat and an army is no wait`, `the wait holds only on an empty log`, `an admin watcher and a teamless participant
@@ -242,14 +240,14 @@ export function isWatching(state: ConnectionState): boolean;
 // decisionView.ts — DecisionView
 export interface Numbered { readonly key: number; readonly label: string; readonly optionId: string }   // key 0: past nine
 export interface DecisionModel { readonly ask: Ask | null; readonly mode: AskMode | null; readonly title: string;
-  readonly numbered: readonly Numbered[]; readonly hint: string; readonly autoPass: boolean }
+  readonly numbered: readonly Numbered[]; readonly hint: string }
 export interface ChoiceRow { readonly option: AskOption | null; readonly note: string | null }
-export function decisionOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, muted: ReadonlySet<string>): DecisionModel;
+export function decisionOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null): DecisionModel;
 export function number(choices: readonly AskOption[]): Numbered[];
 export function clickAnswers(options: Options): Set<string>;
 export function choicesOf(options: Options, p: Projection, unitId: string): AskOption[];
 export function rows(shown: readonly AskOption[]): ChoiceRow[];
-export function noteOf(p: Projection, game: GameInfo, myTeam: string | null, muted: ReadonlySet<string>, unitId: string): string | null;
+export function noteOf(p: Projection, game: GameInfo, myTeam: string | null, unitId: string): string | null;
 export function stopLabel(p: Projection, m: MoveRegion): string | null;
 // deployView.ts — DeployView, whole (Layout and Around serve D2)
 export interface MidDeploy { readonly unitId: string; readonly question: string; readonly shelvedModelIds: readonly string[] }
@@ -264,7 +262,7 @@ export function offTable(p: Projection, eligible: Iterable<string>): string[];
 - [ ] Tests first: `decisionView.test.ts`, DecisionViewTests' eleven (`options are numbered and the hint names the keys`, `past
   nine an entry has no key`, `a deploy ask numbers the shelved units and a target pick asks for a click`, `a stoppable move offers
   cast when a moving model holds spell tokens`, `each mode has its hint and casualties title the count`, `nothing addressed to me
-  gives no ask`, `a muted window is an auto pass`, `only a piece one choice names answers a click`, `a unit narrows the box to its
+  gives no ask`, `only a piece one choice names answers a click`, `a unit narrows the box to its
   choices numbered from one`, `a unit's note shows once after its buttons and an unnoted unit shows none`, `the selected unit's
   note is read off my open choice`). The Move hint is asserted word for word: `Drag to move · Shift: one model · 1–5 while
   holding: rows · Q/E: turn · Enter: commit · Esc: reset`. `deployView.test.ts`: DeployViewTests' eight, DeployAroundTests'
@@ -324,7 +322,7 @@ export function gameOverOf(p: Projection, game: GameInfo, myTeam: string | null)
 ```ts
 // settings.ts — the play settings ClientSettings holds, per viewer
 export type LogFilter = 'all' | 'rolls' | 'mine' | 'unit';
-export interface PlaySettings { readonly mutedWindowKinds: readonly string[]; readonly rangeRings: boolean;
+export interface PlaySettings { readonly rangeRings: boolean;
   readonly logOpen: boolean; readonly logFilter: LogFilter }
 export const DEFAULT_SETTINGS: PlaySettings;            // [], false, false, 'all'
 export function loadSettings(storage: StorageLike | null): PlaySettings;   // 'tabletop.play'; unreadable → defaults
@@ -368,8 +366,7 @@ The controller ports `Render`, `RenderAsk`, `RenderChoose`, `Glow`, `Light`, `Re
 `Send`, `Report`, `Answer`, `Unhook`, `Reset` and `RenderPick`, `RenderTargets`, `RenderCasualties` in their order. `Answer`
 unhooks, disables the buttons, takes a fresh token as `_lastCommand`, then awaits `send(AnswerAsk(ask.id, answer, answering))`;
 an outcome with `refused` whose token is still the last is Godot's `_onRefused` (`The server refused: {detail}`, the Ask
-rebuilt, `moves.refused` first); a thrown `SendError` is `Report` (`Could not send the answer: {message}`). Mute and Unmute go
-through `updateSettings`. Wounds left for casualties read `state().maxWounds` (absent: 1) less the model's wounds.
+rebuilt, `moves.refused` first); a thrown `SendError` is `Report` (`Could not send the answer: {message}`). Wounds left for casualties read `state().maxWounds` (absent: 1) less the model's wounds.
 
 - [ ] Tests first (`decisionBox.test.ts`, a fake host recording sends and settling them as told, projections from `tests/play.ts`):
   `nothing open for my team shows the header's waiting line`; `while deployment waits the title lists each team's wait`;
@@ -379,9 +376,7 @@ through `updateSettings`. Wounds left for casualties read `state().maxWounds` (a
   carries its spell's tooltip`; `token spend offers a box per caster of mine and sends only non-zero spends`; `confirm answers on
   Enter and the end_round button says End the round (Enter)`; `pick pieces toggles a piece and one pick of one answers at once`;
   `a deploy pick lists shelved units as numbered buttons`; `targets aim the picked groups, a chip picks its group alone, Enter
-  fires and Esc clears`; `casualties add on click, take one away on right-click, fill on Auto and mark ✕ n/left`; `pass and mute
-  each send or store once`; `a muted window auto-passes once and offers Unmute`; `a refused auto-pass renders the Ask with its
-  Pass button`; `a refusal re-renders the Ask with the server's words and a new Ask clears them`; `a failed send shows Could not
+  fires and Esc clears`; `casualties add on click, take one away on right-click, fill on Auto and mark ✕ n/left`; `pass sends once`; `a refusal re-renders the Ask with the server's words and a new Ask clears them`; `a failed send shows Could not
   send the answer`; `a second Enter after an answer sends nothing`; `the answer names the team the Ask was rendered for`; `a
   teammate's answer reads Name answered for your team`; `a reveal shows until the render after a new Ask`; `Playing as Team 2
   heads the box for an account with two teams`. `settings.test.ts`: `defaults when storage is empty, corrupt or throws`;
@@ -389,7 +384,7 @@ through `updateSettings`. Wounds left for casualties read `state().maxWounds` (a
 - [ ] `cd viewer && npx vitest run tests/decisionBox.test.ts tests/settings.test.ts` fails.
 - [ ] Implement.
 - [ ] `npm test && npm run check`.
-- [ ] Commit: `Viewer: the decision box controller — choose, picks, targets, casualties, spend, confirm, pass, mute, refusals`.
+- [ ] Commit: `Viewer: the decision box controller — choose, picks, targets, casualties, spend, confirm, pass, refusals`.
 
 ### Task 7: The play page, the board's glow, the decision box and the Game over modal
 

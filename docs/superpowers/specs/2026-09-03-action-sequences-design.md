@@ -159,8 +159,8 @@ actually react there: a property in the pinned data, a `GameRules` hook, a caste
 in range. **If nothing can react, no window opens and nobody is bothered.** If something can,
 each eligible team gets an explicit Ask: **react or pass, and passing is a real answer,
 logged.** A reaction pushes its sequence on top of the suspended frame; the window closes when
-every offered team has passed or its reaction has finished. Clients may auto-pass window kinds
-a player has muted — client convenience, not model; the pass is still their pass.
+every offered team has passed or its reaction has finished. Clients show every window Ask; a
+pass is the player's own.
 
 Two ways a window opens, one suspension:
 
@@ -352,8 +352,6 @@ data.
   effect independently.
 - The two flagged `GameRules` interpretations: *one try per spell* scope, and weapon-group
   recomputation after casualties.
-- ~~Whether a muted window kind is per player or per team.~~ **Settled 2026-09-04** by
-  [the scheduler](2026-09-04-scheduler-design.md): per player.
 - ~~Whether `step_completed` payloads need a schema per step kind, or stay free-form within the
   event payload's existing `jsonb`.~~ **Settled 2026-09-05** by the interpreter plan: a flat
   `values` map of named integers, and no per-kind schema.

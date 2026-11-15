@@ -32,13 +32,11 @@ public sealed class CallState
     public Guid? ParticipantId { get; init; }
     public IReadOnlyList<Guid> MyTeams { get; init; } = [];
     public Guid? Acting { get; init; }
-    public IReadOnlyList<string> Muted { get; init; } = [];
-    public AskView? Mine => P is null ? null : AskViewModel.Mine(P, Game, Acting, Muted.ToHashSet(StringComparer.Ordinal));
+    public AskView? Mine => P is null ? null : AskViewModel.Mine(P, Game, Acting);
     public Names Names => new(Game, P);
-    public IReadOnlySet<string> MutedSet => Muted.ToHashSet(StringComparer.Ordinal);
 
     /// <summary>The log's events with seq &lt;= upTo applied, then (undoneTo) the Undone marker a player's Undo would append.</summary>
-    public static CallState Playing(CallLog log, long upTo, Guid participantId, IReadOnlyList<string>? muted = null, long? undoneTo = null)
+    public static CallState Playing(CallLog log, long upTo, Guid participantId, long? undoneTo = null)
     {
         var applier = new EventApplier(log.Board, log.Game);
         applier.ApplyAll(log.Events.Where(e => e.Seq <= upTo));
@@ -47,7 +45,7 @@ public sealed class CallState
         return new CallState
         {
             Log = log, Game = log.Game, P = applier.Projection, Events = applier.Log, ParticipantId = participantId, MyTeams = teams,
-            Acting = Seats.Acting(applier.Projection, teams, applier.Log), Muted = muted ?? [],
+            Acting = Seats.Acting(applier.Projection, teams, applier.Log),
         };
     }
 
@@ -90,7 +88,6 @@ public sealed class CallCase
         };
         if (State.ParticipantId is { } who) o["participantId"] = who.ToString();
         if (State.P is null) o["creator"] = Creator;
-        o["muted"] = new JsonArray(State.Muted.Select(m => (JsonNode?)JsonValue.Create(m)).ToArray());
         o["maxWounds"] = CallCases.J(MaxWounds);
         o["deployInside"] = CallCases.J(DeployInside);
         o["maySetAside"] = CallCases.J(MaySetAside.ToList());
@@ -144,11 +141,11 @@ public static partial class CallCases
 
     /// <summary>A playing case: its decisions, and its message from `build` (null: nothing is sent).</summary>
     public static CallCase Playing(string kind, CallLog log, long upTo, Guid participant, JsonObject choice, Func<CallState, JsonNode?> build,
-        Action<CallState, JsonObject>? decide = null, string suffix = "", IReadOnlyList<string>? muted = null, long? undoneTo = null,
+        Action<CallState, JsonObject>? decide = null, string suffix = "", long? undoneTo = null,
         IReadOnlyDictionary<Guid, int>? maxWounds = null, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? deployInside = null,
         IReadOnlyList<GrantChoice>? grantable = null, IReadOnlySet<Guid>? maySetAside = null)
     {
-        var state = CallState.Playing(log, upTo, participant, muted, undoneTo);
+        var state = CallState.Playing(log, upTo, participant, undoneTo);
         var c = new CallCase
         {
             Kind = kind, State = state, Choice = choice, UpTo = upTo, Suffix = suffix, UndoneTo = undoneTo,
@@ -179,7 +176,7 @@ public static partial class CallCases
 
     public static readonly string[] Required =
     [
-        "choose/option", "choose/key", "choose/unitKey", "choose/click", "choose/clickNone", "pass", "autoPass", "confirm", "confirm/endRound",
+        "choose/option", "choose/key", "choose/unitKey", "choose/click", "choose/clickNone", "pass", "confirm", "confirm/endRound",
         "spend", "pick", "pick/deploy", "pick/ambusher", "pickKey", "assign", "casualties", "move", "move/stop", "move/disembark", "embark",
         "deploy/click", "deploy/ghosts", "deploy/ambusher", "gameOver", "selfplay/answer", "selfplay/deploy",
         "menu/model", "menu/unit", "menu/marker", "menu/team", "menu/setAside", "menu/return", "menu/putIn", "menu/takeOut", "menu/abandon",

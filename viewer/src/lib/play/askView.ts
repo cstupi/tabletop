@@ -11,7 +11,7 @@ export type AskMode = 'choose' | 'pickPieces' | 'allocate' | 'assign' | 'move' |
 
 export interface AskView {
   readonly ask: Ask; readonly mode: AskMode; readonly highlights: readonly string[];
-  readonly answeredTeams: readonly string[]; readonly autoPass: boolean;
+  readonly answeredTeams: readonly string[];
 }
 
 export function modeOf(legal: LegalSet): AskMode {
@@ -49,7 +49,7 @@ const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
  * The first open Ask addressed to my team that my team has not answered; any player of the team answers it, for any unit of the team
  * (rulebook p.50 Team Games). Null for a watcher: a participant with no team is never Asked.
  */
-export function mine(p: Projection, game: GameInfo, myTeam: string | null, muted: ReadonlySet<string>): AskView | null {
+export function mine(p: Projection, game: GameInfo, myTeam: string | null): AskView | null {
   if (myTeam === null) return null;
   const open = [...p.openAsks.values()].sort((a, b) => byId(a.ask.id, b.ask.id)).find((a) => a.ask.teams.includes(myTeam) && !a.answers.has(myTeam));
   if (open === undefined) return null;
@@ -65,8 +65,7 @@ export function mine(p: Projection, game: GameInfo, myTeam: string | null, muted
     case 'token_spend': highlights = [...spendableBy(p, game, myTeam, l).keys()]; break;   // my own spenders only (p.13)
     default: highlights = [];
   }
-  const autoPass = ask.windowKind !== undefined && muted.has(ask.windowKind) && ask.allowPass;
-  return { ask, mode: modeOf(ask.legal), highlights, answeredTeams: [...open.answers.keys()].map((t) => names.team(t)), autoPass };
+  return { ask, mode: modeOf(ask.legal), highlights, answeredTeams: [...open.answers.keys()].map((t) => names.team(t)) };
 }
 
 /** The pieces a move Ask names: its models, plus the containers containment offers (an enterable one, and the one a unit is exiting). */

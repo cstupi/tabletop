@@ -15,12 +15,22 @@ public class SettingsTests : IDisposable
         var s = ClientSettings.Load(path);
         Assert.Equal(ClientSettings.Default, s);
         Assert.Equal(("http://127.0.0.1:5100", "ws://127.0.0.1:5200/ws", true, false), (s.ManagementUrl, s.GameServerUrl, s.Animate, s.RememberMe));
-        s = s.Mute("casting") with { Animate = false, RememberMe = true };
+        s = s with { Animate = false, RememberMe = true };
         s.Save(path);
         var back = ClientSettings.Load(path);
         Assert.Equal(s, back);
-        Assert.Contains("casting", back.MutedWindowKinds);
-        Assert.Empty(back.Unmute("casting").MutedWindowKinds);
+    }
+
+    /// <summary>A settings file from a build that stored muted prompt kinds loads with its other settings, and the key is not written back.</summary>
+    [Fact]
+    public void A_stored_muted_window_kinds_key_loads_and_is_dropped_on_save()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        File.WriteAllText(path, """{ "animate": false, "mutedWindowKinds": ["casting", "before-attacking"], "rememberMe": true, "logOpen": true }""");
+        var s = ClientSettings.Load(path);
+        Assert.Equal((false, true, true), (s.Animate, s.RememberMe, s.LogOpen));
+        s.Save(path);
+        Assert.DoesNotContain("mutedWindowKinds", File.ReadAllText(path), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, loadSettings, mute, mutedPrompts, promptLabel, promptWords, saveSettings, unmute, type StorageLike } from '../src/lib/play/settings';
+import { DEFAULT_SETTINGS, loadSettings, saveSettings, type StorageLike } from '../src/lib/play/settings';
 
 const memory = (initial: Record<string, string> = {}): StorageLike & { data: Record<string, string> } => ({
   data: { ...initial }, getItem(k) { return this.data[k] ?? null; }, setItem(k, v) { this.data[k] = v; },
@@ -11,7 +11,7 @@ describe('play settings', () => {
     expect(loadSettings(memory())).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(memory({ 'tabletop.play': '{nope' }))).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(memory({ 'tabletop.play': '[1]' }))).toEqual(DEFAULT_SETTINGS);
-    expect(loadSettings(memory({ 'tabletop.play': '{"logFilter":"x","rangeRings":3,"mutedWindowKinds":[1]}' }))).toEqual(DEFAULT_SETTINGS);
+    expect(loadSettings(memory({ 'tabletop.play': '{"logFilter":"x","rangeRings":3}' }))).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(throwing, DEFAULT_SETTINGS)).not.toThrow();
@@ -20,7 +20,7 @@ describe('play settings', () => {
 
   it('a saved setting reads back', () => {
     const storage = memory();
-    const saved = { mutedWindowKinds: ['casting', 'reaction'], rangeRings: false, logOpen: true, logFilter: 'mine' as const, logDetailed: true };
+    const saved = { rangeRings: false, logOpen: true, logFilter: 'mine' as const, logDetailed: true };
     saveSettings(storage, saved);
     expect(loadSettings(storage)).toEqual(saved);
   });
@@ -30,17 +30,11 @@ describe('play settings', () => {
     expect(loadSettings(memory({ 'tabletop.play': '{"rangeRings":false,"logOpen":false}' }))).toMatchObject({ rangeRings: true, logOpen: false });
   });
 
-  it('mute adds a kind once and unmute removes it', () => {
-    const once = mute(mute(DEFAULT_SETTINGS, 'casting'), 'casting');
-    expect(once.mutedWindowKinds).toEqual(['casting']);
-    expect(unmute(once, 'casting').mutedWindowKinds).toEqual([]);
-  });
-
-  it('a window kind reads as words, and the muted kinds list in order with their labels (MutedPrompts)', () => {
-    expect([promptWords('before-attacking'), promptLabel('before-attacking'), promptWords('activation_end'), promptLabel('casting')])
-      .toEqual(['before attacking', 'Before attacking', 'activation end', 'Casting']);
-    const s = mute(mute(DEFAULT_SETTINGS, 'casting'), 'before-attacking');
-    expect(mutedPrompts(s)).toEqual([{ kind: 'before-attacking', label: 'Before attacking' }, { kind: 'casting', label: 'Casting' }]);
-    expect(mutedPrompts(DEFAULT_SETTINGS)).toEqual([]);
+  it('a store with an earlier build\'s muted prompt kinds loads its other settings and drops the key on save', () => {
+    const storage = memory({ 'tabletop.play': '{"mutedWindowKinds":["casting"],"logFilter":"mine","logOpen":false}' });
+    const s = loadSettings(storage);
+    expect(s).toEqual({ ...DEFAULT_SETTINGS, logFilter: 'mine', logOpen: false });
+    saveSettings(storage, s);
+    expect(storage.data['tabletop.play']).not.toContain('muted');
   });
 });

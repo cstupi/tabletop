@@ -5,7 +5,7 @@ using Tabletop.Client.Theming;
 namespace Tabletop.Client.Screens;
 
 /// <summary>The settings that apply at once (UX redesign part 1 → Settings), in captioned groups: Theme as a tile per theme in its own colours;
-/// Play (animate, camera follows, turn banner, range rings at start); Muted prompts (each with Unmute); Table (model and terrain hitboxes, with their keys); Sound (on, volume);
+/// Play (animate, camera follows, turn banner, range rings at start); Table (model and terrain hitboxes, with their keys); Sound (on, volume);
 /// Graphics (display, quality, render scale, VSync).</summary>
 public partial class SettingsDialog : AcceptDialog
 {
@@ -26,7 +26,6 @@ public partial class SettingsDialog : AcceptDialog
         Check(play, "Camera follows", session.Settings.CameraFollow, session, (s, on) => s with { CameraFollow = on });
         Check(play, "Turn banner", session.Settings.TurnBanner, session, (s, on) => s with { TurnBanner = on });
         Check(play, "Range rings at start", session.Settings.RangeRings, session, (s, on) => s with { RangeRings = on });
-        MutedRows(Group(grid, "MUTED PROMPTS"), session);
 
         var table = Group(grid, "TABLE");
         Check(table, "Model hitboxes", session.Settings.ShowHitboxes, session, (s, on) => s with { ShowHitboxes = on }, "B");
@@ -76,24 +75,6 @@ public partial class SettingsDialog : AcceptDialog
         row.AddThemeConstantOverride("h_separation", 22); row.AddThemeConstantOverride("v_separation", 10);
         grid.AddChild(row);
         return row;
-    }
-
-    /// <summary>A muted prompt auto-passes every time it opens (DecisionBox): one row per muted kind with its Unmute, "None" when there is none.</summary>
-    static void MutedRows(HFlowContainer row, Session session)
-    {
-        var none = new Label { Text = "None", ThemeTypeVariation = Variation.Dim, Visible = session.Settings.MutedWindowKinds.Count == 0 };
-        row.AddChild(none);
-        foreach (var (kind, label) in MutedPrompts.Of(session.Settings.MutedWindowKinds))
-        {
-            var unmute = new Button { Text = "Unmute" };
-            var box = Labelled(row, label, unmute);
-            unmute.Pressed += () =>
-            {
-                session.UpdateSettings(s => s.Unmute(kind));
-                box.QueueFree();
-                none.Visible = session.Settings.MutedWindowKinds.Count == 0;
-            };
-        }
     }
 
     static HBoxContainer Labelled(Container row, string label, Control control)

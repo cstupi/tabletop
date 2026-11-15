@@ -38,7 +38,7 @@ public class MenusTests
     {
         var legal = new MoveRegion([M1], 6, [], [], null, new MoveContainment([M0], null, null));
         var ask = new Ask(Guid.CreateVersion7(), AskQuestions.Deploy, "Move", [TableUx.T1], legal, false, false, null, null);
-        var mine = new AskView(ask, AskMode.Move, [], [], false);
+        var mine = new AskView(ask, AskMode.Move, [], []);
         var items = Menus.Piece(Ctx(mine: mine), M1, shift: false);
         Assert.StartsWith("Board transport: ", items[0].Label);
         Assert.Equal(Labels(MenuModel.ForBoarding(P, ask, M1).Concat(MenuModel.ForModel(P, M1, Known)).Concat(MenuModel.ForFrame(P))), Labels(items));

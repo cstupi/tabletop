@@ -115,7 +115,7 @@ only the card's icon and words, so a new ruleset question needs no new branch.
 
 ```mermaid
 flowchart TD
-  mine["AskViewModel.Mine(projection, game, myTeam, muted)"]
+  mine["AskViewModel.Mine(projection, game, myTeam)"]
   none["nothing addressed to me<br/>-> DecisionCard.Quiet: a band per waiting team"]
   legal{"AskMode = ModeOf(ask.Legal)"}
   choose["Choose: Options<br/>-> Chosen(optionId)"]
@@ -125,10 +125,8 @@ flowchart TD
   move["Move: MoveRegion<br/>-> Destinations"]
   spend["TokenSpend: TokenSpend, one private input per model<br/>-> TokensSpent"]
   confirm["Confirm: Confirmation<br/>-> Confirmed"]
-  autopass["AutoPass: WindowKind is muted<br/>-> Passed at once"]
 
   mine -- "null" --> none
-  mine -- "muted window kind" --> autopass
   mine --> legal
   legal --> choose
   legal --> pick
@@ -159,9 +157,8 @@ Behaviour the specs demand, and where it lives:
   "Either player from the team can take the activation across any unit in their team."); the header reads
   "Your move" for every player of the team, and the box shows who answered. `AnsweredBy` reads the effective log's last
   `AskAnswered` for that ask id and my team and names its actor, unless that is me; an answer an undo took back names no one.
-- Mutes auto-pass. A `WindowKind` in `ClientSettings.MutedWindowKinds` with `AllowPass` set sends
-  `Passed` at once and shows "auto-passed (muted: {kind})" with an Unmute link. The pass is logged
-  as that player's own. It is a client convenience, not part of the model.
+- Every window Ask is shown. A window (an Ask with a `WindowKind`) that allows a pass renders like any other Ask, with a
+  Pass button; the client never answers one for the player.
 - The simultaneous token spend renders as one private input per eligible model (p.13). The box
   shows who has answered without showing what, then reveals every answer at once from
   `ask_closed`. This is the only consumer of the server's per-player filtered streams.
@@ -174,8 +171,7 @@ Behaviour the specs demand, and where it lives:
 
 The round boundary has no control of its own. The scheduler stops at the boundary with one unframed
 `Confirmation` addressed to every team that has a participant, and the box renders it as it
-stands: `Highlights` is empty, `AutoPass` cannot fire because there is no `WindowKind`, and there
-is no Pass button. Whoever answers first ends the round. Every other player's box is replaced by
+stands: `Highlights` is empty and there is no Pass button. Whoever answers first ends the round. Every other player's box is replaced by
 the next round's turn Ask on the same `EventsApplied` tick. A second control would be a second path
 to the same command, and the menu already has *Set the round* for a player who wants to jump.
 
@@ -224,8 +220,8 @@ side -1 per token, so the map necessarily names models this player may not spend
 `AskViewModel.SpendableBy(projection, game, myTeam, legal)` narrows it to the models whose unit
 belongs to my own team, and both the spin boxes and `Highlights` come from that. A model the
 projection cannot resolve to a team is not mine. The question name `spend_tokens` and the `casting`
-window kind are unchanged, so the mute path, `AnsweredTeams` and the `ask_closed` reveal are the
-ones already described.
+window kind are unchanged, so `AnsweredTeams` and the `ask_closed` reveal are the ones already
+described.
 
 A Takedown group's target is a `PieceSelection` over the model ids of one target unit, `Min` and
 `Max` both 1, addressed to the attacking team (p.14: *"each model with Takedown may pick any model in

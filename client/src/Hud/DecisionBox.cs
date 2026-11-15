@@ -223,7 +223,7 @@ public partial class DecisionBox : PanelContainer
         }
         var fresh = _reveals.Drain();                                           // every reveal since the last render, in order
         if (fresh.Count > 0) _revealed = fresh;
-        var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
+        var mine = AskViewModel.Mine(p, game, _s.MyTeamId);
         if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         var names = new Names(game, p);
         if (mine is null)
@@ -238,18 +238,12 @@ public partial class DecisionBox : PanelContainer
         }
         Quiet([]);
         if (_renderedAsk == mine.Ask.Id) return;
-        var model = DecisionView.Of(p, game, names, _s.MyTeamId, _s.Settings.MutedWindowKinds);   // only for an Ask not yet drawn: most renders keep the box as it is
+        var model = DecisionView.Of(p, game, names, _s.MyTeamId);   // only for an Ask not yet drawn: most renders keep the box as it is
         Reset(); _renderedAsk = mine.Ask.Id; _answering = _s.MyTeamId; _note.Text = "";
         if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
         _numbered = model.Numbered;
         Head(DecisionCard.Head(mine.Ask, p, names), MyOrdinal);
         Glow(mine.Highlights);
-        if (model.AutoPass && _refusal is null)   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
-        {
-            Send(mine.Ask, new Passed()); _note.Text = $"Auto-passed: {MutedPrompts.Words(mine.Ask.WindowKind!)}";
-            Foot(Act("Unmute", "", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!))));
-            return;
-        }
         switch (mine.Mode)
         {
             case AskMode.Choose: RenderChoose(mine, p, game, names); break;
@@ -262,7 +256,6 @@ public partial class DecisionBox : PanelContainer
             default: RenderPicks(mine, p, names); break;                       // PickPieces, Assign, Allocate
         }
         if (mine.Ask.AllowPass) Foot(Act(mine.Ask.Question == AskQuestions.ActOrEndPhase ? "End phase" : "Pass", "", () => Send(mine.Ask, new Passed())));
-        if (mine.Ask.WindowKind is { } kind) Foot(Act($"Mute {MutedPrompts.Words(kind)}", "", () => _s.UpdateSettings(x => x.Mute(kind))));
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 

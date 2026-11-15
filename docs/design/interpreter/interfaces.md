@@ -71,7 +71,7 @@ batch that started it; with it on, a gate holds it across dispatches. The order 
 Ask questions a client may see, which the client-shell module renders from their legal-set
 shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_casualties`, `charge_target`,
 `counter` (3.6.0), `strike_back`, `disembark`, `cast`, `spell_targets`, plus the engine's `confirm`, `react` and
-`spend_tokens`. Window kinds a player may mute: `before-attacking`, `casting`.
+`spend_tokens`. Window kinds: `before-attacking`, `casting`; a client shows every window Ask and never passes one for the player.
 
 ### Consumed from other modules
 

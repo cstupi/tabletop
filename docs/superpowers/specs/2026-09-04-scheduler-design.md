@@ -236,9 +236,8 @@ which is where 40k's *"the player whose turn it is chooses the order"* would go.
 simultaneous rules across players by a roll-off, the winner picking. That case is unreachable
 while only the acting team can react, and OPR's `OrderReactions` returns null.
 
-**Muted window kinds are per player**, closing action sequences' open item. Muting is client
-convenience, the client renders for one player, and two members of one team may want different
-prompts. The pass is still that player's pass, logged with their name.
+**A window's pass is the player's own**: every window Ask is shown to the player, who answers it or
+passes, and the pass is logged with their name.
 
 The one OPR reaction outside casting is the optional **Overwatch** action (page 33): a unit
 stays idle and may react once to an enemy activation, at any point as it moves or shoots. It is
@@ -316,4 +315,4 @@ testing: two shapes, one `GameRules`, scripted logs in and events out.
 
 Nothing of its own. Closed here, and struck where they live: game flow's *what is legal in a
 window* and *whether setup configuration can change once loaded*; action sequences' *who goes
-first when several teams react* and *whether a muted window kind is per player or per team*.
+first when several teams react*.

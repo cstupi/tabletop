@@ -125,7 +125,7 @@ git commit -m "Viewer: every send the pages build inline is a function in a modu
   export async function replay(c: CallCase, st: ConnectionState, g: Geometry): Promise<unknown | null>;   // what reached send, or null
   ```
 
-`replay` builds a `DecisionBox` as `tests/moveRig.ts` does, with `moveHooks({ geometry: () => g, violations: new Violations(), enforcement: () => 'silent' })`, `settings()` holding `mutedWindowKinds: c.muted`, `rules()` `RuleTexts.empty`, and a `send` that records the command and resolves `{ id: 'm1', refused: null }`; it calls `box.render()`, then presses per the choice table of part 3, Task 9. The other kinds call the module functions in that table. A `menu` case builds `MenuContext` from the state (`watching` false, `myTeam` acting, `mine` from `mine(...)`, `grantable`, `deployInside` from the case, `locks` a new `MarkerLocks`).
+`replay` builds a `DecisionBox` as `tests/moveRig.ts` does, with `moveHooks({ geometry: () => g, violations: new Violations(), enforcement: () => 'silent' })`, `rules()` `RuleTexts.empty`, and a `send` that records the command and resolves `{ id: 'm1', refused: null }`; it calls `box.render()`, then presses per the choice table of part 3, Task 9. The other kinds call the module functions in that table. A `menu` case builds `MenuContext` from the state (`watching` false, `myTeam` acting, `mine` from `mine(...)`, `grantable`, `deployInside` from the case, `locks` a new `MarkerLocks`).
 
 - [ ] **Step 1: Write the test**
 

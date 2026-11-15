@@ -36,7 +36,7 @@ public class DecisionCardTests
         var ask = AskOf(AskQuestions.Activate, options, "Activate a unit");
         var (p, _) = Two(new AskOpened(ask));
         var n = new Names(Game, p);
-        var numbered = DecisionView.Of(p, Game, n, Samples.Team1, []).Numbered;
+        var numbered = DecisionView.Of(p, Game, n, Samples.Team1).Numbered;
         var groups = DecisionCard.Groups(ask, options.Choices, numbered, p, Game, n, new Dictionary<Guid, int> { [Samples.Model] = 3 });
         Assert.Equal(2, groups.Count);
         Assert.Equal(("Battle Brothers", 1, "●●●", (string?)null), (groups[0].Unit, groups[0].TeamOrdinal, groups[0].Pips, groups[0].Note));

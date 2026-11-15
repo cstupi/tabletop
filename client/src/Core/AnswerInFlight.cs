@@ -2,7 +2,7 @@ namespace Tabletop.Client.Core;
 
 /// <summary>
 /// The Ask (or the deployment's unit) whose answer is on its way to the server: set by a send, spent by that command's refusal or failure. A theme change draws the open Ask again in
-/// the new theme unless its answer is in flight: the redraw would offer the answered Ask again, and a muted window's auto-pass would go twice.
+/// the new theme unless its answer is in flight: the redraw would offer the answered Ask again.
 /// </summary>
 public sealed class AnswerInFlight
 {

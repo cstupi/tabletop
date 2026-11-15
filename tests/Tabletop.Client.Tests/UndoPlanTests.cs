@@ -71,7 +71,7 @@ public class UndoPlanTests
     }
 
     /// <summary>The owner, 2026-11-14: "undo is NOT letting me undo my advance". A pass on a window (before-attacking, a reaction) is not the
-    /// action Undo steps back to: undoing only the pass reopens the window, a muted one is passed again at once, and the press does nothing.
+    /// action Undo steps back to: undoing only the pass reopens the window it passed.
     /// Undo takes the action before it, the pass going with it.</summary>
     [Fact]
     public void A_pass_on_a_window_is_not_an_action_and_goes_with_the_one_before()

@@ -7,8 +7,7 @@ namespace Tabletop.Client.Core;
 /// (keys 1–9, then 0 for entries past nine); with nothing addressed to me, no Ask, and the box draws DecisionCard.Quiet's bands.
 /// The keys are caps on the buttons; there is no hint line.
 /// </summary>
-public sealed record DecisionModel(Ask? Ask, AskMode? Mode, string Title, IReadOnlyList<(int Key, string Label, string OptionId)> Numbered,
-    bool AutoPass = false);
+public sealed record DecisionModel(Ask? Ask, AskMode? Mode, string Title, IReadOnlyList<(int Key, string Label, string OptionId)> Numbered);
 
 /// <summary>One line of a choice list: an option's button, or (Option null) the note under a unit's buttons.</summary>
 public sealed record ChoiceRow(AskOption? Option, string? Note);
@@ -18,14 +17,14 @@ public static class DecisionView
     const int Keyed = 9;
     static readonly string[] DeployQuestions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
 
-    public static DecisionModel Of(Projection p, GameInfo game, Names n, Guid? myTeam, IReadOnlyCollection<string> muted)
+    public static DecisionModel Of(Projection p, GameInfo game, Names n, Guid? myTeam)
     {
-        var mine = AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal));
+        var mine = AskViewModel.Mine(p, game, myTeam);
         if (mine is null) return new DecisionModel(null, null, "", []);
         var ask = mine.Ask;
         var numbered = Numbered(ask, n);
         var title = ask.Legal is Allocation a ? $"Remove {a.Amount}" : ask.Prompt;
-        return new DecisionModel(ask, mine.Mode, title, numbered, mine.AutoPass);
+        return new DecisionModel(ask, mine.Mode, title, numbered);
     }
 
     static IReadOnlyList<(int Key, string Label, string OptionId)> Numbered(Ask ask, Names n)
@@ -89,8 +88,8 @@ public static class DecisionView
 
     /// <summary>The note on a unit's choices in my open Options Ask (activate: why its actions are limited), for the unit card; null
     /// when no Ask is open for my team or none of the unit's choices carries one.</summary>
-    public static string? NoteOf(Projection p, GameInfo game, Guid? myTeam, IReadOnlyCollection<string> muted, Guid unitId) =>
-        AskViewModel.Mine(p, game, myTeam, muted as IReadOnlySet<string> ?? muted.ToHashSet(StringComparer.Ordinal))?.Ask.Legal is Options o
+    public static string? NoteOf(Projection p, GameInfo game, Guid? myTeam, Guid unitId) =>
+        AskViewModel.Mine(p, game, myTeam)?.Ask.Legal is Options o
             ? ChoicesOf(o, p, unitId).Select(c => c.Note).FirstOrDefault(n => n is not null)
             : null;
 

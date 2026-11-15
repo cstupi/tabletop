@@ -15,7 +15,6 @@
   const colour = (ordinal: number): string => (ordinal > 0 ? teamColour(ordinal) : 'var(--dim)');
   const body = $derived(panel.controls.filter((c) => c.kind !== 'button'));
   const foot = $derived(panel.controls.filter((c): c is Extract<Control, { kind: 'button' }> => c.kind === 'button'));
-  const QUIET = new Set(['mute', 'unmute']);
 </script>
 
 {#if panel.visible}
@@ -104,8 +103,8 @@
         {#if foot.length > 0}
           <div class="foot">
             {#each foot as b (b.id)}
-              <button type="button" tabindex="-1" disabled={b.disabled} title={b.tooltip} class:primary={b.primary === true} class:quiet={QUIET.has(b.id)}
-                class:flat={b.primary !== true && !QUIET.has(b.id)} onmousedown={noFocus} onclick={() => box.press(b.id)}
+              <button type="button" tabindex="-1" disabled={b.disabled} title={b.tooltip} class:primary={b.primary === true}
+                class:flat={b.primary !== true} onmousedown={noFocus} onclick={() => box.press(b.id)}
                 onpointerenter={() => box.hover(b.id)} onpointerleave={() => box.hover(null)}>
                 {#if b.icon !== undefined}<DecisionIcon name={b.icon} size={18} />{/if}
                 <span>{b.label}</span>

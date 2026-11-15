@@ -200,7 +200,6 @@ The writer: each case is a log cut at a seq (or, for lobby and setup, a log's ga
       "status": "playing",                       // "lobby" | "setup": the log's game with this status, its board's table as the draft
       "participantId": "…",                      // the player: a team's lowest-id participant
       "creator": false,                          // lobby cases: the player is the game's creator
-      "muted": [],                               // window kinds muted (the auto-pass case)
       "maxWounds": {}, "deployInside": {}, "grantable": [],   // facts and management data as case inputs
       "choice": { "kind": "key", "key": 1 },
       "decisions": { "myTeams": ["…"], "acting": "…", "mine": { "askId": "…", "mode": "choose" }, "midDeploy": null,
@@ -211,7 +210,7 @@ The writer: each case is a log cut at a seq (or, for lobby and setup, a log's ga
   ```
   `mode` is `AskMode` camel-cased (`choose`, `move`, `pickPieces`, `assign`, `allocate`, `tokenSpend`, `confirm`); `numbered`, `pickable`, `menu` and `undo` are written only for the kinds that read them. `message` is `WireJson.Serialize<Command>` or `Serialize<Edit>` of the built call, parsed, then `CallNormalise.Of` with the known ids of the log's three files and of the case's own inputs (the case object less `decisions` and `message`), the set part 4 computes the same way.
 
-The state and the decisions, every playing case: `EventApplier(board, game)` over the events up to `upTo` gives `p` and `log`; `myTeams = Seats.Teams(game, participantId)`; `acting = Seats.Acting(p, myTeams, log)`; `mine = AskViewModel.Mine(p, game, acting, muted)`; `midDeploy` = the first non-null `DeployView.MidDeploy(p, log, t)` for `t` in `[acting, ..myTeams]` (the decision box's order).
+The state and the decisions, every playing case: `EventApplier(board, game)` over the events up to `upTo` gives `p` and `log`; `myTeams = Seats.Teams(game, participantId)`; `acting = Seats.Acting(p, myTeams, log)`; `mine = AskViewModel.Mine(p, game, acting)`; `midDeploy` = the first non-null `DeployView.MidDeploy(p, log, t)` for `t` in `[acting, ..myTeams]` (the decision box's order).
 
 The choices, each with what the writer calls (Godot's path) and what part 4's replay presses (the browser's path):
 
@@ -222,7 +221,6 @@ The choices, each with what the writer calls (Godot's path) and what part 4's re
 | `unitKey` | `unitId`, `key` | `DecisionView.Number(DecisionView.ChoicesOf(options, p, unitId))` → `Chosen` | `box.unit(unitId); box.number(key)` |
 | `click` | `pieceId` | `AskAnswers.ChosenByClick` (null: no message) | `box.target(pieceId)` |
 | `pass` | — | `Passed` | `box.press('pass')` |
-| `autoPass` | (`muted` holds the window kind) | `DecisionView.Of(..., muted).AutoPass` → `Passed` | the render with `mutedWindowKinds` set |
 | `confirm` | — | `Confirmed` | `box.enter()` |
 | `spend` | `values` | `AskAnswers.Spent` | `box.spin('spin:' + id, n)` each, `box.enter()` |
 | `pick` | `clicks`, `done` | `PiecePick.Toggle` each; `AnswersAtOnce` or `done` → `Answer()` | `box.target(id)` each; `done` → `box.enter()` |
@@ -269,7 +267,7 @@ public class CallsViewerFixtureTests
 }
 ```
 
-`CallCases.Required` names, at least: `choose/option`, `choose/key`, `choose/unitKey`, `choose/click`, `choose/clickNone`, `pass`, `autoPass`, `confirm`, `confirm/endRound`, `spend`, `pick`, `pick/deploy`, `pick/ambusher`, `pickKey`, `assign`, `casualties`, `move`, `move/stop`, `move/disembark`, `embark`, `deploy/click`, `deploy/ghosts`, `deploy/ambusher`, `gameOver`, `selfplay/answer`, `selfplay/deploy`, `menu/model`, `menu/unit`, `menu/marker`, `menu/team`, `menu/setAside`, `menu/return`, `menu/putIn`, `menu/takeOut`, `menu/abandon`, `menu/boarding`, `menu/token`, `menu/lock`, `menu/invalidInput`, `menu/grant`, `undo/button`, `undo/row`, `undo/roll`, `undo/undone`, `drop/models`, `drop/marker`, `drop/terrain`, `drop/setupMarker`, and `edit/<control>` for each control above.
+`CallCases.Required` names, at least: `choose/option`, `choose/key`, `choose/unitKey`, `choose/click`, `choose/clickNone`, `pass`, `confirm`, `confirm/endRound`, `spend`, `pick`, `pick/deploy`, `pick/ambusher`, `pickKey`, `assign`, `casualties`, `move`, `move/stop`, `move/disembark`, `embark`, `deploy/click`, `deploy/ghosts`, `deploy/ambusher`, `gameOver`, `selfplay/answer`, `selfplay/deploy`, `menu/model`, `menu/unit`, `menu/marker`, `menu/team`, `menu/setAside`, `menu/return`, `menu/putIn`, `menu/takeOut`, `menu/abandon`, `menu/boarding`, `menu/token`, `menu/lock`, `menu/invalidInput`, `menu/grant`, `undo/button`, `undo/row`, `undo/roll`, `undo/undone`, `drop/models`, `drop/marker`, `drop/terrain`, `drop/setupMarker`, and `edit/<control>` for each control above.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 

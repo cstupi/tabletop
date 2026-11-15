@@ -13,7 +13,6 @@ import type { PropertiesSummary } from '../../src/lib/api/types';
 import { DecisionBox } from '../../src/lib/play/decisionBox';
 import { moveHooks } from '../../src/lib/play/decisionBox.move';
 import { Violations } from '../../src/lib/play/violations';
-import { DEFAULT_SETTINGS } from '../../src/lib/play/settings';
 import { RuleTexts } from '../../src/lib/play/ruleTexts';
 import { loadEdit } from '../../src/lib/setup/layouts';
 import type { Edit, Team } from '../../src/lib/protocol/wire.generated';
@@ -91,7 +90,7 @@ export const boxOf = (conn: GameConnection, hooks: ReturnType<typeof moveHooks> 
   const myTeams = () => (conn.state.game === null ? [] : teamsOf(conn.state.game, conn.state.participantId));
   const box = new DecisionBox({
     state: () => conn.state, myTeams, acting: () => acting(conn.state.projection, myTeams(), conn.state.log),
-    settings: () => DEFAULT_SETTINGS, updateSettings: () => {}, rules: () => RuleTexts.empty,
+    rules: () => RuleTexts.empty,
     send: (command) => conn.sendCommand(command), onRefused: (l) => conn.onRefused((r) => l(r)),
   }, hooks);
   conn.subscribe(() => box.render());

@@ -22,7 +22,7 @@
   import type { RuleTexts } from './ruleTexts';
   import { describeSelection, type Selection } from './selectionView';
   import { sheetFocusOf, teamOf } from './sheetFocus';
-  import { mutedPrompts, unmute, type LogFilter, type PlaySettings } from './settings';
+  import type { LogFilter, PlaySettings } from './settings';
   import UndoButton from './UndoButton.svelte';
   import { sameCard, unitCardOf, type UnitCardContent } from './unitCard';
   import UnitCard from './UnitCard.svelte';
@@ -86,8 +86,7 @@
   const card = $derived.by(() => {
     const s = sheet;
     if (s === null || shown === null || snap.game === null || focus === null) { lastCard = null; return null; }
-    const muted = new Set(getSettings().mutedWindowKinds);
-    const next = unitCardOf(s, teamOf(shown, snap.game, focus)?.ordinal ?? 0, noteOf(shown, snap.game, myTeam, muted, focus));
+    const next = unitCardOf(s, teamOf(shown, snap.game, focus)?.ordinal ?? 0, noteOf(shown, snap.game, myTeam, focus));
     if (sameCard(lastCard, next)) return lastCard;
     lastCard = next;
     return next;
@@ -136,9 +135,6 @@
   const covered = $derived(logOpen && log?.latest != null && flatten(entries).some((e) => e.type === 'roll' && e.record.id === log.latest?.record.id));
 
   const tray = $derived(!covered && log?.latest != null);
-
-  /** A muted window auto-passes every time it opens (decisionBox.ts): the muted kinds stay listed here, each with its Unmute. */
-  const muted = $derived(mutedPrompts(getSettings()));
 
   function setLogOpen(open: boolean): void {
     logOpen = open;
@@ -194,14 +190,6 @@
     {/if}
     {#if terrainCard !== null}<TerrainCard card={terrainCard} />{/if}
     {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}
-    {#if muted.length > 0}
-      <section class="panel muted-prompts" aria-label="Muted prompts">
-        <h2>Muted</h2>
-        {#each muted as m (m.kind)}
-          <span class="muted-prompt">{m.label} <button type="button" onclick={() => updateSettings((s) => unmute(s, m.kind))}>Unmute</button></span>
-        {/each}
-      </section>
-    {/if}
     <section class="panel log" class:open={logOpen} aria-label="Combat log">
       <div class="head">
         <button type="button" class="toggle" tabindex="-1" aria-expanded={logOpen} title="Show or hide the log (G)"
@@ -256,7 +244,4 @@
   .detailed { display: flex; flex: none; align-items: center; gap: var(--s1); font-size: .9rem; white-space: nowrap; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--rule); }
   [role='alert'] { margin: 0; }
-  .muted-prompts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: 0; padding: var(--s2) var(--s4); flex: none; }
-  .muted-prompts h2 { margin: 0; font-size: .9rem; }
-  .muted-prompt { display: inline-flex; align-items: center; gap: var(--s1); font-size: .9rem; }
 </style>

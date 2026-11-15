@@ -21,7 +21,7 @@ describe('DecisionCard', () => {
     const ask = askOf({ kind: 'options', choices }, { question: 'activate' });
     const p = projectionOf(s.game, board, [{ kind: 'ask_opened', ask }]).projection;
     const n = new Names(s.game, p);
-    const numbered = decisionOf(p, s.game, n, TEAM1, new Set()).numbered;
+    const numbered = decisionOf(p, s.game, n, TEAM1).numbered;
     const groups = groupsOf(ask, choices, numbered, p, s.game, n, new Map([[s.model.id, 3]]));
     expect(groups.length).toBe(2);
     expect([groups[0]!.unit, groups[0]!.teamOrdinal, groups[0]!.pips, groups[0]!.note]).toEqual(['Battle Brothers', 1, '●●●', null]);

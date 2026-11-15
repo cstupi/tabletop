@@ -44,7 +44,7 @@ public partial class SightLines : Node3D
 
     /// <summary>My open Ask, when it is a target assignment: the shooting unit is its frame's actor.</summary>
     Guid? Shooter(Projection p, GameInfo game) =>
-        AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds) is { Mode: AskMode.Assign } mine && mine.Ask.FrameId is { } f
+        AskViewModel.Mine(p, game, _s.MyTeamId) is { Mode: AskMode.Assign } mine && mine.Ask.FrameId is { } f
             ? p.Stack.FirstOrDefault(x => x.Id == f)?.Context.ActorUnitId : null;
 
     void Ask()

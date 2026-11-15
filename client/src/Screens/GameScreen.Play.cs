@@ -284,7 +284,7 @@ public partial class GameScreen
 
     /// <summary>What the menus read, built once per open; null before the game and its projection arrive.</summary>
     MenuContext? MenuCtx() => _session.Game is { } game && _session.Projection is { } p
-        ? new MenuContext(game, p, _session.Log, _session.IsWatching, _session.MyTeamId, AskViewModel.Mine(p, game, _session.MyTeamId, _session.Settings.MutedWindowKinds),
+        ? new MenuContext(game, p, _session.Log, _session.IsWatching, _session.MyTeamId, AskViewModel.Mine(p, game, _session.MyTeamId),
             _session.Grantable, _session.DeployInside, _session.MaySetAside, Input.Locks)
         : null;
 }

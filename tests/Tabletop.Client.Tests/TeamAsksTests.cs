@@ -33,7 +33,7 @@ public class TeamAsksTests
     public void On_my_teams_turn_I_am_offered_every_unit_of_the_team()
     {
         var p = With(Activate);
-        var mine = AskViewModel.Mine(p, Game, Samples.Team1, new HashSet<string>())!;
+        var mine = AskViewModel.Mine(p, Game, Samples.Team1)!;
         Assert.Equal([Clays, Cids], mine.Highlights);
         Assert.Equal(["Clay's: Hold", "Cid's: Hold"], ((Options)mine.Ask.Legal).Choices.Select(c => c.Label));
     }
@@ -43,7 +43,7 @@ public class TeamAsksTests
     {
         var ask = Activate with { Legal = new PieceSelection([Cids], 1, 1), Question = AskQuestions.Deploy };
         var p = With(ask);
-        Assert.NotNull(AskViewModel.Mine(p, Game, Samples.Team1, new HashSet<string>()));
+        Assert.NotNull(AskViewModel.Mine(p, Game, Samples.Team1));
         Assert.Equal("Your move: deploy", HeaderView.Waiting(p, new Names(Game, p), [Samples.Team1]));
     }
 

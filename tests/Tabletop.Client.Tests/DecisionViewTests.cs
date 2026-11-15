@@ -7,16 +7,15 @@ namespace Tabletop.Client.Tests;
 public class DecisionViewTests
 {
     static readonly GameInfo Game = Samples.Game;
-    static readonly string[] Unmuted = [];
 
     static Ask AskOf(string question, LegalSet legal, string prompt = "prompt", Guid? team = null, bool allowPass = false, string? window = null) =>
         new(Guid.CreateVersion7(), question, prompt, [team ?? Samples.Team1], legal, allowPass, false, window, null);
 
-    static DecisionModel Of(Ask ask, Guid? me, IReadOnlyCollection<string>? muted = null)
+    static DecisionModel Of(Ask ask, Guid? me)
     {
         var a = new EventApplier(Samples.Board, Game);
         a.Apply(new GameEvent(1, null, new AskOpened(ask), null));
-        return DecisionView.Of(a.Projection, Game, new Names(Game, a.Projection), me, muted ?? Unmuted);
+        return DecisionView.Of(a.Projection, Game, new Names(Game, a.Projection), me);
     }
 
     [Fact]
@@ -77,11 +76,12 @@ public class DecisionViewTests
     }
 
     [Fact]
-    public void A_muted_window_is_an_auto_pass()
+    public void A_window_that_allows_a_pass_is_shown_with_its_choices()
     {
         var ask = AskOf(AskQuestions.React, new Options([new AskOption("r", "React", [])]), allowPass: true, window: "reaction");
-        Assert.True(Of(ask, Samples.Team1, ["reaction"]).AutoPass);
-        Assert.False(Of(ask, Samples.Team1).AutoPass);
+        var d = Of(ask, Samples.Team1);
+        Assert.Equal(ask, d.Ask);
+        Assert.Equal([(1, "React", "r")], d.Numbered);
     }
     /// <summary>activate offers one option per unit and action: a click on such a unit cannot answer, so it selects the unit and narrows the box.</summary>
     [Fact]
@@ -148,8 +148,8 @@ public class DecisionViewTests
         var ask = AskOf(AskQuestions.Activate, new Options([new AskOption("i", "Squad: Idle", [Samples.Unit], ShakenNote), new AskOption("o", "Other: Hold", [Guid.CreateVersion7()])]));
         var a = new EventApplier(Samples.Board, Game);
         a.Apply(new GameEvent(1, null, new AskOpened(ask), null));
-        Assert.Equal(ShakenNote, DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Unmuted, Samples.Unit));
-        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team2, Unmuted, Samples.Unit));          // not my Ask
-        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Unmuted, Guid.CreateVersion7()));  // a unit with no choice
+        Assert.Equal(ShakenNote, DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Samples.Unit));
+        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team2, Samples.Unit));          // not my Ask
+        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Guid.CreateVersion7()));  // a unit with no choice
     }
 }

@@ -7,7 +7,6 @@ import { DecisionBox, type Control, type DecisionPanel } from '../src/lib/play/d
 import { moveHooks } from '../src/lib/play/decisionBox.move';
 import { PendingDrops } from '../src/lib/play/pendingDrops';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
-import { DEFAULT_SETTINGS } from '../src/lib/play/settings';
 import { Violations } from '../src/lib/play/violations';
 import type { Command, Enforcement, Yaw, EventPayload, GameInfo, Location, MoveRegion, Participant, Placement, Refused } from '../src/lib/protocol/wire.generated';
 import { P1, P2, askOf, boardOf, emptyTable, gameOf, slotOf, unitOf } from './play';
@@ -68,7 +67,7 @@ export function moveRig(over: { enforcement?: Enforcement; squad?: number; parti
   const hooks = moveHooks({ geometry: () => geometry, violations, enforcement: () => enforcement, drops });
   const box = new DecisionBox({
     state, myTeams: () => teamsOf(game, me), acting: () => acting(applier.projection, teamsOf(game, me), applier.log),
-    settings: () => DEFAULT_SETTINGS, updateSettings: () => {}, rules: () => RuleTexts.empty,
+    rules: () => RuleTexts.empty,
     send: (command) => new Promise<SendOutcome>((resolve, reject) => { sent.push(command); pending.push({ id: `m${sent.length}`, resolve, reject }); }),
     onRefused: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
   }, hooks);

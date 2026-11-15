@@ -515,8 +515,8 @@ passing is a real answer (`Passed`) that is logged.
 
 `Ask(Id, Question, Prompt, IRL<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed,
 string? WindowKind, Guid? FrameId)`. Teams is a list because a sealed window addresses several at
-once. `FrameId` is null for the scheduler's own Asks. `WindowKind` is the name a player mutes by and
-is null when the Ask is not a window. `AskQuestions` holds only the engine's own nine names:
+once. `FrameId` is null for the scheduler's own Asks. `WindowKind` names the window and is null
+when the Ask is not a window. `AskQuestions` holds only the engine's own nine names:
 `activate`, `act_or_end_phase`, `deploy`, `deploy_scouts`, `deploy_ambusher`, `end_round`,
 `confirm`, `react`, `spend_tokens`. Every other name comes from `GameRules`, including `shoot_or_not`,
 `counter`, `strike_back`, `remove_casualties`, a charge target, a spell's targets and a `Takedown`'s target model.

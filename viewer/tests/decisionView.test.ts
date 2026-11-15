@@ -9,10 +9,9 @@ const region = (over: Partial<MoveRegion> = {}): MoveRegion => ({
   kind: 'move_region', modelIds: [s.model.id], allowance: 6, impassableVolumeIds: [], difficultVolumeIds: [], stoppable: false,
   passesModels: false, ignoresTerrain: false, ...over,
 });
-const none = new Set<string>();
-const of = (ask: Ask, me: string | null, muted: ReadonlySet<string> = none) => {
+const of = (ask: Ask, me: string | null) => {
   const a = projectionOf(s.game, s.board, [{ kind: 'ask_opened', ask }]);
-  return decisionOf(a.projection, s.game, new Names(s.game, a.projection), me, muted);
+  return decisionOf(a.projection, s.game, new Names(s.game, a.projection), me);
 };
 const ask = (question: string, legal: LegalSet, prompt = 'prompt', over: Parameters<typeof askOf>[1] = {}) => askOf(legal, { question, prompt, allowPass: false, ...over });
 
@@ -59,10 +58,10 @@ describe('DecisionView', () => {
     }
   });
 
-  it('a muted window is an auto pass', () => {
+  it('a window that allows a pass is shown with its choices', () => {
     const a = ask('react', { kind: 'options', choices: [option('r', 'React')] }, 'p', { allowPass: true, windowKind: 'reaction' });
-    expect(of(a, TEAM1, new Set(['reaction'])).autoPass).toBe(true);
-    expect(of(a, TEAM1).autoPass).toBe(false);
+    const d = of(a, TEAM1);
+    expect([d.ask, d.numbered.map((n) => [n.key, n.optionId])]).toEqual([a, [[1, 'r']]]);
   });
 
   it('only a piece one choice names answers a click', () => {
@@ -107,8 +106,8 @@ describe('DecisionView', () => {
   it('the selected unit\'s note is read off my open choice', () => {
     const a = ask('activate', { kind: 'options', choices: [option('i', 'Squad: Idle', [s.squad.id], SHAKEN), option('o', 'Other: Hold', [newId()])] });
     const p = projectionOf(s.game, s.board, [{ kind: 'ask_opened', ask: a }]).projection;
-    expect(noteOf(p, s.game, TEAM1, none, s.squad.id)).toBe(SHAKEN);
-    expect(noteOf(p, s.game, TEAM2, none, s.squad.id)).toBeNull();
-    expect(noteOf(p, s.game, TEAM1, none, newId())).toBeNull();
+    expect(noteOf(p, s.game, TEAM1, s.squad.id)).toBe(SHAKEN);
+    expect(noteOf(p, s.game, TEAM2, s.squad.id)).toBeNull();
+    expect(noteOf(p, s.game, TEAM1, newId())).toBeNull();
   });
 });

@@ -19,7 +19,6 @@ import { midDeploy, offTable, pickable, type MidDeploy } from './deployView';
 import { Names } from './names';
 import { SealedReveals } from './sealedReveals';
 import { RuleTexts } from './ruleTexts';
-import { mute, promptWords, unmute, type PlaySettings } from './settings';
 import { ofOption } from './spellText';
 import { TargetAssignment } from './targetAssignment';
 import { waitHolds, waitingTeams } from './waiting';
@@ -54,7 +53,6 @@ export type Glow = 'selected' | 'hovered' | 'ghost';
 
 export interface DecisionHost {
   state(): ConnectionState; myTeams(): readonly string[]; acting(): string | null;
-  settings(): PlaySettings; updateSettings(change: (s: PlaySettings) => PlaySettings): void;
   rules(): RuleTexts; send(command: Command): Promise<SendOutcome>;
   /** Every Refused, including one for a send that already settled (GameConnection.onRefused). */
   onRefused(listener: (refused: Refused) => void): () => void;
@@ -255,12 +253,11 @@ export class DecisionBox {
     }
     const fresh = this.#reveals.drain();                                    // every reveal since the last render, in order
     if (fresh.length > 0) this.#revealed = fresh;
-    const muted = new Set(this.#host.settings().mutedWindowKinds);
     const team = this.#host.acting();
-    const mine = myAsk(p, game, team, muted);
+    const mine = myAsk(p, game, team);
     if ((mine?.ask.id ?? null) !== this.#refusalAsk) this.#refusal = null;           // a different Ask, or none: the refusal is spent
     const names = new Names(game, p);
-    const model = decisionOf(p, game, names, team, muted);
+    const model = decisionOf(p, game, names, team);
     if (mine === null) {
       const myTeams = this.#host.myTeams();
       const mid = [team, ...myTeams].map((t) => midDeploy(p, st.log, t)).find((m) => m !== null) ?? null;   // a pick by any team of mine is placed
@@ -279,12 +276,6 @@ export class DecisionBox {
     if (fresh.length === 0) this.#revealed = null;                          // a reveal is cleared only after a render has shown it
     this.#numbered = model.numbered;
     this.glow(mine.highlights);
-    if (model.autoPass && this.#refusal === null) {   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
-      const kind = mine.ask.windowKind!;
-      this.#send(mine.ask, { kind: 'passed' }); this.#note = `Auto-passed: ${promptWords(kind)}`;
-      this.add(button('unmute', 'Unmute'), () => this.#host.updateSettings((s) => unmute(s, kind)));
-      return;
-    }
     switch (mine.mode) {
       case 'choose': this.#renderChoose(mine, game, names); break;
       case 'move': this.#moves?.renderMove(this, mine, p, names); break;
@@ -297,8 +288,6 @@ export class DecisionBox {
       default: this.#renderPicks(mine, p, names); break;                    // PickPieces, Assign, Allocate
     }
     if (mine.ask.allowPass) this.add(button('pass', mine.ask.question === 'act_or_end_phase' ? 'End phase' : 'Pass'), () => this.#send(mine.ask, { kind: 'passed' }));
-    const kind = mine.ask.windowKind;
-    if (kind !== undefined) this.add(button('mute', `Mute ${promptWords(kind)}`), () => this.#host.updateSettings((s) => mute(s, kind)));
     const who = answeredBy(st.log, mine.ask.id, team, st.participantId, names);
     if (who !== null) this.#note = `${who} answered for your team`;
   }

@@ -6,7 +6,7 @@ namespace Tabletop.Client.Core;
 /// The Undo button and Ctrl+Z (client UX spec → Undo): undo the last action in the game, whoever took it. An action is a live event with
 /// an actor (an engine event has none) that is neither an Undone marker nor an AskClosed: the close carries the actor of the answer that
 /// caused it, and is part of that answer. A pass on a window (an Ask with a WindowKind: before-attacking, a reaction) is no action either:
-/// undoing it alone reopens the window, which a muted kind passes again at once, so it goes with the action before it. The engine events after it go with it. The target is the live seq
+/// undoing it alone only reopens the window it passed, so it goes with the action before it. The engine events after it go with it. The target is the live seq
 /// immediately before the action, 0 when none: the server accepts only a live seq. LostRolls: each live roll, as the combat log's line,
 /// once, when it or a live reroll or hand edit of it is after the target, ordered by the earliest such seq.
 /// </summary>

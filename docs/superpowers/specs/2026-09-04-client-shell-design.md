@@ -205,9 +205,8 @@ says so. Any team member answers the team's Asks, for any unit of the team (game
 *Participants*), and the panel shows who did. Asks addressed to other
 teams show as a waiting indicator naming the team, never as controls.
 
-**Windows** render in the same panel as react or pass. A **mute list per player**, in local
-settings, auto-passes muted window kinds; the pass is still sent as that player's answer, as
-the scheduler ruled. **Sealed token spends** render as a private input; the panel shows who has
+**Windows** render in the same panel as react or pass. Every window Ask is shown; the client
+never passes one for the player, and a pass is that player's answer, as the scheduler ruled. **Sealed token spends** render as a private input; the panel shows who has
 answered without showing what, then reveals all at once when the server does. *Renamed
 2026-09-06: this read "sealed bids"; the note in
 [action sequences](2026-09-03-action-sequences-design.md) records why the name was invented.*

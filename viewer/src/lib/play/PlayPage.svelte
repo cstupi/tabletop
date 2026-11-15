@@ -136,8 +136,6 @@
       state: () => conn.state,
       myTeams: () => myTeams(conn.state),
       acting: () => { const s = conn.state; return acting(s.projection, myTeams(s), s.log); },
-      settings: () => settings,
-      updateSettings: (change) => { settings = change(settings); saveSettings(browserStorage(), settings); },
       rules: () => rules,
       send: (command) => conn.sendCommand(command),
       onRefused: (listener) => conn.onRefused((refused) => listener(refused)),
@@ -311,7 +309,7 @@
     if (s === null || s.projection === null || s.game === null) return null;
     return {
       game: s.game, p: s.projection, log: s.log, watching: isWatching(s), myTeam: actingTeam,
-      mine: askMine(s.projection, s.game, actingTeam, new Set(settings.mutedWindowKinds)), grantable: grants, deployInside: s.deployInside, maySetAside: s.maySetAside, locks,
+      mine: askMine(s.projection, s.game, actingTeam), grantable: grants, deployInside: s.deployInside, maySetAside: s.maySetAside, locks,
     };
   }
   function openMenu(items: readonly MenuItem[] | null, at: { x: number; y: number }): void {

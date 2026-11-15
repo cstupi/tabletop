@@ -93,7 +93,7 @@ public partial class UnitCard : VBoxContainer
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
-        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, _s.Settings.MutedWindowKinds, u),
+        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, u),
             _input.Selected is { } sel && sel.PieceId == u ? sel.ModelIds : null);
         if (content != _content)
         {

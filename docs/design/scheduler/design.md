@@ -905,7 +905,7 @@ Plus two public statics the tests call directly:
    staying idle requirement"*, and `ActionsFor` offers a Shaken Aircraft exactly that.
 5. **Client shell plan:** nothing new. The boundary Ask is an unframed `Confirmation` addressed to
    several teams, which the decision box already renders. That plan relabels the confirm button
-   "End the round" and the log line "confirmed for Team 1". Window mutes stay client-side.
+   "End the round" and the log line "confirmed for Team 1".
 6. **`Program.cs`:** replace `AddSingleton<ISchedulerFactory, NoSchedulerFactory>()` with
    `SchedulerFactory`. `NoScheduler`/`NoSchedulerFactory` stay in the tree for the interpreter
    plan's own tests.
@@ -1306,7 +1306,7 @@ keys `Resolved` on `sequence_finished`, and reads the completed step carrying `p
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | selecting is not activating; a participant with no team is the spectator |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | newer than every other spec: enforcement in three positions, a participant with no team is a spectator, the pass as a logged fact, name checks read the grants store |
 | [`2026-08-29-identity-and-enumerations-design.md`](../../superpowers/specs/2026-08-29-identity-and-enumerations-design.md) | `scheduler_shape` as a closed set, actions named per ruleset, `GameRules` unpinned |
-| [`2026-09-04-client-shell-design.md`](../../superpowers/specs/2026-09-04-client-shell-design.md) | the Ask panel, mutes as client-side, the menu that sets the active team or round |
+| [`2026-09-04-client-shell-design.md`](../../superpowers/specs/2026-09-04-client-shell-design.md) | the Ask panel, the menu that sets the active team or round |
 | [`docs/architecture.md`](../../architecture.md) | the load-bearing seam, the command/event spine, undo by replay, enforcement, Turn scheduling (*"No engine code branches on ruleset identity"*) |
 | [`docs/schema.md`](../../schema.md) | `game.scheduler_shape`, `game_event (game_id, seq, kind, payload)` |
 

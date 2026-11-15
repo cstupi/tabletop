@@ -6,7 +6,7 @@ namespace Tabletop.Protocol;
 /// A question addressed to one team (several for a sealed window), with the server-computed legal set.
 /// Any seat of an addressed team may answer it, for any unit of the team (rulebook p.50 Team Games: "the turn order is on a team basis and not
 /// on a player basis"; owner ruling: "Either player from the team can take the activation across any unit in their team."); the log records
-/// who. FrameId is null for the scheduler's Asks. WindowKind is the name a player mutes by; null when the Ask is not a window.
+/// who. FrameId is null for the scheduler's Asks. WindowKind names the window (before-attacking, casting); null when the Ask is not a window.
 /// </summary>
 public sealed record Ask(
     Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal,

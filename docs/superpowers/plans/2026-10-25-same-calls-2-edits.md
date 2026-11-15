@@ -63,7 +63,7 @@ Which play menu opens with which items (rows 16, 17): `GameScreen.Play`'s `Items
       public static IReadOnlyList<MenuItem> Table(MenuContext ctx, Point3 at);
   }
   ```
-  `GameScreen.Play` builds the context once per open: `new MenuContext(game, p, _session.Log, _session.IsWatching, _session.MyTeamId, AskViewModel.Mine(p, game, _session.MyTeamId, _session.Settings.MutedWindowKinds), _session.Grantable, _session.DeployInside, Input.Locks)`.
+  `GameScreen.Play` builds the context once per open: `new MenuContext(game, p, _session.Log, _session.IsWatching, _session.MyTeamId, AskViewModel.Mine(p, game, _session.MyTeamId), _session.Grantable, _session.DeployInside, Input.Locks)`.
 
 - [ ] **Step 1: Write the failing tests**
 

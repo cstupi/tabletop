@@ -70,12 +70,12 @@ public class ViewModelTests
     public void My_ask_is_the_one_addressed_to_my_team_and_others_are_a_wait()
     {
         var a = Applier(new AskOpened(Activate));
-        var mine = AskViewModel.Mine(a.Projection, Game, Samples.Team1, new HashSet<string>());
-        Assert.Equal((AskMode.Choose, false), (mine!.Mode, mine.AutoPass));
+        var mine = AskViewModel.Mine(a.Projection, Game, Samples.Team1);
+        Assert.Equal(AskMode.Choose, mine!.Mode);
         Assert.Equal([Samples.Unit], mine.Highlights);
-        Assert.Null(AskViewModel.Mine(a.Projection, Game, Samples.Team2, new HashSet<string>()));
+        Assert.Null(AskViewModel.Mine(a.Projection, Game, Samples.Team2));
         Assert.Equal("Team 1", AskViewModel.WaitingFor(a.Projection, Game, Samples.Team2));
-        Assert.Null(AskViewModel.Mine(a.Projection, Game, null, new HashSet<string>()));      // a watcher is never asked
+        Assert.Null(AskViewModel.Mine(a.Projection, Game, null));      // a watcher is never asked
     }
 
     [Fact]
@@ -92,17 +92,16 @@ public class ViewModelTests
     }
 
     [Fact]
-    public void A_muted_window_auto_passes_and_a_simultaneous_spend_shows_who_answered_without_what()
+    public void A_simultaneous_spend_shows_who_answered_without_what()
     {
         var a = Applier(new AskOpened(SpendTokens), new AskAnswered(SpendTokens.Id, Samples.Team2, null, false));
-        var mine = AskViewModel.Mine(a.Projection, Game, Samples.Team1, new HashSet<string> { "casting" })!;
-        Assert.True(mine.AutoPass);
+        var mine = AskViewModel.Mine(a.Projection, Game, Samples.Team1)!;
         Assert.Equal(AskMode.TokenSpend, mine.Mode);
         // The spend names both teams' models (p.13 gives the caster's side +1 and the other side -1), and only my own are mine to spend or to highlight.
         Assert.Equal([Samples.Model], mine.Highlights);
         Assert.Equal(new Dictionary<Guid, int> { [Samples.Model] = 2 }, AskViewModel.SpendableBy(a.Projection, Game, Samples.Team1, (TokenSpend)SpendTokens.Legal));
         Assert.Equal(["Team 2"], mine.AnsweredTeams);
-        Assert.Null(AskViewModel.Mine(a.Projection, Game, Samples.Team2, new HashSet<string>()));     // already answered
+        Assert.Null(AskViewModel.Mine(a.Projection, Game, Samples.Team2));     // already answered
         Assert.Equal("Clay", AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, Samples.Team2, Guid.Empty, new Names(Game, a.Projection)));
         Assert.Equal(AskMode.Confirm, AskViewModel.ModeOf(new Confirmation()));
         Assert.Equal(AskMode.Move, AskViewModel.ModeOf(new MoveRegion([Samples.Model], 6, [], [], null)));
@@ -110,13 +109,13 @@ public class ViewModelTests
         var embarkable = new MoveRegion([Samples.Model], 6, [], [], null, new MoveContainment([Samples.Container], null, null));
         Assert.Equal(AskMode.Move, AskViewModel.ModeOf(embarkable));
         var moveAsk = new Ask(Guid.CreateVersion7(), "move", "Move up to 6\"", [Samples.Team1], embarkable, true, false, null, Samples.Frame);
-        Assert.Equal([Samples.Model, Samples.Container], AskViewModel.Mine(Applier(new AskOpened(moveAsk)).Projection, Game, Samples.Team1, new HashSet<string>())!.Highlights);
+        Assert.Equal([Samples.Model, Samples.Container], AskViewModel.Mine(Applier(new AskOpened(moveAsk)).Projection, Game, Samples.Team1)!.Highlights);
         var exitAsk = moveAsk with { Id = Guid.CreateVersion7(), Question = "disembark", Legal = new MoveRegion([Samples.Model], 6, [], [], null, new MoveContainment([], Samples.Container, 6)) };
-        Assert.Equal([Samples.Model, Samples.Container], AskViewModel.Mine(Applier(new AskOpened(exitAsk)).Projection, Game, Samples.Team1, new HashSet<string>())!.Highlights);
+        Assert.Equal([Samples.Model, Samples.Container], AskViewModel.Mine(Applier(new AskOpened(exitAsk)).Projection, Game, Samples.Team1)!.Highlights);
         var gate = new Ask(Guid.CreateVersion7(), AskQuestions.Confirm, "Continue: move", [Samples.Team1], new Confirmation(), false, false, null, Samples.Frame);
         Assert.Equal(["Continue", "End the round"], new[] { gate, EndRound }.Select(AskViewModel.ConfirmLabel));
         var both = Applier(new AskOpened(EndRound));                                                       // unframed and addressed to every team: mine for either of them
-        Assert.Equal(AskMode.Confirm, AskViewModel.Mine(both.Projection, Game, Samples.Team2, new HashSet<string>())!.Mode);
+        Assert.Equal(AskMode.Confirm, AskViewModel.Mine(both.Projection, Game, Samples.Team2)!.Mode);
         Assert.Equal("Team 2", AskViewModel.WaitingFor(both.Projection, Game, Samples.Team1));             // reported, but never rendered: the panel shows WaitingFor only when Mine is null
     }
 

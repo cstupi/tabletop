@@ -45,7 +45,7 @@ public partial class KeyOverlay : PanelContainer
     {
         foreach (var c in _columns.GetChildren()) { _columns.RemoveChild(c); c.QueueFree(); }
         AskMode? mode = null; string? title = null; var stoppable = false;
-        if (_s.Projection is { } p && _s.Game is { } game && !_s.IsWatching && AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds) is { } mine)
+        if (_s.Projection is { } p && _s.Game is { } game && !_s.IsWatching && AskViewModel.Mine(p, game, _s.MyTeamId) is { } mine)
         {
             mode = mine.Mode; title = mine.Ask.Prompt;
             stoppable = mine.Ask.Legal is MoveRegion m && DecisionView.StopLabel(p, m) is not null;

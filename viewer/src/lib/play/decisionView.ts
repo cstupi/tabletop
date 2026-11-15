@@ -14,18 +14,17 @@ const KEYED = 9;
 export interface Numbered { readonly key: number; readonly label: string; readonly optionId: string }   // key 0: past nine
 export interface DecisionModel {
   readonly ask: Ask | null; readonly mode: AskMode | null; readonly title: string; readonly numbered: readonly Numbered[];
-  readonly autoPass: boolean;
 }
 /** One line of a choice list: an option's button, or (option null) the note under a unit's buttons. */
 export interface ChoiceRow { readonly option: AskOption | null; readonly note: string | null }
 
-export function decisionOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null, muted: ReadonlySet<string>): DecisionModel {
-  const mine = myAsk(p, game, myTeam, muted);
-  if (mine === null) return { ask: null, mode: null, title: '', numbered: [], autoPass: false };
+export function decisionOf(p: Projection, game: GameInfo, n: Names, myTeam: string | null): DecisionModel {
+  const mine = myAsk(p, game, myTeam);
+  if (mine === null) return { ask: null, mode: null, title: '', numbered: [] };
   const ask = mine.ask;
   const numbered = numberedOf(ask, n);
   const title = ask.legal.kind === 'allocation' ? `Remove ${ask.legal.amount}` : ask.prompt;
-  return { ask, mode: mine.mode, title, numbered, autoPass: mine.autoPass };
+  return { ask, mode: mine.mode, title, numbered };
 }
 
 function numberedOf(ask: Ask, n: Names): Numbered[] {
@@ -91,8 +90,8 @@ export function rows(shown: readonly AskOption[]): ChoiceRow[] {
 const sameIds = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** The note on a unit's choices in my open Options Ask (activate: why its actions are limited), for the unit card; null when no Ask is open for my team or none of the unit's choices carries one. */
-export function noteOf(p: Projection, game: GameInfo, myTeam: string | null, muted: ReadonlySet<string>, unitId: string): string | null {
-  const l = myAsk(p, game, myTeam, muted)?.ask.legal;
+export function noteOf(p: Projection, game: GameInfo, myTeam: string | null, unitId: string): string | null {
+  const l = myAsk(p, game, myTeam)?.ask.legal;
   if (l === undefined || l.kind !== 'options') return null;
   return choicesOf(l, p, unitId).map((c) => c.note).find((x) => x !== undefined && x !== null) ?? null;
 }

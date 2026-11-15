@@ -1,11 +1,10 @@
 // viewer/src/lib/play/settings.ts
-// The play settings Godot's ClientSettings holds (MutedWindowKinds, RangeRings, LogOpen, LogFilter, LogDetailed), per viewer: localStorage
-// `tabletop.play`. Every access is in try/catch; an unreadable store gives the defaults.
+// The play settings Godot's ClientSettings holds (RangeRings, LogOpen, LogFilter, LogDetailed), per viewer: localStorage
+// `tabletop.play`. Every access is in try/catch; an unreadable store gives the defaults, and a key the settings no longer hold is ignored.
 
 export type LogFilter = 'all' | 'rolls' | 'mine' | 'unit';
 
 export interface PlaySettings {
-  readonly mutedWindowKinds: readonly string[];
   readonly rangeRings: boolean;
   readonly logOpen: boolean;
   readonly logFilter: LogFilter;
@@ -15,7 +14,7 @@ export interface PlaySettings {
 
 export interface StorageLike { getItem(key: string): string | null; setItem(key: string, value: string): void }
 
-export const DEFAULT_SETTINGS: PlaySettings = { mutedWindowKinds: [], rangeRings: true, logOpen: true, logFilter: 'all', logDetailed: false };
+export const DEFAULT_SETTINGS: PlaySettings = { rangeRings: true, logOpen: true, logFilter: 'all', logDetailed: false };
 
 const KEY = 'tabletop.play';
 const FILTERS: readonly string[] = ['all', 'rolls', 'mine', 'unit'];
@@ -27,8 +26,6 @@ export function loadSettings(storage: StorageLike | null): PlaySettings {
     const v = JSON.parse(raw) as Record<string, unknown>;
     if (typeof v !== 'object' || v === null) return DEFAULT_SETTINGS;
     return {
-      mutedWindowKinds: Array.isArray(v.mutedWindowKinds) && v.mutedWindowKinds.every((k) => typeof k === 'string')
-        ? [...(v.mutedWindowKinds as string[])] : DEFAULT_SETTINGS.mutedWindowKinds,
       // stored as weaponRanges: every earlier save wrote rangeRings false, which nobody chose
       rangeRings: typeof v.weaponRanges === 'boolean' ? v.weaponRanges : DEFAULT_SETTINGS.rangeRings,
       logOpen: typeof v.logOpen === 'boolean' ? v.logOpen : DEFAULT_SETTINGS.logOpen,
@@ -43,20 +40,3 @@ export function loadSettings(storage: StorageLike | null): PlaySettings {
 export function saveSettings(storage: StorageLike | null, s: PlaySettings): void {
   try { const { rangeRings, ...rest } = s; storage?.setItem(KEY, JSON.stringify({ ...rest, weaponRanges: rangeRings })); } catch { /* a viewer convenience: nothing depends on it */ }
 }
-
-/** ClientSettings.Mute. */
-export const mute = (s: PlaySettings, kind: string): PlaySettings =>
-  s.mutedWindowKinds.includes(kind) ? s : { ...s, mutedWindowKinds: [...s.mutedWindowKinds, kind] };
-
-/** ClientSettings.Unmute. */
-export const unmute = (s: PlaySettings, kind: string): PlaySettings => ({ ...s, mutedWindowKinds: s.mutedWindowKinds.filter((k) => k !== kind) });
-
-/** MutedPrompts.Words: "before-attacking" → "before attacking". */
-export const promptWords = (kind: string): string => kind.replaceAll('-', ' ').replaceAll('_', ' ');
-
-/** MutedPrompts.Label: "before-attacking" → "Before attacking". */
-export const promptLabel = (kind: string): string => { const w = promptWords(kind); return w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : kind; };
-
-/** MutedPrompts.Of: every muted kind with its label, in ordinal order. A muted window auto-passes every time it opens; this list is where it is undone. */
-export const mutedPrompts = (s: PlaySettings): { kind: string; label: string }[] =>
-  [...s.mutedWindowKinds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((kind) => ({ kind, label: promptLabel(kind) }));

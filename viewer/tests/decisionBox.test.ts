@@ -4,18 +4,16 @@ import { Applier } from '../src/lib/live/apply';
 import { acting, teamsOf } from '../src/lib/lobby/seats';
 import { DecisionBox, type Control, type DecisionPanel } from '../src/lib/play/decisionBox';
 import { RuleTexts } from '../src/lib/play/ruleTexts';
-import { DEFAULT_SETTINGS, type PlaySettings } from '../src/lib/play/settings';
 import type { Board, Command, EventPayload, GameInfo, LegalSet, Refused } from '../src/lib/protocol/wire.generated';
 import { P1, P2, TEAM1, TEAM2, askOf, boardOf, gameOf, newId, option, sample, slotOf, unitOf } from './play';
 
 type Deferred = { id: string; resolve: (o: SendOutcome) => void; reject: (e: unknown) => void };
 
-function rig(over: { game?: GameInfo; board?: Board; settings?: PlaySettings; maxWounds?: Record<string, number>; rules?: RuleTexts; participantId?: string } = {}) {
+function rig(over: { game?: GameInfo; board?: Board; maxWounds?: Record<string, number>; rules?: RuleTexts; participantId?: string } = {}) {
   const s = sample();
   const game = over.game ?? s.game;
   const applier = new Applier(over.board ?? s.board, game);
   let seq = 0;
-  let settings = over.settings ?? DEFAULT_SETTINGS;
   const sent: Command[] = [];
   const pending: Deferred[] = [];
   const listeners = new Set<(r: Refused) => void>();
@@ -28,8 +26,6 @@ function rig(over: { game?: GameInfo; board?: Board; settings?: PlaySettings; ma
     state,
     myTeams: () => teamsOf(game, participantId),
     acting: () => acting(applier.projection, teamsOf(game, participantId), applier.log),
-    settings: () => settings,
-    updateSettings: (change) => { settings = change(settings); },
     rules: () => over.rules ?? RuleTexts.empty,
     send: (command) => new Promise<SendOutcome>((resolve, reject) => {
       sent.push(command);
@@ -39,7 +35,7 @@ function rig(over: { game?: GameInfo; board?: Board; settings?: PlaySettings; ma
   });
   const refusedFrame = (i: number, detail: string): Refused => ({ kind: 'refused', messageId: pending[i]!.id, reason: 'illegal', detail });
   const r = {
-    s, game, applier, box, sent, get settings() { return settings; },
+    s, game, applier, box, sent,
     apply(...payloads: EventPayload[]) { return r.applyAs(P1, ...payloads); },
     applyAs(actor: string, ...payloads: EventPayload[]) {
       const events = payloads.map((p) => ({ seq: ++seq, actor, payload: p }) as never);
@@ -301,14 +297,15 @@ describe('the decision box controller', () => {
     expect(answerOf(t.sent[0]!)).toEqual({ kind: 'allocated', counts: { [boss]: 2 } });
   });
 
-  it('pass and mute each send or store once', () => {
+  it('a window that allows a pass is shown with its choices and Pass, never passed for the player, and Pass sends once', () => {
     const r = rig();
     r.apply(open(askOf(opts(option('a', 'Advance')), { windowKind: 'casting', allowPass: true })));
     r.box.render();
-    expect(r.button('mute')!.label).toBe('Mute casting');
-    r.box.press('mute');
-    r.box.press('mute');
-    expect(r.settings.mutedWindowKinds).toEqual(['casting']);
+    r.box.render();
+    expect(r.sent).toHaveLength(0);
+    expect(r.tile('opt:a')!.disabled).toBe(false);
+    expect(r.panel.note).toBe('');
+    expect(r.panel.controls.filter((c) => c.kind === 'button').map((b) => b.id)).toEqual(['pass']);
     r.box.press('pass');
     r.box.press('pass');
     expect(r.sent).toHaveLength(1);
@@ -328,34 +325,11 @@ describe('the decision box controller', () => {
     expect(s2.button('pass')).toBeDefined();
   });
 
-  it('a muted window auto-passes once and offers Unmute', () => {
-    const r = rig({ settings: { ...DEFAULT_SETTINGS, mutedWindowKinds: ['casting'] } });
-    r.apply(open(askOf(opts(option('a', 'Advance')), { windowKind: 'casting', allowPass: true })));
-    r.box.render();
-    r.box.render();
-    expect(r.sent).toHaveLength(1);
-    expect(answerOf(r.sent[0]!)).toEqual({ kind: 'passed' });
-    expect(r.panel.note).toBe('Auto-passed: casting');
-    expect(r.button('unmute')).toBeDefined();
-    r.box.press('unmute');
-    expect(r.settings.mutedWindowKinds).toEqual([]);
-  });
-
-  it('a hyphenated window kind reads as words on Mute and on the auto-pass note', () => {
+  it('a refused pass renders the Ask with its Pass button', async () => {
     const r = rig();
-    r.apply(open(askOf(opts(option('cast', 'Cast a spell')), { windowKind: 'before-attacking', allowPass: true })));
-    r.box.render();
-    expect(r.button('mute')!.label).toBe('Mute before attacking');
-    const m = rig({ settings: { ...DEFAULT_SETTINGS, mutedWindowKinds: ['before-attacking'] } });
-    m.apply(open(askOf(opts(option('cast', 'Cast a spell')), { windowKind: 'before-attacking', allowPass: true })));
-    m.box.render();
-    expect(m.panel.note).toBe('Auto-passed: before attacking');
-  });
-
-  it('a refused auto-pass renders the Ask with its Pass button', async () => {
-    const r = rig({ settings: { ...DEFAULT_SETTINGS, mutedWindowKinds: ['casting'] } });
     r.apply(open(askOf(opts(option('a', 'Advance')), { windowKind: 'casting', allowPass: true })));
     r.box.render();
+    r.box.press('pass');
     r.refuse(0, 'not now');
     await tick();
     expect(r.panel.refusal).toBe('The server refused: not now');

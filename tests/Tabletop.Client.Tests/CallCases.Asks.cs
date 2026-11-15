@@ -36,7 +36,6 @@ public static partial class CallCases
                 }
             }
         }
-        foreach (var c in AutoPass(counts)) yield return c;
         foreach (var c in Passes()) yield return c;
     }
 
@@ -68,7 +67,7 @@ public static partial class CallCases
                 var picked = o.Choices.First(c => c.Id == ch.OptionId);
                 if (take("choose/option"))
                     yield return Make("choose/option", Choice("option", ("optionId", ch.OptionId)), s => Send(s, new Chosen(ch.OptionId)), answerOf: _ => ch);
-                var numbered = (CallState s) => DecisionView.Of(s.P!, s.Game, s.Names, s.Acting, s.MutedSet).Numbered;
+                var numbered = (CallState s) => DecisionView.Of(s.P!, s.Game, s.Names, s.Acting).Numbered;
                 if (Reachable(numbered(CallState.Playing(log, upTo, player)), ch.OptionId) is { } entry && take("choose/key"))
                     yield return Make("choose/key", Choice("key", ("key", entry.Key)), s => Send(s, new Chosen(ch.OptionId)),
                         (s, d) => d["numbered"] = NumberedOf(numbered(s)), answerOf: _ => ch);
@@ -123,10 +122,10 @@ public static partial class CallCases
                     yield return Make(kind, Choice("pick", ("clicks", Ids(chosen.PieceIds)), ("done", done)), s => SendOrNull(s, Pick(s, done)),
                         (s, d) => d["pickable"] = Ids(DeployView.Pickable(s.P!, ask)), answerOf: s => Pick(s, done));
                 if (deploy && chosen.PieceIds.Count == 1
-                    && DecisionView.Of(CallState.Playing(log, upTo, player).P!, log.Game, CallState.Playing(log, upTo, player).Names, CallState.Playing(log, upTo, player).Acting, new HashSet<string>())
+                    && DecisionView.Of(CallState.Playing(log, upTo, player).P!, log.Game, CallState.Playing(log, upTo, player).Names, CallState.Playing(log, upTo, player).Acting)
                         .Numbered is var keyed && Reachable(keyed, chosen.PieceIds[0].ToString()) is { } key && take("pickKey"))
                     yield return Make("pickKey", Choice("pickKey", ("key", key.Key)), s => SendOrNull(s, Pick(s, false)),
-                        (s, d) => { d["numbered"] = NumberedOf(DecisionView.Of(s.P!, s.Game, s.Names, s.Acting, s.MutedSet).Numbered); d["pickable"] = Ids(DeployView.Pickable(s.P!, ask)); },
+                        (s, d) => { d["numbered"] = NumberedOf(DecisionView.Of(s.P!, s.Game, s.Names, s.Acting).Numbered); d["pickable"] = Ids(DeployView.Pickable(s.P!, ask)); },
                         answerOf: s => Pick(s, false));
                 break;
 
@@ -214,24 +213,6 @@ public static partial class CallCases
         }
         if (region.Stoppable && !disembark && take("move/stop"))
             yield return make("move/stop", Choose(true), s => Send(s, Move(s, true)), null, null, null);
-    }
-
-    /// <summary>A muted window kind answers itself with Pass: one case per window kind that has an Ask the log opened.</summary>
-    static IEnumerable<CallCase> AutoPass(Dictionary<string, int> counts)
-    {
-        foreach (var name in LogNames)
-        {
-            var log = Log(name);
-            foreach (var e in log.Events.Where(e => e.Payload is AskOpened { Ask: { WindowKind: not null, AllowPass: true } }).Take(1))
-            {
-                var ask = ((AskOpened)e.Payload).Ask;
-                var player = PlayerOf(log.Game, ask.Teams[0]);
-                if (CallState.Playing(log, e.Seq, player, [ask.WindowKind!]).Mine?.Ask.Id != ask.Id) continue;
-                var c = Playing("autoPass", log, e.Seq, player, Choice("autoPass"),
-                    s => Command(AskAnswers.Answer(ask, new Passed(), s.Acting)), muted: [ask.WindowKind!]);
-                yield return c;
-            }
-        }
     }
 
     /// <summary>The numbered entry for this option, when its key reaches it: entries past nine all carry key 0 and the key picks the first.</summary>
