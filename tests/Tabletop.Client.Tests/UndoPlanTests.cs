@@ -70,6 +70,24 @@ public class UndoPlanTests
         Assert.Null(again);
     }
 
+    /// <summary>The owner, 2026-11-14: "undo is NOT letting me undo my advance". A pass on a window (before-attacking, a reaction) is not the
+    /// action Undo steps back to: undoing only the pass reopens the window, a muted one is passed again at once, and the press does nothing.
+    /// Undo takes the action before it, the pass going with it.</summary>
+    [Fact]
+    public void A_pass_on_a_window_is_not_an_action_and_goes_with_the_one_before()
+    {
+        var window = Samples.Ask with { Id = Guid.CreateVersion7(), Question = "window", WindowKind = "before-attacking", AllowPass = true };
+        var plan = Plan(Engine(Round1), Me(Move), Engine(new AskOpened(window)), Me(new AskAnswered(window.Id, Samples.Team1, new Passed(), false)),
+            Me(new AskClosed(window.Id, [new TeamAnswer(Samples.Team1, new Passed())])), Engine(new PhaseStarted("x"))).Plan!;
+        Assert.Equal((1L, 2L), (plan.ToSeq, plan.Action.Seq));                       // the move, not the pass after it
+        var chosen = new Chosen("cast");                                             // a window answered with a choice is an action
+        var cast = Plan(Engine(Round1), Me(Move), Engine(new AskOpened(window)), Me(new AskAnswered(window.Id, Samples.Team1, chosen, false))).Plan!;
+        Assert.Equal((3L, 4L), (cast.ToSeq, cast.Action.Seq));
+        var ask = Samples.Ask with { Id = Guid.CreateVersion7(), AllowPass = true };  // a pass on an Ask that is no window is an action
+        var pass = Plan(Engine(Round1), Me(Move), Engine(new AskOpened(ask)), Me(new AskAnswered(ask.Id, Samples.Team1, new Passed(), false))).Plan!;
+        Assert.Equal((3L, 4L), (pass.ToSeq, pass.Action.Seq));
+    }
+
     /// <summary>The server stamps an Ask's close with the participant whose answer closed it; the answer is the action, so the Ask reopens unanswered.</summary>
     [Fact]
     public void An_answer_and_the_close_it_caused_are_one_action()

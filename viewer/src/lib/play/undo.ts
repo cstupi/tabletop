@@ -22,9 +22,16 @@ export const NOTHING_TO_UNDO = 'Nothing to undo';
 export function undoPlanOf(log: readonly GameEvent[], n: Names, entries?: readonly LogEntry[]): UndoPlan | null {
   const live = effectiveLog(log);
   let at = -1;
+  // A pass on a window (an Ask with a windowKind) is no action: undoing it alone reopens the window, which a muted kind passes again at once.
+  let windows: Set<string> | null = null;
+  const windowPass = (e: GameEvent): boolean => {
+    if (e.payload.kind !== 'ask_answered' || e.payload.answer?.kind !== 'passed') return false;
+    windows ??= new Set(live.flatMap((x) => (x.payload.kind === 'ask_opened' && x.payload.ask.windowKind != null ? [x.payload.ask.id] : [])));
+    return windows.has(e.payload.askId);
+  };
   for (let i = live.length - 1; i >= 0 && at < 0; i--) {
     const e = live[i]!;
-    if (e.actor != null && e.payload.kind !== 'undone' && e.payload.kind !== 'ask_closed') at = i;
+    if (e.actor != null && e.payload.kind !== 'undone' && e.payload.kind !== 'ask_closed' && !windowPass(e)) at = i;
   }
   if (at < 0) return null;
   const to = at === 0 ? 0 : live[at - 1]!.seq;

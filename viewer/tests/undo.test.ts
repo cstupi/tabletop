@@ -64,6 +64,23 @@ describe('UndoPlan', () => {
     expect(plan(engine(Round1), me(mv), engine(phase), them(score), me(undone(3)), me(undone(1))).plan).toBeNull();
   });
 
+  // A pass on a window is not the action Undo steps back to: a muted window is passed again at once, so the press would do nothing.
+  it('a pass on a window is not an action and goes with the one before', () => {
+    const window = askOf({ kind: 'options', choices: [option('cast', 'Cast a spell', [Unit])] }, { question: 'window', windowKind: 'before-attacking' });
+    const passed = { kind: 'passed' as const };
+    const p = plan(engine(Round1), me(mv), engine({ kind: 'ask_opened', ask: window }),
+      me({ kind: 'ask_answered', askId: window.id, teamId: TEAM1, answer: passed, outsideLegalSet: false }),
+      me({ kind: 'ask_closed', askId: window.id, answers: [{ teamId: TEAM1, answer: passed }] }), engine(phase)).plan!;
+    expect([p.toSeq, p.action.seq]).toEqual([1, 2]);                                // the move, not the pass after it
+    const chosen = { kind: 'chosen' as const, optionId: 'cast' };
+    const cast = plan(engine(Round1), me(mv), engine({ kind: 'ask_opened', ask: window }),
+      me({ kind: 'ask_answered', askId: window.id, teamId: TEAM1, answer: chosen, outsideLegalSet: false })).plan!;
+    expect([cast.toSeq, cast.action.seq]).toEqual([3, 4]);
+    const pass = plan(engine(Round1), me(mv), engine({ kind: 'ask_opened', ask }),
+      me({ kind: 'ask_answered', askId: ask.id, teamId: TEAM1, answer: passed, outsideLegalSet: false })).plan!;
+    expect([pass.toSeq, pass.action.seq]).toEqual([3, 4]);                          // a pass on an Ask that is no window is an action
+  });
+
   // The server stamps an Ask's close with the participant whose answer closed it; the answer is the action, so the Ask reopens unanswered.
   it('an answer and the close it caused are one action', () => {
     const answer = { kind: 'chosen' as const, optionId: 'rush' };
