@@ -130,6 +130,9 @@ public sealed partial class AnswerPolicy(Chooser chooser, PolicyOptions? options
     private AskAnswer AnswerMove(Ask ask, MoveRegion m, PolicyView view)
     {
         if (m.ModelIds.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
+        // p.7: a unit that begins the move out of coherency gets back into it, or nearer it, before anything else (and never by passing).
+        if (m.ContactWith is not { Count: > 0 } && m.Containment is null && Regrouped(m, view) is { Count: > 0 } back)
+            return new Destinations(back.Select(kv => new ModelRelocation(kv.Key, view.LocationOf(kv.Key), new OnTable(Landing(kv.Key, view.PlacedOf(kv.Key), kv.Value, view).Placement))).ToList());
         if (Pass(ask) is { } passed) return passed;
 
         // Embarking and disembarking are the containment field's, and it carries every id and radius they need.

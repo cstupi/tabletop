@@ -58,10 +58,36 @@ public class GfCoherencyTests
         Assert.Equal(GfNames.MoveCoherencyRule, applied.Events.OfType<AskAnswered>().Single().Breach);
     }
 
+    /// <summary>The owner, 2026-11-14: "they need to attempt to move towards coherency and cant remain incoherent if its possible for them to
+    /// move into coherency at the end of the move". p.7: "If a model is not in coherency with its unit at the beginning of its activation, then
+    /// you must use an action so that the model gets back into coherency." A unit that starts out of coherency and can regain it this move
+    /// must end in it.</summary>
     [Fact]
-    public void A_unit_already_out_of_coherency_may_move_without_regaining_it()
+    public void A_unit_out_of_coherency_that_can_regain_it_must_end_the_move_in_it()
     {
-        var sim = Advancing(Enforcement.Strict, out var unit, gap: 5);
-        Assert.IsType<Applied>(Answer(sim, At(sim, unit.Models[1].Id, 22, 29)));
+        var sim = Advancing(Enforcement.Strict, out var unit, gap: 5);                       // 3.74" apart, a 6" Advance
+        var still = Assert.IsType<Refused>(Answer(sim, At(sim, unit.Models[1].Id, 22, 29)));
+        Assert.Equal("Veterans is out of coherency and this move can bring it back: it must end in coherency", still.Detail);
+        Assert.IsType<Refused>(Answer(sim));                                                 // no model moved at all
+        Assert.IsType<Applied>(Answer(sim, At(sim, unit.Models[1].Id, 20, 25.8)));           // 0.54" apart
+    }
+
+    /// <summary>Out of reach of coherency this move ("or as close as possible", p.7): the models must end closer together, and a move that does is taken.</summary>
+    [Fact]
+    public void A_unit_that_cannot_regain_coherency_this_move_must_close_the_gap()
+    {
+        var sim = Advancing(Enforcement.Strict, out var unit, gap: 20);                      // 18.74" apart: no 6" move joins them
+        var away = Assert.IsType<Refused>(Answer(sim, At(sim, unit.Models[1].Id, 20, 46)));
+        Assert.Equal("Veterans is out of coherency: its models must end this move closer together", away.Detail);
+        Assert.IsType<Refused>(Answer(sim));
+        Assert.IsType<Applied>(Answer(sim, At(sim, unit.Models[1].Id, 20, 38.5)));           // 5.5" closer
+    }
+
+    [Fact]
+    public void Under_warn_staying_out_of_coherency_is_applied_with_the_breach_named()
+    {
+        var sim = Advancing(Enforcement.Warn, out var unit, gap: 5);
+        var applied = Assert.IsType<Applied>(Answer(sim, At(sim, unit.Models[1].Id, 22, 29)));
+        Assert.Equal(GfNames.MoveCoherencyRule, applied.Events.OfType<AskAnswered>().Single().Breach);
     }
 }

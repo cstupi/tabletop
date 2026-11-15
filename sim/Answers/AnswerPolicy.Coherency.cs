@@ -84,6 +84,34 @@ public sealed partial class AnswerPolicy
     }
 
     /// <summary>
+    /// p.7: "If a model is not in coherency with its unit at the beginning of its activation, then you must use an action so that the model gets
+    /// back into coherency", as the server's move_coherency holds a move to it (GfMoves.CoherencyBreach): a unit of the region that stands out of
+    /// coherency is brought back when this move can (UnitFormation.Regroup), else one of its models ends nearer the chain (UnitFormation.Closer).
+    /// Null when every unit is in coherency or neither is found, and the move is answered as any other.
+    /// </summary>
+    private static IReadOnlyDictionary<Guid, Point2>? Regrouped(MoveRegion m, PolicyView view)
+    {
+        foreach (var unit in m.ModelIds.Select(id => view.ModelOf(id).UnitId).Distinct())
+        {
+            var members = view.Projection.Models.Values.Where(x => x.UnitId == unit).Select(x => x.Id).ToList();
+            var before = members.Select(view.PlacedOf).OfType<PlacedModel>().ToList();
+            if (before.Count == 0 || Check(before)) continue;
+            var movers = m.ModelIds.Where(id => view.ModelOf(id).UnitId == unit).Select(id => (Id: id, Start: view.PlacedOf(id))).Where(c => c.Start is not null)
+                .Select(c => (c.Id, Start: c.Start!.Value)).ToList();
+            var standing = view.Projection.Models.Keys.Where(x => !m.ModelIds.Contains(x)).Select(x => (Id: x, At: view.PlacedOf(x))).Where(x => x.At is not null).ToList();
+            var held = standing.Where(x => view.ModelOf(x.Id).UnitId == unit).Select(x => x.At!.Value).ToList();
+            var terms = new FormationTerms(m.Allowance, view.VolumesById(m.ImpassableVolumeIds), view.VolumesById(m.DifficultVolumeIds), m.DifficultCap,
+                m.IgnoresTerrain ? [] : view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList(), view.Volumes, view.Table,
+                standing.Select(x => x.At!.Value).ToList(), m.PassesModels, CoherencyChain, CoherencyElevated, CoherencySpread, SteepOf(m, view),
+                standing.Where(x => view.ModelOf(x.Id).UnitId != unit).Select(x => x.At!.Value).ToList(), m.Separation ?? 0);
+            if (UnitFormation.Regroup(movers, held, terms) is { } back)
+                return back.Where(kv => movers.First(x => x.Id == kv.Key).Start.Placement.Position.Horizontal.DistanceTo(kv.Value) > 1e-9).ToDictionary(kv => kv.Key, kv => kv.Value);
+            if (UnitFormation.Closer(movers, held, terms) is var (id, at)) return new Dictionary<Guid, Point2> { [id] = at };
+        }
+        return null;
+    }
+
+    /// <summary>
     /// p.9 "or as close as possible, whilst still maintaining unit coherency": the charging unit in base contact with a ContactWith model and in
     /// coherency, found as the server's charge_contact looks for it (UnitFormation.InContact over the Ask's own parameters). Null when there is none.
     /// </summary>

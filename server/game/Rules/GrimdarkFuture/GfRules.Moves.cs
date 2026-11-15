@@ -14,7 +14,7 @@ public sealed partial class GrimdarkFutureRules
             ?? GfMoves.MinimumBreach(state, region, moves) ?? GfMoves.DifficultCapBreach(state, ask, region, moves)
             ?? GfMoves.ContactBreach(state, region, moves) ?? GfMoves.CoherencyBreach(state, region, moves) ?? GfMoves.ChargeContactBreach(state, region, moves)
             ?? VanguardBreach(state, ask, region, moves),
-        MoveRegion region when answer is Passed => GfMoves.ChargeContactBreach(state, region, null),
+        MoveRegion region when answer is Passed => GfMoves.ChargeContactBreach(state, region, null) ?? GfMoves.CoherencyBreach(state, region, new Destinations([])),
         _ => PassBreach(ask, answer) ?? DeployInsideBreach(state, ask, answer),
     };
 
