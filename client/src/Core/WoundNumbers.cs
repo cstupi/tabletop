@@ -16,10 +16,10 @@ public readonly record struct WoundNumber(Guid ModelId, Point3 Head, int Index)
 /// </summary>
 public sealed class WoundNumbers
 {
-    public const double Seconds = 1.2, Stagger = 0.15;
+    public const double Seconds = 2.5, Stagger = 0.35;
     public const string Text = "-1";
     /// <summary>The share of Seconds a number stays fully opaque before it fades.</summary>
-    const double Hold = 0.4;
+    const double Hold = 0.6;
     readonly Dictionary<Guid, int> _wounds = new();
 
     public void Seed(Projection p) { _wounds.Clear(); foreach (var m in p.Models.Values) _wounds[m.Id] = m.Wounds; }

@@ -31,7 +31,7 @@ public class WoundNumbersTests
         Assert.All(numbers, w => Assert.Equal(A, w.ModelId));
         var slot = TableUx.Squad.Models[0];
         Assert.All(numbers, w => Assert.Equal(new Point3(10, 10, slot.Height), w.Head));
-        Assert.Equal(new[] { 0, 0.15, 0.3 }, numbers.Select(w => Math.Round(w.Delay, 6)));
+        Assert.Equal(new[] { 0, 0.35, 0.7 }, numbers.Select(w => Math.Round(w.Delay, 6)));
     }
 
     [Fact]

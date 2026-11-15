@@ -9,10 +9,10 @@ import type { Point } from '../board/transform';
 import type { Projection } from '../live/apply';
 import type { GameEvent, Point3, StateChange } from '../protocol/wire.generated';
 
-export const SECONDS = 1.2;
-export const STAGGER = 0.15;
+export const SECONDS = 2.5;
+export const STAGGER = 0.35;
 export const TEXT = '-1';
-const HOLD = 0.4;
+const HOLD = 0.6;
 
 /** One "-1": `at` the model's placement, `radius` its base's in inches, `index` its place among the model's numbers in the batch. */
 export interface WoundNumber { readonly modelId: string; readonly at: Point3; readonly radius: number; readonly index: number; readonly delay: number }
@@ -60,7 +60,7 @@ export function woundLook(age: number): { rise: number; alpha: number } {
   return { rise: 1 - (1 - t) * (1 - t), alpha: t <= HOLD ? 1 : 1 - (t - HOLD) / (1 - HOLD) };
 }
 
-const RISE_PX = 44, SPREAD_PX = 10, LIFT_PX = 6;
+const RISE_PX = 70, SPREAD_PX = 10, LIFT_PX = 6;
 
 /** The wound numbers in flight: `add` a batch's numbers at `now` (ms); `draw` is the board's floating layer. */
 export class WoundFloats implements FloatingLayer {
@@ -81,8 +81,8 @@ export class WoundFloats implements FloatingLayer {
     this.#live = this.#live.filter((f) => now - f.start < SECONDS * 1000);
     if (this.#live.length === 0) return false;
     ctx.save();
-    ctx.font = 'bold 18px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#1a0504'; ctx.fillStyle = '#f0291e';
+    ctx.font = 'bold 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.lineJoin = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = '#1a0504'; ctx.fillStyle = '#f0291e';
     for (const { n, start } of this.#live) {
       if (now < start) continue;
       const { rise, alpha } = woundLook((now - start) / 1000);

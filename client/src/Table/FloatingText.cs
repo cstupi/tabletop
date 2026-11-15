@@ -6,10 +6,10 @@ namespace Tabletop.Client.Table;
 /// while something floats. Its CanvasLayer inherits no theme, so it sets its own.</summary>
 public partial class FloatingText : Control
 {
-    const float NumberRisePx = 72, NumberSpreadPx = 12, NumberLift = 0.3f;
+    const float NumberRisePx = 110, NumberSpreadPx = 12, NumberLift = 0.3f;
     static readonly LabelSettings NumberLook = new()
     {
-        FontSize = 22, FontColor = new Color(0.95f, 0.16f, 0.12f), OutlineSize = 7, OutlineColor = new Color(0.07f, 0.02f, 0.02f),
+        FontSize = 40, FontColor = new Color(0.95f, 0.16f, 0.12f), OutlineSize = 10, OutlineColor = new Color(0.07f, 0.02f, 0.02f),
     };
     Session _s = null!; TableView _view = null!; readonly FloatingResults _results = new(); readonly WoundNumbers _numbers = new();
     readonly Dictionary<long, IReadOnlyList<FloatingResult>> _pending = new(); readonly List<(Vector3 At, Control Label, double Age)> _live = new();

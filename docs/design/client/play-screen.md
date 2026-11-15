@@ -47,7 +47,7 @@ model's pips) over each unit's centroid above its tallest model, hidden at End's
 `FloatingResults` lines (`-2 models`, a condition) rising for 1.2 s as the `Animator` plays their event
 (`Animator.Played`), silent while `Session.CatchingUp` and on a batch with an undo; with Animate on, `WoundNumbers`: a red
 `-1` per wound over the head of each model still standing after it (not one removed or at its max wounds), rising and fading
-over 1.2 s, a model's numbers 0.15 s apart, wounds diffed against the last total seen, silent on the same batches and on an
+over 2.5 s, a model's numbers 0.35 s apart, wounds diffed against the last total seen, silent on the same batches and on an
 empty one. `FloatingText` subscribes to `EventsApplied` before the `Animator` is made, so it reads each batch before the
 Animator plays it. `RangeRingNode`: with V on (`ClientSettings.RangeRings`) and a unit of mine selected, `RangeRings`'
 union outline per printed `Range` around the models carrying it, labelled with the printed value; a melee weapon draws
