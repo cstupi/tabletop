@@ -64,7 +64,7 @@ The lobby has no table (commit 660288cf): the page is the whole window under the
   army picker in place of the army line; holding several teams I have a row, and a picker, in each of their columns (`LobbyView.Armies`).
 - At its foot one button, **Join**, in a column I am not in: `PickTeam(team)`. It takes the team for my teamless row, else adds a seat for
   my account on it (one account playing several sides, game-flow spec → One account, several teams); it never moves a seat I hold. A team
-  another account holds shows Join disabled, "Ann holds this team: the creator adds players to it" as its line, for everyone but the creator.
+  other accounts hold has the same Join: any number of players share a side.
 - A row I may move (the creator: every row; anyone: their own) carries a **▸** menu, *Move to Team N* for each column it may go to, then
   *Watch*, and can be dragged onto another column. Both send `PickTeam(target, participant)`, `PickTeam(null, participant)` for Watching; a
   target the server would refuse (another account's team for a non-creator, a team the account already holds) is not offered and refuses the

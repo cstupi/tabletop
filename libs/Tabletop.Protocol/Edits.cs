@@ -35,9 +35,8 @@ public abstract record LobbyEdit : Edit;
 public sealed record CreateTeam : LobbyEdit;
 /// <summary>
 /// The sender (ParticipantId null) takes TeamId as one more of its teams: an account may hold several teams, each a participant row of its own
-/// with its own army (self-play). Null gives up every team: a participant with no team watches. A team another account holds is joined only by
-/// the creator's placing (ParticipantId names the participant row the creator moves onto TeamId), so two players share a side only with the
-/// creator's approval.
+/// with its own army (self-play). Null gives up every team: a participant with no team watches. A team other accounts hold is taken the same way: any
+/// number of players share a side. ParticipantId names a participant row to move onto TeamId: the sender's own, or any row for the creator.
 /// </summary>
 public sealed record PickTeam(Guid? TeamId, Guid? ParticipantId = null) : LobbyEdit;
 /// <summary>The army the sender brings to TeamId, one of its teams; null TeamId is its first team (or its row when it holds none).</summary>

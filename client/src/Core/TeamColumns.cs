@@ -30,7 +30,7 @@ public sealed record TeamColumn(Guid? TeamId, int Ordinal, string Title, ColumnS
 /// <summary>
 /// The lobby's and setup's team columns (spec 2026-11-07-lobby-and-setup-redesign-design.md): one column per team, then Watching. Every move is a
 /// PickTeam (or LeaveTeam) the game server's lobby authority accepts. A column's Join takes the team for my teamless row or adds a seat for my
-/// account (one account, several teams); it never moves a seat. Moving a seat is its row's ▸ menu or drag; the creator places anyone anywhere.
+/// account (one account, several teams), on a team other accounts hold as on an empty one; it never moves a seat. Moving a seat is its row's ▸ menu or drag; the creator places anyone anywhere.
 /// Nothing is offered that the server would refuse.
 /// </summary>
 public static class TeamColumns
@@ -76,13 +76,8 @@ public static class TeamColumns
             var state = StateOf(game, t.Id);
             var members = game.Participants.Where(p => p.TeamId == t.Id).Select(p => Member(game, p, participantId, isCreator, state == ColumnState.NeedsArmy)).ToList();
             ColumnJoin? join = null;
-            if (account is { } me && mine.All(p => p.TeamId != t.Id))
-            {
-                var holders = game.Participants.Where(p => p.TeamId == t.Id && p.AccountId != me).Select(p => p.Name).Distinct().ToList();
-                if (holders.Count > 0 && !isCreator)
-                    join = new ColumnJoin(Join, null, $"{string.Join(", ", holders)} {(holders.Count == 1 ? "holds" : "hold")} this team: the creator adds players to it.");
-                else join = new ColumnJoin(Join, new PickTeam(t.Id), null);              // takes my teamless row, or adds a seat; never moves one
-            }
+            if (account is not null && mine.All(p => p.TeamId != t.Id))
+                join = new ColumnJoin(Join, new PickTeam(t.Id), null);                   // takes my teamless row, or adds a seat; never moves one. A team others hold too.
             columns.Add(new TeamColumn(t.Id, t.Ordinal, $"Team {t.Ordinal}", state, StateText(state), members, join));
         }
         var watching = game.Participants.Where(p => p.TeamId is null).Select(p => Member(game, p, participantId, isCreator, false)).ToList();
@@ -100,7 +95,7 @@ public static class TeamColumns
     }
 
     /// <summary>Where this viewer may send a row: the creator any row, anyone else their own; another column, never one the row's account already
-    /// holds, never (for a non-creator) a team another account holds. Last, for a row on a team: "Leave Team N" (LeaveTeam) on my row while my
+    /// holds (a team other accounts hold is open to it). Last, for a row on a team: "Leave Team N" (LeaveTeam) on my row while my
     /// account holds several teams, else "Watch".</summary>
     public static IReadOnlyList<ColumnMove> Moves(GameInfo game, Guid? participantId, bool isCreator, Guid rowId)
     {
@@ -111,7 +106,6 @@ public static class TeamColumns
         foreach (var t in game.Teams.OrderBy(t => t.Ordinal))
         {
             if (row.TeamId == t.Id || game.Participants.Any(p => p.TeamId == t.Id && p.AccountId == row.AccountId)) continue;
-            if (!isCreator && game.Participants.Any(p => p.TeamId == t.Id && p.AccountId != row.AccountId)) continue;
             moves.Add(new ColumnMove(t.Id, $"Move to Team {t.Ordinal}", new PickTeam(t.Id, rowId)));
         }
         if (row.TeamId is { } at)

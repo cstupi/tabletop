@@ -30,26 +30,23 @@ public class AuthorityTests
         Assert.Equal("Friday", db.GameRows.Game(g.GameId)!.Name);
     }
 
+    /// <summary>The owner, 2026-11-14: "the 3rd player 4th player etc should be able to join". A team other accounts hold is joined like an
+    /// empty one; placing another participant stays the creator's.</summary>
     [Fact]
-    public async Task A_team_another_participant_holds_is_joined_only_by_the_creators_placing()
+    public async Task A_team_other_participants_hold_is_joined_by_anyone_and_only_the_creator_places_another()
     {
         var (f, g, creator, other, third) = await LobbyAsync();
         await using var _ = creator; await using var __ = other; await using var ___ = third; using var ____ = f;
         var spectator = g.Participants[2].ParticipantId;
         await third.SendAsync(Edit(new PickTeam(g.TeamIds[0])));
-        Assert.Equal(RefusalReason.NotPermitted, (await third.ExpectAsync<Refused>()).Reason);
+        Assert.Equal(g.TeamIds[0], (await third.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == spectator).TeamId);
+        Assert.Equal(g.TeamIds[0], db.GameRows.Participant(spectator)!.TeamId);
         await third.SendAsync(Edit(new PickTeam(g.TeamIds[0], g.Participants[1].ParticipantId)));
         Assert.Equal(RefusalReason.NotPermitted, (await third.ExpectAsync<Refused>()).Reason);
-        Assert.Null(db.GameRows.Participant(spectator)!.TeamId);
 
-        await creator.SendAsync(Edit(new PickTeam(g.TeamIds[0], spectator)));
-        Assert.Equal(g.TeamIds[0], (await third.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == spectator).TeamId);
-
-        await creator.SendAsync(Edit(new CreateTeam()));
-        var empty = (await third.ExpectAsync<GameInfoMessage>()).Game.Teams[2].Id;
-        await third.SendAsync(Edit(new PickTeam(empty)));
-        var account = g.Participants[2].AccountId;   // an empty team is one more team: the placed row keeps team 1, a new row takes the empty one
-        Assert.Equal([g.TeamIds[0], empty], (await third.ExpectAsync<GameInfoMessage>()).Game.Participants.Where(p => p.AccountId == account).Select(p => p.TeamId));
+        await third.SendAsync(Edit(new PickTeam(g.TeamIds[1])));       // a second team others hold is one more seat
+        var account = g.Participants[2].AccountId;
+        Assert.Equal([g.TeamIds[0], g.TeamIds[1]], (await third.ExpectAsync<GameInfoMessage>()).Game.Participants.Where(p => p.AccountId == account).Select(p => p.TeamId));
     }
 
     [Fact]

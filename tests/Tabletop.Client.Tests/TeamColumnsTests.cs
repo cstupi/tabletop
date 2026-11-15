@@ -54,6 +54,16 @@ public class TeamColumnsTests
         Assert.Equal(new PickTeam(T3), TeamColumns.Of(Game, Cid, isCreator: false, compact: true)[2].Join!.Edit);   // setup's + too
     }
 
+    /// <summary>The owner, 2026-11-14: "the 3rd player 4th player etc should be able to join". A team other accounts hold has a live Join for
+    /// everyone, and a row's menu moves it there.</summary>
+    [Fact]
+    public void A_team_others_hold_is_joined_by_anyone()
+    {
+        Assert.Equal(new ColumnJoin("Join", new PickTeam(T1), null), TeamColumns.Of(Game, Dee, isCreator: false)[0].Join);    // teamless Dee joins Ann and Ben
+        Assert.Equal(new ColumnJoin("Join", new PickTeam(T1), null), TeamColumns.Of(Game, Cid, isCreator: false)[0].Join);    // Cid, on Team 2, adds a seat
+        Assert.Equal(["Move to Team 1", "Move to Team 3", "Watch"], TeamColumns.Moves(Game, Cid, isCreator: false, Cid).Select(m => m.Text));
+    }
+
     /// <summary>One account alone: on Team 1, Join on Team 2 adds a seat; then it holds both, an army picker on each row.</summary>
     [Fact]
     public void One_account_joins_a_second_team_and_picks_an_army_on_each_row()
@@ -73,7 +83,7 @@ public class TeamColumnsTests
     [Fact]
     public void My_row_menu_moves_the_seat_and_leaves_a_team_while_i_hold_several()
     {
-        Assert.Equal(["Move to Team 3", "Watch"], TeamColumns.Moves(Game, Cid, false, Cid).Select(m => m.Text));    // one seat: no Leave
+        Assert.Equal(["Move to Team 1", "Move to Team 3", "Watch"], TeamColumns.Moves(Game, Cid, false, Cid).Select(m => m.Text));    // one seat: no Leave
         var second = Guid.CreateVersion7();
         var game = Game with { Participants = [.. Game.Participants.Where(p => p.Id != Cid), new Participant(second, AnnAcct, "Ann", T2, null)] };
         var moves = TeamColumns.Moves(game, Ann, true, second);
@@ -108,9 +118,9 @@ public class TeamColumnsTests
         Assert.Equal(new PickTeam(null, Ben), TeamColumns.Moves(Game, Ann, true, Ben)[2].Edit);
         Assert.Equal(["Move to Team 1", "Move to Team 2", "Move to Team 3"], TeamColumns.Moves(Game, Ann, true, Dee).Select(m => m.Text));
         Assert.Empty(TeamColumns.Moves(Game, Cid, false, Ben));                   // not mine
-        Assert.Equal(["Move to Team 3", "Watch"], TeamColumns.Moves(Game, Ben, false, Ben).Select(m => m.Text));   // Team 2 is Cid's
+        Assert.Equal(["Move to Team 2", "Move to Team 3", "Watch"], TeamColumns.Moves(Game, Ben, false, Ben).Select(m => m.Text));   // Team 2, Cid's, too
         Assert.Equal(new PickTeam(T3, Ben), TeamColumns.MoveTo(Game, Ben, false, Ben, T3));
-        Assert.Null(TeamColumns.MoveTo(Game, Ben, false, Ben, T2));
+        Assert.Equal(new PickTeam(T2, Ben), TeamColumns.MoveTo(Game, Ben, false, Ben, T2));     // onto Cid's team: any number of players share a side
         Assert.Null(TeamColumns.MoveTo(Game, Ben, false, Ben, T1));               // already there
     }
 

@@ -93,9 +93,7 @@ public sealed partial class GameSession
             case PickTeam t:
             {
                 var placed = t.ParticipantId is { } whom ? Info.Participants.First(p => p.Id == whom) : me;
-                // Teams are shared by design (game flow: two players on a side); joining a side another account holds takes the creator's approval.
-                if (t.TeamId is { } id && !creator && Info.Participants.Any(p => p.TeamId == id && p.AccountId != placed.AccountId))
-                { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "another participant holds this team; the creator may place you on it"); return; }
+                // Teams are shared (game flow: several players on a side): a team other accounts hold is joined like an empty one.
                 if (t.ParticipantId is null) { await TakeTeamAsync(me, t.TeamId); break; }
                 if (t.TeamId is { } target && Info.Participants.Any(p => p.AccountId == placed.AccountId && p.TeamId == target && p.Id != placed.Id))
                 { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "that participant already holds this team"); return; }

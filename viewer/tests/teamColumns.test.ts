@@ -50,7 +50,7 @@ describe('the team columns', () => {
   });
 
   it('my row menu moves the seat, and leaves a team while I hold several', () => {
-    expect(moves(game(), 'cid', false, 'cid').map((m) => m.text)).toEqual(['Move to Team 3', 'Watch']);
+    expect(moves(game(), 'cid', false, 'cid').map((m) => m.text)).toEqual(['Move to Team 1', 'Move to Team 3', 'Watch']);
     const g = game([...base.filter((p) => p.id !== 'cid'), row('ann2', 'a-ann', 'Ann', { teamId: T2 })]);
     const mine = moves(g, 'ann', true, 'ann2');
     expect(mine.map((m) => m.text)).toEqual(['Move to Team 3', 'Leave Team 2']);
@@ -60,10 +60,11 @@ describe('the team columns', () => {
     expect(moves(g, 'ann', true, 'ben').map((m) => m.text)).toEqual(['Move to Team 2', 'Move to Team 3', 'Watch']);
   });
 
-  it('a team another account holds is joined only by the creator', () => {
-    const team1 = columnsOf(game(), 'cid', false)[0]!;
-    expect(team1.join).toEqual({ text: 'Join', edit: null, why: 'Ann, Ben hold this team: the creator adds players to it.' });
+  it('a team other accounts hold is joined by anyone', () => {
+    expect(columnsOf(game(), 'cid', false)[0]!.join).toEqual({ text: 'Join', edit: { kind: 'pick_team', teamId: T1 }, why: null });
+    expect(columnsOf(game(), 'dee', false)[0]!.join).toEqual({ text: 'Join', edit: { kind: 'pick_team', teamId: T1 }, why: null });
     expect(columnsOf(game(), 'ann', true)[1]!.join!.edit).toEqual({ kind: 'pick_team', teamId: T2 });
+    expect(moves(game(), 'cid', false, 'cid').map((m) => m.text)).toContain('Move to Team 1');
   });
 
   it('without a team Join takes it; Watching offers Watch to a player holding a team', () => {
@@ -77,9 +78,9 @@ describe('the team columns', () => {
     expect(moves(game(), 'ann', true, 'ben').map((m) => m.text)).toEqual(['Move to Team 2', 'Move to Team 3', 'Watch']);
     expect(moves(game(), 'ann', true, 'ben')[2]!.edit).toEqual({ kind: 'pick_team', participantId: 'ben' });
     expect(moves(game(), 'cid', false, 'ben')).toEqual([]);
-    expect(moves(game(), 'ben', false, 'ben').map((m) => m.text)).toEqual(['Move to Team 3', 'Watch']);
+    expect(moves(game(), 'ben', false, 'ben').map((m) => m.text)).toEqual(['Move to Team 2', 'Move to Team 3', 'Watch']);
     expect(moveTo(game(), 'ben', false, 'ben', T3)).toEqual({ kind: 'pick_team', teamId: T3, participantId: 'ben' });
-    expect(moveTo(game(), 'ben', false, 'ben', T2)).toBeNull();
+    expect(moveTo(game(), 'ben', false, 'ben', T2)).toEqual({ kind: 'pick_team', teamId: T2, participantId: 'ben' });   // onto Cid's team
   });
 
   it('compact columns leave Watching out while no one watches', () => {

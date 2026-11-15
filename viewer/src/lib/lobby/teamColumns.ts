@@ -62,12 +62,8 @@ export function columnsOf(game: GameInfo, participantId: string | null, creator:
     const state = stateOf(game, t.id);
     const members = game.participants.filter((p) => p.teamId === t.id).map((p) => member(game, p, participantId, creator, state === 'needsArmy'));
     let join: ColumnJoin | null = null;
-    if (account !== undefined && rows.every((p) => p.teamId !== t.id)) {
-      const holders = [...new Set(game.participants.filter((p) => p.teamId === t.id && p.accountId !== account).map((p) => p.name))];
-      if (holders.length > 0 && !creator) {
-        join = { text: JOIN, edit: null, why: `${holders.join(', ')} ${holders.length === 1 ? 'holds' : 'hold'} this team: the creator adds players to it.` };
-      } else join = { text: JOIN, edit: pickTeam(t.id), why: null };   // takes my teamless row, or adds a seat; never moves one
-    }
+    // takes my teamless row, or adds a seat; never moves one. A team other accounts hold is joined like an empty one.
+    if (account !== undefined && rows.every((p) => p.teamId !== t.id)) join = { text: JOIN, edit: pickTeam(t.id), why: null };
     return { teamId: t.id, ordinal: t.ordinal, title: `Team ${t.ordinal}`, state, stateText: stateText(state), members, join };
   });
   const watching = game.participants.filter((p) => p.teamId === undefined).map((p) => member(game, p, participantId, creator, false));
@@ -88,8 +84,8 @@ function member(game: GameInfo, p: Participant, participantId: string | null, cr
   };
 }
 
-/** Where this viewer may send a row: the creator any row, anyone else their own; never a team the row's account already holds, never (for a
- *  non-creator) a team another account holds. Last, for a row on a team: "Leave Team N" (LeaveTeam) on my row while my account holds several
+/** Where this viewer may send a row: the creator any row, anyone else their own; never a team the row's account already holds (a team
+ *  other accounts hold is open to it). Last, for a row on a team: "Leave Team N" (LeaveTeam) on my row while my account holds several
  *  teams, else "Watch". */
 export function moves(game: GameInfo, participantId: string | null, creator: boolean, rowId: string): ColumnMove[] {
   const row = game.participants.find((p) => p.id === rowId);
@@ -98,7 +94,6 @@ export function moves(game: GameInfo, participantId: string | null, creator: boo
   const out: ColumnMove[] = [];
   for (const t of byOrdinal(game)) {
     if (row.teamId === t.id || game.participants.some((p) => p.teamId === t.id && p.accountId === row.accountId)) continue;
-    if (!creator && game.participants.some((p) => p.teamId === t.id && p.accountId !== row.accountId)) continue;
     out.push({ teamId: t.id, text: `Move to Team ${t.ordinal}`, edit: pickTeam(t.id, rowId) });
   }
   if (row.teamId !== undefined) {

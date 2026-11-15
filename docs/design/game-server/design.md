@@ -687,7 +687,7 @@ possible without the app running a roll-off in setup.
 ### The creator's two transitions
 
 `game.created_by` is read for the two transitions below, `SetConfiguration` (creator only), and
-`PickTeam` naming another participant or a team someone else holds (the creator's placing; see
+`PickTeam` naming another participant (the creator's placing; see
 Watchers and lobby authority). The creator is not a host, cannot kick, and does not own the log.
 
 **`StartSetup`** is creator only, `lobby` only. It creates the `table_state` draft row with
@@ -792,8 +792,8 @@ team. A reauth on such a socket checks the account is still that participant.
 Lobby edits that change who plays: `SetConfiguration` is the creator's. Teams are shared by design (game
 flow: two players on a side), and `PickTeam(TeamId, ParticipantId?)` takes an empty team freely, as one
 more team for an account that plays one (self-play: a participant row per team; `LeaveTeam` gives one
-up); a team another account holds is joined only by the creator's placing (`ParticipantId` names the row
-the creator places; a non-creator naming anyone but themselves, or a held team, is `NotPermitted`). A lobby
+up); a team other accounts hold is taken the same way, by any number of players (`ParticipantId` names a row
+to move: the sender's own, or any row for the creator; a non-creator naming another's row is `NotPermitted`). A lobby
 edit from a participant whose row has gone is refused.
 
 The creator may change the edition in the lobby: a `SetConfiguration` whose `PropertiesHash` belongs to another `game_rules`

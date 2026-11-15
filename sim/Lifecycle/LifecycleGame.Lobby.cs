@@ -77,18 +77,12 @@ public sealed partial class LifecycleGame
     SetConfiguration Configuration(IReadOnlyDictionary<string, string> options) =>
         new(name, _hash, SchedulerShape.AlternatingActivation, shape.Enforcement, false, options);
 
-    /// <summary>An empty team the account takes itself; a team another account holds the creator places it on (PickTeam with its row).</summary>
+    /// <summary>The account takes the team itself, an empty one or one other accounts hold (PickTeam).</summary>
     async Task TakeSeatAsync(Seat seat, CancellationToken ct)
     {
         var account = _players[seat.Account];
-        var game = CreatorSocket.Game;
-        var team = TeamId(game, seat.Team);
-        if (game.Participants.Any(p => p.TeamId == team && p.AccountId != account.AccountId))
-        {
-            var row = game.Participants.Single(p => p.AccountId == account.AccountId && p.TeamId is null);
-            await CreatorSocket.EditAsync(new PickTeam(team, row.Id), g => Holds(g, account, team), ct);
-        }
-        else await _sockets[seat.Account].EditAsync(new PickTeam(team), g => Holds(g, account, team), ct);
+        var team = TeamId(CreatorSocket.Game, seat.Team);
+        await _sockets[seat.Account].EditAsync(new PickTeam(team), g => Holds(g, account, team), ct);
     }
 
     /// <summary>The army imported over HTTP (the dev route's body, no Army Forge call) and picked for the seat's team.</summary>

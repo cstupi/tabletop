@@ -10,8 +10,8 @@ namespace Tabletop.Sim.Lifecycle;
 public sealed record Seat(int Account, int Team, int Book = 0, string? List = null);
 
 /// <summary>
-/// One game the lifecycle suite plays from creation to deletion. Account 0 creates it. Seats are taken in order: a team no other account
-/// holds is taken by the seat's account, a team another account holds is the creator's placing (PickTeam with the participant). Late is
+/// One game the lifecycle suite plays from creation to deletion. Account 0 creates it. Seats are taken in order, each by
+/// the seat's own account, on an empty team or one other accounts hold (PickTeam). Late is
 /// a seat left empty when setup ends and taken while deployment waits for players. Ambush: account 0's army carries Ambush on its
 /// riders (LifecycleArmy.AmbushUnit), set aside before deployment. LobbyOnly: no play; the leave and delete of a lobby game. Rules: the game-rules id the game is created on, 3.6.0 unless
 /// the shape names 3.5.1.
