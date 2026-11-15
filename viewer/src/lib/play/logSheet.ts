@@ -68,7 +68,8 @@ function totals(group: readonly RollEntry[]): Totals {
   const rolled = sum(hitRolls.map(successes));
   const multiplier = Math.max(1, ...hitRolls.map((r) => r.hitMultiplier));
   const hits = blocks.length > 0 ? sum(blocks.map((b) => b.dice.length)) : (rolled + sum(hitRolls.map((r) => extra(r.dice, 'hit')))) * multiplier;
-  const wounds = sum(blocks.map((b) => b.dice.filter((d) => !d.success).length + extra(b.dice, 'wound'))) - sum(group.filter(perWound).map(successes));
+  const wounds = sum(blocks.map((b) => b.dice.filter((d) => !d.success).length + extra(b.dice, 'wound'))) * group[0]!.inAttack!.woundMultiplier
+    - sum(group.filter(perWound).map(successes));
   const cover = blocks.some((b) => b.record.cover !== undefined && b.record.cover.inCover && b.record.cover.ignoredBy === undefined);
   return { rolled, bonus: Math.max(0, hits - rolled), hits, wounds: Math.max(0, wounds), cover };
 }
@@ -120,8 +121,7 @@ export function threshold(r: RollRecord): string {
     parts.push(...r.basis.changes.map((c) => (c.setTo !== undefined ? `${c.source} ${c.setTo}+` : `${c.source} ${signed(c.amount)}`)));
     parts.push(...(r.basis.ignored ?? []).map((x) => `${x.source} ${x.setTo !== undefined ? `${x.setTo}+` : signed(x.amount ?? 0)} ignored (${x.by})`));
   }
-  const v = r.cover;
-  if (v !== undefined && !(v.inCover && v.ignoredBy === undefined)) parts.push(v.ignoredBy !== undefined ? `Cover ignored (${v.ignoredBy})` : `No cover (${v.models}/${v.of})`);
+  if (r.cover?.ignoredBy !== undefined) parts.push(`Cover ignored (${r.cover.ignoredBy})`);
   parts.push(...r.modifiers.map(modifierText));
   parts.push(...(r.ignored ?? []).map((x) => `${x.source} ${signed(x.amount ?? 0)} ignored (${x.by})`));
   if (r.modifiers.length > 0 || (r.basis !== undefined && r.basis.changes.length > 0))
@@ -207,6 +207,7 @@ function attackDetail(group: readonly RollEntry[]): string[] {
     lines.push(...diceLines(r));
     if (perWound(r)) lines.push(`${successes(r)} ignored`);
   }
+  if (tag.woundMultiplier > 1) lines.push(`Wounds ×${tag.woundMultiplier}`);
   lines.push(`H: ${t.hits}  W: ${t.wounds}`, ...rules(group));
   return lines;
 }

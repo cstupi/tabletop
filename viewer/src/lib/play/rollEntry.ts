@@ -64,6 +64,8 @@ export interface RollEntry {
  * did, the weapons. Rolls of one attack share frame. */
 export interface AttackTag {
   readonly frame: string; readonly actor: string; readonly targets: string; readonly melee: boolean; readonly source: string | null; readonly weapons: string;
+  /** What the server multiplied each of the attack's wounds by (`wound_multiplier`, Deadly); 1 without. */
+  readonly woundMultiplier: number;
 }
 
 /** The record has a target number or a required face (a roll-off or a property's own unjudged roll has neither). */
@@ -193,8 +195,7 @@ export const RollWords = {
     const printed = r.basis !== undefined ? `${r.basis.stat} ${r.basis.printed}+` : `${t}+`;
     const parts: string[] = [];
     const c = r.cover;
-    if (c !== undefined && !(c.inCover && c.ignoredBy === undefined))
-      parts.push(c.ignoredBy !== undefined ? `cover ignored (${c.ignoredBy})` : `no cover: ${c.models}/${c.of} models`);
+    if (c !== undefined && c.ignoredBy !== undefined) parts.push(`cover ignored (${c.ignoredBy})`);
     if (r.basis !== undefined) parts.push(...r.basis.changes.map((x) => (x.setTo !== undefined ? `${x.source} ${x.setTo}+` : `${x.source} ${signed(x.amount)}`)));
     parts.push(...r.modifiers.map(RollWords.modifier));
     const changed = r.modifiers.length > 0 || (r.basis !== undefined && r.basis.changes.length > 0);

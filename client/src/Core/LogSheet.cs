@@ -69,7 +69,8 @@ public static partial class LogSheet
 
     /// <summary>An attack's totals. Hits: the dice its blocks rolled (every hit that reached them), else the hits its rolls scored with the
     /// extra hits their faces set off, multiplied. Bonus: the hits past the ones rolled. Wounds: the blocks' failures and the extra wounds
-    /// their faces set off, less the wounds a roll per wound ignored. Cover: a block's cover verdict applied.</summary>
+    /// their faces set off, times the server's wound multiplier (Deadly; past what a model has left too), less the wounds a roll per wound
+    /// ignored. Cover: a block's cover verdict applied.</summary>
     sealed record Totals(int Rolled, int Bonus, int Hits, int Wounds, bool Cover);
 
     static Totals Sum(IReadOnlyList<RollEntry> group)
@@ -79,7 +80,7 @@ public static partial class LogSheet
         var rolled = hitRolls.Sum(r => r.Successes);
         var multiplier = hitRolls.Select(r => r.HitMultiplier).DefaultIfEmpty(1).Max();
         var hits = blocks.Count > 0 ? blocks.Sum(b => b.Dice.Count) : (rolled + hitRolls.Sum(r => Extra(r.Dice, "hit"))) * multiplier;
-        var wounds = blocks.Sum(b => b.Dice.Count(d => !d.Success) + Extra(b.Dice, "wound")) - group.Where(PerWound).Sum(r => r.Successes);
+        var wounds = blocks.Sum(b => b.Dice.Count(d => !d.Success) + Extra(b.Dice, "wound")) * group[0].InAttack!.WoundMultiplier - group.Where(PerWound).Sum(r => r.Successes);
         return new Totals(rolled, Math.Max(0, hits - rolled), hits, Math.Max(0, wounds), blocks.Any(b => b.Record.Cover is { InCover: true, IgnoredBy: null }));
     }
 

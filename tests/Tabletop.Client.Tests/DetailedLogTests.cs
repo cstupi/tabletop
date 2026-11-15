@@ -76,14 +76,14 @@ public class DetailedLogTests
     }
 
     [Fact]
-    public void Cover_not_had_or_ignored_reads_its_count_and_a_fatigued_strike_its_raw_face()
+    public void Cover_not_had_reads_nothing_cover_ignored_names_the_rule_and_a_fatigued_strike_its_raw_face()
     {
         var out_ = new RollRecord(Guid.CreateVersion7(), "defense", 4, [], [D(5, 5, true)], null, null, new CoverVerdict(false, 1, 4));
         var ignored = new RollRecord(Guid.CreateVersion7(), "defense", 4, [], [D(5, 5, true)], null, null, new CoverVerdict(true, 3, 4, "Blast"));
         var fatigued = new RollRecord(Guid.CreateVersion7(), "hit", 4, [], [D(5, 5, false), D(6, 6, true)], 6);
         var lines = Block(new StepCompleted(Samples.Frame, "roll-to-hit", null, [fatigued], []), new StepCompleted(Samples.Frame, "roll-to-block", null, [out_, ignored], []))
             .Single().Lines;
-        Assert.Contains("Defense 4+ · No cover (1/4) (1 die)", lines);
+        Assert.Contains("Defense 4+ (1 die)", lines);
         Assert.Contains("Defense 4+ · Cover ignored (Blast) (1 die)", lines);
         Assert.Contains("Hit roll · unmodified 6+ (2 dice)", lines);
     }

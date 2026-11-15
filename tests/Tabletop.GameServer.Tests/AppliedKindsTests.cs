@@ -113,6 +113,19 @@ public class AppliedKindsTests
         NoneApplied(five);
     }
 
+    /// <summary>The combat log's W multiplies the attack's wounds by what the server applied (combat-log spec → Attack): the assign step says so.</summary>
+    [Fact]
+    public void Deadly_writes_its_wound_multiplier_on_the_assign_step_and_a_plain_wound_writes_none()
+    {
+        var deadly = Shoot(Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Deadly", 3))), Unit("B", "4+", "4+", [], 1, [P("Tough", 3)]), 3, null, 5, 1);
+        deadly.Start(GfNames.AttackSequence, Attack(UnitOf(deadly, 0), UnitOf(deadly, 1)));
+        Assert.Equal(3, Assert.Single(deadly.Steps("assign")).Values!["wound_multiplier"]);
+
+        var plain = Shoot(Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)), Unit("B", "4+", "4+", [], 1, [P("Tough", 3)]), 3, null, 5, 1);
+        plain.Start(GfNames.AttackSequence, Attack(UnitOf(plain, 0), UnitOf(plain, 1)));
+        Assert.All(plain.Steps("assign"), s => Assert.False(s.Values?.ContainsKey("wound_multiplier") ?? false));
+    }
+
     [Fact]
     public void Multiply_lists_deadly_on_the_wound_and_blast_only_when_the_cap_leaves_it_above_one()
     {

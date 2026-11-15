@@ -12,6 +12,7 @@ export class FrameTree {
   private readonly parent = new Map<string, string | null>();
   private readonly started = new Map<string, SequenceStarted>();
   private readonly applied = new Map<string, string>();
+  private readonly woundMultiplier = new Map<string, number>();   // by attack frame, from its assign steps' `wound_multiplier`
 
   static of(log: readonly GameEvent[]): FrameTree {
     const t = new FrameTree();
@@ -25,6 +26,10 @@ export class FrameTree {
         open.push({ frame: p.frameId, seq: e.seq });
       } else if (p.kind === 'sequence_finished' || p.kind === 'sequence_abandoned') closeFrom(lastIndex(p.frameId));
       else if (p.kind === 'undone') closeFrom(open.findIndex((x) => x.seq > p.toSeq));
+      else if (p.kind === 'step_completed') {
+        const times = p.values?.['wound_multiplier'];
+        if (times !== undefined && times > 1) t.woundMultiplier.set(t.attackFrame(p.frameId), times);
+      }
     }
     return t;
   }
@@ -40,11 +45,15 @@ export class FrameTree {
 
   private sequence(frame: string): string | undefined { return this.started.get(frame)?.sequence; }
 
-  tag(step: StepCompleted, roll: RollRecord, rollContext: SequenceContext, n: Names): AttackTag {
+  /** The parent of the innermost `resolve-hits` frame at or above the frame, else the frame itself. */
+  private attackFrame(frame: string): string {
     let resolve: string | null = null;
-    for (const f of this.up(step.frameId)) if (this.sequence(f) === 'resolve-hits') { resolve = f; break; }
-    const parent = resolve !== null ? this.parent.get(resolve) ?? null : null;
-    const frame = parent ?? step.frameId;
+    for (const f of this.up(frame)) if (this.sequence(f) === 'resolve-hits') { resolve = f; break; }
+    return (resolve !== null ? this.parent.get(resolve) ?? null : null) ?? frame;
+  }
+
+  tag(step: StepCompleted, roll: RollRecord, rollContext: SequenceContext, n: Names): AttackTag {
+    const frame = this.attackFrame(step.frameId);
     const own = this.started.get(frame)?.context;
     const c = own !== undefined && own.actorUnitId !== undefined ? own : rollContext;
     const melee = [...this.up(frame)].some((f) => this.sequence(f) === 'melee');
@@ -53,7 +62,7 @@ export class FrameTree {
         : this.applied.get(frame) ?? null;
     return {
       frame, actor: c.actorUnitId !== undefined ? n.unit(c.actorUnitId) : '', targets: c.targetUnitIds.map((u) => n.unit(u)).join(', '), melee, source,
-      weapons: [...new Set(c.weaponIds.map((w) => n.weapon(w)))].join(', '),
+      weapons: [...new Set(c.weaponIds.map((w) => n.weapon(w)))].join(', '), woundMultiplier: this.woundMultiplier.get(frame) ?? 1,
     };
   }
 }

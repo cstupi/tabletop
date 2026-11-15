@@ -43,6 +43,20 @@ describe('logSheet', () => {
     expect(lines).toContain('Marksmen → Blue unit 1  H: 2  W: 2  Cover: Y');
   });
 
+  it('a Deadly attack counts each unblocked wound times what the server multiplied it by', () => {
+    const entries = entriesOf('deadly');
+    expect(sheetOf(entries, false).flatMap((p) => p.lines)).toContain('Red unit 1 → Blue unit 2  H: 2  W: 3  Cover: N');
+    const detailed = sheetOf(entries, true).find((p) => p.lines.includes('Wounds ×3'))!;
+    expect(detailed.lines).toContain('H: 2  W: 3');
+  });
+
+  it('cover reads only where it applied or a rule took it away, and the setup phases draw no line', () => {
+    const lines = sheetOf(entriesOf('gunline'), true).flatMap((p) => p.lines);
+    expect(lines.some((l) => l.includes('No cover') || l.includes('no cover'))).toBe(false);
+    expect(lines.some((l) => l === 'Round 0' || l.startsWith('the game began'))).toBe(false);
+    expect(sheetOf(entriesOf('indirect'), true).flatMap((p) => p.lines).some((l) => l.includes('Cover ignored (Indirect)') || l.includes('Cover +1'))).toBe(true);
+  });
+
   for (const detailed of [false, true])
     it(`the panel's text is the log's text, a line each, and nothing else (${detailed ? 'detailed' : 'summary'})`, () => {
       const entries = entriesOf('spears');

@@ -12,22 +12,25 @@ public static partial class CombatLog
     /// each condition set or cleared (a unit other than actor, or a model's unit, named first), each grant (`{unit} gets {entry}`).
     /// Outside an action a deployment and an objective's control also read, in LogText's words.
     /// </summary>
-    static IEnumerable<string> ChangeLines(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor) =>
-        ChangeEntries(changes, n, outside, actor).Select(x => x.Text);
+    static IEnumerable<string> ChangeLines(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor, Func<Guid, int>? before = null) =>
+        ChangeEntries(changes, n, outside, actor, before).Select(x => x.Text);
 
     /// <summary>ChangeLines with what the detailed log draws for each (detailed-log spec → Wounds): a wounded line lists each model with the
-    /// wounds it now carries, a removed line each model removed; any other line draws as it reads.</summary>
-    static IEnumerable<(string Text, IReadOnlyList<string>? Worked)> ChangeEntries(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor)
+    /// wounds the step put on it, a removed line each model removed; any other line draws as it reads. Before: a model's wounds ahead of the
+    /// step (WoundsBefore); a model the step left at those wounds (a wound Regeneration ignored) is not wounded. A condition names its unit
+    /// unless it is actor's (null: always).</summary>
+    static IEnumerable<(string Text, IReadOnlyList<string>? Worked)> ChangeEntries(IReadOnlyList<StateChange> changes, Names n, bool outside, Guid? actor,
+        Func<Guid, int>? before = null)
     {
         var shelved = changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Where(m => m.To is OnShelf).Select(m => m.ModelId).ToHashSet();
         var woundedIds = changes.OfType<WoundsSet>().Select(w => w.ModelId).ToHashSet();
         var lastWounds = new Dictionary<Guid, int>();
         foreach (var w in changes.OfType<WoundsSet>()) lastWounds[w.ModelId] = w.Wounds;
-        var wounded = woundedIds.Count(m => !shelved.Contains(m));
+        var woundedNow = lastWounds.Where(kv => !shelved.Contains(kv.Key) && (before is null || before(kv.Key) != kv.Value)).ToList();
         var removed = shelved.Count(woundedIds.Contains);
-        if (wounded > 0)
-            yield return ($"{RollWords.Plural(wounded, "model")} wounded",
-                lastWounds.Where(kv => !shelved.Contains(kv.Key)).Select(kv => $"{n.Model(kv.Key)} · {RollWords.Plural(kv.Value, "wound")}").ToList());
+        if (woundedNow.Count > 0)
+            yield return ($"{RollWords.Plural(woundedNow.Count, "model")} wounded",
+                woundedNow.Select(kv => $"{n.Model(kv.Key)} · {RollWords.Plural(kv.Value - (before?.Invoke(kv.Key) ?? 0), "wound")}").ToList());
         if (removed > 0)
             yield return ($"{RollWords.Plural(removed, "model")} removed", lastWounds.Keys.Where(shelved.Contains).Select(m => $"{n.Model(m)} · removed").ToList());
         foreach (var line in OtherLines(changes, n, outside, actor, shelved, woundedIds)) yield return (line, null);
@@ -59,6 +62,35 @@ public static partial class CombatLog
     static IEnumerable<string> Deployed(ModelsMoved m, Names n) => m.Moves.Select(x => n.UnitOfModel(x.ModelId) ?? x.ModelId).Distinct()
         .Select(u => string.Join(" · ", new[] { n.TeamOfUnit(u) is { } t ? n.Team(t) : null, n.Unit(u) }.OfType<string>()) + " deployed");
 
+    /// <summary>Each model's wounds ahead of each event that sets them (a step's `WoundsSet`s, a hand edit), read ahead of the build in log
+    /// order: an undo drops what was set after its seq, so an event reads the wounds its own timeline gave the model; 0 before any.</summary>
+    sealed class WoundsBefore
+    {
+        readonly Dictionary<(long Seq, Guid Model), int> _before = [];
+
+        public int Before(long seq, Guid model) => _before.GetValueOrDefault((seq, model));
+
+        public static WoundsBefore Of(IReadOnlyList<GameEvent> log)
+        {
+            var w = new WoundsBefore();
+            var history = new List<(long Seq, Guid Model, int Wounds)>(); var now = new Dictionary<Guid, int>();
+            foreach (var e in log)
+            {
+                IEnumerable<WoundsSet> set = e.Payload switch { StepCompleted s => s.Changes.OfType<WoundsSet>(), WoundsSet x => [x], _ => [] };
+                if (e.Payload is Undone u)
+                {
+                    history.RemoveAll(h => h.Seq > u.ToSeq);
+                    now = [];
+                    foreach (var h in history) now[h.Model] = h.Wounds;
+                }
+                var list = set.ToList();
+                foreach (var x in list) w._before.TryAdd((e.Seq, x.ModelId), now.GetValueOrDefault(x.ModelId));
+                foreach (var x in list) { now[x.ModelId] = x.Wounds; history.Add((e.Seq, x.ModelId, x.Wounds)); }
+            }
+            return w;
+        }
+    }
+
     /// <summary>What later steps settle about a roll, read ahead of the build. A judged single die (RollEntry.IsTest) takes the change
     /// words of its frame's later steps up to the frame's finish or the next step with a roll (those steps draw no change line:
     /// Absorbed). A roll-off record's dice belong, in ordinal order, to the teams whose faces so far (live amendments applied) equal
@@ -73,7 +105,7 @@ public static partial class CombatLog
         public string? Consequence(Guid roll) => _words.TryGetValue(roll, out var w) && w.Count > 0 ? string.Join(", ", w) : null;
 
         public static Aftermath Of(IReadOnlyList<GameEvent> log, Dictionary<Guid, SequenceStarted> frames, Func<GameEvent, bool> isDead, Names n,
-            ILookup<Guid, (GameEvent Event, bool Dead)> amendments)
+            ILookup<Guid, (GameEvent Event, bool Dead)> amendments, WoundsBefore wounds)
         {
             var a = new Aftermath();
             var test = new Dictionary<Guid, (Guid Roll, bool Dead)>(); var rollOff = new Dictionary<Guid, (Guid Roll, bool Dead)>();
@@ -90,7 +122,7 @@ public static partial class CombatLog
                         var started = frames.GetValueOrDefault(step.FrameId);
                         if (step.Rolls.Count > 0) test.Remove(step.FrameId);   // a later roll's changes are its own
                         else if (test.TryGetValue(step.FrameId, out var pending) && pending.Dead == dead
-                            && ChangeLines(step.Changes, n, false, started?.Context.ActorUnitId).ToList() is { Count: > 0 } words)
+                            && ChangeLines(step.Changes, n, false, started?.Context.ActorUnitId, m => wounds.Before(e.Seq, m)).ToList() is { Count: > 0 } words)
                         {
                             a._words[pending.Roll].AddRange(words); a.Absorbed.Add(e.Seq);
                         }

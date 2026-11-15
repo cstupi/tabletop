@@ -17,8 +17,8 @@ public static partial class LogSheet
 
     /// <summary>
     /// What a roll is judged against, ` · ` between the parts: the printed stat (`Defense 5+`, a bare `5+` with no stat), each change to it
-    /// (`Rule 3+`, `Rule -1`), each row taken away (`Rule -1 ignored (By)`), a cover verdict not applied (`No cover (1/3)`,
-    /// `Cover ignored (Indirect)`), each modifier with the sign the roll applies (`AP(1) -1`, `Rending AP(4) -4`, `Cover +1`), each
+    /// (`Rule 3+`, `Rule -1`), each row taken away (`Rule -1 ignored (By)`), cover a rule took away (`Cover ignored (Indirect)`; nothing
+    /// without cover), each modifier with the sign the roll applies (`AP(1) -1`, `Rending AP(4) -4`, `Cover +1`), each
     /// modifier taken away, and `needs N+` (2..6) when anything changed it. A roll on the raw face reads `unmodified N+`; dangerous terrain `1 fails`.
     /// </summary>
     public static string Threshold(RollRecord r)
@@ -32,8 +32,7 @@ public static partial class LogSheet
             parts.AddRange(basis.Changes.Select(c => c.SetTo is { } to ? $"{c.Source} {to}+" : $"{c.Source} {RollWords.Signed(c.Amount)}"));
             parts.AddRange((basis.Ignored ?? []).Select(x => $"{x.Source} {(x.SetTo is { } to ? $"{to}+" : RollWords.Signed(x.Amount))} ignored ({x.By})"));
         }
-        if (r.Cover is { } v && !(v.InCover && v.IgnoredBy is null))
-            parts.Add(v.IgnoredBy is { } by ? $"Cover ignored ({by})" : $"No cover ({v.Models}/{v.Of})");
+        if (r.Cover is { IgnoredBy: { } by }) parts.Add($"Cover ignored ({by})");
         parts.AddRange(r.Modifiers.Select(Modifier));
         parts.AddRange((r.Ignored ?? []).Select(x => $"{x.Source} {RollWords.Signed(x.Amount)} ignored ({x.By})"));
         if (r.Modifiers.Count > 0 || r.Basis is { Changes.Count: > 0 })
@@ -128,6 +127,7 @@ public static partial class LogSheet
             lines.AddRange(Dice(r));
             if (PerWound(r)) lines.Add($"{r.Successes} ignored");
         }
+        if (tag.WoundMultiplier > 1) lines.Add($"Wounds ×{tag.WoundMultiplier}");
         lines.Add($"H: {t.Hits}  W: {t.Wounds}");
         lines.AddRange(Rules(group));
         return lines;

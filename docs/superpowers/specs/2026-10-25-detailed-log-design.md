@@ -53,19 +53,20 @@ R2 · Team 1 · Marksmen · Hold → Blue unit 1
   faces as rolled; each live reroll or edit follows (`Rerolled (Bane): 6 → 2` for one die, a labelled table of the new faces for
   more); each rule its faces set off follows as a table of the dice that set it off (`Relentless (6s: +1 hit)`).
 - **Target:** after the roll's label, ` · ` between the parts: the stat and its printed value (`Quality 4+`); each replace_stat
-  (`Hero 3+`) and modify_stat row (`Shaken +1`); each stat row a suppression took away (`Hero 3+ ignored (Curse)`); a cover verdict
-  not applied (`No cover (2/6)`, `Cover ignored (Blast)`); each roll modifier with the sign the roll applies (`AP(1) -1`,
+  (`Hero 3+`) and modify_stat row (`Shaken +1`); each stat row a suppression took away (`Hero 3+ ignored (Curse)`); cover a rule took
+  away (`Cover ignored (Blast)`; no cover reads nothing); each roll modifier with the sign the roll applies (`AP(1) -1`,
   `Rending AP(4) -4`, `Cover +1`, `Stealth -1`); each roll modifier a suppression took away (`Bad Shot -1 ignored (Unstoppable)`);
   `needs N+` when anything changed it. A roll judged on the raw face reads `unmodified 6+`. When a 6 passed or a 1 failed against
   its final value: `a 6 always succeeds, a 1 always fails` (p.5).
 - **Hits:** under the hit tables `X hits · Y bonus hits` (bonus: the hits past the ones rolled, from the faces' extra hits and
   `Hits ×N`, a multiplier); with no hit roll the rule's line, `Deathstrike: 3 hits`. **Totals:** under the blocks and the rolls per
-  wound (`Regeneration · 5+ (3 wounds)`, its table, `N ignored`), `H: X  W: Y` as the summary counts them, then `Rules:` (the steps'
+  wound (`Regeneration · 5+ (3 wounds)`, its table, `N ignored`), `Wounds ×N` when the server multiplied each wound (Deadly), `H: X  W: Y`
+  as the summary counts them, then `Rules:` (the steps'
   `Applied`) and each rule a suppression removed in a rolling step that no record names (`Regeneration ignored (Unstoppable)`).
 - **Other rolls:** the label and target, `rolled N` for one die (`Team 1 rolled 3` per team for a roll-off) or a table, the
   rerolls, the result with its consequence, `Rules:`.
-- **Wounds:** a change line of models wounded or removed lists each model: `Raider (Raiders) · 2 wounds` (the wounds it now
-  carries), `Raider (Raiders) · removed`; a roll-less step's removed rules lead it (`Regeneration ignored: Rending`).
+- **Wounds:** a change line of models wounded or removed lists each model: `Raider (Raiders) · 2 wounds` (the wounds the
+  step put on it), `Raider (Raiders) · removed`; a roll-less step's removed rules lead it (`Regeneration ignored: Rending`).
 - A paragraph of several lines ends with an empty line.
 
 Melee (strikes, strike back, fatigue's `unmodified 6+`), casting, dangerous terrain, regeneration rolls and the roll-off read the same

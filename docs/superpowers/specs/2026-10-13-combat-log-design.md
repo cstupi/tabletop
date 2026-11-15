@@ -54,8 +54,10 @@ Regeneration 5+: rolled 6 2 3 1, 1 ignored, 3 wounds stand
   of one attack, live or undone alike, draw as one line. A group with neither a hit roll nor a block (Ravage's dice, a self-wound's
   Regeneration) reads as rolls.
 - **H** is the dice the attack's blocks rolled (every hit that reached them, bonus hits and multipliers included); with no block,
-  the hits its rolls scored with the extra hits their faces set off, times `hit_multiplier`. **W** is the blocks' failed dice and
-  the extra wounds their faces set off, less the wounds a roll per wound ignored. **Cover** is `Y` when a block's verdict applied.
+  the hits its rolls scored with the extra hits their faces set off, times `hit_multiplier`. **W** is the wounds the attack dealt:
+  the blocks' failed dice and the extra wounds their faces set off, times the multiplier the server applied to each wound (Deadly's
+  `wound_multiplier` on the attack's assign steps; past what a model has left too), less the wounds a roll per wound ignored. An
+  unblocked Deadly(3) hit is `W: 3`. **Cover** is `Y` when a block's verdict applied.
 - `(melee)` marks a melee frame's weapons; a rule that dealt the hits with no weapon names itself (`(Impact)`, a spell, Deathstrike).
 - A roll per wound in the attack reads under it as a roll.
 
@@ -79,17 +81,18 @@ Roll-off: Team 1 rolled 3 · Team 2 rolled 2, Team 1 wins
 - **Roll-off ties.** Each record's dice are labelled by the teams they belong to, in ordinal order: every team on the first
   record, then the teams still tied. `Team k wins` goes on the record after which no team is tied.
 
-**Change.** What a step did to the table, after the rolls that caused it: `2 models removed`, `1 model wounded`, `Shaken`,
-`Shaken cleared`, and `[unit] Fled!` for models a step sent to the shelf with no wound on them (a rout after a failed morale
-test). A condition on a unit other than the block's actor names it first (`[unit] · Fatigued`, a strike-back's fatigue on the
-charger); outside any block it always does. A bookkeeping condition (`moved`, `moved this round` and the like; client UX spec →
+**Change.** What a step did to the table, after the rolls that caused it: `2 models removed`, `1 model wounded` (a model whose
+wounds the step changed; a step that leaves them where they were, a wound Regeneration ignored, draws none), `[unit] · Shaken`,
+`[unit] · Shaken cleared`, and `[unit] Fled!` for models a step sent to the shelf with no wound on them (a rout after a failed morale
+test). A condition always names its unit (`Red unit 1 · Fatigued`); a test's consequence reads bare after it (`failed → Shaken`). A bookkeeping condition (`moved`, `moved this round` and the like; client UX spec →
 Army roster) draws no line: the header's `moved 2"` says it. A grant reads `[unit] gets [rule]`.
 
-**Outside any action:** `Round 2`; deployment, one line per unit placed; an objective seized or contested; a menu edit, tagged
+**Outside any action:** `Round 1`, `Round 2` (deployment's round 0 and the phase starts draw none); deployment, one line per unit
+placed; an objective seized or contested; a menu edit, tagged
 `by hand`; `Undone to: [the action's header]`, the undone lines struck through; the game's end.
 
 **Not in the log:** `ask_opened`, `ask_answered`, `ask_closed`, a step completion with no roll and no change,
-`sequence_started` without an action, `sequence_finished`, `sequence_abandoned`, `turn_started`, `turn_ended`, and a passed
+`sequence_started` without an action, `sequence_finished`, `sequence_abandoned`, `turn_started`, `turn_ended`, `phase_started`, and a passed
 react window. The events stay in the log the server keeps; the combat log does not draw them.
 
 **The text.** Both clients draw the log as one text (`LogSheet`, the viewer's `logSheet.ts`), one paragraph per entry, two spaces of
@@ -123,6 +126,8 @@ on dice and no cover verdict.
   as Blast or Ignores Cover, or Indirect, when dropping the sight half lost the majority). The +1 applies when `InCover` and
   nothing ignored it. `fire-groups` and `determine-attacks` settle it as `in_cover`, `cover_models`, `cover_of` and
   `cover_indirect`; `roll-to-block` passes the one verdict to every group's `GfRolls.DefensePlan`. Melee and spell hits carry none.
+- **`StepCompleted.Values["wound_multiplier"]`** on an attack's `assign` steps, when it is above 1: what each wound of the segment
+  was multiplied by (Deadly(X), `GfAttack.Wounds`' `WoundEffects`), which the line's `W` multiplies by. A step value, no wire change.
 - A threshold's `ThresholdBasis` (stat, printed value, changes) is already on the wire and is the `Quality 3+` / `Defense 5+`
   part of the line.
 
@@ -148,7 +153,7 @@ The rules stay on the server: the client reads names and numbers from the record
 - `client/src/Hud/CombatLogPanel.cs`: one `RichTextLabel` of `LogBbcode`; `DiceTray.cs`: the tray clips a long line and carries all of
   it as its tooltip.
 - `viewer/src/lib/play/`: `combatLogAttacks.ts`, `logSheet.ts`, `CombatLogPanel.svelte` (one `<pre>`); `tests/fixtures/combatlog.json`
-  carries each case's paragraphs, summary and detailed, over the recorded games and four 3.6 suite games (`tests/fixtures/log/`).
+  carries each case's paragraphs, summary and detailed, over the recorded games, four 3.6 suite games and a 3.5.1 Deadly game (`tests/fixtures/log/`).
 - `viewer/src/lib/live/logLines.ts` reads the same records; it is not changed by this spec.
 
 ## Out of scope

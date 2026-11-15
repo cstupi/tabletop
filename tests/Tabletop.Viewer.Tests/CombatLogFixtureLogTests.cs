@@ -6,8 +6,8 @@ using Tabletop.Sim.Suite;
 namespace Tabletop.Viewer.Tests;
 
 /// <summary>
-/// The 3.6 games the combat log's agreement renders besides the recorded skirmishes (viewer/tests/fixtures/log/): played in process from
-/// rules-suite games under their edition, with no dice fixed, and written as the frames a socket delivers. Their ids differ between runs, so
+/// The games the combat log's agreement renders besides the recorded skirmishes (viewer/tests/fixtures/log/): played in process from
+/// rules-suite games under their edition (3.6, and a 3.5.1 Deadly game), with no dice fixed, and written as the frames a socket delivers. Their ids differ between runs, so
 /// they are regenerated deliberately; viewer/tests/fixtures/combatlog.json is regenerated after them
 /// (TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Client.Tests --filter CombatLogViewerFixture).
 /// </summary>
@@ -25,6 +25,7 @@ public class CombatLogFixtureLogTests
         ("gunline", () => Suite("special-long-range-gunline@3.6")),
         ("indirect", () => Suite("special-indirect-on-hold@3.6")),
         ("spells", () => Suite("spells-daemons-of-change@3.6") with { RoundCap = 1 }),
+        ("deadly", () => Suite("special-blast-deadly-takedown")),
     ];
 
     public static TheoryData<string> Names() => new(Logs.Select(c => c.Name));
@@ -48,6 +49,7 @@ public class CombatLogFixtureLogTests
             "gunline" => rolls.Any(r => r.Dice.Any(d => d.Triggered is { Count: > 0 })) && rolls.Any(r => r.Cover is not null),
             "indirect" => rolls.Any(r => r.Cover is { InCover: true }),
             "spells" => rolls.Any(r => r.Roll == "casting") && rolls.Any(r => r.Roll == "defense"),
+            "deadly" => events.Any(e => e.Payload is StepCompleted { Values: { } v } && v.GetValueOrDefault("wound_multiplier") > 1),
             _ => false,
         }, $"log/{name} lacks what its combat log case needs");
     }

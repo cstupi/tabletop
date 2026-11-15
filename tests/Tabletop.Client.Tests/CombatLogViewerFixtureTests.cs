@@ -12,7 +12,7 @@ namespace Tabletop.Client.Tests;
 /// Vitest renders through its TypeScript port and compares line for line (browser play plan D3). `skirmish` and `terrain` are the viewer's
 /// whole sim games with their welcome and board; `charge` is the owner's game 01a126db with no projection; `worked` a built attack with every
 /// detailed-log field; `spears`, `gunline`, `indirect` and `spells` are 3.6 rules-suite games (viewer/tests/fixtures/log/, written by
-/// tests/Tabletop.Viewer.Tests/CombatLogFixtureLogTests.cs): Impact and melee, faces that set off rules, cover applied and ignored, spell hits. Written only with
+/// tests/Tabletop.Viewer.Tests/CombatLogFixtureLogTests.cs): Impact and melee, faces that set off rules, cover applied and ignored, spell hits; `deadly` a 3.5.1 Deadly and Blast game. Written only with
 /// TABLETOP_WRITE_FIXTURES=1; a plain run fails when the checked-in file differs.
 /// </summary>
 public class CombatLogViewerFixtureTests
@@ -97,7 +97,7 @@ public class CombatLogViewerFixtureTests
     }
 
     static JsonArray Cases() => [Recorded("skirmish"), Recorded("terrain"), CaseOf("charge", CombatLogFixtureTests.Game with { Id = Guid.Parse("01a126db-0000-7000-8000-000000000001"), CreatedBy = Guid.Parse("01a126db-1bb1-77b2-9c9e-cef42380f3c4") }, null, CombatLogFixtureTests.Log()), Worked(),
-        .. new[] { "spears", "gunline", "indirect", "spells" }.Select(n => Recorded(n, "log"))];
+        .. new[] { "spears", "gunline", "indirect", "spells", "deadly" }.Select(n => Recorded(n, "log"))];
 
     /// <summary>The skirmish game with one shooting attack built after it that carries every detailed-log field (detailed-log spec): a Bad Shot unit
     /// firing Unstoppable rifles, a block in cover with a forced reroll, Regeneration removed on the deal-wounds step, a model removed, a morale test.</summary>

@@ -123,7 +123,7 @@ public static class RollWords
     /// <summary>A roll made once per wound being dealt (p.14 Regeneration: "roll one die for each"): one in a deal-wounds frame.</summary>
     public static bool PerWound(string roll, string? sequence) => sequence == "deal-wounds" && roll is not ("hit" or "defense");
 
-    /// <summary>The printed value, the changes in parentheses (an unapplied cover verdict first), `→ needs N` when anything changed it.
+    /// <summary>The printed value, the changes in parentheses (cover a rule took away first), `→ needs N` when anything changed it.
     /// A record with no basis (an old log, a property's own roll) starts from its threshold. A roll judged on the raw face alone reads
     /// `unmodified N+`, nothing when every face passes; dangerous terrain (threshold 2, p.11) reads the face that fails.</summary>
     public static string Target(RollRecord r)
@@ -133,8 +133,7 @@ public static class RollWords
         if (r is { Roll: "dangerous-terrain", Threshold: 2, Basis: null, Modifiers.Count: 0 }) return "1 fails";
         var printed = r.Basis is { } b ? $"{b.Stat} {b.Printed}+" : $"{t}+";
         var parts = new List<string>();
-        if (r.Cover is { } c && !(c.InCover && c.IgnoredBy is null))
-            parts.Add(c.IgnoredBy is { } by ? $"cover ignored ({by})" : $"no cover: {c.Models}/{c.Of} models");
+        if (r.Cover is { IgnoredBy: { } by }) parts.Add($"cover ignored ({by})");
         if (r.Basis is { } basis) parts.AddRange(basis.Changes.Select(x => x.SetTo is { } to ? $"{x.Source} {to}+" : $"{x.Source} {Signed(x.Amount)}"));
         parts.AddRange(r.Modifiers.Select(Modifier));
         var changed = r.Modifiers.Count > 0 || r.Basis is { Changes.Count: > 0 };

@@ -96,7 +96,7 @@ describe('CombatLogBlock', () => {
     expect(words(only(b.entries) as RollEntry)).toBe('Morale · 4+ · ⚂ · failed → Shaken');
   });
 
-  it('a condition on another unit names it and the actors own reads bare', () => {
+  it('a condition names its unit whether it is the actors or another units', () => {
     const theirs = newId();
     const { entries } = buildSample(Round1,
       started(theirs, 'hold', ctx(Enemy, [], [], 'Hold')),          // a strike-back's fatigue lands on the charger
@@ -106,7 +106,7 @@ describe('CombatLogBlock', () => {
       hold(Frame),
       step(Frame, 'x', [], [{ kind: 'condition_set', subject: { kind: 'model', id: Model }, condition: 'fatigued', present: true }]),
       finished(Frame));
-    expect(blocks(entries).map((b) => lines(b.entries).map((l) => l.text))).toEqual([['Battle Brothers · Fatigued', 'Battle Brothers · Shaken'], ['Fatigued']]);
+    expect(blocks(entries).map((b) => lines(b.entries).map((l) => l.text))).toEqual([['Battle Brothers · Fatigued', 'Battle Brothers · Shaken'], ['Battle Brothers · Fatigued']]);
     const outside = newId();                                // a step outside any block: always names the unit
     const loose = buildSample(Round1, started(outside, 'x', ctx(undefined)),
       step(outside, 'y', [], [{ kind: 'condition_set', subject: { kind: 'unit', id: Unit }, condition: 'shaken', present: false }]));

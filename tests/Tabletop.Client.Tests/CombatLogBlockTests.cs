@@ -115,7 +115,7 @@ public class CombatLogBlockTests
     }
 
     [Fact]
-    public void A_condition_on_another_unit_names_it_and_the_actors_own_reads_bare()
+    public void A_condition_names_its_unit_whether_it_is_the_actors_or_another_units()
     {
         var theirs = Guid.CreateVersion7();
         var (entries, _, _) = Build(Round1,
@@ -126,7 +126,7 @@ public class CombatLogBlockTests
             Hold(Samples.Frame),
             new StepCompleted(Samples.Frame, "x", null, [], [new ConditionSet(new Subject(SubjectKind.Model, Samples.Model), "fatigued", true)]),
             new SequenceFinished(Samples.Frame));
-        Assert.Equal([["Battle Brothers · Fatigued", "Battle Brothers · Shaken"], ["Fatigued"]],
+        Assert.Equal([["Battle Brothers · Fatigued", "Battle Brothers · Shaken"], ["Battle Brothers · Fatigued"]],
             entries.OfType<ActivationBlock>().Select(b => b.Entries.OfType<LineEntry>().Select(l => l.Text).ToArray()));
         var outside = Guid.CreateVersion7();                                // a step outside any block: always names the unit
         var (loose, _, _) = Build(Round1, new SequenceStarted(outside, "x", new SequenceContext(null, [], [], null)),

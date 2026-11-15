@@ -8,7 +8,7 @@ import { effectiveLog } from '../live/apply';
 import type { EventPayload, GameEvent, IgnoredEffect, SequenceContext, SequenceStarted, StepCompleted } from '../protocol/wire.generated';
 import { attackLines } from './workedLines';
 import { FrameTree } from './combatLogAttacks';
-import { Aftermath, Draft, changeEntries, deployed } from './combatLogWords';
+import { Aftermath, Draft, WoundsBefore, changeEntries, deployed } from './combatLogWords';
 import { describe, roundChange } from './logText';
 import type { Names } from './names';
 import { type LineEntry, type LogEntry, type RollEntry, rollEntryOf } from './rollEntry';
@@ -60,7 +60,8 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
     list.push({ event: e, dead: isDead(e) });
     amendments.set(p.rollId, list);
   }
-  const after = Aftermath.of(log, frames, isDead, n, amendments);
+  const wounds = WoundsBefore.of(log);
+  const after = Aftermath.of(log, frames, isDead, n, amendments, wounds);
   const tree = FrameTree.of(log);
 
   const top: LogEntry[] = [];
@@ -127,13 +128,15 @@ export function build(log: readonly GameEvent[], n: Names): LogEntry[] {
       }
       if (!after.absorbed.has(e.seq)) {
         let lead = p.rolls.length === 0 && ignored !== null ? ignored.map((x) => `${x.source} ignored: ${x.by}`) : null;
-        for (const c of changeEntries(p.changes, n, drafts.length === 0, drafts.length > 0 ? drafts[drafts.length - 1]!.actor : null)) {
+        for (const c of changeEntries(p.changes, n, drafts.length === 0, null, (m) => wounds.before(e.seq, m))) {
           here.push(line(c.text, lead === null ? c.worked : [...lead, ...(c.worked ?? [c.text])]));
           chain(c.text);
           lead = null;
         }
       }
-    } else if (p.kind === 'round_started') here.push(line(`Round ${p.round}`));
+    } else if (p.kind === 'round_started' && p.round === 0) { /* deployment's round: its deploy lines say it */ }
+    else if (p.kind === 'phase_started') { /* the deploy lines and `Round 1` say each phase */ }
+    else if (p.kind === 'round_started') here.push(line(`Round ${p.round}`));
     else if (p.kind === 'round_ended') here.push(...p.changes.map((c) => line(roundChange(c, n))));
     else if (p.kind === 'undone') {
       // The first action the undo took back that no earlier undo had, else the action it stepped back into.

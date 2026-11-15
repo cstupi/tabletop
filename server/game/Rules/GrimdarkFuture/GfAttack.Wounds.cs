@@ -298,6 +298,7 @@ public static partial class GfAttack
             var left = !fixedModels ? wounds - allocation.Sum(a => a.Count) + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
             var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = !fixedModels ? spilled : 0 };
+            if (multiplier > 1) values["wound_multiplier"] = multiplier;   // Deadly's ×X on each wound of the segment: what the combat log multiplies its wounds by
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
     }

@@ -38,7 +38,8 @@ public static partial class CombatLog
         var rolled = log.Select(e => e.Payload).OfType<StepCompleted>().SelectMany(s => s.Rolls).Select(r => r.Id).ToHashSet();
         var amendments = log.Where(e => e.Payload is DiceRerolled or DiceEdited)
             .ToLookup(e => e.Payload is DiceRerolled r ? r.RollId : ((DiceEdited)e.Payload).RollId, e => (e, Dead(e)));
-        var after = Aftermath.Of(log, frames, Dead, n, amendments);
+        var wounds = WoundsBefore.Of(log);
+        var after = Aftermath.Of(log, frames, Dead, n, amendments, wounds);
         var tree = FrameTree.Of(log);
 
         var top = new List<LogEntry>(); var drafts = new List<Draft>(); var open = new Dictionary<Guid, GameEvent>(); var round = 0;
@@ -102,11 +103,13 @@ public static partial class CombatLog
                     }
                     if (after.Absorbed.Contains(e.Seq)) break;
                     var lead = step.Rolls.Count == 0 ? ignored?.Select(x => $"{x.Source} ignored: {x.By}").ToList() : null;
-                    foreach (var (text, worked) in ChangeEntries(step.Changes, n, drafts.Count == 0, drafts.Count > 0 ? drafts[^1].Actor : null))
+                    foreach (var (text, worked) in ChangeEntries(step.Changes, n, drafts.Count == 0, null, m => wounds.Before(e.Seq, m)))
                     {
                         into.Add(new LineEntry(e.Seq, e, dead, text, lead is null ? worked : [.. lead, .. worked ?? [text]])); Chain(text); lead = null;
                     }
                     break;
+                case RoundStarted { Round: 0 }: break;   // deployment's round: its deploy lines say it
+                case PhaseStarted: break;               // the deploy lines and `Round 1` say each phase
                 case RoundStarted rs: into.Add(Line($"Round {rs.Round}")); break;
                 case RoundEnded re: into.AddRange(re.Changes.Select(c => Line(LogText.RoundChange(c, n)))); break;
                 case Undone u:

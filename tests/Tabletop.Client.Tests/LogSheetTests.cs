@@ -95,7 +95,7 @@ public class LogSheetTests
         var paragraph = LogSheet.Of(Build(events), true).Single(p => p.Entries.Count == 2);
         Assert.Contains("Hits ×3", paragraph.Lines);
         Assert.Contains("1 hit · 2 bonus hits", paragraph.Lines);
-        Assert.Contains("Defense 5+ · No cover (0/5) (3 dice)", paragraph.Lines);
+        Assert.Contains("Defense 5+ (3 dice)", paragraph.Lines);
         Assert.Contains("H: 3  W: 2", paragraph.Lines);
     }
 
@@ -111,6 +111,43 @@ public class LogSheetTests
         var detailed = LogSheet.Of(Build(events), true).Single(p => p.Entries.Count == 3).Lines;
         Assert.Contains("Regeneration · 5+ (4 wounds)", detailed);
         Assert.Contains("1 ignored", detailed);
+    }
+
+    [Fact]
+    public void A_wound_multiplier_the_server_applied_multiplies_the_wounds_before_a_roll_per_wound_takes_any_off()
+    {
+        var events = Shooting(Hit, Block);   // four blocks fail
+        events[7] = new StepCompleted(F(4), "assign", null, [], []) { Values = new Dictionary<string, int> { ["wound_multiplier"] = 3 } };
+        Assert.Equal($"{Unit} → {new Names(Samples.Game, null).Unit(Enemy)}  H: 7  W: 12  Cover: Y", LogSheet.Of(Build(events), false).Single(p => p.Entries.Count == 2).Lines[0]);
+        Assert.Contains("Wounds ×3", LogSheet.Of(Build(events), true).Single(p => p.Entries.Count == 2).Lines);
+
+        var regen = Roll("Regeneration", 5, [], [D(6, true), D(5, true), D(2, false)]);
+        events = Shooting(Hit, Block);
+        events[7] = new StepCompleted(F(4), "assign", null, [regen], []);
+        var after = new StepCompleted(F(4), "assign", null, [], []) { Values = new Dictionary<string, int> { ["wound_multiplier"] = 3 } };
+        var summary = LogSheet.Of(Build([.. events[..8], after, .. events[8..]]), false).Single(p => p.Entries.Count == 3).Lines;
+        Assert.Contains("H: 7  W: 10  Cover: Y", summary[0]);
+    }
+
+    [Fact]
+    public void A_step_that_leaves_a_models_wounds_where_they_were_draws_no_wounded_line()
+    {
+        var events = Shooting(Hit, Block, [new WoundsSet(Samples.Model, 0)]);
+        Assert.DoesNotContain(LogSheet.Of(Build(events), false), p => p.Lines.Any(l => l.EndsWith("wounded", StringComparison.Ordinal)));
+        var later = Shooting(Hit, Block, [new WoundsSet(Samples.Model, 1)]).ToList();
+        later.Insert(8, new StepCompleted(F(4), "assign", null, [], [new WoundsSet(Samples.Model, 1)]));
+        var lines = LogSheet.Of(Build([.. later]), false).SelectMany(p => p.Lines).Where(l => l.EndsWith("wounded", StringComparison.Ordinal)).ToList();
+        Assert.Equal(["1 model wounded"], lines);   // the second step left it at 1
+    }
+
+    [Fact]
+    public void A_wounded_model_reads_the_wounds_this_step_put_on_it()
+    {
+        var events = Shooting(Hit, Block, [new WoundsSet(Samples.Model, 1)]).ToList();
+        events.Insert(8, new StepCompleted(F(4), "assign", null, [], [new WoundsSet(Samples.Model, 3)]));
+        var model = new Names(Samples.Game, new EventApplier(Samples.Board, Samples.Game).Projection).Model(Samples.Model);
+        var worked = LogSheet.Of(Build([.. events]), true).Where(p => p.Entry is LineEntry && p.Depth > 0).Select(p => p.Lines[0]).ToList();
+        Assert.Equal([$"{model} · 1 wound", $"{model} · 2 wounds"], worked);
     }
 
     [Fact]

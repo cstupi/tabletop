@@ -36,9 +36,9 @@ describe('CombatLog', () => {
     expect(r.details).toContain('In cover: 4 of 6 models');
   });
 
-  it('a block out of cover says how many models were in cover', () => {
+  it('a block out of cover says nothing of cover', () => {
     const r = line(roll('defense', 5, [{ source: 'AP', amount: -1 }], [D(1, 0, false)], defense5, { inCover: false, models: 2, of: 6 }));
-    expect(words(r)).toBe('Block · Defense 5+ (no cover: 2/6 models, AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound');
+    expect(words(r)).toBe('Block · Defense 5+ (AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound');
   });
 
   it('a block whose cover a rule ignored names the rule', () => {
@@ -48,7 +48,7 @@ describe('CombatLog', () => {
 
   it('a granted modifier carries the rule that granted it and past six needs six', () => {
     const r = line(roll('defense', 5, [{ source: 'AP', amount: -1 }, { source: 'AP', amount: -4, via: 'Rending' }], [D(6, 1, true)], defense5, { inCover: false, models: 0, of: 3 }));
-    expect(words(r)).toBe('Block · Defense 5+ (no cover: 0/3 models, AP(1), Rending AP(+4)) → needs 6 · ⚅ · 1 blocked, 0 wounds');
+    expect(words(r)).toBe('Block · Defense 5+ (AP(1), Rending AP(+4)) → needs 6 · ⚅ · 1 blocked, 0 wounds');
     expect(r.details).toEqual(['Heavy Rifle', 'Defense 5+', 'AP(1)', 'Rending AP(+4)', 'Not in cover: 0 of 3 models', 'Target 5+']);
   });
 
@@ -175,7 +175,7 @@ describe('CombatLog', () => {
     expect(entries).toHaveLength(2);
     const b = block(entries[1]);
     expect(b.header).toBe(`R2 · Team 1 · Battle Brothers · Advance → ${Names.short(Enemy)}`);
-    expect(b.chainParts.join(' → ')).toBe('Hit 1 → 1 model wounded → Shaken');
+    expect(b.chainParts.join(' → ')).toBe('Hit 1 → 1 model wounded → Battle Brothers · Shaken');
   });
 
   it('an undone activation closes struck through and an undo inside one keeps it open', () => {

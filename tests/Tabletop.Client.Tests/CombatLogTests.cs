@@ -42,10 +42,10 @@ public class CombatLogTests
     }
 
     [Fact]
-    public void A_block_out_of_cover_says_how_many_models_were_in_cover()
+    public void A_block_out_of_cover_says_nothing_of_cover()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("AP", -1)], [D(1, 0, false)], Defense5, new CoverVerdict(false, 2, 6)));
-        Assert.Equal("Block · Defense 5+ (no cover: 2/6 models, AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Block · Defense 5+ (AP(1)) → needs 6 · ⚀ · 0 blocked, 1 wound", r.Collapsed(CombatLog.Pip));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class CombatLogTests
     public void A_granted_modifier_carries_the_rule_that_granted_it_and_past_six_needs_six()
     {
         var r = Line(Roll("defense", 5, [new RollModifier("AP", -1), new RollModifier("AP", -4, "Rending")], [D(6, 1, true)], Defense5, new CoverVerdict(false, 0, 3)));
-        Assert.Equal("Block · Defense 5+ (no cover: 0/3 models, AP(1), Rending AP(+4)) → needs 6 · ⚅ · 1 blocked, 0 wounds", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Block · Defense 5+ (AP(1), Rending AP(+4)) → needs 6 · ⚅ · 1 blocked, 0 wounds", r.Collapsed(CombatLog.Pip));
         Assert.Equal(["Heavy Rifle", "Defense 5+", "AP(1)", "Rending AP(+4)", "Not in cover: 0 of 3 models", "Target 5+"], r.Details);
     }
 
@@ -218,7 +218,7 @@ public class CombatLogTests
         Assert.Equal(2, entries.Count);
         var block = Assert.IsType<ActivationBlock>(entries[1]);
         Assert.Equal($"R2 · Team 1 · Battle Brothers · Advance → {Names.Short(Enemy)}", block.Header);
-        Assert.Equal("Hit 1 → 1 model wounded → Shaken", block.Chain);
+        Assert.Equal("Hit 1 → 1 model wounded → Battle Brothers · Shaken", block.Chain);
     }
 
     [Fact]

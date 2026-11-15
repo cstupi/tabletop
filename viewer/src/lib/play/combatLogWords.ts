@@ -16,30 +16,59 @@ import { nameOfOption, split } from './spellText';
  * each condition set or cleared (a unit other than actor, or a model's unit, named first), each grant (`{unit} gets {entry}`).
  * Outside an action a deployment and an objective's control also read, in LogText's words.
  */
-export function changeLines(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null): string[] {
-  return changeEntries(changes, n, outside, actor).map((x) => x.text);
+export function changeLines(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null, before: ((model: string) => number) | null = null): string[] {
+  return changeEntries(changes, n, outside, actor, before).map((x) => x.text);
 }
 
-/** CombatLog.ChangeEntries: changeLines with what the detailed log draws for each: a wounded line lists each model with the wounds it now
- * carries, a removed line each model removed; any other line draws as it reads. */
-export function changeEntries(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null): { text: string; worked: readonly string[] | null }[] {
+/** CombatLog.ChangeEntries: changeLines with what the detailed log draws for each: a wounded line lists each model with the wounds the step
+ * put on it, a removed line each model removed; any other line draws as it reads. before: a model's wounds ahead of the step (WoundsBefore);
+ * a model the step left at those wounds is not wounded. A condition names its unit unless it is actor's (null: always). */
+export function changeEntries(
+  changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null, before: ((model: string) => number) | null = null,
+): { text: string; worked: readonly string[] | null }[] {
   const entries: { text: string; worked: readonly string[] | null }[] = [];
   const moves = changes.filter((c): c is ModelsMoved => c.kind === 'models_moved').flatMap((m) => m.moves);
   const shelved = new Set(moves.filter((m) => m.to.kind === 'shelf').map((m) => m.modelId));
   const woundedIds = new Set(changes.flatMap((c) => (c.kind === 'wounds_set' ? [c.modelId] : [])));
   const lastWounds = new Map<string, number>();
   for (const c of changes) if (c.kind === 'wounds_set') lastWounds.set(c.modelId, c.wounds);
-  const wounded = [...woundedIds].filter((m) => !shelved.has(m)).length;
+  const woundedNow = [...lastWounds].filter(([m, w]) => !shelved.has(m) && (before === null || before(m) !== w));
   const removed = [...shelved].filter((m) => woundedIds.has(m)).length;
-  if (wounded > 0)
+  if (woundedNow.length > 0)
     entries.push({
-      text: `${RollWords.plural(wounded, 'model')} wounded`,
-      worked: [...lastWounds].filter(([m]) => !shelved.has(m)).map(([m, w]) => `${n.model(m)} · ${RollWords.plural(w, 'wound')}`),
+      text: `${RollWords.plural(woundedNow.length, 'model')} wounded`,
+      worked: woundedNow.map(([m, w]) => `${n.model(m)} · ${RollWords.plural(w - (before?.(m) ?? 0), 'wound')}`),
     });
   if (removed > 0)
     entries.push({ text: `${RollWords.plural(removed, 'model')} removed`, worked: [...lastWounds.keys()].filter((m) => shelved.has(m)).map((m) => `${n.model(m)} · removed`) });
   for (const text of otherLines(changes, n, outside, actor, shelved, woundedIds)) entries.push({ text, worked: null });
   return entries;
+}
+
+/** CombatLog.WoundsBefore: each model's wounds ahead of each event that sets them, read ahead of the build in log order; an undo drops
+ * what was set after its seq; 0 before any. */
+export class WoundsBefore {
+  readonly #before = new Map<string, number>();
+
+  before(seq: number, model: string): number { return this.#before.get(`${seq}|${model}`) ?? 0; }
+
+  static of(log: readonly GameEvent[]): WoundsBefore {
+    const w = new WoundsBefore();
+    let history: { seq: number; model: string; wounds: number }[] = [];
+    let now = new Map<string, number>();
+    for (const e of log) {
+      const p = e.payload;
+      const set = p.kind === 'step_completed' ? p.changes.flatMap((c) => (c.kind === 'wounds_set' ? [c] : [])) : p.kind === 'wounds_set' ? [p] : [];
+      if (p.kind === 'undone') {
+        history = history.filter((h) => h.seq <= p.toSeq);
+        now = new Map();
+        for (const h of history) now.set(h.model, h.wounds);
+      }
+      for (const x of set) { const key = `${e.seq}|${x.modelId}`; if (!w.#before.has(key)) w.#before.set(key, now.get(x.modelId) ?? 0); }
+      for (const x of set) { now.set(x.modelId, x.wounds); history.push({ seq: e.seq, model: x.modelId, wounds: x.wounds }); }
+    }
+    return w;
+  }
 }
 
 function otherLines(changes: readonly StateChange[], n: Names, outside: boolean, actor: string | null, shelved: ReadonlySet<string>, woundedIds: ReadonlySet<string>): string[] {
@@ -95,7 +124,7 @@ export class Aftermath {
 
   static of(
     log: readonly GameEvent[], frames: ReadonlyMap<string, SequenceStarted>, isDead: (e: GameEvent) => boolean, n: Names,
-    amendments: ReadonlyMap<string, readonly Dead[]>,
+    amendments: ReadonlyMap<string, readonly Dead[]>, wounds: WoundsBefore,
   ): Aftermath {
     const a = new Aftermath();
     const test = new Map<string, { roll: string; dead: boolean }>();
@@ -116,7 +145,7 @@ export class Aftermath {
           const pending = test.get(p.frameId);
           if (p.rolls.length > 0) test.delete(p.frameId);   // a later roll's changes are its own
           else if (pending !== undefined && pending.dead === dead) {
-            const words = changeLines(p.changes, n, false, started?.context.actorUnitId ?? null);
+            const words = changeLines(p.changes, n, false, started?.context.actorUnitId ?? null, (m) => wounds.before(e.seq, m));
             if (words.length > 0) { a.#words.get(pending.roll)!.push(...words); a.absorbed.add(e.seq); }
           }
           for (const r of p.rolls.filter((x) => isTest(x, started?.sequence ?? null))) { test.set(p.frameId, { roll: r.id, dead }); a.#words.set(r.id, []); }
