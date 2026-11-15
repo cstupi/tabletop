@@ -43,7 +43,7 @@ public class CameraFocusTests
     public void Steer_is_silent_while_typing_and_q_e_turn_the_held_unit()
     {
         var held = new HashSet<Intent> { Intent.CameraForward, Intent.CameraLeft, Intent.TurnLeft };
-        Assert.Equal((1, -1, 1), CameraFocus.Steer(held, holding: false, typing: false));
+        Assert.Equal((1, -1, -1), CameraFocus.Steer(held, holding: false, typing: false));
         Assert.Equal((1, -1, 0), CameraFocus.Steer(held, holding: true, typing: false));
         Assert.Equal((0, 0, 0), CameraFocus.Steer(held, holding: false, typing: true));
     }

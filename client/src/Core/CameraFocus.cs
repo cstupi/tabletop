@@ -15,7 +15,7 @@ public static class CameraFocus
     {
         if (typing) return (0, 0, 0);
         int On(Intent i) => held.Contains(i) ? 1 : 0;
-        return (On(Intent.CameraForward) - On(Intent.CameraBack), On(Intent.CameraRight) - On(Intent.CameraLeft), holding ? 0 : On(Intent.TurnLeft) - On(Intent.TurnRight));
+        return (On(Intent.CameraForward) - On(Intent.CameraBack), On(Intent.CameraRight) - On(Intent.CameraLeft), holding ? 0 : On(Intent.TurnRight) - On(Intent.TurnLeft));   // Q swings the camera right about the focus, so the table turns left
     }
 
     /// <summary>The turn this frame for what is in hand, in degrees, positive counter-clockwise (Q): none while typing or with nothing in hand.</summary>
