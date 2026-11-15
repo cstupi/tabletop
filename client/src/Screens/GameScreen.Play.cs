@@ -81,6 +81,7 @@ public partial class GameScreen
         _header.GameOverPressed += _end.Open;
         _header.SettingsRequested += () => SettingsDialog.Open(this, _session);
         _card.ModelPicked += SelectModel;
+        _card.Lit += pieces => { if (_decision is { } d && IsInstanceValid(d)) d.Light(pieces); };   // a weapon or group row under the pointer lights its models
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;
         _undo.Reported += Toast;

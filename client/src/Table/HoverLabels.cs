@@ -22,7 +22,7 @@ public partial class HoverLabels : Node3D
     readonly CanvasLayer _overHud = new() { Layer = 20 };
     readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: pick models", Visible = false };
     Guid? _hovered, _marker, _terrain;
-    Action<Guid?>? _onHover, _onMarker, _onTerrain; Action? _onChanged, _onSelection, _onTheme; Action<RenderCause>? _onFrame;
+    Action<Guid?>? _onHover, _onMarker, _onTerrain, _onModel; Action? _onChanged, _onSelection, _onTheme; Action<RenderCause>? _onFrame;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -31,9 +31,9 @@ public partial class HoverLabels : Node3D
         _overHud.AddChild(_terrainPanel); GetTree().Root.CallDeferred(Node.MethodName.AddChild, _overHud);
         _onTheme = () => { _terrainShown = null; DrawTerrain(); }; Ui.Changed += _onTheme;
         _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onTerrain = id => { _terrain = id; DrawTerrain(); };
-        _onSelection = Draw;
+        _onSelection = Draw; _onModel = _ => Draw();
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Facts)) != 0) Draw(); };
-        input.HoveredUnitChanged += _onHover; input.HoveredMarkerChanged += _onMarker; input.SelectionChanged += _onSelection; input.EligibleChanged += _onChanged;
+        input.HoveredUnitChanged += _onHover; input.HoveredModelChanged += _onModel; input.HoveredMarkerChanged += _onMarker; input.SelectionChanged += _onSelection; input.EligibleChanged += _onChanged;
         input.HoveredTerrainChanged += _onTerrain;
         input.Locks.Changed += _onChanged;
         session.Frame.Render += _onFrame;
@@ -46,7 +46,7 @@ public partial class HoverLabels : Node3D
         if (IsInstanceValid(_overHud)) _overHud.QueueFree();
         if (IsInstanceValid(_input))
         {
-            _input.HoveredUnitChanged -= _onHover; _input.HoveredMarkerChanged -= _onMarker; _input.SelectionChanged -= _onSelection; _input.EligibleChanged -= _onChanged;
+            _input.HoveredUnitChanged -= _onHover; _input.HoveredModelChanged -= _onModel; _input.HoveredMarkerChanged -= _onMarker; _input.SelectionChanged -= _onSelection; _input.EligibleChanged -= _onChanged;
             _input.HoveredTerrainChanged -= _onTerrain;
             _input.Locks.Changed -= _onChanged;
         }
@@ -73,14 +73,15 @@ public partial class HoverLabels : Node3D
         _name.Visible = false; _line.Mesh = null;
         DrawLock(); DrawTerrain();
         if (_hovered is not { } unit || _s.Projection is not { } p || _s.Game is not { } game) return;
-        if (HoverView.Of(p, game, new Names(game, p), unit, MySelectedUnit(p, game), _s.MaxWounds) is not { } info) return;
+        if (HoverView.Of(p, game, new Names(game, p), unit, MySelectedUnit(p, game), _s.MaxWounds, _input.HoveredModel) is not { } info) return;
         var nodes = _view.Pieces.OfType<PieceNode>().Where(n => n.UnitId == unit && !n.IsQueuedForDeletion()).ToList();
         if (nodes.Count == 0) return;
         var top = nodes.Max(n => n.Bounds.End.Y);
         var centre = nodes.Aggregate(Vector3.Zero, (a, n) => a + n.GlobalPosition) / nodes.Count;
         var eligible = _input.Eligible.Contains(unit) || nodes.Any(n => _input.Eligible.Contains(n.ModelId));
         _name.Text = (eligible ? $"{info.Name} · Click to target" : info.Distance is { } d ? $"{info.Name} · {d:0.0}\"" : info.Name)
-            + (HoverView.WoundsLine(info.Wounds) is { } wounds ? $"\n{wounds}" : "");   // one label, so the wounds never overlap the name
+            + (HoverView.WoundsLine(info.Wounds) is { } wounds ? $"\n{wounds}" : "")    // one label, so the wounds never overlap the name
+            + (info.Model is { } model ? $"\nThis model: {model}" : "");                // the model under the pointer, when it is not like the rest
         _name.Modulate = Palette.Team(info.TeamOrdinal);
         _name.Position = new Vector3(centre.X, top + 1.2f, centre.Z);
         _name.Visible = true;

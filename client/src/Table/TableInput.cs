@@ -14,7 +14,7 @@ public partial class TableInput : Node
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!; LandingMarks _marks = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
     bool _presenceDirty; Cursor? _cursor; readonly TapeMeasure _tape = new(); Vector2 _measureDown;
-    Drag? _drag; readonly PendingDrops _drops = new(); Guid? _pointed, _named;
+    Drag? _drag; readonly PendingDrops _drops = new(); Guid? _pointed, _named, _pointedModel;
     IReadOnlySet<Guid> _eligible = new HashSet<Guid>();
     public TableTool Tool { get; set; } = TableTool.Select;
     bool _measureHeld;
@@ -54,6 +54,8 @@ public partial class TableInput : Node
     public event Action? SelectionChanged;
     public event Action<Guid>? PieceLeftClicked;
     public event Action<Guid?>? HoveredUnitChanged;
+    /// <summary>The model under the pointer on the table changed (HoveredModel): the hover label says what sets it apart in its unit.</summary>
+    public event Action<Guid?>? HoveredModelChanged;
     public event Action<Guid?>? HoveredMarkerChanged;
     public event Action<Guid?>? HoveredTerrainChanged;
     public event Action<Guid>? UnitClicked;
@@ -261,8 +263,13 @@ public partial class TableInput : Node
         var terrain = (piece as TerrainNode)?.PlacementId;
         if (terrain != HoveredTerrain) { HoveredTerrain = terrain; HoveredTerrainChanged?.Invoke(terrain); }
         var was = HoveredUnit; _pointed = over?.UnitId;
+        var wasModel = HoveredModel; _pointedModel = over?.ModelId;
         if (HoveredUnit != was) HoveredUnitChanged?.Invoke(HoveredUnit);
+        if (HoveredModel != wasModel) HoveredModelChanged?.Invoke(HoveredModel);
     }
+
+    /// <summary>The model under the cursor on the table; null while a decision-box button names the hovered unit.</summary>
+    public Guid? HoveredModel => _named is null ? _pointedModel : null;
 
     /// <summary>The hovered unit: the one a decision-box button under the pointer names, else the one under the cursor on the table.</summary>
     public Guid? HoveredUnit => _named ?? _pointed;

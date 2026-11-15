@@ -172,6 +172,32 @@ public class UnitSheetLoadoutTests
         Assert.Equal([false, false, false, true], m.Select(x => x.Hero));
     }
 
+    /// <summary>The owner, 2026-11-14: "There should be a way to see the special models in a unit". A weapon row knows the standing models
+    /// that carry it, for the table to light.</summary>
+    [Fact]
+    public void A_weapon_row_names_the_standing_models_that_carry_it()
+    {
+        var w = Sheet().Weapons.ToDictionary(x => x.Name);
+        Assert.Equal([Mixed.Models[0].Id], w["Bomb Drone"].Carriers);
+        Assert.Equal([Mixed.Models[3].Id], w["Rocket Launcher"].Carriers);                      // carried twice by one model
+        Assert.Equal(Mixed.Models.Select(m => m.Id), w["CCW"].Carriers);
+    }
+
+    /// <summary>What sets a model apart among the models it was imported with, as the web app's army page marks it (slotMarks): the weapons and
+    /// rules not every one of them carries. A joined Hero is its own entry, so it has no marks and is named by its label.</summary>
+    [Fact]
+    public void A_model_is_marked_by_what_its_peers_do_not_all_carry()
+    {
+        Assert.Equal(["Bomb Drone"], UnitSheet.Marks(Mixed, Mixed.Models[0]));
+        Assert.Empty(UnitSheet.Marks(Mixed, Mixed.Models[1]));
+        Assert.Empty(UnitSheet.Marks(Mixed, Mixed.Models[3]));
+        Assert.Equal("Bomb Drone", UnitSheet.ModelLine(Mixed, Mixed.Models[0]));
+        Assert.Null(UnitSheet.ModelLine(Mixed, Mixed.Models[1]));                               // one of the many: nothing to say
+        Assert.Equal("Orc Leader", UnitSheet.ModelLine(Mixed, Mixed.Models[3]));
+        var banner = Mixed with { Models = [.. Mixed.Models.Take(2), Mixed.Models[2] with { Name = "Specialists (Junk Banner) 3", Properties = [new PropertyInstance("Junk Banner", null)] }] };
+        Assert.Equal("Junk Banner", UnitSheet.ModelLine(banner, banner.Models[2]));             // the import names the slot for its upgrade: still a Specialist
+    }
+
     [Fact]
     public void Models_alike_in_name_weapons_rules_and_stats_share_a_kind()
     {

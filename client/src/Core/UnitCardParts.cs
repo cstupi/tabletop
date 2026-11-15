@@ -28,5 +28,5 @@ public static class UnitCardParts
     }
 
     static bool Same(SheetWeapon a, SheetWeapon b) =>
-        a.Name == b.Name && a.Count == b.Count && a.Range == b.Range && a.Attacks == b.Attacks && a.Ap == b.Ap && a.ApRule == b.ApRule && a.Rules.SequenceEqual(b.Rules);
+        a.Name == b.Name && a.Count == b.Count && a.Range == b.Range && a.Attacks == b.Attacks && a.Ap == b.Ap && a.ApRule == b.ApRule && a.Rules.SequenceEqual(b.Rules) && (a.Carriers ?? []).SequenceEqual(b.Carriers ?? []);
 }

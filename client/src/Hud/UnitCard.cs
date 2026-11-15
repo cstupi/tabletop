@@ -24,6 +24,8 @@ public partial class UnitCard : VBoxContainer
     public Guid? UnitId => _unit;
     public event Action<Guid>? ModelPicked;
     public event Action<Guid?>? FocusChanged;
+    /// <summary>The models a row under the pointer names (a weapon's carriers, a group's standing models), for the table to light; null when the pointer leaves.</summary>
+    public event Action<IReadOnlyList<Guid>?>? Lit;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -256,6 +258,8 @@ public partial class UnitCard : VBoxContainer
             ThemeTypeVariation = Variation.Chip;
             Row.AddThemeConstantOverride("separation", 8); AddChild(Row);
             foreach (var c in new Control[] { Pips, Hero, Title, Wounds, WoundCount }) Row.AddChild(c);
+            Title.MouseEntered += () => { if (Card is { } card && Group is { Standing.Count: > 0 } group) card.Lit?.Invoke(group.Standing); };
+            Title.MouseExited += () => Card?.Lit?.Invoke(null);
             Title.Pressed += () =>
             {
                 if (Card is not { } card || Group is not { } group) return;
@@ -301,7 +305,15 @@ public partial class UnitCard : VBoxContainer
         // The heads are the grid's first five children, made with it and never taken: the kept cells follow them.
         foreach (var w in weapons)
         {
-            Look.Text(cells.Take("name", () => Wrap("")), w.Count > 1 ? $"{w.Name} ×{w.Count}" : w.Name);
+            var name = cells.Take("name", () =>
+            {
+                var l = new WeaponName { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Stop };
+                l.MouseEntered += () => { if (l.Carriers.Count > 0) Lit?.Invoke(l.Carriers); };      // the table lights the models carrying it
+                l.MouseExited += () => Lit?.Invoke(null);
+                return l;
+            });
+            name.Carriers = w.Carriers ?? [];
+            Look.Text(name, w.Count > 1 ? $"{w.Name} ×{w.Count}" : w.Name);
             Look.Text(cells.Take("range", () => new Label()), w.Range);
             Look.Text(cells.Take("attacks", () => new Label()), w.Attacks);
             var ap = cells.Take("ap", () => new Label { MouseFilter = MouseFilterEnum.Stop }); Look.Text(ap, w.Ap); Look.Tip(ap, w.ApRule is { } r ? Tooltip(r) : "");
@@ -336,6 +348,8 @@ public partial class UnitCard : VBoxContainer
         Look.Text((Label)row.GetChild(1), text, variation);
     }
     static PanelContainer Badge(string text) { var badge = new PanelContainer { ThemeTypeVariation = Variation.Badge }; badge.AddChild(new Label { Text = text }); return badge; }
+    /// <summary>A weapon row's name cell: it holds the standing models carrying the weapon (SheetWeapon.Carriers) for its hover.</summary>
+    sealed partial class WeaponName : Label { public IReadOnlyList<Guid> Carriers = []; }
     /// <summary>A label that wraps to the slot's width, so its text never sets the card's minimum width.</summary>
     static Label Wrap(string text, string variation = "") =>
         new() { Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };

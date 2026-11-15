@@ -336,7 +336,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The pieces lit by the tile under the pointer, the rest of the Ask's glow dark so the hovered unit stands out
     /// among others of the same name, and the hover label of the one unit they name (TableInput.HoverUnit); null puts the Ask's glow back.</summary>
     IReadOnlyList<Guid>? _lit;
-    void Light(IReadOnlyList<Guid>? pieces)
+    public void Light(IReadOnlyList<Guid>? pieces)
     {
         bool In(IReadOnlyList<Guid>? set, PieceNode n) => set is not null && (set.Contains(n.ModelId) || set.Contains(n.UnitId));
         foreach (var n in _view.Pieces.OfType<PieceNode>())

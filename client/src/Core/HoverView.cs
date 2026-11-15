@@ -7,7 +7,8 @@ namespace Tabletop.Client.Core;
 /// What hovering a unit shows (spec: in-game UX → Hover a unit): its name in its team's colour; with a unit selected, the distance between
 /// the two units and the two base-edge points it runs between; the wounds left of each model that takes more than one.
 /// </summary>
-public sealed record HoverInfo(Guid UnitId, string Name, int TeamOrdinal, double? Distance, Point3? From, Point3? To, IReadOnlyList<(Guid ModelId, int Left, int Max)> Wounds);
+/// <summary>Model: the line of the model under the pointer (UnitSheet.ModelLine: what sets it apart in its unit), null for one like the rest or with none pointed at.</summary>
+public sealed record HoverInfo(Guid UnitId, string Name, int TeamOrdinal, double? Distance, Point3? From, Point3? To, IReadOnlyList<(Guid ModelId, int Left, int Max)> Wounds, string? Model = null);
 
 public static class HoverView
 {
@@ -21,7 +22,7 @@ public static class HoverView
     public static string? WoundsLine(IReadOnlyList<(Guid ModelId, int Left, int Max)> wounds) =>
         wounds.Count == 0 ? null : string.Join(" · ", wounds.GroupBy(w => (w.Left, w.Max)).Select(g => g.Count() > 1 ? $"{g.Key.Left}/{g.Key.Max} ×{g.Count()}" : $"{g.Key.Left}/{g.Key.Max}"));
 
-    public static HoverInfo? Of(Projection p, GameInfo game, Names n, Guid hoveredUnit, Guid? selectedUnit, IReadOnlyDictionary<Guid, int> maxWounds)
+    public static HoverInfo? Of(Projection p, GameInfo game, Names n, Guid hoveredUnit, Guid? selectedUnit, IReadOnlyDictionary<Guid, int> maxWounds, Guid? hoveredModel = null)
     {
         if (!p.Units.TryGetValue(hoveredUnit, out var unit)) return null;
         var hovered = OnTable(p, hoveredUnit);
@@ -40,7 +41,8 @@ public static class HoverView
 
         var wounds = hovered.Select(m => (m.Model.Id, Max: maxWounds.GetValueOrDefault(m.Model.Id, 1), m.Model.Wounds))
             .Where(m => m.Max > 1).Select(m => (m.Id, Math.Max(0, m.Max - m.Wounds), m.Max)).ToList();
-        return new HoverInfo(hoveredUnit, n.Unit(hoveredUnit), ordinal, distance, from, to, wounds);
+        var model = hoveredModel is { } id && p.Models.TryGetValue(id, out var pointed) && pointed.UnitId == hoveredUnit ? UnitSheet.ModelLine(unit.Definition, pointed.Slot) : null;
+        return new HoverInfo(hoveredUnit, n.Unit(hoveredUnit), ordinal, distance, from, to, wounds, model);
     }
 
     /// <summary>The unit's models on the table, by slot ordinal, each with its placed body.</summary>

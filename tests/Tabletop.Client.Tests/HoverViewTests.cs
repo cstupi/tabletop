@@ -41,6 +41,8 @@ public class HoverViewTests
         Assert.Equal((Red.Id, "Red Warriors", 2), (info.UnitId, info.Name, info.TeamOrdinal));
         Assert.Null(info.Distance); Assert.Null(info.From); Assert.Null(info.To);
         Assert.Empty(info.Wounds);
+        Assert.Null(info.Model);                                                                // no model under the pointer
+        Assert.Null(HoverView.Of(p, Game, new Names(Game, p), Red.Id, null, NoFacts, Red.Models[0].Id)!.Model);   // a model like the rest of its unit
     }
 
     // p.5: "When measuring the distance between two units you always measure from/to the closest model in each unit", and between two
