@@ -59,17 +59,18 @@ public static partial class LogSheet
     }
 
     /// <summary>The roll's table of faces as rolled, then each live reroll or edit (one die: `Rerolled (Bane): 6 → 2`; more: a table of the
-    /// new faces), then each rule its faces set off, as a table of the dice that set it off (`Relentless (6s: +1 hit)`).</summary>
+    /// new faces), then each rule its faces set off as one line: what it added (`+2 hits (Relentless)`, `+1 wound (Shred)`), or for a rule
+    /// that adds nothing countable the dice it rode on (`Rending (6s: 2 dice)`). A rule that rolls dice of its own is a record and a table of its own.</summary>
     static IEnumerable<string> Dice(RollEntry r)
     {
         foreach (var l in Table(Rolled(r))) yield return l;
         foreach (var l in Amended(r)) yield return l;
-        foreach (var g in r.Dice.SelectMany(d => (d.Triggered ?? []).Select(t => (Face: d.Raw, Trigger: RollWords.Parse(t)))).GroupBy(x => x.Trigger))
+        // A rule a face set off rolls no dice of its own (Die.Triggered on these dice): one line, its total, no table.
+        foreach (var g in r.Dice.SelectMany(d => (d.Triggered ?? []).Select(t => (Face: d.Raw, Trigger: RollWords.Parse(t)))).GroupBy(x => (x.Trigger.Rule, x.Trigger.Word)))
         {
-            var (rule, amount, word) = g.Key;
-            var faces = string.Join(", ", g.Select(x => x.Face).Distinct().Order().Select(f => $"{f}s"));
-            yield return $"{rule} ({faces}{(word.Length == 0 ? "" : $": +{amount} {word}{(amount == 1 ? "" : "s")}")})";
-            foreach (var l in Table(g.Select(x => x.Face))) yield return l;
+            var (rule, word) = g.Key; var total = g.Sum(x => x.Trigger.Amount);
+            yield return word.Length > 0 ? $"{RollWords.Signed(total)} {word}{(Math.Abs(total) == 1 ? "" : "s")} ({rule})"
+                : $"{rule} ({string.Join(", ", g.Select(x => x.Face).Distinct().Order().Select(f => $"{f}s"))}: {RollWords.Plural(g.Count(), "die")})";
         }
         if (Always(r) is { } note) yield return note;
     }

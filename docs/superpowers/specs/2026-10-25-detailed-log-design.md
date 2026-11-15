@@ -51,7 +51,7 @@ R2 · Team 1 · Marksmen · Hold → Blue unit 1
   weapon name with its count, stats (`24"`, `A1`) and rules as the army lists them.
 - **Tables:** a `1 … 6` row over the count of dice per face, columns two wide (wider for a count past 99). A roll's table holds its
   faces as rolled; each live reroll or edit follows (`Rerolled (Bane): 6 → 2` for one die, a labelled table of the new faces for
-  more); each rule its faces set off follows as a table of the dice that set it off (`Relentless (6s: +1 hit)`).
+  more); each rule its faces set off rolls no dice of its own, so it is one line under the table, no table: what it added (`+2 hits (Relentless)`, `+1 wound (Shred)`), or for a rule that adds nothing countable the dice it rode on (`Rending (6s: 2 dice)`). A rule that rolls dice of its own (Impact, Ravage, a reroll, extra attacks rolled as new dice) is a record, and gets its own labelled table.
 - **Target:** after the roll's label, ` · ` between the parts: the stat and its printed value (`Quality 4+`); each replace_stat
   (`Hero 3+`) and modify_stat row (`Shaken +1`); each stat row a suppression took away (`Hero 3+ ignored (Curse)`); cover a rule took
   away (`Cover ignored (Blast)`; no cover reads nothing); each roll modifier with the sign the roll applies (`AP(1) -1`,

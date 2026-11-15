@@ -58,7 +58,7 @@ public class LogSheetTests
     }
 
     [Fact]
-    public void A_detailed_attack_tables_the_faces_names_what_the_faces_set_off_and_lists_the_block_modifiers_with_their_signs()
+    public void A_detailed_attack_tables_the_faces_adds_what_the_faces_set_off_in_a_line_and_lists_the_block_modifiers_with_their_signs()
     {
         var lines = LogSheet.Of(Build(Shooting(Hit, Block)), true).Single(p => p.Entries.Count == 2).Lines;
         Assert.Equal(
@@ -67,9 +67,7 @@ public class LogSheetTests
             "Hit roll · Quality 4+ (8 dice)",
             " 1  2  3  4  5  6",
             " 1  1  1  2  1  2",
-            "Relentless (6s: +1 hit)",
-            " 1  2  3  4  5  6",
-            " 0  0  0  0  0  2",
+            "+2 hits (Relentless)",
             "5 hits · 2 bonus hits",
             "",
             "Defense 5+ · AP(1) -1 · Cover +1 · needs 5+ (7 dice)",
@@ -79,6 +77,18 @@ public class LogSheetTests
             "Rules: Relentless",
             "",
         ], lines.Where(l => !l.StartsWith("  ", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void A_rule_a_face_set_off_rolls_no_table_of_its_own_on_either_side()
+    {
+        var hit = Roll("hit", 4, [], [D(6, true, "Rending"), D(6, true, "Rending"), D(2, false)], new ThresholdBasis("Quality", 4, []));
+        var block = Roll("defense", 5, [], [D(1, false, "Shred +1 wound"), D(5, true)], new ThresholdBasis("Defense", 5, []));
+        var lines = LogSheet.Of(Build(Shooting(hit, block)), true).Single(p => p.Entries.Count == 2).Lines;
+        Assert.Contains("Rending (6s: 2 dice)", lines);
+        Assert.Contains("+1 wound (Shred)", lines);
+        Assert.Equal(2, lines.Count(l => l == " 1  2  3  4  5  6"));   // the hit roll's and the block's, no more
+        Assert.Contains("H: 2  W: 2", lines);
     }
 
     [Fact]

@@ -156,22 +156,22 @@ function amended(r: RollEntry): string[] {
   return out;
 }
 
-/** LogSheet.Dice: the table as rolled, each reroll or edit, each rule the faces set off as a table of the dice that set it off. */
+/** LogSheet.Dice: the table as rolled, each reroll or edit, each rule the faces set off as one line (`+2 hits (Relentless)`). */
 function diceLines(r: RollEntry): string[] {
   const out = [...table(rolledFaces(r)), ...amended(r)];
-  const groups = new Map<string, { rule: string; amount: number; word: string; faces: number[] }>();
+  // A rule a face set off rolls no dice of its own (die.triggered on these dice): one line, its total, no table.
+  const groups = new Map<string, { rule: string; word: string; total: number; faces: number[] }>();
   for (const d of r.dice)
     for (const t of d.triggered ?? []) {
       const p = parseTrigger(t);
-      const key = `${p.rule}\u0000${p.amount}\u0000${p.word}`;
+      const key = `${p.rule}\u0000${p.word}`;
       let g = groups.get(key);
-      if (g === undefined) groups.set(key, g = { ...p, faces: [] });
-      g.faces.push(d.raw);
+      if (g === undefined) groups.set(key, g = { rule: p.rule, word: p.word, total: 0, faces: [] });
+      g.total += p.amount; g.faces.push(d.raw);
     }
-  for (const g of groups.values()) {
-    const faces = [...new Set(g.faces)].sort((a, b) => a - b).map((f) => `${f}s`).join(', ');
-    out.push(`${g.rule} (${faces}${g.word.length === 0 ? '' : `: +${g.amount} ${g.word}${g.amount === 1 ? '' : 's'}`})`, ...table(g.faces));
-  }
+  for (const g of groups.values())
+    out.push(g.word.length > 0 ? `${signed(g.total)} ${g.word}${Math.abs(g.total) === 1 ? '' : 's'} (${g.rule})`
+      : `${g.rule} (${[...new Set(g.faces)].sort((a, b) => a - b).map((f) => `${f}s`).join(', ')}: ${RollWords.plural(g.faces.length, 'die')})`);
   const note = always(r);
   if (note !== null) out.push(note);
   return out;
