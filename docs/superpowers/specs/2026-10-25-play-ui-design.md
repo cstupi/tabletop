@@ -8,7 +8,7 @@ DO it"*.
 
 - **A page of the website.** The viewer loads the website's `themes.css` and `app.css` (`viewer/src/main.ts`) and its header
   (`shell/SiteHeader.svelte`). Use the site's classes and tokens only: `.panel`, `button` / `.button` with `.primary`, `.danger`,
-  `.quiet`, `.small`; `.seg`; `.chip`; `.empty`, `.loading`, `[role='alert']`, `.notice`; `h1`/`h2`; `--s1`…`--s7`, `--text`,
+  `.quiet`, `.small`; `.seg`; `.chip`; `.empty`, `.loading`, `[role='alert']`, `.notice`; `h1`/`h2`; `--space-1`…`--space-6`, `--text`,
   `--dim`, `--accent`, `--rule`, `--panel`, `--panel-solid`, `--success`, `--warning`, `--failure`, `--font-display`, `--font-num`.
   No hard-coded colours outside the board's canvas. Both themes (Sci-fi, Fantasy) must read well; check both.
 - **An app that fits the window.** `main.viewer` fills the space under the header; a page never scrolls the window. Board pages

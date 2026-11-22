@@ -120,13 +120,22 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - Table frame: Z up, origin at the corner; mesh space is converted by `Proposal.orientation`, not by the page.
 - Themes mirror the client's `UiThemes` (Sci-fi default, Fantasy): change a colour or font in both. Theme-wide control rules use
   `:where()` so scoped component styles win; buttons take `.primary`, `.danger`, `.quiet`; blocks are `.panel`, `.seg`, `.empty`,
-  `.loading`, `.notice`; spacing `--s1`…`--s7`. Sci-fi controls are clipped (`clip-path`), so their focus is the frame turning
+  `.loading`, `.notice`; spacing `--space-1`…`--space-6` (→ Spacing). Sci-fi controls are clipped (`clip-path`), so their focus is the frame turning
   light, not an outline. Text pairs meet WCAG AA on their panel; Fantasy's `--dim` is AA only on parchment, not the page background.
 - `static/theme-init.js` duplicates `loadTheme`'s read; `tests/theme.test.ts` runs it to keep them in step. It loads after
   `%sveltekit.head%` so the CSP meta covers it.
 - `svelte.config.js` sets `kit.csp` (hash mode): `script-src 'self' 'wasm-unsafe-eval'` (meshoptimizer's WASM), `worker-src 'self' blob:`,
   `connect-src` and `img-src` add the blob origin (`TABLETOP_BLOB_ORIGIN`, default `http://127.0.0.1:9000`) and `PUBLIC_API_BASE`'s origin. A new
   outside origin goes there. `font-src 'self'`: fonts are self-hosted, never a CDN.
+
+## Spacing
+
+- Every padding, margin and gap is `var(--space-1)` 4px, `--space-2` 8, `--space-3` 16, `--space-4` 24, `--space-5` 32 or `--space-6` 48,
+  defined once in `src/themes.css` (the viewer imports it); `0` and `auto` stay. Negative offsets are `calc(-1 * var(--space-N))`, the
+  Fantasy panel adds `var(--frame-inset)` (its drawn band), and a lone `-1px` lays a border over its neighbour's.
+- A container's padding is smaller than the gap to its siblings (card 16 inside, 24 between); related items sit closer than unrelated;
+  even padding, one left edge. Pages here take the upper steps.
+- `tests/spacing.test.ts` fails on a literal in `src/**/*.{css,svelte}`. Rules: `docs/superpowers/specs/2026-11-21-spacing-rules-design.md`.
 
 ## Docs
 

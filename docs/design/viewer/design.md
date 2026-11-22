@@ -653,7 +653,7 @@ a menu item's pick hint or a refused hand action; the piece menu (`PieceMenu`) o
   the primary action after the end, the Ask's first choice before it.
 
 The page uses the website's classes and tokens only (`.panel`, `.primary`, `.quiet`, `.small`, `.notice`, `[role='alert']`,
-`--s1`…`--s7`, the colour tokens) and reads in both themes. `HeaderBar` reads every line inside one derivation of the
+`--space-1`…`--space-6`, the colour tokens) and reads in both themes. `HeaderBar` reads every line inside one derivation of the
 connection state: the projection is mutated in place, so a derivation keyed on its identity alone would not rerun.
 
 ## Key decisions

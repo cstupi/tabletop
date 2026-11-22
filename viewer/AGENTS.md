@@ -92,6 +92,15 @@ held at an Ask on a worktree's own server: `sim/AGENTS.md` → A game left at an
 - Node 24 via mise; `.npmrc` pins exact versions.
 - Pages use the website's classes and tokens only (`docs/superpowers/specs/2026-10-25-play-ui-design.md` → Principles); check both themes. A page fits the window: side columns scroll inside themselves, the window never does. Show words, never ids or snake_case names.
 
+## Spacing
+
+- Every padding, margin and gap is `var(--space-1)` 4px, `--space-2` 8, `--space-3` 16, `--space-4` 24, `--space-5` 32 or `--space-6` 48,
+  from `web/src/themes.css` (imported in `src/main.ts`; never redefined here); `0` and `auto` stay. Negative offsets are
+  `calc(-1 * var(--space-N))`; the Fantasy panel adds `var(--frame-inset)`.
+- A container's padding is smaller than the gap to its siblings; related items sit closer than unrelated; even padding, one left edge.
+  The games list and lobby take the upper steps; the play and setup panels over the table stay on `--space-1`…`--space-3`.
+- `tests/spacing.test.ts` fails on a literal in `src/**/*.{css,svelte}`. Rules: `docs/superpowers/specs/2026-11-21-spacing-rules-design.md`.
+
 ## Docs
 
 - `docs/design/viewer/design.md`

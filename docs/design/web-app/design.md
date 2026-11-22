@@ -914,7 +914,7 @@ The web app wears the Godot client's two themes, Sci-fi (default) and Fantasy
   focus is a 2 px dark outline.
 - **Rules.** Theme-wide control rules sit in `:where()`, so a component's scoped style wins.
   Buttons take `.primary`, `.danger` or `.quiet`; `.panel`, `.seg` (aria-pressed group), `.empty`,
-  `.loading`, `.notice` are the shared blocks in `src/app.css`. Spacing is `--s1`…`--s7`.
+  `.loading`, `.notice` are the shared blocks in `src/app.css`. Spacing is `--space-1`…`--space-6`.
 - **Icons.** `Icon.svelte` draws paths from `components/icons.ts` on the client's 32-unit grid in
   the current colour: Sci-fi a thin line over a wide translucent glow, Fantasy one heavier line.
   `objective` (the brand mark) and `settings` are the client's paths. Icons are decorative; each
