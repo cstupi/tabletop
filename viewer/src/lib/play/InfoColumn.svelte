@@ -34,7 +34,6 @@
   import type { UndoPrediction } from './undo';
   import { FILTER_LABELS, bandOf } from './logRows';
   import HudIcon from './HudIcon.svelte';
-  import Icon from '../../../../web/src/lib/components/Icon.svelte';
 
   const FILTERS: readonly LogFilter[] = ['all', 'rolls', 'mine', 'unit'];
 
@@ -185,65 +184,58 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if playing}
+  <!-- Its parts are items of the play page's right column (display: contents), in its order: the corner's Undo and Log, the open log under
+       them, the strip and the cards, then the latest roll above the decision box at the column's foot. -->
   <div class="info">
-    {#if strip !== null}<EnemyStrip {strip} />{/if}
-    {#if card !== null}
-      <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} picked={selection?.pieceId === card.sheet.unitId ? selection.modelIds : []} onPick={onPickModel} />
-    {/if}
-    {#if terrainCard !== null}<TerrainCard card={terrainCard} />{/if}
-    {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}
-    <section class="panel log" class:open={logOpen} aria-label="Combat log">
-      <div class="head">
-        <button type="button" class="toggle" tabindex="-1" aria-expanded={logOpen} title="Show or hide the log (G)"
-          onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}>
-          <span class="chev" class:open={logOpen}><Icon name="chevron" size="1rem" /></span>
-          <HudIcon name="log" size={18} />
-          <h2>Log</h2>
-          <kbd>G</kbd>
-        </button>
-        {#if logOpen}
+    <div class="corner">
+      <UndoButton bind:this={undo} plan={log?.undo ?? null} {watching} onUndo={(seq) => void undoTo(seq)} />
+      <button type="button" class="corner-button" class:open={logOpen} tabindex="-1" aria-pressed={logOpen} aria-label="Log" title="Log (G)"
+        onmousedown={(e) => e.preventDefault()} onclick={() => setLogOpen(!logOpen)}><HudIcon name="log" size={22} /></button>
+    </div>
+    {#if logOpen}
+      <section class="panel log" aria-label="Combat log">
+        <div class="head">
+          <h2><HudIcon name="log" size={18} />Log</h2>
           <select class="filter" aria-label="Log filter" value={logFilter} onchange={(ev) => setFilter(ev.currentTarget.value as LogFilter)}>
             {#each FILTERS as f, i (f)}<option value={f}>{FILTER_LABELS[i]}</option>{/each}
           </select>
           <label class="detailed" title="Each roll as tables of its dice, its modifiers and its totals">
             <input type="checkbox" checked={logDetailed} onchange={(ev) => setDetailed(ev.currentTarget.checked)} /> Detailed
           </label>
-        {/if}
-      </div>
-      {#if logOpen}
+        </div>
         <CombatLogPanel
           {entries} filter={logFilter} detailed={logDetailed} {pendingUndoTo} {watching} {rules} reveal={revealRoll} showFilter={false}
           bandOf={(e) => (log !== null && snap.game !== null ? bandOf(e, log.names, snap.game) : 0)}
           onFilter={setFilter} onUndoTo={(seq) => void undoTo(seq)} {onTouch}
         />
-      {/if}
-      {#if problem !== null}<p role="alert">{problem}</p>{/if}
-      {#if tray || !watching}
-        <div class="foot">
-          {#if tray}<DiceTray roll={log?.latest ?? null} onClick={openAt} />{:else}<span></span>{/if}
-          <UndoButton bind:this={undo} plan={log?.undo ?? null} {watching} onUndo={(seq) => void undoTo(seq)} />
-        </div>
-      {/if}
-    </section>
+      </section>
+    {/if}
+    {#if problem !== null}<p class="problem" role="alert">{problem}</p>{/if}
+    {#if strip !== null}<EnemyStrip {strip} />{/if}
+    {#if card !== null}
+      <UnitCard {card} selectedModel={selection?.modelIds.length === 1 ? selection.modelIds[0] ?? null : null} picked={selection?.pieceId === card.sheet.unitId ? selection.modelIds : []} onPick={onPickModel} />
+    {/if}
+    {#if terrainCard !== null}<TerrainCard card={terrainCard} />{/if}
+    {#if selectionLine !== null && (card === null || selection?.modelIds.length === 1)}<p class="selection">{selectionLine}</p>{/if}
+    {#if !logOpen}<div class="push"></div>{/if}
+    {#if tray}<div class="panel roll"><DiceTray roll={log?.latest ?? null} onClick={openAt} /></div>{/if}
   </div>
 {/if}
 
 <style>
-  .info { display: flex; flex-direction: column; gap: var(--space-3); flex: 1 1 0; min-height: 0; }
-  .selection { margin: 0; color: var(--dim); font-size: .9rem; }
-  .log { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); flex: none; min-height: 0; }
-  .log.open { flex: 1 1 10rem; min-height: 10rem; }
+  .info { display: contents; }
+  .corner { order: 0; display: flex; justify-content: flex-end; gap: var(--space-2); flex: none; }
+  .corner :global(.corner-button) { display: inline-flex; align-items: center; justify-content: center; min-height: 0; padding: var(--space-2); line-height: 0; }
+  .corner .open { background-color: var(--btn-hover); color: var(--accent); }
+  .log { order: 1; display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-2); flex: 1 1 10rem; min-height: 10rem; }
   :global([data-theme='fantasy']) .log { padding: calc(var(--space-2) + var(--frame-inset)); }
+  .problem { order: 1; margin: 0; }
+  .info > :global(:is(.strip, .card, .selection)) { order: 2; }
+  .selection { margin: 0; color: var(--dim); font-size: .9rem; }
+  .push { order: 3; flex: 1 1 0; min-height: 0; }
+  .roll { order: 4; flex: none; margin: 0; padding: var(--space-2); }
   .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-  .toggle { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2rem; padding: 0; border: 0; border-radius: 0; clip-path: none; box-shadow: none;
-    background: none; color: var(--text); }
-  .toggle:hover:not(:disabled) { background: none; color: var(--accent); }
-  .toggle h2 { margin: 0; font-size: .9rem; }
-  .chev { display: inline-flex; transition: transform .12s; }
-  .chev.open { transform: rotate(90deg); }
-  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
+  .head h2 { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-size: .9rem; }
   .filter { min-height: 2rem; min-width: 0; font-size: .9rem; }
   .detailed { display: flex; flex: none; align-items: center; gap: var(--space-1); font-size: .9rem; white-space: nowrap; }
-  .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--rule); }
-  [role='alert'] { margin: 0; }
 </style>

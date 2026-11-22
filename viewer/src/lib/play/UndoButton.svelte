@@ -1,6 +1,6 @@
 <!-- viewer/src/lib/play/UndoButton.svelte -->
-<!-- UndoButton.cs (`↶ Undo ⌃Z`): undoes the last action in the game, whoever took it. Hidden for a watcher; disabled only when nothing is undoable;
-     the tooltip names the action. When the undo would take dice rolls with it, a dialog lists them, one per line, first. -->
+<!-- UndoButton.cs: the `undo` icon alone, a square button in the play view's top right corner; undoes the last action in the game, whoever
+     took it. Hidden for a watcher; disabled only when nothing is undoable; the tooltip is its word and key, then the action. When the undo would take dice rolls with it, a dialog lists them, one per line, first. -->
 <script lang="ts">
   import { NOTHING_TO_UNDO, type UndoPlan } from './undo';
   import HudIcon from './HudIcon.svelte';
@@ -26,7 +26,8 @@
 </script>
 
 {#if !watching}
-  <button type="button" tabindex="-1" disabled={plan === null} title={plan?.tooltip ?? NOTHING_TO_UNDO} class="small" onmousedown={(e) => e.preventDefault()} onclick={press}><span class="cap"><HudIcon name="undo" size={16} />Undo <kbd>⌃Z</kbd></span></button>
+  <button type="button" tabindex="-1" disabled={plan === null} title={`Undo (Ctrl+Z)\n${plan?.tooltip ?? NOTHING_TO_UNDO}`} aria-label="Undo" class="corner-button"
+    onmousedown={(e) => e.preventDefault()} onclick={press}><HudIcon name="undo" size={22} /></button>
 {/if}
 
 <dialog bind:this={dialog} onclose={() => (asking = null)} aria-labelledby="undo-title">
@@ -41,9 +42,7 @@
 </dialog>
 
 <style>
-  .cap { display: inline-flex; align-items: center; gap: var(--space-1); }
   .flat { border: 0; background: none; box-shadow: none; clip-path: none; color: var(--text); }
-  kbd { font-family: var(--font-num); font-size: .7rem; line-height: 1; padding: var(--space-1) var(--space-1); border: 1px solid currentColor; border-radius: 3px; opacity: .7; }
   dialog { max-width: 30rem; }
   h2 { margin-top: 0; }
   .rolls { white-space: pre-line; overflow-wrap: anywhere; }

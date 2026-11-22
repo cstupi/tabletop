@@ -522,7 +522,7 @@
 </div>
 
 <style>
-  /* The top bar over the roster and the board; the right column the full height. Nothing floats over the board but the banner and the
+  /* The top bar over the roster and the board; the right column the full height, Undo and Log at its top right. Nothing floats over the board but the banner and the
      pick hint or refusal at its foot. */
   .play { display: grid; height: 100%; min-height: 0; grid-template-columns: auto minmax(0, 1fr) 23rem; grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas: 'top top side' 'roster stage side'; }
@@ -535,12 +535,14 @@
   .float.foot p { margin: 0; box-shadow: 0 2px 10px #0000004d; }
   .side { grid-area: side; display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; overflow: hidden; padding: var(--space-2);
     border-left: 1px solid var(--rule); background: color-mix(in srgb, var(--panel-solid) 60%, transparent); }
+  /* The column's order (InfoColumn's parts are its items): Undo and Log in the top right corner, the open log under them, the cards, then
+     the latest roll and the decision box (or the waiting teams) flush at the foot. */
+  .side > :global(:is(.decision, .quiet-bands, .waiting)) { order: 5; }
   @media (max-width: 75rem) { .play { grid-template-columns: auto minmax(0, 1fr) 20rem; } }
   /* A short window: the column scrolls as a whole, each part at its own height, the log at least 24rem. */
   @media (max-height: 52rem) {
     .side { overflow-y: auto; }
     .side :global(:is(.decision, .card)) { flex: none; max-height: none; }
-    .side :global(.info) { flex: 1 0 auto; }
-    .side :global(.log.open) { flex: 1 0 24rem; height: 24rem; }
+    .side :global(.log) { flex: 1 0 24rem; height: 24rem; }
   }
 </style>
