@@ -100,22 +100,28 @@ public partial class RangeRingNode : Node3D
     {
         if (!_s.Settings.RangeRings || _s.Projection is not { } p || _s.Game is not { } game || _s.MyTeamId is not { } team) return null;
         if (RangeRings.UnitFor(p, game, team, _input.Selected?.PieceId) is not { } unit) return null;   // mine only: selected, else my team's activating unit
-        var build = RangeRings.Builder(p, unit);
-        return _ranges.Get(unit, [RingStamp.Of(p, unit, null)], () => Shape(build())) is { } rings ? (rings, Palette.Team(game.Teams.First(t => t.Id == team).Ordinal)) : null;
+        var build = RangeRings.Builder(p, unit); var colour = Palette.Team(game.Teams.First(t => t.Id == team).Ordinal);
+        return _ranges.Get(unit, [RingStamp.Of(p, unit, null)], () => Shape(build(), colour)) is { } rings ? (rings, colour) : null;
     }
 
     (Shaped Rings, Color Colour)? ThreatOf(Guid unit)
     {
         if (_s.Projection is not { } p || _s.Game is not { } game || _s.Threats.GetValueOrDefault(unit) is not { } threat) return null;
         var build = ThreatRings.Builder(p, unit, threat);
-        if (_threats.Get(unit, [RingStamp.Of(p, unit, threat)], () => Shape(build())) is not { } rings) return null;
         var team = game.Participants.FirstOrDefault(x => x.Id == p.Units[unit].ParticipantId)?.TeamId;
-        return (rings, Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0));
+        var colour = Palette.Team(game.Teams.FirstOrDefault(t => t.Id == team)?.Ordinal ?? 0);
+        return _threats.Get(unit, [RingStamp.Of(p, unit, threat)], () => Shape(build(), colour)) is { } rings ? (rings, colour) : null;
     }
 
     /// <summary>A set of rings with what each draws from: its look and its fill and label shape, built with the outline off the main thread.</summary>
-    public sealed record Shaped(IReadOnlyList<(RangeRing Ring, RingLook Look, RingShape Shape)> Rings);
-    static Shaped Shape(IReadOnlyList<RangeRing> rings) => new(rings.Where(r => r.Segments.Count > 0).Select(r => (r, RingLook.Of(r.Kind), RingShape.Of(r.Segments))).ToList());
+    /// <summary>With the fill's and the outline's vertex arrays for <c>Colour</c> when the build knew the colour, so the layer only uploads them.</summary>
+    public sealed record Shaped(IReadOnlyList<(RangeRing Ring, RingLook Look, RingShape Shape)> Rings, Color? Colour = null, RingArrays.Surface? Fill = null, RingArrays.Surface? Line = null);
+    static Shaped Shape(IReadOnlyList<RangeRing> rings, Color? colour = null)
+    {
+        var shaped = rings.Where(r => r.Segments.Count > 0).Select(r => (r, RingLook.Of(r.Kind), RingShape.Of(r.Segments))).ToList();
+        if (colour is not { } c) return new(shaped);
+        return new(shaped, c, RingArrays.Fill(shaped.Select(x => (x.Item3, x.Item2)).ToList(), c), RingArrays.Line(shaped.Select(x => (x.r, x.Item2)).ToList(), c));
+    }
 
     /// <summary>Each frame: every shown label under its ring's lowest point on the screen clear of the Hud's panels, then moved apart and off them (RingLabels.Place). A frame projects
     /// at most RingShape.Labels points per ring and builds nothing.</summary>
@@ -175,8 +181,9 @@ public partial class RangeRingNode : Node3D
             if (want is not { } shown) return;
             var (rings, colour) = shown;
             var drawn = rings.Rings;
-            _fill.Mesh = RingMesh.Fill(drawn.Select(x => (x.Shape, x.Look)).ToList(), colour);
-            _line.Mesh = _behind.Mesh = RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), rim ?? colour);
+            var built = rings.Colour == colour;   // the build's arrays are for this colour (the outline's too, unless a rim colour is asked)
+            _fill.Mesh = built ? RingMesh.Fill(rings.Fill) : RingMesh.Fill(drawn.Select(x => (x.Shape, x.Look)).ToList(), colour);
+            _line.Mesh = _behind.Mesh = built && rim is null ? RingMesh.Line(rings.Line) : RingMesh.Line(drawn.Select(x => (x.Ring, x.Look)).ToList(), rim ?? colour);
             foreach (var (ring, look, shape) in drawn)
             {
                 if (Labels.Count == _made.Count) { var made = Label(); _parent.AddChild(made); _made.Add(made); }

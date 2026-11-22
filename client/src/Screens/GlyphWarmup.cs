@@ -13,8 +13,9 @@ namespace Tabletop.Client.Screens;
 /// </summary>
 public static class GlyphWarmup
 {
-    /// <summary>ASCII and the punctuation the Hud's and the table's words use.</summary>
-    public static readonly string Text = new string([.. Enumerable.Range(32, 95).Select(c => (char)c)]) + "·…—–✕″’×°";
+    /// <summary>ASCII, the punctuation and symbols the Hud's and the table's words use, and the dice faces (CombatLog.Pip). A symbol the theme's font
+    /// lacks (⚠, ★, the faces) is looked up in the system's fonts the first time it is drawn, which costs a frame tens of milliseconds.</summary>
+    public static readonly string Text = new string([.. Enumerable.Range(32, 95).Select(c => (char)c)]) + "·…—–✕″’×°→←↑↓›⇧⇄✓▸▾▶○●◉★⚠⟳⟲⏎⌄⌨☰Δ⚀⚁⚂⚃⚄⚅";
 
     static readonly string[] LabelVariations = ["", Variation.Banner, Variation.BannerDetail, Variation.Dim, Variation.Accent, Variation.Success, Variation.Failure,
         Variation.Warning, Variation.Display, Variation.Numerals, Variation.Mono];
